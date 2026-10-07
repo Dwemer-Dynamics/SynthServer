@@ -1,0 +1,13 @@
+* text=auto
+
+# The mirrored protocol is hashed byte-for-byte on Windows and Linux.
+/protocol/** text eol=lf
+# Catalog checksums cover exact bytes, including line endings, on every checkout.
+/data/fallout_worldknowledge_parity_v1.csv text eol=lf
+/data/fallout_worldknowledge_vocabulary.json text eol=lf
+/data/fallout_worldknowledge_sources.jsonl text eol=lf
+*.php text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

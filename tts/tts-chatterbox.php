@@ -1,0 +1,332 @@
+<?php
+
+require_once dirname(__DIR__) . '/lib/speech_cache.php';
+
+require_once dirname(__DIR__) . '/lib/provider_stream.php';
+require_once dirname(__DIR__) . '/lib/voice_clone_resolver.php';
+
+
+function chatterbox_insert_noise($inputString, $noiseArray) {
+    // Split the string into words
+    $words = explode(' ', $inputString);
+
+	if (!is_array($words))
+		return $inputString;
+    // Shuffle the noise array to ensure randomness
+    shuffle($noiseArray);
+
+    // Calculate the number of insert positions (between words)
+    $numInsertPositions = count($words) - 1;
+
+    // Ensure we don't have more noises than insert positions
+    $numNoises = min(count($noiseArray), $numInsertPositions);
+
+    // Get a random subset of the insert positions
+    $insertPositions = array_rand(array_fill(0, $numInsertPositions, 1), $numNoises);
+
+    // Ensure $insertPositions is an array even if there's only one position
+    if (!is_array($insertPositions)) {
+        $insertPositions = array($insertPositions);
+    }
+
+    // Sort insert positions in descending order to avoid shifting positions
+    rsort($insertPositions);
+
+    // Insert the noise elements at the chosen positions
+    foreach ($insertPositions as $index => $pos) {
+        array_splice($words, $pos + 1, 0, $noiseArray[$index]);
+		break; //Comment  to more noise
+    }
+
+    // Join the words back into a string
+    return implode(' ', $words);
+}
+
+if (!function_exists('chatterbox_normalize_endpoint_url')) {
+    function chatterbox_normalize_endpoint_url($url) {
+        // Remove trailing slashes
+        $url = rtrim($url, '/');
+        return $url;
+    }
+}
+
+if (!function_exists('chatterbox_endpoint_url')) {
+    function chatterbox_endpoint_url($url) {
+        $url = chatterbox_normalize_endpoint_url($url);
+        $parts = parse_url($url);
+
+        if ($parts !== false && isset($parts['host']) && in_array($parts['host'], ['0.0.0.0', '::'], true)) {
+            $scheme = $parts['scheme'] ?? 'http';
+            $user = isset($parts['user']) ? $parts['user'] . (isset($parts['pass']) ? ':' . $parts['pass'] : '') . '@' : '';
+            $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+            $path = $parts['path'] ?? '';
+            $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+            $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+            return $scheme . '://' . $user . '127.0.0.1' . $port . $path . $query . $fragment;
+        }
+
+        return $url;
+    }
+}
+
+function chatterbox_settings($settings,$resetAfter=false) {
+	$url = chatterbox_endpoint_url($GLOBALS["TTS"]["CHATTERBOX"]["endpoint"]).'/set_tts_settings';
+	$data = json_decode('{
+		"stream_chunk_size": 20,
+		"temperature": 0.9,
+		"speed": 1,
+		"length_penalty": 1,
+		"repetition_penalty": 5,
+		"top_p": 0.85,
+		"top_k": 50,
+		"enable_text_splitting": true
+		}',true);
+	
+	$finalData=array_merge($data,$settings);
+	
+	if ($resetAfter)
+		$GLOBALS["TTS"]["CHATTERBOX"]["RESET"]=true;
+
+	$options = array(
+		'http' => array(
+			'header' => "Content-type: application/json\r\n" .
+						"Accept: application/json\r\n",
+			'method' => 'POST',
+			'content' => json_encode($finalData)
+		)
+	);
+	$context = stream_context_create($options);
+	$result = synth_speech_fetch($url, $context, $http_response_header);
+	
+	if ($result === FALSE) {
+		// Handle error
+		Logger::error("Error occurred. ".__FILE__." ".__LINE__." ".__FUNCTION__);
+	} else {
+		;//ok
+	}
+}
+
+// convert numbers into Japanese kanji
+function chatterbox_num2kan_decimal($instr) {
+    // Check if the input is exactly 0. Return katakana zero in that case.
+    if ($instr === '0') {
+        return "\u{30BC}\u{30ED}";
+    }
+
+    static $kantbl1 = array(0=>'', 1=>"\u{4E00}", 2=>"\u{4E8C}", 3=>"\u{4E09}", 4=>"\u{56DB}", 5=>"\u{4E94}", 6=>"\u{516D}", 7=>"\u{4E03}", 8=>"\u{516B}", 9=>"\u{4E5D}", '.'=>"\u{FF0E}", '-'=>"\u{FF0D}");
+    static $kantbl2 = array(0=>'', 1=>"\u{5341}", 2=>"\u{767E}", 3=>"\u{5343}");
+    static $kantbl3 = array(0=>'', 1=>"\u{4E07}", 2=>"\u{5104}", 3=>"\u{5146}", 4=>"\u{4EAC}");
+
+	$outstr = '';
+	$len = strlen($instr);
+	$m = (int)($len / 4);
+	//repeat for each grouping of numbers (single digits, ten thousands, etc)
+	for ($i = 0; $i <= $m; $i++) {
+		$s2 = '';
+		//repeat for each grouping of numbers inside a larger grouping (single digits, tens, hundreds, thousands)
+		for ($j = 0; $j < 4; $j++) {
+			$pos = $len - $i * 4 - $j - 1;
+			if ($pos >= 0) {
+				$ch  = substr($instr, $pos, 1);
+				if ($ch == ',') continue;       //ignore commas
+				$ch1 = isset($kantbl1[$ch]) ? $kantbl1[$ch] : '';
+				$ch2 = isset($kantbl2[$j])  ? $kantbl2[$j]  : '';
+                // handle case when leading one is present (10 should be ten and not one-ten)
+				if ($ch1 != '') {
+                    if ($ch1 == "\u{4E00}" && $ch2 != '') $s2 = $ch2 . $s2;
+					else                                $s2 = $ch1 . $ch2 . $s2;
+				}
+			}
+		}
+		if ($s2 != '')  $outstr = $s2 . $kantbl3[$i] . $outstr;
+	}
+
+	return $outstr;
+}
+
+
+$GLOBALS['SYNTH_TTS_DRIVERS']['chatterbox'] = $GLOBALS["TTS_IN_USE"]=function($textString, $mood , $stringforhash) {
+
+		//chatterbox_settings([]); //Check this
+		
+		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && $GLOBALS["AVOID_TTS_CACHE"]===false )
+			if (synth_speech_cache_valid(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
+				return dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
+		
+		
+		
+		$newString=$textString;
+		
+	    $starTime = microtime(true);
+
+		$url = chatterbox_endpoint_url($GLOBALS["TTS"]["CHATTERBOX"]["endpoint"])."/tts_to_audio/";
+
+		// Request headers
+		$headers = array(
+			'Accept: audio/wav',
+			'Content-Type: application/json'
+		);
+		
+		$lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?$GLOBALS["TTS"]["FORCED_LANG_DEV"]:$GLOBALS["TTS"]["CHATTERBOX"]["language"];
+		
+		
+		if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&$GLOBALS["LANG_LLM_XTTS"]) {
+			$lang=$GLOBALS["LLM_LANG"];
+
+		}
+		
+		if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
+        	$lang=$GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+
+		if (empty($lang))
+			$lang=$GLOBALS["TTS"]["CHATTERBOX"]["language"];
+
+		// Sanitize language code - remove any extra characters from LLM parsing
+		// Valid XTTS language codes
+		$validLangs = ['en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'ar', 'zh-cn', 'ja', 'hu', 'ko', 'hi'];
+		$lang = preg_replace('/[^a-z\-]/i', '', strtolower(trim($lang ?? '')));
+		if (!in_array($lang, $validLangs)) {
+			Logger::warn("Invalid TTS language code '{$lang}', defaulting to 'en'");
+			$lang = 'en';
+		}
+
+		// xtts has trouble reading numbers when lang is Japanese
+		// PATCH it by converting numbers into kanji, which it can read
+		if ($lang == 'ja') {
+			$callback=function ($matches) {
+				return chatterbox_num2kan_decimal($matches[0]);
+			};
+			// remove commas between digits
+			$newString = preg_replace('/(?<=\d),(?=\d)/', '', $newString);
+			// replace numbers with kanji
+			$newString=preg_replace_callback('/\d+/', $callback, $newString);
+		}
+	
+		// Hook for connector-specific text modifiers.
+		if (isset($GLOBALS["HOOKS"]) && isset($GLOBALS["HOOKS"]["XTTS_TEXTMODIFIER"]) && is_array($GLOBALS["HOOKS"]["XTTS_TEXTMODIFIER"])) {
+			foreach ($GLOBALS["HOOKS"]["XTTS_TEXTMODIFIER"] as $hook) {
+				Logger::info("Calling hook.".__FILE__." ".__LINE__." ".__FUNCTION__);
+				$newString=call_user_func($hook,$newString);
+	
+			}
+		}
+		$voice = $GLOBALS["PATCH_OVERRIDE_VOICE"]
+			?? $GLOBALS["TTS"]["FORCED_VOICE_DEV"]
+			?? ($GLOBALS["TTS"]["CHATTERBOX"]["voiceid"] ?? '');
+
+		if (empty($voice))
+			$voice = $GLOBALS["TTS"]["CHATTERBOX"]["voiceid"] ?? '';
+
+		$speakerVoice = synth_prepare_planned_clone_voice('chatterbox',
+			chatterbox_endpoint_url($GLOBALS['TTS']['CHATTERBOX']['endpoint']), strval($voice));
+		if ($speakerVoice === false) return false;
+
+		if ($GLOBALS)	
+			$data = array(
+				'text' => $newString,
+				'speaker_wav' => $speakerVoice,
+				'language' => $lang??'en'	//Defaults to english
+			);
+			
+		$options = array(
+			'http' => array(
+				'header' => "Content-type: application/json\r\n" .
+							"Accept: application/json\r\n",
+				'method' => 'POST',
+				'content' => json_encode($data)
+			)
+		);
+		$context = stream_context_create($options);
+		$response = synth_speech_fetch($url, $context, $http_response_header);
+
+		// Planned replies use only their captured primary/configured fallback, never a guessed actor codename.
+		if ($response === FALSE && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
+			// Handle error
+			Logger::error("Error occurred. ".__FILE__." ".__LINE__." ".__FUNCTION__);
+			
+			// Lets try to use standard scheme:
+			$codename = str_replace(" ", "_", mb_strtolower($GLOBALS["SYNTH_NAME"], 'UTF-8'));
+			$codename = str_replace("'", "+", $codename);
+			$codename=preg_replace('/[^a-zA-Z0-9_+]/u', '', $codename);
+			
+			$data = array(
+				'text' => $newString,
+				'speaker_wav' => $codename,
+				'language' => $lang??"en"
+			);
+			$options = array(
+				'http' => array(
+					'header' => "Content-type: application/json\r\n" .
+								"Accept: application/json\r\n",
+					'method' => 'POST',
+					'content' => json_encode($data)
+				)
+			);
+			$context = stream_context_create($options);
+			$response = synth_speech_fetch($url, $context, $http_response_header);
+
+
+		}
+
+
+		if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+			$FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+			
+		} else {
+			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
+		}
+		
+		if (isset($GLOBALS["TTS"]["CHATTERBOX"]["RESET"]) && $GLOBALS["TTS"]["CHATTERBOX"]["RESET"]) {
+			chatterbox_settings([]);
+		}
+
+		// Handle the response
+		if ($response !== false ) {
+			// Handle the successful response
+			$size=strlen($response);
+			$fname=dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
+			
+			$startTimeTrans = microtime(true);
+			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
+			    ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
+			    Logger::error('chatterbox audio conversion or owned cache publication failed');
+			    return false;
+			}
+			$endTimeTrans = microtime(true)-$startTimeTrans;
+			
+			$textString.=PHP_EOL.print_r($options,true);
+			$textString.=PHP_EOL.print_r($http_response_header,true);
+			
+            file_put_contents(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
+			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in chatterbox call";
+
+			if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && $GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) {
+				$rootPath=dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" ;
+				$tfolder=$rootPath."/$voice";
+				@mkdir($tfolder);
+				copy($fname,$tfolder."/".basename($fname));
+
+			}
+			return "soundcache/" . md5(trim($stringforhash)) . ".wav";
+			
+		} else {
+			$textString.=PHP_EOL.print_r($options,true);
+			$textString.=PHP_EOL.print_r(isset($http_response_header) ? $http_response_header : 'No HTTP response headers available',true);
+			file_put_contents(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".err", trim($textString));
+            return false;
+			
+		}
+
+};
+
+/*
+$GLOBALS["TTS"]["CHATTERBOX"]["endpoint"]='http://localhost:8023';
+$GLOBALS["TTS"]["CHATTERBOX"]["voiceid"]='svenja';
+$GLOBALS["TTS"]["CHATTERBOX"]["language"]='en';
+
+$textTosay="Hello fellows...this is a new text to speech connector";
+
+echo tts($textTosay,'',$textTosay).PHP_EOL;
+*/

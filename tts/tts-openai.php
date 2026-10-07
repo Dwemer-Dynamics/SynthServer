@@ -1,0 +1,104 @@
+<?php
+
+require_once dirname(__DIR__) . '/lib/speech_cache.php';
+
+require_once dirname(__DIR__) . '/lib/provider_stream.php';
+
+
+$GLOBALS['SYNTH_TTS_DRIVERS']['openai'] = $GLOBALS["TTS_IN_USE"]=function($textString, $mood , $stringforhash) {
+
+
+		// Resolve API key: prefer API Badge 'OpenAI', fallback to TTS schema key
+		$apiKey = '';
+		try {
+			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once(__DIR__ . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+			$row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='openai' LIMIT 1");
+			if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
+		} catch (Throwable $_e) {}
+		if ($apiKey === '') $apiKey = $GLOBALS["TTS"]["openai"]["API_KEY"];
+
+		// Cache
+		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+			if (file_exists(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
+				return dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
+
+	    $starTime = microtime(true);
+
+		$url = $GLOBALS["TTS"]["openai"]["endpoint"]; //"https://api.openai.com/v1/audio/speech";
+
+	// Request headers
+	$headers = array(
+		"Authorization: Bearer $apiKey",
+		'Content-Type: application/json'
+	);
+
+	// Determine voice to use
+	$voice = $GLOBALS["TTS"]["openai"]["voice"];
+	if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+		$voice = $GLOBALS["PATCH_OVERRIDE_VOICE"];
+	}
+
+	// Request data
+	$data = array(
+		'input' => "$textString",
+		'model' => $GLOBALS["TTS"]["openai"]["model_id"],
+		'voice' => $voice,
+		'style' => $GLOBALS["TTS"]["openai"]["style"]+0
+		);
+
+		// add instructions if using gpt-4o-mini-tts
+		if ($GLOBALS["TTS"]["openai"]["model_id"] == "gpt-4o-mini-tts") {
+			if ($mood && $mood != "default") {
+				$data["instructions"] = "Emotion: $mood\n";
+			}
+
+			if (isset($GLOBALS["TTS"]["openai"]["instructions"]) && $GLOBALS["TTS"]["openai"]["instructions"]) {
+				$data["instructions"] .= $GLOBALS["TTS"]["openai"]["instructions"];
+			}
+		}
+
+		// Create stream context options
+		$options = array(
+			'http' => array(
+				'method' => 'POST',
+				'header' => implode("\r\n", $headers),
+				'content' => json_encode($data)
+			)
+		);
+
+		;
+		// Create stream context
+		$context = stream_context_create($options);
+
+		// Send the request
+		$response = synth_speech_fetch($url, $context, $http_response_header);
+
+		// Handle the response
+		if ($response !== false ) {
+			// Handle the successful response
+			//require_once(__DIR__.DIRECTORY_SEPARATOR."../lib/misc_utils_mp3riffer.php");
+			$wavName=dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
+			$startTimeTrans = microtime(true);
+			if (!synth_transcode_speech_cache($response,$wavName,'speechnorm=e=6:r=0.0001:l=1')) return false;
+			$endTimeTrans = microtime(true)-$startTimeTrans;
+            //file_put_contents(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".mp3", trim($response));
+			//$finalData=MP3toWav($response,strlen($response));
+			//$size=strlen($finalData);
+			//file_put_contents(
+			//	dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"
+			//	, $finalData); // Save the audio response to a file
+			//
+
+            file_put_contents(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\r\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
+			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in openai tts call and $endTimeTrans microseconds in ffmpeg transcoding";
+			return "soundcache/" . md5(trim($stringforhash)) . ".wav";
+
+		} else {
+			$textString.=print_r($http_response_header,true);
+			file_put_contents(dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".err", trim($textString));
+            return false;
+
+		}
+
+};

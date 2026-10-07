@@ -1,0 +1,6 @@
+{
+  "schema": "synth.worldknowledge-vocabulary.v1",
+  "canonical_style": "lowercase_snake_case",
+  "game": "Fallout 4",
+  "notes": "Canonical topic identifiers used by SYNTH's reviewed Fallout 4 starter catalog."
+}

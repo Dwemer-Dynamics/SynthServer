@@ -1,0 +1,32 @@
+{
+  "schema": "synth.worldknowledge-catalog.v1",
+  "catalog_id": "fallout-4-starter-official",
+  "catalog_version": "parity-v1-2026-08-31",
+  "display_name": "SYNTH Fallout 4 starter catalog",
+  "csv_file": "fallout_worldknowledge_parity_v1.csv",
+  "checksum_sha256": "a34377bcc9d9ebb4053134a3180a0ddc195d792b552b27cbca5039f235fce4bc",
+  "row_count": 15,
+  "source_snapshot": {
+    "file": "fallout_worldknowledge_sources.jsonl",
+    "checksum_sha256": "5e47d259cfc4939c65233818cf7791bdfd4e54a9667dbede3594ab3d7c2913c1",
+    "row_count": 15
+  },
+  "generation": {
+    "method": "deterministic conversion of the reviewed SYNTH Fallout 4 starter dataset",
+    "source_file": "fallout_worldknowledge_basic.csv"
+  },
+  "coverage": {
+    "games": ["Fallout 4"],
+    "advanced_articles": 15
+  },
+  "editorial_review": {
+    "status": "approved",
+    "reviewer": "Dwemer Dynamics SYNTH parity implementation",
+    "reviewed_at": "2026-08-31T00:00:00Z",
+    "method": "existing source-bound Fallout 4 summaries, deterministic schema conversion, checksum and catalog validation"
+  },
+  "knowledge_vocabulary": {
+    "file": "fallout_worldknowledge_vocabulary.json",
+    "checksum_sha256": "f0b31f97d687130df2d8582df624e52e8d6bfba0b22ee63c3fb3879c842f7b23"
+  }
+}
