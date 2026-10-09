@@ -244,6 +244,13 @@ class sql
         });
     }
 
+    /** Capture once before a catalogue transaction; its direct adapter never reconnects. */
+    public function getCatalogueSqlConnection(): \PgSql\Connection
+    {
+        $this->re_connect();
+        return self::$link;
+    }
+
     public function isTransactionIdle(): bool
     {
         $this->re_connect();

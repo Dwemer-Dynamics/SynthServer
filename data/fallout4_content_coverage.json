@@ -1,0 +1,147 @@
+{
+  "schema": "synth.fallout4-content-coverage.v1",
+  "source_version": "2026-10-09-rare-equipment-1",
+  "status": "reviewed_selected_content",
+  "template_count": 204,
+  "old_template_count": 124,
+  "new_template_count": 80,
+  "new_by_plugin": {
+    "Fallout4.esm": 23,
+    "DLCCoast.esm": 24,
+    "DLCNukaWorld.esm": 18,
+    "DLCRobot.esm": 11,
+    "DLCworkshop03.esm": 4
+  },
+  "original_rows_unchanged": false,
+  "full_cast_complete": false,
+  "census_complete": false,
+  "code_accepted": true,
+  "selective_backlogs": {
+    "status": "all_listed_entries_researched_and_authored; suitable_live_bindings_added; four_flagged_research_drafts",
+    "base_actor_rows": 19,
+    "far_harbor_actor_rows": 24,
+    "nuka_world_actor_rows": 20,
+    "automatron_and_vault88_actor_rows": 13,
+    "additional_dlc_rows": [
+      "Shades",
+      "Turing",
+      "Ahab",
+      "Grun"
+    ],
+    "review": "data/fallout4_character_completion_review.json"
+  },
+  "deployment_state": "Recorded only in local installation receipts, not this source coverage file",
+  "revised_original_templates": [
+    "fo4_curie",
+    "fo4_virgil",
+    "fo4_deacon"
+  ],
+  "completion_batch": {
+    "researched_actor_rows": 80,
+    "new_templates": 80,
+    "added_by_plugin": {
+      "Fallout4.esm": 23,
+      "DLCCoast.esm": 24,
+      "DLCNukaWorld.esm": 18,
+      "DLCRobot.esm": 11,
+      "DLCworkshop03.esm": 4
+    },
+    "new_cover_templates": 4,
+    "shared_form_aliases": {
+      "fo4_curie": [
+        "00027686",
+        "001647C6"
+      ],
+      "fo4_virgil": [
+        "00168B89"
+      ]
+    },
+    "held_live_bindings": [
+      {
+        "npc_name": "fo4_julianna_riggs",
+        "display_name": "Julianna Riggs",
+        "reasons": [
+          "verified_hidden_impersonator_identity_withheld",
+          "",
+          "Real Julianna is dead before Brain Dead; live NPC 0002062E is Ezra impersonating her. This background is historical reference only. Do not import as real Julianna's living identity; prewar human 00038B30 is not a live postwar actor."
+        ]
+      },
+      {
+        "npc_name": "fo4_john_caleb_bradberton",
+        "display_name": "John-Caleb Bradberton",
+        "reasons": [
+          "Authored public background; physical encounter is not the verified holotape NPC_ candidate.",
+          "Physical encounter is a preserved head/talking activator in a quest-controlled location. Requires activator identity/routing support and discovery gating; no fabricated mobile human actor.",
+          "No verified physical NPC_ actor: 00044D61 / DLC04Bradberton_Holotape is a voice/holotape placeholder. Article mixes activator and NPC editor details."
+        ]
+      },
+      {
+        "npc_name": "fo4_redeye",
+        "display_name": "RedEye",
+        "reasons": [
+          "Verified NPC_ exists solely to produce radio/PA dialogue; ordinary gameplay has no physical encounter.",
+          "Voice-only announcer in an alias cell. NPC_ 0000A5B2 and ACHR 0000A5B3 must never map a nearby raider to RedEye. Broadcast cessation requires observed quest state.",
+          "His supposed real name and romantic adventures are unverified boasts/rumor; no physical model description used."
+        ]
+      },
+      {
+        "npc_name": "fo4_jezebel",
+        "display_name": "Jezebel",
+        "reasons": [
+          "Verified voice-only NPC_00008ACF; no fixed physical actor base for the rebuilt automatron.",
+          "Authorable persona only. Hold runtime mapping until observed robot reconstruction identifies the dynamic physical reference. Carry head-stage memories into that body; do not bind a voice NPC_ or assume restoration already occurred.",
+          "Prior human brain identity and life are unestablished. Her claim that she cannot lie is her claim, not a general truthfulness rule."
+        ]
+      }
+    ],
+    "research_review": "data/fallout4_character_completion_review.json"
+  },
+  "source_verification": {
+    "phpunit_tests": 613,
+    "phpunit_assertions": 14291,
+    "php_files_linted": 442,
+    "csv_records": 204,
+    "csv_columns": 15,
+    "database": "disposable PostgreSQL with pgvector",
+    "live_deployment_or_gameplay_acceptance": false,
+    "provider_voice_coverage_accepted": false
+  },
+  "user_review": {
+    "characters": "approved 2026-10-09, with supported appearance refinements requested",
+    "lore": "approved 2026-10-09; all 125 article text rows preserved",
+    "equipment": "rare and named additions requested 2026-10-09"
+  },
+  "appearance_refinements": {
+    "count": 18,
+    "templates": [
+      "fo4_maccready",
+      "fo4_preston",
+      "fo4_lancer_captain_kells",
+      "fo4_scribe_haylen",
+      "fo4_william_black",
+      "fo4_shank",
+      "fo4_danny_sullivan",
+      "fo4_joe_savoldi",
+      "fo4_tony_savoldi",
+      "fo4_austin_engill",
+      "fo4_bobby_de_luca",
+      "fo4_holt_combes",
+      "fo4_abigail_finch",
+      "fo4_daniel_finch",
+      "fo4_cedric_hopton",
+      "fo4_alana_secord",
+      "fo4_evan_watson",
+      "fo4_harvey"
+    ],
+    "primary_appearance_verified": false
+  },
+  "equipment_expansion": {
+    "previous_descriptions": 83,
+    "added_fixed_descriptions": 118,
+    "total_descriptions": 201,
+    "named_variants_review_only": 43,
+    "review_file": "data/fallout4_rare_equipment_review.json",
+    "full_equipment_census": false,
+    "new_content_installed_live": false
+  }
+}

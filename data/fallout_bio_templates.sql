@@ -4,5 +4,6 @@
 -- because names are not identities and quest outcomes differ by playthrough.
 
 BEGIN;
-TRUNCATE TABLE synth.bio_templates;
+-- Named and creature templates are populated by additive attributed catalogs.
+-- Never erase an existing operator-authored biography during bootstrap.
 COMMIT;

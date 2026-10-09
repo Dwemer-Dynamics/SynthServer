@@ -1,0 +1,23 @@
+{
+  "schema": "synth.fallout4-catalogue-sql.v1",
+  "migration_version": 20261009002,
+  "sql_file": "fallout4_catalogue_seed.sql",
+  "sql_sha256": "bfb1995b8e345e5ee04e61b86d3a3fac59c2789fb534bdbe92a736aa9d89099c",
+  "source_files": {
+    "data/fallout4_content_pack.json": "8d15da865ae638aa42888a6f31dca4dd1d24ce6cdc43b3f857d232ef945a3407",
+    "data/fallout4_named_bios.csv": "08ebc0a7356c4e7a46e3ed4dfc3b6042148a5a0fa3a8b0958ed8d856244c993d",
+    "data/fallout4_common_descriptions.csv": "ed569bb99fe05f4264da745e2c1931d87679f0277f597e80f5ed2fa11f269218",
+    "data/fallout_worldknowledge_parity_v1.csv": "f60d433c87c071402a8b7255aef9b77d566848f90ff0b7f55b99baa5c290824e",
+    "data/fallout_worldknowledge_manifest.json": "ebdd16fec46c36bc3e59a8d85b4203e64411576be484f9014807cdc2f4107e8f"
+  },
+  "counts": {
+    "npcs": 204,
+    "mappings": 207,
+    "items": 201,
+    "lore": 125
+  },
+  "catalog": {
+    "catalog_id": "fallout-4-starter-official",
+    "catalog_version": "content-v4-2026-10-08"
+  }
+}

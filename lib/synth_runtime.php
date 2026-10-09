@@ -455,12 +455,11 @@ function synth_fetch_bio_template(
         $pluginColumn = $reference ? 'reference_plugin' : 'base_plugin';
         $formidColumn = $reference ? 'reference_local_formid' : 'base_local_formid';
         $row = $db->fetchOne("
-            SELECT t.*, TRUE AS is_nonverbal_creature
+            SELECT t.*, m.is_nonverbal_creature
             FROM synth.bio_template_actor_map m
             JOIN synth.combined_bio_templates t ON lower(t.npc_name) = lower(m.template_name)
             WHERE lower(m.{$pluginColumn}) = lower('{$plugin}')
               AND upper(m.{$formidColumn}) = upper('{$localFormid}')
-              AND m.is_nonverbal_creature = TRUE
             ORDER BY m.id ASC
             LIMIT 1
         ");
@@ -490,6 +489,10 @@ function synth_fetch_bio_template(
             SELECT {$fields}, FALSE AS is_nonverbal_creature
             FROM synth.combined_bio_templates
             WHERE regexp_replace(lower(COALESCE(refid, '')), '[^0-9a-fx]+', '', 'g') = '{$escapedRefid}'
+              AND NOT EXISTS (
+                  SELECT 1 FROM synth.bio_template_actor_map mapped
+                  WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
+              )
             LIMIT 1
         ");
         if (is_array($row) && !empty($row['npc_name'])) {
@@ -507,8 +510,12 @@ function synth_fetch_bio_template(
     $row = $db->fetchOne("
         SELECT {$fields}, FALSE AS is_nonverbal_creature
         FROM synth.combined_bio_templates
-        WHERE lower(npc_name) = lower('{$escapedCodename}')
-           OR lower(npc_name) = lower('{$escapedName}')
+        WHERE (lower(npc_name) = lower('{$escapedCodename}')
+           OR lower(npc_name) = lower('{$escapedName}'))
+          AND NOT EXISTS (
+              SELECT 1 FROM synth.bio_template_actor_map mapped
+              WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
+          )
         ORDER BY CASE WHEN lower(npc_name) = lower('{$escapedCodename}') THEN 0 ELSE 1 END
         LIMIT 1
     ");
@@ -758,10 +765,11 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
         ON CONFLICT {$conflict} DO UPDATE SET
             npc_name = EXCLUDED.npc_name,
             md5 = COALESCE(NULLIF(synth.core_npc_master.md5, ''), EXCLUDED.md5),
-            core = COALESCE(NULLIF(synth.core_npc_master.core, ''), EXCLUDED.core),
-            npc_static_bio = COALESCE(NULLIF(synth.core_npc_master.npc_static_bio, ''), EXCLUDED.npc_static_bio),
-            worldknowledge_tags = COALESCE(NULLIF(synth.core_npc_master.worldknowledge_tags, ''), EXCLUDED.worldknowledge_tags),
+            core = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.core ELSE COALESCE(NULLIF(synth.core_npc_master.core, ''), EXCLUDED.core) END,
+            npc_static_bio = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.npc_static_bio ELSE COALESCE(NULLIF(synth.core_npc_master.npc_static_bio, ''), EXCLUDED.npc_static_bio) END,
+            worldknowledge_tags = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.worldknowledge_tags ELSE COALESCE(NULLIF(synth.core_npc_master.worldknowledge_tags, ''), EXCLUDED.worldknowledge_tags) END,
             personality = CASE
+                WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.personality
                 WHEN synth.core_npc_master.personality IN (
                     'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',
                     'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.'
@@ -769,18 +777,19 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
                     THEN EXCLUDED.personality
                 ELSE COALESCE(NULLIF(synth.core_npc_master.personality, ''), EXCLUDED.personality)
             END,
-            relationships = COALESCE(NULLIF(synth.core_npc_master.relationships, ''), EXCLUDED.relationships),
-            occupation = COALESCE(NULLIF(synth.core_npc_master.occupation, ''), EXCLUDED.occupation),
-            appearance = COALESCE(NULLIF(synth.core_npc_master.appearance, ''), EXCLUDED.appearance),
-            skills = COALESCE(NULLIF(synth.core_npc_master.skills, ''), EXCLUDED.skills),
+            relationships = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.relationships ELSE COALESCE(NULLIF(synth.core_npc_master.relationships, ''), EXCLUDED.relationships) END,
+            occupation = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.occupation ELSE COALESCE(NULLIF(synth.core_npc_master.occupation, ''), EXCLUDED.occupation) END,
+            appearance = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.appearance ELSE COALESCE(NULLIF(synth.core_npc_master.appearance, ''), EXCLUDED.appearance) END,
+            skills = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.skills ELSE COALESCE(NULLIF(synth.core_npc_master.skills, ''), EXCLUDED.skills) END,
             speechstyle = CASE
+                WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.speechstyle
                 WHEN synth.core_npc_master.speechstyle = 'Speaks plainly and reacts to the Sole Survivor and the current situation.'
                     THEN EXCLUDED.speechstyle
                 ELSE COALESCE(NULLIF(synth.core_npc_master.speechstyle, ''), EXCLUDED.speechstyle)
             END,
-            goals = COALESCE(NULLIF(synth.core_npc_master.goals, ''), EXCLUDED.goals),
-            gender = COALESCE(NULLIF(EXCLUDED.gender, ''), synth.core_npc_master.gender),
-            race = COALESCE(NULLIF(EXCLUDED.race, ''), synth.core_npc_master.race),
+            goals = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.goals ELSE COALESCE(NULLIF(synth.core_npc_master.goals, ''), EXCLUDED.goals) END,
+            gender = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.gender ELSE COALESCE(NULLIF(EXCLUDED.gender, ''), synth.core_npc_master.gender) END,
+            race = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.race ELSE COALESCE(NULLIF(EXCLUDED.race, ''), synth.core_npc_master.race) END,
             voiceid = CASE
                 WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.voiceid
                 WHEN " . ($isMappedCreature ? "TRUE" : "FALSE") . "

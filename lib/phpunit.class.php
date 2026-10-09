@@ -30,6 +30,19 @@ class sql
         pg_query(self::$link, "SET search_path TO synth, synth_meta, public");
     }
 
+    /** Capture once before a catalogue transaction; its direct adapter never reconnects. */
+    public function getCatalogueSqlConnection(): \PgSql\Connection
+    {
+        self::ensureLink();
+        return self::$link;
+    }
+
+    public function isTransactionIdle(): bool
+    {
+        self::ensureLink();
+        return pg_transaction_status(self::$link) === PGSQL_TRANSACTION_IDLE;
+    }
+
     public function __destruct()
     {
         // Match production: wrapper destruction must not close the process-shared connection.
@@ -100,12 +113,12 @@ class sql
         pg_query(self::$link, $query);
     }
 
-    public function execQuery($sqlquery)
+    public function execQuery($sqlquery, array $params = [])
     {
         self::ensureLink();
-        $result = pg_query(self::$link, $sqlquery);
+        $result = $params === [] ? pg_query(self::$link, $sqlquery) : pg_query_params(self::$link, $sqlquery, $params);
         if (!$result) {
-            Logger::error(pg_last_error(self::$link) . print_r(debug_backtrace(), true));
+            Logger::error(pg_last_error(self::$link) . print_r(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 12), true));
         }
         return $result;
     }
