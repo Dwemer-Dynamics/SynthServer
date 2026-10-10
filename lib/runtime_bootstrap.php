@@ -235,6 +235,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'playthrough_metadata_schema' => 20260730001,
             'relationship_async_queues' => 20260713002,
             'fallout_bio_templates_seed' => 20260811002,
+            'fallout4_catalogue_sql' => 20261009002,
             'fallout_worldknowledge_seed' => 20260811002,
             'worldknowledge_parity' => 20260813001,
             'worldknowledge_access' => 20260813001,

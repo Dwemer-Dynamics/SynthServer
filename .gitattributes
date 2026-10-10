@@ -11,3 +11,10 @@
 *.sh text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# Exact source bytes used by the generated character, world and equipment SQL release.
+/data/fallout4_content_pack.json text eol=lf
+/data/fallout4_named_bios.csv text eol=lf
+/data/fallout4_common_descriptions.csv text eol=lf
+/data/fallout_worldknowledge_manifest.json text eol=lf
+/data/fallout4_catalogue_sql_manifest.json text eol=lf

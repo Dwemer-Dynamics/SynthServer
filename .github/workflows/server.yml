@@ -41,6 +41,8 @@ jobs:
       - name: Audit tracked server tree
         shell: pwsh
         run: ./tools/audit-release-tree.ps1
+      - name: Verify Fallout catalogue SQL matches its sources
+        run: python3 tools/build-fallout-content-sql.py --check
       - name: Verify protocol manifest
         run: |
           for version in v1 v2; do

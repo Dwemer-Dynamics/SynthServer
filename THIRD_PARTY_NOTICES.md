@@ -21,6 +21,7 @@ MIT terms. Do not remove or alter that notice. See [docs/HANDOFF.md](docs/HANDOF
 | `ui/lib/ui/bootstrap/bootstrap.min.css`, `bootstrap.bundle.min.js` | Bootstrap 5.3.1 | MIT. The header notice is kept in each file. |
 | `data/fonts/GloriaHallelujah-Regular.ttf` | Gloria Hallelujah by Kimberly Geswein | SIL Open Font License 1.1 (`data/fonts/OFL.txt`) |
 | `data/fallout_worldknowledge_*` (catalog, vocabulary, sources) | Summaries derived from [The Fallout Wiki](https://fallout.wiki/) | CC BY-SA 4.0. See `data/fallout_worldknowledge_attribution.md` and the source URLs in `data/fallout_worldknowledge_sources.jsonl`. Derived summaries stay under the same license (share-alike). |
+| `data/fallout4_content_*`, `fallout4_named_bios.csv`, `fallout4_common_descriptions.csv`, `fallout4_character_completion_review.json`, `fallout4_catalogue_seed.sql` | Authored character/equipment adaptations and generated catalogue SQL | Adapted content stays under CC BY-SA 4.0; see `data/fallout4_content_attribution.md` and per-row source URLs in `data/fallout4_content_sources.json`. Generated lore retains the preceding lore attribution. The SQL format does not change these content licenses. |
 | `data/fallout4_creature_bio_templates.sql` | Original SYNTH prose; FormIDs cross-checked against public references | See `data/fallout4_creature_bio_templates_attribution.md` |
 
 ## Loaded from CDNs at runtime (not redistributed)

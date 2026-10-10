@@ -46,6 +46,17 @@ It does not change the client, protocol, database schema, providers or active wo
 
 ## Fresh install
 
+The Fallout catalogue now ships as reviewed SQL at `fallout4_catalogue_sql`
+version `20261009002`: 204 character templates, 207 actor bindings, 201 equipment
+descriptions and 125 lore articles. The migration adds missing factory records,
+preserves custom edits, and does not create encountered NPC profiles. See
+[FALLOUT-CATALOGUE-SQL.md](FALLOUT-CATALOGUE-SQL.md) for ownership, era-tag repair
+and transaction rules. Eighteen guarded stock appearance refinements and 118
+rare descriptions accompany 43 named-variant review records. Special properties,
+find locations and unverified instance effects remain review-only; recognition
+controls are held as separate development work. The JSON/CSV authoring files and attribution remain in
+`data/`; `python3 tools/build-fallout-content-sql.py --check` verifies SQL parity.
+
 The [README](../README.md#install) has the steps. Safeguards:
 
 - `tools/create-synth-db-wsl.ps1` creates the database only if it is missing. It requires

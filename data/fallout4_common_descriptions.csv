@@ -1,0 +1,202 @@
+plugin,baseid,name,description
+Fallout4.esm,00004822,10mm pistol,"A compact, chunky pre-War sidearm using 10mm ammunition. Its short frame and pistol grip distinguish it from a shoulder-stocked rifle. Automatic operation, sights and a suppressor depend on its fitted modifications."
+Fallout4.esm,000CE97D,.44 pistol,"A heavy revolver with a rotating cylinder, metal frame and wooden grips, firing .44 ammunition. Barrel length and sights vary with modifications. The cylinder distinguishes it from a magazine-fed pistol."
+Fallout4.esm,000DF42E,Combat rifle,"A pre-War, magazine-fed military firearm. Stocks, barrels and receivers change its role and appearance. Its body closely resembles the combat shotgun, so the verified weapon identity matters when distinguishing the two."
+Fallout4.esm,0004F46A,Hunting rifle,"A manually cycled, bolt-action firearm. A basic example has a short barrel and a rough wooden grip; fitted stocks, longer barrels and scopes can make it a full-length hunting or precision rifle."
+Fallout4.esm,0014831C,Combat shotgun,"A substantial, magazine-fed shotgun with a military appearance. It fires shotgun shells and closely resembles the combat rifle. Its stock, barrel and magazine depend on fitted modifications; a similar-looking rifle should not be identified as this shotgun."
+Fallout4.esm,00092217,Double-barrel shotgun,A break-action shotgun with two barrels and room for two shells before reloading. A sawn-off version is compact; longer barrels and a full stock give it a more traditional sporting-gun silhouette.
+Fallout4.esm,00024F55,Pipe gun,"A crude, improvised firearm assembled from metal piping, scrap and wood. A pistol grip or shoulder stock changes its configuration, while receivers and other modifications vary its operation. Common among both settlers and raiders."
+Fallout4.esm,0014831A,Pipe bolt-action,"An improvised firearm with a manually worked bolt, rough metalwork and wooden fittings. It may have a pistol grip or a rifle stock. The bolt-action mechanism distinguishes it from other similarly crude pipe weapons."
+Fallout4.esm,0014831B,Pipe revolver,A makeshift firearm with a visible revolving cylinder and rough metal-and-wood construction. Its grip or stock can configure it as a pistol or rifle. The cylinder separates it from magazine-fed and bolt-action pipe weapons.
+Fallout4.esm,0009983B,Laser gun,"A blocky pre-War energy weapon powered by fusion cells. A pistol grip or rifle stock changes its configuration, and its barrel, optics and other fittings vary. It is common military and scavenged equipment."
+Fallout4.esm,0001DACF,Laser musket,A distinctive improvised laser weapon combining a wooden musket-style stock with exposed energy-weapon components and a hand crank. It uses fusion cells and is strongly associated with the Commonwealth Minutemen.
+Fallout4.esm,001633CC,Institute laser,"A bulky, pale-bodied energy firearm using fusion cells, configurable with a pistol grip or rifle stock. The Institute manufactures it; recognizing that origin depends on what the observing character already knows."
+Fallout4.esm,00100AE9,Plasma gun,"An energy firearm with an industrial appearance that uses plasma cartridges. Its green plasma discharge differs from a laser beam. Grips, stocks and barrel assemblies change its configuration; the exact fitted version requires equipment evidence."
+Fallout4.esm,0015B043,Submachine gun,"An automatic firearm chambered for .45 ammunition, commonly seen with a wooden stock and drum magazine. Suited to rapid bursts, it is often carried by Triggermen and other wasteland fighters."
+Fallout4.esm,0001F669,Minigun,"A heavy, motor-driven firearm with a cluster of rotating barrels, an ammunition feed and a substantial supply of 5mm rounds. Its barrels spin before firing; its bulk and rapid fire make it conspicuous."
+Fallout4.esm,000E5881,Flamer,"A bulky, industrial-looking flamethrower with fuel tanks beneath its body and a projecting nozzle. It expels burning fuel at relatively close range. Its visible tanks and flame discharge distinguish it from conventional firearms."
+Fallout4.esm,0008C14D,Baton,A compact security baton intended for striking at close range. Its plain utilitarian shape recalls pre-War security equipment. Electrical and other enhanced fittings depend on the particular baton's modifications.
+Fallout4.esm,000913CA,Combat knife,"A substantial, military-style knife with a pointed blade, suitable for cutting or stabbing at close quarters. Blade shape and finish can change with modifications, including serrated or specialized blades."
+Fallout4.esm,0008E736,Baseball bat,"A long wooden sporting bat repurposed as a blunt weapon. Its recognizable baseball shape survives in the wasteland. Nails, chains and other weapon fittings depend on this particular bat's modifications."
+Fallout4.esm,000D83BF,Pipe wrench,"A heavy metal plumbing wrench with adjustable jaws, worn red paint and exposed metal. It remains recognizable as a tool, even when carried as a blunt weapon. Modified jaws and attachments vary between examples."
+Fallout4.esm,0010C3C6,Molotov cocktail,"An improvised incendiary made from a glass bottle, fuel and a cloth wick. A lit bottle spreads burning fuel when thrown and broken. Its carried, lit and thrown states require separate event evidence."
+Fallout4.esm,000EEBED,Fragmentation grenade,"A compact, hand-thrown fragmentation explosive with a recognizable military form. It is dangerous ordnance intended to burst and scatter fragments. Its armed or thrown state requires current event evidence."
+Fallout4.esm,0007B9C6,Leather chest piece,"Brown leather pads, straps and bracing worn over the torso. This is one separate armor piece; modifications can change its coverage, color and finish."
+Fallout4.esm,0007B9C5,Leather right leg,"Brown leather pads, straps and bracing worn over the right leg. This is one separate armor piece; modifications can change its coverage, color and finish."
+Fallout4.esm,0007B9C4,Leather left leg,"Brown leather pads, straps and bracing worn over the left leg. This is one separate armor piece; modifications can change its coverage, color and finish."
+Fallout4.esm,0007B9C3,Leather right arm,"Brown leather pads, straps and bracing worn over the right arm. This is one separate armor piece; modifications can change its coverage, color and finish."
+Fallout4.esm,0007B9C7,Leather left arm,"Brown leather pads, straps and bracing worn over the left arm. This is one separate armor piece; modifications can change its coverage, color and finish."
+Fallout4.esm,0011D3C3,Combat armor chest piece,"A rigid, military-style chest armor segment worn over compatible clothing. Standard combat armor has a pale green finish and substantial protective plates; paint and construction vary with modifications. This piece covers the torso rather than representing an entire suit."
+Fallout4.esm,0011E2C8,Combat armor helmet,A military-style protective helmet belonging to the combat armor family. Its shell has the same practical manufactured appearance as the armor plates. Finish and insignia depend on the actual fitted variant.
+Fallout4.esm,0001EED7,Vault 111 jumpsuit,A close-fitting blue Vault-Tec jumpsuit with yellow detailing and the number 111 on the back. This Vault 111 garment can serve as an underlayer beneath separate armor.
+Fallout4.esm,000976B7,Vault 111 jumpsuit - new,A clean blue Vault-Tec jumpsuit with yellow detailing and the number 111 on the back. This new Vault 111 garment has a recognizable one-piece design beneath compatible armor.
+Fallout4.esm,00023431,Army fatigues,"A green military work uniform with a white undershirt, matching trousers, belt and black boots. Its practical pre-War army cut is recognizable, and separate armor pieces can be worn over it."
+Fallout4.esm,0019CBB3,Dirty army fatigues,"A weathered green army uniform with an undershirt, matching trousers and black boots. Dirt and wear give it a well-used appearance. Separate armor pieces can be worn over it."
+Fallout4.esm,00023432,Army helmet,"A rounded, practical military helmet accompanying the pre-War army fatigues family. It is a separate protective head covering, distinct from the soft military cap."
+Fallout4.esm,0016892C,Military fatigues,"Worn, pea-green military fatigues with matching trousers and black boots. The practical uniform can form an underlayer beneath separate armor pieces."
+Fallout4.esm,0016892E,Military cap,"A dark military beret worn as a separate head covering. Its soft shape gives it a military-uniform appearance, distinct from the rounded protective shell of an army helmet."
+Fallout4.esm,000E517B,Minuteman outfit,"A practical militia outfit combining a pale blue buttoned shirt, worn jacket, jeans and boots. Its old-fashioned field clothing is associated with the Commonwealth Minutemen."
+Fallout4.esm,000316D4,Minuteman hat,"A light brown, broad-brimmed militia hat with one side of its brim pinned up. Its colonial-inspired shape is associated with the Commonwealth Minutemen and complements their field outfit."
+Fallout4.esm,001C26B9,Mechanic jumpsuit,A green work coverall worn over a pale crew-neck shirt with dark boots. Its practical one-piece cut resembles mechanic's clothing and suits workshop labor.
+Fallout4.esm,0005E76C,Mechanic jumpsuit - Red Rocket,"A pale blue mechanic's coverall with red detailing and Red Rocket branding, worn with a light undershirt and dark boots. Its company-marked appearance recalls pre-War service-station workwear."
+Fallout4.esm,000AF0E2,Road leathers,"A rugged leather jacket and trousers with boots, recalling pre-War motorcycle clothing. Separate armor pieces can be worn over this durable-looking outfit."
+Fallout4.esm,0018E3F7,Raider leathers,Rough leather and cloth clothing used as an underlayer beneath separate armor. Its pieced-together appearance fits scavenged wasteland survival gear.
+Fallout4.esm,0008158D,Harness,"A sparse strapped harness worn with trousers and boots, leaving much of the upper body exposed. It can form the base layer beneath separate armor pieces."
+Fallout4.esm,000E5084,Farmhand clothes,"Worn work clothing consisting of a dark buttoned shirt, tattered jeans, red neck scarf, open coat and work gloves. Its practical appearance suits farm labor."
+Fallout4.esm,000B2D8D,Drifter outfit,"A worn leather trench coat, belted at the waist, with gloves, trousers and boots. Its layered, travel-worn appearance makes it recognizable wasteland clothing."
+Fallout4.esm,00117EB9,Flannel shirt and jeans,"A faded red plaid button-up shirt over a white T-shirt, with worn blue jeans and boots. It is everyday work clothing that can be worn beneath separate armor."
+Fallout4.esm,000E5086,Battered fedora,"A worn pre-War fedora with a creased crown and brim. Its battered condition gives it an old, well-used appearance, suitable for ordinary civilian dress."
+Fallout4.esm,000A740E,Newsboy cap,"A brown cloth flat cap with a short brim. It is ordinary civilian headwear with a modest, practical appearance, distinct from a broad-brimmed fedora or protective helmet."
+Fallout4.esm,000CEAC4,Hazmat suit,"A bulky full-body environmental suit with an enclosed helmet and visor, intended to protect against radiation exposure. Its sealed appearance recalls hazardous industrial work and preparation for contaminated travel."
+Fallout4.esm,0001F17B,Colonial duster,"An old-fashioned militia coat over a vest and scarf, with leather belts and ammunition pouches. Its colonial-inspired layers create a distinctive field outfit associated with Preston Garvey."
+Fallout4.esm,000FFC21,Undershirt & jeans,A worn white crew-neck T-shirt with blue jeans and ordinary shoes. This simple civilian outfit can serve as an underlayer beneath separate armor pieces.
+Fallout4.esm,00023736,Stimpak,"A compact medical injector with a syringe and pressure gauge, used to treat physical injuries. Its familiar medical design makes it a valuable wasteland treatment supply."
+Fallout4.esm,00023742,RadAway,"An orange medical solution supplied in a hanging treatment bag, used to remove accumulated radiation. It treats exposure already received, unlike Rad-X's preventive role."
+Fallout4.esm,00024057,Rad-X,A packaged anti-radiation medicine intended to increase resistance during exposure. Its preventive role differs from RadAway's treatment of radiation already accumulated.
+Fallout4.esm,000366C5,Jet,"A small inhaler containing a powerful, addictive chem that alters the user's perception and reactions. Its compact design makes it recognizable wasteland drug equipment."
+Fallout4.esm,0003377D,Psycho,"A combat chem delivered through an injector with attached canisters and wiring. It is associated with heightened aggression and reduced sensitivity to pain, and can cause addiction after use."
+Fallout4.esm,00033778,Buffout,"A small brown pill bottle with a pale lid, containing an addictive chem associated with temporary strength and endurance. Its packaging recalls a pre-War athletic drug."
+Fallout4.esm,0003377B,Mentats,A packaged cognitive stimulant associated with temporarily sharper thinking and perception. The familiar pre-War Mentats brand survives as an addictive wasteland chem.
+Fallout4.esm,00033779,Med-X,"A medical painkiller used to blunt pain and make injuries easier to endure. Its role differs from a Stimpak's injury treatment, and repeated use can lead to addiction."
+Fallout4.esm,000459C5,Addictol,"An anti-addiction medicine packaged in a small inhaler. Its shape resembles a Jet inhaler, so verified item identity or readable labeling matters when distinguishing the two."
+Fallout4.esm,000366C0,Purified water,"Clean drinking water supplied in a sealed container, a useful provision in the post-war Commonwealth. Its verified item identity distinguishes it from untreated dirty water."
+Fallout4.esm,000366BF,Dirty water,Untreated drinking water supplied in a carton. It can quench thirst but carries a radiation concern in the wasteland. Verified item identity distinguishes it from purified water.
+Fallout4.esm,0004835D,Nuka-Cola,"A familiar pre-War soft drink in a distinctive rocket-shaped glass bottle, carrying Nuka-Cola branding. It is a sweet, irradiated wasteland drink. An empty bottle is a separate junk item."
+Fallout4.esm,0004835F,Nuka-Cola Quantum,A special Nuka-Cola drink with luminous blue liquid in a clear rocket-shaped bottle. Its glow and familiar branding give it a distinctive appearance among wasteland refreshments.
+Fallout4.esm,0011EA93,Beer,A bottled alcoholic drink in a familiar brown glass beer bottle. It serves as a recreational drink or trade item. Its effects depend on observed consumption and the character's current state.
+Fallout4.esm,000366C1,Whiskey,"Pre-War whiskey in a bottle carrying an Irish-style label, a stronger alcoholic drink suitable for drinking or trade. Similar-looking empty bottles are separate junk items."
+Fallout4.esm,00075FE4,Fusion core,A compact heavy-duty pre-War nuclear power unit used by power armor and certain heavy energy weapons. Remaining charge and whether it is installed require current game evidence.
+Fallout4.esm,000C1897,Fusion cell,A small pre-War energy ammunition cell with battery-like terminals and warning markings. It supplies laser weapons and other compatible energy equipment.
+Fallout4.esm,0000000A,Bobby pin,"A small, flexible metal hairpin with two prongs. In the wasteland it is commonly repurposed as a lockpicking tool."
+Fallout4.esm,0000000F,Bottlecap,A metal drink-bottle closure. Post-war Commonwealth traders use bottlecaps as money; in a pre-War setting it remains an ordinary discarded bottle top.
+Fallout4.esm,00021B3B,Pip-Boy 3000 Mark IV,A bulky wrist-mounted RobCo personal computer with a screen and physical controls. It provides its wearer with personal information and tools; an observer sees the device's exterior unless screen contents are actually visible.
+Fallout4.esm,001B9B87,Pip-Boy 3000 Mark IV,A bulky wrist-mounted RobCo personal computer with a screen and physical controls. It provides its wearer with personal information and tools; an observer sees the device's exterior unless screen contents are actually visible.
+Fallout4.esm,0008925C,Wedding ring,A simple gold marriage band with an inscription on its inner surface. It can be worn as a personal keepsake. Its particular owner and family history require separate character knowledge.
+Fallout4.esm,0007C70C,Wedding ring,A simple gold marriage band with an inscription on its inner surface. It can be worn as a personal keepsake. Its particular owner and family history require separate character knowledge.
+Fallout4.esm,00199043,Locket,"An oval silver locket, a small hinged piece of keepsake jewelry. It may hold personal sentimental value. Its owner's identity and any associated loss, promise or recovery require character knowledge or observed quest evidence."
+Fallout4.esm,00062AA6,Laser musket,A distinctive improvised laser weapon combining a wooden musket-style stock with exposed energy-weapon components and a hand crank. It uses fusion cells and is strongly associated with the Commonwealth Minutemen.
+Fallout4.esm,0005DF2D,10mm pistol,"A compact, chunky pre-War sidearm using 10mm ammunition. Its short frame and pistol grip distinguish it from a shoulder-stocked rifle. Automatic operation, sights and a suppressor depend on its fitted modifications."
+Fallout4.esm,0005BBA6,Laser gun,"A blocky pre-War energy weapon powered by fusion cells. A pistol grip or rifle stock changes its configuration, and its barrel, optics and other fittings vary. It is common military and scavenged equipment."
+Fallout4.esm,0005BBA7,Pipe revolver,A makeshift firearm with a visible revolving cylinder and rough metal-and-wood construction. Its grip or stock can configure it as a pistol or rifle. The cylinder separates it from magazine-fed and bolt-action pipe weapons.
+Fallout4.esm,0005BBA4,Hunting rifle,"A manually cycled, bolt-action firearm. A basic example has a short barrel and a rough wooden grip; fitted stocks, longer barrels and scopes can make it a full-length hunting or precision rifle."
+Fallout4.esm,00215CE3,Hunting rifle,"A manually cycled, bolt-action firearm. A basic example has a short barrel and a rough wooden grip; fitted stocks, longer barrels and scopes can make it a full-length hunting or precision rifle."
+Fallout4.esm,0022CC13,Laser gun,"A blocky pre-War energy weapon powered by fusion cells. A pistol grip or rifle stock changes its configuration, and its barrel, optics and other fittings vary. It is common military and scavenged equipment."
+Fallout4.esm,00215CE4,Institute laser,"A bulky, pale-bodied energy firearm using fusion cells, configurable with a pistol grip or rifle stock. The Institute manufactures it; recognizing that origin depends on what the observing character already knows."
+Fallout4.esm,000E942B,Junk Jet,A bulky improvised launcher with a large loading hopper and exposed mechanical parts.
+Fallout4.esm,00171B2B,Cryolator,An unusual heavy weapon with a compact barrel and substantial mechanical housing.
+Fallout4.esm,000FD11B,Broadsider,A small old-fashioned naval cannon secured to a carrying rig with metal fittings and thick ropes.
+Fallout4.esm,000DC8E7,Deliverer,A compact semi-automatic handgun. Its barrel attachments should be described from the current equipment state.
+Fallout4.esm,000FF995,Alien blaster pistol,A compact pistol with an unfamiliar futuristic shape and red-and-chrome finish.
+Fallout4.esm,00183FCD,Grognak's axe,A large two-handed axe.
+Fallout4.esm,000FE268,Railway rifle,A heavy improvised rifle built around an exposed industrial-looking mechanism.
+Fallout4.esm,000FA2FB,Shishkebab,A compact Japanese-style sword fitted with a fuel canister and nozzles along its blade.
+Fallout4.esm,0014D09E,Syringer,An improvised rifle built to launch syringe-shaped projectiles.
+Fallout4.esm,001828CC,Grognak costume,A barbarian-style costume with a loincloth and leather accessories; the upper-body design varies with the wearer.
+Fallout4.esm,001C2214,Minutemen general's uniform,A dark blue frock coat with gold collar stars over a white shirt and combat armor chest piece.
+Fallout4.esm,001C2216,Minutemen general's hat,A tricorn hat of the kind worn with a historical military-style uniform.
+Fallout4.esm,0014E58B,Silver Shroud costume,A long detective-style costume coat.
+Fallout4.esm,0002F525,Silver Shroud armor,A long detective-style costume coat.
+Fallout4.esm,000DED27,Silver Shroud armor,A long detective-style costume coat.
+Fallout4.esm,000DED28,Silver Shroud armor,A long detective-style costume coat.
+Fallout4.esm,000DED29,Silver Shroud armor,A long detective-style costume coat.
+Fallout4.esm,0014E58E,Silver Shroud hat,A fedora belonging to a detective-style costume.
+DLCRobot.esm,00003E07,Tesla rifle,A bulky gun assembled around exposed electrical hardware and robot weapon parts.
+DLCRobot.esm,000100B7,Salvaged Assaultron head,A detached robot head adapted to be held and aimed by hand.
+DLCRobot.esm,00008B8E,Assaultron blade,A metal blade with a handle assembled from salvaged robot parts.
+DLCRobot.esm,000020F8,Mr. Handy buzz blade,A circular saw blade mounted on a long hand-held assembly.
+DLCCoast.esm,0002C8B0,Lever-action rifle,A shoulder-fired rifle with a lever beneath the receiver.
+DLCCoast.esm,00025FC4,Radium rifle,A rifle with unusual added hardware around its barrel assembly.
+DLCCoast.esm,00010B81,Harpoon gun,A heavy hand-held launcher with a large barrel and loading mechanism.
+DLCCoast.esm,00009582,Pole hook,A long wooden pole tipped with a large curved hook.
+DLCCoast.esm,0004B5F4,Meat hook,A hand-held metal hook with a grip.
+DLCCoast.esm,00054072,Bear trap,A portable metal trap with paired jaws and a trigger plate.
+DLCCoast.esm,000540F7,Bleeding bear trap,A portable metal trap with paired jaws and a trigger plate.
+DLCCoast.esm,0005406E,Caltrops,A handful of small pointed metal obstacles.
+DLCCoast.esm,000540ED,Poisoned caltrops,A handful of small pointed metal obstacles.
+DLCNukaWorld.esm,00033B60,Handmade rifle,A shoulder-fired rifle with a box magazine and configurable stock and barrel.
+DLCNukaWorld.esm,000415B3,Western revolver,A metal revolver with a rotating cylinder and wooden grip.
+DLCNukaWorld.esm,0001AABC,Disciples blade,A short broad hand-held blade with a simple grip.
+DLCNukaWorld.esm,00052926,Commie Whacker,A short-handled mallet.
+DLCNukaWorld.esm,0000A6C0,Paddle ball,A small paddle with a ball tethered to it.
+DLCNukaWorld.esm,00007BC8,Thirst Zapper,A bottle-shaped toy pistol with a hand grip and nozzle.
+DLCNukaWorld.esm,00007BC6,Acid Soaker,A hand-held spray weapon with a pistol-like form.
+DLCNukaWorld.esm,00033905,Fragmentation grenade MIRV,A compact hand-thrown grenade with an arming mechanism.
+DLCNukaWorld.esm,00040CDE,Nuka Quantum grenade,A compact hand-thrown explosive container.
+DLCNukaWorld.esm,0002618B,Fury grenade,A hand-thrown chemical grenade container.
+DLCNukaWorld.esm,00025B0A,Predator grenade,A hand-thrown chemical grenade container.
+DLCNukaWorld.esm,00023E60,Persuasion grenade,A hand-thrown chemical grenade container.
+DLCRobot.esm,00008BC1,Mechanist's armor,A full-body metal suit with mechanical-looking guards and heavy boots.
+DLCRobot.esm,00008BC3,Mechanist's helmet,A metal helmet styled like a mechanical face.
+DLCCoast.esm,0005159B,The Dapper Gent,A shaped cloth hat with a crown and a brim.
+DLCCoast.esm,0004B9B3,The Captain's Hat,A three-cornered hat with a folded brim.
+DLCCoast.esm,0004B9B1,Legend of the Harbor,A rugged outfit assembled for coastal wear.
+DLCCoast.esm,0004885A,Rescue diver suit,"A sealed canvas diving outfit with a round helmet, metal fittings and a back-mounted tank."
+DLCCoast.esm,00048234,Chase's uniform,A worn long armored coat.
+DLCCoast.esm,00046027,Hunter's long coat,A long coat with visible straps and layered fabric.
+DLCCoast.esm,00046024,Old fisherman's hat,A weathered soft-brimmed hat.
+DLCCoast.esm,000247C8,Robes of Atom's Devoted,A ragged robe assembled from worn cloth.
+DLCCoast.esm,000247C5,Inquisitor's cowl,A cloth cowl enclosing the wearer’s head.
+DLCCoast.esm,000391E6,High Confessor's robes,An elaborate robe-like cloth outfit.
+DLCCoast.esm,000391E8,High Confessor's helm,A distinctive head covering with rigid decorative elements.
+DLCCoast.esm,0003A556,Marine wetsuit,A close-fitting dark suit with reinforced sections.
+DLCCoast.esm,0003A557,Marine tactical helmet,A fitted tactical head covering with a face mask.
+DLCCoast.esm,0004FA88,Coastal armor,A rugged coastal outfit with added protective pieces.
+DLCCoast.esm,0004FA89,Lobster trap helmet,A cage-like metal head covering.
+DLCCoast.esm,0004E698,Hunter's pelt outfit,A rough outfit incorporating animal pelts.
+DLCCoast.esm,000540FC,Hunter's hood,A rough cloth hood.
+DLCNukaWorld.esm,0003407C,Magician's tuxedo,A formal jacket and trousers styled for stage performance.
+DLCNukaWorld.esm,0003407D,Oswald's tophat,A tall formal hat with a narrow brim.
+DLCNukaWorld.esm,00029C0D,Nuka-Girl rocketsuit,A fitted space-themed costume with a clear domed helmet and boots.
+DLCNukaWorld.esm,0000D2AE,Spacesuit costume,A padded space-themed costume outfit.
+DLCNukaWorld.esm,000296B8,Spacesuit costume helmet,A space-themed helmet with a transparent face enclosure.
+DLCNukaWorld.esm,00029C06,Gage's armor,A rough armored outfit of layered clothing and protective sections.
+DLCNukaWorld.esm,000392AE,Wildman rags,A rough outfit of torn cloth and hide-like material.
+DLCNukaWorld.esm,0003578E,Nuka-World jumpsuit,A bright branded one-piece jumpsuit.
+DLCworkshop03.esm,00001AFD,Legend of Vault 88,A blue-and-yellow numbered Vault-style jumpsuit.
+DLCRobot.esm,0000C576,Tesla T-60 left arm,A bulky power-armor section with added electrical hardware.
+DLCRobot.esm,0000C57A,Tesla T-60 right arm,A bulky power-armor section with added electrical hardware.
+DLCRobot.esm,0000C57B,Tesla T-60 torso,A bulky power-armor section with added electrical hardware.
+DLCRobot.esm,0000864A,Assaultron helmet,A metal helmet fashioned around a robot-like face.
+DLCRobot.esm,0000864C,Eyebot helmet,A metal helmet fashioned around a rounded robot-like shell.
+DLCRobot.esm,0000864E,Sentry bot helmet,A metal helmet fashioned around a broad robot-like shell.
+DLCRobot.esm,0000863F,Robot armor chest piece,A wearable section of salvaged metal robot plating.
+DLCRobot.esm,00008642,Robot armor right arm,A wearable section of salvaged metal robot plating.
+DLCRobot.esm,00008644,Robot armor left arm,A wearable section of salvaged metal robot plating.
+DLCRobot.esm,00008646,Robot armor right leg,A wearable section of salvaged metal robot plating.
+DLCRobot.esm,00008648,Robot armor left leg,A wearable section of salvaged metal robot plating.
+DLCCoast.esm,00009E56,Marine armor left arm,A substantial section of shaped protective armor.
+DLCCoast.esm,00009E57,Marine armor right arm,A substantial section of shaped protective armor.
+DLCCoast.esm,00009E58,Marine armor helmet,A substantial section of shaped protective armor.
+DLCCoast.esm,00009E59,Marine armor left leg,A substantial section of shaped protective armor.
+DLCCoast.esm,00009E5A,Marine armor right leg,A substantial section of shaped protective armor.
+DLCCoast.esm,00009E5B,Marine armor chest piece,A substantial section of shaped protective armor.
+DLCNukaWorld.esm,0000DC27,Overboss power armor left arm,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,0000DC28,Overboss power armor right arm,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,0000DC29,Overboss power armor helmet,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,0000DC2A,Overboss power armor right leg,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,0000DC2B,Overboss power armor torso,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,0000DC2C,Overboss power armor left leg,Heavy irregular power-armor plating with added wiring.
+DLCNukaWorld.esm,00011511,Nuka T-51 left arm,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,00011513,Nuka T-51 right arm,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,00011515,Nuka T-51 helmet,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,00011517,Nuka T-51 left leg,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,00011519,Nuka T-51 right leg,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,0001151B,Nuka T-51 torso,A rounded T-51 armor part with promotional paint when present.
+DLCNukaWorld.esm,00040CFA,Quantum X-01 left arm,A broad curved X-01 armor part with blue paint when present.
+DLCNukaWorld.esm,00040CFB,Quantum X-01 right arm,A broad curved X-01 armor part with blue paint when present.
+DLCNukaWorld.esm,00040CFC,Quantum X-01 helmet,A broad curved X-01 armor part with blue paint when present.
+DLCNukaWorld.esm,00040CFD,Quantum X-01 left leg,A broad curved X-01 armor part with blue paint when present.
+DLCNukaWorld.esm,00040CFE,Quantum X-01 right leg,A broad curved X-01 armor part with blue paint when present.
+DLCNukaWorld.esm,00040CFF,Quantum X-01 torso,A broad curved X-01 armor part with blue paint when present.
+DLCCoast.esm,00043C74,Vim T-51 left arm,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C75,Vim T-51 right arm,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C76,Vim T-51 helmet,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C77,Vim T-51 left leg,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C78,Vim T-51 right leg,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C79,Vim T-51 torso,A rounded T-51 armor part with red promotional paint when present.
+DLCCoast.esm,00043C7A,Vim Refresh T-51 left arm,A rounded T-51 armor part with green promotional paint when present.
+DLCCoast.esm,00043C7B,Vim Refresh T-51 right arm,A rounded T-51 armor part with green promotional paint when present.
+DLCCoast.esm,00043C7C,Vim Refresh T-51 helmet,A rounded T-51 armor part with green promotional paint when present.
+DLCCoast.esm,00043C7D,Vim Refresh T-51 left leg,A rounded T-51 armor part with green promotional paint when present.
+DLCCoast.esm,00043C7E,Vim Refresh T-51 right leg,A rounded T-51 armor part with green promotional paint when present.
+DLCCoast.esm,00043C7F,Vim Refresh T-51 torso,A rounded T-51 armor part with green promotional paint when present.

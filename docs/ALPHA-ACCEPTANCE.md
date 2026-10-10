@@ -18,6 +18,20 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
 
 ## Configuration and UI
 
+- [x] Manual character review: the user approved the 204-template reading copy on
+      9 October 2026, requesting supported appearance expansion. Eighteen stock
+      descriptions were refined; uncertain or dynamic traits remain conservative.
+- [x] Manual lore review: the user approved the 125 articles on 9 October 2026;
+      the article CSV remains byte-for-byte unchanged.
+- [ ] Equipment additions: review 201 importable physical descriptions and 43
+      named-variant reference entries. Check physical descriptions and exact item
+      identity matches with the paired game. Source and disposable tests do not
+      establish gameplay or per-instance mod evidence. Recognition controls remain
+      separate development work.
+- [ ] Paired gameplay: newly encountered actors receive the correct stable template;
+      custom/locked profiles retain their edits. Check tatos, caps, common chems and
+      radroach pronunciation with the selected voice provider.
+
 - [ ] Quickstart saves the LLM connector, TTS and STT. Missing optional keys fail cleanly,
       without PHP warnings.
 - [ ] The STT diagnostic shows a clear message when no local sample is present and

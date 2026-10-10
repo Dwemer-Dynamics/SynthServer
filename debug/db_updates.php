@@ -5338,4 +5338,16 @@ if ($checkVersion('core_tts_pronunciation') < 20260829003) {
     }
 }
 
+// The authored catalogue is an additive SQL release, separate from historical seeds.
+require_once __DIR__.'/../lib/fallout_catalogue_sql.php';
+if ($checkVersion('fallout4_catalogue_sql') < SYNTH_FALLOUT_CATALOGUE_SQL_VERSION) {
+    try {
+        synthInstallFalloutCatalogueSql($db,dirname(__DIR__));
+        Logger::info('Installed verified Fallout 4 catalogue SQL release.');
+    } catch (Throwable $error) {
+        Logger::error('Fallout 4 catalogue SQL migration failed; inspect its transaction outcome before retrying.');
+        throw $error;
+    }
+}
+
 Logger::info(__FILE__." update file processed. This file has ".__LINE__." lines.");

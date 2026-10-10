@@ -13,6 +13,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $root = dirname(__DIR__, 2);
         $sourcesPath = $root.DIRECTORY_SEPARATOR.'data'.DIRECTORY_SEPARATOR.'fallout_worldknowledge_sources.jsonl';
         $catalog = synthWorldKnowledgeLoadFactoryCatalog($root);
+        $vocabulary = json_decode(file_get_contents($root.'/data/fallout_worldknowledge_vocabulary.json'), true, 512, JSON_THROW_ON_ERROR);
         $topics = [];
         $aliasCount = 0;
         $categoryCounts = [];
@@ -33,15 +34,25 @@ final class WorldKnowledgeTest extends DatabaseTestCase
                 $nameOwners[$aliasKey] = $topic;
             }
             $this->assertNotEmpty($data['topic_desc']);
+            foreach (['knowledge_class', 'knowledge_class_basic'] as $field) {
+                foreach (array_filter(array_map('trim', explode(',', $data[$field]))) as $class) {
+                    $this->assertContains(ltrim($class, '!'), $vocabulary['knowledge_classes'], $topic.' '.$field);
+                }
+            }
             $this->assertGreaterThanOrEqual(4, count(array_filter(array_map('trim', explode(',', $data['tags'])))));
             $category = strval($data['category']);
             $categoryCounts[$category] = intval($categoryCounts[$category] ?? 0) + 1;
         }
 
-        $this->assertCount(15, $topics);
-        $this->assertGreaterThanOrEqual(5, $aliasCount);
+        $this->assertCount(125, $topics);
+        $this->assertSame(125, $catalog['manifest']['row_count']);
+        $this->assertGreaterThanOrEqual(125, $aliasCount);
+        ksort($categoryCounts);
         $this->assertSame(
-            ['location' => 5, 'person' => 2, 'faction' => 5, 'creature' => 3],
+            ['concept' => 10, 'creature' => 14, 'culture' => 3, 'faction' => 9,
+                'flora' => 4, 'food_drink' => 4, 'history' => 1, 'item' => 2,
+                'location' => 38, 'medicine' => 10, 'organization' => 11,
+                'person' => 2, 'robot' => 6, 'technology' => 11],
             $categoryCounts
         );
         $this->assertSame('approved', $catalog['manifest']['editorial_review']['status'] ?? null);
@@ -51,9 +62,22 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         foreach (file($sourcesPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
             $source = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
             $sourceTopics[synthWorldKnowledgeCanonicalTopic($source['topic'] ?? '')] = true;
-            $this->assertNotEmpty($source['source_url'] ?? '');
-            $this->assertNotEmpty($source['revision_id'] ?? '');
+            $this->assertMatchesRegularExpression('~^https://[^\\s]+$~', $source['source_url'] ?? '');
+            $this->assertContains($source['source_url'], $source['source_urls'] ?? []);
+            $this->assertNotEmpty($source['evidence'] ?? '');
+            $this->assertMatchesRegularExpression('~^https://[^\\s]+$~', $source['license_url'] ?? '');
+            $this->assertArrayHasKey('revision_id', $source);
+            // Unverified source revisions are deliberately null, never fabricated receipts.
+            if ($source['revision_id'] !== null) {
+                $this->assertIsString($source['revision_id']);
+                $this->assertNotEmpty($source['revision_id']);
+            }
+            if (isset($source['authored_content_sha256'])) {
+                $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/D', $source['authored_content_sha256']);
+            }
         }
+        $this->assertSame(125, $catalog['manifest']['source_snapshot']['row_count']);
+        $this->assertSame($catalog['manifest']['source_snapshot']['checksum_sha256'], hash_file('sha256', $sourcesPath));
         $this->assertSame(array_keys($topics), array_keys($sourceTopics));
     }
 
@@ -255,6 +279,8 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $this->insertStimpackLore();
 
         $testDb = new sql();
+        $this->assertNotFalse($testDb->execQuery("UPDATE synth.worldknowledge SET knowledge_class='medicine',knowledge_class_basic='commonwealth' WHERE canonical_topic='stimpack_seller' AND source_kind='custom'"));
+        $this->assertNotFalse($testDb->execQuery("INSERT INTO synth.core_narrator(id,value) VALUES('worldknowledge','medicine') ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value"));
         $testDb->insert(
             'conf_opts',
             array(
@@ -281,9 +307,12 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             $capturedContent = stream_context_get_options($context)['http']['content'] ?? '';
             return $this->defaultConnectorResponse($url, $context);
         });
-        $this->setJsonRequest('inputtext', 100, 200, 'I carried a fusion core. Surely I must know something.');
+        // Keep the input topic-free: a directly mentioned fusion core now resolves
+        // to its shipped article and correctly takes precedence over this fallback.
+        $this->setJsonRequest('inputtext', 100, 200, 'Surely I must know something.');
         require(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."main.php");
         $this->assertStringContainsString("- Access: advanced", $capturedContent);
+        $this->assertStringContainsString('- Topic: stimpack_seller', $capturedContent);
         $this->assertStringContainsString("The stimpack vendor is a wasteland medic who buys and sells stimpaks", $capturedContent);
     }
 
