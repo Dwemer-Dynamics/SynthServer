@@ -12,6 +12,12 @@ if ($Target -ne $expectedTarget) {
     throw "Refusing unexpected deployment target '$Target'. Expected '$expectedTarget'."
 }
 
+# Read-only: refuse an unpatched PHP CLI or Apache PHP runtime in this distro before creating or syncing anything.
+& wsl.exe -d $Distro -- sudo bash "$sourceLinux/tools/check-php-runtime-security.sh"
+if ($LASTEXITCODE -ne 0) {
+    throw "PHP runtime security preflight failed in WSL distro '$Distro'; nothing was deployed. Update the distro's PHP packages, restart Apache and PHP-FPM, then deploy again."
+}
+
 & wsl.exe -d $Distro -- sudo install -d -m 0755 -o www-data -g www-data $Target
 if ($LASTEXITCODE -ne 0) { throw "Failed to create the Synthserver deployment directory." }
 
