@@ -80,6 +80,21 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    voices, uploads, caches and logs. It creates `conf/conf.php` from `conf/conf.sample.php` only
    when the file is missing. It installs the Apache site only after `apache2ctl configtest`
    passes. When `-Distro` is omitted, it uses the DwemerDistro default distribution name.
+
+   Before creating or syncing anything, it runs the read-only
+   `tools/check-php-runtime-security.sh` inside that distribution. Deployment stops unless the
+   PHP CLI and every PHP runtime Apache has enabled (`libapache2-mod-phpX.Y` or `phpX.Y-fpm`)
+   are at or above the PHP2Shell (CVE-2026-109618/109619) patched floor of a supported branch:
+   8.2.35, 8.3.36, 8.4.27 or 8.5.12, each the distro's packaged binary matching dpkg's checksums
+   with a patched embedded PHP version. Older releases, pre-releases, other branches, custom or
+   unknown PHP paths and running Apache, PHP-FPM or PHP processes using a replaced or unverifiable
+   PHP binary are refused. If it fails, update only the distribution's PHP packages, keeping
+   existing configuration files: DwemerDistro launcher **Update Distro**, or `sudo apt-get update`
+   inside the distribution and then, for the branch the check names,
+   `sudo apt-get install --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $(dpkg-query -W -f='${binary:Package} ' 'phpX.Y*' libapache2-mod-phpX.Y)`.
+   Stop if apt proposes removing packages; a full distribution upgrade is not needed. Restart
+   Apache, PHP-FPM and PHP workers, then deploy again. A refused deployment changes no configuration, data or database. The deploy script
+   never installs packages.
 6. **Check.** Open `http://127.0.0.1:8087/Synthserver/health.php`, then
    `http://127.0.0.1:8087/Synthserver/ui/quickstart.php`.
 
