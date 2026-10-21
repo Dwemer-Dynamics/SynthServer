@@ -64,7 +64,9 @@ The [README](../README.md#install) has the steps. Safeguards:
   schema is absent, then runs the idempotent migration chain. It drops data **only** when the
   explicit `-Reset` switch is passed. The default never resets.
 - `tools/deploy-synthserver-wsl.ps1` refuses any target other than
-  `/var/www/html/Synthserver`. Its `rsync --delete` excludes configuration, voices, caches,
+  `/var/www/html/Synthserver`, then stops before any change unless the read-only
+  `tools/check-php-runtime-security.sh` passes in the chosen distro (patched PHP CLI and Apache
+  PHP runtime; floors in the [README](../README.md#install)). Its `rsync --delete` excludes configuration, voices, caches,
   uploads, logs and runtime state. It creates `conf/conf.php` from the sample only when
   `conf.php` is missing, protects it with mode `0640`, runs the database bootstrap, and installs
   the Apache site only after `apache2ctl configtest` passes.
