@@ -135,9 +135,23 @@ $oldPatchOverrideTtsOptions = $GLOBALS["PATCH_OVERRIDE_TTS_OPTIONS"] ?? null;
 
 try {
     $GLOBALS['SYNTH_SPEECH_ROLE'] = 'player';
+    $writeOutput = isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? (bool)$GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] : true;
+    $requestEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if ($writeOutput && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+        && synth_protocol_owns_dialogue_turn($requestEvent)
+        && in_array($requestEvent['type'] ?? '', ['input_text', 'input_audio'], true)) {
+        if (synthShouldSkipPlayerTtsForRequest($gameRequest[0] ?? '', $gameRequest[3] ?? '')) {
+            $playerTtsStatus = "skipped";
+            return;
+        }
+        // The native input is already the player's speech; retain its transcript without revoicing it.
+        emitPlayerTextOnlySpeechLine($cleaned_dialogue);
+        $playerTtsStatus = "text_only";
+        return;
+    }
+
     $player = new Player();
     $ttsConnector = new TTSConnector();
-    $writeOutput = isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? (bool)$GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] : true;
 
     $connectorId = intval($player->get('tts_connector_id') ?? 0);
     $currentConnector = $connectorId > 0 ? $ttsConnector->getById($connectorId) : null;
@@ -310,7 +324,7 @@ try {
     Logger::phaseEnd($playerTtsPhase, [
         "status" => $playerTtsStatus,
         "cache_path" => $GLOBALS["PLAYER_TTS_LAST_CACHE_PATH"] ?? "",
-    ], $playerTtsStatus === "ok" || $playerTtsStatus === "text_only" || $playerTtsStatus === "empty" ? "info" : "warn");
+    ], in_array($playerTtsStatus, ["ok", "text_only", "empty", "skipped"], true) ? "info" : "warn");
 }
 
 audit_log(__FILE__ . " " . __LINE__);

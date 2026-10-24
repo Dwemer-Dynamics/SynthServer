@@ -33,6 +33,7 @@ function synthCanonicalActionCodes()
         'MoveTo',
         'PickupItem',
         'ReadQuests',
+        'ReleaseWait',
         'Relax',
         'DirectorCommand',
         'SpawnCaps',
@@ -422,9 +423,9 @@ $F_DESCRIPTIONS_LOCAL["Barter"] = "Open a vendor-style barter menu with #SYNTH_N
 $F_DESCRIPTIONS_LOCAL["OpenInventory"] = "Open #SYNTH_NAME#'s inventory for free item exchange with #PLAYER_NAME#.";
 $F_DESCRIPTIONS_LOCAL["Attack"] = "Attack with intention to kill a target actor or entity.";
 $F_DESCRIPTIONS_LOCAL["Follow"] = "Move to and follow the specified target actor";
-$F_DESCRIPTIONS_LOCAL["Inspect"] = "Inspect a nearby actor or being to get a closer read on their visible equipment, condition, and state.";
+$F_DESCRIPTIONS_LOCAL["Inspect"] = "Inspect a nearby actor or being for identity, condition and state. Use current_observed_equipment for captured visible gear; this action does not refresh an actor's equipment.";
 $F_DESCRIPTIONS_LOCAL["InspectSurroundings"] = "Look around and assess who or what is nearby, including people, creatures, and possible threats.";
-$F_DESCRIPTIONS_LOCAL["CheckInventory"] = "Search #SYNTH_NAME#'s captured inventory for items or counts, including items omitted from the short prompt preview. A partial observation cannot prove absence.";
+$F_DESCRIPTIONS_LOCAL["CheckInventory"] = "Search #SYNTH_NAME#'s own captured inventory for items or counts, including items omitted from the short prompt preview. This does not inspect the player's inventory. Answer questions about the player's visible gear from current_observed_equipment with Talk when captured. A partial observation cannot prove absence.";
 $F_DESCRIPTIONS_LOCAL["SheatheWeapon"] = "Sheathes/put away current weapon";
 $F_DESCRIPTIONS_LOCAL["TravelTo"] = "Travel long distance to a building, city, door or other location. Also known as lead the way.";
 $F_DESCRIPTIONS_LOCAL["TakeASeat"] = "#SYNTH_NAME# takes a seat at a nearby seating location.";
@@ -439,6 +440,7 @@ $F_DESCRIPTIONS_LOCAL["IncreaseWalkSpeed"] = "Increase #SYNTH_NAME#'s speed when
 $F_DESCRIPTIONS_LOCAL["DecreaseWalkSpeed"] = "Decrease #SYNTH_NAME#'s speed when moving or travelling.";
 $F_DESCRIPTIONS_LOCAL["StopWalk"] = "Stop all of #SYNTH_NAME#'s actions immediately.";
 $F_DESCRIPTIONS_LOCAL["WaitHere"] = "#SYNTH_NAME# waits and loiters at the current location.";
+$F_DESCRIPTIONS_LOCAL['ReleaseWait'] = 'Release #SYNTH_NAME# from SYNTH waiting at this location. This does not recruit a follower.';
 $F_DESCRIPTIONS_LOCAL["TakeCapsFromPlayer"] = "#SYNTH_NAME# takes the specified amount of caps from #PLAYER_NAME# once #PLAYER_NAME# agrees. Infer the amount from context.";
 $F_DESCRIPTIONS_LOCAL["FollowPlayer"] = "#SYNTH_NAME# follows #PLAYER_NAME#.";
 $F_DESCRIPTIONS_LOCAL["StopFollowing"] = "#SYNTH_NAME# stops following #PLAYER_NAME# and leaves the current follower role.";
@@ -476,6 +478,7 @@ $F_RETURNMESSAGES_LOCAL["DecreaseWalkSpeed"] = "Decreases #SYNTH_NAME#'s speed o
 $F_RETURNMESSAGES_LOCAL["StopWalk"] = "Stop all of #SYNTH_NAME#'s actions immediately.";
 $F_RETURNMESSAGES_LOCAL["TravelTo"] = "#SYNTH_NAME# begins travelling to #TARGET#.";
 $F_RETURNMESSAGES_LOCAL["WaitHere"] = "#SYNTH_NAME# waits and stands at the place.";
+$F_RETURNMESSAGES_LOCAL['ReleaseWait'] = '#SYNTH_NAME# is released from SYNTH waiting.';
 $F_RETURNMESSAGES_LOCAL["TakeCapsFromPlayer"] = "#PLAYER_NAME# gave #TARGET# caps to #SYNTH_NAME#. If this is a transaction, maybe GiveItemTo is needed.";
 $F_RETURNMESSAGES_LOCAL["FollowPlayer"] = "#SYNTH_NAME# follows #PLAYER_NAME#.";
 $F_RETURNMESSAGES_LOCAL["StopFollowing"] = "#SYNTH_NAME# stops following #PLAYER_NAME#.";
@@ -512,6 +515,7 @@ $F_NAMES_LOCAL["DecreaseWalkSpeed"] = "DecreaseWalkSpeed";
 $F_NAMES_LOCAL["StopWalk"] = "StopWalk";
 $F_NAMES_LOCAL["TravelTo"] = "TravelTo";
 $F_NAMES_LOCAL["WaitHere"] = "WaitHere";
+$F_NAMES_LOCAL['ReleaseWait'] = 'ReleaseWait';
 $F_NAMES_LOCAL["TakeCapsFromPlayer"] = "TakeCapsFromPlayer";
 $F_NAMES_LOCAL["FollowPlayer"] = "Follow_#PLAYER_NAME#";
 $F_NAMES_LOCAL["StopFollowing"] = "Stop_Following_#PLAYER_NAME#";
@@ -774,6 +778,8 @@ $GLOBALS["FUNCTIONS"] = [
             "required" => [""],
         ],
     ],
+    ['name'=>$F_NAMES_LOCAL['ReleaseWait'],'description'=>$F_DESCRIPTIONS_LOCAL['ReleaseWait'],
+        'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]]],
     [
         "name" => $F_NAMES_LOCAL["TakeCapsFromPlayer"],
         "description" => $F_DESCRIPTIONS_LOCAL["TakeCapsFromPlayer"],
@@ -999,6 +1005,11 @@ function synthActionCapabilityForCode(string $codeName): string
 function synthActionCodeIsNegotiated(string $codeName): bool
 {
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if ($codeName==='ReleaseWait' || ($codeName==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
+        require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
+        if (!synth_wait_action_supported($event,$codeName)) return false;
+    }
+    if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat' && !synth_rechat_action_code_allowed($codeName)) return false;
     if ($codeName === 'Consume' && ($event['protocol_version'] ?? 1) === 2
@@ -1577,7 +1588,11 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
     $parameterValue = $parsedResponse["target"] ?? "";
     $missingRequired = [];
 
-    if (in_array($functionCodeName,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        // Preserve every raw non-speech field; only shared exact-empty placeholders are not wait arguments.
+        $parameterValue=array_diff_key($parsedResponse,array_flip(['action','character','listener','mood','message','lang','emotion','emotion_intensity']));
+        foreach (['target','item','amount'] as $key) if (($parameterValue[$key] ?? null)==='') unset($parameterValue[$key]);
+    } elseif (in_array($functionCodeName,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         // Speech fields are not action arguments. Preserve every remaining raw field for strict transfer validation.
         $parameterValue = array_diff_key($parsedResponse, array_flip([
             'action','character','listener','mood','message','lang','emotion','emotion_intensity',
@@ -1662,6 +1677,12 @@ function synthPrepareActionsIssuedOriginalValue($originalValue)
 function buildFunctionExecutionParameter($functionCodeName, $parameter)
 {
     $functionCodeName = trim(strval($functionCodeName));
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait'],true)
+        && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
+        return synth_wait_action_parameters_empty($parameter) ? '{}'
+            : json_encode($parameter,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    }
 
     $configuredPayload = buildConfiguredActionParameterFromMetadata($functionCodeName, $parameter);
     if ($configuredPayload !== null) {
@@ -1682,8 +1703,10 @@ function findFunctionByName($name)
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat'
         && !synth_rechat_action_code_allowed(strval(getFunctionCodeName($name) ?: $name))) return null;
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2 && in_array(getFunctionCodeName($name),['GiveCapsTo','TakeCapsFromPlayer'],true)) {
-        // Native caps use the negotiated runtime definition; a legacy database row cannot restore optional/string amounts.
+    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
+        && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait'], true)) {
+        // Native contracts use the negotiated runtime definition; a legacy row
+        // cannot restore caps fallbacks, broaden observation tools or add wait arguments.
         foreach ($GLOBALS['FUNCTIONS'] ?? [] as $function)
             if (getFunctionCodeName($function['name'] ?? '') === getFunctionCodeName($name)) return $function;
         return null;
@@ -1844,6 +1867,10 @@ if (synthActionCatalogDbReady()) {
     // built-in functions and get rewritten as source=function.php rows.
     synthTraceFunctionsIncludePhase(__LINE__, 'runtime_function_merge_start', $startTime);
     synthActionCatalogApplyRowsToRuntimeFunctions();
+    require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
+    synth_wait_action_missing_release_fallback(synthGetActionCatalogRowsByCode(),[
+        'name'=>'ReleaseWait','description'=>$F_DESCRIPTIONS_LOCAL['ReleaseWait'],
+        'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]]]);
     synthTraceFunctionsIncludePhase(__LINE__, 'runtime_function_merge_done', $startTime);
 }
 
@@ -1859,6 +1886,34 @@ if (file_exists(__DIR__ . DIRECTORY_SEPARATOR . "../prompts/prompts_custom.php")
 }
 
 synthTraceFunctionsIncludePhase(__LINE__, 'prompt_overrides_loaded', $startTime);
+
+// Native observation semantics are fixed by the client contract, even when an
+// older database/custom row supplies a broader description. Keep persisted rows
+// and validation schemas intact; only clarify the current prompt definition.
+if (!function_exists('synthNativeObservationActionDefinition')) {
+function synthNativeObservationActionDefinition(string $codeName, array $definition, $protocolVersion): array
+{
+    if ($protocolVersion !== 2) return $definition;
+    if ($codeName === 'Inspect') {
+        $definition['description'] = 'Inspect a nearby actor for identity, condition and state. '
+            . 'This action does not refresh weapon or clothing observations. '
+            . 'Use Talk to describe visible gear already captured in current_observed_equipment.';
+    } elseif ($codeName === 'CheckInventory') {
+        $definition['description'] = 'Search only the acting NPC\'s own captured inventory for items or counts, '
+            . 'including items omitted from the short prompt preview. '
+            . 'The target parameter is an optional literal item-name or FormID filter, not a player or actor selector. '
+            . 'This action does not inspect the player\'s inventory. '
+            . 'Use Talk to describe visible gear already captured in current_observed_equipment. '
+            . 'Partial or unavailable inventory cannot prove absence.';
+        if (is_array($definition['parameters']['properties']['target'] ?? null)) {
+            $definition['parameters']['properties']['target']['description'] = 'Optional literal item-name or FormID '
+                . 'filter within the acting NPC\'s own captured inventory. '
+                . 'Leave blank to list that inventory; this is not an actor/player selector.';
+        }
+    }
+    return $definition;
+}
+}
 
 // Delete non wanted functions
 
@@ -1881,6 +1936,14 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         unset($GLOBALS["FUNCTIONS"][$n]);
         continue;
     } 
+    if (in_array($codeName,['WaitHere','ReleaseWait'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
+        $GLOBALS['FUNCTIONS'][$n]['description']=$codeName==='WaitHere'
+            ? 'If you agree to the player\'s request to wait here, select this action. A Talk promise does not execute waiting. Leave every action parameter blank. The hold lasts at most 90 seconds.'
+            : 'If you agree to the player\'s request to stop waiting, select this action. A Talk promise does not release waiting. Leave every action parameter blank. This does not make you a follower.';
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+    }
     
     if (in_array($codeName,['GiveCapsTo','TakeCapsFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         // Enforce the native contract after database/custom merges, without changing persisted legacy definitions.
@@ -1891,6 +1954,14 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         $GLOBALS['FUNCTIONS'][$n]['parameters'] = ['type'=>'object','additionalProperties'=>false,
             'properties'=>['target'=>['type'=>'string','minLength'=>1,'maxLength'=>255],
                 'amount'=>['type'=>'integer','minimum'=>1,'maximum'=>1000000]],'required'=>['target','amount']];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n]['description'];
+    }
+    if (in_array($codeName, ['Inspect', 'CheckInventory'], true)
+        && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+        $GLOBALS['FUNCTIONS'][$n] = synthNativeObservationActionDefinition(
+            $codeName, $GLOBALS['FUNCTIONS'][$n], 2
+        );
         $GLOBALS['BASE_FUNCTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n];
         $GLOBALS['F_DESCRIPTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n]['description'];
     }

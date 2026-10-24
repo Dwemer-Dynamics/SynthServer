@@ -4,6 +4,7 @@ require_once dirname(__DIR__) . '/lib/speech_cache.php';
 
 require_once dirname(__DIR__) . '/lib/provider_stream.php';
 require_once dirname(__DIR__) . '/lib/voice_clone_resolver.php';
+require_once dirname(__DIR__) . '/lib/cartesia_generation.php';
 
 /**
  * Cartesia TTS Implementation
@@ -696,12 +697,6 @@ function generateCartesiaTTS($text, $voiceId, $mood = 'normal') {
     
     $url = "https://api.cartesia.ai/tts/bytes";
     
-    // Get model ID
-    $modelId = $GLOBALS["TTS"]["CARTESIA"]["model_id"] ?? 'sonic-3';
-    
-    // Get speed setting
-    $speed = $GLOBALS["TTS"]["CARTESIA"]["speed"] ?? 'normal';
-    
     // Get language from config
     $language = $GLOBALS["TTS"]["CARTESIA"]["language"] ?? 'en';
     
@@ -710,60 +705,18 @@ function generateCartesiaTTS($text, $voiceId, $mood = 'normal') {
         $language = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
     }
     
-    // Prepare voice specification
-    $voiceSpec = array(
-        'mode' => 'id',
-        'id' => $voiceId
-    );
-    
-    // Emotion support disabled for now - needs testing with cloned voices
-    // Add emotion SSML tag if enabled and mood is provided
-    // $useEmotionsEnabled = $GLOBALS["TTS"]["CARTESIA"]["use_emotions"] ?? false;
-    // 
-    // Logger::info("Cartesia TTS called - use_emotions: " . ($useEmotionsEnabled ? 'true' : 'false') . ", mood: '{$mood}'");
-    // 
-    // if ($useEmotionsEnabled && !empty($mood) && $mood !== 'default') {
-    //     $emotion = mapMoodToCartesiaEmotion($mood);
-    //     if (!empty($emotion)) {
-    //         // Prepend SSML emotion tag to text
-    //         $text = '<emotion value="' . $emotion . '" /> ' . $text;
-    //         Logger::info("Using Cartesia emotion: {$emotion} (from mood: {$mood})");
-    //     } else {
-    //         Logger::info("Mood '{$mood}' did not map to any Cartesia emotion");
-    //     }
-    // } else {
-    //     if (!$useEmotionsEnabled) {
-    //         Logger::info("Cartesia emotions disabled in config");
-    //     } else if (empty($mood)) {
-    //         Logger::info("No mood provided to Cartesia TTS");
-    //     } else if ($mood === 'default') {
-    //         Logger::info("Mood is 'default', skipping emotion");
-    //     }
-    // }
-    
-    // Prepare output format
-    $outputFormat = array(
-        'container' => 'wav',
-        'encoding' => 'pcm_s16le',
-        'sample_rate' => 22050
-    );
-    
-    // Prepare request data
-    $data = array(
-        'model_id' => $modelId,
-        'transcript' => $text,
-        'voice' => $voiceSpec,
-        'language' => $language,
-        'output_format' => $outputFormat,
-        'speed' => $speed
-    );
+    // Queued workers restore their captured settings before entering this driver.
+    $request = synth_cartesia_generation_request(strval($text), strval($voiceId), $mood,
+        $GLOBALS['TTS']['CARTESIA'] ?? [], strval($language));
+    $data = $request['body'];
+    $authorization = $request['modern'] ? "Authorization: Bearer {$apiKey}\r\n" : "X-API-Key: {$apiKey}\r\n";
     
     // Prepare request
     $options = array(
         'http' => array(
             'method' => 'POST',
-            'header' => "X-API-Key: {$apiKey}\r\n" .
-                       "Cartesia-Version: 2024-11-13\r\n" .
+            'header' => $authorization .
+                       "Cartesia-Version: {$request['api_version']}\r\n" .
                        "Content-Type: application/json\r\n",
             'content' => json_encode($data),
             'ignore_errors' => true,

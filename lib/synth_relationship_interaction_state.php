@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/synth_relationship_pair_evidence.php';
+
 // Accepted paired evidence is checked against its original context, not current administrative controls.
 function synth_relationship_interaction_state_cte(): string
 {
@@ -16,33 +18,17 @@ function synth_relationship_interaction_state_cte(): string
             AND h.event_payload->>'evaluation_sha256'=i.input_sha256
             AND i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex')
             AND h.event_payload->>'result_sha256'=encode(sha256(convert_to(result.result_payload::text,'UTF8')),'hex')
-    ), interaction_result_execution AS MATERIALIZED (
-        SELECT i.*,c.context_payload AS original_context,c.player_identity_id,c.target_identity_id,c.audience_identity_ids
-        FROM interaction_result_base i
-        JOIN synth_meta.worker_jobs j ON j.id=i.job_id AND j.relationship_interaction_id=i.interaction_id AND j.state='ready'
-            AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
-            AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
-            AND j.actor_identity_id=i.speaker_identity_id AND j.payload->>'context_sequence'=i.context_sequence::text
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
-            AND c.snapshot_sequence=i.context_sequence AND c.playthrough_id=i.playthrough_id AND c.target_identity_id=i.speaker_identity_id
-        JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
-            AND owner.generation=i.generation AND owner.turn_id=j.turn_id AND owner.state='complete'
-        JOIN synth_meta.protocol_events protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
-            AND protocol.generation=i.generation AND protocol.turn_id=j.turn_id AND protocol.event_type=owner.event_type
-            AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'
-        WHERE i.input_payload->'context'=c.context_payload
-    ), interaction_result_origins AS MATERIALIZED (
+    ) ".synth_relationship_pair_evidence_cte().", interaction_result_origins AS MATERIALIZED (
         SELECT i.* FROM interaction_result_execution i
-        JOIN relationship_graph_responses response ON response.history_event_id=i.response_history_event_id AND response.actor_identity_id=i.speaker_identity_id
         JOIN synth.actor_identities listener ON listener.id=i.listener_identity_id AND listener.game='fo4'
-            AND listener.playthrough_id=i.playthrough_id AND listener.id<>i.player_identity_id AND listener.id<>i.target_identity_id
+            AND listener.playthrough_id=i.playthrough_id AND listener.id<>i.player_identity_id AND listener.id<>i.speaker_identity_id
         CROSS JOIN LATERAL (
             SELECT jsonb_agg(jsonb_build_object('entry_index',entry.ordinality-1,'entry',entry.value) ORDER BY entry.ordinality) AS lines
-            FROM jsonb_array_elements(CASE WHEN jsonb_typeof(response.response_payload->'entries')='array'
-                THEN response.response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)
+            FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.pair_response_payload->'entries')='array'
+                THEN i.pair_response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)
             WHERE entry.value#>>'{routing,availability}'='addressed'
-                AND upper(entry.value#>>'{speaker,form_id}')=upper(i.original_context#>>'{target,form_id}')
-                AND lower(entry.value#>>'{speaker,origin_plugin}')=lower(i.original_context#>>'{target,origin_plugin}')
+                AND upper(entry.value#>>'{speaker,form_id}')=upper(i.effective_speaker_identity->>'form_id')
+                AND lower(entry.value#>>'{speaker,origin_plugin}')=lower(i.effective_speaker_identity->>'origin_plugin')
                 AND entry.value#>>'{speaker,playthrough_id}'=i.playthrough_id
                 AND upper(entry.value#>>'{routing,listener,form_id}')=upper(listener.full_form_id)
                 AND lower(entry.value#>>'{routing,listener,origin_plugin}')=lower(listener.origin_plugin)
@@ -50,14 +36,15 @@ function synth_relationship_interaction_state_cte(): string
         ) grouped
         WHERE i.input_payload->>'schema'='synth.relationship.interaction.input.v1'
             AND i.input_payload->>'evaluation_policy'='synth.relationship.policy.v2'
-            AND i.input_payload->'response'=response.response_payload
-            AND response.response_payload->>'schema'='synth.relationship.response.v3'
-            AND response.response_payload->>'evaluation_mode'='dedicated'
+            AND i.input_payload->'response'=i.pair_response_payload
+            AND i.pair_response_payload->>'schema'='synth.relationship.response.v3'
+            AND i.pair_response_payload->>'evaluation_mode'='dedicated'
             AND i.input_payload#>'{interaction,actor_ids}'=jsonb_build_object('speaker',i.speaker_identity_id,'listener',i.listener_identity_id)
             AND i.input_payload#>'{interaction,response_id}'=to_jsonb(i.response_history_event_id)
-            AND i.input_payload#>'{interaction,participants,speaker}'=i.original_context->'target'
-            AND i.audience_identity_ids @> jsonb_build_array(i.listener_identity_id)
-            AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(i.original_context->'audience','[]'::jsonb)) actor
+            AND i.input_payload#>'{interaction,participants,speaker}'=i.effective_speaker_identity
+            AND (i.target_identity_id=i.listener_identity_id OR i.audience_identity_ids @> jsonb_build_array(i.listener_identity_id))
+            AND EXISTS(SELECT 1 FROM jsonb_array_elements(jsonb_build_array(i.original_context->'target')
+                ||COALESCE(i.original_context->'audience','[]'::jsonb)) actor
                 WHERE actor=i.input_payload#>'{interaction,participants,listener}' AND actor->>'playthrough_id'=i.playthrough_id
                     AND upper(actor->>'form_id')=upper(listener.full_form_id) AND lower(actor->>'origin_plugin')=lower(listener.origin_plugin))
             AND grouped.lines=i.input_payload->'lines'

@@ -40,22 +40,35 @@ It independently verifies the target is active, present and eligible, recomputes
 change, and allows only the earliest admitted quest trigger per current snapshot.
 Suppression returns quest_reaction_suppressed without invoking a model.
 
+Quest-aware knowledge adds a separate NPC access check: the selected actor must
+already have a save-visible, directly addressed player report naming the changed
+quest. Proximity and journal changes alone do not establish participation. The
+reaction may ask about the earlier conversation, quoting only that attributed
+report; it does not reveal the newly captured objective, stage or outcome. The
+structured reaction contains reports instead of the raw changed quest records.
+See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
+
 Existing NPC RPG enabled-event list, chance and atomic owner-isolated 60-second
 cooldown still govern generation. Detection is not a promise of speech.
 No setting, schema migration, provider or prompt override is introduced.
 
 ## Verification and manual acceptance
 
-Both native DLL builds and all 17 suites pass. Native checks cover journal semantics,
+At the historical client quest-reaction checkpoint, both native DLL builds and all
+17 suites passed. Native checks covered journal semantics,
 negotiated/older-server behavior, malformed reinitialization and invalid binding.
 Mirrored contracts: 26 schemas, 98 fixture cases, 114 canonical files. Existing PHP
 suite: 194 tests, 2630 assertions. Disposable SQL: 25 binding/ownership/eligibility/
 duplicate checks, plus journal history 33, native quest events 27 and PHP handshake 11.
-No test called a paid provider or game.
+No test called a paid provider or game. Backend knowledge-reader validation is
+recorded separately in [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 
 Manual flat acceptance remains open: load a save, activate a nearby NPC, establish
-a fresh journal baseline, then change a tracked quest/objective while the NPC is
-visible and idle. Inspect the owned quest_updated request and its RPG policy result.
+a fresh journal baseline, and tell that NPC about the displayed quest by name. Then
+change a tracked quest/objective while the NPC is visible and idle. Inspect the owned
+quest_updated request and its RPG policy result; its text may ask about the earlier
+report but must not disclose the private new objective. Repeat with an uninformed NPC
+and verify suppression.
 Repeat with combat, scene dialogue, save/load during a pending response, no eligible
 NPC and unchanged journals; verify responsiveness and no stale/duplicate speech.
 The user runs the game. Independent VR headset acceptance remains separate.

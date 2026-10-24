@@ -2,6 +2,9 @@
 
 require_once __DIR__.'/synth_protocol_state.php';
 
+// A proven move ends this continuation; it does not authorize a new physical scene.
+final class SYNTHRechatSceneChanged extends LogicException {}
+
 // Resolve only the explicitly named scene under its actual request owner.
 // Parent response proof and responder admission remain separate, mandatory gates.
 function synth_rechat_scene_context($db, array $event): ?array
@@ -102,13 +105,15 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         return $key;
     };
     $scene=$sceneKey($payload);
+    $previousScene=$sceneKey($previous);
     $player=synth_rechat_actor_key($payload['player'] ?? []);
     $target=synth_rechat_actor_key($payload['target'] ?? []);
-    if ($scene===null || $scene!==$sceneKey($previous)
+    if ($scene===null || $previousScene===null
         || $player===null || $player!==synth_rechat_actor_key($previous['player'] ?? [])
         || $target===null || $target!==synth_rechat_actor_key($event['payload']['actor'] ?? [])
         || !in_array($payload['audience_observation'] ?? '',['complete','partial'],true))
         throw new LogicException('rechat_scene_changed');
+    if ($scene!==$previousScene) throw new SYNTHRechatSceneChanged('rechat_scene_changed');
     return ['payload'=>$payload,'player'=>$payload['player'],'target'=>$payload['target'],
         'scene_context_sequence'=>$event['payload']['scene_context_sequence']];
 }
@@ -263,7 +268,14 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
             }
             if (!$found) throw new LogicException('Dialogue route speaker outside captured context');
         }
-        $route=synth_response_listener_route($speaker,$metadata,$context,$event);
+        if (($event['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$event['capabilities'] ?? [],true)) {
+            require_once __DIR__.'/synth_ambient_npc.php';
+            if (synth_ambient_npc_projection($event)===null) throw new LogicException('ambient_origin_not_prepared');
+            $ambient=synth_ambient_npc_prepare($db,$event);
+            if ($ambient===null || synth_protocol_canonical_json($speaker)!==synth_protocol_canonical_json($ambient['speaker']))
+                throw new LogicException('ambient_emission_speaker_not_selected');
+            $route=['availability'=>'addressed','listener'=>$ambient['listener']];
+        } else $route=synth_response_listener_route($speaker,$metadata,$context,$event);
         $wire=synth_rechat_listener_wire($event,$line,$route,$wire);
         $utterance=synth_rechat_route_utterance($line,$metadata);
         if ($utterance!==null) {

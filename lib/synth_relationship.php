@@ -46,19 +46,27 @@ function synth_relationship_pair($db, array $event, string $subject): ?array
 function synth_relationship_visible_cte($db, array $event, bool $admitCurrentResponse=false, ?int $readerIdentityId=null): string
 {
     return synth_protocol_history_cte($db,$event,'',$readerIdentityId).synth_relationship_graph_scope_cte()
-        .synth_protocol_history_rows_cte(true).synth_relationship_response_evidence_cte($db,$event,$admitCurrentResponse,true)
+        .synth_protocol_history_rows_cte(true).synth_protocol_history_rows_cte(true,false,true,true)
+        .synth_relationship_response_evidence_cte($db,$event,$admitCurrentResponse,true)
         .", relationship_response_evidence AS (
         SELECT * FROM relationship_graph_responses WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
     ), relationship_graph_sources AS MATERIALIZED (
-        SELECT DISTINCT history_event_id,reader_identity_id AS actor_identity_id FROM relationship_graph_history
+        SELECT DISTINCT history_event_id,reader_identity_id AS actor_identity_id FROM relationship_graph_source_history
         WHERE type IN ('inputtext','inputtext_s','chat','backgroundchat','narration')
             AND delivery_state IN ('received','emitted')
         UNION SELECT history_event_id,actor_identity_id FROM relationship_graph_responses
     ), relationship_visible_sources AS MATERIALIZED (
         SELECT history_event_id FROM relationship_graph_sources WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
+    ), relationship_revision_history AS MATERIALIZED (
+        SELECT h.* FROM synth_meta.history_events h
+        JOIN synth_meta.relationship_revisions revision ON revision.history_event_id=h.id
+        WHERE EXISTS (SELECT 1 FROM relationship_graph_scopes scope
+            WHERE scope.session_id=h.session_id AND scope.generation=h.generation
+                AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=revision.actor_identity_id
+                AND h.id<=scope.cutoff)
     ), relationship_candidates AS MATERIALIZED (
         SELECT r.*,h.playthrough_id FROM synth_meta.relationship_revisions r
-        JOIN synth_meta.history_events h ON h.id=r.history_event_id
+        JOIN relationship_revision_history h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff AND r.actor_identity_id=scope.reader_identity_id
         JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id

@@ -103,23 +103,90 @@ function synth_memory_claim($db, int $jobId): ?array
         if (!$result) throw new RuntimeException('Unable to claim native memory job');
         $job = pg_fetch_assoc($result);
         if (!$job) return null;
-        $result = @pg_query_params($connection,'SELECT input_payload,packed_message FROM synth_meta.memory_batches WHERE id=$1',[$job['memory_batch_id']]);
+        $result = @pg_query_params($connection,"SELECT input_payload,packed_message,
+            encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS input_sha256
+            FROM synth_meta.memory_batches WHERE id=$1",[$job['memory_batch_id']]);
         $batch = $result ? pg_fetch_assoc($result) : false;
         if (!$batch) throw new RuntimeException('Claimed memory batch unavailable');
         return array_merge($job,$batch);
     },2000);
 }
 
+// Normalize accepted text before optional provider work or durable storage.
+function synth_memory_validate_summary(string $summary): string
+{
+    $summary=trim($summary);
+    if ($summary==='' || strlen($summary)>65536 || str_contains($summary,"\0") || !mb_check_encoding($summary,'UTF-8')) {
+        throw new InvalidArgumentException('Invalid native memory summary');
+    }
+    return $summary;
+}
+
+// Caller holds the request and actor locks. The checkpoint remains private until atomic publication.
+function synth_memory_checkpoint_locked($connection,array $event,int $jobId,string $token,?string $inputHash=null,?string $summary=null): ?string
+{
+    $result=@pg_query_params($connection,"SELECT j.payload,j.memory_batch_id,
+            encode(sha256(convert_to(b.input_payload::text,'UTF8')),'hex') AS input_sha256
+        FROM synth_meta.worker_jobs j JOIN synth_meta.memory_batches b ON b.id=j.memory_batch_id
+        WHERE j.id=$1 AND j.job_type='memory' AND j.session_id=$2 AND j.request_id=$3 AND j.generation=$4
+            AND j.turn_id=$5 AND j.payload->>'context_sequence'=$6 AND j.state='running' AND j.lease_token=$7
+            AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp() FOR UPDATE OF j",
+        [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],strval($event['context_sequence']),$token]);
+    if (!$result) throw new RuntimeException('Unable to read native memory checkpoint');
+    $job=pg_fetch_assoc($result);
+    if (!$job) throw new SYNTHProtocolCancelled('memory_lease_lost');
+    if ($inputHash!==null && !hash_equals($job['input_sha256'],$inputHash)) throw new LogicException('Native memory input changed');
+    $payload=json_decode($job['payload'],true,flags:JSON_THROW_ON_ERROR);
+    if (!is_array($payload)) throw new LogicException('Invalid native memory checkpoint');
+    if (array_key_exists('accepted_summary',$payload)) {
+        $saved=$payload['accepted_summary'];
+        $fields=['schema','job_id','batch_id','input_sha256','summary','summary_sha256'];
+        if (!is_array($saved) || count($saved)!==count($fields) || array_diff(array_keys($saved),$fields)
+            || ($saved['schema'] ?? null)!=='synth.memory.checkpoint.v1' || ($saved['job_id'] ?? null)!==$jobId
+            || ($saved['batch_id'] ?? null)!==intval($job['memory_batch_id'])
+            || !is_string($saved['input_sha256'] ?? null) || !hash_equals($job['input_sha256'],$saved['input_sha256'])
+            || !is_string($saved['summary'] ?? null) || !is_string($saved['summary_sha256'] ?? null)
+            || !hash_equals(hash('sha256',$saved['summary']),$saved['summary_sha256'])) {
+            throw new LogicException('Invalid native memory checkpoint');
+        }
+        if (synth_memory_validate_summary($saved['summary'])!==$saved['summary']
+            || ($summary!==null && !hash_equals($saved['summary'],$summary))) {
+            throw new LogicException('Native memory checkpoint mismatch');
+        }
+        return $saved['summary'];
+    }
+    if ($summary===null) return null;
+    $summary=synth_memory_validate_summary($summary);
+    $checkpoint=['schema'=>'synth.memory.checkpoint.v1','job_id'=>$jobId,'batch_id'=>intval($job['memory_batch_id']),
+        'input_sha256'=>$job['input_sha256'],'summary'=>$summary,'summary_sha256'=>hash('sha256',$summary)];
+    $written=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET
+        payload=jsonb_set(payload,'{accepted_summary}',$2::jsonb),updated_at=clock_timestamp()
+        WHERE id=$1 AND state='running' AND lease_token=$3 AND lease_until>clock_timestamp()
+            AND deadline_at>clock_timestamp() AND NOT (payload ? 'accepted_summary') RETURNING id",
+        [$jobId,json_encode($checkpoint,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$token]);
+    if (!$written) throw new RuntimeException('Unable to retain native memory checkpoint');
+    if (pg_num_rows($written)!==1) throw new SYNTHProtocolCancelled('memory_lease_lost');
+    return $summary;
+}
+
+// Every checkpoint read/write revalidates the original owner, current lease and saved source dependencies.
+function synth_memory_checkpoint($db,int $jobId,string $token,string $inputHash,?string $summary=null): ?string
+{
+    return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId,$token,$inputHash,$summary) {
+        if (!synth_memory_lock_job_input($connection,$db,$event,$jobId)) throw new SYNTHProtocolCancelled('memory_lease_lost');
+        return synth_memory_checkpoint_locked($connection,$event,$jobId,$token,$inputHash,$summary);
+    },2000);
+}
+
 // Publish a bounded result only from the current lease, atomically marking the job ready.
 function synth_memory_complete($db, int $jobId, string $token, string $summary, ?array $embedding = null): int
 {
-    $summary = trim($summary);
-    if ($summary==='' || strlen($summary)>65536 || !mb_check_encoding($summary,'UTF-8')) {
-        throw new InvalidArgumentException('Invalid native memory summary');
-    }
+    $summary = synth_memory_validate_summary($summary);
     $vector = $embedding === null ? null : synth_memory_vector_json($embedding);
     return $db->withNativeRequestLock(static function ($connection, array $event) use ($db,$jobId,$token,$summary,$vector) {
         if (!synth_memory_lock_job_input($connection,$db,$event,$jobId)) throw new SYNTHProtocolCancelled('memory_lease_lost');
+        $checkpoint=synth_memory_checkpoint_locked($connection,$event,$jobId,$token);
+        if ($checkpoint!==null && !hash_equals($checkpoint,$summary)) throw new LogicException('Native memory checkpoint mismatch');
         $result = @pg_query_params($connection,
             "WITH accepted AS (
                 UPDATE synth_meta.worker_jobs SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
@@ -183,7 +250,11 @@ function synth_memory_process_job($db, int $jobId, callable $generate, ?callable
     $GLOBALS['SYNTH_MEMORY_JOB_LEASE'] = ['id'=>$jobId,'token'=>$job['lease_token']];
     try {
         $input = json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);
-        $summary = $generate($input);
+        $summary = synth_memory_checkpoint($db,$jobId,$job['lease_token'],$job['input_sha256']);
+        if ($summary===null) {
+            $summary=synth_memory_validate_summary($generate($input));
+            $summary=synth_memory_checkpoint($db,$jobId,$job['lease_token'],$job['input_sha256'],$summary);
+        }
         $embedding = synth_memory_optional_embedding($summary,$embed);
         return synth_memory_complete($db,$jobId,$job['lease_token'],$summary,$embedding);
     } catch (SYNTHProtocolCancelled $error) {
@@ -204,22 +275,34 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
     if ($journalReaderIdentityId!==null && ($journalReaderIdentityId<1 || $actor!=='')) {
         throw new InvalidArgumentException('Memory inspection requires one exact saved actor.');
     }
-    // Cache only visible IDs; correlated dependency probes must not repeat actor/audience resolution.
+    // Cache visible IDs and their captured game clocks; dependency probes share actor/audience resolution.
+    // Reject frozen UTC/unknown clocks before checkpoint recovery or prior-summary reuse.
     return synth_protocol_history_cte($db,$event,$actor,null,false,false,$journalReaderIdentityId,false,
         $journalReaderIdentityId===null?'diary':'middleterm').", native_memory_visible_sources AS MATERIALIZED (
-        SELECT DISTINCT history_event_id FROM native_history
+        SELECT DISTINCT history_event_id,gamets FROM native_history
     ), native_memory_owned_batches AS MATERIALIZED (
         SELECT b.id FROM synth_meta.memory_batches b
         WHERE EXISTS (SELECT 1 FROM native_history_scopes s
             WHERE s.reader_identity_id=b.actor_identity_id AND s.playthrough_id=b.playthrough_id)
     ), native_memory_source_counts AS MATERIALIZED (
-        SELECT d.batch_id,count(*) AS source_count,count(h.history_event_id) AS visible_count
+        SELECT d.batch_id,count(*) AS source_count,count(h.history_event_id) AS visible_count,
+            count(*) FILTER (WHERE h.gamets IS NOT NULL AND h.gamets=frozen.gamets) AS clock_count,
+            min(h.gamets) AS first_gamets,max(h.gamets) AS last_gamets
         FROM native_memory_owned_batches owned JOIN synth_meta.memory_batch_sources d ON d.batch_id=owned.id
+        JOIN synth_meta.memory_batches b ON b.id=owned.id
         LEFT JOIN native_memory_visible_sources h ON h.history_event_id=d.history_event_id
+        LEFT JOIN LATERAL (
+            SELECT CASE WHEN jsonb_typeof(b.input_payload->'events'->(d.position-1)->'gamets')='number'
+                AND (b.input_payload->'events'->(d.position-1)->>'gamets') ~ '^[1-9][0-9]{0,15}$'
+                THEN CASE WHEN (b.input_payload->'events'->(d.position-1)->>'gamets')::bigint<=9007199254740991
+                    THEN (b.input_payload->'events'->(d.position-1)->>'gamets')::bigint END END AS gamets
+        ) frozen ON TRUE
         GROUP BY d.batch_id
     ), native_memory_direct_batches AS MATERIALIZED (
         SELECT b.* FROM synth_meta.memory_batches b JOIN native_memory_source_counts sources ON sources.batch_id=b.id
-        WHERE sources.visible_count=sources.source_count AND sources.source_count=jsonb_array_length(b.input_payload->'events')
+        WHERE sources.visible_count=sources.source_count AND sources.clock_count=sources.source_count
+            AND sources.source_count=jsonb_array_length(b.input_payload->'events')
+            AND b.first_gamets=sources.first_gamets AND b.last_gamets=sources.last_gamets
     ), native_memory_batch_families AS MATERIALIZED (
         SELECT b.id,b.id AS root_id FROM native_memory_direct_batches b
         WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_batch_rebuilds rebuild WHERE rebuild.batch_id=b.id)

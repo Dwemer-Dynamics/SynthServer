@@ -5338,6 +5338,36 @@ if ($checkVersion('core_tts_pronunciation') < 20260829003) {
     }
 }
 
+if ($checkVersion('core_tts_pronunciation') < 20261008003) {
+    try {
+        if ($db->execQuery('BEGIN')===false || !synthEnsureTtsPronunciationDictionary())
+            throw new RuntimeException('Unable to seed Fallout pronunciation defaults');
+        if ($db->execQuery('LOCK TABLE synth.database_versioning IN SHARE ROW EXCLUSIVE MODE')===false
+            || $db->execQuery('INSERT INTO synth.database_versioning(tablename,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM synth.database_versioning WHERE tablename=$1)',
+                ['core_tts_pronunciation',20261008003])===false
+            || $db->execQuery('UPDATE synth.database_versioning SET version=GREATEST(version,$2) WHERE tablename=$1',
+                ['core_tts_pronunciation',20261008003])===false
+            || $db->execQuery('COMMIT')===false)
+            throw new RuntimeException('Unable to record Fallout pronunciation migration');
+        Logger::info('Applied Fallout pronunciation defaults 20261008003');
+    } catch (Throwable $error) {
+        $db->execQuery('ROLLBACK');
+        Logger::error('Failed Fallout pronunciation defaults 20261008003');
+        throw $error;
+    }
+}
+
+require_once __DIR__.'/../lib/fallout_content_pack.php';
+if ($checkVersion('fallout4_content_pack') < SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION) {
+    try {
+        synthInstallFalloutContentBundle($db,dirname(__DIR__),true);
+        Logger::info('Installed atomic Fallout 4 character, item and world content bundle.');
+    } catch (Throwable $error) {
+        Logger::error('Fallout 4 content import failed; existing data retained.');
+        throw $error;
+    }
+}
+
 // The authored catalogue is an additive SQL release, separate from historical seeds.
 require_once __DIR__.'/../lib/fallout_catalogue_sql.php';
 if ($checkVersion('fallout4_catalogue_sql') < SYNTH_FALLOUT_CATALOGUE_SQL_VERSION) {

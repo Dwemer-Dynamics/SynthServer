@@ -25,6 +25,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'OpenInventory',
     'PickupItem',
     'ReadQuests',
+    'ReleaseWait',
     'Relax',
     'DirectorCommand',
     'SpawnCaps',
@@ -64,6 +65,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'OpenInventory',
     'PickupItem',
     'ReadQuests',
+    'ReleaseWait',
     'Relax',
     'DirectorCommand',
     'SpawnCaps',
@@ -94,6 +96,7 @@ INSERT INTO synth.core_action (
     import_version,
     script_proxy_program
 ) VALUES
+    ('ReleaseWait', 'ReleaseWait', 'Release #SYNTH_NAME# from SYNTH waiting. This does not recruit a follower.', '#SYNTH_NAME# is released from SYNTH waiting.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{},"additionalProperties":false}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('Attack', 'Attack', 'Attack a target actor or entity.', '#SYNTH_NAME# attacks #TARGET#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target"],"properties":{"target":{"type":"string","description":"Target NPC, actor, or being."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('CheckInventory', 'Check_Inventory', 'Search #SYNTH_NAME#''s inventory and list contents.', '#SYNTH_NAME#''s INVENTORY:#RESULT#', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Optional item to look for. Leave blank to list all items."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","followup":{"enabled":true,"arg_name":"target","prompt":"Reply with one short in-character line about the inventory result below. Do not ask follow-up questions."}}'::jsonb, TRUE, 0, NULL),
     ('ComeCloser', 'Come_Closer', '#SYNTH_NAME# approaches #PLAYER_NAME#.', '#SYNTH_NAME# approaches #PLAYER_NAME#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Keep blank."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","cooldown_seconds":30}'::jsonb, TRUE, 0, NULL),

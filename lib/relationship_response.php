@@ -2,6 +2,7 @@
 
 require_once __DIR__.'/relationship_runtime.php';
 require_once __DIR__.'/request.php';
+require_once __DIR__.'/synth_relationship_responder.php';
 
 // Relationship directives are metadata, never partial words for subtitles or speech synthesis.
 function synth_relationship_strip_commands(string $text): string
@@ -61,6 +62,12 @@ function synth_relationship_capture_route(?string $lineToken, string $listener, 
         || !preg_match('/^([a-f0-9]{32}):([0-9]{1,3})$/D',$lineToken,$parts)
         || $parts[1]!==$capture['attempt'] || !isset($capture['entries'][intval($parts[2])])) return;
     $entry=&$capture['entries'][intval($parts[2])];
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if (($event['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$event['capabilities'] ?? [],true)) {
+        require_once __DIR__.'/synth_ambient_npc.php';
+        $ambient=synth_ambient_npc_projection($event);
+        if ($ambient!==null) $listener=$ambient['listener']['display_name'];
+    }
     $route=['listener'=>trim($listener),'utterance_id'=>$utteranceId];
     if ($route['listener']==='' || strlen($listener)>256 || !mb_check_encoding($listener,'UTF-8')
         || !preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D',$utteranceId)
@@ -153,12 +160,21 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             $entries=[]; $speakers=[];
             $snapshot=synth_protocol_current_context($db,$event);
             if (!$snapshot) return;
+            $responder=synth_relationship_responder($db,$event,$snapshot);
+            if (!$responder) return;
             foreach ($capture['entries'] as $entry) {
                 $name=$entry['speaker'];
                 if (!array_key_exists($name,$speakers)) $speakers[$name]=synth_protocol_resolve_speaker_identity($db,$name);
-                if ($speakers[$name]===null) return;
-                $entries[]=['speaker'=>$speakers[$name],'text'=>$entry['text'],
-                    'routing'=>synth_relationship_resolve_route($speakers[$name],$entry['route'] ?? null,$snapshot['payload'])];
+                if ($speakers[$name]===null
+                    || strcasecmp($speakers[$name]['form_id'] ?? '',$responder['identity']['form_id'])!==0
+                    || strcasecmp($speakers[$name]['origin_plugin'] ?? '',$responder['identity']['origin_plugin'])!==0
+                    || ($speakers[$name]['playthrough_id'] ?? null)!==$responder['identity']['playthrough_id']) return;
+                $routing=synth_relationship_resolve_route($speakers[$name],$entry['route'] ?? null,$snapshot['payload']);
+                if (($event['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$event['capabilities'] ?? [],true)) {
+                    require_once __DIR__.'/synth_ambient_npc.php';
+                    $routing=synth_ambient_npc_frozen_route($connection,$event,$speakers[$name],$entry['route'] ?? null,$body);
+                }
+                $entries[]=['speaker'=>$speakers[$name],'text'=>$entry['text'],'routing'=>$routing];
             }
             $payload=json_encode(['schema'=>'synth.relationship.response.v3','request'=>$request,
                 'request_sha256'=>$context['event_sha256'],'input_events'=>$inputs,'entries'=>$entries,'evaluation_mode'=>$capture['evaluation_mode']],
@@ -183,7 +199,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
                 (history_event_id,session_id,request_id,actor_identity_id,response_sha256,response_payload)
                 SELECT id,$4,$7,$8,$9,$10::jsonb FROM history RETURNING history_event_id",
                 [$context['playthrough_id'],$context['gamets'],time(),$owner['session_id'],$owner['generation'],
-                 $owner['context_sequence'],$owner['request_id'],$context['target_identity_id'],$hash,$payload]);
+                 $owner['context_sequence'],$owner['request_id'],$responder['actor_identity_id'],$hash,$payload]);
             if (!$result) throw new RuntimeException('Unable to freeze relationship response');
             $responseId=intval(pg_fetch_assoc($result)['history_event_id']);
             foreach ($inputs as $input) {
@@ -217,6 +233,8 @@ function synth_relationship_complete_inline_response($db): void
 }
 
 // The current-turn exception is for proposal admission only; saved readers retain their insertion cutoff.
+// Normal cancellation clears delivery replay bytes, not an already accepted historical speech receipt.
+// Only retained completed player inputs may use that receipt, and never beyond the saved cutoff.
 function synth_relationship_response_evidence_cte($db, array $event, bool $admitCurrentResponse=false, bool $relationshipGraph=false): string
 {
     $scopes=$relationshipGraph ? 'relationship_graph_scopes' : 'native_history_scopes';
@@ -224,19 +242,30 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
     $current=$admitCurrentResponse ? '(h.session_id='.$db->escapeLiteral($event['session_id'])
         .' AND h.generation='.intval($event['generation']).' AND h.request_id='.$db->escapeLiteral($event['request_id'])
         .' AND h.context_sequence='.intval($event['context_sequence']).')' : 'FALSE';
-    return ", $evidence AS MATERIALIZED (
+    // Resolve retained response history once before expanding saved reader scopes.
+    return ", {$evidence}_history AS MATERIALIZED (
+        SELECT h.* FROM synth_meta.history_events h
+        JOIN synth_meta.relationship_response_inputs input ON input.history_event_id=h.id
+        WHERE EXISTS (SELECT 1 FROM $scopes scope
+            WHERE scope.session_id=h.session_id AND scope.generation=h.generation
+                AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=input.actor_identity_id
+                AND (h.id<=scope.cutoff OR $current))
+    ), $evidence AS MATERIALIZED (
         SELECT i.*,h.generation,h.context_sequence,h.playthrough_id FROM synth_meta.relationship_response_inputs i
-        JOIN synth_meta.history_events h ON h.id=i.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
+        JOIN {$evidence}_history h ON h.id=i.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
         JOIN $scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id
             AND (h.id<=scope.cutoff OR $current)
         JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
-            AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id AND c.target_identity_id=i.actor_identity_id
+            AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
         JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id AND e.generation=h.generation
-            AND e.state='complete' AND encode(sha256(e.response_body),'hex')=i.response_sha256
+            AND e.state='complete' AND (encode(sha256(e.response_body),'hex')=i.response_sha256
+                OR (e.event_type IN ('input_text','input_audio') AND e.completed_at IS NOT NULL AND e.response_body IS NULL
+                    AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff))
         JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
         WHERE h.event_payload->>'type'='relationship_response' AND h.event_payload->>'delivery_state'='derived'
+            AND ".synth_relationship_responder_sql('p.canonical_event','i.actor_identity_id',synth_relationship_responder_context_sql('p.canonical_event'))."
             AND i.response_sha256=h.event_payload->>'response_sha256'
             AND encode(sha256(convert_to(i.response_payload::text,'UTF8')),'hex')=h.event_payload->>'response_payload_sha256'
             AND i.response_payload->>'schema' IN ('synth.relationship.response.v2','synth.relationship.response.v3')

@@ -3,6 +3,132 @@
 Required M2/M6 work under the approved SYNTH goal. This is the next architectural
 implementation slice, not a new goal or permission to modify other products.
 
+## Automatic dispatch reliability
+
+The player and NPC-pair evaluators share a completed-origin reservation. A newer
+rechat terminal marker, narrator selection or unprepared NPC selection previously
+masked a usable completed NPC dialogue in the same turn. Such a marker cannot own
+relationship evaluation, and an absent completed NPC origin must remain unavailable.
+
+The reservation now admits a rechat origin only when its selection is a prepared
+NPC, its continuation remains reserved, its chain is not private, ineligible or
+closed without a candidate, and its generation, turn, context sequence and runtime
+lane agree. It can then select an older eligible completed origin within that same
+current turn. The two cooldowns, canonical response and source ownership, current
+controls, cancellation, frozen priors, lease tokens and publication deadlines retain
+their existing checks. A viable prepared NPC still passes the downstream responder
+and binding checks; this change does not grant it the captured target's private inputs.
+
+The focused disposable fixtures exercise terminal and non-NPC selection in both
+lanes, cancelled/missing origins, forbidden chain states, unchanged-result deduplication,
+independent addressed NPC-pair directions, distinct-responder private-source refusal,
+lease replacement, the three-attempt deadline and independently restored save frontiers.
+An unchanged evaluation is a valid durable result and does not require a score increase.
+Local installation and manual relationship progression are separate acceptance steps.
+
+## Prepared NPC responder identity
+
+A rechat request retains the original turn context while its prepared NPC may be
+a different speaker. The request's `payload.actor` names the parent speaker;
+neither that field nor the captured target identifies the responding NPC. Using
+the captured target for a relationship receipt makes the responder's saved reader
+reject its own speech and prevents an otherwise valid public pair evaluation.
+
+Relationship capture and paired work use the proven prepared responder's existing
+actor identity. The responder must belong to the acknowledged effective scene,
+and its reservation, public policy, canonical owner and parent reply must remain
+valid. The original request and context remain unchanged. Parent speaker proof is
+independent of the child's selected responder. Frozen historical provenance keeps
+both directed publications within their selected save frontier without requiring
+a live NPC profile. Private player evidence remains scoped to its original reader.
+
+The focused regression uses public A-to-B speech followed by a prepared B-to-A
+reply while the captured target remains A. It checks the response identity, one
+stubbed pair evaluation, both directed revisions, Stop retention, later reload
+and earlier-save exclusion. A second fixture separates the original target, a
+prepared parent speaker and a third NPC responding in the later scene. The public
+responder privacy check admits that NPC's own receipt while excluding the original
+target's private player input. Existing malformed, private, cancelled, unprepared,
+lease and duplicate-work cases remain required. Previously captured receipts are
+not rewritten; gameplay acceptance requires a fresh exchange after installation.
+
+## Saved relationship evidence after cancellation
+
+Normal cancellation removes response replay bytes and fences later work. Previously,
+the saved relationship reader also required those mutable replay bytes to verify
+an already accepted speech receipt. A completed player reply could therefore publish
+a relationship change, then lose that change from the next saved view when its
+conversation was cancelled.
+
+The reader now retains a receipt for a completed text or audio input after normal
+turn/request cancellation when its original completion timestamp remains, the replay
+body is absent, and the receipt lies within the selected saved frontier. This path
+still verifies the immutable receipt and payload hashes, canonical request, captured
+actor/context and frozen player sources. It cannot use the current-response cutoff
+exception. Cancelled NPC/action descendants and unsupported completion/error states
+retain their existing exclusions. Cancellation still clears replay bytes and rejects
+late capture, evaluation and publication.
+
+Synthetic fixtures complete and capture fresh dialogue, publish through the real
+dispatcher with a callback stub, cancel through protocol admission and read a newer
+saved turn. They cover text/audio, both cancellation paths, empty replay and late-work
+refusal, current-cutoff refusal, unsupported retired-cache states, non-player refusal
+and a later update inheriting the saved prior. This is a targeted saved-reader repair;
+its validation and manual acceptance remain separate from the earlier dispatch work.
+
+## Saved NPC-pair publications and effective scenes
+
+An accepted NPC-pair result can use a prepared rechat's newer acknowledged scene,
+while its canonical request still names the original turn context. Comparing the
+frozen evaluation with only that original snapshot hid valid paired publications.
+Normal cancellation also clears an NPC continuation's replay body and changes its
+execution state, hiding an already ready result even when both directed revisions
+remain stored.
+
+The paired result reader preserves its existing complete execution, ordinary speech
+receipt and exact original-context path for every owner. A separate private proof
+admits flat prepared public direct-parent NPC rechat with independently proven
+parent and responding actors. It requires a saved, hashed result
+and exact ready job, canonical owner and accepted speech receipt, a prepared NPC
+selection and reserved continuation, public origin policy, and the direct parent's
+canonical receipt, body digest, responding actor, frozen player input dependencies and
+recorded reply route. Cancellation retention additionally requires the absent replay
+body and the exact normal request/turn cancellation marker. A cancellation timestamp
+is not prior completion evidence.
+
+When the owner explicitly advertises scene support, the private proof selects its
+declared scene sequence. It checks the same session, generation, save, runtime lane,
+player and scene membership, the parent/previous scene, the ten-second claim window,
+normalized physical scene references, and exact frozen context equality. Without
+scene support it requires the original snapshot and no scene reference. Malformed
+numeric references fail closed. Both directions and every dependency stay within
+the selected save frontier, including loaded ancestry after the original session
+ends or changes generation. A later normal chain closure or profile removal cannot
+erase a previously accepted public reservation.
+
+These historical pair proofs never enter ordinary speech evidence or raw history sources.
+They cannot authorize single-player evaluation, quest knowledge, memory capture,
+response delivery, replay or late paired work. Text/audio retention, leases,
+controls and cancellation semantics retain their existing boundaries. Live paired
+writers separately prove the prepared responder before capture or publication.
+
+The extra proof conservatively requires a direct parent with its optional accepted
+relationship receipt. Parents without that receipt, action-result ancestry and
+inventory-overlay contexts retain the existing complete/original-context behavior;
+their additional historical recovery remains unimplemented. The immutable prepared
+reservation records the original admission of its exact parent reply line. Once
+the parent's replay body is cleared, processed speech metadata cannot independently
+reconstruct that wire line or detect substitution of a different well-formed stored
+wire-line hash. This reader does not claim that additional tamper detection or alter
+the writer/schema to manufacture it.
+
+Synthetic regressions bind the actual fresh response and both directed publications,
+exercise scene/no-scene and both production cancellation paths, earlier saved
+frontiers, loaded ancestry, later closure, empty replay and late-work refusal. They
+also corrupt receipts, results, frozen inputs, prepared/private/actor provenance,
+parent sources and routes, lane/save bindings and scene references/timing. Backend
+validation, local installation and manual flat/VR acceptance remain separate steps.
+
 ## Verified starting point, 2026-09-05
 
 - `main_synth_pipeline.php` loads relationship context before the model and relationship

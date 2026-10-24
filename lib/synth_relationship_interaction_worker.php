@@ -22,9 +22,10 @@ function synth_relationship_run_persisted_interaction($db, int $jobId, ?callable
         JOIN synth_meta.runtime_sessions r ON r.session_id=j.session_id AND r.active_generation=j.generation
             AND r.state='active' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
         JOIN synth_meta.context_snapshots c ON c.session_id=j.session_id AND c.generation=j.generation
-            AND c.snapshot_sequence=i.context_sequence AND c.playthrough_id=r.playthrough_id AND c.target_identity_id=i.speaker_identity_id
+            AND c.snapshot_sequence=i.context_sequence AND c.playthrough_id=r.playthrough_id
         WHERE j.id=".intval($jobId)." AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL
-            AND j.memory_batch_id IS NULL AND j.state IN ('pending','running')");
+            AND j.memory_batch_id IS NULL AND j.state IN ('pending','running')
+            AND ".synth_relationship_responder_sql('p.canonical_event','i.speaker_identity_id',"i.input_payload->'context'"));
     if (!$job) return null;
     return synth_worker_with_origin($db,$job,static fn()=>synth_relationship_process_interaction($db,$jobId,
         $generate ?? static fn(array $input)=>synth_relationship_generate_evaluation($db,$input)),'relationship');

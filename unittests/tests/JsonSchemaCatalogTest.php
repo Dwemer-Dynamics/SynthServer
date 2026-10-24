@@ -294,7 +294,26 @@ final class JsonSchemaCatalogTest extends TestCase
         $v2['$id']=$v1['$id'];$v2['title']=$v1['title'];
         $v2['properties']['actor']=$v1['properties']['actor'];
         $v2['properties']['inventory']['maxItems']=32;
-        $this->assertSame($v1,$v2,'The extended schema must preserve every other actor-state constraint.');
+        $this->assertSame(['$ref'=>'combat-target.schema.json'],$v2['properties']['combat_target']);
+        $this->assertSame(['type'=>'array','maxItems'=>8,'items'=>['$ref'=>'combat-contact.schema.json']],$v2['properties']['combat_contacts']);
+        $this->assertSame(['$ref'=>'enemy-awareness.schema.json'],$v2['properties']['enemy_awareness']);
+        $contactRules=array_values(array_filter($v2['allOf'],static fn(array $rule):bool=>
+            in_array('combat_contacts',$rule['if']['required'] ?? [],true)));
+        $this->assertSame([['if'=>['required'=>['combat_contacts']],
+            'then'=>['properties'=>['alive'=>['const'=>true],'disabled'=>['const'=>false],
+                'actor'=>['properties'=>['form_id'=>['not'=>['const'=>'0x00000014']]]]]]]],$contactRules);
+        $this->assertSame(['type'=>'boolean'],$v2['properties']['conversation_held']);
+        $holdRules=array_values(array_filter($v2['allOf'],static fn(array $rule):bool=>
+            in_array('conversation_held',$rule['if']['required'] ?? [],true)));
+        $this->assertSame([['if'=>['required'=>['conversation_held'],
+            'properties'=>['conversation_held'=>['const'=>true]]],
+            'then'=>['required'=>['life_state'],'properties'=>[
+                'life_state'=>['const'=>'restrained'],'alive'=>['const'=>true],'disabled'=>['const'=>false],
+                'actor'=>['properties'=>['form_id'=>['not'=>['const'=>'0x00000014']]]]]]]],$holdRules);
+        unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held']);
+        $v2['allOf']=array_values(array_filter($v2['allOf'], static fn(array $rule): bool =>
+            array_intersect(['combat_target','combat_contacts','enemy_awareness','conversation_held'],$rule['if']['required'] ?? [])===[]));
+        $this->assertSame($v1,$v2,'The negotiated combat target/contacts and extended inventory must preserve all other actor-state constraints.');
     }
 
     public function testPlayerReactionContractAndGroundedPromptPreservePolicy(): void

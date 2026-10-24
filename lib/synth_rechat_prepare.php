@@ -52,7 +52,13 @@ function synth_rechat_prepare_continuation($db, array $event): array
         // Validate before cached choices, policy reads or reservation can bypass the candidate loader.
         if (in_array('dialogue.rechat.scene',$event['capabilities'] ?? [],true)
             || array_key_exists('scene_context_sequence',$event['payload'] ?? [])) {
-            synth_rechat_scene_context_locked($connection,$event);
+            try {synth_rechat_scene_context_locked($connection,$event);}
+            catch (SYNTHRechatSceneChanged $error) {
+                // A normal stop still needs the exact completed parent line and route hashes.
+                if (synth_rechat_completed_parent($db,$event)===null)
+                    throw new LogicException('rechat_prepare_parent_unavailable');
+                throw $error;
+            }
         }
         if (!@pg_query($connection,'SAVEPOINT synth_rechat_prepare')) throw new RuntimeException('rechat_prepare_savepoint_failed');
         try {
@@ -87,13 +93,13 @@ function synth_rechat_prepare_continuation($db, array $event): array
                 $mode=$serverPolicy['mode'] ?? '';
                 if (!in_array($mode,['tight','conversational','group','random'],true)
                     || !is_bool($serverPolicy['private'] ?? null)) throw new InvalidArgumentException('rechat_policy_invalid');
-                $serverPolicy['mode']=$mode==='random' ? ['tight','conversational','group'][random_int(0,2)] : $mode;
                 if (!$serverPolicy['private']) {
                     $candidates=synth_rechat_load_candidates($connection,$db,$event);
-                    $plan=synth_rechat_candidate_plan($candidates,$proof,$serverPolicy['mode'],[]);
+                    $plan=synth_rechat_initial_candidate_plan($candidates,$proof,$mode);
+                    $serverPolicy['mode']=$plan['mode'];
                     $initialTerminal=$plan['terminal_reason'];
                     if ($plan['candidate']!==null) $serverPolicy=synth_rechat_profile_policy($serverPolicy,$plan['candidate']);
-                }
+                } else $serverPolicy['mode']=$mode==='random' ? ['tight','conversational','group'][random_int(0,2)] : $mode;
             }
             $reservation=synth_rechat_reserve_continuation($db,$event,$chain===null ? $serverPolicy : [],$initialTerminal);
             $selection=synth_rechat_select_responder($db,$event);

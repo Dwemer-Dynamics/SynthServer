@@ -3,6 +3,7 @@
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'npc_tts_status.php');
 require_once __DIR__.'/synth_protocol_state.php';
+require_once __DIR__.'/synth_combat_target.php';
 
 function synth_protocol_response_context(): array
 {
@@ -150,6 +151,11 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         return null;
     }
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
+        require_once __DIR__.'/synth_wait_actions.php';
+        if (!synth_wait_action_supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
+    }
+    if ($capability==='action.read_quests' && !synth_protocol_player_journal_action_allowed()) return null;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat' && !synth_rechat_action_code_allowed($serverCode)) return null;
     if ($capability==='action.consume' && ($event['protocol_version'] ?? 1)===2
@@ -262,6 +268,10 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     if ($target !== null) {
         $action['target'] = $target;
     }
+    if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
+        try { synth_wait_action_validate($db,$event,$action); }
+        catch (DomainException) { return null; }
+    }
     synth_protocol_record_action_intent($db, $action);
     unset($action['server_code']);
     return $action;
@@ -272,11 +282,17 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
 {
     // Explicit opt-in support, bound to the admitted init; older clients keep their original acknowledgement.
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $combatTargets = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
+        && ($event['protocol_version'] ?? 1) === 2
+        && in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)
+        && in_array('context.combat_targets', $event['capabilities'] ?? [], true);
     $rechatScene = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2
         && in_array($event['runtime_variant'] ?? '', ['flat','vr'], true)
         && count(array_diff(['dialogue.turn_ownership','dialogue.rechat.ownership','dialogue.rechat.scene'],
             $event['capabilities'] ?? [])) === 0;
+    $ambientNpc=$rechatScene && count(array_diff(['dialogue.ambient_npc','dialogue.listener_identity'],
+        $event['capabilities'] ?? []))===0;
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);
@@ -312,6 +328,10 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
     ], 'start');
     $statusPayload = ['code' => $status];
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
+    if ($ambientNpc) $statusPayload['ambient_npc'] = true;
+    if ($combatTargets) $statusPayload['combat_targets'] = true;
+    if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
+    if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;
     if (isset($detail['detail']) && trim(strval($detail['detail'])) !== '') {
         $statusPayload['detail'] = substr(trim(strval($detail['detail'])), 0, 1024);
     }
@@ -504,6 +524,21 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
     $speaker = trim($speaker);
     $action = trim($action);
     $text = trim($text);
+    // Final delivery boundary also covers direct acknowledgements which bypass
+    // returnLines. Never retain an audio key for rejected or replaced speech.
+    if (strcasecmp($action,'say')===0
+        && ($speechRole ?? synth_protocol_current_speech_role($speaker))==='npc') {
+        require_once __DIR__.'/synth_character_forms.php';
+        $policy=synth_character_current_speech_policy();
+        if ($policy!=='') {
+            $emitted=(bool)($GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED'] ?? false);
+            $constrained=synth_character_constrain_lines([$text],$policy,$emitted);
+            $GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED']=$emitted;
+            if ($constrained===[]) return;
+            if ($text!==$constrained[0]) unset($metadata['tts_cache_key']);
+            $text=$constrained[0];
+        }
+    }
     if ($speaker === "" && $action === "" && $text === "") {
         return;
     }
@@ -786,6 +821,8 @@ function synth_capture_response_output(string $chunk): string
 
 function synth_start_json_response_buffer(): void
 {
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED']=false;
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED']=false;
     if (!synth_json_response_enabled()) {
         return;
     }

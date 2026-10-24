@@ -1,0 +1,374 @@
+{
+  "schema": "synth.quest.rules.v1",
+  "content_version": "2026-10-10-participant-background-1",
+  "content_license": "CC-BY-SA-4.0",
+  "attribution": "Original concise role guidance and paraphrases informed by Fallout Wiki / Nukapedia contributors. Source pages use the Fandom licensing policy; the precise page revision and license revision were not independently verified. Game master records were read only to verify identifiers. No game assets or dialogue paragraphs are included.",
+  "source_license_url": "https://www.fandom.com/licensing",
+  "limitations": "This catalog supplies personal background for authored participants, not proof that a quest event was witnessed. It supplies no objectives, solutions, stage thresholds, endings, rewards, or completion claims. Exact actor references prevent a character with the same name or base template from acquiring these facts. Lore was checked against indexed secondary page excerpts; stable page revisions were unavailable.",
+  "quests": [
+    {
+      "quest_key": "fallout4.esm|001A001C",
+      "quest_name": "When Freedom Calls",
+      "safe_basic": "Concord's Museum of Freedom is associated with the Minutemen and refugees seeking protection.",
+      "participants": [
+        {
+          "actor_key": "fallout4.esm|0001A4D7",
+          "actor_name": "Preston Garvey",
+          "role": "quest_giver",
+          "facts": [
+            "Preston is a Minuteman who took responsibility for refugees after the loss of Quincy.",
+            "Protecting the people in his care is his own concern."
+          ]
+        },
+        {
+          "actor_key": "fallout4.esm|0001A4D8",
+          "actor_name": "Sturges",
+          "role": "refugee_mechanic",
+          "facts": [
+            "Sturges is a mechanic travelling with Preston's refugees.",
+            "He knows machinery and power armor maintenance."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/When_Freedom_Calls",
+        "https://fallout.fandom.com/wiki/Preston_Garvey",
+        "https://fallout.fandom.com/wiki/Sturges"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "Min00",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "PrestonGarveyRef",
+          "SturgesRef"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "fallout4.esm|0001F25E",
+      "quest_name": "Unlikely Valentine",
+      "safe_basic": "The Valentine Detective Agency in Diamond City takes missing-person cases.",
+      "participants": [
+        {
+          "actor_key": "fallout4.esm|00002F25",
+          "actor_name": "Nick Valentine",
+          "role": "detective",
+          "facts": [
+            "Nick's detective work brought him into conflict with Skinny Malone's Triggermen."
+          ]
+        },
+        {
+          "actor_key": "fallout4.esm|000222A4",
+          "actor_name": "Ellie Perkins",
+          "role": "agency_case_contact",
+          "facts": [
+            "Ellie handles clients at Valentine's Detective Agency.",
+            "She knows Nick went to Park Street Station to investigate a case."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Unlikely_Valentine",
+        "https://fallout.fandom.com/wiki/Nick_Valentine",
+        "https://fallout.fandom.com/wiki/Ellie_Perkins"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "MQ104",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "NickValentineREF",
+          "EllieREF"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "fallout4.esm|000229E6",
+      "quest_name": "Getting a Clue",
+      "safe_basic": "Nick Valentine works from Diamond City and investigates disappearances.",
+      "participants": [
+        {
+          "actor_key": "fallout4.esm|00002F25",
+          "actor_name": "Nick Valentine",
+          "role": "investigator",
+          "facts": [
+            "Nick uses witness accounts and physical evidence to build a case.",
+            "His detective work gives him knowledge of Diamond City and its residents."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Getting_a_Clue",
+        "https://fallout.fandom.com/wiki/Nick_Valentine"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "MQ105",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "NickValentineREF"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "withheld": "The quest's early active stages precede Nick hearing the player's story. Shaun, Kellogg, the house, the cigar and subsequent discoveries are omitted.",
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "fallout4.esm|0005DDAB",
+      "quest_name": "Fire Support",
+      "safe_basic": "Brotherhood of Steel reconnaissance soldiers operate from Cambridge Police Station.",
+      "participants": [
+        {
+          "actor_key": "fallout4.esm|0005DE4D",
+          "actor_name": "Paladin Danse",
+          "role": "squad_commander",
+          "facts": [
+            "Danse commands the Brotherhood reconnaissance squad based at Cambridge Police Station."
+          ]
+        },
+        {
+          "actor_key": "fallout4.esm|0005DE4B",
+          "actor_name": "Scribe Haylen",
+          "role": "field_scribe",
+          "facts": [
+            "Haylen is the squad's field scribe and works on its communications and technical recovery."
+          ]
+        },
+        {
+          "actor_key": "fallout4.esm|0005DE4C",
+          "actor_name": "Knight Rhys",
+          "role": "reconnaissance_knight",
+          "facts": [
+            "Rhys is a Brotherhood knight serving in Danse's reconnaissance squad."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Fire_Support",
+        "https://fallout.fandom.com/wiki/Danse",
+        "https://fallout.fandom.com/wiki/Haylen",
+        "https://fallout.fandom.com/wiki/Rhys"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "BoS100",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "BoSPaladinDanseRef",
+          "BoSHaylenRef",
+          "BoSKnightRhysRef"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "dlccoast.esm|00001B3F",
+      "quest_name": "Far From Home",
+      "safe_basic": "The Nakanos are a family living on the Commonwealth's northeastern coast.",
+      "participants": [
+        {
+          "actor_key": "dlccoast.esm|0000220B",
+          "actor_name": "Kenji Nakano",
+          "role": "family_case_contact",
+          "facts": [
+            "Kenji is Kasumi's father, Rei's husband and an experienced sailor.",
+            "He sought help from the Valentine Detective Agency after Kasumi left the family home."
+          ]
+        },
+        {
+          "actor_key": "dlccoast.esm|0000220F",
+          "actor_name": "Rei Nakano",
+          "role": "family_case_contact",
+          "facts": [
+            "Rei is Kasumi's mother and Kenji's wife.",
+            "She knows the family's life at the Nakano residence and her daughter's interest in machinery."
+          ]
+        },
+        {
+          "actor_key": "fallout4.esm|000222A4",
+          "actor_name": "Ellie Perkins",
+          "role": "agency_case_contact",
+          "facts": [
+            "Ellie received the Nakanos' request for help through the Valentine Detective Agency."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Far_From_Home",
+        "https://fallout.fandom.com/wiki/Kenji_Nakano",
+        "https://fallout.fandom.com/wiki/Kasumi_Nakano"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "DLC03MQ01",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "DLC03MrNakanoREF",
+          "DLC03MrsNakanoREF",
+          "EllieREF"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "withheld": "Kasumi's location, holotape contents and human-or-synth uncertainty are omitted. Her parents and Ellie are not given the player's subsequent discoveries.",
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "dlccoast.esm|00001B40",
+      "quest_name": "Walk in the Park",
+      "safe_basic": "Travel beyond Far Harbor's defenses is dangerous because of the Island's radioactive Fog.",
+      "participants": [
+        {
+          "actor_key": "dlccoast.esm|00005C82",
+          "actor_name": "Captain Avery",
+          "role": "harbor_leader",
+          "facts": [
+            "Avery helps lead Far Harbor and concerns herself with its defenses against the Fog's dangers."
+          ]
+        },
+        {
+          "actor_key": "dlccoast.esm|00014602",
+          "actor_name": "Old Longfellow",
+          "role": "island_guide",
+          "facts": [
+            "Longfellow is an experienced Island hunter and guide who knows the route to Acadia.",
+            "He knows the practical hazards of travelling through the radioactive Fog."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Walk_in_the_Park",
+        "https://fallout.fandom.com/wiki/Old_Longfellow"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "DLC03MQ02",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "CaptainAveryREF",
+          "DLC03_CompanionOldLongfellowRef"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "withheld": "Avery's identity secret and the results of defending the Hull or reaching Acadia are omitted.",
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "dlcnukaworld.esm|00000801",
+      "quest_name": "Taken for a Ride",
+      "safe_basic": "Nuka-World's raiders use a deadly Gauntlet to entertain themselves.",
+      "participants": [
+        {
+          "actor_key": "dlcnukaworld.esm|0000A5B1",
+          "actor_name": "Porter Gage",
+          "role": "gauntlet_contact",
+          "facts": [
+            "Gage helped Colter bring Nuka-World's raider gangs together.",
+            "He knows the Gauntlet and uses its speaker and intercom systems to contact entrants."
+          ]
+        },
+        {
+          "actor_key": "dlcnukaworld.esm|0000A52F",
+          "actor_name": "Overboss Colter",
+          "role": "gauntlet_arena_fighter",
+          "facts": [
+            "Colter made the Gauntlet his blood sport and fights its surviving entrants in the Cola-Cars Arena."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Taken_for_a_Ride",
+        "https://fallout.fandom.com/wiki/Porter_Gage",
+        "https://fallout.fandom.com/wiki/Colter"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "DLC04MQ01",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "DLC04GageRef",
+          "DLC04RaiderOverbossRef"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "withheld": "The armor exploit, hidden weapon, conspiracy against Colter, victory and new Overboss outcome are omitted.",
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    },
+    {
+      "quest_key": "dlcrobot.esm|00000806",
+      "quest_name": "Mechanical Menace",
+      "safe_basic": "Hostile robots threaten the Commonwealth's travellers.",
+      "participants": [
+        {
+          "actor_key": "dlcrobot.esm|0000FF12",
+          "actor_name": "Ada",
+          "role": "caravan_robot",
+          "facts": [
+            "Jackson built Ada as a travelling companion for his caravan of mechanics and traders.",
+            "Ada knows her caravan's members and its work repairing machinery and salvaging parts."
+          ]
+        }
+      ],
+      "sources": [
+        "https://fallout.fandom.com/wiki/Mechanical_Menace",
+        "https://fallout.fandom.com/wiki/Ada"
+      ],
+      "verification": {
+        "checked_date": "2026-10-10",
+        "quest_record_type": "QUST",
+        "quest_editor_id": "DLC01MQ01",
+        "actor_record_type": "ACHR",
+        "actor_reference_editor_ids": [
+          "DLC01AdaRef"
+        ],
+        "lore_access": "indexed_secondary_reference",
+        "lore_revision_verified": false,
+        "withheld": "The caravan battle outcome, Mechanist's identity, robot plans and subsequent investigations are omitted.",
+        "quest_record_verified": true,
+        "actor_records_verified": true,
+        "method": "QUST and ACHR identity metadata checked against installed official masters; no game assets redistributed. Participant roles and personal knowledge are authored from the cited lore references, not inferred from native alias or stage membership.",
+        "lore_review": "secondary_source_paraphrase"
+      }
+    }
+  ]
+}

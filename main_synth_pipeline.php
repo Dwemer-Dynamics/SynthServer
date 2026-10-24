@@ -43,6 +43,7 @@ require_once($path . "lib/runtime_bootstrap.php");
 require_once($path . "lib/request.php");
 require_once($path . "lib/response.php");
 require_once($path . "lib/synth_protocol_state.php");
+require_once($path . "lib/synth_equipment_prompt.php");
 require_once($path . "lib/synth_npc_identity.php");
 require_once($path . "lib/player_tts_helpers.php");
 synthRuntimeBootstrap($path, [
@@ -277,6 +278,7 @@ if (in_array($gameRequest[0], ["conversation_start", "conversation_end"], true))
 // Database Connection
 $db = $GLOBALS["db"] ?? new sql();
 $GLOBALS["db"] = $db;
+unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
 $inventoryPromptText = '';
 
 if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
@@ -305,11 +307,15 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
         synth_protocol_emit_ack('control_state', ['detail'=>synth_control_status($db)]);
         exit;
     }
-    $pipelineEvent = $wireEvent;
+    $transcript = null;
     if (($wireEvent['type'] ?? '') === 'input_audio') {
         require_once($path . 'lib/synth_stt_pipeline.php');
         try {
-            $pipelineEvent['payload']['text'] = synth_protocol_transcribe_media($wireEvent['payload']['media']);
+            $transcript = synth_protocol_transcribe_media($wireEvent['payload']['media']);
+        } catch (SYNTHSpeechNotRecognized $error) {
+            synth_protocol_assert_request_active();
+            synth_protocol_emit_ack('speech_not_recognized');
+            exit;
         } catch (Throwable $error) {
             if ($error instanceof SYNTHProtocolCancelled) throw $error;
             synth_protocol_emit_terminal_error('stt_failed', $error->getMessage());
@@ -319,8 +325,9 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
     }
     if (in_array($wireEvent['type'] ?? '', ['input_text', 'input_audio'], true)) {
         try {
-            $inventoryPromptText = synth_protocol_bind_dialogue_context($db, $pipelineEvent, $gameRequest);
+            $inventoryPromptText = synth_protocol_bind_dialogue_context($db, $wireEvent, $gameRequest, $transcript);
         } catch (Throwable $error) {
+            if ($error instanceof SYNTHProtocolCancelled) throw $error;
             synth_protocol_emit_terminal_error('context_required', $error->getMessage());
             exit;
         }
@@ -332,6 +339,7 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
                 synth_protocol_emit_ack(match($wireEvent['payload']['kind'] ?? '') {
                     'player_reaction'=>'player_reaction_suppressed',
                     'rechat'=>'rechat_complete',
+                    'bored'=>'ambient_exchange_suppressed',
                     'quest_updated'=>'quest_reaction_suppressed', default=>'auto_greeting_suppressed'},
                     $triggerStopReason===null ? [] : ['detail'=>$triggerStopReason]);
                 exit;
@@ -408,7 +416,7 @@ if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
     try {
         synth_dialogue_capture_origin_policy($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json'],$GLOBALS,
             strval($GLOBALS['SYNTH_EXECUTION_MODE'] ?? 'STANDARD'),
-            ($wireEvent['type'] ?? '')==='input_audio' ? ($pipelineEvent['payload']['text'] ?? null) : null);
+            $transcript ?? null);
     } catch (SYNTHProtocolCancelled $error) { throw $error; }
     catch (Throwable $error) {
         synth_protocol_emit_terminal_error('dialogue_policy_unavailable','The original dialogue policy could not be captured.');
@@ -537,6 +545,9 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) &
 
 // Narrator inititalization
 // Note: We should check if we need to load Narrator profile in all type of requests.
+if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']['profile_token'])) {
+    synthRuntimeSetActiveProfile($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']['profile_token']);
+}
 require(__DIR__."/processor/narrator_init.php");
 
 // maybeQueueNpcVoiceRefresh function moved to misc.php.
@@ -666,7 +677,7 @@ if (in_array($inputRequestType, ["inputtext", "inputtext_s", "cheatmode", "visio
 
 
 // Bored
-if (($gameRequest[0] ?? '') === 'bored') {
+if (($gameRequest[0] ?? '') === 'bored' && empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
     require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narratorSettings = new Narrator();
     if ($narratorSettings->getBool('bored_enabled', false)) {
@@ -682,7 +693,15 @@ if (($gameRequest[0] ?? '') === 'bored') {
     }
 }
 
-if (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
+if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
+    require_once $path.'lib/synth_ambient_npc.php';
+    try {
+        $loadedAmbientProfile=synth_ambient_npc_load_profile($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+        $currentNpcData=$loadedAmbientProfile['character'];$currentProfileData=$loadedAmbientProfile['profile'];
+        $currentConnectorData=$loadedAmbientProfile['connector'];
+    } catch (SYNTHProtocolCancelled $error) {throw $error;}
+    catch (Throwable $error) {synth_protocol_emit_terminal_error('ambient_profile_unavailable','The captured ambient speaker is unavailable.');exit;}
+} elseif (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
     require_once $path.'lib/synth_rechat_profile.php';
     try {
         $loadedRechatProfile=synth_rechat_load_profile($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
@@ -1152,7 +1171,9 @@ if (in_array($gameRequest[0],["bored"])) {
         logEvent($localGameRequest);
     }
 
-    if (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"])) {
+    if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
+        // The owned native origin stays in this request and uses its captured NPC pair.
+    } elseif (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"])) {
         Logger::info("[NARRATOR_BORED] Using narrator bored flow");
     } elseif ((isset($GLOBALS["BORED_EVENT_SERVERSIDE"])&&($GLOBALS["BORED_EVENT_SERVERSIDE"]))) {
         $boredPayload = json_decode((string)($gameRequest[3] ?? ''), true);
@@ -2028,7 +2049,12 @@ if (isset($GLOBALS["RANDOM_NARRATION_PROMPT"]) && $gameRequest[0] == "narration"
     Logger::info("[RANDOM_NARRATION] Injected narration prompt as cue");
 }
 
-if (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"]) && $gameRequest[0] == "bored") {
+if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']) && $gameRequest[0]==='bored') {
+    $ambient=synth_ambient_npc_projection($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? []);
+    if ($ambient===null) throw new LogicException('ambient_prompt_owner_changed');
+    $PROMPTS['bored']['cue']=[synth_ambient_npc_cue($ambient).' '.($GLOBALS['TEMPLATE_DIALOG'] ?? '')];
+    $PROMPTS['bored']['player_request']=[];
+} elseif (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"]) && $gameRequest[0] == "bored") {
     $boredPrompt = null;
     try {
         $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'narrator_bored_prompt'");
@@ -2272,11 +2298,22 @@ if ($gameRequest[0] != "diary") {
 
 }
 
-// Check if this event  has been disabled
-if (isset($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"])) {
-    //Logger::warn(" event=".$gameRequest[0]." use=". (!($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"]) ? "Y" : "N") ." - exec trace"); // debug
-    if ($GLOBALS["PROMPTS"][$gameRequest[0]]["extra"]["dontuse"])
-        terminate();
+// Check if this event has been disabled before either direct or model responses.
+if (!empty($GLOBALS['PROMPTS'][$gameRequest[0]]['extra']['dontuse'])) terminate();
+
+// Exact identification questions run after ordinary owned input/history logging.
+// Normal NPC emission retains speech policy, history, TTS and cancellation; no model/action/rechat path follows.
+$combatIdentification=synth_combat_identification_reply($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [],$transcript ?? null);
+if ($combatIdentification!==null) {
+    synth_protocol_assert_request_active();
+    require $path.'processor/player_tts.php';
+    $GLOBALS['SCRIPTLINE_LISTENER']=$combatIdentification['listener']['display_name'] ?? $GLOBALS['PLAYER_NAME'];
+    returnLines([$combatIdentification['text']],true,false);
+    synth_protocol_assert_request_active();
+    synth_protocol_ensure_response_started();
+    synth_protocol_write_response_line('status',['code'=>'combat_identification_complete'],synth_protocol_next_line_suffix('status'));
+    synth_emit_buffered_json_response();
+    terminate();
 }
 
 // One 60-second RPG window per native save/player owner (legacy requests remain global).
@@ -2363,12 +2400,13 @@ Logger::phaseEnd("context_world_fetch", [
     "rows" => count($contextDataWorld),
 ], "info");
 
-// Add current plan/quest context to COMMAND_PROMPT. Enabled by default; Context Selections control visibility.
+// Automatic quest context follows the speaker's admitted scope; the player's
+// private journal is not general NPC knowledge. Context Selections still apply.
 if ($gameRequest[0] != "diary") {
     Logger::phaseStart("current_task_fetch", [
         "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
     ]);
-    $task=DataGetCurrentTask();
+    $task=DataGetCurrentTask('speaker');
     $GLOBALS["COMMAND_PROMPT"].=$task;
     Logger::phaseEnd("current_task_fetch", [
         "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
@@ -2719,6 +2757,10 @@ $turnActorStates = is_array($GLOBALS['SYNTH_TURN_ACTOR_STATES'] ?? null)
     ? array_slice($GLOBALS['SYNTH_TURN_ACTOR_STATES'], 0, 16)
     : [];
 $audienceSnapshot=synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+$equipmentActorStates = $audienceSnapshot !== null
+    ? (is_array($audienceSnapshot['actor_states'] ?? null) ? $audienceSnapshot['actor_states'] : [])
+    : $turnActorStates;
+if ($audienceSnapshot !== null) $turnActorStates = array_slice($equipmentActorStates, 0, 16);
 if ($audienceSnapshot!==null) {
     $nearbySections.="\n\n<nearby_audience_observation>"
         .synth_protocol_audience_observation($audienceSnapshot)
@@ -2727,11 +2769,31 @@ if ($audienceSnapshot!==null) {
         ."unavailable means the collection was not observed. Complete applies only to this capture's discovery set. "
         ."An omitted actor is not evidence of departure, death or absence. Player and target state are separate observations.";
 }
+$playerIdentity = is_array($GLOBALS['SYNTH_PLAYER_IDENTITY'] ?? null)
+    ? $GLOBALS['SYNTH_PLAYER_IDENTITY'] : [];
+$targetIdentity = is_array($GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] ?? null)
+    ? $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] : [];
+$equipmentPrompt = synth_protocol_equipment_prompt(
+    $equipmentActorStates,
+    $audienceSnapshot !== null
+        ? (is_array($audienceSnapshot['player'] ?? null) ? $audienceSnapshot['player'] : [])
+        : $playerIdentity,
+    $targetIdentity,
+    'synthLookupCapturedEquipmentDescription'
+);
+if ($equipmentPrompt === '' && $audienceSnapshot !== null) {
+    $equipmentPrompt = "\n\n<current_observed_equipment unavailable=\"true\">"
+        . "No unambiguous current equipment observation is available for the player or response speaker. "
+        . "Their present gear is unknown; older dialogue descriptions cannot establish what they currently hold or wear."
+        . "</current_observed_equipment>";
+}
+$nearbySections .= $equipmentPrompt;
+require_once __DIR__.'/lib/synth_character_forms.php';
+$nearbySections .= synth_character_form_prompt($equipmentActorStates,$targetIdentity);
+$nearbySections .= synth_protocol_current_combat_target_prompt($turnActorStates, $targetIdentity, $playerIdentity,
+    synth_combat_contacts_supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? []));
+$nearbySections .= synth_enemy_awareness_prompt($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [],$turnActorStates,$targetIdentity,$playerIdentity);
 if ($turnActorStates !== []) {
-    $playerIdentity = is_array($GLOBALS['SYNTH_PLAYER_IDENTITY'] ?? null)
-        ? $GLOBALS['SYNTH_PLAYER_IDENTITY'] : [];
-    $targetIdentity = is_array($GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] ?? null)
-        ? $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] : [];
     $promptActorStates = synth_protocol_prompt_actor_states(
         $turnActorStates,
         $playerIdentity,
@@ -2954,9 +3016,24 @@ if ($gameRequest[0] == "funcret") {
 
 }
 
+// Keep the exact responder's current combat evidence after historical species
+// claims and cues. This does not create an observation when its target is unknown.
+$contextData = synth_append_combat_observer_context(
+    $contextData ?? [],
+    $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [],
+    $turnActorStates,
+    $targetIdentity,
+    $playerIdentity
+);
+
 // The accepted current utterance is not historical context. Append it once after
 // the cue/memory blocks, whether prior history is compact, expanded, or empty.
-$contextData = array_merge($contextData ?? [], $currentPlayerInput);
+$contextData = synth_append_equipment_observer_context(
+    $contextData ?? [],
+    $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [],
+    $equipmentPrompt,
+    $currentPlayerInput
+);
 
 if (isset($contextData) && is_array($contextData) && function_exists('synthApplyNarratorRoleplayNameToContext')) {
     $contextData = synthApplyNarratorRoleplayNameToContext($contextData);
@@ -3054,6 +3131,10 @@ if (sizeof($talkedSoFar) == 0) {
         );
         if (($gameRequest[0] ?? "") === "cheatmode") {
             $cheatAck = "Done.";
+            $ackEmitted=false;
+            $ackLines=synth_character_constrain_lines([$cheatAck],synth_character_current_speech_policy(),$ackEmitted);
+            $cheatAck=$ackLines[0] ?? '';
+            if ($cheatAck!=='') {
             synth_buffer_speech_response_line(
                 $GLOBALS["SYNTH_NAME"] ?? "The Narrator",
                 $cheatAck,
@@ -3065,6 +3146,7 @@ if (sizeof($talkedSoFar) == 0) {
             );
             $talkedSoFar[] = $cheatAck;
             Logger::info("[CHEATMODE] Action-only response acknowledged with spoken line.");
+            }
         }
 
     } else { // Fail request? or maybe an invalid command was issued

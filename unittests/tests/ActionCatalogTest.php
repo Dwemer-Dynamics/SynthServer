@@ -11,6 +11,47 @@ final class ActionCatalogTest extends TestCase
 {
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
     #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    #[\PHPUnit\Framework\Attributes\DataProvider('nativeWaitCatalogActivationProvider')]
+    public function testNativeWaitDefinitionCannotRestoreLegacyTargetOrParameterTemplate(bool $enabled): void
+    {
+        ini_set('error_log','/dev/null');
+        $GLOBALS['PLAYER_NAME']='Nora';$GLOBALS['SYNTH_NAME']='(actor)';$GLOBALS['IS_NPC']=true;$GLOBALS['BASE_FUNCTIONS']=[];
+        $event=['protocol_version'=>2,'runtime_variant'=>'flat','type'=>'input_text','payload'=>['text'=>'wait here'],
+            'capabilities'=>['dialogue.turn_ownership','action.wait_here','action.release_wait']];
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=$event['capabilities'];
+        $GLOBALS['SYNTH_ACTION_CATALOG_DB_READY']=true;
+        $GLOBALS['db']=new class {public function fetchOne(string $query):array{return ['has_row'=>1];}};
+        foreach (['WaitHere','ReleaseWait'] as $code) $GLOBALS['SYNTH_ACTION_CATALOG_ROWS_BY_CODE'][$code]=[
+            'code_name'=>$code,'action_name'=>$code,'description'=>'Legacy target action.','return_message'=>'',
+            'available_to_npc'=>true,'available_to_followers'=>true,'available_to_narrator'=>false,'is_activated'=>$enabled,
+            'game_function'=>true,'metadata'=>['parameter_template'=>['target'=>'Foreign actor']],'script_proxy_program'=>null,
+            'parameters_json'=>['type'=>'object','properties'=>['target'=>['type'=>'string']], 'required'=>['target']]];
+        $before=$GLOBALS['SYNTH_ACTION_CATALOG_ROWS_BY_CODE'];
+        require_once dirname(__DIR__,2).'/lib/logger.php';restore_error_handler();
+        require_once dirname(__DIR__,2).'/functions/functions.php';
+        foreach (['WaitHere','ReleaseWait'] as $code) {
+            $definition=findFunctionByName($code);
+            if (!$enabled) {$this->assertNull($definition);$this->assertNotContains($code,$GLOBALS['ENABLED_FUNCTIONS']);continue;}
+            $this->assertSame([],$definition['parameters']['required']);
+            $this->assertSame([],get_object_vars($definition['parameters']['properties']));
+            $this->assertSame('{}',buildFunctionExecutionParameter($code,[]));
+            $execution=buildFunctionExecutionContextFromResponse(['action'=>$code,'character'=>'(actor)','listener'=>'Nora',
+                'message'=>'Very well.','mood'=>'normal','target'=>'','item'=>'']);
+            $this->assertSame([],$execution['missing_required']);$this->assertFalse($execution['has_required_parameters']);
+            $commands=[];$sent=[];$this->assertTrue(queueFunctionExecutionCommand($commands,$sent,$execution,'synthetic'));
+            $this->assertSame([],synthDecodeActionLine($commands[0])['parameter_args']);
+            $this->assertSame('',synthEncodeActionLine('(actor)',$code,[], '{"target":"Nora"}'));
+        }
+        $this->assertSame($before,$GLOBALS['SYNTH_ACTION_CATALOG_ROWS_BY_CODE'],'Runtime overrides never rewrite configured catalog rows');
+    }
+
+    public static function nativeWaitCatalogActivationProvider(): array
+    {
+        return ['activated legacy target schema'=>[true],'explicitly disabled'=>[false]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     public function testNativeCapsCatalogCannotRestoreLegacyAmountFallback(): void
     {
         ini_set('error_log','/dev/null');
@@ -180,7 +221,19 @@ final class ActionCatalogTest extends TestCase
         $this->assertFalse(synthActionCodeIsNegotiated('GiveItemTo'));
         $this->assertTrue(synthActionCodeIsNegotiated('Inspect'));
         $this->assertNull(findFunctionByName('GiveItemTo'));
-        $this->assertIsArray(findFunctionByName('Inspect'));
+        // Changing the capability fixture does not rebuild the already-filtered
+        // runtime list. A cached database row must not restore a missing native
+        // definition, even when that action is negotiated by the next request.
+        $this->assertNull(findFunctionByName('Inspect'));
+        $nativeInspect = synthNativeObservationActionDefinition('Inspect', $GLOBALS['BASE_FUNCTIONS']['Inspect'], 2);
+        $GLOBALS['FUNCTIONS'] = [$nativeInspect];
+        $GLOBALS['ENABLED_FUNCTIONS'] = ['Inspect'];
+        $GLOBALS['DEFINED_FUNCTIONS'] = ['Inspect'];
+        $GLOBALS['BASE_FUNCTIONS']['Inspect'] = $nativeInspect;
+        $GLOBALS['F_DESCRIPTIONS']['Inspect'] = $nativeInspect['description'];
+        $this->assertSame($nativeInspect, findFunctionByName('Inspect'));
+        $this->assertStringContainsString('does not refresh weapon or clothing', findFunctionByName('Inspect')['description']);
+        $this->assertSame('Synthetic database action.', $GLOBALS['SYNTH_ACTION_CATALOG_ROWS_BY_CODE']['Inspect']['description']);
         $this->assertNull(synth_protocol_action_from_legacy_line(['command_name'=>'GiveItemTo','speaker'=>'Piper','target'=>'Player','item'=>'Rifle']));
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$base];
         foreach (['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer'] as $transferName) {
@@ -459,6 +512,7 @@ final class ActionCatalogTest extends TestCase
             'OpenInventory',
             'PickupItem',
             'ReadQuests',
+            'ReleaseWait',
             'Relax',
             'DirectorCommand',
             'SpawnCaps',
@@ -480,6 +534,9 @@ final class ActionCatalogTest extends TestCase
         sort($actualCodes);
 
         $this->assertSame($expectedCodes, $actualCodes);
+        $this->assertTrue($rows['ReleaseWait']['available_to_npc']);
+        $this->assertTrue($rows['ReleaseWait']['available_to_followers']);
+        $this->assertFalse($rows['ReleaseWait']['available_to_narrator']);
         $disabledNarratorActions = ['DirectorCommand', 'SpawnCaps', 'SpawnItem', 'TeleportActor', 'KillTarget'];
         foreach ($expectedCodes as $codeName) {
             $this->assertSame(!in_array($codeName, $disabledNarratorActions, true), $rows[$codeName]['is_activated']);

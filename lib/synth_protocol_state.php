@@ -112,11 +112,12 @@ function synth_protocol_assert_request_active(): void
     $session = $db->escapeLiteral(synth_protocol_session_id($event));
     $request = $db->escapeLiteral($event['request_id']);
     $generation = intval($event['generation']);
-    $row = $db->fetchOne("SELECT e.state, r.state AS runtime_state, r.active_generation,
+    $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
             r.active_turn_id, r.active_turn_sequence
         FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING (session_id)
         WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
     if (!$row || !in_array($row['state'], ['claimed','streaming','complete'], true)
+        || in_array($row['error_code'] ?? '',['turn_cancelled','request_cancelled'],true)
         || $row['runtime_state'] !== 'active' || intval($row['active_generation']) !== $generation
         || (synth_protocol_owns_dialogue_turn($event)
             && (($row['active_turn_id'] ?? '') !== $event['turn_id']
@@ -251,7 +252,7 @@ function synth_protocol_loaded_context($db, array $event): ?array
 }
 
 // A bounded ancestry relation over copied insertion evidence; never reads mutable/global eventlog rows.
-function synth_protocol_history_cte($db, array $event, string $actor = '', ?int $relationshipReaderIdentityId = null, bool $playerPerspective = false, bool $narratorJournals = false, ?int $journalReaderIdentityId = null, bool $responseRoles = false, string $journalKind = 'diary'): string
+function synth_protocol_history_cte($db, array $event, string $actor = '', ?int $relationshipReaderIdentityId = null, bool $playerPerspective = false, bool $narratorJournals = false, ?int $journalReaderIdentityId = null, bool $responseRoles = false, string $journalKind = 'diary', bool $materializeHistory = false): string
 {
     if (!in_array($journalKind,['diary','middleterm'],true)
         || ($journalKind==='middleterm' && ($journalReaderIdentityId===null || $narratorJournals))) {
@@ -364,14 +365,19 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     ), native_history_scopes AS (
         SELECT session_id,generation,playthrough_id,reader_identity_id,reader_player_id,MIN(history_event_id) AS cutoff
         FROM native_ancestry GROUP BY session_id,generation,playthrough_id,reader_identity_id,reader_player_id
-    ) ".synth_protocol_history_rows_cte(false,$responseRoles);
+    ) ".synth_protocol_history_rows_cte(false,$responseRoles,$materializeHistory);
 }
 
 // Dependency validation reuses the identical insertion-time ownership rules without widening ordinary history.
-function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false): string
+function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false, bool $materializeHistory=false, bool $relationshipSourceHistory=false): string
 {
     $scopes=$relationshipGraph ? 'relationship_graph_scopes' : 'native_history_scopes';
-    $history=$relationshipGraph ? 'relationship_graph_history' : 'native_history';
+    if ($relationshipSourceHistory && !$relationshipGraph) throw new InvalidArgumentException('Relationship source projection requires graph scopes');
+    $history=$relationshipSourceHistory ? 'relationship_graph_source_history' : ($relationshipGraph ? 'relationship_graph_history' : 'native_history');
+    // Duplicate the graph-source consumer's exact predicates before correlated visibility checks.
+    // The unrestricted history projection remains available for frozen recent-event validation.
+    $sourceFilter=$relationshipSourceHistory ? " AND h.event_payload->>'type' IN ('inputtext','inputtext_s','chat','backgroundchat','narration')
+            AND h.event_payload->>'delivery_state' IN ('received','emitted')" : '';
     // Prompt formatting alone needs role provenance; ordinary recall/relationship readers keep their existing query.
     $roleColumns=$responseRoles ? ',response_owner.role AS response_role,response_owner.actor_identity_id AS response_actor_identity_id' : '';
     $roleJoin=$responseRoles ? "LEFT JOIN LATERAL (
@@ -390,12 +396,31 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                 AND ingress.canonical_event->>'type'='trigger' AND ingress.canonical_event->'payload'->>'kind'='rechat'
                 AND ingress.canonical_event->'capabilities' @> jsonb_build_array('dialogue.turn_ownership','dialogue.rechat.ownership')
         ) response_owner ON TRUE" : '';
-    return ", $history AS (
-        SELECT original.*,h.id AS history_event_id,s.reader_identity_id,s.reader_player_id,ownership.speaker_identity_id,
+    // Legacy dialogue adapters may stamp UTC seconds into gamets. Native game-age
+    // readers use the immutable source/scene snapshot's game clock, never that fallback.
+    // Match the context contract's positive, safe integer range. Zero is unavailable,
+    // not a valid native context clock; unknown clocks cannot satisfy game-age filters.
+    $nativeClock="CASE WHEN jsonb_typeof(origin.context_payload#>'{world,game_time_ticks}')='number'
+        AND (origin.context_payload#>>'{world,game_time_ticks}') ~ '^[1-9][0-9]{0,15}$'
+        THEN CASE WHEN (origin.context_payload#>>'{world,game_time_ticks}')::bigint<=9007199254740991
+            THEN (origin.context_payload#>>'{world,game_time_ticks}')::bigint END END";
+    $historyDefinition=$materializeHistory ? 'MATERIALIZED ' : '';
+    $historyEvents=$relationshipSourceHistory ? $history.'_events' : 'synth_meta.history_events';
+    // Avoid one indexed history lookup for every reader/saved-scope combination.
+    $sourceEvents=$relationshipSourceHistory ? ", $historyEvents AS MATERIALIZED (
+        SELECT h.* FROM synth_meta.history_events h WHERE EXISTS (
+            SELECT 1 FROM $scopes s WHERE h.session_id=s.session_id AND h.generation=s.generation
+                AND h.playthrough_id=s.playthrough_id AND h.id<=s.cutoff) {$sourceFilter}
+    ) " : '';
+    return $sourceEvents.", $history AS {$historyDefinition}(
+        SELECT original.type,original.data,original.sess,{$nativeClock} AS gamets,
+            original.localts,original.ts,original.rowid,original.people,original.location,original.party,
+            original.utterance_id,original.delivery_state,
+            h.id AS history_event_id,s.reader_identity_id,s.reader_player_id,ownership.speaker_identity_id,
             origin.context_payload->'world'->>'location' AS source_location {$roleColumns}
-        FROM $scopes s JOIN synth_meta.history_events h
+        FROM $scopes s JOIN $historyEvents h
             ON h.session_id=s.session_id AND h.generation=s.generation AND h.playthrough_id=s.playthrough_id
-            AND h.id<=s.cutoff
+            AND h.id<=s.cutoff {$sourceFilter}
         JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id
             AND origin.generation=h.generation AND origin.snapshot_sequence=COALESCE(h.scene_context_sequence,h.context_sequence)
             AND origin.playthrough_id=h.playthrough_id
@@ -669,6 +694,64 @@ function synth_protocol_prompt_quests(array $payload): array
     }
     unset($quest);
     return ['active_quests'=>$quests,'active_quests_observation'=>$quality];
+}
+
+// A player journal is not shared NPC knowledge. Publish only an admitted reaction's
+// bounded change, tied to this exact request; the original context remains intact.
+function synth_protocol_bind_quest_prompt(array $event, array $payload, bool $playerJournal, ?array $reaction = null): array
+{
+    $journal=synth_protocol_prompt_quests($payload);
+    $scope='none';
+    if ($playerJournal) $scope='journal';
+    elseif (($event['protocol_version'] ?? null)===2 && ($event['type'] ?? '')==='trigger'
+        && ($event['payload']['kind'] ?? '')==='quest_updated' && $reaction!==null) {
+        $scope='reaction';
+        $journal=synth_protocol_prompt_quests(['active_quests'=>array_slice($reaction['quests'] ?? [],0,3),
+            'active_quests_observation'=>'partial']);
+    } else $journal=['active_quests'=>[],'active_quests_observation'=>'unavailable'];
+    $GLOBALS['SYNTH_TURN_QUEST_PROMPT']=[
+        'request_sha256'=>hash('sha256',synth_protocol_canonical_json($event)),
+        'scope'=>$scope,'journal'=>$journal,
+    ];
+    return $journal;
+}
+
+// Automatic speaker context fails closed; explicit player-facing journal readers
+// still use prompt_snapshot. A stale projection cannot authorize another turn.
+function synth_protocol_speaker_quest_snapshot($db): ?array
+{
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $role=synth_protocol_owned_response_role();
+    if ($role==='narrator' || ($role===null && synth_protocol_response_is_narrator())) {
+        return synth_protocol_prompt_snapshot($db);
+    }
+    $empty=['active_quests'=>[],'active_quests_observation'=>'unavailable','_synth_quest_prompt_scope'=>'none'];
+    $projection=$GLOBALS['SYNTH_TURN_QUEST_PROMPT'] ?? null;
+    if (($event['protocol_version'] ?? null)!==2 || $role!=='npc'
+        || ($event['type'] ?? '')!=='trigger' || ($event['payload']['kind'] ?? '')!=='quest_updated'
+        || !is_array($projection) || ($projection['scope'] ?? '')!=='reaction'
+        || !hash_equals(hash('sha256',synth_protocol_canonical_json($event)),strval($projection['request_sha256'] ?? ''))) return $empty;
+    $snapshot=synth_protocol_prompt_snapshot($db);
+    $target=$snapshot['target'] ?? null;$actor=$event['payload']['actor'] ?? null;
+    if (!is_array($target) || !is_array($actor)
+        || strcasecmp($target['form_id'] ?? '',$actor['form_id'] ?? '')!==0
+        || strcasecmp($target['origin_plugin'] ?? '',$actor['origin_plugin'] ?? '')!==0
+        || ($target['playthrough_id'] ?? '')!==($actor['playthrough_id'] ?? '')
+        || ($snapshot['player']['playthrough_id'] ?? '')!==($actor['playthrough_id'] ?? '')
+        || !in_array($snapshot['active_quests_observation'] ?? '',['complete','partial'],true)) return $empty;
+    $current=synth_protocol_prompt_quests($snapshot)['active_quests'];$visible=[];
+    foreach (array_slice($projection['journal']['active_quests'] ?? [],0,3) as $quest) {
+        if (!is_array($quest)) return $empty;
+        $found=false;
+        foreach ($current as $observed) {
+            if (synth_protocol_canonical_json($observed)!==synth_protocol_canonical_json($quest)) continue;
+            if (($observed['tracked'] ?? null)!==true || ($observed['active_objectives'] ?? 0)<1
+                || !in_array($observed['objectives_observation'] ?? '',['complete','partial'],true)) return $empty;
+            $visible[]=$observed;$found=true;break;
+        }
+        if (!$found) return $empty;
+    }
+    return $visible ? ['active_quests'=>$visible,'active_quests_observation'=>'partial','_synth_quest_prompt_scope'=>'reaction'] : $empty;
 }
 
 // Legacy/missing and cached quality never attest a fresh journal observation.
@@ -1446,8 +1529,11 @@ function synth_protocol_claim_request($db, array $event): array
             if ($anchor) {
                 $cancelTurn = $db->escapeLiteral($anchor['turn_id']);
                 $cancelSequence = intval($anchor['sequence']);
-                $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled', response_body=NULL,
-                        error_code='turn_cancelled', completed_at=NOW()
+                // Retain completed player input as historical learning; revoke its delivery and late work.
+                $db->execQuery("UPDATE synth_meta.request_executions SET
+                        state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
+                        response_body=NULL,error_code='turn_cancelled',
+                        completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
                     WHERE session_id={$session} AND generation={$generation}
                       AND state IN ('claimed','streaming','complete')
                       AND (request_id={$cancelRequest} OR request_id IN (
@@ -1463,8 +1549,10 @@ function synth_protocol_claim_request($db, array $event): array
                       AND state IN ('pending','running')");
             }
             $db->execQuery(
-                "UPDATE synth_meta.request_executions SET state='cancelled', response_body=NULL,
-                        error_code='request_cancelled', completed_at=NOW()
+                "UPDATE synth_meta.request_executions SET
+                        state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
+                        response_body=NULL,error_code='request_cancelled',
+                        completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
                   WHERE session_id={$session} AND request_id={$cancelRequest}
                     AND generation={$generation} AND state IN ('claimed', 'streaming', 'complete')"
             );
@@ -1495,6 +1583,13 @@ function synth_protocol_record_action_intent($db, array $action): void
     if (!$event) {
         throw new RuntimeException('Action intent has no protocol request context.');
     }
+    require_once __DIR__.'/synth_wait_actions.php';
+    $wait=synth_wait_action_is_intent($action) && (($event['protocol_version'] ?? 1)===2
+        || ($action['name'] ?? '')==='release_wait' || ($action['server_code'] ?? '')==='ReleaseWait');
+    if ($wait && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('wait_emission_claim_required');
+    if ((($action['capability'] ?? '')==='action.read_quests'
+            || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
+        && !synth_protocol_player_journal_action_allowed()) throw new DomainException('private_quest_journal_not_shared');
     if (($event['protocol_version'] ?? 1) === 2 && ($action['name'] ?? '') === 'consume'
         && !synth_protocol_supports_consumption($event)) throw new DomainException('consumption_contract_required');
     $taking = ($event['protocol_version'] ?? 1)===2 && (($action['name'] ?? '')==='take_caps_from_player'
@@ -1515,8 +1610,13 @@ function synth_protocol_record_action_intent($db, array $action): void
     }
     $guarded = !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
     $native = $guarded && ($event['protocol_version'] ?? 1) === 2;
-    $persist = static function () use ($db, $action, $event, $native, $transfer, $caps, $taking): void {
+    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $wait): void {
         synth_protocol_assert_request_active();
+        if ($wait && $owner!==$event) throw new LogicException('wait_emission_owner_changed');
+        if ($wait) synth_wait_action_validate($db,$event,$action);
+        if ((($action['capability'] ?? '')==='action.read_quests'
+                || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
+            && !synth_protocol_player_journal_action_allowed()) throw new DomainException('private_quest_journal_not_shared');
         if (synth_protocol_owns_rechat($event)) {
             require_once __DIR__.'/synth_rechat_emission.php';
             synth_rechat_assert_action_emission($db,$event,$action);
@@ -1800,6 +1900,15 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         }
     }
     $result = $wireEvent['payload']['result'];
+    if (($wireEvent['protocol_version'] ?? 1)===2
+        && (($row['capability'] ?? '')==='action.read_quests' || in_array($row['action_name'],['ReadQuests','read_quests'],true))
+        && !synth_protocol_player_journal_action_allowed()) {
+        // Old/custom intents may still return a journal. Filter before funcret is
+        // logged or offered to profile, diary, memory, and dialogue readers.
+        $result['detail']='Player quest journal is private; no quest facts were shared with this NPC.';
+        $result['status']='unavailable';
+        $row['target_name']='';
+    }
     if ($boundContext !== null && in_array($row['action_name'], ['EquipItem', 'UnequipItem', 'Consume'], true)
         && ($row['capability'] ?? '') === match ($row['action_name']) {
             'EquipItem'=>'action.equip_item', 'UnequipItem'=>'action.unequip_item', 'Consume'=>'action.consume',
@@ -1896,6 +2005,15 @@ function synth_protocol_owns_rechat(array $event): bool
 function synth_rechat_action_code_allowed(string $code): bool
 {
     return in_array($code,['CheckInventory','Inspect','InspectSurroundings','ReadQuests','EndConversation'],true);
+}
+
+// Native NPCs have no owned journal-disclosure scope yet. A model-selected quest
+// ID, teammate flag, or nearby audience cannot grant the full player's journal.
+// Legacy integrations retain their existing explicitly invoked tool behavior.
+function synth_protocol_player_journal_action_allowed(): bool
+{
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    return ($event['protocol_version'] ?? 1)!==2 || synth_protocol_owned_response_role()==='narrator';
 }
 
 // Current response role is selected authority, never an NPC display-name or mutable profile flag.
@@ -2130,6 +2248,9 @@ function synth_protocol_prompt_actor_states(
     $result = [];
     foreach (array_slice($states, 0, 16) as $state) {
         if (!is_array($state)) continue;
+        // A different participant's combat target is not knowledge for this response speaker.
+        // The selected speaker's dedicated prompt is rendered separately from these generic states.
+        unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['conversation_held']);
         // A historical numeric default does not prove a successful native actor-value read.
         foreach (['health_percent','action_points_percent'] as $field) {
             $available = ($state[$field . '_available'] ?? false) === true;
@@ -2247,6 +2368,36 @@ function synth_protocol_current_context($db, array $event): ?array
     return $context;
 }
 
+// Only an explicit native role grants journal access; an NPC's display name cannot grant it.
+function synth_protocol_quest_response_is_narrator($db, array $event): bool
+{
+    if (($event['protocol_version'] ?? 1)!==2) return false;
+    if (in_array($event['type'] ?? '', ['input_text','input_audio'], true)) {
+        return ($event['payload']['control']['mode'] ?? '')==='NARRATOR';
+    }
+    if (synth_protocol_owns_rechat($event)) {
+        require_once __DIR__.'/synth_rechat_prepare.php';
+        return (synth_rechat_prepared_selection($db,$event)['role'] ?? '')==='narrator';
+    }
+    return false;
+}
+
+// Internal prompt data is a reader-specific projection, never the raw player journal for NPCs.
+function synth_protocol_quest_prompt_context($db, array $event, array $context, ?array $reader=null, bool $narrator=false): array
+{
+    require_once __DIR__.'/quest_knowledge.php';
+    $view=synthQuestKnowledgeView($db,$event,$context,$reader,$narrator);
+    // Older automatic prompt readers cannot reuse a raw reaction projection.
+    $GLOBALS['SYNTH_TURN_QUEST_PROMPT']=[
+        'request_sha256'=>hash('sha256',synth_protocol_canonical_json($event)),
+        'scope'=>$narrator ? 'journal' : 'none',
+        'journal'=>['active_quests'=>[],'active_quests_observation'=>'unavailable'],
+    ];
+    return ['active_quests'=>$narrator ? $view['journal'] : [],
+        'active_quests_observation'=>$narrator ? $view['observation'] : 'unavailable',
+        'quest_knowledge'=>$view];
+}
+
 // null selects legacy readers; an empty array means native observation unavailable, never latest-global fallback.
 function synth_protocol_prompt_snapshot($db): ?array
 {
@@ -2256,15 +2407,29 @@ function synth_protocol_prompt_snapshot($db): ?array
     $context = synth_protocol_current_context($db, $event);
     $payload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
     // Native source records are audit evidence, not witnessed prompt context. Read the owned history projection instead.
-    unset($payload['actor_events']);
+    unset($payload['actor_events'],$payload['quest_events']);
+    if (!synth_protocol_quest_response_is_narrator($db,$event)) {
+        unset($payload['active_quests'],$payload['active_quests_observation']);
+    } else {
+        $payload=array_replace($payload,synth_protocol_prompt_quests($payload));
+    }
     return $payload;
 }
 
-// Return this bound turn's text, including its completed transcription, for query-specific prompt selection.
-function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gameRequest): string
+// Transcription is derived input; the immutable wire event remains the canonical owner of every reader.
+function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gameRequest, ?string $transcript = null): string
 {
+    unset($GLOBALS['SYNTH_TURN_QUEST_PROMPT']);
     if (!in_array($wireEvent['type'] ?? '', ['input_text', 'input_audio', 'action_result'], true)) {
         return '';
+    }
+    if ($transcript !== null && ($wireEvent['type'] ?? '') !== 'input_audio') {
+        throw new LogicException('dialogue_transcript_type_mismatch');
+    }
+    if (($wireEvent['type'] ?? '') === 'input_audio'
+        && ($transcript === null || trim($transcript) === '' || strlen($transcript) > 4096
+            || str_contains($transcript, "\0") || preg_match('//u', $transcript) !== 1)) {
+        throw new RuntimeException('stt_transcript_invalid');
     }
     $context = synth_protocol_current_context($db, $wireEvent);
     $narrator = ($wireEvent['payload']['control']['mode'] ?? '') === 'NARRATOR';
@@ -2284,9 +2449,9 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
         throw new RuntimeException('display_identity_required');
     }
     $GLOBALS['SYNTH_INPUT_TARGET'] = $targetName;
-    if (!$narrator && !$eventOnly) $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] = $target;
+    $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] = $narrator || $eventOnly ? [] : $target;
     $GLOBALS['SYNTH_PLAYER_IDENTITY'] = $player;
-    $text = trim(strval($wireEvent['payload']['text'] ?? ''));
+    $text = trim(($wireEvent['type'] ?? '') === 'input_audio' ? $transcript : strval($wireEvent['payload']['text'] ?? ''));
     $people = [];
     foreach (($context['payload']['audience'] ?? []) as $audienceActor) {
         $name = trim(strval(is_array($audienceActor) ? ($audienceActor['display_name'] ?? '') : ''));
@@ -2309,10 +2474,11 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
         ? $context['payload']['actor_states']
         : [];
     if ($actorStates !== []) {
-        $structured['actor_states'] = $actorStates;
-        $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+        $structured['actor_states'] = synth_protocol_without_combat_targets($actorStates);
     }
-    $questContext=synth_protocol_prompt_quests($context['payload']);
+    $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+    $questContext=synth_protocol_quest_prompt_context($db,$wireEvent,$context,
+        $narrator || $eventOnly ? null : $target,$narrator);
     $structured=array_replace($structured,$questContext);
     $structured['audience_observation']=synth_protocol_audience_observation($context['payload']);
     $GLOBALS['SYNTH_TURN_ACTIVE_QUESTS']=$questContext['active_quests'];
@@ -2337,15 +2503,27 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
 // Bind a closed client trigger using the context selected by its protocol version.
 function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$gameRequest, ?string &$stopReason = null): bool
 {
+    unset($GLOBALS['SYNTH_TURN_QUEST_PROMPT']);
+    unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
     $stopReason=null;
     if (($wireEvent['type'] ?? '') !== 'trigger') {
         return true;
+    }
+    if (($wireEvent['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$wireEvent['capabilities'] ?? [],true)) {
+        require_once __DIR__.'/synth_ambient_npc.php';
+        $ambient=synth_ambient_npc_prepare($db,$wireEvent);
+        if ($ambient===null) {$stopReason='ineligible';return false;}
+        $GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']=$ambient;
     }
     $ownedPreparation=null;
     if (synth_protocol_owns_rechat($wireEvent)) {
         if (!$db || !method_exists($db,'withNativeRequestLock')) throw new RuntimeException('owned_rechat_requires_claim');
         require_once __DIR__.'/synth_rechat_prepare.php';
-        $ownedPreparation=synth_rechat_prepare_continuation($db,$wireEvent);
+        try {$ownedPreparation=synth_rechat_prepare_continuation($db,$wireEvent);}
+        catch (SYNTHRechatSceneChanged $error) {
+            $stopReason='ineligible';
+            return false;
+        }
         if ($ownedPreparation['selection']['role']==='terminal') {
             $reason=$ownedPreparation['selection']['terminal_reason'] ?? null;
             if (in_array($reason,['no_candidate','ineligible','private','budget_exhausted'],true)) $stopReason=$reason;
@@ -2449,10 +2627,10 @@ function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$game
         ? $context['payload']['actor_states']
         : [];
     if ($actorStates !== []) {
-        $structured['actor_states'] = $actorStates;
-        $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+        $structured['actor_states'] = synth_protocol_without_combat_targets($actorStates);
     }
-    $questContext=synth_protocol_prompt_quests($context['payload']);
+    $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+    $questContext=synth_protocol_quest_prompt_context($db,$wireEvent,$context,$target,$selectedNarrator);
     $structured=array_replace($structured,$questContext);
     $structured['audience_observation']=synth_protocol_audience_observation($context['payload']);
     $GLOBALS['SYNTH_TURN_ACTIVE_QUESTS']=$questContext['active_quests'];
