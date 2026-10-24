@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 require_once __DIR__.'/DatabaseTestCase.php';
+require_once dirname(__DIR__,2).'/lib/request.php';
 require_once dirname(__DIR__,2).'/lib/response.php';
 require_once dirname(__DIR__,2).'/lib/synth_wait_actions.php';
 require_once dirname(__DIR__,2).'/lib/phpunit.class.php';
@@ -27,6 +28,9 @@ final class NativeWaitFixtureDatabase extends sql
     }
 }
 
+// Each request fixture owns its initialized catalogue and disposable database.
+#[\PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses]
+#[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
 final class NativeWaitActionTest extends DatabaseTestCase
 {
     private array $saved=[];
@@ -37,6 +41,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
 
     public function setUp(): void
     {
+        ini_set('error_log','/dev/null');
         parent::setUp();
         foreach (['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_SPEECH_ROLE','SYNTH_NAME',
             'SYNTH_CLIENT_CAPABILITIES','gameRequest','IS_NPC','PLAYER_NAME','FUNCTIONS','ENABLED_FUNCTIONS',
