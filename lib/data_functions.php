@@ -553,6 +553,29 @@ function lookupStrictDescriptionByFormID(string $formId): ?array {
     return lookupDescriptionRecordByCandidates($candidates, true);
 }
 
+/** Catalog text for a captured item, scoped to its observed origin plugin. */
+function synthLookupCapturedEquipmentDescription(string $formId, string $plugin): ?string {
+    global $db;
+    if (!preg_match('/^0x[0-9a-f]{8}$/iD', $formId)
+        || strcasecmp(substr($formId, 2, 2), 'FF') === 0
+        || strcasecmp($formId, '0x00000000') === 0
+        || $plugin === '' || trim($plugin) !== $plugin || strlen($plugin) > 255
+        || !mb_check_encoding($plugin, 'UTF-8') || preg_match('/[\x00-\x1f\x7f|\\\\\/]/', $plugin)
+        || !preg_match('/\.(esm|esp|esl)$/iD', $plugin)) {
+        return null;
+    }
+    $localFormId = synthExtractLocalFormIdFromRuntimeFormId($formId);
+    // Do not use wildcard, bare runtime-ID or name fallbacks across plugins.
+    foreach (['descriptions_custom', 'descriptions'] as $table) {
+        $result = $db->execQuery("SELECT description FROM synth.{$table}
+            WHERE plugin=$1 AND baseid=$2 AND description<>'' LIMIT 1", [$plugin, $localFormId]);
+        if ($result === false) return null;
+        $row = pg_fetch_assoc($result);
+        if (is_string($row['description'] ?? null)) return $row['description'];
+    }
+    return null;
+}
+
 /**
  * Get height description based on scale value
  * Reads height descriptions from prompts table with hardcoded fallback
@@ -1962,6 +1985,16 @@ function synthSnapshotQuestRows(array $snapshot): array
 function DataQuestJournal($quest)
 {
     global $db;
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if (($event['protocol_version'] ?? 1)===2) {
+        require_once __DIR__.'/quest_knowledge.php';
+        $context=synth_protocol_current_context($db,$event);
+        $view=synthQuestKnowledgeView($db,$event,$context ?? [],null,
+            synth_protocol_quest_response_is_narrator($db,$event));
+        // The same bounded, attributed view is used by the tool and by ordinary dialogue.
+        return json_encode(['quest_knowledge'=>synthQuestKnowledgePrompt($view)],
+            JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    }
     $snapshot = synth_protocol_prompt_snapshot($db);
     if (empty($quest)||($quest=="None")||true) {
 
@@ -2685,8 +2718,9 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     $focusOnChat=($GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"] ?? false);
 
 
+    require_once __DIR__ . '/synth_history_trigger_prompt.php';
     foreach ($orderedData as $n=>$row) {
-        $rowData = $row["data"];
+        $rowData = synth_history_trigger_prompt_data($row, $nativeHistory);
 
         if ($rowData==="The Narrator:") // Hunt empty rows
             continue;
@@ -3425,9 +3459,11 @@ function synthIsActorInCurrentTravelingParty(string $actorName): bool
     return false;
 }
 
-function DataGetCurrentTask()
+function DataGetCurrentTask(string $scope = 'journal')
 {
     global $db;
+
+    if (!in_array($scope,['journal','speaker'],true)) throw new InvalidArgumentException('Unknown quest prompt scope.');
 
     $includeActiveQuests = function_exists('synthPromptContextOptionEnabled')
         ? synthPromptContextOptionEnabled('enabled_general_subsections', 'active_quests')
@@ -3437,12 +3473,20 @@ function DataGetCurrentTask()
         return "";
     }
 
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if (($event['protocol_version'] ?? 1)===2) {
+        require_once __DIR__.'/quest_knowledge.php';
+        $context=synth_protocol_current_context($db,$event);
+        return synthQuestKnowledgePrompt(synthQuestKnowledgeView($db,$event,$context ?? [],null,
+            synth_protocol_quest_response_is_narrator($db,$event)));
+    }
+
     $data = "";
 
-    // quests are synchronized as JSON snapshots from gamedata.php.
-    // for now lets just list all active quests rather than saying Current: xxx Previous: yyy
-    // ! listing all quests could generate thousands tokens in prompt, let's limit
-    $snapshot = synth_protocol_prompt_snapshot($db);
+    // Explicit journal readers retain the player's view. Automatic NPC prompts
+    // use only the request-bound change authorized by quest reaction admission.
+    $snapshot = $scope==='speaker' ? synth_protocol_speaker_quest_snapshot($db) : synth_protocol_prompt_snapshot($db);
+    if (($snapshot['_synth_quest_prompt_scope'] ?? '')==='none') return '';
     $results = $snapshot !== null ? array_slice(synthSnapshotQuestRows($snapshot), 0, 8)
         : $db->fetchAll("SElECT name, briefing as description,gamets,status FROM quests order by CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets desc LIMIT 8");
     if (!$results) {
@@ -3460,7 +3504,8 @@ function DataGetCurrentTask()
     //        return $data;
     //    }
 
-    $data .= "\n\n<active_quests>\n#Active Quests\n";
+    $heading=($snapshot['_synth_quest_prompt_scope'] ?? '')==='reaction' ? 'Observed Quest Change' : 'Active Quests';
+    $data .= "\n\n<active_quests>\n#{$heading}\n";
     foreach ($results as $row) {
         $questDesc = trim($row["description"]);
         if (strcasecmp($questDesc, trim((string)$row["name"])) === 0) {
@@ -7425,8 +7470,9 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         $SKILLS_ADD = $formattedSkills;
     }
 
-    // Add NPC's own equipment (skip for The Narrator - they don't need equipment context)
-    if ($FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" && isset($metaData["equipment"]) && is_array($metaData["equipment"])) {
+    // Native equipment comes from the owned turn snapshot, not mutable biography metadata.
+    $nativeEquipment = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
+    if (!$nativeEquipment && $FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" && isset($metaData["equipment"]) && is_array($metaData["equipment"])) {
         $equipmentParts = [];
         $describedBaseids = []; // Track which baseids we've already described
         $slots = [
@@ -7492,7 +7538,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
     }
 
     if (
-        $FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" &&
+        !$nativeEquipment && $FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" &&
         synthPromptContextSectionEnabled('enabled_appearance_subsections', 'equipment')
     ) {
         $structuredEquipmentBlock = synthBuildEquipmentBlockFromMetadata(
@@ -7562,7 +7608,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         $STATS_ADD = "";
     }
     // Add dialogue target's equipment (if DIALOGUE_TARGET is set)
-    if (isset($GLOBALS["DIALOGUE_TARGET"]) && !empty($GLOBALS["DIALOGUE_TARGET"])) {
+    if (!$nativeEquipment && isset($GLOBALS["DIALOGUE_TARGET"]) && !empty($GLOBALS["DIALOGUE_TARGET"])) {
         $targetName = $GLOBALS["DIALOGUE_TARGET"];
         $targetNpcData = $npcMaster->getByName($targetName);
 

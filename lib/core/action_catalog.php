@@ -2070,6 +2070,7 @@ function synthActionCatalogIsActionEnabled($codeName)
     if ($codeName === '') {
         return false;
     }
+    if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
 
     $rowsByCode = synthGetActionCatalogRowsByCode();
     if (!isset($rowsByCode[$codeName])) {

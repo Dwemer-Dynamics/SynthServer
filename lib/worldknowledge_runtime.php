@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'worldknowledge_retrieval.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'worldknowledge_topic.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'quest_access.php';
 
 /** Report which already-applied configuration layer supplied a World Knowledge setting. */
 function synthWorldKnowledgeSettingSource(string $name): string
@@ -34,6 +35,9 @@ function synthWorldKnowledgeSettingSource(string $name): string
 function synthWorldKnowledgeEffectiveSettings(): array
 {
     $bool = static function (mixed $value, bool $default = false): bool {
+        if (is_bool($value)) {
+            return $value;
+        }
         if ($value === null || $value === '') {
             return $default;
         }
@@ -92,6 +96,8 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
                FROM synth.worldknowledge_effective
               ORDER BY canonical_topic"
         );
+    } catch (SYNTHProtocolCancelled $cancelled) {
+        throw $cancelled;
     } catch (Throwable) {
         $rows = $db->fetchAll(
             "SELECT topic, ''::text AS aliases, lower(btrim(split_part(topic, ',', 1))) AS canonical_topic,
@@ -102,11 +108,58 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
               ORDER BY lower(btrim(split_part(topic, ',', 1)))"
         );
     }
-    return is_array($rows) ? $rows : [];
+    $rows = is_array($rows) ? array_values($rows) : [];
+    $topics = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) continue;
+        $topic = synthWorldKnowledgeNormalizeCanonicalTopic(strval($row['canonical_topic']
+            ?? synthWorldKnowledgeCanonicalTopic(strval($row['topic'] ?? ''))));
+        if ($topic !== '') $topics[$topic] = true;
+    }
+    // Reviewed quest topics are available without importing another catalogue or migration.
+    // Existing overrides retain their normal classes; the central quest gate replaces their text.
+    foreach (synthQuestAccessCatalogRows() as $row) {
+        $topic = synthWorldKnowledgeNormalizeCanonicalTopic(strval($row['canonical_topic'] ?? $row['topic'] ?? ''));
+        if ($topic === '' || isset($topics[$topic])) continue;
+        $rows[] = $row;
+        $topics[$topic] = true;
+    }
+    return $rows;
+}
+
+/** Identify known 2077 actors from captured native identity, never from dialogue or names. */
+function synthWorldKnowledgeCurrentNpcIsPrewar(): bool
+{
+    $npc = $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null;
+    if (!is_array($npc)) {
+        return false;
+    }
+    $actorId = $npc['actor_identity_id'] ?? null;
+    if ((!is_int($actorId) && !is_string($actorId))
+        || !ctype_digit(strval($actorId)) || intval($actorId) <= 0) {
+        return false;
+    }
+    $captured = $npc['extended_data'] ?? [];
+    if (is_string($captured)) {
+        $captured = json_decode($captured, true);
+    }
+    if (!is_array($captured)
+        || !is_string($captured['base_origin_plugin'] ?? null)
+        || strcasecmp(trim($captured['base_origin_plugin']), 'Fallout4.esm') !== 0
+        || !is_string($captured['baseid'] ?? null)
+        || preg_match('/^(?:0x)?([0-9a-f]{8})$/i', trim($captured['baseid']), $matches) !== 1) {
+        return false;
+    }
+    // Distinct base-game actor records: MQ101 Prewar Codsworth and Vault-Tec salesman.
+    return in_array(strtoupper($matches[1]), ['000AA763', '000ABF9E'], true);
 }
 
 function synthWorldKnowledgeKnowledgeTags(): array
 {
+    if (synthWorldKnowledgeCurrentNpcIsPrewar()) {
+        // Location, worldspace and same-name postwar factory defaults cannot grant future lore.
+        return ['prewar'];
+    }
     $tags = [];
     foreach (explode(',', strval($GLOBALS['WORLDKNOWLEDGE'] ?? '')) as $value) {
         $tags[] = $value;
@@ -172,6 +225,9 @@ function synthWorldKnowledgeKnowledgeTags(): array
         'synthWorldKnowledgeNormalizeAccessTag',
         $tags
     ))));
+    if (in_array('prewar', $normalizedTags, true)) {
+        return ['prewar'];
+    }
     return array_values(array_filter(
         $normalizedTags,
         static fn(string $tag): bool => !in_array($tag, ['blocked', 'common'], true)
@@ -214,51 +270,111 @@ function synthWorldKnowledgeNormalizeRegionTags($value): array
     return [];
 }
 
+/** Resolve authored quest access once for both tiers, independently of profile tags. */
+function synthWorldKnowledgeQuestAccessGates(array $row): ?array
+{
+    $rawTopic = synthWorldKnowledgeCanonicalTopic(strval($row['topic'] ?? $row['canonical_topic'] ?? ''));
+    $rawCanonical = strval($row['canonical_topic'] ?? $rawTopic);
+    $topic = synthWorldKnowledgeNormalizeCanonicalTopic($rawTopic);
+    $canonical = synthWorldKnowledgeNormalizeCanonicalTopic($rawCanonical);
+    $policy = synthQuestAccessTopicPolicy($rawTopic);
+    $canonicalPolicy = synthQuestAccessTopicPolicy($rawCanonical);
+    if ($policy === null && $canonicalPolicy === null) {
+        if (preg_match('/^(?:quest_|fo4_quest_)/i', trim($rawTopic)) === 1
+            || preg_match('/^(?:quest_|fo4_quest_)/i', trim($rawCanonical)) === 1) {
+            $denied = ['allowed' => false, 'reason' => 'quest_topic_unreviewed',
+                'matched' => [], 'description' => ''];
+            return ['advanced' => $denied, 'basic' => $denied];
+        }
+        return null;
+    }
+
+    // A conflicting row cannot turn a protected topic into an ordinary alias or override.
+    if ($topic !== $canonical) {
+        $denied = ['allowed' => false, 'reason' => 'quest_topic_identity_mismatch',
+            'matched' => [], 'description' => ''];
+        return ['advanced' => $denied, 'basic' => $denied];
+    }
+
+    $view = ['schema' => 'synth.quest.access.v1', 'perspective' => 'npc',
+        'observation' => 'unavailable', 'roles' => []];
+    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+    $db = $GLOBALS['db'] ?? null;
+    if (is_array($event) && ($event['protocol_version'] ?? null) === 2
+        && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && is_object($db)) {
+        try {
+            $view = synthQuestAccessReaderView($db, $event);
+        } catch (SYNTHProtocolCancelled $cancelled) {
+            throw $cancelled;
+        } catch (Throwable) {
+            // Failed evidence remains unavailable; authored public text is still independently safe.
+        }
+    }
+    return [
+        'advanced' => synthQuestAccessDecision($rawTopic, 'advanced', $view),
+        'basic' => synthQuestAccessDecision($rawTopic, 'basic', $view),
+    ];
+}
+
 /** Resolve one article to advanced, basic, or denied without exposing protected text. */
 function synthWorldKnowledgeAccessDecision(array $row, array $knowledgeTags): array
 {
+    // Authored quest policy precedes knowall, flat access classes and basic fallback.
+    // Protected tiers use reviewed replacements, never raw custom or legacy article text.
+    $questGates = synthWorldKnowledgeQuestAccessGates($row);
     $normalizedTags = array_values(array_unique(array_filter(array_map(
         'synthWorldKnowledgeNormalizeAccessTag',
         $knowledgeTags
     ))));
+    $prewarOnly = synthWorldKnowledgeCurrentNpcIsPrewar() || in_array('prewar', $normalizedTags, true);
+    if ($prewarOnly) {
+        $normalizedTags = ['prewar'];
+    }
     $topic = synthWorldKnowledgeCanonicalTopic(strval($row['topic'] ?? $row['canonical_topic'] ?? ''));
-    if (in_array('knowall', $normalizedTags, true) && trim(strval($row['topic_desc'] ?? '')) !== '') {
+    $advancedText = trim(strval($questGates === null
+        ? ($row['topic_desc'] ?? '') : ($questGates['advanced']['description'] ?? '')));
+    $basicText = trim(strval($questGates === null
+        ? ($row['topic_desc_basic'] ?? '') : ($questGates['basic']['description'] ?? '')));
+    $advancedQuestAllowed = $questGates === null || ($questGates['advanced']['allowed'] ?? false) === true;
+    $basicQuestAllowed = $questGates === null || ($questGates['basic']['allowed'] ?? false) === true;
+    if ($advancedQuestAllowed && in_array('knowall', $normalizedTags, true) && $advancedText !== '') {
         return [
             'topic' => $topic,
             'level' => 'advanced',
-            'reason' => 'knowall',
-            'matched' => ['knowall'],
-            'description' => trim(strval($row['topic_desc'])),
+            'reason' => $questGates === null ? 'knowall' : $questGates['advanced']['reason'],
+            'matched' => array_values(array_unique(array_merge(['knowall'], $questGates['advanced']['matched'] ?? []))),
+            'description' => $advancedText,
         ];
     }
     $advanced = synthWorldKnowledgeClassDecision(strval($row['knowledge_class'] ?? ''), $normalizedTags);
-    if ($advanced['allowed'] && trim(strval($row['topic_desc'] ?? '')) !== '') {
+    if ($advancedQuestAllowed && $advanced['allowed'] && $advancedText !== '') {
         return [
             'topic' => $topic,
             'level' => 'advanced',
-            'reason' => $advanced['reason'],
-            'matched' => $advanced['matched'],
-            'description' => trim(strval($row['topic_desc'])),
+            'reason' => $questGates === null ? $advanced['reason'] : $questGates['advanced']['reason'],
+            'matched' => array_values(array_unique(array_merge($advanced['matched'], $questGates['advanced']['matched'] ?? []))),
+            'description' => $advancedText,
         ];
     }
 
     $basic = synthWorldKnowledgeClassDecision(strval($row['knowledge_class_basic'] ?? ''), $normalizedTags, true);
-    if ($basic['allowed'] && trim(strval($row['topic_desc_basic'] ?? '')) !== '') {
+    if ($basicQuestAllowed && $basic['allowed'] && $basicText !== '') {
         return [
             'topic' => $topic,
             'level' => 'basic',
-            'reason' => $basic['reason'],
-            'matched' => $basic['matched'],
-            'description' => trim(strval($row['topic_desc_basic'])),
+            'reason' => $questGates === null ? $basic['reason'] : $questGates['basic']['reason'],
+            'matched' => array_values(array_unique(array_merge($basic['matched'], $questGates['basic']['matched'] ?? []))),
+            'description' => $basicText,
         ];
     }
 
     return [
         'topic' => $topic,
         'level' => 'denied',
-        'reason' => $advanced['reason'] === 'negative_class' || $basic['reason'] === 'negative_class'
-            ? 'negative_class'
-            : 'knowledge_classes_not_authorized',
+        'reason' => !$advancedQuestAllowed && !$basicQuestAllowed
+            ? strval($questGates['advanced']['reason'] ?? 'quest_access_denied')
+            : ($advanced['reason'] === 'negative_class' || $basic['reason'] === 'negative_class'
+                ? 'negative_class' : ($prewarOnly ? 'era_not_authorized' : 'knowledge_classes_not_authorized')),
         'matched' => array_values(array_unique(array_merge($advanced['matched'], $basic['matched']))),
         'description' => '',
     ];
@@ -271,6 +387,13 @@ function synthWorldKnowledgeClassDecision(string $classes, array $knowledgeTags,
         'synthWorldKnowledgeNormalizeAccessTag',
         $knowledgeTags
     ))));
+    if (in_array('prewar', $knowledgeTags, true)) {
+        $knowledgeTags = ['prewar'];
+        if (!in_array('prewar', $rule['allowed'], true)) {
+            // Legacy blank/common articles are not evidence that their contents existed in 2077.
+            return ['allowed' => false, 'reason' => 'era_not_authorized', 'matched' => []];
+        }
+    }
     if ($rule['unrestricted']) {
         return ['allowed' => true, 'reason' => 'unrestricted', 'matched' => []];
     }

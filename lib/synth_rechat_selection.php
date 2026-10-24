@@ -8,7 +8,8 @@ function synth_rechat_candidate_available(array $candidate): bool
 {
     $state=$candidate['state'] ?? [];
     if (($state['alive'] ?? false)!==true || ($state['disabled'] ?? true)!==false
-        || in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','restrained','essential_down','bleedout'],true)
+        || in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','essential_down','bleedout'],true)
+        || (($state['life_state'] ?? '')==='restrained' && ($state['conversation_held'] ?? false)!==true)
         || in_array($state['posture'] ?? '',['want_to_sleep','waiting_for_sleep','sleeping'],true)) return false;
     $npc=$candidate['npc'];
     $race=strval($state['race'] ?? '').' '.strval($npc['race'] ?? '');
@@ -95,6 +96,21 @@ function synth_rechat_candidate_plan(array $candidates, array $proof, string $mo
     }
     $ranked=$speakerAvailable ? synth_rechat_rank_candidates($candidates,$proof,$mode,$history) : [];
     return ['candidate'=>$ranked[0] ?? null,'terminal_reason'=>$ranked ? null : ($speakerAvailable ? 'no_candidate' : 'ineligible')];
+}
+
+// Random variety must not select a dead-end tight mode when an eligible captured NPC can reply.
+// Explicit tight mode keeps its original addressing restriction; round/probability controls stay separate.
+function synth_rechat_initial_candidate_plan(array $candidates, array $proof, string $mode): array
+{
+    if ($mode!=='random') return ['mode'=>$mode]+synth_rechat_candidate_plan($candidates,$proof,$mode,[]);
+    $plans=[];$available=[];
+    foreach (['tight','conversational','group'] as $resolved) {
+        $plan=['mode'=>$resolved]+synth_rechat_candidate_plan($candidates,$proof,$resolved,[]);
+        $plans[]=$plan;
+        if ($plan['candidate']!==null) $available[]=$plan;
+    }
+    $choices=$available ?: $plans;
+    return $choices[random_int(0,count($choices)-1)];
 }
 
 // Persist one responder per reserved request, before any profile globals, connector or speech work.

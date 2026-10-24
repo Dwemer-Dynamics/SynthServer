@@ -27,6 +27,18 @@ function synth_relationship_reserve_dispatch($db, bool $interaction=false): ?arr
                     AND p.canonical_event->>'context_sequence'=r.active_turn_sequence::text
                     AND p.canonical_event->'capabilities' ? 'dialogue.turn_ownership'
                     AND (e.event_type<>'activate' OR p.canonical_event->'payload'->>'source'='manual')
+                    -- A terminal or non-NPC continuation cannot replace a usable completed dialogue owner.
+                    AND (e.event_type<>'trigger' OR p.canonical_event->'payload'->>'kind' IS DISTINCT FROM 'rechat'
+                        OR EXISTS (SELECT 1 FROM synth_meta.rechat_selections selection
+                            JOIN synth_meta.rechat_continuations continuation USING(session_id,request_id)
+                            JOIN synth_meta.rechat_chains chain
+                                ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
+                            WHERE selection.session_id=e.session_id AND selection.request_id=e.request_id
+                                AND selection.prepared_at IS NOT NULL AND selection.role='npc'
+                                AND continuation.status='reserved'
+                                AND COALESCE(chain.terminal_reason,'') NOT IN ('private','no_candidate','ineligible')
+                                AND chain.generation=e.generation AND chain.turn_id=e.turn_id
+                                AND chain.context_sequence=r.active_turn_sequence AND chain.runtime_variant=r.runtime_variant))
                 ORDER BY e.claimed_at DESC,e.request_id DESC LIMIT 1
             ) o
             JOIN synth_meta.context_snapshots c ON c.session_id=r.session_id AND c.generation=r.active_generation

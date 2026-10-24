@@ -292,6 +292,23 @@ interpreted as departure, death or world absence. Complete attests only this
 capture's discovery set. Deploy server first: older strict servers reject the new
 optional field until their coordinated schema/ingress update is installed.
 
+## Current NPC combat target observations
+
+Optional v2 capability `context.combat_targets` permits actor-state `combat_target`.
+Its closed fields are `observation` (`identified|none|unavailable`), `actor` (exact
+canonical identity with displayed name, or null) and `race` (captured label, or
+empty). Identified targets require a live, enabled combat owner, a distinct target
+in the same playthrough and a nonzero form ID. None/unavailable carries no identity.
+The observation never adds the opponent to audience, witnesses or history readers.
+
+The client sends this field only after a complete correlated v2 init explicitly
+acknowledges `combat_targets: true`. An older server leaves it omitted; v1 remains
+unchanged. Only the actual response speaker receives its own current observation,
+including a prepared NPC different from the scene focus. Generic prompt states and
+structured internal/history copies omit the field. Missing or ambiguous frames
+render unavailable, without substituting nearby names or older history. See
+[COMBAT-TARGETS.md](COMBAT-TARGETS.md) for capture and independent gameplay gates.
+
 ## Health and action-point observation availability (2026-09-05)
 
 Actor states accept optional booleans `health_percent_available` and
@@ -648,6 +665,13 @@ Batch conflicts reject HTTP409, persistence failures HTTP500, malformed batches
 HTTP422. Every failure rolls back admission. Identical same-owner batch retries
 preserve the original history once, even if the quest later leaves the journal.
 Client hook activation and automatic AI reactions are not enabled by this contract.
+
+Quest-aware NPC prompts project only that responder's save-visible, directly addressed
+player reports and exact authored participant background. Journal capture and scalar
+quest transitions remain immutable audit evidence, not NPC hearing or event witnessing.
+Only an explicit narrator response role receives the owned player journal. The existing
+native journal-action permission and old-result redaction remain in force. This projection
+uses the current v2 contract without changing schemas; see [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 # Native control menu extension
 
 The additive v2 `control.menu` capability permits a `control` event with `context_sequence: 0` and exactly `payload.setting` / `payload.value`. Settings are `status` (empty value), `mode` (the nine allowed mode identifiers), or `model_slot` (`"1"` through `"4"`). It uses normal initialized-session, generation, request replay and capability checks, and never advances the active dialogue turn. Preferences reuse existing `conf_opts` rows inside the session claim transaction. The terminal acknowledgement has status `control_state` and bounded detail `MODE|SLOT`.

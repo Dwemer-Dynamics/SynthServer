@@ -13,15 +13,17 @@ function synth_relationship_interaction_inputs($connection, $db, array $event, i
         CROSS JOIN synth_meta.relationship_response_inputs i
         JOIN synth_meta.protocol_events origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
         WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4
-            AND e.request_sha256=p.event_sha256 AND e.state='complete' AND i.history_event_id=$5",
+            AND e.request_sha256=p.event_sha256 AND e.state='complete' AND i.history_event_id=$5
+            AND i.session_id=p.session_id AND i.request_id=p.request_id",
         [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical),$responseId]);
     if (!$result) throw new RuntimeException('Unable to verify relationship interaction owner');
     $row=pg_fetch_assoc($result);if (!$row) return null;
     $context=synth_protocol_current_context($db,$event);if (!$context) return null;
+    $responder=synth_relationship_responder($db,$event,$context);if (!$responder) return null;
     $response=json_decode($row['response_payload'],true,flags:JSON_THROW_ON_ERROR);$lines=[];
     if (($response['evaluation_mode'] ?? null)!=='dedicated') return null;
     foreach ($response['entries'] as $index=>$entry) {
-        $participants=synth_relationship_interaction_participants($context['payload'],$entry);
+        $participants=synth_relationship_interaction_participants($context['payload'],$entry,$responder['identity']);
         if ($participants==$interaction['participants']) $lines[]=['entry_index'=>$index,'entry'=>$entry];
     }
     if (!$lines) return null;

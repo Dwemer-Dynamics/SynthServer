@@ -741,6 +741,32 @@ final class RequestStreamingTest extends TestCase
         }
     }
 
+    public function testAmbientNpcAcknowledgementRequiresFullOwnedListenerAndSceneOptIn(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/response.php';
+        $previous=$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        $caps=['dialogue.ambient_npc','dialogue.turn_ownership','dialogue.rechat.ownership','dialogue.rechat.scene','dialogue.listener_identity'];
+        try {
+            foreach (['flat','vr'] as $lane) foreach (['complete',...$caps,'old','context','other-status'] as $case) {
+                $offered=$case==='complete' ? $caps : array_values(array_diff($caps,[$case]));
+                $event=['type'=>$case==='context' ? 'context' : 'init','protocol_version'=>$case==='old' ? 1 : 2,
+                    'runtime_variant'=>$lane,'capabilities'=>[...$offered,'context.inventory_512'],
+                    'request_id'=>'init:ambient','turn_id'=>'turn:ambient','generation'=>1,'context_sequence'=>0];
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+                $lines=array_map(static fn($line)=>json_decode($line,true,flags:JSON_THROW_ON_ERROR),
+                    explode("\n",trim(synth_protocol_encode_ack($case==='other-status' ? 'context_accepted' : 'init_accepted'))));
+                $this->assertCount(3,$lines);
+                $this->assertSame($case==='complete',$lines[1]['payload']['ambient_npc'] ?? false,$lane.':'.$case);
+                if ($case==='complete') {
+                    $this->assertTrue($lines[1]['payload']['rechat_scene']);
+                    $this->assertSame($lane==='flat' ? 'init_inventory_512_accepted' : 'init_accepted',$lines[1]['payload']['code']);
+                }
+            }
+        } finally {
+            if ($previous===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']);else $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
+        }
+    }
+
     public function testQuestSupportIsAcknowledgedOnlyForAnOptedInNativeFlatInit(): void
     {
         require_once dirname(__DIR__,2).'/lib/response.php';
@@ -1501,7 +1527,7 @@ final class RequestStreamingTest extends TestCase
         $request = ['input_text', 1, 2, ''];
         $this->assertSame('Hello', synth_protocol_bind_dialogue_context($db, $event, $request));
         $this->assertSame('Hello', synth_protocol_bind_dialogue_context($db,
-            array_replace($event, ['type' => 'input_audio']), $request));
+            array_replace($event, ['type' => 'input_audio', 'payload' => []]), $request, 'Hello'));
         $this->assertSame('', synth_protocol_bind_dialogue_context($db,
             array_replace($event, ['type' => 'trigger']), $request));
         $bound = json_decode($request[3], true, flags: JSON_THROW_ON_ERROR);
@@ -2552,7 +2578,9 @@ final class RequestStreamingTest extends TestCase
         foreach (['input_text', 'input_audio'] as $type) {
             $request = [];
             $query = synth_protocol_bind_dialogue_context($db, ['protocol_version' => 2, 'session_id' => 'session:test',
-                'generation' => 1, 'context_sequence' => 7, 'type' => $type, 'payload' => ['text' => ' Stimpak ']], $request);
+                'generation' => 1, 'context_sequence' => 7, 'type' => $type,
+                'payload' => $type === 'input_audio' ? [] : ['text' => ' Stimpak ']], $request,
+                $type === 'input_audio' ? ' Stimpak ' : null);
             $bound = json_decode($request[3], true, flags: JSON_THROW_ON_ERROR);
             $this->assertSame('Stimpak', $query);
             $this->assertSame($inventory, $bound['actor_states'][0]['inventory']);
@@ -2565,7 +2593,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('complete', $empty['inventory_observation']);
         $source = file_get_contents(dirname(__DIR__, 2).'/main_synth_pipeline.php');
         $this->assertStringContainsString("\$inventoryPromptText = '';", $source);
-        $this->assertStringContainsString('$inventoryPromptText = synth_protocol_bind_dialogue_context($db, $pipelineEvent, $gameRequest);', $source);
+        $this->assertStringContainsString('$inventoryPromptText = synth_protocol_bind_dialogue_context($db, $wireEvent, $gameRequest, $transcript);', $source);
         $this->assertStringContainsString("        \$targetIdentity,\n        \$inventoryPromptText", str_replace("\r\n", "\n", $source));
         $this->assertStringContainsString('An omitted item does not prove the actor lacks it.', $source);
     }
@@ -3150,11 +3178,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('MinutemenFaction', $payload['actor_states'][0]['factions'][0]['editor_id']);
         $this->assertSame('alive', $payload['actor_states'][0]['life_state']);
         $this->assertSame('Sanctuary Hills', $payload['world']['location']);
-        $this->assertSame('When Freedom Calls', $payload['active_quests'][0]['display_name']);
-        $this->assertSame(
-            'Join Preston Garvey in Sanctuary',
-            $payload['active_quests'][0]['objectives'][0]
-        );
+        $this->assertSame([], $payload['active_quests']);
+        $this->assertSame('unavailable', $payload['active_quests_observation']);
+        $this->assertSame('npc', $payload['quest_knowledge']['perspective']);
+        $this->assertSame([], $payload['quest_knowledge']['reports']);
+        $this->assertStringNotContainsString('When Freedom Calls', $request[3]);
+        $this->assertStringNotContainsString('Join Preston Garvey in Sanctuary', $request[3]);
         $this->assertSame('10mm Pistol', $payload['nearby_items'][0]['display_name']);
         $this->assertSame('door', $payload['points_of_interest'][0]['kind']);
 

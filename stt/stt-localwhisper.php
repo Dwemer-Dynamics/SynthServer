@@ -23,7 +23,6 @@ if (!function_exists('sttLocalWhisperBuildHttpMeta')) {
         foreach ($headers as $header) {
             if (stripos($header, 'HTTP/') === 0) {
                 $statusLine = $header;
-                break;
             }
         }
 
@@ -41,6 +40,7 @@ if (!function_exists('sttLocalWhisperBuildHttpMeta')) {
 
 function stt($file)
 {
+    $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
     $url = trim(strval($GLOBALS["STT"]["LOCALWHISPER"]["URL"] ?? ''));
     $formField = trim(strval($GLOBALS["STT"]["LOCALWHISPER"]["FORMFIELD"] ?? 'file'));
     $timeoutSeconds = intval($GLOBALS["STT"]["LOCALWHISPER"]["TIMEOUT"] ?? 60);
@@ -109,7 +109,6 @@ function stt($file)
     $context = stream_context_create($contextOptions);
 
     // Send the request and get the response
-    $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
     $response = synth_speech_fetch($url, $context, $http_response_header);
     $httpMeta = sttLocalWhisperBuildHttpMeta($http_response_header ?? []);
     $baseDiagnostic = [
@@ -126,11 +125,22 @@ function stt($file)
         $lastError = error_get_last();
         sttLocalWhisperSetDiagnostic($baseDiagnostic + [
             'stage' => 'transport',
+            'error_code' => 'stt_transport_failed',
             'message' => 'Failed to get response from LocalWhisper server.',
             'php_error' => $lastError['message'] ?? '',
         ]);
         error_log("STT LocalWhisper: Failed to get response from server");
         return "";
+    }
+
+    if ($httpMeta['http_status_code']<200 || $httpMeta['http_status_code']>=300) {
+        sttLocalWhisperSetDiagnostic($baseDiagnostic + [
+            'stage' => 'http',
+            'error_code' => 'stt_http_error',
+            'message' => 'LocalWhisper returned an unsuccessful HTTP status.',
+        ]);
+        error_log('STT LocalWhisper: unsuccessful HTTP status');
+        return '';
     }
 
     $responseParsed = json_decode($response, true);
@@ -142,32 +152,43 @@ function stt($file)
         }
         sttLocalWhisperSetDiagnostic($baseDiagnostic + [
             'stage' => 'decode',
+            'error_code' => 'stt_invalid_response',
             'message' => $decodeMessage,
-            'response_excerpt' => substr($response, 0, 1000),
             'json_error' => function_exists('json_last_error_msg') ? json_last_error_msg() : 'Unknown JSON error',
         ]);
-        error_log("STT LocalWhisper: Failed to parse JSON response: " . $response);
+        error_log('STT LocalWhisper: invalid JSON response');
         return "";
     }
 
     // Support both 'text' and 'transcription' keys in the response
     foreach (['text', 'transcription'] as $key) {
-        if (isset($responseParsed[$key]) && !is_array($responseParsed[$key])) {
+        if (array_key_exists($key,$responseParsed)) {
+            if (!is_string($responseParsed[$key])) {
+                sttLocalWhisperSetDiagnostic($baseDiagnostic + [
+                    'stage' => 'response',
+                    'error_code' => 'stt_invalid_response',
+                    'message' => 'LocalWhisper transcription field must be a string.',
+                ]);
+                error_log('STT LocalWhisper: invalid transcription field');
+                return '';
+            }
+            $text=trim($responseParsed[$key]);
             sttLocalWhisperSetDiagnostic($baseDiagnostic + [
-                'stage' => 'success',
-                'message' => 'LocalWhisper transcription received successfully.',
+                'stage' => $text===''?'recognized_empty':'success',
+                'message' => $text===''?'LocalWhisper accepted the request without a recognized transcript.':'LocalWhisper transcription received successfully.',
                 'response_key' => $key,
+                'response_value_type' => 'string',
             ]);
-            return trim(strval($responseParsed[$key]));
+            return $text;
         }
     }
 
     sttLocalWhisperSetDiagnostic($baseDiagnostic + [
         'stage' => 'response',
+        'error_code' => 'stt_invalid_response',
         'message' => 'JSON response did not contain a text or transcription field.',
-        'response_excerpt' => substr(json_encode($responseParsed, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 0, 1000),
     ]);
-    error_log("STT LocalWhisper: No text or transcription found in response: " . json_encode($responseParsed));
+    error_log('STT LocalWhisper: missing transcription field');
     return "";
 
 }

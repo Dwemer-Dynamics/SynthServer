@@ -204,6 +204,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
         }
 
         $requiredVersions = [
+            'fallout4_content_pack' => 20261008003,
             'conf_opts' => 20260626001,
             'core_action' => 20260716002,
             'core_player' => 20260707001,
@@ -222,7 +223,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'core_tts_connector_metadata' => 20260626001,
             'core_tts_connector_omnivoice' => 20260708001,
             'core_tts_connector_removed_drivers' => 20260712001,
-            'core_tts_pronunciation' => 20260829003,
+            'core_tts_pronunciation' => 20261008003,
             'tts_gender_fallback_defaults' => 20260715001,
             'legacy_translation_tables_cleanup' => 20260628001,
             'legacy_currentmission_cleanup' => 20260713003,

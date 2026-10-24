@@ -1,9 +1,59 @@
 # Synthserver feature parity matrix
 
+## Current testing candidate
+
+| Feature | Candidate behavior | Game acceptance |
+|---|---|---|
+| Audio input | Immutable request ownership; valid recognized-empty LocalWhisper success ends without dialogue/actions and shows a retry notice | Quiet and spoken return checks open |
+| Wait commands | Explicit text/audio, negotiated flat capabilities, strict owned NPC and empty arguments | New return check open |
+| Enemy naming | Current responder's captured opponent overrides older guesses; absent identity stays unknown | Molerat return check open |
+| NPC conversations | Owned two-NPC idle origins, eligible random modes and finite proven continuations | Idle and post-player checks open |
+
 The dated sections below are historical checkpoints, newest first. Their dates, hashes and
 limits are original; workstation paths are replaced with placeholders (see
 [HANDOFF.md](HANDOFF.md#historical-receipts-and-placeholders)). Current open requirements are
 in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md).
+
+## Current Windows launcher
+
+A local Windows executable resumes existing owned database, backend and speech
+containers without installing source or running migrations. It checks full local
+readiness, opens the dashboard once and requires a separate F4SE button press.
+Deterministic adapter tests cover ownership, saved-data mounts, network/ports,
+ordered immutable starts, deadlines, cancellation and generic errors. The optional
+Codex bridge remains separate. Manual Windows/browser/F4SE interaction and actual
+stopped-service startup remain open. See [WINDOWS-LAUNCHER.md](WINDOWS-LAUNCHER.md).
+
+## Current native memory recovery
+
+Accepted summary text is checkpointed before optional embedding, then reused by an
+eligible recovery attempt. Exact job/input binding and current lease, actor, source
+and saved-ancestry checks remain required. Ready state and immutable publication are
+still atomic. No migration or wire contract changes are needed. The retry budget is
+unchanged; provider response loss before checkpointing can still repeat a call.
+Native history projects game time from the exact captured source/scene context,
+preserving raw UTC timestamps. Frozen batches must agree with the corrected clocks
+before checkpoint recovery or prior-summary reuse. Disposable fixtures cover
+strict settlement, five-event capture and actor/save isolation; game acceptance
+remains open. Completed-input cancellation retention is preserved.
+See [NATIVE-MEMORY-RECOVERY.md](NATIVE-MEMORY-RECOVERY.md) and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md) for validation and open game/soak checks.
+
+## Current quest-aware knowledge
+
+NPC dialogue uses save-visible reports addressed to its actual responder and exact
+authored participant background. Private journal objectives and native stage events
+do not establish NPC knowledge or witnessed outcomes. Protected quest World Knowledge
+text is replaced by reviewed material without importing catalogue rows. Current
+prewar, vocabulary, equipment and journal-action restrictions remain additional gates.
+Later explicit cancellation preserves completed player text/audio learning receipts
+while retiring replay and late work. Interrupted inputs and nonplayer descendants
+remain cancelled; previously erased completion receipts are not reconstructed.
+The quest reader evaluates its actor-owned history projection once per query;
+other readers retain their previous default. Query-result equivalence, source
+exclusions and evidence bounds are covered without changing request timeouts.
+See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md) for the eight-rule scope and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#quest-aware-knowledge) for validation and game checks.
 
 ## Player caps payment locally installed (2026-09-08)
 

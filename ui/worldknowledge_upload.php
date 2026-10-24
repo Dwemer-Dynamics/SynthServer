@@ -79,7 +79,7 @@ function worldknowledge_access_rule_conflicts($advancedRule, $basicRule) {
 function worldknowledge_entries_url(array $overrides = []) {
     $params = [];
     foreach (['cat', 'letter', 'search', 'order', 'page'] as $key) {
-        if (isset($_GET[$key]) && trim((string)$_GET[$key]) !== '') {
+        if (isset($_GET[$key]) && is_scalar($_GET[$key]) && trim((string)$_GET[$key]) !== '') {
             $params[$key] = (string)$_GET[$key];
         }
     }
@@ -545,31 +545,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  * (A) UPDATE SINGLE ROW (SAVE after Edit)
  ********************************************************************/
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_single') {
-    // Sanitize and read posted fields - use htmlspecialchars_decode to convert HTML entities back
+    // Form values carry plain article text. Escape at rendering boundaries,
+    // never decode literal entities or encode text before storing it.
     $topic_original       = $_POST['topic_original'] ?? '';
     // The stored row decides what this save may do, never the form.
     $origin              = worldknowledge_effective_origin($conn, $schema, $topic_original);
     $origin_is_factory   = $origin['source_kind'] === 'factory';
-    $topic_new           = worldknowledge_normalize_topic_key(htmlspecialchars_decode($_POST['topic_new'] ?? ''));
+    $topic_new           = worldknowledge_normalize_topic_key($_POST['topic_new'] ?? '');
     if ($origin_is_factory) {
         // Editing a factory article writes a separate custom article, and that
         // override only replaces the shipped one while it keeps the same
         // canonical topic. The stored name therefore wins over the posted one.
         $topic_new = $origin['topic'];
     }
-    $aliases_input       = htmlspecialchars_decode($_POST['aliases_new'] ?? '');
+    $aliases_input       = (string)($_POST['aliases_new'] ?? '');
     $filtered_aliases    = worldknowledge_filter_alias_input($conn, $schema, $topic_new, $aliases_input);
     $aliases_new         = $filtered_aliases['aliases'];
     foreach ($filtered_aliases['rejected'] as $rejectedAlias) {
         $message .= '<p>Alias skipped: ' . htmlspecialchars($rejectedAlias['alias'])
             . ' (' . htmlspecialchars($rejectedAlias['reason']) . ')</p>';
     }
-    $topic_desc_new      = htmlspecialchars_decode($_POST['topic_desc_new'] ?? '');
-    $knowledge_class_new = synthWorldKnowledgeNormalizeAccessRule(htmlspecialchars_decode($_POST['knowledge_class_new'] ?? ''));
-    $topic_desc_basic_new = htmlspecialchars_decode($_POST['topic_desc_basic_new'] ?? '');
-    $knowledge_class_basic_new = synthWorldKnowledgeNormalizeAccessRule(htmlspecialchars_decode($_POST['knowledge_class_basic_new'] ?? ''));
-    $tags_new            = htmlspecialchars_decode($_POST['tags_new'] ?? '');
-    $category_new        = htmlspecialchars_decode($_POST['category_new'] ?? '');
+    $topic_desc_new      = (string)($_POST['topic_desc_new'] ?? '');
+    $knowledge_class_new = synthWorldKnowledgeNormalizeAccessRule($_POST['knowledge_class_new'] ?? '');
+    $topic_desc_basic_new = (string)($_POST['topic_desc_basic_new'] ?? '');
+    $knowledge_class_basic_new = synthWorldKnowledgeNormalizeAccessRule($_POST['knowledge_class_basic_new'] ?? '');
+    $tags_new            = (string)($_POST['tags_new'] ?? '');
+    $category_new        = (string)($_POST['category_new'] ?? '');
     $canonical_topic_new = $origin_is_factory
         ? $origin['canonical_topic']
         : synthWorldKnowledgeCanonicalTopic($topic_new);
@@ -1467,7 +1468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <?php else: ?>
                     <p style="color:rgb(182, 193, 33);"><b>Factory catalog not installed.</b> Use Sync Factory Catalog below.</p>
                 <?php endif; ?>
-                <p>Verify uploads: <br><b>Server Actions &rarr; Database Manager &rarr; synth &rarr; public &rarr; worldknowledge</b></p>
+                <p>Verify uploads: <br><b>Server Actions &rarr; Database Manager &rarr; synth &rarr; synth &rarr; worldknowledge</b></p>
                 <p>View retrieval decisions: <br><a href="<?php echo $webRoot; ?>/ui/worldknowledge_audit.php">World Knowledge Audit</a></p>
 
                 <div class="button-group" style="margin-top: 20px;">
@@ -1501,9 +1502,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             // Grab filters
-            $selectedCategory = $_GET['cat']   ?? '';
-            $letter          = strtoupper($_GET['letter'] ?? '');
-            $searchTerm      = trim((string)($_GET['search'] ?? ''));
+            $selectedCategory = is_string($_GET['cat'] ?? null) ? trim($_GET['cat']) : '';
+            $letter          = is_string($_GET['letter'] ?? null) ? strtoupper($_GET['letter']) : '';
+            if (!preg_match('/^[A-Z]$/D', $letter)) $letter = '';
+            $searchTerm      = is_string($_GET['search'] ?? null) ? trim($_GET['search']) : '';
             // Page size is fixed: every entries page shows the same 500 rows, so
             // there is nothing for the reader to choose and no per_page input to trust.
             $perPage         = 500;
@@ -1511,7 +1513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             // Sorting
             $order = 'ASC';
-            if (isset($_GET['order'])) {
+            if (isset($_GET['order']) && is_string($_GET['order'])) {
                 $requestedOrder = strtolower($_GET['order']);
                 if ($requestedOrder === 'asc' || $requestedOrder === 'desc') {
                     $order = strtoupper($requestedOrder);
@@ -1561,99 +1563,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                 <div>
                     <strong>Sort Order:</strong><br>
-                    <?php
-                    $baseUrl = '?';
-                    if ($selectedCategory) $baseUrl .= 'cat=' . urlencode($selectedCategory) . '&';
-                    if ($letter) $baseUrl .= 'letter=' . urlencode($letter) . '&';
-                    ?>
                     <div style="margin-top: 10px;">
-                        <a class="alphabet-button" href="<?php echo $baseUrl; ?>order=asc#entries">&#x1F53C; Ascending</a>
-                        <a class="alphabet-button" href="<?php echo $baseUrl; ?>order=desc#entries">&#x1F53D; Descending</a>
+                        <a class="alphabet-button" href="<?php echo htmlspecialchars(worldknowledge_entries_url(['order' => 'asc', 'page' => null]), ENT_QUOTES, 'UTF-8'); ?>">&#x1F53C; Ascending</a>
+                        <a class="alphabet-button" href="<?php echo htmlspecialchars(worldknowledge_entries_url(['order' => 'desc', 'page' => null]), ENT_QUOTES, 'UTF-8'); ?>">&#x1F53D; Descending</a>
                     </div>
                 </div>
             </div>
 
             <?php
-            // Build query
-            $searchTerm = isset($_GET['search']) ? $_GET['search'] : '';
-
-            if ($selectedCategory && $letter && $searchTerm) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE category = $1
-                      AND topic ILIKE $2
-                      AND topic ILIKE $3
-                    ORDER BY topic $order
-                ";
-                $params = [$selectedCategory, $letter . '%', '%' . $searchTerm . '%'];
-            } elseif ($selectedCategory && $searchTerm) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE category = $1
-                      AND topic ILIKE $2
-                    ORDER BY topic $order
-                ";
-                $params = [$selectedCategory, '%' . $searchTerm . '%'];
-            } elseif ($letter && $searchTerm) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE topic ILIKE $1
-                      AND topic ILIKE $2
-                    ORDER BY topic $order
-                ";
-                $params = [$letter . '%', '%' . $searchTerm . '%'];
-            } elseif ($searchTerm) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE topic ILIKE $1
-                    ORDER BY topic $order
-                ";
-                $params = ['%' . $searchTerm . '%'];
-            } elseif ($selectedCategory && $letter) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE category = $1
-                      AND topic ILIKE $2
-                    ORDER BY topic $order
-                ";
-                $params = [$selectedCategory, $letter . '%'];
-            } elseif ($selectedCategory) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE category = $1
-                    ORDER BY topic $order
-                ";
-                $params = [$selectedCategory];
-            } elseif ($letter) {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    WHERE topic ILIKE $1
-                    ORDER BY topic $order
-                ";
-                $params = [$letter . '%'];
-            } else {
-                $query = "
-                    SELECT topic, topic_desc, knowledge_class, topic_desc_basic,
-                           knowledge_class_basic, tags, category
-                    FROM $schema.worldknowledge
-                    ORDER BY topic $order
-                ";
-                $params = [];
+            // Show the same winning articles NPCs receive: custom overrides
+            // replace factory rows instead of appearing beside them.
+            $where = [];
+            $params = [];
+            if ($selectedCategory !== '') {
+                $params[] = $selectedCategory;
+                $where[] = 'category = $' . count($params);
             }
+            if ($letter !== '') {
+                $params[] = $letter . '%';
+                $where[] = 'topic ILIKE $' . count($params);
+            }
+            if ($searchTerm !== '') {
+                $params[] = '%' . $searchTerm . '%';
+                $searchParameter = '$' . count($params);
+                $where[] = '(topic ILIKE ' . $searchParameter
+                    . " OR coalesce(aliases, '') ILIKE " . $searchParameter
+                    . " OR coalesce(tags, '') ILIKE " . $searchParameter . ')';
+            }
+            $query = "SELECT topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
+                             knowledge_class_basic, tags, category, source_kind
+                        FROM {$schema}.worldknowledge_effective"
+                . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+                . " ORDER BY topic {$order}";
 
             $result = pg_query_params($conn, $query, $params);
 
@@ -1674,6 +1615,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($result) {
                 $rowCount = 0;
                 while ($row = pg_fetch_assoc($result)) {
+                    $aliases              = (string)($row['aliases'] ?? '');
+                    $sourceKind           = (string)($row['source_kind'] ?? '');
                     $topic                = htmlspecialchars($row['topic']                ?? '');
                     $topic_desc           = htmlspecialchars($row['topic_desc']           ?? '');
                     $knowledge_class      = htmlspecialchars($row['knowledge_class']      ?? '');
@@ -1684,7 +1627,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                     // Normal row display
                     echo '<tr>';
-                    echo '<td>' . $topic . '</td>';
+                    echo '<td>' . $topic . '<br><small>'
+                        . ($sourceKind === 'factory' ? 'Ships with SYNTH' : 'Your article') . '</small></td>';
                     echo '<td>' . nl2br($topic_desc) . '</td>';
 
                     // Knowledge Class column with badge styling
@@ -1730,17 +1674,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         ? ' title="Saving creates a custom override and leaves the factory article unchanged."'
                         : '') . ' onclick="openEditModal(' .
                         htmlspecialchars(json_encode([
-                            'topic' => $topic,
+                            'topic' => (string)($row['topic'] ?? ''),
                             'aliases' => $aliases,
-                            'topic_desc' => $topic_desc,
-                            'knowledge_class' => $knowledge_class,
-                            'topic_desc_basic' => $topic_desc_basic,
-                            'knowledge_class_basic' => $knowledge_class_basic,
-                            'tags' => $tags,
-                            'category' => $category,
+                            'topic_desc' => (string)($row['topic_desc'] ?? ''),
+                            'knowledge_class' => (string)($row['knowledge_class'] ?? ''),
+                            'topic_desc_basic' => (string)($row['topic_desc_basic'] ?? ''),
+                            'knowledge_class_basic' => (string)($row['knowledge_class_basic'] ?? ''),
+                            'tags' => (string)($row['tags'] ?? ''),
+                            'category' => (string)($row['category'] ?? ''),
                             'source_kind' => $sourceKind
-                        ]), ENT_QUOTES, 'UTF-8') .
-                        ')" class="action-button edit">Edit<span class="visually-hidden"> ' . htmlspecialchars($topic) . '</span></button>';
+                        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') .
+                        ')" class="action-button edit">Edit<span class="visually-hidden"> ' . $topic . '</span></button>';
                     echo '</div>';
                     echo '</td>';
                     echo '</tr>';
@@ -2018,21 +1962,15 @@ function closeModal(modalId) {
 
 function openEditModal(data) {
     try {
-        const decodeHTML = (html) => {
-            const txt = document.createElement('textarea');
-            txt.innerHTML = html;
-            return txt.value;
-        };
-
-        document.getElementById("edit_topic_original").value = decodeHTML(data.topic);
-        document.getElementById("edit_topic").value = decodeHTML(data.topic);
-        document.getElementById("edit_aliases").value = decodeHTML(data.aliases || '');
-        document.getElementById("edit_topic_desc").value = decodeHTML(data.topic_desc);
-        document.getElementById("edit_knowledge_class").value = decodeHTML(data.knowledge_class);
-        document.getElementById("edit_topic_desc_basic").value = decodeHTML(data.topic_desc_basic);
-        document.getElementById("edit_knowledge_class_basic").value = decodeHTML(data.knowledge_class_basic);
-        document.getElementById("edit_tags").value = decodeHTML(data.tags);
-        document.getElementById("edit_category").value = decodeHTML(data.category);
+        document.getElementById("edit_topic_original").value = data.topic || '';
+        document.getElementById("edit_topic").value = data.topic || '';
+        document.getElementById("edit_aliases").value = data.aliases || '';
+        document.getElementById("edit_topic_desc").value = data.topic_desc || '';
+        document.getElementById("edit_knowledge_class").value = data.knowledge_class || '';
+        document.getElementById("edit_topic_desc_basic").value = data.topic_desc_basic || '';
+        document.getElementById("edit_knowledge_class_basic").value = data.knowledge_class_basic || '';
+        document.getElementById("edit_tags").value = data.tags || '';
+        document.getElementById("edit_category").value = data.category || '';
 
         // Presentation only: the server re-reads the stored row before deciding
         // what a save is allowed to write.

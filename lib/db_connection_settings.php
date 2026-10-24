@@ -34,7 +34,9 @@ if (!function_exists('synthDbConnectionSettings')) {
             'host' => synthDbSetting('SYNTH_DB_HOST', '127.0.0.1'),
             'port' => synthDbSetting('SYNTH_DB_PORT', '5432'),
             'dbname' => synthDbSetting('SYNTH_DB_NAME', $defaultDatabase),
-            'schema' => 'public',
+            // Management pages qualify tables explicitly; match the application
+            // schema used by runtime connections and migrations.
+            'schema' => 'synth',
             'username' => synthDbSetting('SYNTH_DB_USER', 'dwemer'),
             'password' => synthDbSetting('SYNTH_DB_PASSWORD', 'dwemer'),
         ];

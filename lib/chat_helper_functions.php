@@ -13,6 +13,7 @@ require_once(__DIR__."/tts_pronunciation.php");
 require_once(__DIR__."/relationship_response.php");
 require_once __DIR__.'/synth_diary_scope.php';
 require_once __DIR__.'/synth_protocol_state.php';
+require_once __DIR__.'/synth_character_forms.php';
 
 function synthBuildLatestDiaryContextBlock(string $npcName, array $profileData): string
 {
@@ -1489,6 +1490,11 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 {
     global $db, $startTime, $forceMood, $staticMood, $talkedSoFar, $FORCED_STOP, $TRANSFORMER_FUNCTION,$receivedData;
 
+    $canonSpeechPolicy=synth_character_current_speech_policy();
+    $canonSpeechEmitted=(bool)($GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED'] ?? false);
+    $lines=synth_character_constrain_lines($lines,$canonSpeechPolicy,$canonSpeechEmitted);
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED']=$canonSpeechEmitted;
+
     $inlineNarrationMode = getInlineNarrationMode();
     $inlineNarrationEnabled = $inlineNarrationMode !== 'disabled';
     $preserveAsterisksInContext = isset($GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"]) ? (bool)$GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"] : false;
@@ -1631,6 +1637,11 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
         $responseTextUnmooded = stripOutputSpeakerPrefix($responseTextUnmooded);	// Should not happen
 
+        // Transformers and narration formatters cannot expand the canonical phrase.
+        if ($canonSpeechPolicy==='takahashi') {
+            $responseTextUnmooded='Nan-ni shimasho-ka?';
+            $sentenceForSubtitles=$responseTextUnmooded;
+        }
         $responseText = $responseTextUnmooded;
         $responseForTTS = $responseTextUnmooded; // TTS gets the "unmooded" version (narration stripped)
 
