@@ -1,8 +1,13 @@
 <?php
 
+require_once __DIR__.'/synth_jev_actions.php';
+
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'npc_tts_status.php');
 require_once __DIR__.'/synth_protocol_state.php';
+require_once __DIR__.'/synth_combat_target.php';
+require_once __DIR__.'/synth_attack_actions.php';
+require_once __DIR__.'/synth_social_contract.php';
 
 function synth_protocol_response_context(): array
 {
@@ -61,6 +66,20 @@ function synth_protocol_write_response_line(string $type, array $payload, string
     }
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = ($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? '') . $wire;
     echo $wire;
+    if ($type==='action' && is_array($payload['action']??null)) {
+        $issued=$payload['action'];$policy=synth_jev_action_policy();
+        $code=match($issued['name']??'') {'wait_here'=>'WaitHere','release_wait'=>'ReleaseWait',default=>null};
+        if($code!==null){
+            $trace=['action_code'=>$code,'action_id'=>$issued['action_id']??'',
+                'status'=>'dispatched','reason'=>'emitted','route'=>$policy===null?'ordinary_llm':
+                    (($GLOBALS['SYNTH_JEV_WAIT_HANDOFF']??'')===synth_jev_action_owner($event)?'jev_handoff':'jev_narrowed')];
+            if($policy!==null){$trace['selected_code']=$policy['code'];$trace['confidence']=$policy['confidence']??null;}
+            if(is_numeric($GLOBALS['SYNTH_TURN_START_TIME']??null))
+                $trace['elapsed_ms']=round((microtime(true)-(float)$GLOBALS['SYNTH_TURN_START_TIME'])*1000,2);
+            try { synth_jev_action_trace('dispatch',$event,$trace); }
+            catch(Throwable) { /* Logging cannot invalidate an already emitted command. */ }
+        }
+    }
     if (ob_get_level()) {
         @ob_flush();
     }
@@ -140,6 +159,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
             $serverCode = $resolved;
         }
     }
+    if (!synth_jev_action_code_allowed($serverCode)) return null;
     $capability = function_exists('synthActionCapabilityForCode')
         ? synthActionCapabilityForCode($serverCode)
         : 'action.' . strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $serverCode));
@@ -150,6 +170,12 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         return null;
     }
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
+        require_once __DIR__.'/synth_wait_actions.php';
+        if (!synth_wait_action_supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
+    }
+    if ($capability==='action.attack' && ($event['protocol_version'] ?? 1)===2 && !synth_attack_supported($event)) return null;
+    if ($capability==='action.read_quests' && !synth_protocol_player_journal_action_allowed()) return null;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat' && !synth_rechat_action_code_allowed($serverCode)) return null;
     if ($capability==='action.consume' && ($event['protocol_version'] ?? 1)===2
@@ -159,6 +185,8 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         && (!synth_protocol_supports_caps_transfer($event) || synth_protocol_owns_rechat($event))) return null;
     if ($capability==='action.take_caps_from_player' && ($event['protocol_version'] ?? 1)===2
         && (!synth_protocol_supports_player_caps($event) || synth_protocol_owns_rechat($event))) return null;
+    if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event,$db)) return null;
+    if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event,$db)) return null;
     $actor = synth_protocol_response_speaker(strval($line['speaker'] ?? ''));
     if (!$actor || isset($actor['kind'])) {
         return null;
@@ -177,7 +205,11 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     $target = $targetName === '' || $nativeTarget
         ? null : synth_protocol_resolve_speaker_identity($db, $targetName);
     // CheckInventory's legacy target slot is an item filter, not an actor to resolve.
-    if ($targetName!=='' && $nativeTarget && $capability!=='action.check_inventory') {
+    if ($targetName!=='' && $nativeTarget && $capability==='action.attack') {
+        $captured=synth_protocol_current_context($db,$event);
+        $target=$captured ? synth_attack_target_named($captured,$actor,$targetName) : null;
+        if ($target===null) return null;
+    } elseif ($targetName!=='' && $nativeTarget && $capability!=='action.check_inventory') {
         // An action target is not another response speaker; resolve only an unambiguous captured actor.
         require_once __DIR__.'/synth_rechat_routes.php';
         $captured=synth_protocol_current_context($db,$event);
@@ -216,11 +248,20 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         if (array_diff(array_keys($arguments), ['item']) !== []) return null;
         $arguments = ['item' => $consumeItem];
     }
-    if ($capability === 'action.give_item_to' || ($nativeTarget && in_array($capability,['action.give_caps_to','action.take_caps_from_player'],true))) {
+    if ($nativeTarget && $capability==='action.open_inventory') {
+        require_once __DIR__.'/synth_wait_actions.php';
+        if (!synth_wait_action_legacy_empty($line)) return null;
+        $captured=synth_protocol_current_context($db,$event);
+        if (!$captured) return null;
+        $target=$captured['player'];$arguments=[];
+        try {synth_gift_menu_validate($event,['name'=>'open_inventory','capability'=>$capability,'actor'=>$actor,'target'=>$target,'arguments'=>[]],$captured);}
+        catch(DomainException $error){return null;}
+    }
+    if ($capability === 'action.give_item_to' || ($nativeTarget && in_array($capability,['action.give_caps_to','action.take_caps_from_player','action.take_item_from_player'],true))) {
         // Preserve the canonical target separately; never round, truncate or discard conflicting transfer arguments.
         $item = $line['item'] ?? $line['metadata']['item'] ?? null;
-        $taking = $capability === 'action.take_caps_from_player';
-        $caps = $taking || $capability === 'action.give_caps_to';
+        $taking = in_array($capability,['action.take_caps_from_player','action.take_item_from_player'],true);
+        $caps = $capability === 'action.take_caps_from_player' || $capability === 'action.give_caps_to';
         $metadata = is_array($line['metadata'] ?? null) ? $line['metadata'] : [];
         foreach (['item','amount','target'] as $key)
             if (array_key_exists($key,$line) && array_key_exists($key,$metadata) && $line[$key]!==$metadata[$key]) return null;
@@ -242,7 +283,15 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         $arguments = $caps ? ['amount'=>$quantity] : ['item'=>trim($item),'amount'=>$quantity];
         if (!synth_protocol_valid_transfer_intent(['name'=>substr($capability,7),'capability'=>$capability,
             'actor'=>$actor,'target'=>$target,'arguments'=>$arguments])) return null;
+        if ($capability==='action.take_item_from_player') {
+            try { synth_player_item_validate($db,$event,['actor'=>$actor,'target'=>$target,'arguments'=>$arguments],$captured ?? []); }
+            catch (DomainException $e) { return null; }
+        }
         if ($caps && !synth_protocol_caps_inventory_allows($captured ?? [],$taking?$target:$actor,$quantity)) return null;
+    }
+    if ($nativeTarget && $capability==='action.attack') {
+        if (!$target || array_diff(array_keys($arguments),['target_name'])!==[]) return null;
+        $arguments=[];
     }
     $context = synth_protocol_response_context();
     $ordinal = intval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] ?? 0) + 1;
@@ -256,13 +305,21 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         'capability' => $capability,
         'actor' => $actor,
         'arguments' => (object)$arguments,
-        'deadline_ms' => 30000,
+        'deadline_ms' => $nativeTarget && $capability==='action.open_inventory' ? 120000 : ($nativeTarget && $capability==='action.attack' ? 5000 : 30000),
         'server_code' => $serverCode,
     ];
     if ($target !== null) {
         $action['target'] = $target;
     }
+    if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
+        try { synth_wait_action_validate($db,$event,$action); }
+        catch (DomainException) { return null; }
+    }
+    if ($nativeTarget && $capability==='action.attack') {
+        try { synth_attack_validate($db,$event,$action); } catch (DomainException) { return null; }
+    }
     synth_protocol_record_action_intent($db, $action);
+    if (synth_jev_action_policy() !== null) $GLOBALS['SYNTH_JEV_ACTION_POLICY']['emitted'] = true;
     unset($action['server_code']);
     return $action;
 }
@@ -272,16 +329,28 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
 {
     // Explicit opt-in support, bound to the admitted init; older clients keep their original acknowledgement.
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $combatTargets = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
+        && ($event['protocol_version'] ?? 1) === 2
+        && in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)
+        && in_array('context.combat_targets', $event['capabilities'] ?? [], true);
     $rechatScene = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2
         && in_array($event['runtime_variant'] ?? '', ['flat','vr'], true)
         && count(array_diff(['dialogue.turn_ownership','dialogue.rechat.ownership','dialogue.rechat.scene'],
             $event['capabilities'] ?? [])) === 0;
+    $ambientNpc=$rechatScene && count(array_diff(['dialogue.ambient_npc','dialogue.listener_identity'],
+        $event['capabilities'] ?? []))===0;
+    $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
+        && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);
         $tracking = in_array('context.quest_tracking', $event['capabilities'] ?? [], true);
-        if (synth_protocol_supports_player_caps($event))
+        if (synth_protocol_supports_gift_menu($event))
+            $status='init_gift_menu_inventory_accepted';
+        elseif (synth_protocol_supports_player_items($event))
+            $status = 'init_player_item_inventory_accepted';
+        elseif (synth_protocol_supports_player_caps($event))
             $status = 'init_player_caps_inventory_accepted';
         elseif (synth_protocol_supports_caps_transfer($event))
             $status = 'init_caps_inventory_accepted';
@@ -312,10 +381,29 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
     ], 'start');
     $statusPayload = ['code' => $status];
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
+    if ($ambientNpc) $statusPayload['ambient_npc'] = true;
+    if ($socialTasks) $statusPayload['social_tasks'] = true;
+    if ($combatTargets) $statusPayload['combat_targets'] = true;
+    if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
+    if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;
     if (isset($detail['detail']) && trim(strval($detail['detail'])) !== '') {
         $statusPayload['detail'] = substr(trim(strval($detail['detail'])), 0, 1024);
     }
     $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status');
+    if ($status==='social_task_accepted' && in_array($event['type'] ?? '',['input_text','input_audio'],true)
+        && synth_social_supported($event) && is_string($GLOBALS['SYNTH_SOCIAL_INPUT_TEXT'] ?? null)
+        && is_array($GLOBALS['SYNTH_PLAYER_IDENTITY'] ?? null)) {
+        $body .= synth_protocol_encode_response_line('dialogue',['speaker'=>$GLOBALS['SYNTH_PLAYER_IDENTITY'],
+            'text'=>$GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']],'player_input');
+    }
+    if (synth_social_supported($event) && in_array($status,
+            ['context_accepted','social_task_accepted','social_task_progress_accepted'],true)) {
+        $tasks=$GLOBALS['SYNTH_SOCIAL_ACK_TASKS'] ?? [];
+        if (!is_array($tasks) || !array_is_list($tasks) || count($tasks)>8)
+            throw new LogicException('social_task_ack_invalid');
+        foreach ($tasks as $index=>$task)
+            $body .= synth_protocol_encode_response_line('social_task',['task'=>$task],'social_task_'.$index);
+    }
     $body .= synth_protocol_encode_response_line('response_end', ['status' => 'complete'], 'end');
     return $body;
 }
@@ -417,6 +505,15 @@ function synth_emit_json_response_envelope(array $lines, bool $close = false): v
     foreach ($lines as $line) {
         if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
         $action = strtolower(trim(strval($line['action'] ?? '')));
+        if ($action==='social_task') {
+            $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+            $task=$line['metadata']['task'] ?? null;
+            if (!synth_social_supported($event) || !is_array($task)
+                || ($task['schema'] ?? '')!=='synth.social.task.v1')
+                throw new LogicException('social_task_response_unavailable');
+            synth_protocol_write_response_line('social_task',['task'=>$task],synth_protocol_next_line_suffix('social_task'));
+            continue;
+        }
         if ($action === 'say') {
             $speaker = synth_protocol_response_speaker(strval($line['speaker'] ?? ''),$line['speech_role'] ?? null);
             if ($speaker === null) {
@@ -504,6 +601,21 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
     $speaker = trim($speaker);
     $action = trim($action);
     $text = trim($text);
+    // Final delivery boundary also covers direct acknowledgements which bypass
+    // returnLines. Never retain an audio key for rejected or replaced speech.
+    if (strcasecmp($action,'say')===0
+        && ($speechRole ?? synth_protocol_current_speech_role($speaker))==='npc') {
+        require_once __DIR__.'/synth_character_forms.php';
+        $policy=synth_character_current_speech_policy();
+        if ($policy!=='') {
+            $emitted=(bool)($GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED'] ?? false);
+            $constrained=synth_character_constrain_lines([$text],$policy,$emitted);
+            $GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED']=$emitted;
+            if ($constrained===[]) return;
+            if ($text!==$constrained[0]) unset($metadata['tts_cache_key']);
+            $text=$constrained[0];
+        }
+    }
     if ($speaker === "" && $action === "" && $text === "") {
         return;
     }
@@ -786,6 +898,9 @@ function synth_capture_response_output(string $chunk): string
 
 function synth_start_json_response_buffer(): void
 {
+    unset($GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER']);
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED']=false;
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED']=false;
     if (!synth_json_response_enabled()) {
         return;
     }
@@ -889,6 +1004,31 @@ function synth_emit_cancelled_json_response(): void
     synth_protocol_ensure_response_started();
     synth_protocol_write_response_line('response_end', ['status' => 'cancelled'], 'end');
     $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
+}
+
+// A failed context/prompt read must close the same stream, without reflecting
+// exception text or replacing an already delivered response with a second one.
+function synth_emit_failed_json_response(): void
+{
+    if (!empty($GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'])) return;
+    $bufferLevel = intval($GLOBALS['SYNTH_JSON_RESPONSE_BUFFER_LEVEL'] ?? 0);
+    if ($bufferLevel > 0) {
+        while (ob_get_level() >= $bufferLevel) @ob_end_clean();
+    }
+    synth_protocol_ensure_response_started();
+    synth_protocol_write_response_line('status', ['code'=>'backend_request_failed'],
+        synth_protocol_next_line_suffix('status'));
+    synth_protocol_write_response_line('response_end', ['status'=>'error'], 'end');
+    $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
+    if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && isset($GLOBALS['db'])) {
+        try {
+            synth_protocol_complete_request($GLOBALS['db'], 'failed', 'application/x-ndjson',
+                strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? ''), 'backend_request_failed');
+        } catch (Throwable) {
+            // The terminal bytes have already been delivered. Never reopen them.
+            Logger::error('[request] failed response persistence unavailable');
+        }
+    }
 }
 
 ?>

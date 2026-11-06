@@ -1485,7 +1485,8 @@ class openrouterjson
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers),
                 'content' => json_encode($data),
-                'timeout' => ($GLOBALS["HTTP_TIMEOUT"]) ?: 30
+                // Background calls need the same model allowance as streaming dialogue.
+                'timeout' => max(intval($GLOBALS["HTTP_TIMEOUT"] ?? 30), $this->_timeout)
             )
         );
 

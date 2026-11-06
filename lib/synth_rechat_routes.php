@@ -2,6 +2,9 @@
 
 require_once __DIR__.'/synth_protocol_state.php';
 
+// A proven move ends this continuation; it does not authorize a new physical scene.
+final class SYNTHRechatSceneChanged extends LogicException {}
+
 // Resolve only the explicitly named scene under its actual request owner.
 // Parent response proof and responder admission remain separate, mandatory gates.
 function synth_rechat_scene_context($db, array $event): ?array
@@ -102,13 +105,15 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         return $key;
     };
     $scene=$sceneKey($payload);
+    $previousScene=$sceneKey($previous);
     $player=synth_rechat_actor_key($payload['player'] ?? []);
     $target=synth_rechat_actor_key($payload['target'] ?? []);
-    if ($scene===null || $scene!==$sceneKey($previous)
+    if ($scene===null || $previousScene===null
         || $player===null || $player!==synth_rechat_actor_key($previous['player'] ?? [])
         || $target===null || $target!==synth_rechat_actor_key($event['payload']['actor'] ?? [])
         || !in_array($payload['audience_observation'] ?? '',['complete','partial'],true))
         throw new LogicException('rechat_scene_changed');
+    if ($scene!==$previousScene) throw new SYNTHRechatSceneChanged('rechat_scene_changed');
     return ['payload'=>$payload,'player'=>$payload['player'],'target'=>$payload['target'],
         'scene_context_sequence'=>$event['payload']['scene_context_sequence']];
 }
@@ -263,7 +268,14 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
             }
             if (!$found) throw new LogicException('Dialogue route speaker outside captured context');
         }
-        $route=synth_response_listener_route($speaker,$metadata,$context,$event);
+        if (($event['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$event['capabilities'] ?? [],true)) {
+            require_once __DIR__.'/synth_ambient_npc.php';
+            if (synth_ambient_npc_projection($event)===null) throw new LogicException('ambient_origin_not_prepared');
+            $ambient=synth_ambient_npc_prepare($db,$event);
+            if ($ambient===null || synth_protocol_canonical_json($speaker)!==synth_protocol_canonical_json($ambient['speaker']))
+                throw new LogicException('ambient_emission_speaker_not_selected');
+            $route=['availability'=>'addressed','listener'=>$ambient['listener']];
+        } else $route=synth_response_listener_route($speaker,$metadata,$context,$event);
         $wire=synth_rechat_listener_wire($event,$line,$route,$wire);
         $utterance=synth_rechat_route_utterance($line,$metadata);
         if ($utterance!==null) {
@@ -311,7 +323,14 @@ function synth_rechat_completed_lines(string $body, array $event): ?array
         if ($index===0) { if ($type!=='response_start') return null; }
         elseif ($index===count($wireLines)-1) {
             if ($type!=='response_end' || ($line['payload']['status'] ?? '')!=='complete') return null;
-        } elseif (!in_array($type,['dialogue','action','status'],true)) return null;
+        } elseif (!in_array($type,['dialogue','action','status'],true)) {
+            if ($type!=='social_task' || ($event['type'] ?? '')!=='social_task_progress'
+                || ($event['payload']['phase'] ?? '')!=='arrived' || ($event['runtime_variant'] ?? '')!=='flat'
+                || !in_array('social.tasks.v1',$event['capabilities'] ?? [],true)
+                || array_keys($line['payload'] ?? [])!==['task']
+                || ($line['payload']['task']['schema'] ?? '')!=='synth.social.task.v1'
+                || ($line['payload']['task']['task_id'] ?? '')!==($event['payload']['task_id'] ?? null)) return null;
+        }
         $result[]=['line'=>$line,'wire'=>$wireLine."\n"];
     }
     return $result;
@@ -371,6 +390,10 @@ function synth_rechat_completed_parent_evidence($connection, array $event): ?arr
         if (($origin[$field] ?? null)!==($event[$field] ?? null)) return null;
     }
     if (($origin['request_id'] ?? null)!==$parent || !synth_protocol_owns_dialogue_turn($origin)) return null;
+    if (($origin['type'] ?? '')==='social_task_progress') {
+        require_once __DIR__.'/synth_social_tasks.php';
+        if (!synth_social_arrival_parent_valid($connection,$origin)) return null;
+    }
     $body=synth_protocol_decode_bytea($row['response_body']);
     $lines=synth_rechat_completed_lines($body,$origin);
     if ($lines===null) return null;

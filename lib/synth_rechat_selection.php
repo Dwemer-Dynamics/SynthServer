@@ -8,7 +8,8 @@ function synth_rechat_candidate_available(array $candidate): bool
 {
     $state=$candidate['state'] ?? [];
     if (($state['alive'] ?? false)!==true || ($state['disabled'] ?? true)!==false
-        || in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','restrained','essential_down','bleedout'],true)
+        || in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','essential_down','bleedout'],true)
+        || (($state['life_state'] ?? '')==='restrained' && ($state['conversation_held'] ?? false)!==true)
         || in_array($state['posture'] ?? '',['want_to_sleep','waiting_for_sleep','sleeping'],true)) return false;
     $npc=$candidate['npc'];
     $race=strval($state['race'] ?? '').' '.strval($npc['race'] ?? '');
@@ -18,11 +19,34 @@ function synth_rechat_candidate_available(array $candidate): bool
     return synthRechatActorBlockReason($candidate['identity']['display_name'] ?? '',$npc)==='';
 }
 
+// Audience membership is player-centric. Each continuation also needs the two
+// NPCs to be within mutual conversational range in this exact captured scene.
+// Missing/nonfinite positions cannot authorize a distant responder.
+function synth_rechat_pair_nearby(array $speaker, array $listener): bool
+{
+    $squared=0.0;
+    foreach (['x','y','z'] as $axis) {
+        $a=$speaker['state']['position'][$axis] ?? null;
+        $b=$listener['state']['position'][$axis] ?? null;
+        if ((!is_int($a) && !is_float($a)) || (!is_int($b) && !is_float($b))
+            || !is_finite((float)$a) || !is_finite((float)$b)) return false;
+        $squared+=($a-$b)**2;
+    }
+    return is_finite($squared) && $squared<=784**2;
+}
+
 // Rank captured canonical candidates; never collapse same-name actors or borrow global nearby state.
 function synth_rechat_rank_candidates(array $candidates, array $proof, string $mode, array $history): array
 {
     if (!in_array($mode,['tight','conversational','group'],true)) throw new LogicException('rechat_mode_unresolved');
     $speaker=synth_rechat_actor_key($proof['speaker']);
+    $source=null;
+    foreach ($candidates as $candidate) {
+        if (synth_rechat_actor_key($candidate['identity'])!==$speaker) continue;
+        if ($source!==null) return []; // Ambiguous copied identity cannot prove a source position.
+        $source=$candidate;
+    }
+    if ($source===null || !synth_rechat_candidate_available($source)) return [];
     $listener=($proof['listener_state'] ?? '')==='addressed' ? synth_rechat_actor_key($proof['listener'] ?? []) : null;
     $uses=[]; $last=[];
     foreach ($history as $entry) {
@@ -38,6 +62,7 @@ function synth_rechat_rank_candidates(array $candidates, array $proof, string $m
         if ($key===null || $key===$speaker
             || ($candidate['identity']['playthrough_id'] ?? null)!==($proof['speaker']['playthrough_id'] ?? null)
             || !synth_rechat_candidate_available($candidate)
+            || !synth_rechat_pair_nearby($source,$candidate)
             || ($mode==='tight' && ($listener===null || $key!==$listener))) continue;
         $priority=$mode==='conversational' && $key===$listener ? -1 : 0;
         $rank=[$priority,$uses[$key] ?? 0,$last[$key] ?? 0,$mode==='group' && $key===$listener ? 1 : 0,$ordinal];
@@ -95,6 +120,21 @@ function synth_rechat_candidate_plan(array $candidates, array $proof, string $mo
     }
     $ranked=$speakerAvailable ? synth_rechat_rank_candidates($candidates,$proof,$mode,$history) : [];
     return ['candidate'=>$ranked[0] ?? null,'terminal_reason'=>$ranked ? null : ($speakerAvailable ? 'no_candidate' : 'ineligible')];
+}
+
+// Random variety must not select a dead-end tight mode when an eligible captured NPC can reply.
+// Explicit tight mode keeps its original addressing restriction; round/probability controls stay separate.
+function synth_rechat_initial_candidate_plan(array $candidates, array $proof, string $mode): array
+{
+    if ($mode!=='random') return ['mode'=>$mode]+synth_rechat_candidate_plan($candidates,$proof,$mode,[]);
+    $plans=[];$available=[];
+    foreach (['tight','conversational','group'] as $resolved) {
+        $plan=['mode'=>$resolved]+synth_rechat_candidate_plan($candidates,$proof,$resolved,[]);
+        $plans[]=$plan;
+        if ($plan['candidate']!==null) $available[]=$plan;
+    }
+    $choices=$available ?: $plans;
+    return $choices[random_int(0,count($choices)-1)];
 }
 
 // Persist one responder per reserved request, before any profile globals, connector or speech work.

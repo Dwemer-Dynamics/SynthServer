@@ -100,6 +100,11 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 
 ### Optional development launcher
 
+An existing local WSL/Docker installation can also use the Windows `SYNTH.exe`
+candidate to resume services, check readiness and open the dashboard. Fallout
+launching remains a separate button. See [docs/WINDOWS-LAUNCHER.md](docs/WINDOWS-LAUNCHER.md)
+for its supported topology, offline build and remaining manual acceptance.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-dev.ps1            # 127.0.0.1:8085
 powershell -ExecutionPolicy Bypass -File .\start-dev.ps1 -Port 8087 # match the client default

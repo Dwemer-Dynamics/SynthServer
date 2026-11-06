@@ -1,9 +1,10 @@
 <?php
 
 require_once __DIR__.'/synth_relationship.php';
+require_once __DIR__.'/synth_relationship_responder.php';
 
 // A recorded addressee selects a canonical NPC pair, not every audience member or a display-name guess.
-function synth_relationship_interaction_participants(array $context, array $entry): ?array
+function synth_relationship_interaction_participants(array $context, array $entry, ?array $responder=null): ?array
 {
     if (($entry['routing']['availability'] ?? null)!=='addressed' || !is_array($entry['speaker'] ?? null)
         || !is_array($entry['routing']['listener'] ?? null) || !is_array($context['target'] ?? null)
@@ -23,10 +24,11 @@ function synth_relationship_interaction_participants(array $context, array $entr
         $resolved[$role]=reset($matches);
     }
     $key=static fn(array $actor)=>strtolower($actor['form_id'].'|'.$actor['origin_plugin'].'|'.$actor['playthrough_id']);
-    if ($key($resolved['speaker'])!==$key($context['target']) || $key($resolved['speaker'])===$key($context['player'])
+    $responder ??= $context['target'];
+    if ($key($resolved['speaker'])!==$key($responder) || $key($resolved['speaker'])===$key($context['player'])
         || $key($resolved['listener'])===$key($context['player'])
         || $key($resolved['listener'])===$key($resolved['speaker'])) return null;
-    $resolved['speaker']=$context['target'];
+    $resolved['speaker']=$responder;
     return $resolved;
 }
 
@@ -44,7 +46,9 @@ function synth_relationship_interaction_context($db, int $responseId, int $entry
         $snapshot=synth_protocol_current_context($db,$event);
         if (($response['schema'] ?? null)!=='synth.relationship.response.v3' || !$snapshot
             || !is_array($response['entries'][$entryIndex] ?? null)) return null;
-        $participants=synth_relationship_interaction_participants($snapshot['payload'],$response['entries'][$entryIndex]);
+        $responder=synth_relationship_responder($db,$event,$snapshot);
+        if (!$responder) return null;
+        $participants=synth_relationship_interaction_participants($snapshot['payload'],$response['entries'][$entryIndex],$responder['identity']);
         if (!$participants) return null;
         $ids=[];
         foreach ($participants as $role=>$actor) {

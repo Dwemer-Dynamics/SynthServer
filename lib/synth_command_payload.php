@@ -69,6 +69,7 @@ function synthActionPayloadOrderedArgs(string $actionName, $parameter = null, st
             'follow' => ['target'],
             'givecapsto' => ['target', 'amount'],
             'giveitemto' => ['target', 'item', 'amount'],
+            'takeitemfromplayer' => ['target', 'item', 'amount'],
             'inspect' => ['target'],
             'moveto' => ['target'],
             'openinventory' => ['target'],
@@ -211,10 +212,24 @@ function synthEncodeActionLine(string $actor, string $action, $parameter = '', s
     if ($action === '') {
         return '';
     }
+    if ($action==='OpenInventory' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        require_once __DIR__.'/synth_wait_actions.php';
+        if (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$GLOBALS['db'] ?? null)
+            || !synth_wait_action_parameters_empty($parameter)
+            || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
+        $parameter=[];$parameterString='{}';
+    }
+    if (in_array($action,['WaitHere','ReleaseWait'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        require_once __DIR__.'/synth_wait_actions.php';
+        if (!synth_wait_action_supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)) return '';
+        if (!synth_wait_action_parameters_empty($parameter)
+            || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
+        $parameter=[];$parameterString='{}';
+    }
 
-    if (in_array($action,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if (in_array($action,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         if (!is_array($parameter) && $parameterString !== '') $parameter = json_decode($parameterString, true);
-        if (!synthNativeTransferParametersValid($parameter,$action!=='GiveItemTo')) return '';
+        if (!synthNativeTransferParametersValid($parameter,in_array($action,['GiveCapsTo','TakeCapsFromPlayer'],true))) return '';
         $parameterString = json_encode($parameter, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 

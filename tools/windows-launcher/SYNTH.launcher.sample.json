@@ -1,0 +1,14 @@
+{
+  "Distro": "Ubuntu",
+  "Project": "synth-stu",
+  "DatabaseContainer": "synth-stu-db",
+  "ServerContainer": "synth-stu-server",
+  "SpeechContainer": "synth-stu-whisper",
+  "DatabaseVolume": "synth-stu-db-data",
+  "ServerVolume": "synth-stu-server-data",
+  "Network": "synth-stu-net",
+  "BackendBaseUrl": "http://127.0.0.1:8087/Synthserver/",
+  "SpeechHealthUrl": "http://127.0.0.1:9876/health",
+  "GameExecutable": null,
+  "StartTimeoutSeconds": 90
+}

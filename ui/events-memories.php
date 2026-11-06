@@ -1236,7 +1236,7 @@ function getTimeColor($time) {
  }
  ?></div>
 <div id="adventure-tab" class="tab-content embed-tab <?php echo $activeTab === 'adventure' ? 'active' : ''; ?>"><iframe class="embed-frame" title="Adventure Log" <?php echo $activeTab === 'adventure' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/adventurelog.php?embed=1"></iframe></div>
-<div id="diaries-tab" class="tab-content embed-tab <?php echo $activeTab === 'diaries' ? 'active' : ''; ?>"><iframe class="embed-frame" title="SYNTH Diaries" <?php echo $activeTab === 'diaries' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/diarylog.php?embed=1"></iframe></div>
+<div id="diaries-tab" class="tab-content embed-tab <?php echo $activeTab === 'diaries' ? 'active' : ''; ?>"><iframe class="embed-frame" title="SYNTH Diaries" <?php echo $activeTab === 'diaries' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/diaries.php?embed=1"></iframe></div>
 <div id="pipvision-tab" class="tab-content embed-tab <?php echo $activeTab === 'pipvision' ? 'active' : ''; ?>"><iframe class="embed-frame" title="PipVision Gallery" <?php echo $activeTab === 'pipvision' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/pipvision_gallery.php?embed=1"></iframe></div>
 </div></main><script>
 // Modal functionality

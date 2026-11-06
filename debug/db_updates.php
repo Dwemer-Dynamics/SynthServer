@@ -3627,6 +3627,43 @@ if ($checkVersion("core_action") < 20260719001) {
     }
 }
 
+if ($checkVersion("core_action") < 20261106001) {
+    // Keep existing catalog preferences and commit the version with the insert.
+    $result = $db->execQuery(<<<'SQL'
+        WITH upgraded AS (
+            UPDATE synth.database_versioning
+               SET version = 20261106001
+             WHERE tablename = 'core_action' AND version < 20261106001
+         RETURNING version
+        )
+        INSERT INTO synth.core_action (
+            code_name,
+            action_name,
+            description,
+            return_message,
+            available_to_npc,
+            available_to_followers,
+            available_to_narrator,
+            is_activated,
+            parameters_json,
+            metadata,
+            game_function,
+            import_version,
+            script_proxy_program
+        )
+        SELECT
+            'TakeItemFromPlayer', 'TakeItemFromPlayer', '#SYNTH_NAME# accepts an explicitly offered item from #PLAYER_NAME# as a gift; judge its personal value using biography, personality, needs and goals.', 'React to the verified gift result. Failed handoffs are not received gifts.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target","item"],"properties":{"target":{"type":"string","description":"The player who explicitly offered the gift."},"item":{"type":"string","description":"Exact observed player inventory item name."},"amount":{"type":"integer","description":"Quantity to give, default 1."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL
+        FROM upgraded
+        ON CONFLICT (code_name) DO NOTHING
+        SQL
+    );
+    if ($result === false) {
+        Logger::error("Error applying core_action 20261106001 - register named player gifts");
+    } else {
+        Logger::info("Applied patch core_action 20261106001 - register named player gifts");
+    }
+}
+
 if ($checkVersion("core_tts_connector_metadata") < 20260626001) {
     Logger::debug("Applying core_tts_connector_metadata 20260626001 - remove copied connector metadata references");
 
@@ -5336,6 +5373,43 @@ if ($checkVersion('core_tts_pronunciation') < 20260829003) {
     } else {
         Logger::error('Failed to apply patch core_tts_pronunciation 20260829003');
     }
+}
+
+if ($checkVersion('core_tts_pronunciation') < 20261008003) {
+    try {
+        if ($db->execQuery('BEGIN')===false || !synthEnsureTtsPronunciationDictionary())
+            throw new RuntimeException('Unable to seed Fallout pronunciation defaults');
+        if ($db->execQuery('LOCK TABLE synth.database_versioning IN SHARE ROW EXCLUSIVE MODE')===false
+            || $db->execQuery('INSERT INTO synth.database_versioning(tablename,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM synth.database_versioning WHERE tablename=$1)',
+                ['core_tts_pronunciation',20261008003])===false
+            || $db->execQuery('UPDATE synth.database_versioning SET version=GREATEST(version,$2) WHERE tablename=$1',
+                ['core_tts_pronunciation',20261008003])===false
+            || $db->execQuery('COMMIT')===false)
+            throw new RuntimeException('Unable to record Fallout pronunciation migration');
+        Logger::info('Applied Fallout pronunciation defaults 20261008003');
+    } catch (Throwable $error) {
+        $db->execQuery('ROLLBACK');
+        Logger::error('Failed Fallout pronunciation defaults 20261008003');
+        throw $error;
+    }
+}
+
+require_once __DIR__.'/../lib/fallout_content_pack.php';
+if ($checkVersion('fallout4_content_pack') < SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION) {
+    try {
+        synthInstallFalloutContentBundle($db,dirname(__DIR__),true);
+        Logger::info('Installed atomic Fallout 4 character, item and world content bundle.');
+    } catch (Throwable $error) {
+        Logger::error('Fallout 4 content import failed; existing data retained.');
+        throw $error;
+    }
+}
+
+// Source-reviewed saved follower errands migration; requests never create tables.
+if ($checkVersion('social_tasks_schema') < 20261102001) {
+    if ($db->execQuery(file_get_contents(__DIR__.'/../lib/core/database_schema/synth_social_tasks.sql')) === false)
+        throw new RuntimeException('Unable to prepare saved social task schema');
+    $updateVersion('social_tasks_schema',20261102001);
 }
 
 // The authored catalogue is an additive SQL release, separate from historical seeds.

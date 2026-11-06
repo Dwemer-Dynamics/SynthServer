@@ -13,7 +13,7 @@ final class RequestStreamingTest extends TestCase
 {
     public static function transferActionCodes(): array
     {
-        return ['items'=>['GiveItemTo'],'caps'=>['GiveCapsTo'],'player-caps'=>['TakeCapsFromPlayer']];
+        return ['items'=>['GiveItemTo'],'caps'=>['GiveCapsTo'],'player-caps'=>['TakeCapsFromPlayer'],'player-items'=>['TakeItemFromPlayer'],'gift-menu'=>['OpenInventory']];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('transferActionCodes')]
@@ -21,10 +21,12 @@ final class RequestStreamingTest extends TestCase
     {
         require_once dirname(__DIR__,2).'/lib/synth_action_inventory.php';
         $event=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/transfer-inventory.json'),true);
-        $taking=$transferName==='TakeCapsFromPlayer';
-        if ($transferName!=='GiveItemTo') $event['capabilities']=array_merge($event['capabilities'],['action.caps_inventory','action.give_caps_to']);
+        $giftMenu=$transferName==='OpenInventory';
+        $playerItem=$transferName==='TakeItemFromPlayer';
+        $taking=$giftMenu || $playerItem || $transferName==='TakeCapsFromPlayer';
+        if (!$giftMenu && !$playerItem && $transferName!=='GiveItemTo') $event['capabilities']=array_merge($event['capabilities'],['action.caps_inventory','action.give_caps_to']);
         if ($taking) {
-            $event['capabilities']=array_merge($event['capabilities'],['action.player_caps_inventory','action.take_caps_from_player']);
+            $event['capabilities']=array_merge($event['capabilities'],$giftMenu ? ['action.gift_menu_inventory','action.open_inventory'] : ($playerItem ? ['action.player_item_inventory','action.take_item_from_player'] : ['action.player_caps_inventory','action.take_caps_from_player']));
             [$event['payload']['result']['inventory']['actor'],$event['payload']['result']['recipient_inventory']['actor']]=
                 [$event['payload']['result']['recipient_inventory']['actor'],$event['payload']['result']['inventory']['actor']];
         }
@@ -48,7 +50,7 @@ final class RequestStreamingTest extends TestCase
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
-            'capability'=>$taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
+            'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
             'recipient_form_id'=>$recipient['form_id'],'recipient_plugin'=>$recipient['origin_plugin'],
             'recipient_playthrough_id'=>$recipient['playthrough_id']];
@@ -66,11 +68,11 @@ final class RequestStreamingTest extends TestCase
         foreach (['donor','recipient','recipient-plugin','recipient-save','target-form','target-plugin','target-save','same-actor',
             'no-target','swapped','wrong-action','single-schema','parent-marker','receipt-marker','parent-action','receipt-action',
             'vr','generation','sequence','turn','recipient-conflict','quality-conflict',
-            ...($transferName!=='GiveItemTo'?['parent-caps-marker','receipt-caps-marker']:[]),
+            ...(!$giftMenu && !$playerItem && $transferName!=='GiveItemTo'?['parent-caps-marker','receipt-caps-marker']:[]),
             ...($taking?['parent-payment-marker','receipt-payment-marker']:[])] as $case) {
             $db->owner=$owner;$value=$event;
-            if($case==='parent-payment-marker')$db->owner['canonical_event']['capabilities']=array_values(array_diff($value['capabilities'],['action.player_caps_inventory']));
-            if($case==='receipt-payment-marker')$value['capabilities']=array_values(array_diff($value['capabilities'],['action.player_caps_inventory']));
+            if($case==='parent-payment-marker')$db->owner['canonical_event']['capabilities']=array_values(array_diff($value['capabilities'],[$giftMenu?'action.gift_menu_inventory':($playerItem?'action.player_item_inventory':'action.player_caps_inventory')]));
+            if($case==='receipt-payment-marker')$value['capabilities']=array_values(array_diff($value['capabilities'],[$giftMenu?'action.gift_menu_inventory':($playerItem?'action.player_item_inventory':'action.player_caps_inventory')]));
             if($case==='parent-caps-marker')$db->owner['canonical_event']['capabilities']=array_values(array_diff($value['capabilities'],['action.caps_inventory']));
             if($case==='receipt-caps-marker')$value['capabilities']=array_values(array_diff($value['capabilities'],['action.caps_inventory']));
             if($case==='donor')$value['payload']['result']['inventory']['actor']['form_id']='0xFF000001';
@@ -103,7 +105,11 @@ final class RequestStreamingTest extends TestCase
         $db->owner=$owner;$db->terminal=null;
         $legacy=$event;$legacy['payload']['result']['schema']='synth.action.result.v1';
         unset($legacy['payload']['result']['inventory'],$legacy['payload']['result']['recipient_inventory']);
-        synth_protocol_persist_action_result($db,$legacy,$legacy['session_id']);$this->assertCount(2,$db->writes);
+        if ($giftMenu) {
+            try{synth_protocol_persist_action_result($db,$legacy,$legacy['session_id']);$this->fail('Menu receipt lacked paired evidence');}
+            catch(DomainException $error){$this->assertSame('action_inventory_capability_mismatch',$error->getMessage());}
+            $this->assertSame([],$db->writes);
+        } else {synth_protocol_persist_action_result($db,$legacy,$legacy['session_id']);$this->assertCount(2,$db->writes);}
         $rows=$event['payload']['result']['recipient_inventory']['items'];
         $third=$donor;$third['form_id']='0xFF000003';
         $payload=['player'=>$taking?$donor:$recipient,'actor_states'=>[
@@ -128,10 +134,15 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame('complete',$view['actor_states'][1-$index]['inventory_observation']);
         }
         $db->rows['action-1']['result']=$legacy['payload']['result'];
-        $view=synth_protocol_action_inventory_view($db,$legacy,$payload);
-        foreach ([0,1] as $index) {
-            $this->assertSame([],$view['actor_states'][$index]['inventory']);
-            $this->assertSame('unavailable',$view['actor_states'][$index]['inventory_observation']);
+        if ($giftMenu) {
+            try{synth_protocol_action_inventory_view($db,$legacy,$payload);$this->fail('Menu ancestry accepted an unpaired receipt');}
+            catch(DomainException $error){$this->assertSame('action_inventory_ancestry_capability',$error->getMessage());}
+        } else {
+            $view=synth_protocol_action_inventory_view($db,$legacy,$payload);
+            foreach ([0,1] as $index) {
+                $this->assertSame([],$view['actor_states'][$index]['inventory']);
+                $this->assertSame('unavailable',$view['actor_states'][$index]['inventory_observation']);
+            }
         }
         // A later recipient-only mutation must not erase the donor's earlier transfer observation.
         $later=$event;$later['request_id']='later';$later['payload']['result']['action_id']='action-later';
@@ -149,12 +160,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame([],$view['actor_states'][1]['inventory']);
         $this->assertSame($original,json_encode($payload));
         foreach (['missing-recipient','wrong-recipient','parent-marker','recipient-absent','recipient-ambiguous',
-            ...($transferName!=='GiveItemTo'?['parent-caps-marker','receipt-caps-marker']:[]),
+            ...(!$giftMenu && !$playerItem && $transferName!=='GiveItemTo'?['parent-caps-marker','receipt-caps-marker']:[]),
             ...($taking?['parent-payment-marker','receipt-payment-marker']:[])] as $case) {
             $db->rows=['action-1'=>$base];$candidate=$payload;
             $candidateEvent=$event;
-            if($case==='parent-payment-marker')$db->rows['action-1']['canonical_event']['capabilities']=array_values(array_diff($event['capabilities'],['action.player_caps_inventory']));
-            if($case==='receipt-payment-marker')$candidateEvent['capabilities']=array_values(array_diff($event['capabilities'],['action.player_caps_inventory']));
+            if($case==='parent-payment-marker')$db->rows['action-1']['canonical_event']['capabilities']=array_values(array_diff($event['capabilities'],[$giftMenu?'action.gift_menu_inventory':($playerItem?'action.player_item_inventory':'action.player_caps_inventory')]));
+            if($case==='receipt-payment-marker')$candidateEvent['capabilities']=array_values(array_diff($event['capabilities'],[$giftMenu?'action.gift_menu_inventory':($playerItem?'action.player_item_inventory':'action.player_caps_inventory')]));
             if($case==='parent-caps-marker')$db->rows['action-1']['canonical_event']['capabilities']=array_values(array_diff($event['capabilities'],['action.caps_inventory']));
             if($case==='receipt-caps-marker')$candidateEvent['capabilities']=array_values(array_diff($event['capabilities'],['action.caps_inventory']));
             if($case==='missing-recipient')unset($db->rows['action-1']['result']['recipient_inventory']);
@@ -569,6 +580,34 @@ final class RequestStreamingTest extends TestCase
         synth_rechat_profile_policy($defaults,$candidate);
     }
 
+    public function testRechatCannotSelectAcrossSettlementFromSharedPlayerAudience(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/synth_rechat_selection.php';
+        $identity=['form_id'=>'0x00000001','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'save','display_name'=>'Settler'];
+        $source=['identity'=>$identity,'npc'=>['race'=>'HumanRace'],'state'=>[
+            'alive'=>true,'disabled'=>false,'life_state'=>'alive','posture'=>'normal',
+            'position'=>['x'=>-700,'y'=>0,'z'=>0]]];
+        $listener=$source;$listener['identity']['form_id']='0x00000002';
+        $proof=['speaker'=>$source['identity'],'listener_state'=>'addressed','listener'=>$listener['identity']];
+        // Both can be near the player while far from each other.
+        $listener['state']['position']['x']=700;
+        foreach (['tight','conversational','group'] as $mode)
+            $this->assertSame([],synth_rechat_rank_candidates([$source,$listener],$proof,$mode,[]));
+        $listener['state']['position']['x']=84; // Exactly the shared 784-unit mutual limit.
+        $this->assertCount(1,synth_rechat_rank_candidates([$source,$listener],$proof,'tight',[]));
+        $listener['state']['position']['z']=1;
+        $this->assertSame([],synth_rechat_rank_candidates([$source,$listener],$proof,'tight',[]));
+        foreach ([null,'0',INF,NAN] as $invalid) {
+            $listener['state']['position']=['x'=>$invalid,'y'=>0,'z'=>0];
+            $this->assertSame([],synth_rechat_rank_candidates([$source,$listener],$proof,'tight',[]));
+        }
+        unset($listener['state']['position']);
+        $this->assertSame([],synth_rechat_rank_candidates([$source,$listener],$proof,'tight',[]));
+        $listener['state']['position']=['x'=>0,'y'=>0,'z'=>0];
+        $this->assertSame([],synth_rechat_rank_candidates([$listener],$proof,'tight',[]));
+        $this->assertSame([],synth_rechat_rank_candidates([$source,$source,$listener],$proof,'tight',[]));
+    }
+
     public function testRechatRanksCanonicalParticipantsWithoutNameCollapseOrGlobalFallback(): void
     {
         require_once dirname(__DIR__,2).'/lib/synth_rechat_selection.php';
@@ -576,7 +615,7 @@ final class RequestStreamingTest extends TestCase
         $b=array_replace($a,['form_id'=>'0x00000002']);
         $c=array_replace($a,['form_id'=>'0x00000003','display_name'=>'Witness']);
         $candidates=array_map(static fn(array $actor):array=>['identity'=>$actor,'npc'=>['race'=>'HumanRace'],
-            'state'=>['alive'=>true,'disabled'=>false,'life_state'=>'alive','posture'=>'normal']],[$a,$b,$c]);
+            'state'=>['alive'=>true,'disabled'=>false,'life_state'=>'alive','posture'=>'normal','position'=>['x'=>0,'y'=>0,'z'=>0]]],[$a,$b,$c]);
         $proof=['speaker'=>$a,'listener_state'=>'addressed','listener'=>$b];
         foreach (['tight','conversational'] as $mode) {
             $this->assertSame($b,synth_rechat_rank_candidates($candidates,$proof,$mode,[])[0]['identity']);
@@ -738,6 +777,32 @@ final class RequestStreamingTest extends TestCase
         } finally {
             if ($previous===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']);
             else $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
+        }
+    }
+
+    public function testAmbientNpcAcknowledgementRequiresFullOwnedListenerAndSceneOptIn(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/response.php';
+        $previous=$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        $caps=['dialogue.ambient_npc','dialogue.turn_ownership','dialogue.rechat.ownership','dialogue.rechat.scene','dialogue.listener_identity'];
+        try {
+            foreach (['flat','vr'] as $lane) foreach (['complete',...$caps,'old','context','other-status'] as $case) {
+                $offered=$case==='complete' ? $caps : array_values(array_diff($caps,[$case]));
+                $event=['type'=>$case==='context' ? 'context' : 'init','protocol_version'=>$case==='old' ? 1 : 2,
+                    'runtime_variant'=>$lane,'capabilities'=>[...$offered,'context.inventory_512'],
+                    'request_id'=>'init:ambient','turn_id'=>'turn:ambient','generation'=>1,'context_sequence'=>0];
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+                $lines=array_map(static fn($line)=>json_decode($line,true,flags:JSON_THROW_ON_ERROR),
+                    explode("\n",trim(synth_protocol_encode_ack($case==='other-status' ? 'context_accepted' : 'init_accepted'))));
+                $this->assertCount(3,$lines);
+                $this->assertSame($case==='complete',$lines[1]['payload']['ambient_npc'] ?? false,$lane.':'.$case);
+                if ($case==='complete') {
+                    $this->assertTrue($lines[1]['payload']['rechat_scene']);
+                    $this->assertSame($lane==='flat' ? 'init_inventory_512_accepted' : 'init_accepted',$lines[1]['payload']['code']);
+                }
+            }
+        } finally {
+            if ($previous===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']);else $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
         }
     }
 
@@ -1128,9 +1193,11 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true)',$history);
         foreach (['c.target_identity_id IS NOT NULL','origin.snapshot_sequence=COALESCE(h.scene_context_sequence,h.context_sequence)',
             'origin.playthrough_id=h.playthrough_id','COUNT(DISTINCT id)=1 AND MIN(id)=s.reader_identity_id',
-            'WHERE ownership.visible','speaker_identity_id'] as $guard) {
+            'ELSE ownership.visible END','speaker_identity_id'] as $guard) {
             $this->assertStringContainsString($guard,$query);
         }
+        $this->assertStringContainsString("WHEN h.event_payload ? 'synth_wait_consequence' THEN",$query);
+        $this->assertStringContainsString("CASE WHEN original.type IN ('funcret','infoaction') THEN",$query);
         $this->assertStringContainsString('($b_actor && !$nativeHistory)',$history);
         $telemetry = file_get_contents(dirname(__DIR__,2).'/gamedata.php');
         $this->assertStringContainsString("synth_session_id IS NULL AND COALESCE(delivery_state",$telemetry);
@@ -1501,7 +1568,7 @@ final class RequestStreamingTest extends TestCase
         $request = ['input_text', 1, 2, ''];
         $this->assertSame('Hello', synth_protocol_bind_dialogue_context($db, $event, $request));
         $this->assertSame('Hello', synth_protocol_bind_dialogue_context($db,
-            array_replace($event, ['type' => 'input_audio']), $request));
+            array_replace($event, ['type' => 'input_audio', 'payload' => []]), $request, 'Hello'));
         $this->assertSame('', synth_protocol_bind_dialogue_context($db,
             array_replace($event, ['type' => 'trigger']), $request));
         $bound = json_decode($request[3], true, flags: JSON_THROW_ON_ERROR);
@@ -1834,17 +1901,19 @@ final class RequestStreamingTest extends TestCase
             $this->assertNotSame($actions[0]['action_id'], $actions[1]['action_id']);
             $this->assertNotSame($actions[0]['idempotency_key'], $actions[1]['idempotency_key']);
             $this->assertSame('{}', json_encode($actions[0]['arguments']));
-            $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=['action.check_inventory','action.attack'];
+            // Follow exercises generic canonical actor resolution; Attack now has its own stricter hostile-only contract.
+            $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=['action.check_inventory','action.follow'];
             foreach (['Rifle','Preston',''] as $filter) {
                 $inventory=synth_protocol_action_from_legacy_line(['command_name'=>'CheckInventory','speaker'=>'Preston','target'=>$filter]);
                 $this->assertNotNull($inventory,'An inventory filter is not an actor lookup');
                 $this->assertArrayNotHasKey('target',$inventory,'Even an actor-shaped filter must not gain actor-target authority');
                 $this->assertSame($filter,((array)$inventory['arguments'])['target_name'] ?? '');
             }
-            $this->assertNull(synth_protocol_action_from_legacy_line(['command_name'=>'Attack','speaker'=>'Preston','target'=>'Rifle']),
+            $this->assertNull(synth_protocol_action_from_legacy_line(['command_name'=>'Follow','speaker'=>'Preston','target'=>'Rifle']),
                 'Actions requiring actor targets must retain canonical resolution');
-            $attack=synth_protocol_action_from_legacy_line(['command_name'=>'Attack','speaker'=>'Preston','target'=>'Player']);
-            $this->assertSame('0x00000014',$attack['target']['form_id']);
+            $follow=synth_protocol_action_from_legacy_line(['command_name'=>'Follow','speaker'=>'Preston','target'=>'Player']);
+            $this->assertNotNull($follow,'An exact captured actor must retain generic canonical resolution');
+            $this->assertSame('0x00000014',$follow['target']['form_id']);
         } finally {
             foreach ($previous as $key => $value) $GLOBALS[$key] = $value;
         }
@@ -2552,7 +2621,9 @@ final class RequestStreamingTest extends TestCase
         foreach (['input_text', 'input_audio'] as $type) {
             $request = [];
             $query = synth_protocol_bind_dialogue_context($db, ['protocol_version' => 2, 'session_id' => 'session:test',
-                'generation' => 1, 'context_sequence' => 7, 'type' => $type, 'payload' => ['text' => ' Stimpak ']], $request);
+                'generation' => 1, 'context_sequence' => 7, 'type' => $type,
+                'payload' => $type === 'input_audio' ? [] : ['text' => ' Stimpak ']], $request,
+                $type === 'input_audio' ? ' Stimpak ' : null);
             $bound = json_decode($request[3], true, flags: JSON_THROW_ON_ERROR);
             $this->assertSame('Stimpak', $query);
             $this->assertSame($inventory, $bound['actor_states'][0]['inventory']);
@@ -2565,7 +2636,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('complete', $empty['inventory_observation']);
         $source = file_get_contents(dirname(__DIR__, 2).'/main_synth_pipeline.php');
         $this->assertStringContainsString("\$inventoryPromptText = '';", $source);
-        $this->assertStringContainsString('$inventoryPromptText = synth_protocol_bind_dialogue_context($db, $pipelineEvent, $gameRequest);', $source);
+        $this->assertStringContainsString('$inventoryPromptText = synth_protocol_bind_dialogue_context($db, $wireEvent, $gameRequest, $transcript);', $source);
         $this->assertStringContainsString("        \$targetIdentity,\n        \$inventoryPromptText", str_replace("\r\n", "\n", $source));
         $this->assertStringContainsString('An omitted item does not prove the actor lacks it.', $source);
     }
@@ -3150,11 +3221,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('MinutemenFaction', $payload['actor_states'][0]['factions'][0]['editor_id']);
         $this->assertSame('alive', $payload['actor_states'][0]['life_state']);
         $this->assertSame('Sanctuary Hills', $payload['world']['location']);
-        $this->assertSame('When Freedom Calls', $payload['active_quests'][0]['display_name']);
-        $this->assertSame(
-            'Join Preston Garvey in Sanctuary',
-            $payload['active_quests'][0]['objectives'][0]
-        );
+        $this->assertSame([], $payload['active_quests']);
+        $this->assertSame('unavailable', $payload['active_quests_observation']);
+        $this->assertSame('npc', $payload['quest_knowledge']['perspective']);
+        $this->assertSame([], $payload['quest_knowledge']['reports']);
+        $this->assertStringNotContainsString('When Freedom Calls', $request[3]);
+        $this->assertStringNotContainsString('Join Preston Garvey in Sanctuary', $request[3]);
         $this->assertSame('10mm Pistol', $payload['nearby_items'][0]['display_name']);
         $this->assertSame('door', $payload['points_of_interest'][0]['kind']);
 

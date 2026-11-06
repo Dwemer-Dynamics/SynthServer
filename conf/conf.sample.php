@@ -148,6 +148,10 @@ $CORE_CONNECTOR_SUMMARY=4;
 $CORE_CONNECTOR_MEDIUMTERM=4;
 $CORE_CONNECTOR_SCENECLASSIFIER=7; // Gemma 3N E4B
 $SCENE_CLASSIFIER_ENABLED=true; // Enable post-request scene tone/genre classification.
+$JEV_ACTIONS_ENABLED=false; // Optional action intent selection; ordinary dialogue remains the default.
+$CORE_CONNECTOR_DECISION=0; // Dedicated openrouterjson connector with a typesafe/jev model and API badge.
+$JEV_ACTION_TIMEOUT_MS=350; // One request, no retries; clamped to 50..750 ms, then ordinary actions fall back.
+$JEV_ACTION_MIN_CONFIDENCE=0.8; // Uncertain/invalid answers retain the existing action path.
 $CORE_CONNECTOR_PROFILES=1;
 $RELLLM_CONNECTOR=5; // Relationship Management default (Mistral Small 3.2 24B)
 $NEVER_CLEAR_RELATIONSHIP_DATA=false; //Keep current NPC relationships when loading older saves. Off by default.
@@ -344,6 +348,7 @@ $TTS["CARTESIA"]["voiceid"]=''; //Voice file name. Works like XTTS voiceid.
 $TTS["CARTESIA"]["language"]='en'; //Language (en, fr, de, es, etc.).
 $TTS["CARTESIA"]["model_id"]='sonic-3'; //Model (sonic-3, sonic-english, sonic-multilingual).
 $TTS["CARTESIA"]["speed"]='normal'; //Speed (slowest, slow, normal, fast, fastest).
+$TTS["CARTESIA"]["use_emotions"]=false; //Optional English Sonic 3 mood guidance; otherwise use transcript prosody.
 
 //Inworld TTS
 $TTS["INWORLD"]["workspace"]=''; //Workspace ID (required for voice cloning). Format: workspaces/{workspace} or just the workspace ID.

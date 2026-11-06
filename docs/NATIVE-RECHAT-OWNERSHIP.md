@@ -1,5 +1,36 @@
 # Native rechat continuation cutover
 
+## Current testing candidate
+
+Every selected NPC continuation now also requires finite captured positions for
+both the previous speaker and responder within 784 game units of each other.
+Player audience membership alone does not prove they can hear one another.
+Missing/ambiguous source positions stop selection; source identity, profile,
+completed-parent proof, save isolation and bounded chain controls remain intact.
+The initial idle exchange uses the same mutual proximity helper. These checks
+bound proximity without claiming acoustic occlusion or NPC-to-NPC line of sight.
+
+Public idle NPC conversations use an explicitly acknowledged `dialogue.ambient_npc`
+extension to the existing bored trigger. A fresh owned capture must contain two
+eligible known NPCs with available profiles, close mutual proximity and a calm
+player. The server fixes the outgoing listener to its validated second NPC and
+freezes relationship routing from the exact emitted line and route hashes.
+The origin remains a real NPC reply; only its completed proof can authorize the
+existing finite continuation chain. No invented parent or private player input
+can start a public exchange. A missing second profile suppresses the attempt.
+
+The client reuses the configured idle timer (60 seconds by default), requires
+STANDARD mode and gives player speech, composing, menus and active work priority.
+Passive open-microphone listening permits idle speech and continuation; detected
+player speech still cancels the turn. Capture proves close proximity and copied
+eligibility, not a sight ray between NPCs or every vanilla conversation state.
+
+Random continuation mode now chooses among modes with an eligible captured
+responder. An explicit tight mode keeps its addressing restriction, and configured
+round/probability limits remain intact. A fully validated cell change ends the
+continuation normally after completed-parent proof; malformed or forged evidence
+still fails. Installation and flat/VR gameplay acceptance remain separate gates.
+
 ## Atomic preparation checkpoint (2026-09-07)
 
 9d0e33c coordinates mode/candidate selection, exact selected-profile H/P/action

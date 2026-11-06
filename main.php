@@ -28,6 +28,20 @@ try {
     if (!getenv("PHPUNIT_TEST")) {
         throw $e;
     }
+} catch (Throwable $e) {
+    Logger::error('[request] backend_request_failed');
+    if (function_exists('synth_emit_failed_json_response')
+        && is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)) {
+        synth_emit_failed_json_response();
+    } else {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        echo json_encode(['schema'=>'synth.error.response.v1', 'code'=>'backend_request_failed',
+            'retryable'=>false], JSON_THROW_ON_ERROR);
+    }
 }
 
 ?>

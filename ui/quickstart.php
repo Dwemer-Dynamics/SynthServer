@@ -17,6 +17,7 @@ require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "model_dynmodel.php");
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "settings.php");
 // Load configuration files in the correct order
 require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . "conf.sample.php");  // Should contain defaults
+require_once($rootPath . 'lib/quickstart_service_choices.php');
 
 function synthQuickstartMiniMeDefaultUrl(): string {
     return 'http://127.0.0.1:8082/';
@@ -625,18 +626,22 @@ foreach ($quickstartConf as $pname => $parms) {
             'gemini'       => 'Gemini',
             'azure'        => 'Azure',
             'inworld'      => 'Inworld',
+            'cartesia'     => 'Cartesia',
             'none'         => 'Disabled',
         ];
         $recommendedValues = [];
         if ($pname == "TTSFUNCTION") {
-            $parms["values"] = ["omnivoice","pockettts","chatterbox","xtts-fastapi","inworld"];
+            $parms["values"] = synth_quickstart_service_choices(
+                ["omnivoice","pockettts","chatterbox","xtts-fastapi","inworld"],
+                $quickstartActiveTtsDriver, $quickstartTtsConnector->getDriverOptions());
             if (in_array($quickstartActiveTtsDriver, $parms["values"], true)) {
                 $parms["currentValue"] = $quickstartActiveTtsDriver;
             }
             $recommendedValues = ["omnivoice", "pockettts", "chatterbox"];
             $parms["description"] = "Select the TTS service you wish to use. Recommended: OmniVoice, PocketTTS or Chatterbox. <br>You can install OmniVoice, PocketTTS, Chatterbox, XTTS and configure Inworld in SYNTH. For provider-specific settings and advanced endpoint editing, use the <a href='" . $webRoot . "/ui/core/tts_connectors.php' target='_blank'>TTS Connectors</a> page.";
         } else if ($pname == "STTFUNCTION") {
-            $parms["values"] = ["parakeet", "deepgram"];
+            $parms["values"] = synth_quickstart_service_choices(
+                ["parakeet", "deepgram"], $quickstartActiveSttDriver, $quickstartSttConnector->getDriverOptions());
             if (in_array($quickstartActiveSttDriver, $parms["values"], true)) {
                 $parms["currentValue"] = $quickstartActiveSttDriver;
             } else {

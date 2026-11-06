@@ -870,6 +870,7 @@ function synthActionCatalogBuildBaseFollowupConfig($codeName)
         'MoveTo',
         'StopFollowing',
         'TakeCapsFromPlayer',
+        'TakeItemFromPlayer',
     ];
 
     $promptMap = [
@@ -884,6 +885,7 @@ function synthActionCatalogBuildBaseFollowupConfig($codeName)
         'ReadQuests' => ['arg_name' => 'id_quest', 'prompt' => 'Reply with one short in-character line about the quest result below. Do not ask follow-up questions.'],
         'GiveItemTo' => ['arg_name' => 'target', 'prompt' => 'Reply with one short in-character line reacting to the item handoff result below. Do not ask follow-up questions.'],
         'GiveCapsTo' => ['arg_name' => 'target', 'prompt' => 'Reply with one short in-character line reacting to the caps transfer result below. Do not ask follow-up questions.'],
+        'TakeItemFromPlayer' => ['arg_name'=>'target','prompt'=>'React in character to the gift result below. Only a verified successful handoff is a received gift. Judge its personal value using your biography, personality, goals and current needs, not price alone. No fixed gratitude or relationship bonus is required.'],
         'TakeCapsFromPlayer' => ['arg_name' => 'amount', 'prompt' => 'Reply with one short in-character line reacting to the caps transfer result below. Do not ask follow-up questions.'],
     ];
 
@@ -2070,6 +2072,7 @@ function synthActionCatalogIsActionEnabled($codeName)
     if ($codeName === '') {
         return false;
     }
+    if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
 
     $rowsByCode = synthGetActionCatalogRowsByCode();
     if (!isset($rowsByCode[$codeName])) {

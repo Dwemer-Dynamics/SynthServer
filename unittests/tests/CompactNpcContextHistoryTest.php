@@ -9,10 +9,12 @@ final class CompactNpcContextHistoryTest extends TestCase
     public function testCurrentNativeInputIsSeparateFromCompactAndExpandedHistory(): void
     {
         require_once __DIR__.'/../../lib/prompt_composition.php';
+        require_once __DIR__.'/../../lib/synth_equipment_prompt.php';
         $utterance = 'RANGROO: hey';
         $head = [['role'=>'system','content'=>'Roleplay as Nick Valentine.']];
         $prior = [['role'=>'user','content'=>$utterance]];
         $cue = [['role'=>'user','content'=>"Write Nick's next dialogue line."]];
+        $equipment = '<current_observed_equipment unavailable="true">Current gear is unknown.</current_observed_equipment>';
         foreach (['input_text', 'input_audio'] as $wireType) {
             foreach (['inputtext', 'inputtext_s', 'narrator_inputtext'] as $requestType) {
                 $live = synthCurrentPlayerInputMessages(['protocol_version'=>2,'type'=>$wireType], [$requestType,0,0,$utterance]);
@@ -22,8 +24,15 @@ final class CompactNpcContextHistoryTest extends TestCase
                         $messages = $compact
                             ? synthAppendCompactHistoryToPrompt($head, synthFormatCompactNpcContextHistory($history, 'Nick Valentine'), true)
                             : array_merge($head, $history);
-                        $messages = array_merge($messages, $cue, $live);
+                        $messages = synth_append_equipment_observer_context(
+                            array_merge($messages, $cue),
+                            ['protocol_version'=>2,'type'=>$wireType],
+                            $equipment,
+                            $live
+                        );
                         $this->assertSame($live[0], end($messages));
+                        $this->assertSame('system', $messages[count($messages)-2]['role']);
+                        $this->assertStringContainsString($equipment, $messages[count($messages)-2]['content']);
                         // The previous identical utterance must remain; only the current input is appended.
                         if (!$compact && $history !== []) $this->assertSame($prior[0], $messages[1]);
                     }
@@ -41,7 +50,7 @@ final class CompactNpcContextHistoryTest extends TestCase
         $this->assertSame([['role'=>'user','content'=>'RANGROO: Where is Diamond City? (Talking to Nick Valentine)']],
             synthCurrentPlayerInputMessages(['protocol_version'=>2,'type'=>'input_text'], $normalized));
         $source = file_get_contents(__DIR__.'/../../main_synth_pipeline.php');
-        $append = '$contextData = array_merge($contextData ?? [], $currentPlayerInput);';
+        $append = '$contextData = synth_append_equipment_observer_context(';
         $this->assertSame(1, substr_count($source, $append));
         $this->assertLessThan(strpos($source, $append), strpos($source, '$head = synthAppendCompactHistoryToPrompt'));
         $this->assertStringContainsString('if ($currentPlayerInput === [] && !empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])', $source);

@@ -2,6 +2,9 @@
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'media_store.php';
 
+// An accepted service response with no recognized text is a completed no-work request.
+final class SYNTHSpeechNotRecognized extends RuntimeException {}
+
 // Resolves an uploaded opaque media object and transcribes it through the configured STT connector.
 function synth_protocol_transcribe_media(array $media): string
 {
@@ -52,8 +55,24 @@ function synth_protocol_transcribe_media(array $media): string
         if (!function_exists('stt')) {
             throw new RuntimeException('stt_connector_invalid');
         }
+        // A previous connector/call cannot lend its successful-empty provenance to this one.
+        $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
         $text = trim(strval(stt($temporary)));
         if ($text === '') {
+            $diagnostic=$GLOBALS['STT_LAST_DIAGNOSTIC'] ?? [];
+            if ($driver==='localwhisper' && ($diagnostic['driver'] ?? '')==='localwhisper') {
+                $status=$diagnostic['http_status_code'] ?? 0;
+                if (($diagnostic['stage'] ?? '')==='recognized_empty'
+                    && is_int($status) && $status>=200 && $status<300
+                    && in_array($diagnostic['response_key'] ?? null,['text','transcription'],true)
+                    && ($diagnostic['response_value_type'] ?? '')==='string') {
+                    throw new SYNTHSpeechNotRecognized('speech_not_recognized');
+                }
+                $code=$diagnostic['error_code'] ?? '';
+                if (in_array($code,['stt_transport_failed','stt_http_error','stt_invalid_response'],true)) {
+                    throw new RuntimeException($code);
+                }
+            }
             throw new RuntimeException('stt_empty_transcript');
         }
         if (strlen($text) > 4096) {

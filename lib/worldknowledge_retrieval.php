@@ -41,6 +41,8 @@ final class SynthWorldKnowledgeRetriever
         return preg_match(
             '/\b(?:(?:tell|teach|explain|describe|discuss)\s+(?:me\s+|us\s+)?(?:about|of)|'
              . 'what\s+(?:do\s+you\s+know|have\s+you\s+heard)\s+about|'
+             . 'what\s+(?:is|are)\s+(?:(?:a|an|the)\s+)?|'
+             . 'what\s+does\s+[a-z0-9 ]{1,60}\s+(?:do|mean)|'
              . '(?:do|did)\s+you\s+know\s+(?:anything\s+)?about|'
              . '(?:compare|contrast)\s+(?:the\s+)?|'
              . '(?:history|lore|background|story|details|information|facts)\s+(?:about|on|of))\b/u',

@@ -23,6 +23,7 @@ MIT terms. Do not remove or alter that notice. See [docs/HANDOFF.md](docs/HANDOF
 | `data/fallout_worldknowledge_*` (catalog, vocabulary, sources) | Summaries derived from [The Fallout Wiki](https://fallout.wiki/) | CC BY-SA 4.0. See `data/fallout_worldknowledge_attribution.md` and the source URLs in `data/fallout_worldknowledge_sources.jsonl`. Derived summaries stay under the same license (share-alike). |
 | `data/fallout4_content_*`, `fallout4_named_bios.csv`, `fallout4_common_descriptions.csv`, `fallout4_character_completion_review.json`, `fallout4_catalogue_seed.sql` | Authored character/equipment adaptations and generated catalogue SQL | Adapted content stays under CC BY-SA 4.0; see `data/fallout4_content_attribution.md` and per-row source URLs in `data/fallout4_content_sources.json`. Generated lore retains the preceding lore attribution. The SQL format does not change these content licenses. |
 | `data/fallout4_creature_bio_templates.sql` | Original SYNTH prose; FormIDs cross-checked against public references | See `data/fallout4_creature_bio_templates_attribution.md` |
+| `data/fallout4_content_*`, `fallout4_named_bios.csv`, `fallout4_common_descriptions.csv` | Named character and object summaries adapted from the credited Fallout Wiki contributors; brief factual corroboration identified per item | Adaptations CC BY-SA 4.0; Fandom originals CC BY-SA 3.0. See `data/fallout4_content_attribution.md` and per-row source/history links. No game assets are included. |
 
 ## Loaded from CDNs at runtime (not redistributed)
 

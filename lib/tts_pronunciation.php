@@ -3,8 +3,12 @@
 // Provide Fallout pronunciations when the database has not been migrated yet.
 function synthDefaultTtsPronunciationEntries(): array
 {
-    // Fallout 4 ships no opinionated defaults; administrators may add attributed rules.
-    return [];
+    // Split this Fallout compound only in spoken text. This grants no lore
+    // knowledge and leaves subtitles/history in their canonical spelling.
+    return [
+        ['source_text' => 'radroach', 'spoken_text' => 'rad roach', 'oghma_tags' => ''],
+        ['source_text' => 'radroaches', 'spoken_text' => 'rad roaches', 'oghma_tags' => ''],
+    ];
 }
 
 // Create the dictionary table and add missing built-in entries without changing user data.
@@ -27,7 +31,14 @@ function synthEnsureTtsPronunciationDictionary(): bool
         $inserted = $GLOBALS['db']->execQuery(
             "INSERT INTO synth.core_tts_pronunciation
                 (source_text, spoken_text, npc_names, races, oghma_tags, is_builtin, enabled, updated_at)
-             VALUES ({$source}, {$spoken}, '', '', {$tags}, TRUE, TRUE, CURRENT_TIMESTAMP)
+             SELECT {$source}, {$spoken}, '', '', {$tags}, TRUE,
+                 NOT EXISTS (
+                     SELECT 1 FROM synth.core_tts_pronunciation existing
+                     WHERE LOWER(existing.source_text) = LOWER({$source})
+                       AND existing.is_builtin = FALSE AND existing.enabled = FALSE
+                       AND BTRIM(existing.npc_names) = '' AND BTRIM(existing.races) = ''
+                       AND BTRIM(existing.oghma_tags) = ''
+                 ), CURRENT_TIMESTAMP
              ON CONFLICT DO NOTHING"
         );
         if ($inserted === false) {

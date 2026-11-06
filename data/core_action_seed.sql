@@ -25,6 +25,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'OpenInventory',
     'PickupItem',
     'ReadQuests',
+    'ReleaseWait',
     'Relax',
     'DirectorCommand',
     'SpawnCaps',
@@ -35,6 +36,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'StopWalk',
     'TakeASeat',
     'TakeCapsFromPlayer',
+    'TakeItemFromPlayer',
     'TravelTo',
     'UnequipItem',
     'WaitHere'
@@ -64,6 +66,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'OpenInventory',
     'PickupItem',
     'ReadQuests',
+    'ReleaseWait',
     'Relax',
     'DirectorCommand',
     'SpawnCaps',
@@ -74,6 +77,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'StopWalk',
     'TakeASeat',
     'TakeCapsFromPlayer',
+    'TakeItemFromPlayer',
     'TravelTo',
     'UnequipItem',
     'WaitHere'
@@ -94,6 +98,7 @@ INSERT INTO synth.core_action (
     import_version,
     script_proxy_program
 ) VALUES
+    ('ReleaseWait', 'ReleaseWait', 'Release #SYNTH_NAME# from SYNTH waiting. This does not recruit a follower.', '#SYNTH_NAME# is released from SYNTH waiting.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{},"additionalProperties":false}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('Attack', 'Attack', 'Attack a target actor or entity.', '#SYNTH_NAME# attacks #TARGET#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target"],"properties":{"target":{"type":"string","description":"Target NPC, actor, or being."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('CheckInventory', 'Check_Inventory', 'Search #SYNTH_NAME#''s inventory and list contents.', '#SYNTH_NAME#''s INVENTORY:#RESULT#', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Optional item to look for. Leave blank to list all items."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","followup":{"enabled":true,"arg_name":"target","prompt":"Reply with one short in-character line about the inventory result below. Do not ask follow-up questions."}}'::jsonb, TRUE, 0, NULL),
     ('ComeCloser', 'Come_Closer', '#SYNTH_NAME# approaches #PLAYER_NAME#.', '#SYNTH_NAME# approaches #PLAYER_NAME#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Keep blank."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","cooldown_seconds":30}'::jsonb, TRUE, 0, NULL),
@@ -106,6 +111,7 @@ INSERT INTO synth.core_action (
     ('StopFollowing', 'Stop_Following_#PLAYER_NAME#', '#SYNTH_NAME# stops following #PLAYER_NAME# and leaves the current follower role.', '#SYNTH_NAME# stops following #PLAYER_NAME#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Keep blank."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","cooldown_seconds":30,"followup":{"enabled":false}}'::jsonb, TRUE, 0, NULL),
     ('GiveCapsTo', 'Give_Caps_To', '#SYNTH_NAME# gives caps to another actor or #PLAYER_NAME#.', '#SYNTH_NAME# gives #AMOUNT# caps to #TARGET#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target"],"properties":{"target":{"type":"string","description":"Recipient actor or #PLAYER_NAME#."},"amount":{"type":"integer","description":"Caps amount to give."},"item":{"type":"string","description":"Optional amount fallback as text."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('GiveItemTo', 'Give_Item_To', '#SYNTH_NAME# gives a specific item from inventory to another actor or #PLAYER_NAME#.', '#SYNTH_NAME# gives #ITEM# to #TARGET#.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target","item"],"properties":{"target":{"type":"string","description":"Recipient actor or #PLAYER_NAME#."},"item":{"type":"string","description":"Exact inventory item name."},"amount":{"type":"integer","description":"Quantity to give, default 1."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
+    ('TakeItemFromPlayer', 'TakeItemFromPlayer', '#SYNTH_NAME# accepts an explicitly offered item from #PLAYER_NAME# as a gift; judge its personal value using biography, personality, needs and goals.', 'React to the verified gift result. Failed handoffs are not received gifts.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target","item"],"properties":{"target":{"type":"string","description":"The player who explicitly offered the gift."},"item":{"type":"string","description":"Exact observed player inventory item name."},"amount":{"type":"integer","description":"Quantity to give, default 1."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('IncreaseWalkSpeed', 'Increase_Walk_Speed', 'Increase #SYNTH_NAME#''s movement speed.', 'Increases #SYNTH_NAME#''s speed or pace.', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"speed":{"type":"string","enum":["run","jog"],"description":"Requested pace."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command"}'::jsonb, TRUE, 0, NULL),
     ('Inspect', 'Inspect', 'Inspect a nearby actor or being.', '#SYNTH_NAME# inspects #TARGET# and sees this: #RESULT#', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":["target"],"properties":{"target":{"type":"string","description":"Nearby NPC, actor, or being to inspect."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","followup":{"enabled":true,"arg_name":"target","prompt":"Reply with one short in-character observation using the inspect result below. Do not ask follow-up questions."}}'::jsonb, TRUE, 0, NULL),
     ('InspectSurroundings', 'Inspect_Surroundings', 'Look around and assess nearby people, items, doors, and threats.', '#SYNTH_NAME# takes a look around and sees this: #RESULT#', TRUE, TRUE, FALSE, TRUE, '{"type":"object","required":[],"properties":{"target":{"type":"string","description":"Keep blank."}}}'::jsonb, '{"source":"functions.php","status":"active","builtin":true,"dispatch":"plugin_command","followup":{"enabled":true,"arg_name":"target","prompt":"Reply with one short in-character observation about the surroundings using the tool result below. Do not ask follow-up questions."}}'::jsonb, TRUE, 0, NULL),

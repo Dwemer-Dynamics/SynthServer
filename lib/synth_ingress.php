@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/synth_combat_target.php';
+require_once __DIR__.'/synth_social_contract.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
@@ -237,7 +239,7 @@ function synth_protocol_validate_package_state($value, string $field): array
 }
 
 // Validate bounded runtime state without accepting engine pointers or arbitrary objects.
-function synth_protocol_validate_actor_state($value, string $field, int $version = 1): array
+function synth_protocol_validate_actor_state($value, string $field, int $version = 1, array $player = []): array
 {
     if (!synth_protocol_is_object($value)) {
         synth_protocol_fail('invalid_actor_state', 422, [['field' => $field, 'issue' => 'object_required']]);
@@ -249,10 +251,32 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
          'line_of_sight', 'factions', 'faction_observation', 'life_state', 'posture',
          'weapon_drawn', 'movement_speed', 'sprinting', 'talking_to_player', 'in_power_armor',
          'current_package'],
-        ['inventory_observation', 'faction_completeness', 'health_percent_available', 'action_points_percent_available'],
+        array_merge(['inventory_observation', 'faction_completeness', 'health_percent_available', 'action_points_percent_available'],
+            $version === 2 ? ['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held'] : []),
         $field
     );
     $value['actor'] = synth_protocol_validate_identity($value['actor'] ?? null, $field . '.actor');
+    if (array_key_exists('combat_target', $value)) {
+        $value['combat_target'] = synth_protocol_validate_combat_target($value['combat_target'], $field . '.combat_target', $value);
+    }
+    if (array_key_exists('combat_contacts',$value)) {
+        $value['combat_contacts']=synth_protocol_validate_combat_contacts($value['combat_contacts'],$field.'.combat_contacts',$value,$player);
+    }
+    if (array_key_exists('conversation_held',$value)) {
+        if (!is_bool($value['conversation_held']) || ($value['conversation_held'] &&
+            (($value['life_state'] ?? '')!=='restrained' || ($value['alive'] ?? false)!==true ||
+             ($value['disabled'] ?? true)!==false || ($value['actor']['form_id'] ?? '')==='0x00000014')))
+            synth_protocol_fail('invalid_conversation_hold',422,[['field'=>$field.'.conversation_held','issue'=>'live_restrained_npc_required']]);
+    }
+    if (array_key_exists('wait_held',$value)) {
+        if (!is_bool($value['wait_held']) || ($value['wait_held'] &&
+            (!in_array($value['life_state'] ?? '',['alive','restrained'],true) || ($value['alive'] ?? false)!==true ||
+             ($value['disabled'] ?? true)!==false || ($value['actor']['form_id'] ?? '')==='0x00000014')))
+            synth_protocol_fail('invalid_wait_state',422,[['field'=>$field.'.wait_held','issue'=>'live_owned_npc_required']]);
+    }
+    if (array_key_exists('enemy_awareness',$value)) {
+        $value['enemy_awareness']=synth_protocol_validate_enemy_awareness($value['enemy_awareness'],$field.'.enemy_awareness',$value,$player);
+    }
     foreach (['health_percent_available','action_points_percent_available'] as $availability) {
         if (array_key_exists($availability, $value) && !is_bool($value[$availability])) {
             synth_protocol_fail('invalid_actor_state', 422, [['field' => $field . '.' . $availability, 'issue' => 'boolean_required']]);
@@ -378,7 +402,7 @@ function synth_protocol_validate_world_state($value, string $field, int $version
     synth_protocol_expect_exact_keys(
         $value,
         ['location', 'cell', 'worldspace', 'weather', 'interior', 'game_time_ticks'],
-        $version===2 ? ['scene'] : [],
+        $version===2 ? ['scene','location_ref'] : [],
         $field
     );
     foreach (['location', 'cell', 'worldspace', 'weather'] as $label) {
@@ -390,6 +414,8 @@ function synth_protocol_validate_world_state($value, string $field, int $version
         $value['game_time_ticks'] < 1 || $value['game_time_ticks'] > 9007199254740991) {
         synth_protocol_fail('invalid_world_state', 422, [['field' => $field, 'issue' => 'invalid']]);
     }
+    if (array_key_exists('location_ref',$value) && !synth_social_ref_valid($value['location_ref']))
+        synth_protocol_fail('invalid_world_state',422,[['field'=>$field.'.location_ref','issue'=>'invalid_reference']]);
     if (array_key_exists('scene',$value)) {
         if (!synth_protocol_is_object($value['scene']))
             synth_protocol_fail('invalid_world_state',422,[['field'=>$field.'.scene','issue'=>'object_required']]);
@@ -734,7 +760,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             }
             $stateSeen = [];
             foreach ($payload['actor_states'] as $index => $state) {
-                $state = synth_protocol_validate_actor_state($state, 'payload.actor_states.' . $index, $version);
+                $state = synth_protocol_validate_actor_state($state, 'payload.actor_states.' . $index, $version, $payload['player']);
                 $actor = $state['actor'];
                 $key = strtoupper($actor['form_id']) . '|' . strtolower($actor['origin_plugin']) . '|' . $actor['playthrough_id'];
                 if ((!isset($seen[$key]) && $key !== $playerKey) || isset($stateSeen[$key])) {
@@ -863,6 +889,11 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
                 && (array_key_exists('instruction', $payload) || array_key_exists('text', $payload)))) {
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload', 'issue' => 'unexpected_external_text']]);
         }
+    } elseif ($type === 'social_task_request') {
+        if ($version!==2 || !synth_social_request_valid($payload))synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'explicit_social_instruction_required']]);
+        $payload['performer']=synth_protocol_validate_identity($payload['performer'],'payload.performer');
+    } elseif ($type === 'social_task_progress') {
+        if ($version!==2 || !synth_social_progress_valid($payload))synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'owned_social_progress_required']]);
     } elseif ($type === 'diary_request') {
         synth_protocol_expect_exact_keys($payload,['actors','include_player','include_narrator','reason'],[],'payload');
         if ($version!==2 || !is_array($payload['actors'] ?? null) || !array_is_list($payload['actors'])
@@ -921,7 +952,7 @@ function synth_protocol_validate_event(array $event): array
     synth_protocol_expect_exact_keys($event, $required, [], 'event');
 
     $types = ['init', 'input_text', 'input_audio', 'context', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result', 'cancel', 'halt'];
-    if ($version === 2) $types[] = 'control';
+    if ($version === 2) array_push($types,'control','social_task_request','social_task_progress');
     $valid = in_array($version, [1, 2], true)
         && $event['schema'] === 'synth.event.v' . $version
         && in_array($event['type'], $types, true)
@@ -943,7 +974,7 @@ function synth_protocol_validate_event(array $event): array
         synth_protocol_fail('invalid_envelope', 422, [['field' => 'event', 'issue' => 'invalid']]);
     }
     if ($version === 2) {
-        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result'], true);
+        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result','social_task_request','social_task_progress'], true);
         $sequence = $event['context_sequence'];
         if (!is_int($sequence) || $sequence > 9007199254740991
             || ($bound ? $sequence < 1 : $sequence !== 0)) {
@@ -976,6 +1007,15 @@ function synth_protocol_validate_event(array $event): array
         || !isset($seen['action.take_caps_from_player'], $seen['action.caps_inventory'], $seen['action.give_caps_to'],
             $seen['action.transfer_inventory'], $seen['action.give_item_to'], $seen['action.inventory_observation'], $seen['dialogue.turn_ownership'])))
         synth_protocol_fail('invalid_player_caps_capability', 422);
+    if (isset($seen['action.player_item_inventory']) && ($version !== 2 || $event['runtime_variant'] !== 'flat'
+        || !isset($seen['action.take_item_from_player'], $seen['action.transfer_inventory'], $seen['action.give_item_to'],
+            $seen['action.inventory_observation'], $seen['dialogue.turn_ownership'])))
+        synth_protocol_fail('invalid_player_item_capability', 422);
+    if (isset($seen['action.gift_menu_inventory']) && ($version!==2 || $event['runtime_variant']!=='flat'
+        || !isset($seen['action.open_inventory'],$seen['action.transfer_inventory'],$seen['action.give_item_to'],
+            $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_gift_menu_capability',422);
+    if ((isset($seen['social.tasks.v1']) || in_array($event['type'],['social_task_request','social_task_progress'],true)) && !synth_social_supported($event))
+        synth_protocol_fail('invalid_social_capability',422);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
     if ($event['type'] === 'action_result' && in_array($event['payload']['result']['schema'] ?? '',
         ['synth.action.result.v2', 'synth.action.transfer-result.v2'], true)) {
@@ -987,6 +1027,16 @@ function synth_protocol_validate_event(array $event): array
         foreach ($transfer ? ['inventory', 'recipient_inventory'] : ['inventory'] as $key)
             if (count($event['payload']['result'][$key]['items']) > 32 && ($event['runtime_variant'] !== 'flat'
                 || !isset($seen['context.inventory_512']))) synth_protocol_fail('invalid_action_inventory_limit', 422);
+    }
+    if ($event['type']==='context' && array_key_exists('location_ref',$event['payload']['world']??[]) && !isset($seen['context.location_identity']))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'payload.world.location_ref','issue'=>'location_identity_capability_required']]);
+    if (isset($seen['context.wait_state']) || isset($seen['action.wait_verified'])) {
+        if ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat' || !isset($seen['dialogue.turn_ownership']))
+            synth_protocol_fail('invalid_wait_capability',422);
+    }
+    if ($event['type']==='context') foreach($event['payload']['actor_states'] ?? [] as $state) {
+        if(array_key_exists('wait_held',$state) && !isset($seen['context.wait_state']))
+            synth_protocol_fail('invalid_wait_state',422,[['field'=>'capabilities','issue'=>'wait_state_capability_required']]);
     }
     $ownedRechat=in_array('dialogue.rechat.ownership',$event['capabilities'],true);
     $sceneRechat=in_array('dialogue.rechat.scene',$event['capabilities'],true);
@@ -1011,7 +1061,22 @@ function synth_protocol_validate_event(array $event): array
             synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'owned_rechat_parent_required']]);
         }
     }
+    if (in_array('context.combat_contacts',$event['capabilities'],true) && !synth_combat_contacts_supported($event)) {
+        synth_protocol_fail('invalid_combat_contacts',422,[['field'=>'capabilities','issue'=>'owned_flat_capabilities_required']]);
+    }
+    if (in_array('context.enemy_awareness',$event['capabilities'],true) && !synth_enemy_awareness_supported($event)) {
+        synth_protocol_fail('invalid_enemy_awareness',422,[['field'=>'capabilities','issue'=>'owned_flat_capabilities_required']]);
+    }
     if ($event['type'] === 'context') foreach ($event['payload']['actor_states'] ?? [] as $index => $state) {
+        if (array_key_exists('combat_contacts',$state) && !synth_combat_contacts_supported($event)) {
+            synth_protocol_fail('invalid_combat_contacts',422,[['field'=>'payload.actor_states.'.$index.'.combat_contacts','issue'=>'owned_flat_capabilities_required']]);
+        }
+        if (array_key_exists('enemy_awareness',$state) && !synth_enemy_awareness_supported($event)) {
+            synth_protocol_fail('invalid_enemy_awareness',422,[['field'=>'payload.actor_states.'.$index.'.enemy_awareness','issue'=>'owned_flat_capabilities_required']]);
+        }
+        if (array_key_exists('combat_target', $state) && ($event['protocol_version'] !== 2 || !in_array('context.combat_targets', $event['capabilities'], true))) {
+            synth_protocol_fail('invalid_combat_target', 422, [['field' => 'payload.actor_states.' . $index . '.combat_target', 'issue' => 'capability_required']]);
+        }
         if (count($state['inventory']) > 32 && ($event['protocol_version'] !== 2 || $event['runtime_variant'] !== 'flat'
             || !in_array('context.inventory_512', $event['capabilities'], true))) {
             synth_protocol_fail('invalid_actor_state', 422,

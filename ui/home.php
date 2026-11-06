@@ -16,6 +16,7 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "background_processor.p
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "fallout_stats.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "eventlog_helper.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_diary_browser.php");
 
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
@@ -247,12 +248,33 @@ $hasLocations = synth_home_table_exists($db, 'locations');
 $hasGamePlugins = synth_home_table_exists($db, 'game_plugins');
 $hasQuests = synth_home_table_exists($db, 'quests');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
+$hasBioTemplates = synth_home_table_exists($db, 'bio_templates');
+$hasWorldKnowledge = synth_home_table_exists($db, 'worldknowledge');
+$hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'worldknowledge_catalogs');
 
 $eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog", 'total', 0) : 0;
 $chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog WHERE type='chat'", 'total', 0) : 0;
 $npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc_master", 'total', 0) : 0;
 $diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM diarylog", 'total', 0) : 0;
 $memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM memory_summary", 'total', 0) : 0;
+
+// Installed libraries are separate from the NPCs already encountered in a save.
+$characterTemplateCount = null;
+if ($hasBioTemplates && in_array('npc_name', synth_home_table_columns($db, 'bio_templates'), true)) {
+    $characterTemplateCount = synth_home_value($db,
+        "SELECT COUNT(*) AS total FROM synth.bio_templates WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1",
+        'total');
+}
+$worldLoreCount = null;
+if ($hasWorldKnowledge && $hasWorldKnowledgeCatalogs
+    && array_diff(['source_kind', 'is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'worldknowledge')) === []
+    && array_diff(['is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'worldknowledge_catalogs')) === []) {
+    $worldLoreCount = synth_home_value($db,
+        "SELECT COUNT(*) AS total FROM synth.worldknowledge AS article JOIN synth.worldknowledge_catalogs AS catalog"
+        . " ON article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version"
+        . " WHERE article.source_kind='factory' AND article.is_active AND catalog.is_active",
+        'total');
+}
 
 $latestEventRow = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM eventlog ORDER BY ts DESC LIMIT 1") : [];
 $latestEvent = $latestEventRow[0] ?? [];
@@ -266,6 +288,19 @@ $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
 $activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM quests ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
 $latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, content, people, location, localts, gamets FROM diarylog ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
 $latestDiary = $latestDiaryRows[0] ?? [];
+try {
+    $writtenDiaries=synth_diary_browser_summary($db);
+    $diaryCount+=(int)$writtenDiaries['total'];
+    $written=$writtenDiaries['latest'];
+    if ($written && strtotime($written['written_at']) >= (int)($latestDiary['localts'] ?? 0)) {
+        $latestDiary=['native'=>true,'rowid'=>$written['id'],'people'=>$written['author'],
+            'topic'=>$written['topic'],'content'=>$written['content'],'location'=>$written['location'],
+            'localts'=>strtotime($written['written_at']),'gamets'=>$written['gamets']];
+    }
+} catch (Throwable $exception) {
+    Logger::warn('Home diary archive read failed.');
+}
+
 
 // Read-only relationship activity derived from core_npc_master_history snapshots.
 $hasNpcHistory = synth_home_table_exists($db, 'core_npc_master_history');
@@ -512,6 +547,16 @@ include(__DIR__ . DIRECTORY_SEPARATOR . "tmpl" . DIRECTORY_SEPARATOR . "head.htm
         border-color: rgba(var(--synth-accent-rgb), 0.45);
         outline: none;
         transform: translateY(-1px);
+    }
+
+    .stat-card.stat-link {
+        display: block;
+        text-decoration: none;
+    }
+
+    .stat-card.stat-link:focus-visible {
+        outline: 2px solid var(--synth-accent);
+        outline-offset: 2px;
     }
 
     .stat-value {
@@ -1007,16 +1052,24 @@ $debugPaneLink = false;
                     </div>
                     <div class="stat-card">
                         <div class="stat-value"><?php echo synth_home_number($npcCount); ?></div>
-                        <div class="stat-label">NPC Profiles</div>
+                        <div class="stat-label">Encountered NPCs</div>
                     </div>
+                    <a class="stat-card action-card stat-link" href="<?php echo synth_home_h($webRoot); ?>/ui/core/config_hub.php?tab=npcbio" title="Browse installed character backgrounds">
+                        <div class="stat-value"><?php echo $characterTemplateCount === null ? 'Unavailable' : synth_home_number($characterTemplateCount); ?></div>
+                        <div class="stat-label">Character templates</div>
+                    </a>
+                    <a class="stat-card action-card stat-link" href="<?php echo synth_home_h($webRoot); ?>/ui/core/config_hub.php?tab=worldknowledge" title="Browse installed world knowledge">
+                        <div class="stat-value"><?php echo $worldLoreCount === null ? 'Unavailable' : synth_home_number($worldLoreCount); ?></div>
+                        <div class="stat-label">World lore articles</div>
+                    </a>
                     <div class="stat-card">
                         <div class="stat-value"><?php echo synth_home_number($memoryCount); ?></div>
                         <div class="stat-label">Memory Summaries</div>
                     </div>
-                    <div class="stat-card">
+                    <a class="stat-card action-card stat-link" href="<?php echo synth_home_h($webRoot); ?>/ui/diaries.php" title="Read written diaries">
                         <div class="stat-value"><?php echo synth_home_number($diaryCount); ?></div>
                         <div class="stat-label">Diary Entries</div>
-                    </div>
+                    </a>
                     <div class="stat-card action-card" role="button" tabindex="0" data-dashboard-modal-target="locationsModal">
                         <div class="stat-value"><?php echo synth_home_number($locationCount); ?></div>
                         <div class="stat-label">Travel To Locations</div>
@@ -1043,6 +1096,7 @@ $debugPaneLink = false;
         <article class="widget widget-wide">
             <div class="widget-header">
                 <h3><i class="bi bi-journal-text"></i> Latest Diary Entry</h3>
+                <a class="btn-base" href="<?php echo synth_home_h($webRoot); ?>/ui/diaries.php">View diaries</a>
             </div>
             <div class="widget-content">
                 <?php if (empty($latestDiary)): ?>
@@ -1056,10 +1110,12 @@ $debugPaneLink = false;
                         <h4><?php echo synth_home_h($latestDiary['topic'] ?? 'Untitled Entry'); ?></h4>
                         <p><?php echo synth_home_h($latestDiary['content'] ?? ''); ?></p>
                     </div>
+                    <?php if (empty($latestDiary['native'])): ?>
                     <div class="latest-diary-audio-controls">
                         <button type="button" id="latestDiaryAudioButton" class="latest-diary-audio-button" onclick="toggleLatestDiaryAudio(this, <?php echo (int)($latestDiary['rowid'] ?? 0); ?>)">&#9654; Play Audio</button>
                         <span id="latestDiaryAudioStatus" class="latest-diary-audio-status" aria-live="polite"></span>
                     </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </article>

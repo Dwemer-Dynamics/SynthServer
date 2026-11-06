@@ -616,8 +616,13 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $event = ['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7];
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json'=>$event];
-            $this->assertStringContainsString('When Freedom Calls',DataGetCurrentTask());
-            $this->assertStringContainsString('Join Preston Garvey in Sanctuary',DataQuestJournal('None'));
+            $db->payload['quest_events']=['transitions'=>[['display_name'=>'Private future quest']]];
+            $snapshot=synth_protocol_prompt_snapshot($db);
+            $this->assertArrayNotHasKey('quest_events',$snapshot);
+            $this->assertArrayNotHasKey('active_quests',$snapshot);
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask());
+            $this->assertStringNotContainsString('When Freedom Calls',DataGetCurrentTask());
+            $this->assertStringNotContainsString('Join Preston Garvey in Sanctuary',DataQuestJournal('None'));
             $this->assertSame('Sanctuary Hills',DataLastKnownLocation());
             $this->assertSame('CommonwealthClear',DataLastKnownWeatherHuman());
             $this->assertSame('Sanctuary Hills',DataLastKnownLocationContextParts()['location']);
@@ -633,8 +638,209 @@ final class ResponseRuntimeRegressionTest extends TestCase
             $this->assertStringContainsString('unavailable',DataQuestJournal('None'));
             $this->assertNull(synthLatestWorldContextPayload());
             $db->payload['active_quests'] = [];
-            $this->assertStringContainsString('No active quests in the captured journal snapshot',DataGetCurrentTask());
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask());
         } finally { $GLOBALS['SYNTH_REQUEST_EVENT'] = $previousEvent; }
+    }
+
+    private function withQuestPromptContext(callable $test): void
+    {
+        require_once dirname(__DIR__,2).'/lib/data_functions.php';
+        $keys=['db','gameRequest','SYNTH_REQUEST_EVENT','SYNTH_NAME','SYNTH_SPEECH_ROLE',
+            'SYNTH_TURN_QUEST_PROMPT','SYNTH_TURN_ACTIVE_QUESTS','SYNTH_INPUT_TARGET',
+            'SYNTH_INPUT_TARGET_IDENTITY','SYNTH_PLAYER_IDENTITY','SYNTH_TURN_ACTOR_STATES',
+            'SYNTH_TURN_NEARBY_ITEMS','SYNTH_TURN_POINTS_OF_INTEREST','SYNTH_TURN_WORLD_STATE',
+            'SYNTH_RESPONSE_SPEAKER_FORMID','SYNTH_TURN_PEOPLE_SNAPSHOT','SYNTH_EXTERNAL_REQUEST',
+            'SYNTH_CLIENT_CAPABILITIES'];
+        $saved=array_intersect_key($GLOBALS,array_flip($keys));
+        foreach ($keys as $key) unset($GLOBALS[$key]);
+        $db=new class {
+            public array $payload;
+            public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
+            public function fetchOne(string $sql): ?array {
+                if (str_contains($sql,'general_settings') || str_contains($sql,'conf_opts')) return null;
+                $actor=$this->payload['target'];
+                if (str_contains($sql,'SELECT a.full_form_id')) return [
+                    'full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],'playthrough_id'=>$actor['playthrough_id']];
+                if (str_contains($sql,'SELECT i.action_name')) return [
+                    'action_name'=>'ReadQuests','capability'=>'action.read_quests','arguments'=>'{}',
+                    'actor_name'=>$actor['display_name'],'actor_form_id'=>$actor['form_id'],
+                    'actor_plugin'=>$actor['origin_plugin'],'actor_playthrough'=>$actor['playthrough_id'],
+                    'target_name'=>'Private journal entry','target_form_id'=>null,'target_plugin'=>null,'target_playthrough'=>null];
+                if (!str_contains($sql,'context_snapshots')) throw new LogicException('Unexpected quest prompt query');
+                return str_contains($sql,"c.session_id='quest:owner'") && str_contains($sql,'c.generation=2')
+                    && str_contains($sql,'c.snapshot_sequence=7') ? ['context_payload'=>json_encode($this->payload)] : null;
+            }
+            public function fetchAll(string $sql): never { throw new LogicException('Mutable global journal forbidden'); }
+            public function execQuery(string $sql): never { throw new LogicException('Quest prompt must not write'); }
+        };
+        $db->payload=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/quest-tracking.json'),true)['payload'];
+        $public=$db->payload['active_quests'][0];
+        $private=array_replace($public,['form_id'=>'0x00001000','display_name'=>'Private journal entry',
+            'objectives'=>['Find the secret cache'],'tracked'=>false]);
+        $db->payload['active_quests'][]=$private;
+        $GLOBALS['db']=$db;
+        $event=['protocol_version'=>2,'session_id'=>'quest:owner','request_id'=>'quest:request',
+            'generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','type'=>'input_text',
+            'payload'=>['text'=>'Hello','actor'=>$db->payload['target'],'control'=>['mode'=>'CHAT']]];
+        try { $test($db,$event,$public); }
+        finally {
+            foreach ($keys as $key) unset($GLOBALS[$key]);
+            foreach ($saved as $key=>$value) $GLOBALS[$key]=$value;
+        }
+    }
+
+    public function testAutomaticNpcQuestPromptDoesNotGrantPrivateJournalEvenToTeammates(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event): void {
+            $original=$db->payload;
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            // A native NPC cannot borrow narrator authority from its display label.
+            $GLOBALS['SYNTH_NAME']='The Narrator';
+            $request=['inputtext',0,0,''];
+            synth_protocol_bind_dialogue_context($db,$event,$request);
+            $structured=json_decode($request[3],true);
+            $this->assertSame([],$structured['active_quests']);
+            $this->assertSame([],$GLOBALS['SYNTH_TURN_ACTIVE_QUESTS']);
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            foreach ($db->payload['actor_states'] as &$state) $state['teammate']=true;
+            unset($state);
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $this->assertStringContainsString('unavailable',DataQuestJournal('None'));
+            $this->assertStringNotContainsString('Find the secret cache',DataQuestJournal('None'));
+            $this->assertSame($original['active_quests'],$db->payload['active_quests']);
+        });
+    }
+
+    public function testRawQuestReactionProjectionCannotTeachNpcWithoutLockedHistory(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event,array $public): void {
+            $event['type']='trigger';
+            $event['payload']=['kind'=>'quest_updated','actor'=>$db->payload['target'],'previous_context_sequence'=>6];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $original=$db->payload;
+            require_once dirname(__DIR__,2).'/lib/quest_reaction.php';
+            $previous=$db->payload;
+            $previous['active_quests'][0]['objectives']=['An earlier displayed objective'];
+            // Use the same raw journal comparator as synthBindQuestReaction, so
+            // normalization cannot silently discard real admitted changes.
+            $reaction=['previous_context_sequence'=>6,'quests'=>synthQuestReactionChanges($previous,$db->payload),
+                'text'=>'A tracked objective changed.'];
+            $bound=synth_protocol_bind_quest_prompt($event,$db->payload,false,$reaction);
+            $this->assertSame([$public],$bound['active_quests']);
+            $prompt=DataGetCurrentTask('speaker');
+            $this->assertStringContainsString('unavailable',$prompt);
+            $this->assertStringNotContainsString($public['objectives'][0],$prompt);
+            $this->assertStringNotContainsString('Private journal entry',$prompt);
+            $this->assertStringNotContainsString('Find the secret cache',$prompt);
+            $this->assertSame($original,$db->payload);
+            // A later ordinary input cannot reuse the reaction projection.
+            $event['type']='input_text';$event['payload']=['text'=>'Hello'];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+        });
+    }
+
+    public function testQuestReactionProjectionCannotCrossRequestSessionSaveOrSnapshot(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event,array $public): void {
+            $event['type']='trigger';
+            $event['payload']=['kind'=>'quest_updated','actor'=>$db->payload['target'],'previous_context_sequence'=>6];
+            $reaction=['previous_context_sequence'=>6,'quests'=>[$public]];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            synth_protocol_bind_quest_prompt($event,$db->payload,false,$reaction);
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $this->assertStringNotContainsString($public['display_name'],DataGetCurrentTask('speaker'));
+            foreach (['session_id'=>'quest:other','request_id'=>'quest:other-request','generation'=>3,'context_sequence'=>8] as $key=>$value) {
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>array_replace($event,[$key=>$value])];
+                $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            }
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $original=$db->payload;
+            $db->payload['target']['playthrough_id']='save:other';
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $db->payload=$original;
+            $db->payload['active_quests'][0]['objectives']=['A different captured objective'];
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $db->payload=$original;
+            $db->payload['active_quests_observation']='cached';
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $db->payload=$original;
+            $request=['inputtext',0,0,''];
+            $ordinary=array_replace($event,['type'=>'input_text','payload'=>['text'=>'Hi']]);
+            synth_protocol_bind_dialogue_context($db,$ordinary,$request);
+            $this->assertSame('none',$GLOBALS['SYNTH_TURN_QUEST_PROMPT']['scope']);
+        });
+    }
+
+    public function testNarratorQuestContextRequiresLockedNativeOwner(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event): void {
+            $event['payload']['control']['mode']='NARRATOR';
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $request=['narrator_inputtext',0,0,''];
+            synth_protocol_bind_dialogue_context($db,$event,$request);
+            $structured=json_decode($request[3],true);
+            // This fake reader lacks a native request lock. Real narrator journal
+            // ownership is exercised by QuestKnowledgeTest's SQL fixtures.
+            $this->assertSame([],$structured['active_quests']);
+            $this->assertSame('narrator',$structured['quest_knowledge']['perspective']);
+            $this->assertSame('unavailable',$structured['quest_knowledge']['observation']);
+            $this->assertStringNotContainsString('Find the secret cache',DataGetCurrentTask('speaker'));
+            $this->assertStringNotContainsString('Find the secret cache',DataQuestJournal('None'));
+            $GLOBALS['SYNTH_REQUEST_EVENT']['json']['session_id']='quest:other';
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+        });
+    }
+
+    public function testNativeNpcCannotBypassPrivateJournalThroughToolEmissionOrIntent(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event): void {
+            require_once dirname(__DIR__,2).'/lib/response.php';
+            require_once dirname(__DIR__,2).'/lib/core/action_catalog.php';
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=['action.read_quests'];
+            $this->assertFalse(synth_protocol_player_journal_action_allowed());
+            $this->assertFalse(synthActionCatalogIsActionEnabled('ReadQuests'));
+            $this->assertNull(synth_protocol_action_from_legacy_line([
+                'speaker'=>$db->payload['target']['display_name'],'command_name'=>'ReadQuests',
+                'target'=>'0x00001000','command_args'=>['0x00001000']]));
+            foreach ([['server_code'=>'ReadQuests'],['name'=>'read_quests'],['capability'=>'action.read_quests']] as $action) {
+                try {
+                    synth_protocol_record_action_intent($db,$action);
+                    $this->fail('NPC journal intent bypassed the authoritative gate');
+                } catch (DomainException $error) {
+                    $this->assertSame('private_quest_journal_not_shared',$error->getMessage());
+                }
+            }
+            $event['payload']['control']['mode']='NARRATOR';
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $this->assertTrue(synth_protocol_player_journal_action_allowed());
+            // Retain legacy explicitly invoked tool compatibility.
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>1]];
+            $this->assertTrue(synth_protocol_player_journal_action_allowed());
+        });
+    }
+
+    public function testOldNativeNpcQuestResultIsRedactedBeforeFuncretHistoryOrPrompt(): void
+    {
+        $this->withQuestPromptContext(function($db,array $event): void {
+            $event['type']='action_result';$event['turn_id']='quest:turn';
+            $event['payload']=['result'=>['action_id'=>'quest:action','idempotency_key'=>'quest:key',
+                'status'=>'succeeded','detail'=>'Private journal entry: Find the secret cache']];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+            $request=['action_result',0,0,''];
+            synth_protocol_bind_action_result($db,$event,$request);
+            $this->assertSame('funcret',$request[0]);
+            $bound=json_decode($request[3],true);
+            $this->assertSame('ReadQuests',$bound['action']);
+            $this->assertSame('unavailable',$bound['status']);
+            $this->assertSame('',$bound['target']);
+            $this->assertStringContainsString('no quest facts were shared',$bound['result']);
+            $this->assertStringNotContainsString('Private journal entry',$request[3]);
+            $this->assertStringNotContainsString('secret cache',$request[3]);
+            $this->assertStringContainsString('unavailable',DataGetCurrentTask('speaker'));
+            $this->assertStringContainsString('secret cache',$db->payload['active_quests'][1]['objectives'][0]);
+        });
     }
 
     protected function tearDown(): void
@@ -735,7 +941,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
 
     public function testTtsDictionaryUsesWholeTermsAndScopedCustomPriority(): void
     {
-        $this->assertSame([], synthDefaultTtsPronunciationEntries());
+        $this->assertSame(['radroach', 'radroaches'], array_column(synthDefaultTtsPronunciationEntries(), 'source_text'));
         $GLOBALS['SYNTH_NAME'] = 'Piper';
         $scope = synthTtsPronunciationCurrentSpeakerScope([
             'npc_name' => 'Piper',

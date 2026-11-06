@@ -11,12 +11,13 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
     $jobId=synth_worker_with_origin($db,$origin,static function(array $event) use($db) {
         $candidate=$db->withNativeRequestLock(static function($connection,array $event) use($db) {
             $params=[$event['session_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']];
+            $context=synth_protocol_current_context($db,$event);
+            $responder=$context ? synth_relationship_responder($db,$event,$context) : null;
+            if (!$responder) return [];
             $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='cancelled',lease_token=NULL,lease_until=NULL,
                 last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_interaction_id IS NOT NULL
                     AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR relationship_evaluation_id IS NOT NULL OR memory_batch_id IS NOT NULL
-                        OR actor_identity_id IS DISTINCT FROM(SELECT target_identity_id FROM synth_meta.context_snapshots
-                            WHERE session_id=$1 AND generation=$2 AND snapshot_sequence::text=$4)
                         OR NOT EXISTS(SELECT 1 FROM synth_meta.relationship_interaction_evaluations i
                             JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                                 AND e.generation=i.generation AND e.turn_id=j.turn_id AND e.state='complete'
@@ -24,7 +25,8 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
                             WHERE i.id=j.relationship_interaction_id AND i.session_id=j.session_id AND i.request_id=j.request_id
                                 AND i.generation=j.generation AND i.context_sequence::text=j.payload->>'context_sequence'
-                                AND i.speaker_identity_id=j.actor_identity_id AND i.input_payload->'owner'=p.canonical_event))",$params);
+                                AND i.speaker_identity_id=j.actor_identity_id AND i.input_payload->'owner'=p.canonical_event
+                                AND ".synth_relationship_responder_sql('p.canonical_event','i.speaker_identity_id',"i.input_payload->'context'")."))",$params);
             if (!$result) throw new RuntimeException('Unable to retire obsolete interaction owner');
             $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
                 last_error='lease_expired',updated_at=clock_timestamp() WHERE relationship_interaction_id IS NOT NULL
@@ -59,20 +61,26 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 JOIN synth_meta.context_snapshots c ON c.session_id=current.session_id AND c.generation=current.generation AND c.snapshot_sequence=current.snapshot_sequence
                 JOIN synth_meta.protocol_events owner ON owner.session_id=$1 AND owner.request_id=$5 AND owner.generation=$2 AND owner.turn_id=$3
                 JOIN synth_meta.protocol_events source ON source.session_id=response.session_id AND source.request_id=response.request_id
+                JOIN synth.actor_identities replying ON replying.id=$6::bigint AND replying.game='fo4' AND replying.playthrough_id=c.playthrough_id
                 CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(response.response_payload->'entries')='array'
                     THEN response.response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)
                 JOIN synth.actor_identities listener ON listener.game='fo4' AND listener.playthrough_id=c.playthrough_id
                     AND upper(listener.full_form_id)=upper(entry.value#>>'{routing,listener,form_id}')
                     AND lower(listener.origin_plugin)=lower(entry.value#>>'{routing,listener,origin_plugin}')
-                LEFT JOIN synth_meta.relationship_actor_controls speaker_control ON speaker_control.actor_identity_id=c.target_identity_id
+                LEFT JOIN synth_meta.relationship_actor_controls speaker_control ON speaker_control.actor_identity_id=replying.id
                 LEFT JOIN synth_meta.relationship_actor_controls listener_control ON listener_control.actor_identity_id=listener.id
                 WHERE response.response_payload->>'schema'='synth.relationship.response.v3' AND response.response_payload->>'evaluation_mode'='dedicated'
                     AND entry.ordinality<=256 AND entry.value#>>'{routing,availability}'='addressed'
-                    AND upper(entry.value#>>'{speaker,form_id}')=upper(c.context_payload#>>'{target,form_id}')
-                    AND lower(entry.value#>>'{speaker,origin_plugin}')=lower(c.context_payload#>>'{target,origin_plugin}')
+                    AND response.actor_identity_id=replying.id
+                    AND response.session_id=$1 AND response.request_id=$5
+                    AND response.generation=$2 AND response.context_sequence::text=$4
+                    AND upper(entry.value#>>'{speaker,form_id}')=upper(replying.full_form_id)
+                    AND lower(entry.value#>>'{speaker,origin_plugin}')=lower(replying.origin_plugin)
                     AND entry.value#>>'{speaker,playthrough_id}'=c.playthrough_id AND entry.value#>>'{routing,listener,playthrough_id}'=c.playthrough_id
-                    AND listener.id<>c.target_identity_id AND listener.id<>c.player_identity_id AND c.audience_identity_ids @> jsonb_build_array(listener.id)
-                    AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(c.context_payload->'audience','[]'::jsonb)) actor
+                    AND listener.id<>replying.id AND listener.id<>c.player_identity_id
+                    AND (listener.id=c.target_identity_id OR c.audience_identity_ids @> jsonb_build_array(listener.id))
+                    AND EXISTS(SELECT 1 FROM jsonb_array_elements(jsonb_build_array(c.context_payload->'target')
+                        ||COALESCE(c.context_payload->'audience','[]'::jsonb)) actor
                         WHERE upper(actor->>'form_id')=upper(listener.full_form_id) AND lower(actor->>'origin_plugin')=lower(listener.origin_plugin)
                             AND actor->>'playthrough_id'=c.playthrough_id)
                     AND ((NOT COALESCE(speaker_control.locked,false) AND owner.id>COALESCE(speaker_control.barrier_event_id,0)
@@ -93,7 +101,7 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                             AND ((h.session_id=$1 AND h.generation=$2) OR EXISTS(SELECT 1 FROM native_history_scopes scope
                                 WHERE scope.session_id=h.session_id AND scope.generation=h.generation AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff)))
                 GROUP BY response.history_event_id,listener.id ORDER BY response.history_event_id,listener.id LIMIT 1",
-                [...$params,$event['request_id']]);
+                [...$params,$event['request_id'],$responder['actor_identity_id']]);
             if (!$result) throw new RuntimeException('Unable to discover NPC interaction');
             $row=pg_fetch_assoc($result);return $row ? ['response'=>intval($row['history_event_id']),'entry'=>intval($row['entry_index'])] : [];
         },2000);

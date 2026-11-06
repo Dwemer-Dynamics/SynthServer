@@ -1,5 +1,76 @@
 # SYNTH protocol contract
 
+## Installed generic gift menu
+
+The shared wording check is installed for every NPC. Named offers such as
+"take my pistol", "grab the submachine gun from my pack" or
+"I have a gift for you, a laser musket" use TakeItemFromPlayer.
+The coordinated candidate adds a separate flat v2 generic offer route:
+"I have a gift for you" exposes OpenInventory with empty model arguments. A
+trailing address matching the captured NPC's name also uses OpenInventory.
+The server binds the captured NPC performer and Player target itself.
+
+The menu requires action.open_inventory plus action.gift_menu_inventory and the
+existing paired-transfer/inventory/turn ownership dependencies. Only
+init_gift_menu_inventory_accepted grants client readiness. Older ACKs and VR
+cannot open this menu through SYNTH. Existing separately negotiated actions retain
+their readiness under the higher ACK.
+
+The owned Papyrus ticket calls the engine Actor.OpenInventory(True) API, using
+only captured form IDs and rechecking cancellation/cell/actor state. The native
+adapter confirms ContainerMenu belongs to the exact NPC, waits for closure within
+the original bounded two-minute window, and verifies complete paired inventory
+conservation. Queueing the script and opening an empty menu are not received gifts.
+The normal UI controls item choice; SYNTH does not remove/add items itself.
+
+The existing paired action receipt carries the final Player/NPC inventories.
+Conserved actual donations become synth.player-gift-batch.v1 facts, including any
+NPC items taken in the same exchange so the model can judge the whole interaction.
+Empty, unobserved, wrong-owner, failed or cancelled exchanges award no gift facts.
+The existing personality-based relationship evaluator accepts the batch and
+deduplicates by action ID. No fixed gratitude/caps-price bonus is assigned.
+
+The coordinated DLL, PEX and backend update is installed and hash verified.
+Automated validation remains separate from the required flat gameplay check. The older Jun post-transfer
+continuation cancellation still has no saved personal appraisal; this change does
+not weaken cancellation or saved-frontier rules to force one.
+
+
+## Player-pack gifts (installed flat; gameplay pending)
+
+`take_item_from_player` / `TakeItemFromPlayer` accepts an explicitly offered item
+from the captured player into the addressed NPC's inventory. Flat protocol v2
+requires `action.take_item_from_player`, `action.player_item_inventory` and the
+paired transfer/inventory/turn ownership dependencies. Only
+`init_player_item_inventory_accepted` grants client readiness. Older ACKs and VR
+cannot execute it; the new ACK preserves separately advertised existing contracts.
+Server bootstrap registers this action on existing catalogs through the versioned
+action migration and preserves saved action overrides.
+
+NPC actor and Player target retain dialogue roles. Physical receipt inventories
+are Player donor and NPC recipient. Exact observed item/quantity, stack/quest
+ownership, native cancellation, loaded participants, deadline and conservation
+checks apply. Equipped player gear is excluded; caps retain their own contract.
+Direct input text or its owner-bound raw speech transcription must identify
+one observed stack and its quantity (one when omitted). The server compares
+those terms with the proposed action. A shorthand name must resolve uniquely,
+and a pronoun by itself cannot authorize a transfer. Rechat, action-result
+continuations and narrator input cannot authorize a new player-pack debit.
+
+A successful, accepted, conserved paired handoff produces `synth.player-gift.v1`
+facts. Offers, failures and unknown inventory counts do not establish gifts.
+The recipient's save-scoped biography and dynamic personality/goals are frozen
+with dedicated relationship evidence. The model judges practical/sentimental
+value and may choose positive, negative or zero change; no fixed price, NPC bonus
+or automatic maximum affinity is assigned. Existing relationship bounds, locks,
+saved frontiers and history ownership remain in force. One action owns one gift
+evaluation even if a receipt is retried under another request ID.
+
+Automated client, protocol and disposable-database checks are separate from the
+pending flat gameplay test: ask Jun to take an unequipped weapon from your pack,
+then verify both inventories, the receipt and his personal reaction.
+
+
 ## Locally installed player caps payment (2026-09-08)
 
 The maintained server now implements `take_caps_from_player` with a separately
@@ -291,6 +362,23 @@ to text/audio/trigger context and the native main prompt. An omission must not b
 interpreted as departure, death or world absence. Complete attests only this
 capture's discovery set. Deploy server first: older strict servers reject the new
 optional field until their coordinated schema/ingress update is installed.
+
+## Current NPC combat target observations
+
+Optional v2 capability `context.combat_targets` permits actor-state `combat_target`.
+Its closed fields are `observation` (`identified|none|unavailable`), `actor` (exact
+canonical identity with displayed name, or null) and `race` (captured label, or
+empty). Identified targets require a live, enabled combat owner, a distinct target
+in the same playthrough and a nonzero form ID. None/unavailable carries no identity.
+The observation never adds the opponent to audience, witnesses or history readers.
+
+The client sends this field only after a complete correlated v2 init explicitly
+acknowledges `combat_targets: true`. An older server leaves it omitted; v1 remains
+unchanged. Only the actual response speaker receives its own current observation,
+including a prepared NPC different from the scene focus. Generic prompt states and
+structured internal/history copies omit the field. Missing or ambiguous frames
+render unavailable, without substituting nearby names or older history. See
+[COMBAT-TARGETS.md](COMBAT-TARGETS.md) for capture and independent gameplay gates.
 
 ## Health and action-point observation availability (2026-09-05)
 
@@ -648,6 +736,13 @@ Batch conflicts reject HTTP409, persistence failures HTTP500, malformed batches
 HTTP422. Every failure rolls back admission. Identical same-owner batch retries
 preserve the original history once, even if the quest later leaves the journal.
 Client hook activation and automatic AI reactions are not enabled by this contract.
+
+Quest-aware NPC prompts project only that responder's save-visible, directly addressed
+player reports and exact authored participant background. Journal capture and scalar
+quest transitions remain immutable audit evidence, not NPC hearing or event witnessing.
+Only an explicit narrator response role receives the owned player journal. The existing
+native journal-action permission and old-result redaction remain in force. This projection
+uses the current v2 contract without changing schemas; see [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 # Native control menu extension
 
 The additive v2 `control.menu` capability permits a `control` event with `context_sequence: 0` and exactly `payload.setting` / `payload.value`. Settings are `status` (empty value), `mode` (the nine allowed mode identifiers), or `model_slot` (`"1"` through `"4"`). It uses normal initialized-session, generation, request replay and capability checks, and never advances the active dialogue turn. Preferences reuse existing `conf_opts` rows inside the session claim transaction. The terminal acknowledgement has status `control_state` and bounded detail `MODE|SLOT`.

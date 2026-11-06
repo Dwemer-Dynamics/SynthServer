@@ -253,7 +253,9 @@ $controlPanelPages = [
  'response_queue.php', 'index.php', 'tts-test.php', 'stt-test.php',
 ];
 
-if (in_array($currentPageName, $roleplayPages, true)) {
+if ($currentPageName === 'diaries.php' || ($currentPageName === 'events-memories.php' && ($_GET['tab'] ?? '') === 'diaries')) {
+ $topNavSection = 'diaries';
+} elseif (in_array($currentPageName, $roleplayPages, true)) {
  $topNavSection = 'roleplay';
 } elseif (in_array($currentPageName, $configurationPages, true)) {
  $topNavSection = 'configuration';
@@ -287,6 +289,7 @@ $serverVersionDisplay = trim(str_ireplace('dev', '', $serverVersionRaw));
      <ul class="dropdown-menu brand-menu">
       <li><a class="dropdown-item<?php echo $topNavSection === 'home' ? ' active' : ''; ?>" href="<?php echo $webRoot; ?>/ui/home.php"<?php echo $topNavSection === 'home' ? ' aria-current="page"' : ''; ?>>Home</a></li>
       <li><a class="dropdown-item<?php echo $topNavSection === 'roleplay' ? ' active' : ''; ?>" href="<?php echo $webRoot; ?>/ui/events-memories.php"<?php echo $topNavSection === 'roleplay' ? ' aria-current="page"' : ''; ?>>Roleplay</a></li>
+      <li><a class="dropdown-item<?php echo $topNavSection === 'diaries' ? ' active' : ''; ?>" href="<?php echo $webRoot; ?>/ui/diaries.php"<?php echo $topNavSection === 'diaries' ? ' aria-current="page"' : ''; ?>>Diaries</a></li>
       <li><a class="dropdown-item<?php echo $topNavSection === 'configuration' ? ' active' : ''; ?>" href="<?php echo $webRoot; ?>/ui/core/config_hub.php"<?php echo $topNavSection === 'configuration' ? ' aria-current="page"' : ''; ?>>Configuration</a></li>
       <li><a class="dropdown-item<?php echo $topNavSection === 'control' ? ' active' : ''; ?>" href="<?php echo $webRoot; ?>/ui/control_panel.php"<?php echo $topNavSection === 'control' ? ' aria-current="page"' : ''; ?>>Control Panel</a></li>
       <li><a class="dropdown-item" href="/Dwemer-Dashboard/index.php">DwemerDistro Home</a></li>

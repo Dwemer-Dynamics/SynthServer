@@ -13,8 +13,33 @@ require_once(__DIR__."/tts_pronunciation.php");
 require_once(__DIR__."/relationship_response.php");
 require_once __DIR__.'/synth_diary_scope.php';
 require_once __DIR__.'/synth_protocol_state.php';
+require_once __DIR__.'/synth_character_forms.php';
 
 function synthBuildLatestDiaryContextBlock(string $npcName, array $profileData): string
+{
+    return synthBuildLatestDiaryReflectionBlock($npcName,$profileData).synthBuildSavedSocialTaskContextBlock($npcName,$profileData);
+}
+
+// Saved instruction notes remain a separate NPC-owned journal section, not generated diary prose.
+function synthBuildSavedSocialTaskContextBlock(string $npcName,array $profileData): string
+{
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json']??[];$db=$GLOBALS['db']??null;
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])||!is_object($db)||($event['protocol_version']??1)!==2)return '';
+    require_once __DIR__.'/synth_social_tasks.php';
+    if (!synth_social_supported($event)||synth_protocol_response_is_narrator(trim($npcName)))return '';
+    try {
+        $context=synth_protocol_current_context($db,$event);
+        if (!$context)return '';
+        $actor=synth_protocol_response_actor_identity($db,$event,$context);
+        if (!$actor || synth_protocol_actor_identity_id($db,$actor)!==intval($profileData['actor_identity_id']??0))return '';
+        $notes=synth_social_owned($db,$event,static fn($connection)=>synth_social_diary_notes($db,$event,$actor));
+        if (!$notes)return '';
+        $text=implode("\n",array_column($notes,'content'));
+        return "\n<saved_conversation_tasks>\n".htmlspecialchars($text,ENT_QUOTES|ENT_XML1|ENT_SUBSTITUTE,'UTF-8')."\n</saved_conversation_tasks>\n";
+    } catch(Throwable $error) {Logger::warn('[SOCIAL_TASKS] Saved task notes unavailable for the owned speaker');return '';}
+}
+
+function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileData): string
 {
     $native=synth_diary_requires_owned_context();
     if ($native && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return '';
@@ -1489,6 +1514,11 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 {
     global $db, $startTime, $forceMood, $staticMood, $talkedSoFar, $FORCED_STOP, $TRANSFORMER_FUNCTION,$receivedData;
 
+    $canonSpeechPolicy=synth_character_current_speech_policy();
+    $canonSpeechEmitted=(bool)($GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED'] ?? false);
+    $lines=synth_character_constrain_lines($lines,$canonSpeechPolicy,$canonSpeechEmitted);
+    $GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED']=$canonSpeechEmitted;
+
     $inlineNarrationMode = getInlineNarrationMode();
     $inlineNarrationEnabled = $inlineNarrationMode !== 'disabled';
     $preserveAsterisksInContext = isset($GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"]) ? (bool)$GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"] : false;
@@ -1631,6 +1661,11 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
         $responseTextUnmooded = stripOutputSpeakerPrefix($responseTextUnmooded);	// Should not happen
 
+        // Transformers and narration formatters cannot expand the canonical phrase.
+        if ($canonSpeechPolicy==='takahashi') {
+            $responseTextUnmooded='Nan-ni shimasho-ka?';
+            $sentenceForSubtitles=$responseTextUnmooded;
+        }
         $responseText = $responseTextUnmooded;
         $responseForTTS = $responseTextUnmooded; // TTS gets the "unmooded" version (narration stripped)
 

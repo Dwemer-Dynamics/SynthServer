@@ -1,5 +1,29 @@
 <?php
 
+// A native player's own text/transcript is an acknowledgement, independent of NPC prompt and voice work.
+// Bind deduplication to the exact admitted request; a fallback must not repeat it.
+function synth_emit_native_player_transcript(array $gameRequest): bool
+{
+    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+        || !synth_protocol_owns_dialogue_turn($event)
+        || !in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
+        || !in_array($gameRequest[0] ?? '', ['inputtext', 'inputtext_s', 'narrator_inputtext'], true)
+        || !($GLOBALS['PLAYER_TTS_WRITE_OUTPUT'] ?? true)
+        || synthShouldSkipPlayerTtsForRequest($gameRequest[0], $gameRequest[3] ?? '')) return false;
+    synth_protocol_assert_request_active();
+    $owner = json_encode(array_intersect_key($event,
+        array_flip(['session_id', 'request_id', 'generation', 'turn_id', 'context_sequence'])));
+    if (($GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER'] ?? null) === $owner) return true;
+    $subtitle = synthExtractPlayerTtsDialogueLine($gameRequest[3] ?? '');
+    if (function_exists('formatPlayerSubtitleText'))
+        $subtitle = formatPlayerSubtitleText($subtitle, $GLOBALS['PLAYER_NAME'] ?? null);
+    if ($subtitle === '') return false;
+    synth_buffer_speech_response_line('Player', $subtitle, '', '__player_text_only', '', '', 1.0, speechRole: 'player');
+    $GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER'] = $owner;
+    return true;
+}
+
 if (!function_exists('synthExtractPlayerTtsDialogueLine')) {
     function synthExtractPlayerTtsDialogueLine($rawLine)
     {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'worldknowledge_runtime.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'worldknowledge_forced_context.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'worldknowledge_vocabulary.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'eventlog_helper.php';
 
 $GLOBALS['WORLDKNOWLEDGE_HINT'] = '';
@@ -15,6 +16,69 @@ if (!function_exists('isWorldKnowledgeEnabled')) {
     function isWorldKnowledgeEnabled(mixed $value): bool
     {
         return !in_array($value, [null, false, 0, '0', 'false', 'off', 'no'], true);
+    }
+}
+
+if (!function_exists('synthWorldKnowledgeNativeDialogueRows')) {
+    /** Saved dialogue for the owned responder, with bounded rows, bytes and query time. */
+    function synthWorldKnowledgeNativeDialogueRows($db, array $event, bool $chatOnly = false, int $limit = 6): array
+    {
+        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? null) !== 2
+            || !is_object($db) || !method_exists($db, 'withNativeRequestLock')
+            || !method_exists($db, 'escapeLiteral') || !method_exists($db, 'fetchOne')
+            || !is_int($event['generation'] ?? null) || $event['generation'] < 1
+            || !is_int($event['context_sequence'] ?? null) || $event['context_sequence'] < 1
+            || !is_string($event['session_id'] ?? null) || !is_string($event['request_id'] ?? null)
+            || !is_string($event['turn_id'] ?? null)
+            || !in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)) return [];
+        require_once __DIR__ . '/../lib/synth_protocol_state.php';
+        require_once __DIR__ . '/../lib/synth_ingress.php';
+        $limit = max(1, min(6, $limit));
+        try {
+            return $db->withNativeRequestLock(static function ($connection, array $owner) use ($db, $event, $chatOnly, $limit): array {
+                if ($owner !== $event) throw new LogicException('worldknowledge_history_owner_changed');
+                $canonical = synth_protocol_canonical_json($event);
+                $result = @pg_query_params($connection, "SELECT 1
+                    FROM synth_meta.request_executions e JOIN synth_meta.protocol_events p USING(session_id,request_id)
+                    JOIN synth_meta.runtime_sessions r ON r.session_id=e.session_id
+                    JOIN synth_meta.context_snapshots c ON c.session_id=e.session_id AND c.generation=e.generation
+                        AND c.snapshot_sequence=$4
+                    WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$5
+                        AND e.state IN ('claimed','streaming','complete') AND p.canonical_event=$6::jsonb
+                        AND p.event_sha256=$7 AND e.request_sha256=p.event_sha256
+                        AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
+                        AND r.active_generation=e.generation AND r.state='active' AND r.playthrough_id=c.playthrough_id
+                        AND r.runtime_variant=$8
+                        AND ($9::boolean=false OR (r.active_turn_id=e.turn_id AND r.active_turn_sequence=c.snapshot_sequence))",
+                    [$event['session_id'], $event['request_id'], $event['generation'], $event['context_sequence'],
+                        $event['turn_id'], $canonical, hash('sha256', $canonical), $event['runtime_variant'],
+                        synth_protocol_owns_dialogue_turn($event) ? 't' : 'f']);
+                if (!$result) throw new RuntimeException('worldknowledge_history_owner_read_failed');
+                if (!pg_fetch_assoc($result)) return [];
+                // The CTE derives action/rechat responders from their persisted selection, never a display name.
+                $scope = synth_protocol_history_cte($db, $event,
+                    playerPerspective: synth_protocol_quest_response_is_narrator($db, $event));
+                $types = $chatOnly ? "('chat')" : "('inputtext','inputtext_s','chat','rechat')";
+                $result = @pg_query_params($connection, $scope . "SELECT n.type,n.data FROM native_history n
+                    JOIN synth_meta.history_events h ON h.id=n.history_event_id
+                    JOIN synth_meta.protocol_events p ON p.session_id=h.session_id AND p.request_id=h.request_id
+                        AND p.generation=h.generation
+                    WHERE n.type IN {$types} AND octet_length(n.data) BETWEEN 1 AND 16384
+                        AND p.canonical_event->>'runtime_variant'=$1
+                    ORDER BY n.history_event_id DESC LIMIT {$limit}", [$event['runtime_variant']]);
+                if (!$result) throw new RuntimeException('worldknowledge_history_read_failed');
+                $rows = [];
+                while ($row = pg_fetch_assoc($result)) {
+                    if (!is_string($row['data'] ?? null) || preg_match('//u', $row['data']) !== 1) continue;
+                    $rows[] = ['type' => $row['type'], 'data' => mb_strcut($row['data'], 0, 4096, 'UTF-8')];
+                }
+                return $rows;
+            }, 2000);
+        } catch (SYNTHProtocolCancelled $cancelled) {
+            throw $cancelled;
+        } catch (Throwable) {
+            return [];
+        }
     }
 }
 
@@ -31,14 +95,20 @@ if (!function_exists('synthWorldKnowledgeSanitizeInputText')) {
     function synthWorldKnowledgePreviousExchangeText($db, string $currentInput): string
     {
         $npcName = trim(strval($GLOBALS['SYNTH_NAME'] ?? ''));
-        if (!$db || $npcName === '' || !method_exists($db, 'fetchAll') || !method_exists($db, 'escape')
-            || !function_exists('synthBuildNpcEventLogPeopleWhereClause')) return '';
+        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $native = ($event['protocol_version'] ?? 1) === 2;
+        if (!$native && (!$db || $npcName === '' || !method_exists($db, 'fetchAll') || !method_exists($db, 'escape')
+            || !function_exists('synthBuildNpcEventLogPeopleWhereClause'))) return '';
         try {
-            $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($db, $npcName);
-            $rows = $db->fetchAll(
-                "SELECT type, data FROM eventlog WHERE type IN ('inputtext','chat','rechat')"
-                . " AND {$peopleWhere} ORDER BY rowid DESC LIMIT 6"
-            );
+            if ($native) {
+                $rows = synthWorldKnowledgeNativeDialogueRows($db, $event);
+            } else {
+                $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($db, $npcName);
+                $rows = $db->fetchAll("SELECT type, data FROM eventlog WHERE type IN ('inputtext','chat','rechat')"
+                    . " AND {$peopleWhere} ORDER BY rowid DESC LIMIT 6");
+            }
+        } catch (SYNTHProtocolCancelled $cancelled) {
+            throw $cancelled;
         } catch (Throwable) {
             return '';
         }
@@ -65,7 +135,11 @@ $enabled = boolval($settings['enabled']);
 $eligible = SynthWorldKnowledgeRetriever::isEligibleRequest($requestType);
 $inputText = '';
 
-if ($requestType === 'rechat' && $db && method_exists($db, 'fetchOne')) {
+$event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+if ($requestType === 'rechat' && ($event['protocol_version'] ?? 1) === 2) {
+    $lastChat = synthWorldKnowledgeNativeDialogueRows($db, $event, true, 1)[0] ?? null;
+    $inputText = trim(strval($lastChat['data'] ?? ''));
+} elseif ($requestType === 'rechat' && $db && method_exists($db, 'fetchOne')) {
     $lastChat = $db->fetchOne("SELECT data FROM eventlog WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
     $inputText = trim(strval($lastChat['data'] ?? ''));
 } else {
@@ -235,6 +309,21 @@ foreach ($catalog as $row) {
 
 $knowledgeTags = synthWorldKnowledgeKnowledgeTags();
 $trace['context_tags'] = $knowledgeTags;
+$vocabularyContext=synthWorldKnowledgeVocabularyContext($catalog,$knowledgeTags);
+$trace['vocabulary_context']=['included'=>false];
+if ($vocabularyContext!==null) {
+    $vocabularyRow=$vocabularyContext['row'];
+    $vocabularyDecision=$vocabularyContext['decision'];
+    $GLOBALS['WORLDKNOWLEDGE_HINT'].=synthWorldKnowledgeRenderArticleXml($vocabularyRow,$vocabularyDecision,'vocabulary');
+    synthWorldKnowledgeMarkTopicInjected(strval($vocabularyRow['topic'] ?? 'wasteland_vocabulary'));
+    $trace['vocabulary_context']=['included'=>true,'topic'=>'wasteland_vocabulary','level'=>'basic',
+        'source_kind'=>$vocabularyRow['source_kind'] ?? ''];
+    $trace['access_decisions'][]=$vocabularyDecision;
+    $trace['selected_articles'][]=['topic'=>'wasteland_vocabulary','level'=>'basic',
+        'source_kind'=>$vocabularyRow['source_kind'] ?? '',
+        'catalog_id'=>$vocabularyRow['catalog_id'] ?? null,
+        'catalog_version'=>$vocabularyRow['catalog_version'] ?? null];
+}
 $selectedCount = 0;
 $promptEntryCount = 0;
 $deniedCount = 0;
@@ -279,7 +368,7 @@ $forcedDeniedCount = count(array_filter(
 
 if ($trace['fallback']['attempted'] && $topics !== []) {
     $trace['status'] = 'fallback_succeeded';
-} elseif ($promptEntryCount > 0 || $forcedCount > 0 || $forcedDeniedCount > 0) {
+} elseif ($promptEntryCount > 0 || $forcedCount > 0 || $forcedDeniedCount > 0 || $vocabularyContext!==null) {
     $trace['status'] = 'grounded';
 } elseif ($trace['fallback']['attempted']) {
     $trace['status'] = isset($trace['fallback']['error']) ? 'fallback_failed' : 'fallback_unresolved';

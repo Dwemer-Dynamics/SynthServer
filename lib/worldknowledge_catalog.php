@@ -293,8 +293,8 @@ function synthWorldKnowledgeRemoveLegacyFactorySeed(object $db, string $rootPath
     return $removed;
 }
 
-/** Seed controlled factory NPC knowledge tags without replacing user-authored template values. */
-function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): int
+/** Validate NPC access tags before the bundle starts writing any database rows. */
+function synthWorldKnowledgeLoadNpcAccessTags(string $rootPath): array
 {
     $path = rtrim($rootPath, '/\\') . DIRECTORY_SEPARATOR . 'data'
         . DIRECTORY_SEPARATOR . 'fallout_worldknowledge_npc_tags.csv';
@@ -305,7 +305,7 @@ function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): 
     if ($handle === false) {
         throw new RuntimeException('Unable to open Fallout NPC World Knowledge tags');
     }
-    $valuesSql = [];
+    $rows = [];
     try {
         if (fgetcsv($handle, 0, ',', '"', '\\') !== ['npc_name', 'worldknowledge_tags', 'prior_seed_sha256']) {
             throw new RuntimeException('Fallout NPC World Knowledge tag header is invalid');
@@ -336,12 +336,23 @@ function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): 
             if ($priorSeedHash !== '' && !preg_match('/^[a-f0-9]{64}$/', $priorSeedHash)) {
                 throw new RuntimeException("Fallout NPC template {$npcName} contains an invalid prior seed hash");
             }
-            $valuesSql[] = '(' . $db->escapeLiteral($npcName) . ','
-                . $db->escapeLiteral(implode(',', $tags)) . ','
-                . ($priorSeedHash === '' ? 'NULL' : $db->escapeLiteral($priorSeedHash)) . ')';
+            $rows[] = ['npc_name' => $npcName, 'tags' => implode(',', $tags),
+                'prior_seed_sha256' => $priorSeedHash];
         }
     } finally {
         fclose($handle);
+    }
+    return $rows;
+}
+
+/** Seed controlled factory NPC knowledge tags without replacing user-authored template values. */
+function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): int
+{
+    $valuesSql = [];
+    foreach (synthWorldKnowledgeLoadNpcAccessTags($rootPath) as $row) {
+        $valuesSql[] = '(' . $db->escapeLiteral($row['npc_name']) . ','
+            . $db->escapeLiteral($row['tags']) . ','
+            . ($row['prior_seed_sha256'] === '' ? 'NULL' : $db->escapeLiteral($row['prior_seed_sha256'])) . ')';
     }
     if ($valuesSql === []) {
         return 0;
@@ -438,7 +449,7 @@ function synthWorldKnowledgeAssertCatalogComplete(object $db, string $catalogId,
 }
 
 /** Validate and synchronize the checked-in factory dataset in one transaction. */
-function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath): array
+function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath, bool $manageTransaction = true): array
 {
     if (!method_exists($db, 'execQuery') || !method_exists($db, 'fetchOne')
         || !method_exists($db, 'fetchAll') || !method_exists($db, 'escapeLiteral')) {
@@ -451,13 +462,19 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath):
     $displayName = trim(strval($manifest['display_name']));
     $checksum = strval($catalog['checksum_sha256']);
     $manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    if (!$manageTransaction && (!method_exists($db, 'isTransactionIdle') || $db->isTransactionIdle() !== false)) {
+        throw new LogicException('World Knowledge catalog installation requires an active caller-owned transaction');
+    }
+    if ($manageTransaction && method_exists($db, 'isTransactionIdle') && $db->isTransactionIdle() !== true) {
+        throw new LogicException('World Knowledge catalog installation cannot own an existing transaction');
+    }
 
     $transactionOpen = false;
     try {
-        if (!$db->execQuery('BEGIN')) {
+        if ($manageTransaction && !$db->execQuery('BEGIN')) {
             throw new RuntimeException('Unable to begin World Knowledge catalog installation');
         }
-        $transactionOpen = true;
+        $transactionOpen = $manageTransaction;
         foreach (['worldknowledge_topic_unique_idx', 'worldknowledge_canonical_topic_unique_idx'] as $legacyIndex) {
             if (!$db->execQuery('DROP INDEX IF EXISTS synth.' . $legacyIndex)) {
                 throw new RuntimeException("Unable to remove obsolete World Knowledge index {$legacyIndex}");
@@ -524,7 +541,7 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath):
         $npcTemplateTagsInstalled = synthWorldKnowledgeInstallNpcAccessTags($db, $rootPath);
         synthWorldKnowledgeAssertCatalogComplete($db, $catalogId, $catalogVersion);
 
-        if (!$db->execQuery('COMMIT')) {
+        if ($manageTransaction && !$db->execQuery('COMMIT')) {
             throw new RuntimeException('Unable to commit World Knowledge catalog installation');
         }
         $transactionOpen = false;
