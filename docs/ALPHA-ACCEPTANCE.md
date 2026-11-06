@@ -2,6 +2,9 @@
 
 ## Generic gift inventory exchange
 
+- [ ] Flat rebuilt package: verify that “I have a gift for you, Jun” opens
+  the exchange, a named offer transfers only the requested item and quantity,
+  and View Diary opens the selected NPC's native entries.
 - [x] Install the reviewed coordinated gift-menu DLL/PEX/backend update; installed hashes and server health verified.
 - [ ] Flat: "I have a gift for you" opens the exact addressed NPC's normal free
   inventory exchange; the NPC can decline the offer in character.

@@ -1047,9 +1047,9 @@ function synthActionCodeIsNegotiated(string $codeName): bool
     if ($codeName === 'Consume' && ($event['protocol_version'] ?? 1) === 2
         && (!function_exists('synth_protocol_supports_consumption') || !synth_protocol_supports_consumption($event))) return false;
     if ($codeName==='OpenInventory' && ($event['protocol_version'] ?? 1)===2
-        && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event))) return false;
+        && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'TakeItemFromPlayer'
-        && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event))) return false;
+        && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'GiveItemTo'
         && (!function_exists('synth_protocol_supports_transfer') || !synth_protocol_supports_transfer($event))) return false;
     if ($codeName === 'GiveCapsTo' && ($event['protocol_version'] ?? 1) === 2

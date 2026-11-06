@@ -1,11 +1,22 @@
 <?php
 
-// A general offer opens a user-controlled exchange; naming an item keeps the direct-transfer route.
-function synth_player_gift_statement_kind(string $text): string
+function synth_player_gift_statement_tail(string $text): ?string
 {
-    if (strlen($text)>8192 || preg_match('/\b(?:don[\x27\x{2019}]t|do not|never|not|stop|if|suppose|pretend|borrow|loan|trade|sell|buy|said|says|asked|told|say|repeat|quote|example)\b/iu',$text)) return 'none';
-    if (!preg_match('/(?:^|[,;.!:]\s*)I (?:have|have got|brought|got) (?:a |this )?gift for you\b(.*)$/isu',$text,$match)) return 'none';
-    return trim($match[1]," \t\r\n.,!?:;-")==='' ? 'general' : 'named';
+    if (strlen($text)>8192 || preg_match('/\b(?:don[\x27\x{2019}]t|do not|never|not|stop|if|suppose|pretend|borrow|loan|trade|sell|buy|said|says|asked|told|say|repeat|quote|example)\b/iu',$text)) return null;
+    if (!preg_match('/(?:^|[,;.!:]\s*)I (?:have|have got|brought|got) (?:a |this )?gift for you\b(.*)$/isu',$text,$match)) return null;
+    // A separator may be punctuation, but preserve an item's leading decimal caliber.
+    $tail=preg_replace('/^(?:(?:[,!?:;]+|[.-](?=\s|$))\s*)+/u','',trim($match[1]));
+    return rtrim($tail, " \t\r\n.,!?:;");
+}
+
+// A trailing address to the captured recipient still leaves the choice of item to the player.
+function synth_player_gift_statement_kind(string $text, ?string $addressedNpcName=null): string
+{
+    $tail=synth_player_gift_statement_tail($text);
+    if ($tail===null) return 'none';
+    if ($tail==='') return 'general';
+    $recipient=trim($addressedNpcName ?? '');
+    return $recipient!=='' && preg_match('/\A'.preg_quote($recipient,'/').'\z/iu',$tail)===1 ? 'general' : 'named';
 }
 
 function synth_protocol_supports_gift_menu(array $event): bool
@@ -14,19 +25,25 @@ function synth_protocol_supports_gift_menu(array $event): bool
         && array_diff(['action.open_inventory','action.gift_menu_inventory'],$event['capabilities'] ?? [])===[];
 }
 
-function synth_gift_menu_request_allowed(array $event): bool
+function synth_gift_menu_request_allowed(array $event, $db=null, ?array $context=null): bool
 {
-    return synth_protocol_supports_gift_menu($event) && ($event['payload']['control']['mode'] ?? '')!=='NARRATOR'
-        && ($text=synth_player_item_request_text($event))!==null && synth_player_gift_statement_kind($text)==='general';
+    if (!synth_protocol_supports_gift_menu($event) || ($event['payload']['control']['mode'] ?? '')==='NARRATOR'
+        || ($text=synth_player_item_request_text($event))===null) return false;
+
+    $kind=synth_player_gift_statement_kind($text, $context['target']['display_name'] ?? null);
+    if ($kind==='named' && $context===null && $db!==null) {
+        $captured=synth_protocol_current_context($db,$event);
+        $kind=synth_player_gift_statement_kind($text, $captured['target']['display_name'] ?? null);
+    }
+    return $kind==='general';
 }
 
 // A general gift is a request to choose items in the game UI. The NPC reacts after receipt.
 function synth_gift_menu_try_handoff($db, array $event): bool
 {
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || empty($GLOBALS['FUNCTIONS_ARE_ENABLED'])
-        || !synth_json_response_enabled() || !synth_gift_menu_request_allowed($event)
-        || !in_array('OpenInventory', $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
-        || !synthActionCodeIsNegotiated('OpenInventory')) return false;
+        || !synth_json_response_enabled() || !in_array('OpenInventory', $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
+        || !synth_gift_menu_request_allowed($event,$db) || !synthActionCodeIsNegotiated('OpenInventory')) return false;
 
     $context = synth_protocol_current_context($db, $event);
     if (!isset($context['target']['display_name'])) return false;
@@ -40,7 +57,7 @@ function synth_gift_menu_validate(array $event,array $action,array $context,bool
 {
     $arguments=(array)($action['arguments'] ?? []);
     if (!synth_protocol_supports_gift_menu($event)
-        || !(synth_gift_menu_request_allowed($event) || ($acceptedAudio && ($event['type'] ?? '')==='input_audio' && ($event['payload']['control']['mode'] ?? '')!=='NARRATOR'))
+        || !(synth_gift_menu_request_allowed($event,null,$context) || ($acceptedAudio && ($event['type'] ?? '')==='input_audio' && ($event['payload']['control']['mode'] ?? '')!=='NARRATOR'))
         || ($action['name'] ?? '')!=='open_inventory' || ($action['capability'] ?? '')!=='action.open_inventory'
         || (isset($action['server_code']) && $action['server_code']!=='OpenInventory') || $arguments!==[]
         || !synth_player_item_same_actor($action['actor'] ?? [],$context['target'] ?? [])

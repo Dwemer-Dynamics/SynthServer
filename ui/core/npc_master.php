@@ -1607,7 +1607,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['import_from_bio'])) {
  .label-with-toggle input[type="checkbox"] { accent-color:#176529; transform: scale(1.8); transform-origin:center; cursor:pointer; }
  .span-2 { grid-column: 1 / -1; margin-bottom:12px; }
  .checkbox-inline { display:flex; align-items:center; gap:8px; }
-</style><?php if ($editItem): ?><input type="hidden" name="id" value="<?= htmlspecialchars($editItem["id"]) ?>"><?php endif; ?><?php $isPartial = (isset($_GET['partial']) && $_GET['partial']=='1'); $isFav = !empty($editItem['npc_favorite']); $isLock = !empty($editItem['lock_profile']); ?><?php if ($isPartial): ?><div class="modal-inline-actions"><input type="hidden" id="modal_favorite_value" name="npc_favorite" value="<?= $isFav ? '1' : '0' ?>" /><p style="margin:0; color:var(--synth-accent) ;">Tags:</p><input type="text" id="modal_tags_input" name="tags" value="<?= htmlspecialchars($editItem['tags'] ?? '') ?>" placeholder="tags" style="max-width:240px; font-size:12px; padding:4px 6px; border-radius:6px; border:1px solid #4a4a4a; background:#2a2a2a; color:#e9efff;" title="Tags help with searching and grouping" /><a id="modal_fav_btn" class="btn btn-toggle<?= $isFav? ' active':'' ?>" href="#" title="Toggle favorite" data-favorite><?= $isFav? '&#x2605;' : '&#x2606;' ?></a></div><?php
+</style><?php if ($editItem): ?><input type="hidden" name="id" id="npc_profile_row" value="<?= htmlspecialchars($editItem["id"]) ?>"
+ data-diary-actor="<?= intval($editItem['actor_identity_id'] ?? 0) ?>"
+ data-diary-person="<?= htmlspecialchars($editItem['npc_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?><?php $isPartial = (isset($_GET['partial']) && $_GET['partial']=='1'); $isFav = !empty($editItem['npc_favorite']); $isLock = !empty($editItem['lock_profile']); ?><?php if ($isPartial): ?><div class="modal-inline-actions"><input type="hidden" id="modal_favorite_value" name="npc_favorite" value="<?= $isFav ? '1' : '0' ?>" /><p style="margin:0; color:var(--synth-accent) ;">Tags:</p><input type="text" id="modal_tags_input" name="tags" value="<?= htmlspecialchars($editItem['tags'] ?? '') ?>" placeholder="tags" style="max-width:240px; font-size:12px; padding:4px 6px; border-radius:6px; border:1px solid #4a4a4a; background:#2a2a2a; color:#e9efff;" title="Tags help with searching and grouping" /><a id="modal_fav_btn" class="btn btn-toggle<?= $isFav? ' active':'' ?>" href="#" title="Toggle favorite" data-favorite><?= $isFav? '&#x2605;' : '&#x2606;' ?></a></div><?php
  // Render LLM summary container (will live-update via JS)
  $curPid = (string)($editItem['profile_id'] ?? '');
  $pc = ($curPid !== '' && isset($profilesConnById[$curPid])) ? $profilesConnById[$curPid] : null;
@@ -3461,14 +3463,17 @@ document.addEventListener('DOMContentLoaded', () => {
  try {
  const id = String(window.CURRENT_NPC_ID||'').trim();
  if (!id) { alert('No NPC selected'); return; }
- // Get NPC name from the form in iframe
  const doc = iframe && iframe.contentDocument;
- const nameEl = doc ? doc.getElementById('npc_name') : null;
- const npcName = nameEl ? String(nameEl.value||'').trim() : '';
+ const profile = doc ? doc.getElementById('npc_profile_row') : null;
+ if (!profile || profile.value !== id) { alert('NPC profile is not ready'); return; }
+ const actorId = profile.dataset.diaryActor;
+ if (/^[1-9][0-9]{0,17}$/.test(actorId)) {
+ window.open('<?php echo $webRoot; ?>/ui/diaries.php?author=' + encodeURIComponent('npc:' + actorId), '_blank', 'noopener');
+ return;
+ }
+ const npcName = String(profile.dataset.diaryPerson || '').trim();
  if (!npcName) { alert('Cannot determine NPC name'); return; }
- // Open diary book page in new tab with person filter
- const url = '<?php echo $webRoot; ?>/ui/diary_book.php?person=' + encodeURIComponent(npcName);
- window.open(url, '_blank');
+ window.open('<?php echo $webRoot; ?>/ui/diary_book.php?person=' + encodeURIComponent(npcName), '_blank', 'noopener');
  } catch(_e){
  console.error('Failed to open diary:', _e);
  }

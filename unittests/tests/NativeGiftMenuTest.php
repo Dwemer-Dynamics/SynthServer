@@ -36,6 +36,31 @@ final class NativeGiftMenuTest extends TestCase
             self::assertSame('none',synth_player_gift_statement_kind($text),$text);
     }
 
+    public function testTrailingCapturedNpcNameOpensExchange(): void
+    {
+        [$event,$action,$context]=$this->fixture();
+        $event['payload']['text']='I have a gift for you, Marcy.';
+        $event+=['session_id'=>'menu-session','generation'=>1,'context_sequence'=>1];
+        $snapshot=['player'=>$context['player'],'target'=>$context['target']]+$context['payload'];
+        $db=new class($snapshot) {
+            public function __construct(private array $snapshot) {}
+            public function escapeLiteral(string $value): string { return "'".$value."'"; }
+            public function fetchOne(string $query): array { return ['context_payload'=>$this->snapshot]; }
+        };
+
+        self::assertSame('general',synth_player_gift_statement_kind($event['payload']['text'],'marcy'));
+        self::assertFalse(synth_gift_menu_request_allowed($event));
+        self::assertTrue(synth_gift_menu_request_allowed($event,$db));
+        self::assertTrue(synth_gift_menu_request_allowed($event,null,$context));
+        synth_gift_menu_validate($event,$action,$context);
+
+        foreach (['I have a gift for you, Jun', 'I have a gift for you, a Submachine Gun'] as $text) {
+            $event['payload']['text']=$text;
+            self::assertSame('named',synth_player_gift_statement_kind($text,'Marcy'));
+            self::assertFalse(synth_gift_menu_request_allowed($event,$db));
+        }
+    }
+
     public function testMenuClosureProducesOnlyConservedActualGifts(): void {
         [$event,$action,$context,$result]=$this->fixture();
         synth_gift_menu_validate($event,$action,$context);

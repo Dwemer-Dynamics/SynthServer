@@ -185,8 +185,8 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         && (!synth_protocol_supports_caps_transfer($event) || synth_protocol_owns_rechat($event))) return null;
     if ($capability==='action.take_caps_from_player' && ($event['protocol_version'] ?? 1)===2
         && (!synth_protocol_supports_player_caps($event) || synth_protocol_owns_rechat($event))) return null;
-    if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event)) return null;
-    if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event)) return null;
+    if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event,$db)) return null;
+    if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event,$db)) return null;
     $actor = synth_protocol_response_speaker(strval($line['speaker'] ?? ''));
     if (!$actor || isset($actor['kind'])) {
         return null;

@@ -6,7 +6,8 @@ The shared wording check is installed for every NPC. Named offers such as
 "take my pistol", "grab the submachine gun from my pack" or
 "I have a gift for you, a laser musket" use TakeItemFromPlayer.
 The coordinated candidate adds a separate flat v2 generic offer route:
-"I have a gift for you" exposes OpenInventory with empty model arguments.
+"I have a gift for you" exposes OpenInventory with empty model arguments. A
+trailing address matching the captured NPC's name also uses OpenInventory.
 The server binds the captured NPC performer and Player target itself.
 
 The menu requires action.open_inventory plus action.gift_menu_inventory and the
@@ -50,9 +51,11 @@ NPC actor and Player target retain dialogue roles. Physical receipt inventories
 are Player donor and NPC recipient. Exact observed item/quantity, stack/quest
 ownership, native cancellation, loaded participants, deadline and conservation
 checks apply. Equipped player gear is excluded; caps retain their own contract.
-Direct input text or its owner-bound raw speech transcription must explicitly
-offer the item. Rechat, action-result continuations and narrator input cannot
-authorize a new player-pack debit.
+Direct input text or its owner-bound raw speech transcription must identify
+one observed stack and its quantity (one when omitted). The server compares
+those terms with the proposed action. A shorthand name must resolve uniquely,
+and a pronoun by itself cannot authorize a transfer. Rechat, action-result
+continuations and narrator input cannot authorize a new player-pack debit.
 
 A successful, accepted, conserved paired handoff produces `synth.player-gift.v1`
 facts. Offers, failures and unknown inventory counts do not establish gifts.

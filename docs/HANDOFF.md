@@ -28,6 +28,11 @@ TakeItemFromPlayer builtin when missing and preserves existing action settings,
 including a previously registered or disabled named-gift action. Use the normal
 server bootstrap for clean installs and upgrades.
 
+The release candidate binds each direct gift to the observed item and quantity
+in the player's own offer. A trailing address to the captured NPC still opens
+the exchange menu. The NPC editor opens the native diary archive scoped to the
+selected actor and retains the legacy diary book for profiles without a binding.
+
 The user explicitly requested player-to-NPC ordinary item transfers and personal
 gift valuation. The coordinated candidate adds TakeItemFromPlayer with its own
 flat v2 acknowledgement, exact Player donor/NPC recipient evidence and explicit

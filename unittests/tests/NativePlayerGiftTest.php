@@ -85,12 +85,17 @@ final class NativePlayerGiftTest extends TestCase
 
     public function testAudioConsentUsesOnlyTheRawTranscriptionForThisExactOwner(): void
     {
-        [$event]=$this->fixture();$event['type']='input_audio';$event['request_id']='audio-one';$event['payload']=['media'=>[]];
+        [$event,$action,$context]=$this->fixture();$event['type']='input_audio';$event['request_id']='audio-one';$event['payload']=['media'=>[]];
         $old=$GLOBALS['SYNTH_PLAYER_ITEM_INPUT'] ?? null;
         try {
             unset($GLOBALS['SYNTH_PLAYER_ITEM_INPUT']);self::assertFalse(synth_player_item_request_allowed($event));
             $GLOBALS['SYNTH_PLAYER_ITEM_INPUT']=['owner_sha256'=>hash('sha256',synth_protocol_canonical_json($event)),'text'=>'Jun, take my pistol'];
-            self::assertTrue(synth_player_item_request_allowed($event));
+            self::assertTrue(synth_player_item_request_allowed($event,null,$context));
+            self::assertSame('Heavy 10mm Pistol',synth_player_item_validate(null,$event,$action,$context)['display_name']);
+            $changed=$action;
+            $changed['arguments']['amount']=2;
+            try { synth_player_item_validate(null,$event,$changed,$context); self::fail('Wrong audio quantity accepted'); }
+            catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
             $wrong=$event;$wrong['request_id']='audio-two';self::assertFalse(synth_player_item_request_allowed($wrong));
             $GLOBALS['SYNTH_PLAYER_ITEM_INPUT']['text']='Do not take my pistol';self::assertFalse(synth_player_item_request_allowed($event));
         } finally {
@@ -98,26 +103,85 @@ final class NativePlayerGiftTest extends TestCase
         }
     }
 
-    public function testMarcyFollowupCommandsKeepThePlayerTransferActionAvailable(): void
+    public function testPlayerOfferBindsTheObservedItemAndQuantity(): void
     {
         [$event,$action,$context,$result]=$this->fixture();
-        foreach (["ok, grab the submachine gun", "take the laser musket", "take this pistol", "grab that one", "take it",
-            "you didn't grab the gun. try again, and take 20 rounds of the ammo needed", "take 20 .45 rounds from my pack"] as $command) {
+        foreach (['ok, grab the Heavy 10mm Pistol', 'take this pistol', 'Jun, take one pistol from my pack',
+            'I have a gift for you, a Heavy 10mm Pistol','Take 1 of my Heavy 10mm Pistols'] as $command) {
             $event['payload']['text']=$command;
-            self::assertTrue(synth_player_item_request_allowed($event),$command);
+            self::assertTrue(synth_player_item_request_allowed($event,null,$context),$command);
             self::assertSame('Heavy 10mm Pistol',synth_player_item_validate(null,$event,$action,$context)['display_name']);
             self::assertSame('gift',synth_player_gift_proof($event,$action,$context,$result)['meaning']);
         }
+        $pistol=$context['payload']['actor_states'][0]['inventory'][0];
+        $pistol['count']=25;
+        $musket=array_replace($pistol,['form_id'=>'0x00001235','display_name'=>'Laser Musket']);
+        $context['payload']['actor_states'][0]['inventory']=[$pistol,$musket];
+        foreach (['take 1 laser musket','Take 1 laser musket from my pack'] as $command) {
+            $event['payload']['text']=$command;
+            foreach ([['Heavy 10mm Pistol',20],['Heavy 10mm Pistol',1],['Laser Musket',20]] as [$item,$amount]) {
+                $action['arguments']=['item'=>$item,'amount'=>$amount];
+                try { synth_player_item_validate(null,$event,$action,$context); self::fail('Wrong item or amount accepted'); }
+                catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
+            }
+            $action['arguments']=['item'=>'Laser Musket','amount'=>1];
+            self::assertSame($musket,synth_player_item_validate(null,$event,$action,$context));
+        }
+        $event['payload']['text']='take twenty laser muskets from my pack';
+        $action['arguments']['amount']=20;
+        self::assertSame($musket,synth_player_item_validate(null,$event,$action,$context));
+        $ammo=array_replace($pistol,['form_id'=>'0x00001236','display_name'=>'.45 Round','form_type'=>44,'count'=>50]);
+        $context['payload']['actor_states'][0]['inventory'][]=$ammo;
+        $event['payload']['text']='I have a gift for you, .45 rounds';
+        $action['arguments']=['item'=>'.45 Round','amount'=>1];
+        self::assertSame($ammo,synth_player_item_validate(null,$event,$action,$context));
+        $action['arguments']['amount']=45;
+        try { synth_player_item_validate(null,$event,$action,$context); self::fail('Caliber used as quantity'); }
+        catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
+        $event['payload']['text']='take my 45 round';
+        try { synth_player_item_validate(null,$event,$action,$context); self::fail('Missing caliber dot turned into quantity'); }
+        catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
+        $event['payload']['text']='take 45 of my .45 rounds';
+        self::assertSame($ammo,synth_player_item_validate(null,$event,$action,$context));
+        $shell=array_replace($ammo,['form_id'=>'0x00001237','display_name'=>'20 Gauge Shell']);
+        $context['payload']['actor_states'][0]['inventory'][]=$shell;
+        $event['payload']['text']='take my 20 gauge shell';
+        $action['arguments']=['item'=>'20 Gauge Shell','amount'=>20];
+        try { synth_player_item_validate(null,$event,$action,$context); self::fail('Leading item number turned into quantity'); }
+        catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
+        $event['payload']['text']='take one 20 gauge shell';
+        $action['arguments']['amount']=1;
+        self::assertSame($shell,synth_player_item_validate(null,$event,$action,$context));
+        $short=array_replace($pistol,['form_id'=>'0x00001238','display_name'=>'Gift']);
+        $long=array_replace($pistol,['form_id'=>'0x00001239','display_name'=>'Gift for You']);
+        array_push($context['payload']['actor_states'][0]['inventory'],$short,$long);
+        $event['payload']['text']='take my Gift for You';
+        $action['arguments']=['item'=>'Gift','amount'=>1];
+        try { synth_player_item_validate(null,$event,$action,$context); self::fail('A literal item name was shortened to a different item'); }
+        catch (DomainException $error) { self::assertSame('player_item_offer_mismatch',$error->getMessage()); }
+        $event['payload']['text']='I have a gift for you, a Laser Musket';
+        self::assertNull(synth_player_gift_proof($event,$action,$context,$result));
+    }
+
+    public function testGenericOrAmbiguousOffersCannotAuthorizeAnInventoryDebit(): void
+    {
+        [$event,$action,$context]=$this->fixture();
         foreach (["you didn't grab the gun", "why did you take the gun?", "she said grab the gun", "say grab the gun",
             "take the pistol from Preston", "grab it from her", "take his pistol", "take their rifle", "do not take the gun",
-            "if I tell you to take the gun", "do you want the laser musket or the submachine gun?"] as $command) {
-            $event['payload']['text']=$command;self::assertFalse(synth_player_item_request_allowed($event),$command);
+            "if I tell you to take the gun", "do you want the laser musket or the submachine gun?",'take it from my pack',
+            'grab that one','I have a gift for you, Jun'] as $command) {
+            $event['payload']['text']=$command;self::assertFalse(synth_player_item_request_allowed($event,null,$context),$command);
+            try { synth_player_item_validate(null,$event,$action,$context); self::fail('Unbound transfer accepted'); }
+            catch (DomainException $error) { self::assertSame('player_item_explicit_request_required',$error->getMessage()); }
         }
-        // A generic follow-up must still fail against another donor or an unobserved/ambiguous item.
-        $event['payload']['text']='ok, grab the gun';
+        $event['payload']['text']='ok, grab the pistol';
         $wrong=$action;$wrong['target']=$context['target'];
         try {synth_player_item_validate(null,$event,$wrong,$context);self::fail('NPC donor accepted');}
         catch (DomainException $error) {self::assertSame('player_item_explicit_request_required',$error->getMessage());}
+        $context['payload']['actor_states'][0]['inventory'][]=array_replace($context['payload']['actor_states'][0]['inventory'][0],
+            ['form_id'=>'0x00001235','display_name'=>'Pipe Pistol']);
+        try {synth_player_item_validate(null,$event,$action,$context);self::fail('Ambiguous shorthand accepted');}
+        catch (DomainException $error) {self::assertSame('player_item_offer_mismatch',$error->getMessage());}
         $context['payload']['actor_states'][0]['inventory'][]=$context['payload']['actor_states'][0]['inventory'][0];
         try {synth_player_item_validate(null,$event,$action,$context);self::fail('Ambiguous stack accepted');}
         catch (DomainException $error) {self::assertSame('player_item_inventory_unavailable',$error->getMessage());}
@@ -125,8 +189,8 @@ final class NativePlayerGiftTest extends TestCase
 
     public function testPlayerMustExplicitlyOfferAndCurrencyKeepsItsSeparateContract(): void
     {
-        foreach (['Jun, grab my submachine gun','take my laser musket','take it from my pack','I want you to have this pistol','this rifle is for you'] as $text)
-            self::assertTrue(synth_player_item_offer($text),$text);
+        foreach (['Jun, grab my submachine gun','take my laser musket','I want you to have this pistol','this rifle is for you'] as $text)
+            self::assertTrue(synth_player_item_offer($text,'Jun'),$text);
         foreach (["Don't take my pistol",'If I tell you to take my pistol, will you?','let us trade','borrow my pistol','I have a pistol','take his pistol','I have my pistol','You should not take my pistol','I will give you my pistol later'] as $text)
             self::assertFalse(synth_player_item_offer($text),$text);
         [$parent,$action,$context]=$this->fixture();

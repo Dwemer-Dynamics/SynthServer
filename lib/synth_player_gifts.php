@@ -10,21 +10,63 @@ function synth_player_item_same_actor(array $left, array $right): bool
     return true;
 }
 
-function synth_player_item_offer(string $text): bool
+// Parse the player's offer independently of the model's proposed action.
+function synth_player_item_offer_terms(string $text, ?string $addressedNpcName = null): ?array
 {
-    if (strlen($text)>8192 || preg_match('/\b(?:don\x{2019}?t|don\x27t|do not|never|not|stop|if|suppose|pretend|borrow|loan|trade|sell|buy)\b/iu',$text)) return false;
-    // A direct follow-up may say "the gun", "that one" or "it" after choosing a gift.
-    // This grants no actor/item fallback: emission still resolves the exact observed Player stack.
-    if (preg_match('/\bfrom\s+(?!(?:me\b|(?:my|the)\s+(?:pack|backpack|inventory)\b))/iu',$text)
-        || preg_match('/\b(?:take|grab|accept|keep)\s+(?:his|her|their|someone else\x27s)\b/iu',$text)) return false;
-    if (function_exists('synth_player_gift_statement_kind') && synth_player_gift_statement_kind($text)==='named') return true;
-    foreach (preg_split('/\.(?=\s|$)|[!?;\r\n]/u',$text) ?: [] as $clause) {
-        // Past failure reports and quoted/reported instructions are not new permission.
-        if (preg_match('/\b(?:did|didn[\x27\x{2019}]t|said|says|asked|told|say|repeat|quote|example)\b/iu',$clause)) continue;
-        if (preg_match('/\b(?:take|grab|accept|keep|help yourself)\b.{0,160}\b(?:my|the|this|that|these|those|it|one|from me|as a gift|for you)\b/isu',$clause)===1) return true;
-        if (preg_match('/\b(?:I give you|I am giving you|I\x27m giving you|you can have my)\b|\bI (?:want|would like) you to have\b|\bthis .{0,80}is for you\b/isu',$clause)===1) return true;
+    if (strlen($text)>8192 || preg_match('//u',$text)!==1
+        || preg_match('/\b(?:don[\x27\x{2019}]?t|do not|never|not|stop|if|suppose|pretend|borrow|loan|trade|sell|buy|said|says|asked|told|say|repeat|quote|example)\b/iu',$text)) return null;
+    $text=trim($text);
+    if ($addressedNpcName!==null && trim($addressedNpcName)!=='') {
+        $npc=preg_quote(trim($addressedNpcName),'/');
+        $text=preg_replace('/^'.$npc.'\s*[:,]\s*|\s*,\s*'.$npc.'[.!]?\s*$/iu','',$text);
     }
-    return false;
+    $text=preg_replace('/^(?:(?:ok(?:ay)?|please|try again)\s*[,;]?\s+(?:and\s+)?)+/iu','',$text);
+    $tail=synth_player_gift_statement_tail($text);
+    if ($tail!==null) {
+        if (synth_player_gift_statement_kind($text,$addressedNpcName)!=='named') return null;
+        $phrase=$tail;
+    } elseif (preg_match('/^(?:take|grab|accept|keep|help yourself to|I give you|I am giving you|I[\'’]m giving you|you can have|I (?:want|would like) you to have)\s+(.+)$/iuD',$text,$match)) {
+        $phrase=$match[1];
+    } elseif (preg_match('/^this\s+(.+)\s+is for you[.!]?$/iuD',$text,$match)) {
+        $phrase=$match[1];
+    } else {
+        return null;
+    }
+
+    $phrase=rtrim(trim($phrase),'.!');
+    $literalNames=[$phrase,preg_replace('/^(?:my|the|this|that|these|those|an?)\s+/iu','',$phrase)];
+    $phrase=preg_replace('/(?:\s+(?:from (?:me|(?:my|the) (?:pack|backpack|inventory))|as a gift|for you|please))+$/iu','',$phrase);
+    $phrase=preg_replace('/^(?:my|the|this|that|these|those)\s+/iu','',$phrase);
+    $numberWords=['zero'=>0,'one'=>1,'two'=>2,'three'=>3,'four'=>4,'five'=>5,'six'=>6,'seven'=>7,
+        'eight'=>8,'nine'=>9,'ten'=>10,'eleven'=>11,'twelve'=>12,'thirteen'=>13,'fourteen'=>14,
+        'fifteen'=>15,'sixteen'=>16,'seventeen'=>17,'eighteen'=>18,'nineteen'=>19,'twenty'=>20,
+        'thirty'=>30,'forty'=>40,'fifty'=>50,'sixty'=>60,'seventy'=>70,'eighty'=>80,'ninety'=>90];
+    $amount=1;
+    if (preg_match('/^(\S+)\s+(.+)$/uD',$phrase,$match)) {
+        $token=mb_strtolower($match[1],'UTF-8');
+        if (ctype_digit($token) || isset($numberWords[$token])) {
+            $amount=$numberWords[$token] ?? (int)$token;
+            if (!preg_match('/^of\s+/iu',$match[2])) {
+                $literalNames[]=$phrase;
+                if (ctype_digit($token)) $literalNames[]='.'.$phrase;
+            }
+            $phrase=preg_replace('/^(?:of\s+)?(?:(?:my|the|this|that|these|those)\s+)?/iu','',$match[2]);
+            if (preg_match('/^(\p{L}+)(?:\s|$)/u',$phrase,$next)
+                && (isset($numberWords[mb_strtolower($next[1],'UTF-8')]) || preg_match('/^(?:hundred|thousand|million)$/iuD',$next[1]))) return null;
+        } elseif (preg_match('/^(?:[+-]\d+|\d+[.,]\d+)$/D',$token)
+            || (str_contains($token,'-') && isset($numberWords[explode('-',$token,2)[0]]))) {
+            return null;
+        }
+    }
+    $selector=trim(preg_replace('/^an?\s+/iu','',$phrase));
+    if ($selector==='' || $amount<1 || $amount>1000000 || preg_match('/[,;!?\r\n]|\bfrom\b/iu',$selector)
+        || preg_match('/^(?:it|one|that one|this one|other one|them|his|her|their|someone else[\'’]s)(?:\s|$)/iu',$selector)) return null;
+    return ['selector'=>$selector,'amount'=>$amount,'literal_names'=>array_diff(array_unique($literalNames),[$selector])];
+}
+
+function synth_player_item_offer(string $text, ?string $addressedNpcName = null): bool
+{
+    return synth_player_item_offer_terms($text,$addressedNpcName)!==null;
 }
 
 // Audio consent is frozen before optional respeech and bound to this exact input hash, never a global last line.
@@ -37,10 +79,14 @@ function synth_player_item_request_text(array $event, $db=null): ?string
     return null;
 }
 
-function synth_player_item_request_allowed(array $event, $db=null): bool
+function synth_player_item_request_allowed(array $event, $db=null, ?array $context=null): bool
 {
-    return synth_protocol_supports_player_items($event) && ($event['payload']['control']['mode'] ?? '')!=='NARRATOR'
-        && ($text=synth_player_item_request_text($event,$db))!==null && synth_player_item_offer($text);
+    if (!synth_protocol_supports_player_items($event) || ($event['payload']['control']['mode'] ?? '')==='NARRATOR'
+        || ($text=synth_player_item_request_text($event,$db))===null) return false;
+    if ($context===null && is_object($db) && (strpbrk($text,',:')!==false || synth_player_gift_statement_tail($text)!==null)) {
+        $context=synth_protocol_current_context($db,$event);
+    }
+    return synth_player_item_offer($text,$context['target']['display_name'] ?? null);
 }
 
 // Mirror the native selector: exact unique name, or exact BaseID with optional exact instance name.
@@ -59,18 +105,52 @@ function synth_player_item_select(array $view, string $selector): ?array
     return count($matches)===1 ? $matches[0] : null;
 }
 
+function synth_player_item_offer_matches(array $view, string $selector): array
+{
+    if (preg_match('/^(?:0x)?[0-9a-f]{8}(?::.+)?$/Di',$selector)) {
+        $item=synth_player_item_select($view,$selector);
+        return $item===null ? [] : [$item];
+    }
+    if (($view['inventory_observation'] ?? '')!=='complete') return [];
+    $normalize=static fn(string $name): string => mb_strtolower(preg_replace('/\s+/u',' ',trim($name)),'UTF-8');
+    $spoken=$normalize($selector);
+    $exact=[];
+    $short=[];
+    foreach ($view['items'] ?? [] as $item) {
+        $name=$normalize($item['display_name']);
+        if ($spoken===$name || $spoken===$name.'s') $exact[]=$item;
+        elseif (str_ends_with($name,' '.$spoken) || str_ends_with($name.'s',' '.$spoken)) $short[]=$item;
+    }
+    return $exact ?: $short;
+}
+
 function synth_player_item_validate($db, array $event, array $action, array $context, bool $acceptedAudio=false): array
 {
-    if (!(synth_player_item_request_allowed($event,$db) || ($acceptedAudio && ($event['type'] ?? '')==='input_audio' && ($event['payload']['control']['mode'] ?? '')!=='NARRATOR' && synth_protocol_supports_player_items($event)))
+    $text=synth_player_item_request_text($event,$db);
+    // A later audio receipt has the already-authorized stored action, but no raw transcript in this process.
+    $storedAudioIntent=$acceptedAudio && $text===null && ($event['type'] ?? '')==='input_audio';
+    $offer=$text===null ? null : synth_player_item_offer_terms($text,$context['target']['display_name'] ?? null);
+    if (!synth_protocol_supports_player_items($event) || ($event['payload']['control']['mode'] ?? '')==='NARRATOR'
+        || (!$storedAudioIntent && $offer===null)
         || !synth_player_item_same_actor($action['actor'] ?? [],$context['target'] ?? [])
         || !synth_player_item_same_actor($action['target'] ?? [],$context['player'] ?? [])) throw new DomainException('player_item_explicit_request_required');
     $args=(array)($action['arguments'] ?? []);
-    $item=synth_player_item_select(synth_protocol_inventory_action_context($context,$context['player'],''),$args['item'] ?? '');
+    $view=synth_protocol_inventory_action_context($context,$context['player'],'');
+    $item=synth_player_item_select($view,$args['item'] ?? '');
     $quantity=$args['amount'] ?? 1;
     if (!$item || ($item['equipped'] ?? null)!==false || !is_int($quantity) || $quantity<1 || $quantity>1000000
         || !is_int($item['count'] ?? null) || $item['count']<$quantity
         || (strcasecmp($item['form_id'] ?? '','0x0000000F')===0 && strcasecmp($item['origin_plugin'] ?? '','Fallout4.esm')===0))
         throw new DomainException('player_item_inventory_unavailable');
+    if (!$storedAudioIntent) {
+        if ($quantity!==$offer['amount'] || synth_player_item_offer_matches($view,$offer['selector'])!==[$item])
+            throw new DomainException('player_item_offer_mismatch');
+        // Quantity and politeness words can also be part of a literal inventory name.
+        foreach ($offer['literal_names'] as $literal) {
+            $matches=synth_player_item_offer_matches($view,$literal);
+            if ($matches && ($quantity!==1 || $matches!==[$item])) throw new DomainException('player_item_offer_mismatch');
+        }
+    }
     return $item;
 }
 
