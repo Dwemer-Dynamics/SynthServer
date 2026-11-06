@@ -90,6 +90,17 @@ function synth_rechat_prepare_continuation($db, array $event): array
                 $saved=pg_fetch_assoc($result);
                 if (!$saved) throw new LogicException('rechat_origin_policy_unavailable');
                 $serverPolicy=json_decode($saved['policy'],true,flags:JSON_THROW_ON_ERROR);
+                $socialOrigin=false;
+                if (($origin['type'] ?? '')==='social_task_progress') {
+                    require_once __DIR__.'/synth_social_tasks.php';
+                    if (!synth_social_arrival_parent_valid($connection,$origin))
+                        throw new LogicException('social_rechat_origin_unavailable');
+                    $socialOrigin=true;
+                    // A user-requested errand receives exactly one recipient reply.
+                    // Autonomous chatter settings cannot suppress it or grant actions.
+                    $serverPolicy=['mode'=>'tight','rounds'=>1,'probability'=>100,'private'=>false,
+                        'allow_actions'=>false,'random_narration'=>false,'narration_chance'=>0,'narration_cooldown'=>0];
+                }
                 $mode=$serverPolicy['mode'] ?? '';
                 if (!in_array($mode,['tight','conversational','group','random'],true)
                     || !is_bool($serverPolicy['private'] ?? null)) throw new InvalidArgumentException('rechat_policy_invalid');
@@ -98,7 +109,12 @@ function synth_rechat_prepare_continuation($db, array $event): array
                     $plan=synth_rechat_initial_candidate_plan($candidates,$proof,$mode);
                     $serverPolicy['mode']=$plan['mode'];
                     $initialTerminal=$plan['terminal_reason'];
-                    if ($plan['candidate']!==null) $serverPolicy=synth_rechat_profile_policy($serverPolicy,$plan['candidate']);
+                    if ($plan['candidate']!==null) {
+                        if ($socialOrigin) {
+                            $serverPolicy['source_profile_id']=intval($plan['candidate']['profile_id']);
+                            $serverPolicy['source_actor_identity_id']=intval($plan['candidate']['actor_identity_id']);
+                        } else $serverPolicy=synth_rechat_profile_policy($serverPolicy,$plan['candidate']);
+                    }
                 } else $serverPolicy['mode']=$mode==='random' ? ['tight','conversational','group'][random_int(0,2)] : $mode;
             }
             $reservation=synth_rechat_reserve_continuation($db,$event,$chain===null ? $serverPolicy : [],$initialTerminal);

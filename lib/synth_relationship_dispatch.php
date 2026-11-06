@@ -59,10 +59,54 @@ function synth_relationship_reserve_dispatch($db, bool $interaction=false): ?arr
     return $origin ?: null;
 }
 
+// A completed gift stays bound to its receipt even when automatic dialogue has advanced the turn.
+function synth_relationship_dispatch_gift($db, ?callable $generate): ?int
+{
+    $gift=$db->fetchOne("SELECT i.id AS evaluation_id,j.id AS job_id,response.history_event_id AS response_id,
+            e.session_id,e.request_id,e.turn_id,e.generation,e.event_type,h.context_sequence,
+            p.canonical_event,p.event_sha256,TRUE AS retained_gift
+        FROM synth_meta.relationship_response_inputs response
+        JOIN synth_meta.history_events h ON h.id=response.history_event_id
+        JOIN synth_meta.request_executions e ON e.session_id=response.session_id AND e.request_id=response.request_id
+            AND e.generation=h.generation AND e.event_type='action_result' AND e.state='complete' AND e.error_code IS NULL
+        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+            AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_sha256=e.request_sha256
+            AND p.canonical_event=response.response_payload->'request'
+        JOIN synth_meta.runtime_sessions r ON r.session_id=e.session_id AND r.active_generation=e.generation
+            AND r.state='active' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
+        JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
+            AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=r.playthrough_id
+            AND c.target_identity_id=response.actor_identity_id
+        LEFT JOIN synth_meta.relationship_evaluations i ON i.response_history_event_id=response.history_event_id
+            AND i.session_id=e.session_id AND i.request_id=e.request_id AND i.generation=e.generation
+        LEFT JOIN synth_meta.worker_jobs j ON j.relationship_evaluation_id=i.id
+        WHERE response.response_payload->>'verified_gift_action_id'=p.canonical_event#>>'{payload,result,action_id}'
+            AND response.response_payload->>'evaluation_mode'='dedicated'
+            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations earlier
+                WHERE earlier.actor_identity_id=response.actor_identity_id AND earlier.response_history_event_id<>response.history_event_id
+                    AND earlier.input_payload#>>'{received_gift,fact,action_id}'=response.response_payload->>'verified_gift_action_id')
+            AND h.recorded_at>clock_timestamp()-INTERVAL '10 minutes'
+            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control
+                WHERE control.actor_identity_id=response.actor_identity_id AND (control.locked OR p.id<=control.barrier_event_id))
+            AND (j.id IS NULL OR (j.payload->>'schema'='synth.relationship.gift-job.v1'
+                AND j.available_at<=clock_timestamp() AND j.deadline_at>clock_timestamp() AND j.attempts<3
+                AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))))
+        ORDER BY response.history_event_id LIMIT 1");
+    if (!$gift) return null;
+    $jobId=$gift['job_id']===null ? synth_worker_with_origin($db,$gift,static function() use($db,$gift) {
+        $evaluationId=$gift['evaluation_id']===null
+            ? synth_relationship_capture_configured_evaluation($db,intval($gift['response_id']),true)
+            : intval($gift['evaluation_id']);
+        return $evaluationId===null ? null : synth_relationship_enqueue_evaluation($db,$evaluationId);
+    },'relationship') : intval($gift['job_id']);
+    return $jobId===null ? null : synth_relationship_run_persisted_job($db,$jobId,$generate);
+}
+
 // Reserve one active completed owner fairly, recover frozen work first, and release SQL locks before providers.
 function synth_relationship_dispatch($db, ?callable $generate=null, bool $playerOnly=false): ?int
 {
     if (!synthRelationshipUsesDedicatedConnector()) return null;
+    if ($playerOnly && ($giftResult=synth_relationship_dispatch_gift($db,$generate))!==null) return $giftResult;
     $origin=synth_relationship_reserve_dispatch($db);if (!$origin) return null;
     $jobId=synth_worker_with_origin($db,$origin,static function(array $event) use($db,$playerOnly) {
         $candidate=$db->withNativeRequestLock(static function($connection,array $event) use($db,$playerOnly) {
@@ -71,7 +115,9 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
                 WHERE input_payload->>'schema'='synth.relationship.evaluation.v2')" : '';
             $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='cancelled',lease_token=NULL,lease_until=NULL,
                 last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_evaluation_id IS NOT NULL
-                    AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
+                    AND session_id=$1 AND state IN ('pending','running')
+                    AND payload->>'schema' IS DISTINCT FROM 'synth.relationship.gift-job.v1'
+                    AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR memory_batch_id IS NOT NULL OR actor_identity_id IS DISTINCT FROM(SELECT target_identity_id FROM synth_meta.context_snapshots
                             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence::text=$4)
                         OR NOT EXISTS(SELECT 1 FROM synth_meta.request_executions e
@@ -117,7 +163,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
                         AND upper(entry.value#>>'{routing,listener,form_id}')=upper(c.context_payload#>>'{player,form_id}')
                         AND lower(entry.value#>>'{routing,listener,origin_plugin}')=lower(c.context_payload#>>'{player,origin_plugin}')
                         AND entry.value#>>'{routing,listener,playthrough_id}'=c.playthrough_id)" : '';
-            $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)."
+            $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])."
                 SELECT response.history_event_id FROM relationship_response_evidence response
                 WHERE response.response_payload->>'evaluation_mode'='dedicated' $responseScope
                     AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control

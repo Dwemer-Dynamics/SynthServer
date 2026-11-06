@@ -3,12 +3,18 @@
 import json
 from pathlib import Path
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from codex_bridge import BASE, codex_generate, isolation_fingerprint
+from codex_bridge import BASE, WarmSession, codex_generate, isolation_fingerprint
 
 
-def verify_isolation(config):
+def verify_isolation(config, timeout=25):
+    deadline=time.monotonic()+timeout
+    def bounded_config():
+        remaining=deadline-time.monotonic()
+        if remaining<=0:raise TimeoutError('isolation deadline')
+        return dict(config,codex_timeout=remaining)
     fixture={'model':'gpt-6.1-sol','messages':[{'role':'user','content':'synthetic_synth_fixture: say hello; action is Talk only.'}],
              'response_format':{'type':'json_object'},'max_tokens':128,'stream':False}
     policy=''
@@ -18,7 +24,7 @@ def verify_isolation(config):
             if candidate.is_file():policy=candidate.read_text(encoding='utf-8').strip()
             break
     expected=json.dumps({'messages':fixture['messages'],'response_format':fixture['response_format'],'response_token_budget':128},ensure_ascii=False)
-    result={};before=isolation_fingerprint(config['cli'])
+    result={};observations=[];before=isolation_fingerprint(config['cli'])
     class Stub(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
         def do_GET(self):self.send_response(404);self.end_headers()
@@ -40,6 +46,7 @@ def verify_isolation(config):
                 our_instructions_present=BASE in (request.get('instructions') or '') or BASE in flat,
                 synthetic_input_present=expected in user_texts,
                 no_personal_markers=not any(x in flat.lower() for x in ['<environment_context>','<skills_instructions>']))
+            observations.append(dict(result))
             item={'id':'msg_synthetic','type':'message','role':'assistant','status':'completed','content':[{'type':'output_text','text':'{"text":"Hello.","action":"Talk"}','annotations':[]}]}
             response={'id':'synthetic','object':'response','status':'completed','output':[item],'usage':{'input_tokens':1,'output_tokens':1,'total_tokens':2}}
             events=[{'type':'response.created','response':{'id':'synthetic','object':'response','status':'in_progress','output':[]}},
@@ -53,12 +60,24 @@ def verify_isolation(config):
             self.send_response(200);self.send_header('Content-Type','text/event-stream');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     server=ThreadingHTTPServer(('127.0.0.1',0),Stub);server.daemon_threads=True
     threading.Thread(target=server.serve_forever,daemon=True).start()
+    session=WarmSession();timings={};cold_timings={}
     try:
-        reply=codex_generate(fixture,dict(config,codex_timeout=25),'http://127.0.0.1:'+str(server.server_port))
-        result['output_valid']=json.loads(reply)=={'text':'Hello.','action':'Talk'}
-    finally:server.shutdown();server.server_close()
-    result['isolation_passed']=bool(result.get('tool_count')==0 and all(result.get(k) for k in
-        ['extra_user_policy_only','our_instructions_present','synthetic_input_present','no_personal_markers','output_valid']))
+        target='http://127.0.0.1:'+str(server.server_port)
+        reply=codex_generate(fixture,bounded_config(),target,session=session,timings=cold_timings)
+        first_valid=json.loads(reply)=={'text':'Hello.','action':'Talk'}
+        # The second fresh thread must contain only its own input, not the first fixture.
+        fixture['messages']=[{'role':'user','content':'synthetic_second_scope: respond without the previous conversation.'}]
+        expected=json.dumps({'messages':fixture['messages'],'response_format':fixture['response_format'],'response_token_budget':128},ensure_ascii=False)
+        reply=codex_generate(fixture,bounded_config(),target,session=session,timings=timings)
+        result['output_valid']=first_valid and json.loads(reply)=={'text':'Hello.','action':'Talk'}
+        result['contexts_verified']=len(observations)
+        result['warm_transport_verified']=timings.get('transport_reused') is True
+        result['timings_ms']={'cold':cold_timings,'warm':timings}
+    finally:
+        session.close();server.shutdown();server.server_close()
+    result['isolation_passed']=bool(len(observations)==2 and result['warm_transport_verified'] and result['output_valid']
+        and all(row.get('tool_count')==0 and all(row.get(k) for k in
+        ['extra_user_policy_only','our_instructions_present','synthetic_input_present','no_personal_markers']) for row in observations))
     result['fingerprint']=isolation_fingerprint(config['cli'])
     if before!=result['fingerprint']:raise RuntimeError('Executable changed during isolation check')
     if not result['isolation_passed']:raise RuntimeError('Isolation check refused')

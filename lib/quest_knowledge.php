@@ -290,9 +290,9 @@ function synthQuestKnowledgeNarratorJournal(array $payload): array
 }
 
 // The quest reader alone freezes this expensive ownership projection once per query.
-function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $materializeHistory = true): string
+function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $materializeHistory = true, bool $readerFirstVisibility = true): string
 {
-    $scope=synth_protocol_history_cte($db,$event,'',$actor,materializeHistory:$materializeHistory);
+    $scope=synth_protocol_history_cte($db,$event,'',$actor,materializeHistory:$materializeHistory,readerFirstVisibility:$readerFirstVisibility);
     return $scope.", quest_report_candidates AS (
         SELECT h.id AS history_event_id,n.reader_identity_id,n.speaker_identity_id,c.player_identity_id,c.target_identity_id,
             h.session_id,h.generation,h.context_sequence,h.request_id,h.playthrough_id,h.event_payload,

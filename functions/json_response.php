@@ -223,6 +223,8 @@
                 
                 $fname=getFunctionCodeName($function["name"]);
 
+                if (!synth_jev_action_code_allowed(strval($fname))) continue;
+
                 if (!in_array($fname,$GLOBALS["ENABLED_FUNCTIONS"])) {
                     error_log("[FUNCTIONS] Skipping disabled function: {$function["name"]} <$fname>");
                     continue;
@@ -237,7 +239,15 @@
                 $GLOBALS["FUNC_LIST"][]=$function["name"];
                 if ($fname == "Attack") {
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription})";
-                    $GLOBALS["PROMPT_ACTIONS_LIST"].="(available targets: ".implode(",",$GLOBALS["FUNCTION_PARM_INSPECT"]).")";
+                    $attackTargets=$GLOBALS["FUNCTION_PARM_INSPECT"];
+                    $attackEvent=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+                    if (($attackEvent['protocol_version'] ?? 1)===2) {
+                        require_once dirname(__DIR__).'/lib/synth_attack_actions.php';
+                        $attackContext=synth_protocol_current_context($GLOBALS['db'],$attackEvent);
+                        $attackActor=$attackContext ? synth_protocol_response_actor_identity($GLOBALS['db'],$attackEvent,$attackContext) : null;
+                        $attackTargets=$attackActor ? array_column(synth_attack_targets($attackContext,$attackActor),'display_name') : [];
+                    }
+                    $GLOBALS["PROMPT_ACTIONS_LIST"].="(available targets: ".implode(",",$attackTargets)."; choose one exact name, otherwise do not attack)";
                 } else if ($fname == "GiveCapsTo") {
                     require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
                     $nativeCaps = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
@@ -262,6 +272,14 @@
                 }
             }
             
+            $jevPolicy = synth_jev_action_policy();
+            if ($jevPolicy !== null) {
+                $selectedName = $jevPolicy['code'] === 'Talk' ? 'Talk' : getFunctionDisplayName($jevPolicy['code']);
+                $GLOBALS['PROMPT_ACTIONS_LIST'] .= "\nThe current player intent was classified as "
+                    .json_encode($selectedName, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+                    .". Use that action if willing and its exact arguments are known; otherwise use Talk and explain or ask. "
+                    ."A requested action has not run yet. Never claim success before an action result.";
+            }
             $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: Talk (default action, used when no other action is suitable)\n</available_actions_list>";
             $GLOBALS["FUNC_LIST"][]="Talk";
             shuffle($GLOBALS["FUNC_LIST"]);
@@ -337,8 +355,8 @@
                     "mood"=>$moodDescription,
                     "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
-                    "item"=>"exact inventory item name for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
-                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo. Use a positive integer when needed.",
+                    "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
+                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
                     "lang"=>isset($GLOBALS["LLM_LANG"])?$GLOBALS["LLM_LANG"]:"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
                 ];
             } else {
@@ -349,8 +367,8 @@
                     "mood"=>$moodDescription,
                     "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
-                    "item"=>"exact inventory item name for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
-                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo. Use a positive integer when needed."
+                    "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
+                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed."
                 ];
             }
         } else {
@@ -361,8 +379,8 @@
                     "mood"=>$moodDescription,
                     "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
-                    "item"=>"exact inventory item name for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
-                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo. Use a positive integer when needed.",
+                    "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
+                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
                     "lang"=>isset($GLOBALS["LLM_LANG"])?$GLOBALS["LLM_LANG"]:"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
                     "message"=>$messageDescription
                 ];
@@ -373,8 +391,8 @@
                     "mood"=>$moodDescription,
                     "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
-                    "item"=>"exact inventory item name for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
-                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo. Use a positive integer when needed.",
+                    "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
+                    "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
                     "message"=>$messageDescription
                 ];
             }
@@ -470,11 +488,11 @@
                         ),
                         "item" => array(
                             "type" => "string",
-                "description" => "exact inventory item name for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. For Consume, leave item blank unless target is empty and item is the same exact inventory item name fallback."
+                "description" => "exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. For Consume, leave item blank unless target is empty and item is the same exact inventory item name fallback."
                         ),
                         "amount" => array(
                             "type" => "integer",
-                "description" => "caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo. Use a positive integer."
+                "description" => "caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer."
                         )
                     ),
                     "required" => [
@@ -495,11 +513,11 @@
         if (function_exists('synth_protocol_supports_caps_transfer')
             && synth_protocol_supports_caps_transfer($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
             $GLOBALS['structuredOutputTemplate']['json_schema']['schema']['properties']['item']['description'] =
-                'Exact inventory item for GiveItemTo or Consume, exact nearby RefID:ItemName for PickupItem. '
+                'Exact inventory item for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem. '
                 .'For Consume, leave blank unless target is empty and item is its exact inventory fallback. '
                 .'For GiveCapsTo or TakeCapsFromPlayer, this shared speech field must be the empty string; it is never an amount fallback.';
             $GLOBALS['structuredOutputTemplate']['json_schema']['schema']['properties']['amount']['description'] =
-                'Required for GiveCapsTo or TakeCapsFromPlayer: integer 1..1000000, no more than the donor\'s owned observed caps count. Optional quantity for GiveItemTo.';
+                'Required for GiveCapsTo or TakeCapsFromPlayer: integer 1..1000000, no more than the donor\'s owned observed caps count. Optional quantity for GiveItemTo or TakeItemFromPlayer.';
         }
 
         if (isset($GLOBALS["LANG_LLM_XTTS"])&&($GLOBALS["LANG_LLM_XTTS"])) {

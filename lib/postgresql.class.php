@@ -258,11 +258,16 @@ class sql
     }
 
     // Run bounded database-only native work under the claim lock; never commit a caller-owned transaction.
-    public function withNativeRequestLock(callable $operation, int $statementTimeoutMs = 0)
+    public function withNativeRequestLock(callable $operation, int $statementTimeoutMs = 0, bool $contextPublication = false)
     {
         $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+        $publication = $contextPublication && is_array($event) && ($event['type'] ?? '') === 'context'
+            && ($event['context_sequence'] ?? null) === 0
+            && is_int($event['payload']['snapshot_sequence'] ?? null)
+            && $event['payload']['snapshot_sequence'] >= 1 && $event['payload']['snapshot_sequence'] <= 9007199254740991;
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)
-            || ($event['protocol_version'] ?? 1) !== 2 || intval($event['context_sequence'] ?? 0) < 1) {
+            || ($event['protocol_version'] ?? 1) !== 2 || ($contextPublication && !$publication)
+            || (!$publication && intval($event['context_sequence'] ?? 0) < 1)) {
             throw new LogicException('A claimed native context is required');
         }
         require_once __DIR__.'/synth_protocol_state.php';
@@ -296,9 +301,30 @@ class sql
                 throw new RuntimeException('Unable to bound native history lock wait');
             }
             if (@pg_query_params(self::$link, 'SELECT pg_advisory_xact_lock(hashtext($1))', [$event['session_id']]) === false) {
-                throw new RuntimeException('Unable to lock native history owner');
+                throw new SYNTHNativeRequestLockUnavailable('Unable to lock native history owner');
             }
             synth_protocol_assert_request_active();
+            if ($publication) {
+                // A context publishes its own positive capture, while its wire binding remains zero.
+                // Recheck the exact admitted bytes and captured payload under the existing session lock.
+                $canonical = synth_protocol_canonical_json($event);
+                $proof = @pg_query_params(self::$link, "SELECT 1 FROM synth_meta.protocol_events p
+                    JOIN synth_meta.request_executions e USING(session_id,request_id)
+                    JOIN synth_meta.runtime_sessions r ON r.session_id=p.session_id
+                    JOIN synth_meta.context_snapshots c ON c.session_id=p.session_id AND c.generation=p.generation
+                        AND c.snapshot_sequence=$6 AND c.context_payload=p.canonical_event->'payload'
+                    WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3 AND p.turn_id=$7
+                        AND p.event_type='context' AND e.event_type='context' AND e.generation=p.generation AND e.turn_id=p.turn_id
+                        AND p.canonical_event=$4::jsonb AND p.event_sha256=$5 AND e.request_sha256=p.event_sha256
+                        AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=p.generation
+                        AND c.playthrough_id=r.playthrough_id AND c.playthrough_id=p.canonical_event#>>'{payload,playthrough_id}'
+                        AND c.history_event_id IS NOT NULL
+                        AND NOT EXISTS(SELECT 1 FROM synth_meta.context_snapshots newer WHERE newer.session_id=c.session_id
+                            AND newer.generation=c.generation AND newer.snapshot_sequence>c.snapshot_sequence)",
+                    [$event['session_id'], $event['request_id'], $event['generation'], $canonical,
+                     hash('sha256',$canonical), $event['payload']['snapshot_sequence'], $event['turn_id']]);
+                if (!$proof || !pg_fetch_assoc($proof)) throw new DomainException('native_context_publication_owner_mismatch');
+            }
             $result = $operation(self::$link, $event);
             if (pg_transaction_status(self::$link) !== PGSQL_TRANSACTION_INTRANS) {
                 throw new RuntimeException('Native request operation aborted transaction');

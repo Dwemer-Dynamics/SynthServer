@@ -8,7 +8,7 @@ require_once dirname(__DIR__,2).'/lib/phpunit.class.php';
 
 final class NativeWaitFixtureDatabase extends sql
 {
-    public function withNativeRequestLock(callable $operation,int $timeout=0): mixed
+    public function withNativeRequestLock(callable $operation,int $timeout=0,bool $contextPublication=false): mixed
     {
         $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
         $this->execQuery('BEGIN');
@@ -47,7 +47,9 @@ final class NativeWaitActionTest extends DatabaseTestCase
             'SYNTH_CLIENT_CAPABILITIES','gameRequest','IS_NPC','PLAYER_NAME','FUNCTIONS','ENABLED_FUNCTIONS',
             'BASE_FUNCTIONS','F_NAMES','F_DESCRIPTIONS','F_RETURNMESSAGES','SYNTH_ACTION_CATALOG_ROWS_BY_CODE',
             'SYNTH_JSON_RESPONSE_LINES','SYNTH_RESPONSE_STREAMING','SYNTH_PROTOCOL_RESPONSE_STARTED',
-            'SYNTH_PROTOCOL_RESPONSE_SEQUENCE','SYNTH_PROTOCOL_RESPONSE_BODY'] as $key)
+            'SYNTH_PROTOCOL_RESPONSE_SEQUENCE','SYNTH_PROTOCOL_RESPONSE_BODY', 'FUNCTIONS_ARE_ENABLED',
+            'JEV_ACTIONS_ENABLED','CORE_CONNECTOR_DECISION','JEV_ACTION_TIMEOUT_MS','JEV_ACTION_MIN_CONFIDENCE',
+            'SYNTH_JEV_ACTION_POLICY','SYNTH_JEV_ACTION_DIAGNOSTIC','FUNC_LIST','PROMPT_ACTIONS_LIST'] as $key)
             $this->saved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key] ?? null];
         $this->database=$GLOBALS['db']=new NativeWaitFixtureDatabase();
         $this->player=['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'wait-fixture','display_name'=>'Nora'];
@@ -72,6 +74,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $GLOBALS['SYNTH_NAME']='Codsworth';$GLOBALS['PLAYER_NAME']='Nora';$GLOBALS['IS_NPC']=true;
         $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=$this->event['capabilities'];$GLOBALS['gameRequest']=['inputtext',1000,1000,'wait here'];
         unset($GLOBALS['SYNTH_ACTION_CATALOG_ROWS_BY_CODE']);
+        unset($GLOBALS['SYNTH_JEV_ACTION_POLICY']);
     }
 
     public function tearDown(): void
@@ -129,6 +132,197 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $this->assertFalse(queueFunctionExecutionCommand($commands,$sent,$bad,'synthetic'));
         $model['target']='';$model['unknown_selector']='foreign';$bad=buildFunctionExecutionContextFromResponse($model);
         $this->assertFalse(queueFunctionExecutionCommand($commands,$sent,$bad,'synthetic'));
+    }
+
+    private function configureJev(): void
+    {
+        require_once dirname(__DIR__,2).'/functions/functions.php';
+        $GLOBALS['JEV_ACTIONS_ENABLED'] = true;
+        $GLOBALS['JEV_ACTION_TIMEOUT_MS'] = 350;
+        $GLOBALS['JEV_ACTION_MIN_CONFIDENCE'] = 0.8;
+        $GLOBALS['FUNCTIONS_ARE_ENABLED'] = true;
+        $GLOBALS['ENABLED_FUNCTIONS'] = ['WaitHere','ReleaseWait'];
+        $GLOBALS['FUNCTIONS'] = [];
+        foreach (['WaitHere','ReleaseWait'] as $code) {
+            $GLOBALS['F_NAMES'][$code] = $code;
+            $GLOBALS['FUNCTIONS'][] = ['name'=>$code, 'parameters'=>['type'=>'object',
+                'properties'=>new stdClass(), 'required'=>[], 'additionalProperties'=>false]];
+        }
+    }
+
+    public function testJevNarrowsRealPromptAndEmitsOneOwnedWaitThroughExistingValidation(): void
+    {
+        $this->configureJev();
+        $canonical = synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+        $calls = 0;
+        $captured = [];
+        synth_jev_prepare_actions($this->database, $this->event, null,
+            static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture-only'],
+            static function (array $body, string $key, int $budget) use (&$calls, &$captured): array {
+                ++$calls;
+                // Assertions can autoload the test framework from the host mount;
+                // that work must not be timed as a fake provider response.
+                $captured = [$body, $budget];
+                return ['answers'=>['action'=>['type'=>'choice','choice'=>'WaitHere','confidence'=>0.95]]];
+            });
+        $this->assertSame(1, $calls);
+        $this->assertSame('selected', $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason'], json_encode($GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']));
+        [$body, $budget] = $captured;
+        $this->assertSame('wait here', $body['state']['player_utterance']);
+        $this->assertSame('Codsworth', $body['state']['responder']);
+        $this->assertSame(['WaitHere','ReleaseWait','Talk','abstain'], array_keys($body['questions']['action']['criteria']));
+        $this->assertGreaterThan(0, $budget);
+        $this->assertLessThanOrEqual(350, $budget);
+        require_once dirname(__DIR__,2).'/functions/json_response.php';
+        $GLOBALS['FUNC_LIST'] = [];
+        setActions();
+        $this->assertEqualsCanonicalizing(['WaitHere','Talk'], $GLOBALS['FUNC_LIST']);
+        $this->assertStringContainsString('not run yet', $GLOBALS['PROMPT_ACTIONS_LIST']);
+        $this->assertNull(findFunctionByName('ReleaseWait'));
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'ReleaseWait']));
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'WaitHere','target'=>'Nora']));
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Jun','command_name'=>'WaitHere']));
+        $execution = buildFunctionExecutionContextFromResponse(['action'=>'WaitHere','message'=>'Very well.',
+            'target'=>'','item'=>'','amount'=>'']);
+        $commands=[]; $sent=[];
+        $this->assertTrue(queueFunctionExecutionCommand($commands,$sent,$execution,'jev-fixture'));
+        $this->assertFalse(queueFunctionExecutionCommand($commands,$sent,$execution,'jev-fixture'));
+        $action = synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'WaitHere']);
+        $this->assertSame('wait_here', $action['name']);
+        $this->assertEquals($this->actor, $action['actor']);
+        $this->assertSame([], get_object_vars($action['arguments']));
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'WaitHere']));
+        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame($canonical, synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']));
+    }
+
+    public function testJevAudioUsesSeparateTranscriptAndTalkPreventsPhysicalActions(): void
+    {
+        $this->configureJev();
+        $this->event['type'] = 'input_audio';
+        $this->event['payload'] = ['media'=>['schema'=>'synth.media.v1','media_id'=>'media/'.str_repeat('d',64),
+            'sha256'=>str_repeat('d',64),'content_type'=>'audio/wav','size'=>44]];
+        $this->persistOwner();
+        $before = synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+        $captured = [];
+        synth_jev_prepare_actions($this->database, $this->event, 'How are you?',
+            static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture'],
+            static function (array $body) use (&$captured): array {
+                $captured = $body;
+                return ['answers'=>['action'=>['type'=>'choice','choice'=>'Talk','confidence'=>0.99]]];
+            });
+        $this->assertSame('How are you?', $captured['state']['player_utterance']);
+        $this->assertArrayNotHasKey('media', $captured['state']);
+        $this->assertSame('Talk', synth_jev_action_policy()['code']);
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'WaitHere']));
+        $this->assertSame($before, synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']));
+    }
+
+    public function testJevFailureAndLateAnswerKeepOriginalActionPathWithoutRetry(): void
+    {
+        $this->configureJev();
+        foreach (['uncertain','unoffered','http_error','late','malformed'] as $case) {
+            $GLOBALS['JEV_ACTION_TIMEOUT_MS'] = 50;
+            $calls = 0;
+            synth_jev_prepare_actions($this->database, $this->event, null,
+                static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture'],
+                static function () use ($case, &$calls): array {
+                    ++$calls;
+                    if ($case === 'http_error') throw new RuntimeException('http_error');
+                    if ($case === 'late') usleep(65000);
+                    if ($case === 'malformed') return ['answers'=>'invalid'];
+                    return ['answers'=>['action'=>['type'=>'choice', 'choice'=>$case==='unoffered'?'RunShell':'WaitHere',
+                        'confidence'=>$case==='uncertain'?0.4:0.99]]];
+                });
+            $this->assertSame(1, $calls);
+            $this->assertNull(synth_jev_action_policy());
+            $this->assertTrue(synth_jev_action_code_allowed('ReleaseWait'));
+        }
+        $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+    }
+
+    public function testJevDoesNotSwallowStopDuringDecision(): void
+    {
+        $this->configureJev();
+        $this->expectException(SYNTHProtocolCancelled::class);
+        try {
+            synth_jev_prepare_actions($this->database, $this->event, null,
+                static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture'],
+                function (): array {
+                    $this->database->execQuery("UPDATE synth_meta.request_executions SET error_code='turn_cancelled' WHERE request_id='wait-request'");
+                    return ['answers'=>['action'=>['type'=>'choice','choice'=>'WaitHere','confidence'=>0.99]]];
+                });
+        } finally {
+            $this->assertNull(synth_jev_action_policy());
+            $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        }
+    }
+
+    public function testJevCatalogueRespectsDisabledActionsAndVrCapabilities(): void
+    {
+        $this->configureJev();
+        foreach (['Follow','Attack','PickupItem'] as $code) {
+            $GLOBALS['F_NAMES'][$code] = $code;
+            $GLOBALS['FUNCTIONS'][] = ['name'=>$code,'description'=>'Synthetic '.$code];
+        }
+        // Attack and PickupItem exist in the catalogue but are not enabled.
+        $GLOBALS['ENABLED_FUNCTIONS'][] = 'Follow';
+        $event = $this->event;
+        $event['capabilities'] = array_merge($event['capabilities'], ['action.follow','action.attack','action.pickup_item']);
+        foreach (['flat'=>['WaitHere','ReleaseWait','Follow','Talk','abstain'], 'vr'=>['Follow','Talk','abstain']] as $lane=>$expected) {
+            $event['runtime_variant'] = $lane;
+            $GLOBALS['SYNTH_REQUEST_EVENT']['json'] = $event;
+            $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $event['capabilities'];
+            $body = synth_jev_action_request($event, null, $this->actor);
+            $this->assertSame($expected, array_keys($body['questions']['action']['criteria']));
+        }
+    }
+
+    public function testJevParameterizedFollowStillRequiresCapturedTargetAndDoesNotInventArguments(): void
+    {
+        $this->configureJev();
+        $this->event['capabilities'][] = 'action.follow';
+        $this->persistOwner();
+        $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $this->event['capabilities'];
+        $GLOBALS['F_NAMES']['Follow'] = 'Follow';
+        $GLOBALS['ENABLED_FUNCTIONS'] = ['Follow'];
+        $GLOBALS['FUNCTIONS'] = [['name'=>'Follow','parameters'=>['type'=>'object',
+            'properties'=>['target'=>['type'=>'string']], 'required'=>['target']]]];
+        synth_jev_prepare_actions($this->database, $this->event, null,
+            static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture'],
+            static fn()=>['answers'=>['action'=>['type'=>'choice','choice'=>'Follow','confidence'=>0.99]]]);
+        $this->assertSame('Follow', synth_jev_action_policy()['code']);
+        $commands=[]; $sent=[];
+        $execution = buildFunctionExecutionContextFromResponse(['action'=>'Follow','message'=>'Who should I follow?','target'=>'']);
+        $this->assertFalse(queueFunctionExecutionCommand($commands,$sent,$execution,'jev-fixture'));
+        $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'Follow','target'=>'Uncaptured NPC']));
+        $action = synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'Follow','target'=>'Nora']);
+        $this->assertSame('follow', $action['name']);
+        $this->assertEquals($this->player, $action['target']);
+        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+    }
+
+    public function testJevSettingsPersistAndDedicatedConnectorDoesNotMutateDialogueConfiguration(): void
+    {
+        $this->configureJev();
+        require_once dirname(__DIR__,2).'/lib/core/llm_connector.class.php';
+        $dialogue = $GLOBALS['CONNECTOR'] ?? [];
+        foreach (['JEV_ACTIONS_ENABLED'=>true,'CORE_CONNECTOR_DECISION'=>1,
+            'JEV_ACTION_TIMEOUT_MS'=>120,'JEV_ACTION_MIN_CONFIDENCE'=>0.9] as $name=>$value) {
+            $this->assertContains($name, synthGetManagedGeneralSettingIds());
+            $this->assertTrue(synthSetGeneralSetting($name, $value));
+            $this->assertSame(synthSettingsStringifyValue($value), synthGetGeneralSetting($name));
+        }
+        $GLOBALS['CORE_CONNECTOR_DECISION'] = 1;
+        $this->database->execQuery("UPDATE synth.core_llm_connector SET driver='openrouterjson',model='typesafe/jev-1.13',api_badge_id=1 WHERE id=1");
+        $row = synth_jev_action_connector();
+        $this->assertSame('typesafe/jev-1.13', $row['model']);
+        $this->assertSame('openrouterjson_key', $row['key']);
+        $this->assertSame($dialogue, $GLOBALS['CONNECTOR'] ?? []);
+        $this->database->execQuery("UPDATE synth.core_llm_connector SET model='ordinary-chat-model' WHERE id=1");
+        $this->assertNull(synth_jev_action_connector());
+        $GLOBALS['CORE_CONNECTOR_DECISION'] = 0;
+        $this->assertNull(synth_jev_action_connector());
     }
 
     #[PHPUnit\Framework\Attributes\DataProvider('waitInputProvider')]

@@ -19,11 +19,34 @@ function synth_rechat_candidate_available(array $candidate): bool
     return synthRechatActorBlockReason($candidate['identity']['display_name'] ?? '',$npc)==='';
 }
 
+// Audience membership is player-centric. Each continuation also needs the two
+// NPCs to be within mutual conversational range in this exact captured scene.
+// Missing/nonfinite positions cannot authorize a distant responder.
+function synth_rechat_pair_nearby(array $speaker, array $listener): bool
+{
+    $squared=0.0;
+    foreach (['x','y','z'] as $axis) {
+        $a=$speaker['state']['position'][$axis] ?? null;
+        $b=$listener['state']['position'][$axis] ?? null;
+        if ((!is_int($a) && !is_float($a)) || (!is_int($b) && !is_float($b))
+            || !is_finite((float)$a) || !is_finite((float)$b)) return false;
+        $squared+=($a-$b)**2;
+    }
+    return is_finite($squared) && $squared<=784**2;
+}
+
 // Rank captured canonical candidates; never collapse same-name actors or borrow global nearby state.
 function synth_rechat_rank_candidates(array $candidates, array $proof, string $mode, array $history): array
 {
     if (!in_array($mode,['tight','conversational','group'],true)) throw new LogicException('rechat_mode_unresolved');
     $speaker=synth_rechat_actor_key($proof['speaker']);
+    $source=null;
+    foreach ($candidates as $candidate) {
+        if (synth_rechat_actor_key($candidate['identity'])!==$speaker) continue;
+        if ($source!==null) return []; // Ambiguous copied identity cannot prove a source position.
+        $source=$candidate;
+    }
+    if ($source===null || !synth_rechat_candidate_available($source)) return [];
     $listener=($proof['listener_state'] ?? '')==='addressed' ? synth_rechat_actor_key($proof['listener'] ?? []) : null;
     $uses=[]; $last=[];
     foreach ($history as $entry) {
@@ -39,6 +62,7 @@ function synth_rechat_rank_candidates(array $candidates, array $proof, string $m
         if ($key===null || $key===$speaker
             || ($candidate['identity']['playthrough_id'] ?? null)!==($proof['speaker']['playthrough_id'] ?? null)
             || !synth_rechat_candidate_available($candidate)
+            || !synth_rechat_pair_nearby($source,$candidate)
             || ($mode==='tight' && ($listener===null || $key!==$listener))) continue;
         $priority=$mode==='conversational' && $key===$listener ? -1 : 0;
         $rank=[$priority,$uses[$key] ?? 0,$last[$key] ?? 0,$mode==='group' && $key===$listener ? 1 : 0,$ordinal];

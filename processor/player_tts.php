@@ -145,7 +145,7 @@ try {
             return;
         }
         // The native input is already the player's speech; retain its transcript without revoicing it.
-        emitPlayerTextOnlySpeechLine($cleaned_dialogue);
+        synth_emit_native_player_transcript($gameRequest);
         $playerTtsStatus = "text_only";
         return;
     }

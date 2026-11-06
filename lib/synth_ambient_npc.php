@@ -39,14 +39,7 @@ function synth_ambient_npc_pair(array $candidates, array $speaker): ?array
     if ($selected===null || $listeners===[]) return null;
     ksort($listeners,SORT_STRING);
     foreach ($listeners as $listener) {
-        $squared=0.0;
-        foreach (['x','y','z'] as $axis) {
-            $a=$selected['state']['position'][$axis] ?? null;$b=$listener['state']['position'][$axis] ?? null;
-            if ((!is_int($a) && !is_float($a)) || (!is_int($b) && !is_float($b))
-                || !is_finite((float)$a) || !is_finite((float)$b)) continue 2;
-            $squared+=($a-$b)**2;
-        }
-        if ($squared>784**2) continue;
+        if (!synth_rechat_pair_nearby($selected,$listener)) continue;
         return ['speaker'=>$selected['identity'],'listener'=>$listener['identity'],
             'actor_identity_id'=>intval($selected['actor_identity_id']),'npc_id'=>intval($selected['npc_id']),
             'profile_id'=>intval($selected['profile_id']),'profile_token'=>strval($selected['npc']['md5'] ?? '')];

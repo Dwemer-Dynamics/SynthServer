@@ -17,6 +17,30 @@ require_once __DIR__.'/synth_character_forms.php';
 
 function synthBuildLatestDiaryContextBlock(string $npcName, array $profileData): string
 {
+    return synthBuildLatestDiaryReflectionBlock($npcName,$profileData).synthBuildSavedSocialTaskContextBlock($npcName,$profileData);
+}
+
+// Saved instruction notes remain a separate NPC-owned journal section, not generated diary prose.
+function synthBuildSavedSocialTaskContextBlock(string $npcName,array $profileData): string
+{
+    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json']??[];$db=$GLOBALS['db']??null;
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])||!is_object($db)||($event['protocol_version']??1)!==2)return '';
+    require_once __DIR__.'/synth_social_tasks.php';
+    if (!synth_social_supported($event)||synth_protocol_response_is_narrator(trim($npcName)))return '';
+    try {
+        $context=synth_protocol_current_context($db,$event);
+        if (!$context)return '';
+        $actor=synth_protocol_response_actor_identity($db,$event,$context);
+        if (!$actor || synth_protocol_actor_identity_id($db,$actor)!==intval($profileData['actor_identity_id']??0))return '';
+        $notes=synth_social_owned($db,$event,static fn($connection)=>synth_social_diary_notes($db,$event,$actor));
+        if (!$notes)return '';
+        $text=implode("\n",array_column($notes,'content'));
+        return "\n<saved_conversation_tasks>\n".htmlspecialchars($text,ENT_QUOTES|ENT_XML1|ENT_SUBSTITUTE,'UTF-8')."\n</saved_conversation_tasks>\n";
+    } catch(Throwable $error) {Logger::warn('[SOCIAL_TASKS] Saved task notes unavailable for the owned speaker');return '';}
+}
+
+function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileData): string
+{
     $native=synth_diary_requires_owned_context();
     if ($native && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return '';
     $safeNpcName = trim($npcName);

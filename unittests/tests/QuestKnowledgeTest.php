@@ -1136,9 +1136,9 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertNotContains($id,array_column($this->view()['reports'],'history_event_id'));
     }
 
-    private function reportRows(bool $materialized=true,?int $actor=null,bool $withoutByteBound=false): array
+    private function reportRows(bool $materialized=true,?int $actor=null,bool $withoutByteBound=false,bool $readerFirstVisibility=true): array
     {
-        $sql=synthQuestKnowledgeReportQuery($this->fixtureDb,$this->event,$actor ?? $this->identityIds['preston'],$materialized);
+        $sql=synthQuestKnowledgeReportQuery($this->fixtureDb,$this->event,$actor ?? $this->identityIds['preston'],$materialized,$readerFirstVisibility);
         if ($withoutByteBound) $sql=str_replace(' WHERE source_bytes<=1048576 ORDER BY history_event_id DESC',' ORDER BY history_event_id DESC',$sql);
         return $this->fixtureDb->withNativeRequestLock(static function($connection) use($sql): array {
             $result=pg_query($connection,$sql);
@@ -1149,7 +1149,9 @@ final class QuestKnowledgeTest extends DatabaseTestCase
 
     private function assertEquivalentReportRows(?int $actor=null): array
     {
+        $reference=$this->reportRows(true,$actor,readerFirstVisibility:false);
         $plain=$this->reportRows(false,$actor);$materialized=$this->reportRows(true,$actor);
+        $this->assertSame($reference,$materialized,'Reader-first visibility must preserve every original evidence field and its order');
         $this->assertSame($plain,$materialized,'Every quest evidence field and its order must be unchanged');
         $this->assertSame(hash('sha256',$this->json($plain)),hash('sha256',$this->json($materialized)));
         return $materialized;
@@ -1174,9 +1176,83 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertStringContainsString(', native_history AS MATERIALIZED (',$quest);
         $this->assertStringNotContainsString(', native_history AS MATERIALIZED (',synth_protocol_history_cte($this->fixtureDb,$this->event));
         $this->assertStringNotContainsString('relationship_graph_history AS MATERIALIZED',synth_protocol_history_rows_cte(true));
+        $this->assertStringContainsString('FROM actors reader_actor',$quest);
+        $this->assertStringNotContainsString('FROM actors reader_actor',synth_protocol_history_cte($this->fixtureDb,$this->event));
         $this->assertSame(str_replace('native_history AS MATERIALIZED (','native_history AS (',$quest),
             synthQuestKnowledgeReportQuery($this->fixtureDb,$this->event,$this->identityIds['preston'],false));
         $this->assertCount(1,$this->view()['reports']);
+    }
+
+    public static function recordedVisibilitySuffixes(): array
+    {
+        return ['plain'=>[''],'busy'=>[' (busy)'],'hostile'=>[' (hostile)'],
+            'combat'=>[' (in combat)'],'restrained'=>[' (restrained)']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('recordedVisibilitySuffixes')]
+    public function testReaderFirstVisibilityPreservesRecordedSuffixesAndRepeatedIdentity(string $suffix): void
+    {
+        // The target is also recorded twice in the audience. Repeated evidence for
+        // one identity remains unambiguous, including repeated/case-folded tokens.
+        $payload=$this->sourcePayload;$payload['audience'][]=$payload['target'];
+        $this->replaceSourcePayload($payload);
+        $this->fixtureDb->execQuery("UPDATE synth_meta.context_snapshots SET audience_identity_ids=$1::jsonb
+            WHERE session_id='quest-session-one' AND generation=1 AND snapshot_sequence=1",
+            [$this->json([$this->identityIds['preston'],$this->identityIds['preston']])]);
+        $token='  '.strtoupper($payload['target']['display_name'].$suffix).'  ';
+        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+            ['|Nora|'.$token.'|'.$token.'|',$this->historyId]);
+        $this->assertCount(1,$this->assertEquivalentReportRows());
+        $this->assertSame([],$this->assertEquivalentReportRows(2147483647),'An unknown reader acquires no visibility');
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('recordedVisibilitySuffixes')]
+    public function testReaderFirstVisibilityRejectsDuplicateNamesAndSuffixAliasCollisions(string $suffix): void
+    {
+        $payload=$this->sourcePayload;
+        $other=$this->identities['impostor'];$other['display_name']=$payload['target']['display_name'].$suffix;
+        $payload['audience'][]=$other;$this->replaceSourcePayload($payload);
+        $this->fixtureDb->execQuery("UPDATE synth_meta.context_snapshots SET audience_identity_ids=$1::jsonb
+            WHERE session_id='quest-session-one' AND generation=1 AND snapshot_sequence=1",
+            [$this->json([$this->identityIds['preston'],$this->identityIds['impostor']])]);
+        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+            ['|Nora|'.$other['display_name'].'|',$this->historyId]);
+        $this->assertSame([],$this->assertEquivalentReportRows(),
+            'A token matching the reader and another insertion-time identity grants neither access');
+    }
+
+    public function testReaderFirstVisibilityUsesOriginalCaptureAcrossLoadedAncestry(): void
+    {
+        $original=$this->sourcePayload;
+        $original['target']['display_name']='Preston at the original capture';
+        $original['audience']=[$original['target']];$this->replaceSourcePayload($original);
+        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+            ['|Nora|'.$original['target']['display_name'].'|',$this->historyId]);
+        $anchor=['session_id'=>'quest-session-one','generation'=>1,'context_sequence'=>2,'playthrough_id'=>'quest-save-one'];
+        $this->session('reader-first-resumed',2,'quest-save-one');
+        $this->selectCurrent('reader-first-resumed',2,1,'preston',0,$anchor);
+        $this->assertCount(1,$this->assertEquivalentReportRows(),'The current display name cannot replace insertion-time visibility');
+        $anchor['context_sequence']=1;
+        $this->session('reader-first-rewound',3,'quest-save-one');
+        $this->selectCurrent('reader-first-rewound',3,1,'preston',0,$anchor);
+        $this->assertSame([],$this->assertEquivalentReportRows(),'Rewinding before the report retains the original frontier');
+    }
+
+    public static function recordedVisibilityEdgeTokens(): array
+    {
+        return ['null'=>[null,false],'empty'=>['',false],'only separators'=>['|||',false],
+            'unknown'=>['|Nora|Someone else|',false],
+            'literal punctuation'=>['|Preston.*Garvey|',false],
+            'empty fields and repeated tokens'=>['|||Preston Garvey||Preston Garvey|||',true]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('recordedVisibilityEdgeTokens')]
+    public function testReaderFirstLiteralSplitKeepsEmptyAndUnknownTokenSemantics(?string $people,bool $visible): void
+    {
+        // Set the exact scalar, including JSON null; no manual JSON/string escaping.
+        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',$1::jsonb) WHERE id=$2",
+            [json_encode($people,JSON_THROW_ON_ERROR),$this->historyId]);
+        $this->assertCount($visible ? 1 : 0,$this->assertEquivalentReportRows());
     }
 
     public function testMaterializedQuestRowsMatchAllOwnershipAndProvenanceExclusions(): void

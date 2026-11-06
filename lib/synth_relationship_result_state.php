@@ -26,11 +26,43 @@ function synth_relationship_result_state_cte(): string
         JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.snapshot_sequence=i.context_sequence AND c.target_identity_id=i.actor_identity_id AND c.playthrough_id=i.playthrough_id
         JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
-            AND owner.generation=i.generation AND owner.turn_id=i.turn_id AND owner.state='complete'
+            AND owner.generation=i.generation AND owner.turn_id=i.turn_id
         JOIN synth_meta.protocol_events protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'
         JOIN relationship_graph_responses response ON response.history_event_id=i.response_history_event_id AND response.actor_identity_id=i.actor_identity_id
-        WHERE i.input_payload->'context'=c.context_payload AND i.input_payload->'response'=response.response_payload
+        WHERE i.input_payload->'response'=response.response_payload
+            AND (owner.state='complete' OR (owner.state='cancelled' AND owner.event_type='action_result'
+                AND i.input_payload#>>'{received_gift,fact,action_id}'=response.response_payload->>'verified_gift_action_id'))
+            AND (i.input_payload->'context'=c.context_payload OR EXISTS (
+                SELECT 1 FROM synth_meta.action_intents action
+                JOIN synth_meta.action_terminal_results receipt ON receipt.action_id=action.action_id
+                    AND receipt.idempotency_key=action.idempotency_key AND receipt.status='succeeded'
+                    AND receipt.result=protocol.canonical_event#>'{payload,result}'
+                CROSS JOIN LATERAL (
+                    SELECT jsonb_agg(CASE WHEN observed.value IS NULL THEN actor.value ELSE actor.value||
+                        jsonb_build_object('inventory',observed.value->'items','inventory_observation',observed.value->'observation') END
+                        ORDER BY actor.ordinality) AS states
+                    FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.context_payload->'actor_states')='array'
+                        THEN c.context_payload->'actor_states' ELSE '[]'::jsonb END) WITH ORDINALITY actor
+                    LEFT JOIN jsonb_array_elements(jsonb_build_array(receipt.result->'inventory',receipt.result->'recipient_inventory')) observed(value)
+                        ON upper(observed.value#>>'{actor,form_id}')=upper(actor.value#>>'{actor,form_id}')
+                        AND lower(observed.value#>>'{actor,origin_plugin}')=lower(actor.value#>>'{actor,origin_plugin}')
+                        AND observed.value#>>'{actor,playthrough_id}'=actor.value#>>'{actor,playthrough_id}'
+                    HAVING count(observed.value)=2
+                ) overlay
+                WHERE owner.event_type='action_result' AND action.session_id=i.session_id AND action.generation=i.generation
+                    AND action.turn_id=i.turn_id AND action.state='complete'
+                    AND action.actor_identity_id=i.actor_identity_id AND action.target_identity_id=c.player_identity_id
+                    AND action.action_id=response.response_payload->>'verified_gift_action_id'
+                    AND action.action_id=i.input_payload#>>'{received_gift,fact,action_id}'
+                    AND (action.action_name,action.capability,i.input_payload#>>'{received_gift,fact,schema}') IN
+                        (('OpenInventory','action.open_inventory','synth.player-gift-batch.v1'),
+                         ('TakeItemFromPlayer','action.take_item_from_player','synth.player-gift.v1'))
+                    AND receipt.result->>'schema'='synth.action.transfer-result.v2'
+                    AND receipt.result#>>'{inventory,observation}'='complete'
+                    AND receipt.result#>>'{recipient_inventory,observation}'='complete'
+                    AND i.input_payload->'context'=jsonb_set(c.context_payload,'{actor_states}',overlay.states)
+            ))
             AND ((i.input_payload->>'schema'='synth.relationship.evaluation.v1' AND NOT i.input_payload ? 'player_lines')
                 OR (i.input_payload->>'schema'='synth.relationship.evaluation.v2'
                     AND i.input_payload->>'evaluation_policy'='synth.relationship.policy.v2'

@@ -21,7 +21,8 @@ function synth_relationship_run_persisted_job($db, int $jobId, ?callable $genera
     if (!synthRelationshipUsesDedicatedConnector()) return null;
     if (!$db->isTransactionIdle()) throw new LogicException('Relationship providers require an idle database connection');
     $job=$db->fetchOne("SELECT j.session_id,j.request_id,j.turn_id,j.generation,
-            j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256
+            j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256,
+            (j.payload->>'schema'='synth.relationship.gift-job.v1') AS retained_gift
         FROM synth_meta.worker_jobs j
         JOIN synth_meta.request_executions e ON e.session_id=j.session_id AND e.request_id=j.request_id
             AND e.generation=j.generation AND e.turn_id=j.turn_id AND e.state='complete'
@@ -61,6 +62,14 @@ function synth_relationship_evaluation_prompt(array $input): array
         $evidence['response']=['schema'=>'synth.relationship.player.evidence.v1',
             'entries'=>array_column($lines,'entry'),'input_events'=>$input['response']['input_events'] ?? []];
     }
+    if (isset($input['received_gift'])) {
+        $gift=$input['received_gift'];
+        if (!in_array($gift['fact']['schema'] ?? '',['synth.player-gift.v1','synth.player-gift-batch.v1'],true) || ($gift['fact']['meaning'] ?? '')!=='gift'
+            || !synth_player_item_same_actor($gift['fact']['recipient'] ?? [],$input['context']['target'])
+            || !synth_player_item_same_actor($gift['fact']['donor'] ?? [],$input['context']['player'])
+            || !is_array($gift['recipient_perspective']['fields'] ?? null)) throw new InvalidArgumentException('Invalid verified gift evidence');
+        $evidence['received_gift']=$gift;
+    }
     $json=json_encode($evidence,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
     if (strlen($json)>262144) throw new LengthException('Native relationship prompt too large');
     return [
@@ -71,6 +80,7 @@ function synth_relationship_evaluation_prompt(array $input): array
             .($playerOnly ? 'Evaluate only this NPC toward Player. Other NPC relationships are evaluated separately. Recorded input events are not automatically player actions. ' : '')
             .(($input['response']['schema'] ?? '')==='synth.relationship.response.v3'
                 ? 'Per-line routing identifies the intended addressee, not proof of hearing. Do not attribute NPC-to-NPC speech to the player. ' : '')
+            .(isset($input['received_gift']) ? 'A received_gift fact proves one successful player-to-NPC gift, not its emotional value. Judge personal usefulness, sentiment, needs, beliefs and goals using recipient_perspective. A weapon may mean protection, unwanted violence, redundancy or little interest depending on this person. Price alone does not determine gratitude. Choose any justified positive, negative or zero change; no fixed gift bonus or automatic maximum affinity. Do not reward the earlier offer separately or count this handoff more than once. ' : '')
             ."Use only the subjects' exact labels as output keys; use Player for the player. Return only JSON "
             .'of the form {"changes":{"Player":{"delta":1,"reason":"brief"}}}; delta must be an integer from -200 to 200. '
             .'Optional type must be an established type; optional reason must be at most 256 UTF-8 bytes. '

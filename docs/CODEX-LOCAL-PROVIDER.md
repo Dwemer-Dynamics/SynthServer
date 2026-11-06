@@ -32,9 +32,42 @@ healthy response is insufficient. A changed executable invalidates live health
 and requests until a verified restart. Configuration and managed sign-in remain
 outside the release archives.
 
+## Settings changes while running
+
+The settings-recovery candidate distinguishes user configuration/policy edits
+from executable, loaded bridge-code and external proof changes. A settings-only
+change marks health as `revalidation_required`. The next authenticated inference
+request closes the old transport and runs the bounded local isolation fixture
+against the current settings before sending the caller's dialogue to ChatGPT.
+Two fresh synthetic scopes must contain zero model-facing tools, their own exact
+input and no unrelated personal context. A settings change during that check
+refuses publication of the recovered state.
+
+After success the bridge retains the new proof and signature in memory and
+continues the same primary request. It does not rewrite private configuration,
+credentials, global Codex settings or the on-disk proof. Later requests reuse the
+verified signature; idle retirement does not erase this in-process verification.
+The local recheck has a ten-second shared provider-event budget; hashing and
+process cleanup add their bounded normal overhead. It makes no managed-provider
+generation call and never receives the caller's game text.
+
+Health polling stays read-only. A failed check reports `isolation_recheck_failed`
+without private diagnostics and is not repeated for the same unchanged settings.
+Another settings edit permits another check. Executable, loaded-code or external
+proof changes still require a verified restart. A fresh process continues to use
+the existing full startup and managed ChatGPT readiness procedure.
+
+SYNTH profiles can independently retry a failed bridge request through their
+configured fallback connectors. This is separate from the bridge's primary-only
+policy. Settings recovery prevents the avoidable stale-settings error; it does
+not disable configured fallback for genuine provider or isolation failures.
+
 ## Request ownership and execution boundaries
 
-Every request creates a separate app-server process and fresh ephemeral thread.
+Every request creates a fresh ephemeral thread. The latency candidate reuses the
+app-server transport for up to eight completed requests, then recycles it. It also
+retires the process after 60 idle seconds. Conversations are never resumed or
+shared between NPCs; each input contains only the caller's current supplied context.
 The bridge passes only the current caller-supplied text messages, JSON response
 format and response budget. SYNTH retains save/NPC scoping, memory retrieval,
 diaries, output interpretation, action validation and game execution.
@@ -49,6 +82,12 @@ Before live requests, a local Responses stub must verify zero model-facing tools
 expected instructions, synthetic input and absence of personal-context markers.
 The proof is tied to executable bytes, bridge/RPC source, process overrides and
 discovered user configuration/policy files. Changes invalidate the proof.
+The latency candidate checks two distinct synthetic threads through the same
+transport. Both must have zero model-facing tools and exactly their own input.
+Full proof hashing is cached only while the executable, source, proof and discovered
+configuration/policy file identities, sizes and timestamps remain unchanged. A
+changed signature closes the transport and requires a matching verified proof;
+the settings-only case can recover through the local check described above.
 The caller's global user policy can remain present; unrelated project documents
 and personal agent histories are excluded. Recheck isolation after upgrades.
 
@@ -74,6 +113,19 @@ are buffered until validated, then emitted as complete Chat Completions JSON or
 SSE. Partial or invalid output cannot become speech. Operational route
 metadata is separate from character dialogue.
 
+The latency candidate checks caller disconnection while waiting for provider
+events. Disconnection discards partial output and retires the transport; it does
+not retry generation. Provider EOF fails immediately rather than consuming the
+remaining generation deadline. A busy bridge still fails promptly instead of
+queueing another conversation. Successful HTTP responses expose bounded phase
+durations in `Server-Timing` and cold/warm transport status in
+`X-SYNTH-Transport`, without prompts, actor names or provider bodies.
+
+This remains a validated, buffered reply path. It does not deliver model deltas
+as unvalidated speech or change the selected model, reasoning effort or service
+tier. Warm transport is an overhead reduction, not a claim that model generation
+or memory retrieval is instantaneous.
+
 The adapter binds only to an explicitly configured private interface. Restrict
 ingress to the dedicated container subnet and exact host loopback aliases, and
 require the independent local credential. Do not bind to all interfaces or
@@ -90,6 +142,19 @@ Workstation receipts separately record current-binary isolation,
 live synthetic ChatGPT checks and actual SYNTH streaming/fast-request
 parsing with database writes disabled. These do not establish game performance,
 audio playback, sustained concurrency, or overall character quality.
+
+The latency candidate has focused Windows and WSL tests covering fresh-thread
+isolation on reused transports, late output rejection, cancellation, invalid or
+oversized output, idle retirement, process death and HTTP timing headers. A
+current-executable local stub separately proves both synthetic contexts contain
+zero tools. Managed ChatGPT synthetic cold/warm timings are separate workstation
+evidence; installed gameplay latency and cancellation still require a return check.
+Settings-recovery tests additionally cover actual temporary settings/policy edits,
+single-flight recovery, failed checks, concurrent edits, source/executable/proof
+replacement, private-file preservation and HTTP health-to-primary recovery. An
+actual-executable fixture with simulated stale startup metadata separately checks
+local isolation and one managed synthetic primary reply. It is not a live settings
+edit, an installed repair or gameplay acceptance.
 
 Selecting this bridge keeps the dialogue model on ChatGPT. Other independently
 configured connectors are not rewritten by startup. Stopping the local bridge

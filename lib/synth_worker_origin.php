@@ -16,7 +16,7 @@ function synth_worker_with_origin($db, array $job, callable $work, string $kind)
         || ($event['context_sequence'] ?? null)!==intval($job['context_sequence'])) {
         throw new RuntimeException('Native '.$kind.' origin mismatch');
     }
-    $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_MEMORY_JOB_LEASE','SYNTH_RELATIONSHIP_JOB_LEASE','SYNTH_INTERACTION_JOB_LEASE','SYNTH_MIDDLETERM_JOB_LEASE',
+    $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_MEMORY_JOB_LEASE','SYNTH_RELATIONSHIP_JOB_LEASE','SYNTH_INTERACTION_JOB_LEASE','SYNTH_MIDDLETERM_JOB_LEASE','SYNTH_RETAINED_GIFT_OWNER',
         'PLAYER_NAME','SYNTH_NAME','gameRequest','COMMAND_PROMPT','FORCE_MAX_TOKENS','CURRENT_CONNECTOR',
         'SYNTH_CORE_CURRENT_CONNECTOR_DATA','CONNECTOR','DEBUG_DATA','PATCH_PROMPT_ENFORCE_ACTIONS',
         'COMMAND_PROMPT_ENFORCE_ACTIONS','BASE_FUNCTIONS','SYNTH_CLIENT_CAPABILITIES','DIRECT_NARRATOR_DIALOGUE'];
@@ -26,6 +26,10 @@ function synth_worker_with_origin($db, array $job, callable $work, string $kind)
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
         $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
         unset($GLOBALS['SYNTH_MEMORY_JOB_LEASE'],$GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE'],$GLOBALS['SYNTH_INTERACTION_JOB_LEASE'],$GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE']);
+        unset($GLOBALS['SYNTH_RETAINED_GIFT_OWNER']);
+        if ($kind==='relationship' && ($job['retained_gift'] ?? null)==='t' && ($event['type'] ?? '')==='action_result') {
+            $GLOBALS['SYNTH_RETAINED_GIFT_OWNER']=$event;
+        }
         synth_protocol_assert_request_active();
         $context=synth_protocol_current_context($db,$event);
         if ($context===null || !is_array($context['target'])) return null;

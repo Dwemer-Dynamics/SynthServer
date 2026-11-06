@@ -15,6 +15,19 @@ final class NativeRelationshipDispatchFixtureDatabase
         if (!$result) throw new RuntimeException('Disposable relationship query failed');
         return $result;
     }
+    public function insert(string $table,array $data): bool {
+        if ($table!=='eventlog' || ($data['type'] ?? '')!=='funccall') throw new LogicException('Unexpected fixture insert');
+        $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+        $data['synth_session_id']=$event['session_id'];$data['synth_generation']=$event['generation'];
+        $data['synth_context_sequence']=$event['context_sequence'];$data['synth_request_id']=$event['request_id'];
+        $columns=array_keys($data);$values=implode(',',array_map(static fn($i)=>'$'.($i+1),array_keys($columns)));
+        $playthrough=$this->fetchOne('SELECT playthrough_id FROM synth_meta.context_snapshots WHERE session_id='.$this->escapeLiteral($event['session_id'])
+            .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['playthrough_id'];
+        $query='WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',',$columns).') VALUES ('.$values.') RETURNING *)
+            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(inserted) FROM inserted';
+        $this->execQuery($query,[...array_values($data),$playthrough]);return true;
+    }
     public function fetchArray($result) {return pg_fetch_assoc($result);}
     public function fetchOne(string $sql): ?array {return pg_fetch_assoc($this->execQuery($sql)) ?: null;}
     public function fetchAll(string $sql): array {return pg_fetch_all($this->execQuery($sql)) ?: [];}
@@ -475,6 +488,150 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $this->assertSame(1,$calls,'An unchanged ready result suppresses duplicate provider work');
         $this->assertSame($this->parent,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
     }
+    public static function giftReceiptKinds(): array {return ['direct'=>[false], 'menu'=>[true], 'rollover before dispatch'=>[true,'before'], 'rollover during provider'=>[true,'during'], 'cancel during provider'=>[true,'cancel'], 'rechat waits for gift publication'=>[true,'profile_lock']];}
+    #[\PHPUnit\Framework\Attributes\DataProvider('giftReceiptKinds')]
+    public function testAcceptedPlayerGiftFreezesRecipientPerspectiveAndEvaluatesOnce(bool $menu,string $rollover='none'): void {
+        $player=$this->context['player'];$npc=$this->context['target'];
+        $item=['form_id'=>'0x00001234','origin_plugin'=>'Fallout4.esm','display_name'=>'Fixture pistol',
+            'count'=>2,'form_type'=>43,'value'=>99,'weight'=>3,'equipped'=>false];
+        $context=$this->context;$context['actor_states']=[
+            ['actor'=>$player,'inventory'=>[$item],'inventory_observation'=>'complete'],
+            ['actor'=>$npc,'inventory'=>[],'inventory_observation'=>'complete']];
+        $this->query('UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb WHERE snapshot_sequence=1',[$this->json($context)]);
+        $this->query("UPDATE synth.core_npc_master SET npc_static_bio='Synthetic protector of Sanctuary.',personality='Cautious and practical.',goals='Keep my family safe.' WHERE id=$1",[$this->npcId]);
+        $parent=$this->parent;$parent['request_id']='gift-input';$parent['payload']=['text'=>'Take my Fixture pistol'];
+        $parent['capabilities']=array_merge($parent['capabilities'],['action.give_item_to','action.transfer_inventory',
+            'action.inventory_observation','action.take_item_from_player','action.player_item_inventory']);
+        if ($menu) {$parent['payload']['text']='I have a gift for you';$parent['capabilities']=array_merge($parent['capabilities'],['action.open_inventory','action.gift_menu_inventory']);}
+        $this->request($parent);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$parent];
+        $action=['schema'=>'synth.action.v1','action_id'=>'gift:one','idempotency_key'=>'gift:key',
+            'name'=>'take_item_from_player','capability'=>'action.take_item_from_player','server_code'=>'TakeItemFromPlayer',
+            'actor'=>$npc,'target'=>$player,'arguments'=>['item'=>'Fixture pistol','amount'=>1],'deadline_ms'=>30000];
+        if ($menu) {$action['name']='open_inventory';$action['capability']='action.open_inventory';$action['server_code']='OpenInventory';$action['arguments']=[];}
+        synth_protocol_record_action_intent($this->database,$action);
+        require_once dirname(__DIR__,2).'/lib/response.php';
+        $GLOBALS['SYNTH_REQUEST_EVENT']=$parent+['json'=>$parent];
+        unset($action['server_code']);
+        $action['arguments']=(object)$action['arguments'];
+        $parentBody=synth_protocol_encode_response_line('response_start',['server_version'=>'fixture'],'start')
+            .synth_protocol_encode_response_line('action',['action'=>$action],'action')
+            .synth_protocol_encode_response_line('response_end',['status'=>'complete'],'end');
+        $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",
+            [bin2hex($parentBody),$parent['request_id']]);
+        $after=$item;$after['count']=1;
+        $receipt=$parent;$receipt['request_id']='gift-result';$receipt['type']='action_result';
+        $receipt['payload']=['result'=>['schema'=>'synth.action.transfer-result.v2','action_id'=>'gift:one','idempotency_key'=>'gift:key',
+            'status'=>'succeeded','detail'=>'transfer inventory counts verified',
+            'inventory'=>['actor'=>$player,'items'=>[$after],'observation'=>'complete'],
+            'recipient_inventory'=>['actor'=>$npc,'items'=>[$after],'observation'=>'complete']]];
+        $this->request($receipt);$GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$receipt];
+        $this->database->withNativeRequestLock(function() use($receipt) {
+            synth_protocol_persist_action_result($this->database,$receipt,$receipt['session_id']);
+        });
+        $gift=synth_player_gift_for_event($this->database,$receipt);
+        $this->assertNotNull($gift);$this->assertSame(1,$menu?$gift['items'][0]['amount']:$gift['amount']);
+        $gameRequest=['',0,0,''];synth_protocol_bind_action_result($this->database,$receipt,$gameRequest);
+        $bound=json_decode($gameRequest[3],true,flags:JSON_THROW_ON_ERROR);
+        $details=json_decode($bound['result'],true,flags:JSON_THROW_ON_ERROR);
+        $this->assertSame($gift,$details['verified_gift']);
+        $this->response($receipt);
+        synth_relationship_begin_response();
+        $line=synth_relationship_capture_line($npc['display_name'],'This will help keep my family safe.');
+        synth_relationship_capture_route($line,'Player','fixture:dialogue');synth_relationship_finish_response(true);
+        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
+        synth_relationship_store_response($this->database,$receipt,hex2bin($body));
+        $row=pg_fetch_assoc($this->query("SELECT response_payload->>'verified_gift_action_id' AS gift
+            FROM synth_meta.relationship_response_inputs WHERE request_id='gift-result'"));
+        $this->assertSame($gift['action_id'],$row['gift']);
+        $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM synth_meta.relationship_evaluations
+            WHERE request_id='gift-result'"))['n'],'Reply completion leaves appraisal preparation to the worker.');
+
+        [$child,$chain]=$this->continuation('npc',true,$receipt);
+        $this->response($child);
+        $this->query("UPDATE synth_meta.request_executions SET claimed_at=clock_timestamp()+INTERVAL '1 second' WHERE request_id=$1",[$child['request_id']]);
+        $origin=synth_relationship_reserve_dispatch($this->database);
+        $this->assertSame($child['request_id'],$origin['request_id'],'Rechat remains the ordinary dispatch origin.');
+        $this->query("UPDATE synth_meta.runtime_sessions SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
+        $this->query('UPDATE synth_meta.runtime_sessions SET capabilities=$1::jsonb',[$this->json($receipt['capabilities'])]);
+        if ($rollover!=='none') {
+            $init=$receipt;$init['type']='init';$init['request_id']='gift-init';$init['turn_id']='gift-init-turn';
+            $init['context_sequence']=0;$init['payload']=new stdClass();
+            $this->request($init);
+        }
+        if ($rollover==='before') $this->admitRetainedNextTurn($receipt);
+        $calls=0;
+        $generate=function(array $frozen) use(&$calls,$gift,$receipt,$rollover): string {
+            ++$calls;
+            $this->assertTrue($this->database->isTransactionIdle());
+            $this->assertSame($receipt['request_id'],$frozen['owner']['request_id']);
+            $this->assertEquals($gift,$frozen['received_gift']['fact']);
+            $this->assertSame('Keep my family safe.',$frozen['received_gift']['recipient_perspective']['fields']['goals']);
+            $this->assertSame('Synthetic protector of Sanctuary.',$frozen['received_gift']['recipient_perspective']['biography']);
+            $this->assertSame([],$frozen['response']['input_events'],'The action result is gift evidence, not fabricated player speech.');
+            if ($rollover==='during') {
+                $previous=$GLOBALS['SYNTH_REQUEST_EVENT'];
+                $this->admitRetainedNextTurn($receipt);
+                $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
+            } elseif ($rollover==='cancel') {
+                $this->cancelRetainedOwner($receipt,false);
+            }
+            $prompt=synth_relationship_evaluation_prompt($frozen);$this->assertStringContainsString('recipient_perspective',$prompt[1]['content']);
+            return '{"changes":{"Player":{"delta":4,"reason":"Useful protection for my family."}}}';
+        };
+        if ($rollover==='cancel') {
+            try {
+                synth_relationship_dispatch($this->database,$generate,true);
+                $this->fail('Cancellation must revoke the retained gift worker.');
+            } catch (SYNTHProtocolCancelled $error) {
+                $this->assertSame('request_cancelled',$error->getMessage());
+            }
+            $this->assertSame(1,$calls);
+            $this->assertSame('cancelled',pg_fetch_assoc($this->query("SELECT state FROM synth_meta.worker_jobs
+                WHERE request_id='gift-result' AND job_type='relationship'"))['state']);
+            $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
+            return;
+        }
+        $this->assertNotNull(synth_relationship_dispatch($this->database,$generate,true));
+        $evaluation=(int)pg_fetch_assoc($this->query("SELECT id FROM synth_meta.relationship_evaluations WHERE request_id='gift-result'"))['id'];
+        $job=pg_fetch_assoc($this->query('SELECT id,state FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1',[$evaluation]));
+        $this->assertSame('ready',$job['state']);
+        $saved=pg_fetch_assoc($this->query('SELECT v.affinity FROM synth_meta.relationship_revisions v
+            JOIN synth_meta.relationship_results r ON r.history_event_id=v.result_history_event_id WHERE r.evaluation_id=$1',[$evaluation]));
+        $this->assertSame('4',$saved['affinity']);
+        $this->assertNull(synth_relationship_run_persisted_job($this->database,(int)$job['id'],$generate));
+        $this->assertSame(1,$calls,'A receipt replay cannot multiply gift appreciation.');
+        $this->assertSame('reserved',pg_fetch_assoc($this->query('SELECT status FROM synth_meta.rechat_continuations WHERE chain_id=$1',[$chain]))['status']);
+        if ($rollover==='profile_lock') $this->assertGiftRechatProfileSurvivesLockContention($child);
+        if ($rollover!=='none') return;
+        $duplicate=$receipt;$duplicate['request_id']='gift-result-replayed';$this->request($duplicate);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$duplicate];
+        $this->database->withNativeRequestLock(function() use($duplicate) {synth_protocol_persist_action_result($this->database,$duplicate,$duplicate['session_id']);});
+        $this->response($duplicate);synth_relationship_begin_response();
+        $line=synth_relationship_capture_line($npc['display_name'],'Thank you again.');
+        synth_relationship_capture_route($line,'Player','fixture:dialogue');synth_relationship_finish_response(true);
+        $duplicateBody=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result-replayed'"))['body'];
+        synth_relationship_store_response($this->database,$duplicate,hex2bin($duplicateBody));
+        $duplicateResponse=(int)pg_fetch_assoc($this->query("SELECT history_event_id FROM synth_meta.relationship_response_inputs WHERE request_id='gift-result-replayed'"))['history_event_id'];
+        $this->assertNull(synth_relationship_capture_evaluation($this->database,$duplicateResponse,'No duplicate gift reward.',true));
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results WHERE evaluation_id=$1',[$evaluation]))['n']);
+
+        $this->query("UPDATE synth_meta.context_snapshots SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
+            WHERE snapshot_sequence=3");
+        $this->assertSame('4',$this->savedRelationship($this->savedSelector())['affinity'] ?? null,
+            'Read back the verified post-transfer inventory context before cancellation.');
+        $this->cancelRetainedOwner($receipt,$menu);
+        $owner=pg_fetch_assoc($this->query("SELECT state,response_body FROM synth_meta.request_executions WHERE request_id='gift-result'"));
+        $this->assertSame('cancelled',$owner['state']);
+        $this->assertNull($owner['response_body']);
+        $this->assertSame('4',$this->savedRelationship($this->savedSelector())['affinity'] ?? null,
+            'A later cancellation clears delivery but preserves an already-published gift appraisal.');
+        $this->assertNull($this->savedRelationship($this->savedSelector(2)),'An earlier save cannot see the later gift appraisal.');
+        $this->query("UPDATE synth_meta.action_terminal_results SET result=jsonb_set(result,'{inventory,items,0,count}','99')
+            WHERE action_id='gift:one'");
+        $this->assertNull($this->savedRelationship($this->savedSelector()),'A mismatched inventory receipt cannot restore affinity.');
+    }
+
     private function evaluationJob(): int {
         $response=(int)pg_fetch_assoc($this->query('SELECT history_event_id FROM synth_meta.relationship_response_inputs'))['history_event_id'];
         $evaluation=synth_relationship_capture_evaluation($this->database,$response,'Evaluate only synthetic relationship evidence.',true);
@@ -557,6 +714,65 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         return ['protocol_version'=>2,'session_id'=>$this->parent['session_id'],'generation'=>1,
             'context_sequence'=>$sequence,'runtime_variant'=>$lane];
     }
+    private function assertGiftRechatProfileSurvivesLockContention(array $child): void {
+        require_once dirname(__DIR__,2).'/lib/synth_rechat_profile.php';
+        $connector=pg_fetch_assoc($this->query('SELECT id FROM synth.core_llm_connector ORDER BY id LIMIT 1'));
+        $this->assertNotFalse($connector);
+        $this->query('UPDATE synth.core_profiles SET llm_primary_id=$1,llm_secondary_id=$1,llm_tertiary_id=$1,llm_quaternary_id=$1
+            WHERE id=$2',[$connector['id'],$this->profileId]);
+        $this->query('UPDATE synth.core_npc_master SET md5=$1 WHERE id=$2',[md5('Fixture Piper Wright'),$this->npcId]);
+        $locker=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);
+        $this->assertNotFalse($locker);
+        $script=<<<'PHP'
+require 'lib/postgresql.class.php';
+require 'lib/synth_rechat_profile.php';
+$db=new sql();
+$GLOBALS['db']=$db;
+$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+echo "ready\n";
+flush();
+$event=json_decode(stream_get_contents(STDIN),true,flags:JSON_THROW_ON_ERROR);
+$GLOBALS['SYNTH_REQUEST_EVENT']=$event+['json'=>$event];
+$profile=synth_rechat_load_profile($db,$event);
+echo json_encode(['actor'=>(int)$profile['character']['actor_identity_id'],'profile'=>(int)$profile['profile']['id'],
+    'connector'=>(int)$profile['connector']['id'],'idle'=>$db->isTransactionIdle()],JSON_THROW_ON_ERROR);
+PHP;
+        $environment=getenv();
+        unset($environment['PHPUNIT_TEST']);
+        $environment['SYNTH_DB_HOST']='localhost';$environment['SYNTH_DB_NAME']='testdb';
+        $environment['SYNTH_DB_USER']='dwemer';$environment['SYNTH_DB_PASSWORD']='dwemer';
+        $process=proc_open([PHP_BINARY,'-r',$script],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],
+            $pipes,dirname(__DIR__,2),$environment);
+        $this->assertIsResource($process);
+        try {
+            stream_set_timeout($pipes[1],10);
+            $this->assertSame("ready\n",fgets($pipes[1]));
+            $lockPid=pg_get_pid($locker);
+            $session=pg_escape_literal($locker,$child['session_id']);
+            $this->assertTrue(pg_send_query($locker,"BEGIN; SELECT pg_advisory_xact_lock(hashtext($session)); SELECT pg_sleep(2.8); COMMIT;"));
+            $held=false;
+            for ($attempt=0;$attempt<100;++$attempt) {
+                $held=pg_fetch_assoc($this->query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND pid=$1 AND granted",[$lockPid]))!==false;
+                if ($held) break;
+                usleep(10000);
+            }
+            $this->assertTrue($held);
+            $start=hrtime(true);
+            fwrite($pipes[0],$this->json($child));
+            fclose($pipes[0]);
+            $output=stream_get_contents($pipes[1]);
+            $diagnostic=stream_get_contents($pipes[2]);
+            $this->assertGreaterThan(1.9,(hrtime(true)-$start)/1e9,'The first lock attempt must time out in the fixture.');
+            $this->assertSame(['actor'=>$this->actorId,'profile'=>$this->profileId,'connector'=>(int)$connector['id'],'idle'=>true],
+                json_decode($output,true),$diagnostic);
+        } finally {
+            pg_close($locker);
+            foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+            proc_terminate($process);
+            proc_close($process);
+        }
+    }
+
     private function savedRelationship(array $selector,?int $reader=null): ?array {
         return $this->database->fetchOne(synth_relationship_visible_cte($this->database,$selector,false,$reader ?? $this->actorId)
             .'SELECT history_event_id,affinity,prior_history_event_id,result_history_event_id FROM native_relationships'

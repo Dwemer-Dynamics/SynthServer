@@ -1,5 +1,91 @@
 # Synthserver open-alpha acceptance
 
+## Generic gift inventory exchange
+
+- [x] Install the reviewed coordinated gift-menu DLL/PEX/backend update; installed hashes and server health verified.
+- [ ] Flat: "I have a gift for you" opens the exact addressed NPC's normal free
+  inventory exchange; the NPC can decline the offer in character.
+- [ ] Give a weapon and ammunition, close the menu, and verify both inventories,
+  the paired receipt, and personality-based gift-batch evidence.
+- [ ] Opening/closing without donating, cancellation/load, a busy NPC and wrong
+  menu ownership produce no received-gift credit.
+- [ ] Named offers including "I have a gift for you, X" continue to use the direct
+  exact observed Player-to-NPC transfer without opening the generic gift screen.
+
+
+## Player-pack follow-up wording
+
+- [x] Install the reviewed one-file backend wording correction; installed hash and server health verified.
+- [ ] Marcy's “grab the submachine gun” selects TakeItemFromPlayer and physically
+  transfers the exact player stack with a successful paired receipt.
+- [ ] Complete and save personal gift valuation despite the separately observed
+  cancelled post-transfer continuation.
+
+
+## Player-pack gifts
+
+- [x] Disposable PostgreSQL: clean database bootstrap and populated upgrade from
+  the October 24 flat alpha RC3 register the same named-gift action. Existing
+  profiles, NPC profile links, memories, summaries and action preferences are
+  preserved. A failed insert leaves the migration pending and retry succeeds.
+- [x] Install the coordinated client/backend candidate after reviewing the concrete plan; all installed hashes and server health verified.
+- [ ] Flat: Jun takes the exact requested unequipped weapon from the player pack;
+  paired inventory counts and receipt agree with physical gameplay.
+- [ ] Compare different NPC reactions to gifts using their personalities/goals;
+  confirm lasting relationship evidence follows the verified handoff.
+- [ ] A failed/busy/quest-bound transfer produces no received gift; retrying the
+  same receipt produces no second relationship reward.
+
+
+## Manual diary shortcut and reader
+
+- [x] Flat: user confirms F6 requests the crosshair NPC's diary; Sturges' entry
+  completed on the first attempt in about 33 seconds, with valid published
+  ownership/hashes and dashboard visibility (4 November 2026).
+- [ ] VR: verify a controller-accessible diary request and saved entry in-headset.
+
+
+## Jev companion command candidate
+
+- [ ] Compare typed and voiced Wait Here / Stop Waiting on the exact calm follower:
+  one typed intent, verified physical receipt, owned consequence and later recall.
+- [ ] Confirm the action completes before its result-based acknowledgement; record
+  classifier, input-to-dispatch and intent-to-receipt timings separately.
+- [ ] Confirm ordinary NPCs, unknown/stale state, quoted/negated/multiple requests,
+  cancelled turns and provider abstention retain the documented normal path.
+- [ ] Test Stop and both newer/older saves; selected JEV choice and dispatched
+  intent alone cannot establish successful execution or enduring waiting.
+
+This candidate extends existing routing and diagnostics. It adds no new native
+executor, collector, background planner or provider route.
+
+## Flat return feedback and saved follower tasks candidate
+
+The user reports that followers now keep moving and rechat no longer freezes
+distant NPCs across a settlement. Ordinary NPC approach still failed in the
+tested installation. Attack remained unconfirmed; diagnostic evidence found no
+Attack intent and an empty captured enemy-awareness list in those attempts.
+The observed rechat failure was a quest-context SQL timeout before generation.
+
+- [ ] Verify the repaired repeating approach package and robot hearing in game;
+  a human NPC's reported eligibility rejection is not yet reproduced.
+- [ ] Prove a player Attack order using an exact client terminal result and
+  observed behavior, separately from enemies initiating combat.
+- [ ] Recheck input captions and full reply latency after the quest query fix.
+- [ ] Verify a follower physically visits the named NPC, delivers the requested
+  topic and receives a reply before normal follow resumes.
+- [ ] Verify an instruction given away from the destination waits for return;
+  ambiguous or unknown actors/locations cannot start movement.
+- [ ] Check actor-owned task notes and post-acknowledgment save checkpoints:
+  older saves exclude later tasks; a save before completion restores pending
+  work; a new save after completion retains completion.
+- [ ] Exercise Stop, combat, unload, failed speech and interrupted requests;
+  release only the task's temporary navigation and do not claim undelivered work.
+
+Focused native/PHP tests and protocol fixtures remain automated evidence. The
+candidate migration and paired installation have not established these gameplay
+checks, and this work does not add VR acceptance.
+
 ## Flat gameplay evidence — 24 October 2026
 
 - Codsworth and Jun completed a public NPC exchange; both movement holds released.
@@ -26,6 +112,13 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
 
 ## Current dialogue return fixes
 
+- [ ] Optional Jev actions: separately configure and compare off/on behaviour
+      for existing typed/spoken actions, Talk/refusal, ambiguous requests and
+      missing arguments. Check actual action results, Stop/load cancellation,
+      provider fallback and first-speech/decision timing. Record real provider,
+      flat gameplay and VR headset evidence separately. This optional candidate
+      does not supersede accepted quest/relationship checks. See [JEV-ACTIONS.md](JEV-ACTIONS.md).
+
 - [ ] Install the reviewed combined candidate and complete a new text/audio return
       check. Automated tests and a sealed archive do not establish game acceptance.
 - [ ] A spoken command completes STT, keeps its canonical admitted event unchanged
@@ -48,6 +141,19 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       interrupted or changed scenes cannot authorize continued speech.
 
 ## Managed ChatGPT dialogue route
+
+- [ ] Bridge settings recovery: after the reviewed combined bridge update, make a
+  harmless Codex settings edit between game turns. The next primary request must
+  recheck isolation and recover without using profile fallback, while preserving
+  the user's setting and private proof/config files. Verify failed isolation and
+  executable/source replacement remain explicit failures. Source fixtures and a
+  synthetic current-executable recovery do not establish this gameplay result.
+
+- [ ] Bridge latency return check: after the reviewed bridge update, compare cold
+  and warm response timing with the same configured model and real gameplay.
+  Confirm fresh NPC/save contexts, rapid Stop/load cancellation, bounded idle
+  retirement and correct speech/actions. Synthetic transport timings do not prove
+  a game latency improvement; memory retrieval remains a separate cost.
 
 - [x] Startup regression checks: desktop executable discovery, zero-tool isolation,
   primary reply validation, preserved configuration on failure and explicit errors

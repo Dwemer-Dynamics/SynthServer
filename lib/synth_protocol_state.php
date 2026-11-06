@@ -1,6 +1,10 @@
 <?php
 
+require_once __DIR__.'/synth_player_gifts.php';
+require_once __DIR__.'/synth_gift_menu.php';
+
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php';
+require_once __DIR__.'/synth_wait_actions.php';
 
 // Converts the database BYTEA text representation used for deterministic response replay.
 function synth_protocol_decode_bytea($value): string
@@ -48,11 +52,18 @@ function synth_protocol_supports_player_caps(array $event): bool
         && array_diff(['action.player_caps_inventory','action.take_caps_from_player'], $event['capabilities'] ?? []) === [];
 }
 
+// Ordinary items debit the player only through their own explicit negotiated contract.
+function synth_protocol_supports_player_items(array $event): bool
+{
+    return synth_protocol_supports_transfer($event)
+        && array_diff(['action.player_item_inventory','action.take_item_from_player'], $event['capabilities'] ?? []) === [];
+}
+
 // Stored intent actor/target retain dialogue roles. Only receipt comparisons exchange them for a player payment.
 function synth_protocol_transfer_inventory_owner(array $owner): array
 {
-    if (!in_array($owner['action_name'] ?? '', ['TakeCapsFromPlayer','take_caps_from_player'], true)) return $owner;
-    if (($owner['capability'] ?? '') !== 'action.take_caps_from_player'
+    if (!in_array($owner['action_name'] ?? '', ['TakeCapsFromPlayer','take_caps_from_player','TakeItemFromPlayer','take_item_from_player','OpenInventory','open_inventory'], true)) return $owner;
+    if (($owner['capability'] ?? '') !== (in_array($owner['action_name'],['OpenInventory','open_inventory'],true) ? 'action.open_inventory' : (in_array($owner['action_name'],['TakeItemFromPlayer','take_item_from_player'],true) ? 'action.take_item_from_player' : 'action.take_caps_from_player'))
         || strcasecmp($owner['recipient_form_id'] ?? '', '0x00000014') !== 0
         || strcasecmp($owner['recipient_plugin'] ?? '', 'Fallout4.esm') !== 0
         || empty($owner['full_form_id']) || empty($owner['origin_plugin']) || strcasecmp($owner['full_form_id'], '0x00000014') === 0
@@ -68,11 +79,12 @@ function synth_protocol_valid_transfer_intent(array $action): bool
 {
     $actor=$action['actor'] ?? [];$target=$action['target'] ?? [];$arguments=$action['arguments'] ?? [];
     if ($arguments instanceof stdClass) $arguments=get_object_vars($arguments);
-    $taking=($action['name'] ?? '')==='take_caps_from_player';
-    $caps=$taking || ($action['name'] ?? '')==='give_caps_to';
-    return ($action['name'] ?? '')===($taking?'take_caps_from_player':($caps?'give_caps_to':'give_item_to'))
-        && ($action['capability'] ?? '')===($taking?'action.take_caps_from_player':($caps?'action.give_caps_to':'action.give_item_to'))
-        && (!isset($action['server_code']) || $action['server_code']===($taking?'TakeCapsFromPlayer':($caps?'GiveCapsTo':'GiveItemTo')))
+    $playerItem=($action['name'] ?? '')==='take_item_from_player';
+    $taking=$playerItem || ($action['name'] ?? '')==='take_caps_from_player';
+    $caps=($action['name'] ?? '')==='take_caps_from_player' || ($action['name'] ?? '')==='give_caps_to';
+    return ($action['name'] ?? '')===($playerItem?'take_item_from_player':($taking?'take_caps_from_player':($caps?'give_caps_to':'give_item_to')))
+        && ($action['capability'] ?? '')===($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($caps?'action.give_caps_to':'action.give_item_to')))
+        && (!isset($action['server_code']) || $action['server_code']===($playerItem?'TakeItemFromPlayer':($taking?'TakeCapsFromPlayer':($caps?'GiveCapsTo':'GiveItemTo'))))
         && is_array($actor) && is_array($target) && is_array($arguments)
         && isset($actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id'],$target['form_id'],$target['origin_plugin'],$target['playthrough_id'])
         && is_string($actor['form_id']) && is_string($target['form_id'])
@@ -98,10 +110,19 @@ function synth_protocol_owns_dialogue_turn(array $event): bool
     return ($event['protocol_version'] ?? 1) === 2
         && in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)
         && (in_array($event['type'] ?? '', ['input_text', 'input_audio', 'trigger', 'action_result'], true)
+            || (($event['type'] ?? '') === 'social_task_progress' && ($event['payload']['phase'] ?? '') === 'arrived'
+                && in_array('social.tasks.v1',$event['capabilities'] ?? [],true) && ($event['runtime_variant'] ?? '')==='flat')
             || (($event['type'] ?? '') === 'activate' && ($event['payload']['source'] ?? '') === 'manual'));
 }
 
 final class SYNTHProtocolCancelled extends RuntimeException {}
+final class SYNTHNativeRequestLockUnavailable extends RuntimeException {}
+
+// This internal owner is set only while the relationship worker processes a verified gift.
+function synth_protocol_retains_gift_owner(array $event): bool
+{
+    return ($event['type'] ?? '')==='action_result' && ($GLOBALS['SYNTH_RETAINED_GIFT_OWNER'] ?? null)===$event;
+}
 
 // Recheck durable ownership at side-effect boundaries, including deferred work after reply completion.
 function synth_protocol_assert_request_active(): void
@@ -116,10 +137,13 @@ function synth_protocol_assert_request_active(): void
             r.active_turn_id, r.active_turn_sequence
         FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING (session_id)
         WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
+    // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
+    $retainedGift=synth_protocol_retains_gift_owner($event) && ($row['state'] ?? '')==='complete'
+        && ($row['error_code'] ?? null)===null;
     if (!$row || !in_array($row['state'], ['claimed','streaming','complete'], true)
         || in_array($row['error_code'] ?? '',['turn_cancelled','request_cancelled'],true)
         || $row['runtime_state'] !== 'active' || intval($row['active_generation']) !== $generation
-        || (synth_protocol_owns_dialogue_turn($event)
+        || (!$retainedGift && synth_protocol_owns_dialogue_turn($event)
             && (($row['active_turn_id'] ?? '') !== $event['turn_id']
                 || intval($row['active_turn_sequence']) !== intval($event['context_sequence'])))) {
         throw new SYNTHProtocolCancelled('request_cancelled');
@@ -252,7 +276,7 @@ function synth_protocol_loaded_context($db, array $event): ?array
 }
 
 // A bounded ancestry relation over copied insertion evidence; never reads mutable/global eventlog rows.
-function synth_protocol_history_cte($db, array $event, string $actor = '', ?int $relationshipReaderIdentityId = null, bool $playerPerspective = false, bool $narratorJournals = false, ?int $journalReaderIdentityId = null, bool $responseRoles = false, string $journalKind = 'diary', bool $materializeHistory = false): string
+function synth_protocol_history_cte($db, array $event, string $actor = '', ?int $relationshipReaderIdentityId = null, bool $playerPerspective = false, bool $narratorJournals = false, ?int $journalReaderIdentityId = null, bool $responseRoles = false, string $journalKind = 'diary', bool $materializeHistory = false, bool $readerFirstVisibility = false): string
 {
     if (!in_array($journalKind,['diary','middleterm'],true)
         || ($journalKind==='middleterm' && ($journalReaderIdentityId===null || $narratorJournals))) {
@@ -365,11 +389,11 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     ), native_history_scopes AS (
         SELECT session_id,generation,playthrough_id,reader_identity_id,reader_player_id,MIN(history_event_id) AS cutoff
         FROM native_ancestry GROUP BY session_id,generation,playthrough_id,reader_identity_id,reader_player_id
-    ) ".synth_protocol_history_rows_cte(false,$responseRoles,$materializeHistory);
+    ) ".synth_protocol_history_rows_cte(false,$responseRoles,$materializeHistory,readerFirstVisibility:$readerFirstVisibility);
 }
 
 // Dependency validation reuses the identical insertion-time ownership rules without widening ordinary history.
-function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false, bool $materializeHistory=false, bool $relationshipSourceHistory=false): string
+function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false, bool $materializeHistory=false, bool $relationshipSourceHistory=false, bool $readerFirstVisibility=false, bool $limitRelationshipSources=false): string
 {
     $scopes=$relationshipGraph ? 'relationship_graph_scopes' : 'native_history_scopes';
     if ($relationshipSourceHistory && !$relationshipGraph) throw new InvalidArgumentException('Relationship source projection requires graph scopes');
@@ -407,11 +431,37 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
     $historyDefinition=$materializeHistory ? 'MATERIALIZED ' : '';
     $historyEvents=$relationshipSourceHistory ? $history.'_events' : 'synth_meta.history_events';
     // Avoid one indexed history lookup for every reader/saved-scope combination.
+    $sourceIds=$limitRelationshipSources ? ' AND h.id IN (SELECT history_event_id FROM relationship_graph_dependency_sources)' : '';
     $sourceEvents=$relationshipSourceHistory ? ", $historyEvents AS MATERIALIZED (
         SELECT h.* FROM synth_meta.history_events h WHERE EXISTS (
             SELECT 1 FROM $scopes s WHERE h.session_id=s.session_id AND h.generation=s.generation
-                AND h.playthrough_id=s.playthrough_id AND h.id<=s.cutoff) {$sourceFilter}
+                AND h.playthrough_id=s.playthrough_id AND h.id<=s.cutoff) {$sourceFilter}{$sourceIds}
     ) " : '';
+    // The quest consumer only needs to know whether this reader owns an unambiguous
+    // recorded token. Start with that reader, then reject a token matching another
+    // insertion-time identity. This is the same distinct-identity rule as grouping
+    // the full actors x people product, without building that product for every row.
+    // The separator is a literal pipe. Empty fields cannot match a nonempty actor
+    // name, so the literal split also preserves the regex split's empty-input case.
+    // Keep the original projection available to ordinary history and equivalence tests.
+    $visibility=$readerFirstVisibility ? "SELECT 1 FROM actors reader_actor
+                WHERE reader_actor.id=s.reader_identity_id AND EXISTS (
+                    SELECT 1 FROM unnest(string_to_array(COALESCE(original.people,''),'|')) people(name)
+                    WHERE lower(btrim(people.name)) IN (reader_actor.name,reader_actor.name||' (busy)',
+                        reader_actor.name||' (hostile)',reader_actor.name||' (in combat)',reader_actor.name||' (restrained)')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM actors other_actor WHERE other_actor.id<>s.reader_identity_id
+                        AND lower(btrim(people.name)) IN (other_actor.name,other_actor.name||' (busy)',
+                            other_actor.name||' (hostile)',other_actor.name||' (in combat)',other_actor.name||' (restrained)')
+                    )
+                )" : "SELECT 1 FROM actors CROSS JOIN LATERAL
+                    regexp_split_to_table(COALESCE(original.people,''),'[|]') people(name)
+                WHERE lower(btrim(people.name)) IN (actors.name,actors.name||' (busy)',
+                    actors.name||' (hostile)',actors.name||' (in combat)',actors.name||' (restrained)')
+                GROUP BY lower(btrim(people.name))
+                HAVING COUNT(DISTINCT id)=1 AND MIN(id)=s.reader_identity_id";
+    $historyVisibility=($relationshipSourceHistory||$readerFirstVisibility) ? 'ownership.visible'
+        : "CASE WHEN h.event_payload ? 'synth_wait_consequence' THEN ".synth_wait_history_visibility_sql()." WHEN ".synth_wait_unscoped_history_sql()." THEN false ELSE ownership.visible END";
     return $sourceEvents.", $history AS {$historyDefinition}(
         SELECT original.type,original.data,original.sess,{$nativeClock} AS gamets,
             original.localts,original.ts,original.rowid,original.people,original.location,original.party,
@@ -446,14 +496,9 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                 HAVING COUNT(DISTINCT id)=1
             ) AS speaker_identity_id,
             EXISTS (
-                SELECT 1 FROM actors CROSS JOIN LATERAL
-                    regexp_split_to_table(COALESCE(original.people,''),'[|]') people(name)
-                WHERE lower(btrim(people.name)) IN (actors.name,actors.name||' (busy)',
-                    actors.name||' (hostile)',actors.name||' (in combat)',actors.name||' (restrained)')
-                GROUP BY lower(btrim(people.name))
-                HAVING COUNT(DISTINCT id)=1 AND MIN(id)=s.reader_identity_id
+                {$visibility}
             ) AS visible
-        ) ownership WHERE ownership.visible
+        ) ownership WHERE {$historyVisibility}
     ) ";
 }
 
@@ -1153,6 +1198,7 @@ function synth_protocol_persist_activation($db, array $event, string $sessionId)
 
 function synth_protocol_persist_action_result($db, array $event, string $sessionId): void
 {
+    unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
     $result = $event['payload']['result'];
     $actionId = $db->escapeLiteral($result['action_id']);
     $idempotencyKey = $db->escapeLiteral($result['idempotency_key']);
@@ -1181,9 +1227,12 @@ function synth_protocol_persist_action_result($db, array $event, string $session
             throw new DomainException('action_context_mismatch');
         }
     }
+    $waitOutcome=null;
+    if (($event['protocol_version']??1)===2 && in_array($intent['action_name']??'',['WaitHere','wait_here','ReleaseWait','release_wait'],true))
+        $waitOutcome=synth_wait_result_context($db,$event);
     $transferReceipt = ($result['schema'] ?? '') === 'synth.action.transfer-result.v2';
     $transferIntent = in_array($intent['action_name'] ?? '', ['GiveItemTo', 'give_item_to'], true)
-        || (($event['protocol_version'] ?? 1) === 2 && in_array($intent['action_name'] ?? '', ['GiveCapsTo','give_caps_to','TakeCapsFromPlayer','take_caps_from_player'], true));
+        || (($event['protocol_version'] ?? 1) === 2 && in_array($intent['action_name'] ?? '', ['GiveCapsTo','give_caps_to','TakeCapsFromPlayer','take_caps_from_player','TakeItemFromPlayer','take_item_from_player','OpenInventory','open_inventory'], true));
     if ($transferReceipt || $transferIntent || ($result['schema'] ?? '') === 'synth.action.result.v2') {
         // Only the recorded mutation owner may attach inventory; labels never confer identity.
         $owner = $db->fetchOne("SELECT i.turn_id, i.request_id, i.action_name, i.capability,
@@ -1212,6 +1261,8 @@ function synth_protocol_persist_action_result($db, array $event, string $session
             'GiveItemTo', 'give_item_to' => 'action.give_item_to',
             'GiveCapsTo', 'give_caps_to' => 'action.give_caps_to',
             'TakeCapsFromPlayer', 'take_caps_from_player' => 'action.take_caps_from_player',
+            'TakeItemFromPlayer', 'take_item_from_player' => 'action.take_item_from_player',
+            'OpenInventory', 'open_inventory' => 'action.open_inventory',
             default => null,
         };
         if (!$owner || !is_array($parent) || $capability === null || ($owner['capability'] ?? '') !== $capability
@@ -1239,7 +1290,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         }
         if ($capability === 'action.consume' && (!synth_protocol_supports_consumption($event)
             || !synth_protocol_supports_consumption($parent))) throw new DomainException('action_inventory_capability_mismatch');
-        $isTransfer = in_array($capability, ['action.give_item_to','action.give_caps_to','action.take_caps_from_player'], true);
+        $isTransfer = in_array($capability, ['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory'], true);
         if (($transferReceipt && !$isTransfer) || ($isTransfer && ($result['schema'] ?? '') === 'synth.action.result.v2'))
             throw new DomainException('action_inventory_owner_mismatch');
         if ($isTransfer) {
@@ -1249,6 +1300,10 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 || !synth_protocol_supports_caps_transfer($parent))) throw new DomainException('action_inventory_capability_mismatch');
             if ($capability === 'action.take_caps_from_player' && (!synth_protocol_supports_player_caps($event)
                 || !synth_protocol_supports_player_caps($parent))) throw new DomainException('action_inventory_capability_mismatch');
+            if ($capability === 'action.take_item_from_player' && (!synth_protocol_supports_player_items($event)
+                || !synth_protocol_supports_player_items($parent))) throw new DomainException('action_inventory_capability_mismatch');
+            if ($capability==='action.open_inventory' && (!synth_protocol_supports_gift_menu($event)
+                || !synth_protocol_supports_gift_menu($parent) || !$transferReceipt)) throw new DomainException('action_inventory_capability_mismatch');
             $recipient = $result['recipient_inventory']['actor'] ?? [];
             if (empty($owner['recipient_form_id']) || empty($owner['recipient_plugin'])
                 || ($owner['recipient_playthrough_id'] ?? '') !== $owner['playthrough_id']
@@ -1289,6 +1344,10 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     if ($db->execQuery(
         "UPDATE synth_meta.action_intents SET state='complete' WHERE action_id={$actionId}"
     ) === false) throw new RuntimeException('Unable to complete action intent.');
+    if($waitOutcome!==null){
+        synth_wait_record_consequence($db,$event,$waitOutcome);
+        $GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']=$waitOutcome;
+    }
 }
 
 // PostgreSQL returns a successful ROLLBACK command for COMMIT on an aborted transaction.
@@ -1459,11 +1518,19 @@ function synth_protocol_claim_request($db, array $event): array
                     $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
                             response_body=NULL, error_code='superseded_turn', completed_at=NOW()
                         WHERE session_id={$session} AND generation={$generation} AND turn_id<>{$turnId}
-                          AND event_type IN ('input_text','input_audio','trigger','action_result')
+                          AND (event_type IN ('input_text','input_audio','trigger','action_result')
+                            OR (event_type='social_task_progress' AND request_id IN (
+                                SELECT p.request_id FROM synth_meta.protocol_events p
+                                WHERE p.session_id={$session} AND p.generation={$generation}
+                                    AND p.event_type='social_task_progress'
+                                    AND p.canonical_event->'payload'->>'phase'='arrived'
+                                    AND p.event_sha256=request_executions.request_sha256)))
                           AND state IN ('claimed','streaming')");
                     $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
                         WHERE session_id={$session} AND generation={$generation} AND turn_id<>{$turnId}
                           AND (job_type<>'diary' OR payload->>'schema' IS DISTINCT FROM 'synth.diary.job.v1')
+                          AND (job_type<>'relationship' OR relationship_evaluation_id IS NULL
+                            OR payload->>'schema' IS DISTINCT FROM 'synth.relationship.gift-job.v1')
                           AND state IN ('pending','running')");
                 }
             }
@@ -1562,6 +1629,9 @@ function synth_protocol_claim_request($db, array $event): array
         }
 
         synth_protocol_commit_transaction($db);
+        if($event['type']==='action_result' && is_array($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']??null))
+            synth_wait_trace_committed_result($event,$GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
+        unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
         return ['status' => 'accepted'];
     } catch (Throwable $error) {
         $db->execQuery('ROLLBACK');
@@ -1583,6 +1653,9 @@ function synth_protocol_record_action_intent($db, array $action): void
     if (!$event) {
         throw new RuntimeException('Action intent has no protocol request context.');
     }
+    require_once __DIR__.'/synth_attack_actions.php';
+    $attack=(($event['protocol_version'] ?? 1)===2) && (($action['name'] ?? '')==='attack' || ($action['capability'] ?? '')==='action.attack' || ($action['server_code'] ?? '')==='Attack');
+    if ($attack && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('attack_emission_claim_required');
     require_once __DIR__.'/synth_wait_actions.php';
     $wait=synth_wait_action_is_intent($action) && (($event['protocol_version'] ?? 1)===2
         || ($action['name'] ?? '')==='release_wait' || ($action['server_code'] ?? '')==='ReleaseWait');
@@ -1596,13 +1669,20 @@ function synth_protocol_record_action_intent($db, array $action): void
         || ($action['server_code'] ?? '')==='TakeCapsFromPlayer' || ($action['capability'] ?? '')==='action.take_caps_from_player');
     $caps = $taking || ($event['protocol_version'] ?? 1)===2 && (($action['name'] ?? '')==='give_caps_to'
         || ($action['server_code'] ?? '')==='GiveCapsTo' || ($action['capability'] ?? '')==='action.give_caps_to');
-    $transfer = $caps || ($action['name'] ?? '')==='give_item_to' || ($action['server_code'] ?? '')==='GiveItemTo'
+    $giftMenu=(($event['protocol_version'] ?? 1)===2) && (($action['name'] ?? '')==='open_inventory'
+        || ($action['server_code'] ?? '')==='OpenInventory' || ($action['capability'] ?? '')==='action.open_inventory');
+    if ($giftMenu && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('gift_menu_emission_claim_required');
+    $playerItem = in_array($action['name'] ?? '', ['take_item_from_player'],true)
+        || ($action['server_code'] ?? '')==='TakeItemFromPlayer' || ($action['capability'] ?? '')==='action.take_item_from_player';
+    if ($playerItem && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('player_item_emission_claim_required');
+    $transfer = $giftMenu || $playerItem || $caps || ($action['name'] ?? '')==='give_item_to' || ($action['server_code'] ?? '')==='GiveItemTo'
         || ($action['capability'] ?? '')==='action.give_item_to';
     if ($transfer) {
         if (!synth_protocol_supports_transfer($event)) throw new DomainException('transfer_contract_required');
         if ($caps && !synth_protocol_supports_caps_transfer($event)) throw new DomainException('caps_contract_required');
+        if ($playerItem && !synth_protocol_supports_player_items($event)) throw new DomainException('player_item_contract_required');
         if ($taking && !synth_protocol_supports_player_caps($event)) throw new DomainException('player_caps_contract_required');
-        if (!synth_protocol_valid_transfer_intent($action)) throw new DomainException('invalid_transfer_intent');
+        if (!$giftMenu && !synth_protocol_valid_transfer_intent($action)) throw new DomainException('invalid_transfer_intent');
         if ($caps && synth_protocol_owns_rechat($event)) throw new DomainException('caps_rechat_mutation_not_allowed');
     }
     if (synth_protocol_owns_rechat($event) && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
@@ -1610,10 +1690,14 @@ function synth_protocol_record_action_intent($db, array $action): void
     }
     $guarded = !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
     $native = $guarded && ($event['protocol_version'] ?? 1) === 2;
-    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $wait): void {
+    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack): void {
         synth_protocol_assert_request_active();
         if ($wait && $owner!==$event) throw new LogicException('wait_emission_owner_changed');
+        if ($attack && $owner!==$event) throw new LogicException('attack_emission_owner_changed');
+        if ($giftMenu && $owner!==$event) throw new LogicException('gift_menu_emission_owner_changed');
+        if ($playerItem && $owner!==$event) throw new LogicException('player_item_emission_owner_changed');
         if ($wait) synth_wait_action_validate($db,$event,$action);
+        if ($attack) synth_attack_validate($db,$event,$action);
         if ((($action['capability'] ?? '')==='action.read_quests'
                 || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
             && !synth_protocol_player_journal_action_allowed()) throw new DomainException('private_quest_journal_not_shared');
@@ -1634,6 +1718,12 @@ function synth_protocol_record_action_intent($db, array $action): void
                     $found=true;
                 }
                 if (!$found) throw new DomainException('transfer_actor_not_in_snapshot');
+            }
+            if ($giftMenu) synth_gift_menu_validate($event,$action,$context);
+            if ($playerItem) {
+                require_once __DIR__.'/synth_player_gifts.php';
+require_once __DIR__.'/synth_gift_menu.php';
+                synth_player_item_validate($db,$event,$action,$context);
             }
             if ($caps && !synth_protocol_caps_inventory_allows($context,$action[$taking?'target':'actor'],((array)$action['arguments'])['amount']))
                 throw new DomainException('caps_inventory_unavailable');
@@ -1900,6 +1990,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         }
     }
     $result = $wireEvent['payload']['result'];
+    if (($wireEvent['protocol_version']??1)===2 && in_array($row['action_name'],['WaitHere','wait_here','ReleaseWait','release_wait'],true))
+        $result['detail']=synth_wait_result_context($db,$wireEvent)['message'];
     if (($wireEvent['protocol_version'] ?? 1)===2
         && (($row['capability'] ?? '')==='action.read_quests' || in_array($row['action_name'],['ReadQuests','read_quests'],true))
         && !synth_protocol_player_journal_action_allowed()) {
@@ -1936,23 +2028,30 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         $result['detail'] = json_encode($inventoryResult, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if ($inventoryResult['inventory_observation'] === 'unavailable') $result['status'] = 'unavailable';
     }
+    if ($boundContext!==null && $row['action_name']==='OpenInventory' && ($row['capability'] ?? '')==='action.open_inventory') {
+        $gift=synth_player_gift_for_event($db,$wireEvent);
+        $result['detail']=json_encode(['menu_result'=>$result['detail'],'verified_gift'=>$gift,
+            'guidance'=>'Opening the menu is not a gift. Only verified item changes below establish received gifts.'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    }
     $transferArguments = null;
     if ($boundContext !== null && (($row['action_name'] === 'GiveItemTo' && ($row['capability'] ?? '') === 'action.give_item_to')
         || ($row['action_name'] === 'GiveCapsTo' && ($row['capability'] ?? '') === 'action.give_caps_to')
-        || ($row['action_name'] === 'TakeCapsFromPlayer' && ($row['capability'] ?? '') === 'action.take_caps_from_player'))) {
+        || ($row['action_name'] === 'TakeCapsFromPlayer' && ($row['capability'] ?? '') === 'action.take_caps_from_player')
+        || ($row['action_name'] === 'TakeItemFromPlayer' && ($row['capability'] ?? '') === 'action.take_item_from_player'))) {
         // Carry the recorded item/quantity and captured recipient through legacy single-argument follow-up formatting.
         $transferArguments = is_array($row['arguments'] ?? null) ? $row['arguments']
             : json_decode(strval($row['arguments'] ?? '{}'), true, flags: JSON_THROW_ON_ERROR);
         $transferArguments['target'] = $row['target_name'];
-        $taking=$row['action_name']==='TakeCapsFromPlayer';
-        $caps=$taking || $row['action_name']==='GiveCapsTo';
+        $taking=in_array($row['action_name'],['TakeCapsFromPlayer','TakeItemFromPlayer'],true);
+        $caps=$row['action_name']==='TakeCapsFromPlayer' || $row['action_name']==='GiveCapsTo';
         if (!$caps) $transferArguments['amount'] = $transferArguments['amount'] ?? 1;
         require_once __DIR__.'/synth_command_payload.php';
         if (!synthNativeTransferParametersValid($transferArguments,$caps)) throw new RuntimeException('action_transfer_arguments_unavailable');
         $result['detail'] = json_encode(['item'=>$caps?'Caps':$transferArguments['item'],'requested_amount'=>$transferArguments['amount'],
             'recipient'=>$row[$taking?'actor_name':'target_name'],
             ...($taking?['donor'=>$row['target_name']]:[]),
-            'reported_detail'=>$result['detail']], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            'reported_detail'=>$result['detail'],
+            ...(($gift=synth_player_gift_for_event($db,$wireEvent))===null ? [] : ['verified_gift'=>$gift])], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
     $gameRequest[0] = 'funcret';
     $gameRequest[3] = json_encode([
@@ -2261,6 +2360,7 @@ function synth_protocol_prompt_actor_states(
         $actorKey = strtoupper(strval($actor['form_id'] ?? '')) . '|'
             . strtolower(strval($actor['origin_plugin'] ?? '')) . '|'
             . strval($actor['playthrough_id'] ?? '');
+        if($actorKey!==$targetKey)unset($state['wait_held']);
         $inventory = is_array($state['inventory'] ?? null) ? $state['inventory'] : [];
         // Older snapshots never proved completeness; an absent empty list is not observed empty.
         $observation=$state['inventory_observation'] ?? ($inventory ? 'partial' : 'unavailable');
@@ -2452,6 +2552,7 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
     $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] = $narrator || $eventOnly ? [] : $target;
     $GLOBALS['SYNTH_PLAYER_IDENTITY'] = $player;
     $text = trim(($wireEvent['type'] ?? '') === 'input_audio' ? $transcript : strval($wireEvent['payload']['text'] ?? ''));
+    $GLOBALS['SYNTH_PLAYER_ITEM_INPUT']=['owner_sha256'=>hash('sha256',synth_protocol_canonical_json($wireEvent)),'text'=>$text];
     $people = [];
     foreach (($context['payload']['audience'] ?? []) as $audienceActor) {
         $name = trim(strval(is_array($audienceActor) ? ($audienceActor['display_name'] ?? '') : ''));
@@ -2572,20 +2673,13 @@ function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$game
             throw new RuntimeException('auto_greeting_runtime_unavailable');
         }
         $generation = intval($wireEvent['generation'] ?? 0);
+        $greetingActor=synthNativeAutoGreetingActor($context,$target);
+        if($greetingActor===null)return false;
         $snapshot = [
             'gamets' => intval($wireEvent['payload']['game_time_ticks'] ?? 0),
             'player' => $playerName,
             'runtime_generation' => $generation,
-            'actors' => [[
-                'name' => $actorName,
-                'refid' => strval($target['form_id'] ?? ''),
-                'distance' => 0.0,
-                'eligible' => true,
-                'auto_eligible' => true,
-                'can_hear_player' => true,
-                'dead' => false,
-                'disabled' => false,
-            ]],
+            'actors' => [$greetingActor],
         ];
         $previous = ['runtime_generation' => $generation, 'actors' => []];
         if (synthBuildAutoGreetingDirective($snapshot, $previous, new NpcMaster()) === null) {

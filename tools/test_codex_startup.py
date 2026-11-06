@@ -131,7 +131,8 @@ class HealthAndFailureTests(unittest.TestCase):
     def test_failed_chatgpt_request_is_a_safe_error_with_no_fallback_route(self):
         data={'model':'gpt-6.1-sol','messages':[{'role':'user','content':'synthetic'}],'max_tokens':64,'stream':False}
         request=Request(self.url+'/v1/chat/completions',json.dumps(data).encode(),{'Authorization':'Bearer fixture','Content-Type':'application/json'})
-        with patch.object(bridge,'codex_generate',side_effect=RuntimeError('SECRET-should-never-be-exposed')) as primary:
+        with patch.object(self.server.provider,'readiness',return_value=('ready','current')), \
+             patch.object(bridge,'codex_generate',side_effect=RuntimeError('SECRET-should-never-be-exposed')) as primary:
             with self.assertRaises(HTTPError) as error:self.opener.open(request)
             primary.assert_called_once();self.assertEqual(error.exception.code,502)
             self.assertIsNone(error.exception.headers.get('X-SYNTH-Provider'))

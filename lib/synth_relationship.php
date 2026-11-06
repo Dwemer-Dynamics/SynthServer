@@ -43,10 +43,24 @@ function synth_relationship_pair($db, array $event, string $subject): ?array
 }
 
 // Both publication and every inherited input must be reachable from this exact actor's saved frontier.
-function synth_relationship_visible_cte($db, array $event, bool $admitCurrentResponse=false, ?int $readerIdentityId=null): string
+function synth_relationship_visible_cte($db, array $event, bool $admitCurrentResponse=false, ?int $readerIdentityId=null, ?array $sourceHistoryIds=null): string
 {
+    // Validate existing relationship edges and explicitly requested sources without scanning all dialogue.
+    // Keep the full history projection for callers that request raw sources.
+    $dependencySources='';
+    if ($sourceHistoryIds!==null) {
+        foreach ($sourceHistoryIds as $id) {
+            if (!is_int($id) || $id<1) throw new InvalidArgumentException('Invalid relationship history source');
+        }
+        $dependencySources=", relationship_graph_dependency_sources(history_event_id) AS MATERIALIZED (
+            SELECT source_history_event_id FROM synth_meta.relationship_revision_sources
+            UNION SELECT history_event_id FROM synth_meta.relationship_evaluation_sources
+            UNION SELECT unnest(ARRAY[".implode(',',$sourceHistoryIds)."]::bigint[])
+        ) ";
+    }
     return synth_protocol_history_cte($db,$event,'',$readerIdentityId).synth_relationship_graph_scope_cte()
-        .synth_protocol_history_rows_cte(true).synth_protocol_history_rows_cte(true,false,true,true)
+        .$dependencySources.synth_protocol_history_rows_cte(true)
+        .synth_protocol_history_rows_cte(true,false,true,true,limitRelationshipSources:$sourceHistoryIds!==null)
         .synth_relationship_response_evidence_cte($db,$event,$admitCurrentResponse,true)
         .", relationship_response_evidence AS (
         SELECT * FROM relationship_graph_responses WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
@@ -96,7 +110,7 @@ function synth_relationship_read($db, string $subject): array
     return $db->withNativeRequestLock(static function($connection,array $event) use ($db,$subject) {
         $pair=synth_relationship_pair($db,$event,$subject);
         if (!$pair) return ['availability'=>'context_or_subject_unavailable','relationship'=>null];
-        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event)
+        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
             .'SELECT history_event_id,affinity,relationship_type,details FROM native_relationships
                 WHERE subject_identity_id=$1 ORDER BY history_event_id DESC LIMIT 1',[$pair['subject_id']]);
         if (!$result) throw new RuntimeException('Unable to read native relationship');
@@ -163,7 +177,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         if (($state['revision'] ?? null)!==$expectedRevision) throw new LogicException('Native relationship revision changed');
         if ($type!==null && synth_relationship_canonical_type($type)!==$type) {
             // Custom types must already belong to this actor's saved state, not a mutable global profile.
-            $known=@pg_query_params($connection,synth_relationship_visible_cte($db,$event)
+            $known=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
                 .'SELECT 1 FROM (SELECT DISTINCT ON(subject_identity_id) relationship_type FROM native_relationships
                     ORDER BY subject_identity_id,history_event_id DESC) current_types WHERE relationship_type=$1 LIMIT 1',[$type]);
             if (!$known || !pg_fetch_assoc($known)) throw new InvalidArgumentException('Invalid native relationship type');
@@ -177,7 +191,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         if (!$head) throw new RuntimeException('Unable to check relationship head');
         $headId=pg_fetch_assoc($head)['id'];
         if ($headId!==null) throw new LogicException('Native relationship proposal is stale');
-        $visible=@pg_query($connection,synth_relationship_visible_cte($db,$event,true)
+        $visible=@pg_query($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$sources)
             .'SELECT count(*) AS n FROM relationship_visible_sources WHERE history_event_id IN ('.implode(',',$sources).')');
         if (!$visible || intval(pg_fetch_assoc($visible)['n'])!==count($sources)) throw new OutOfBoundsException('Native relationship evidence unavailable');
         $affinity=max(-100,min(100,intval($state['aff'] ?? 0)+$delta));
@@ -215,7 +229,7 @@ function synth_relationship_apply_inline_response($db): array
 {
     if (!synthRelationshipSettingEnabled() || synthRelationshipUsesDedicatedConnector()) return [];
     return $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
-        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)
+        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])
             .'SELECT history_event_id,response_payload FROM relationship_response_evidence
                 WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
             [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence']]);
@@ -224,7 +238,7 @@ function synth_relationship_apply_inline_response($db): array
         $payload=json_decode($response['response_payload'],true,flags:JSON_THROW_ON_ERROR);
         if (($payload['evaluation_mode'] ?? null)!=='inline') return [];
         $context=synth_protocol_current_context($db,$event); $target=$context['target'];
-        $result=@pg_query($connection,synth_relationship_visible_cte($db,$event)
+        $result=@pg_query($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
             .'SELECT DISTINCT relationship_type AS type FROM (SELECT DISTINCT ON(subject_identity_id) relationship_type
                 FROM native_relationships ORDER BY subject_identity_id,history_event_id DESC) current_types WHERE relationship_type IS NOT NULL');
         if (!$result) throw new RuntimeException('Unable to load saved relationship proposal state');

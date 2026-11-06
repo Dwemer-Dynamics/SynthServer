@@ -310,10 +310,34 @@ final class JsonSchemaCatalogTest extends TestCase
             'then'=>['required'=>['life_state'],'properties'=>[
                 'life_state'=>['const'=>'restrained'],'alive'=>['const'=>true],'disabled'=>['const'=>false],
                 'actor'=>['properties'=>['form_id'=>['not'=>['const'=>'0x00000014']]]]]]]],$holdRules);
-        unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held']);
+        $this->assertSame(['type'=>'boolean'],$v2['properties']['wait_held']);
+        $waitRules=array_values(array_filter($v2['allOf'],static fn(array $rule):bool=>
+            ($rule['if']['required'] ?? [])===['wait_held']));
+        $this->assertSame([['if'=>['required'=>['wait_held'],'properties'=>['wait_held'=>['const'=>true]]],
+            'then'=>['properties'=>['life_state'=>['enum'=>['alive','restrained']],
+                'alive'=>['const'=>true],'disabled'=>['const'=>false],
+                'actor'=>['properties'=>['form_id'=>['not'=>['pattern'=>'^0x0{6}14$']]]]]]]],$waitRules);
+        unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held'],$v2['properties']['wait_held']);
         $v2['allOf']=array_values(array_filter($v2['allOf'], static fn(array $rule): bool =>
-            array_intersect(['combat_target','combat_contacts','enemy_awareness','conversation_held'],$rule['if']['required'] ?? [])===[]));
-        $this->assertSame($v1,$v2,'The negotiated combat target/contacts and extended inventory must preserve all other actor-state constraints.');
+            array_intersect(['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held'],$rule['if']['required'] ?? [])===[]));
+        $this->assertSame($v1,$v2,'The negotiated observations must preserve all other legacy actor-state constraints.');
+    }
+
+    public function testWaitObservationFixturesExerciseNativeAdmissionBoundaries(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/request.php';
+        $root=dirname(__DIR__,2);
+        foreach(['context-wait-held.json','context-wait-released.json'] as $name) {
+            $event=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/'.$name),true,flags:JSON_THROW_ON_ERROR);
+            $this->assertSame($event,synth_protocol_validate_event($event));
+        }
+        foreach(glob($root.'/protocol/v2/fixtures/invalid/context-wait-*.json') as $invalid) {
+            $script='require '.var_export($root.'/lib/request.php',true).';synth_protocol_validate_event(json_decode(file_get_contents('
+                .var_export($invalid,true).'),true));echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,basename($invalid));
+            $this->assertFalse(json_decode($output,true)['ok']??true,basename($invalid));
+        }
     }
 
     public function testPlayerReactionContractAndGroundedPromptPreservePolicy(): void

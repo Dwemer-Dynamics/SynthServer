@@ -65,11 +65,17 @@ class RPC:
             self.stderr_lines += 1  # Never retain arbitrary auth/runtime diagnostics.
 
     def _read(self):
-        for line in self.proc.stdout:
-            try:
-                self.q.put(json.loads(line) if len(line) <= 1048576 else {"invalid_protocol": True})
-            except ValueError:
-                self.q.put({"invalid_protocol": True})
+        try:
+            for line in self.proc.stdout:
+                try:
+                    value = json.loads(line) if len(line) <= 1048576 else {"invalid_protocol": True}
+                    if not isinstance(value, dict):
+                        value = {"invalid_protocol": True}
+                except ValueError:
+                    value = {"invalid_protocol": True}
+                self.q.put(value)
+        finally:
+            self.q.put({"transport_closed": True})
 
     def send(self, method, params, request=True):
         msg = {"method": method, "params": params}
@@ -90,6 +96,8 @@ class RPC:
             raise TimeoutError("trial deadline")
         if msg.get("invalid_protocol"):
             raise RuntimeError("invalid app-server protocol")
+        if msg.get("transport_closed"):
+            raise RuntimeError("app-server transport closed")
         if "method" in msg and "id" in msg:
             # No approval, dynamic tool, OAuth refresh, or user-input execution.
             self.proc.stdin.write(json.dumps({"id": msg["id"], "error": {"code": -32601, "message": "NPC trial does not support server requests"}}) + "\n")
@@ -106,6 +114,8 @@ class RPC:
                 if "error" in msg:
                     raise RuntimeError("RPC " + method + " failed (code " + str(msg["error"].get("code")) + ")")
                 return msg["result"]
+            if len(self.events) >= 1024:
+                raise RuntimeError("too many pending app-server events")
             self.events.append(msg)
 
     def close(self):

@@ -71,6 +71,10 @@ if (!function_exists('synthLogFuncretResultInfoAction')) {
 			return false;
 		}
 
+        $native=$GLOBALS['SYNTH_REQUEST_EVENT']['json']??[];
+        if (($native['protocol_version']??1)===2 && ($native['type']??'')==='action_result'
+            && in_array($functionCodeName,['WaitHere','wait_here','ReleaseWait','release_wait'],true))return false;
+
 		if (synthShouldSkipFuncretInfoActionLog($functionCodeName)) {
 			return false;
 		}
@@ -127,6 +131,17 @@ $currentFollowupChainDepth = 0;
 $followupConfig = function_exists('synthActionCatalogGetResolvedFollowupConfig')
 	? synthActionCatalogGetResolvedFollowupConfig($functionCodeName)
 	: [];
+// The native binder populated this fact from the owned, conserved inventory receipt.
+$nativeGiftMenu = ($nativeActionEvent['protocol_version'] ?? 1) === 2
+    && ($nativeActionEvent['type'] ?? '') === 'action_result' && $functionCodeName === 'OpenInventory';
+if ($nativeGiftMenu) {
+    $menuResult = json_decode($returnFunction[3], true);
+    $verifiedGift = $menuResult['verified_gift'] ?? null;
+    $followupConfig = [
+        'enabled' => ($verifiedGift['schema'] ?? '') === 'synth.player-gift-batch.v1',
+        'prompt' => 'React directly to the player in character about the items you actually received. Say what they mean to you based on your own needs, tastes and goals.',
+    ];
+}
 $argName = function_exists('synthResolveFuncretArgumentName')
 	? synthResolveFuncretArgumentName($functionCodeName, $followupConfig)
 	: trim(strval($followupConfig['arg_name'] ?? 'target'));
@@ -134,7 +149,7 @@ if ($argName === '') {
 	$argName = 'target';
 }
 
-$toolArguments = [$argName => $returnFunction[2] ?? ''];
+$toolArguments = $nativeGiftMenu ? (object)[] : [$argName => $returnFunction[2] ?? ''];
 $nativeTransfer = ($nativeActionEvent['protocol_version'] ?? 1) === 2 && in_array($functionCodeName,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer'],true);
 if ($nativeTransfer) {
 	// These arguments were restored from the exact owned intent, not supplied by the receipt or follow-up model.

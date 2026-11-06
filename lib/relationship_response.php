@@ -176,9 +176,17 @@ function synth_relationship_store_response($db, array $event, string $body): voi
                 }
                 $entries[]=['speaker'=>$speakers[$name],'text'=>$entry['text'],'routing'=>$routing];
             }
-            $payload=json_encode(['schema'=>'synth.relationship.response.v3','request'=>$request,
-                'request_sha256'=>$context['event_sha256'],'input_events'=>$inputs,'entries'=>$entries,'evaluation_mode'=>$capture['evaluation_mode']],
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            $responsePayload=['schema'=>'synth.relationship.response.v3','request'=>$request,
+                'request_sha256'=>$context['event_sha256'],'input_events'=>$inputs,'entries'=>$entries,'evaluation_mode'=>$capture['evaluation_mode']];
+            // Only the verified receipt is needed here. Appraisal preparation belongs to the worker.
+            if ($capture['evaluation_mode']==='dedicated' && ($event['type'] ?? '')==='action_result'
+                && ($event['payload']['result']['schema'] ?? '')==='synth.action.transfer-result.v2'
+                && array_filter($entries,static fn(array $entry): bool => ($entry['routing']['availability'] ?? '')==='addressed'
+                    && synth_player_item_same_actor($entry['routing']['listener'] ?? [],$snapshot['player']))
+                && ($gift=synth_player_gift_for_event($db,$event))!==null) {
+                $responsePayload['verified_gift_action_id']=$gift['action_id'];
+            }
+            $payload=json_encode($responsePayload,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if (strlen($payload)>131072) return;
             $hash=hash('sha256',$body);
             $existing=@pg_query_params($connection,'SELECT history_event_id FROM synth_meta.relationship_response_inputs
@@ -234,7 +242,7 @@ function synth_relationship_complete_inline_response($db): void
 
 // The current-turn exception is for proposal admission only; saved readers retain their insertion cutoff.
 // Normal cancellation clears delivery replay bytes, not an already accepted historical speech receipt.
-// Only retained completed player inputs may use that receipt, and never beyond the saved cutoff.
+// Retain completed player inputs and published gift appraisals within the saved cutoff.
 function synth_relationship_response_evidence_cte($db, array $event, bool $admitCurrentResponse=false, bool $relationshipGraph=false): string
 {
     $scopes=$relationshipGraph ? 'relationship_graph_scopes' : 'native_history_scopes';
@@ -259,9 +267,31 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
         JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
         JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id AND e.generation=h.generation
-            AND e.state='complete' AND (encode(sha256(e.response_body),'hex')=i.response_sha256
+            AND ((e.state='complete' AND (encode(sha256(e.response_body),'hex')=i.response_sha256
                 OR (e.event_type IN ('input_text','input_audio') AND e.completed_at IS NOT NULL AND e.response_body IS NULL
-                    AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff))
+                    AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff)))
+                OR (e.event_type='action_result' AND e.state='cancelled' AND e.completed_at IS NOT NULL AND e.response_body IS NULL
+                    AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff
+                    AND EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations gift
+                        JOIN synth_meta.relationship_results result ON result.evaluation_id=gift.id
+                        JOIN synth_meta.worker_jobs job ON job.id=result.job_id AND job.relationship_evaluation_id=gift.id
+                            AND job.job_type='relationship' AND job.state='ready' AND job.session_id=e.session_id
+                            AND job.request_id=e.request_id AND job.generation=e.generation AND job.turn_id=e.turn_id
+                            AND job.payload->>'schema'='synth.relationship.gift-job.v1'
+                        JOIN synth_meta.history_events saved ON saved.id=result.history_event_id
+                            AND saved.session_id=h.session_id AND saved.generation=h.generation AND saved.request_id=h.request_id
+                            AND saved.context_sequence=h.context_sequence AND saved.playthrough_id=h.playthrough_id
+                        WHERE gift.response_history_event_id=h.id AND gift.actor_identity_id=i.actor_identity_id
+                            AND gift.session_id=h.session_id AND gift.request_id=h.request_id AND gift.generation=h.generation
+                            AND gift.context_sequence=h.context_sequence AND gift.input_payload->'response'=i.response_payload
+                            AND gift.input_payload->'owner'=i.response_payload->'request'
+                            AND gift.input_payload#>>'{received_gift,fact,action_id}'=i.response_payload->>'verified_gift_action_id'
+                            AND gift.input_payload#>>'{received_gift,fact,schema}' IN ('synth.player-gift.v1','synth.player-gift-batch.v1')
+                            AND saved.event_payload->>'type'='relationship_result' AND saved.event_payload->>'delivery_state'='derived'
+                            AND saved.event_payload->>'evaluation_sha256'=gift.input_sha256
+                            AND gift.input_sha256=encode(sha256(convert_to(gift.input_payload::text,'UTF8')),'hex')
+                            AND saved.event_payload->>'result_sha256'=encode(sha256(convert_to(result.result_payload::text,'UTF8')),'hex')
+                            AND saved.id>h.id AND saved.id<=scope.cutoff)))
         JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
         WHERE h.event_payload->>'type'='relationship_response' AND h.event_payload->>'delivery_state'='derived'

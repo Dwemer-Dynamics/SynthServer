@@ -2,6 +2,14 @@
 
 ## Current testing candidate
 
+Every selected NPC continuation now also requires finite captured positions for
+both the previous speaker and responder within 784 game units of each other.
+Player audience membership alone does not prove they can hear one another.
+Missing/ambiguous source positions stop selection; source identity, profile,
+completed-parent proof, save isolation and bounded chain controls remain intact.
+The initial idle exchange uses the same mutual proximity helper. These checks
+bound proximity without claiming acoustic occlusion or NPC-to-NPC line of sight.
+
 Public idle NPC conversations use an explicitly acknowledged `dialogue.ambient_npc`
 extension to the existing bored trigger. A fresh owned capture must contain two
 eligible known NPCs with available profiles, close mutual proximity and a calm

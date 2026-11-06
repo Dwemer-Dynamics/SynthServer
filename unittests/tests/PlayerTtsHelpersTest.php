@@ -41,7 +41,7 @@ $result=[];
 foreach (['text','audio','cancelled','generation','turn','sequence','skip','cache_only','legacy','narrator','unclaimed','no_capability'] as $case) {
     $GLOBALS['db']->case=$case;$GLOBALS['db']->voiceQueries=0;$GLOBALS['db']->ownerQueries=0;$GLOBALS['db']->workQueries=0;
     $event=['protocol_version'=>$case==='legacy'?1:2,'type'=>$case==='narrator'?'trigger':($case==='audio'?'input_audio':'input_text'),
-        'session_id'=>'session:echo','request_id'=>'echo:1','turn_id'=>'turn:echo','generation'=>7,
+        'session_id'=>'session:echo','request_id'=>'echo:'.$case,'turn_id'=>'turn:echo','generation'=>7,
         'context_sequence'=>9,'capabilities'=>['dialogue.turn_ownership']];
     if ($case==='no_capability') $event['capabilities']=[];
     $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
@@ -53,7 +53,12 @@ foreach (['text','audio','cancelled','generation','turn','sequence','skip','cach
     $GLOBALS['SYNTH_RESPONSE_SPEAKER_FORMID']='0x0001CA7D';
     $gameRequest=['inputtext',0,0,json_encode(['schema'=>'synth.input.v1','text'=>'Stay here.'])];
     $before=$gameRequest;$cancelled=false;
-    try { include $root.'/processor/player_tts.php'; }
+    try {
+        // The pipeline now acknowledges native input before expensive prompt construction.
+        // The later normal processor must preserve the original line without echoing it twice.
+        if (in_array($case,['text','audio'],true)) synth_emit_native_player_transcript($gameRequest);
+        include $root.'/processor/player_tts.php';
+    }
     catch (SYNTHProtocolCancelled) { $cancelled=true; }
     $result[$case]=['lines'=>$GLOBALS['SYNTH_JSON_RESPONSE_LINES'],'voice_queries'=>$GLOBALS['db']->voiceQueries,
         'owner_queries'=>$GLOBALS['db']->ownerQueries,'cancelled'=>$cancelled,'event_unchanged'=>$event===$GLOBALS['SYNTH_REQUEST_EVENT']['json'],
@@ -75,6 +80,7 @@ PHP;
             $this->assertTrue($result['input_unchanged'],$case);
         }
         foreach (['text','audio'] as $case) {
+            $this->assertCount(1,$results[$case]['lines'],'Early acknowledgement must not repeat at LLM dispatch');
             $line=$results[$case]['lines'][0];
             $this->assertSame(0,$results[$case]['voice_queries']);
             $this->assertGreaterThan(0,$results[$case]['owner_queries']);

@@ -16,6 +16,7 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "background_processor.p
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "fallout_stats.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "eventlog_helper.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_diary_browser.php");
 
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
@@ -287,6 +288,19 @@ $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
 $activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM quests ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
 $latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, content, people, location, localts, gamets FROM diarylog ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
 $latestDiary = $latestDiaryRows[0] ?? [];
+try {
+    $writtenDiaries=synth_diary_browser_summary($db);
+    $diaryCount+=(int)$writtenDiaries['total'];
+    $written=$writtenDiaries['latest'];
+    if ($written && strtotime($written['written_at']) >= (int)($latestDiary['localts'] ?? 0)) {
+        $latestDiary=['native'=>true,'rowid'=>$written['id'],'people'=>$written['author'],
+            'topic'=>$written['topic'],'content'=>$written['content'],'location'=>$written['location'],
+            'localts'=>strtotime($written['written_at']),'gamets'=>$written['gamets']];
+    }
+} catch (Throwable $exception) {
+    Logger::warn('Home diary archive read failed.');
+}
+
 
 // Read-only relationship activity derived from core_npc_master_history snapshots.
 $hasNpcHistory = synth_home_table_exists($db, 'core_npc_master_history');
@@ -1052,10 +1066,10 @@ $debugPaneLink = false;
                         <div class="stat-value"><?php echo synth_home_number($memoryCount); ?></div>
                         <div class="stat-label">Memory Summaries</div>
                     </div>
-                    <div class="stat-card">
+                    <a class="stat-card action-card stat-link" href="<?php echo synth_home_h($webRoot); ?>/ui/diaries.php" title="Read written diaries">
                         <div class="stat-value"><?php echo synth_home_number($diaryCount); ?></div>
                         <div class="stat-label">Diary Entries</div>
-                    </div>
+                    </a>
                     <div class="stat-card action-card" role="button" tabindex="0" data-dashboard-modal-target="locationsModal">
                         <div class="stat-value"><?php echo synth_home_number($locationCount); ?></div>
                         <div class="stat-label">Travel To Locations</div>
@@ -1082,6 +1096,7 @@ $debugPaneLink = false;
         <article class="widget widget-wide">
             <div class="widget-header">
                 <h3><i class="bi bi-journal-text"></i> Latest Diary Entry</h3>
+                <a class="btn-base" href="<?php echo synth_home_h($webRoot); ?>/ui/diaries.php">View diaries</a>
             </div>
             <div class="widget-content">
                 <?php if (empty($latestDiary)): ?>
@@ -1095,10 +1110,12 @@ $debugPaneLink = false;
                         <h4><?php echo synth_home_h($latestDiary['topic'] ?? 'Untitled Entry'); ?></h4>
                         <p><?php echo synth_home_h($latestDiary['content'] ?? ''); ?></p>
                     </div>
+                    <?php if (empty($latestDiary['native'])): ?>
                     <div class="latest-diary-audio-controls">
                         <button type="button" id="latestDiaryAudioButton" class="latest-diary-audio-button" onclick="toggleLatestDiaryAudio(this, <?php echo (int)($latestDiary['rowid'] ?? 0); ?>)">&#9654; Play Audio</button>
                         <span id="latestDiaryAudioStatus" class="latest-diary-audio-status" aria-live="polite"></span>
                     </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </article>

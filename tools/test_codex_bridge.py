@@ -64,7 +64,7 @@ class BridgeTests(unittest.TestCase):
         data = fixture()
         with patch.object(bridge,'codex_generate',side_effect=TimeoutError) as primary:
             with self.assertRaises(TimeoutError):provider.generate(data)
-            primary.assert_called_once_with(data,provider.config)
+            primary.assert_called_once_with(data,provider.config,session=provider.session,timings=provider.last_timings,cancelled=None)
         self.assertFalse(hasattr(bridge,'fallback_generate'))
         with patch.object(bridge,'codex_generate',return_value='{"action":"Talk"}'):
             self.assertEqual(provider.generate(data)[1],'codex')

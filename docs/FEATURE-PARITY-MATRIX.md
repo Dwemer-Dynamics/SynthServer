@@ -4,6 +4,7 @@
 
 | Feature | Candidate behavior | Game acceptance |
 |---|---|---|
+| Optional Jev actions | Disabled by default; bounded classification among enabled negotiated actions, ordinary selection fallback, existing argument/ownership execution path | Live provider timing/accuracy and flat/VR return checks open; see [JEV-ACTIONS.md](JEV-ACTIONS.md) |
 | Audio input | Immutable request ownership; valid recognized-empty LocalWhisper success ends without dialogue/actions and shows a retry notice | Quiet and spoken return checks open |
 | Wait commands | Explicit text/audio, negotiated flat capabilities, strict owned NPC and empty arguments | New return check open |
 | Enemy naming | Current responder's captured opponent overrides older guesses; absent identity stays unknown | Molerat return check open |

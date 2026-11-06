@@ -725,7 +725,16 @@ function generateCartesiaTTS($text, $voiceId, $mood = 'normal') {
     );
     
     $context = stream_context_create($options);
-    $response = @synth_speech_fetch($url, $context, $http_response_header);
+    Logger::phaseStart('cartesia_provider', ['text_bytes' => strlen(strval($text))]);
+    $response = false;
+    try {
+        $response = @synth_speech_fetch($url, $context, $http_response_header);
+    } finally {
+        Logger::phaseEnd('cartesia_provider', [
+            'status' => $response === false ? 'failed' : 'received',
+            'audio_bytes' => is_string($response) ? strlen($response) : 0,
+        ]);
+    }
     $httpStatusLine = $http_response_header[0] ?? '';
     $httpCode = 0;
     if (preg_match('/\s(\d{3})\s/', $httpStatusLine, $matches)) {

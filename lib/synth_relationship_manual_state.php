@@ -33,17 +33,20 @@ function synth_relationship_manual_state_cte(): string
             AND r.input_hash=encode(sha256(convert_to(r.input_payload::text,'UTF8')),'hex')
             AND h.event_payload->>'relationship_input_sha256'=r.input_hash
             AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id)
-    ), manual_relationship_reset_barriers AS MATERIALIZED (
-        SELECT r.history_event_id,r.actor_identity_id,r.subject_identity_id FROM synth_meta.relationship_revisions r
+    ), relationship_reset_history AS MATERIALIZED (
+        SELECT r.history_event_id,r.actor_identity_id,r.subject_identity_id,h.session_id,h.generation,h.context_sequence,h.playthrough_id
+        FROM synth_meta.relationship_revisions r
         JOIN synth_meta.history_events h ON h.id=r.history_event_id
-        JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
-            AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=r.actor_identity_id AND h.id<=scope.cutoff
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id AND origin.generation=h.generation
-            AND origin.snapshot_sequence=h.context_sequence AND origin.target_identity_id=r.actor_identity_id AND origin.playthrough_id=h.playthrough_id
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='relationship_manual'
             AND h.event_payload#>>'{manual_correction,schema}'='synth.relationship.manual.v2'
             AND h.event_payload#>'{manual_correction,state}'='null'::jsonb
             AND h.event_payload#>'{manual_correction,actor_id}'=to_jsonb(r.actor_identity_id)
             AND h.event_payload#>'{manual_correction,subject_id}'=to_jsonb(r.subject_identity_id)
+    ), manual_relationship_reset_barriers AS MATERIALIZED (
+        SELECT h.history_event_id,h.actor_identity_id,h.subject_identity_id FROM relationship_reset_history h
+        JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
+            AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=h.actor_identity_id AND h.history_event_id<=scope.cutoff
+        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id AND origin.generation=h.generation
+            AND origin.snapshot_sequence=h.context_sequence AND origin.target_identity_id=h.actor_identity_id AND origin.playthrough_id=h.playthrough_id
     ) ";
 }

@@ -11,7 +11,7 @@ require_once __DIR__.'/llm_randomizer.php';
 // Load only the prepared role's live profile. Voice synthesis/resolution remains in the speech stage, outside this lock.
 function synth_rechat_load_profile($db, array $event): array
 {
-    return $db->withNativeRequestLock(static function($connection,array $owner) use($db,$event) {
+    $load=static function($connection,array $owner) use($db,$event) {
         if ($owner!==$event) throw new LogicException('rechat_profile_owner_changed');
         if (!@pg_query($connection,'SAVEPOINT synth_rechat_profile')) throw new RuntimeException('rechat_profile_savepoint_failed');
         try {
@@ -84,5 +84,12 @@ function synth_rechat_load_profile($db, array $event): array
                 || !@pg_query($connection,'RELEASE SAVEPOINT synth_rechat_profile')) throw new RuntimeException('rechat_profile_rollback_failed',0,$error);
             throw $error;
         }
-    },2000);
+    };
+    try {
+        return $db->withNativeRequestLock($load,2000);
+    } catch (SYNTHNativeRequestLockUnavailable $error) {
+        // Appraisal publication can finish between attempts. Revalidate the same prepared selection.
+        if (!$db->isTransactionIdle()) throw $error;
+        return $db->withNativeRequestLock($load,2000);
+    }
 }

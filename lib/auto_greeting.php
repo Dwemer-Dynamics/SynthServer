@@ -12,6 +12,30 @@ function synthAutoGreetingBool($value): bool
     return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
 }
 
+// Native greetings use the exact copied actor state. Profile eligibility and the
+// existing day/cooldown policy below remain authoritative; no proximity is invented.
+function synthNativeAutoGreetingActor(array $context,array $target): ?array
+{
+    $key=static fn(array $a):string=>strtoupper(strval($a['form_id']??'')) . '|'
+        . strtolower(strval($a['origin_plugin']??'')) . '|' . strval($a['playthrough_id']??'');
+    if(empty($target['form_id']) || empty($target['origin_plugin']) || empty($target['playthrough_id'])
+        || strcasecmp($target['form_id'],'0x00000014')===0) return null;
+    $matches=[];
+    foreach($context['payload']['actor_states']??[] as $state)
+        if(is_array($state) && is_array($state['actor']??null) && $key($state['actor'])===$key($target))$matches[]=$state;
+    if(count($matches)!==1)return null;
+    $state=$matches[0];$distance=$state['distance']??null;
+    if(($state['alive']??null)!==true || ($state['disabled']??null)!==false ||
+        ($state['in_combat']??null)!==false || ($state['hostile_to_player']??null)!==false ||
+        ($state['talking_to_player']??true)!==false || ($state['life_state']??'')!=='alive' ||
+        !in_array($state['posture']??'', ['normal','sitting'],true) ||
+        !is_numeric($distance) || !is_finite((float)$distance) || $distance<0 || $distance>2000 ||
+        ($state['line_of_sight']??'unknown')==='blocked')return null;
+    return ['name'=>strval($target['display_name']??''),'refid'=>$target['form_id'],
+        'distance'=>(float)$distance,'eligible'=>true,'auto_eligible'=>true,'can_hear_player'=>true,
+        'dead'=>false,'disabled'=>false];
+}
+
 function synthResolveAutoGreetingEnabled(array $extendedData, array $profileMetadata): bool
 {
     if (array_key_exists('salutation_after_a_while', $extendedData) &&

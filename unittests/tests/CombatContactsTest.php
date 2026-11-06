@@ -7,7 +7,7 @@ require_once dirname(__DIR__,2).'/lib/phpunit.class.php';
 
 final class CombatContactsFixtureDatabase extends sql
 {
-    public function withNativeRequestLock(callable $operation,int $timeout=0): mixed
+    public function withNativeRequestLock(callable $operation,int $timeout=0,bool $contextPublication=false): mixed
     {
         $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];$this->execQuery('BEGIN');
         try {
@@ -324,7 +324,8 @@ final class CombatContactsTest extends DatabaseTestCase
         $keys=['gameRequest','startTime','FORCED_STOP','PLAYER_NAME','FEATURES','TTSFUNCTION','TTS','HOOKS','DEBUG_DATA','TRACK',
             'SCRIPTLINE_LISTENER','SCRIPTLINE_EXPRESSION','SCRIPTLINE_ANIMATION','SYNTH_RESPONSE_FORMAT','SYNTH_DEFERRED_TTS',
             'PRESERVE_ASTERISKS_IN_CONTEXT','INLINE_NARRATION_MODE','TTS_NPC_ORIGINAL_VOICE','PATCH_OVERRIDE_VOICE','SYNTH_NATIVE_ACTOR_STATES',
-            'SYNTH_CANONICAL_SPEECH_EMITTED','SYNTH_CANONICAL_SPEECH_BUFFERED','SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'];
+            'SYNTH_CANONICAL_SPEECH_EMITTED','SYNTH_CANONICAL_SPEECH_BUFFERED','SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED',
+            'SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER','SYNTH_JSON_RESPONSE_RAW','SYNTH_JSON_RESPONSE_CLOSE'];
         $saved=[];foreach($keys as $key)$saved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key]??null];
         $cache='';$file=tempnam(sys_get_temp_dir(),'synth-combat-hook-');
         try {
@@ -339,8 +340,8 @@ final class CombatContactsTest extends DatabaseTestCase
             $GLOBALS['DEBUG_DATA']=[];$GLOBALS['TRACK']=[];$GLOBALS['SYNTH_DEFERRED_TTS']=[];$GLOBALS['AUDIT_RUNID_REQUEST']='fixture';
             $GLOBALS['SCRIPTLINE_EXPRESSION']='';$GLOBALS['SCRIPTLINE_ANIMATION']='';
             $GLOBALS['SYNTH_RESPONSE_FORMAT']='json';$GLOBALS['SYNTH_RESPONSE_STREAMING']=true;
-            $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED']=false;$GLOBALS['SYNTH_PROTOCOL_RESPONSE_STARTED']=false;
-            $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY']='';$GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE']=0;
+            // Exercise the real per-response lifecycle, including transcript deduplication reset.
+            synth_start_json_response_buffer();
             $GLOBALS['INLINE_NARRATION_MODE']='disabled';$GLOBALS['PRESERVE_ASTERISKS_IN_CONTEXT']=false;
             $source=file_get_contents($root.'/main_synth_pipeline.php');
             $start=strpos($source,'$combatIdentification=synth_combat_identification_reply(');

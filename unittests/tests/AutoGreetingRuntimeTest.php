@@ -6,6 +6,36 @@ require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'
 
 final class AutoGreetingRuntimeTest extends TestCase
 {
+    public function testNativeGreetingRequiresOneActualOwnedActorObservation(): void
+    {
+        $actor=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'greeting-save','display_name'=>'Preston'];
+        $state=['actor'=>$actor,'distance'=>120.0,'alive'=>true,'disabled'=>false,'in_combat'=>false,
+            'hostile_to_player'=>false,'talking_to_player'=>false,'life_state'=>'alive','posture'=>'normal','line_of_sight'=>'unknown'];
+        $context=['payload'=>['actor_states'=>[$state]]];
+        $observed=synthNativeAutoGreetingActor($context,$actor);
+        self::assertSame(120.0,$observed['distance']);
+        self::assertSame('0x0001A4D7',$observed['refid']);
+        self::assertNull(synthNativeAutoGreetingActor(['payload'=>['actor_states'=>[]]],$actor));
+        self::assertNull(synthNativeAutoGreetingActor(['payload'=>['actor_states'=>[$state,$state]]],$actor));
+        foreach(['form_id'=>'0x0001CA7D','origin_plugin'=>'Other.esp','playthrough_id'=>'other-save'] as $field=>$value) {
+            $other=$actor;$other[$field]=$value;
+            self::assertNull(synthNativeAutoGreetingActor($context,$other),$field.' must not inherit observed eligibility');
+        }
+    }
+
+    public function testNativeGreetingRejectsUnavailableHostileBusyOrDistantActor(): void
+    {
+        $actor=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'greeting-save','display_name'=>'Preston'];
+        $state=['actor'=>$actor,'distance'=>120.0,'alive'=>true,'disabled'=>false,'in_combat'=>false,
+            'hostile_to_player'=>false,'talking_to_player'=>false,'life_state'=>'alive','posture'=>'normal','line_of_sight'=>'unknown'];
+        foreach(['alive'=>false,'disabled'=>true,'in_combat'=>true,'hostile_to_player'=>true,
+            'talking_to_player'=>true,'life_state'=>'restrained','posture'=>'sleeping','line_of_sight'=>'blocked',
+            'distance'=>2001] as $field=>$value) {
+            $bad=$state;$bad[$field]=$value;
+            self::assertNull(synthNativeAutoGreetingActor(['payload'=>['actor_states'=>[$bad]]],$actor),$field);
+        }
+    }
+
     private function actor(string $name, string $refId, float $distance = 100.0): array
     {
         return [

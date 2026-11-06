@@ -296,12 +296,39 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             'retryable' => true,
         ]);
     }
+    // Claim admission has committed. Early context ACK work and terminal error reporting
+    // need the same durable owner marker as dialogue; keep the canonical event unchanged.
+    $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
     if (in_array($wireEvent['type'] ?? '', ['init', 'context', 'activate', 'cancel', 'halt'], true)) {
+        if (($wireEvent['type'] ?? '')==='context' && in_array('social.tasks.v1',$wireEvent['capabilities'] ?? [],true)) {
+            require_once $path.'lib/synth_social_tasks.php';
+            $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=synth_social_offers($db,$wireEvent);
+        }
         synth_protocol_emit_ack(($wireEvent['type'] ?? 'event') . '_accepted');
         exit;
     }
-    $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
     synth_protocol_assert_request_active();
+    if (in_array($wireEvent['type'] ?? '',['social_task_request','social_task_progress'],true)) {
+        require_once $path.'lib/synth_social_tasks.php';
+        try {
+            $task=$wireEvent['type']==='social_task_request'
+                ? synth_social_admit($db,$wireEvent) : synth_social_progress($db,$wireEvent);
+            if ($wireEvent['type']==='social_task_progress' && ($wireEvent['payload']['phase'] ?? '')==='arrived') {
+                require_once $path.'lib/synth_social_response.php';
+                synth_social_emit_arrival($db,$wireEvent,$task,rtrim($path,DIRECTORY_SEPARATOR));
+            } else {
+                $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=[$task];
+                synth_protocol_emit_ack($wireEvent['type']==='social_task_request'
+                    ? 'social_task_accepted' : 'social_task_progress_accepted');
+            }
+        } catch (SYNTHProtocolCancelled $error) { throw $error; }
+        catch (DomainException $error) {
+            $code=preg_match('/^social_[a-z0-9_]{1,56}$/D',$error->getMessage())===1
+                ? $error->getMessage() : 'social_request_invalid';
+            synth_protocol_emit_terminal_error('social_task_rejected',$code);
+        }
+        exit;
+    }
     if (($wireEvent['type'] ?? '') === 'control') {
         require_once $path.'lib/synth_control.php';
         synth_protocol_emit_ack('control_state', ['detail'=>synth_control_status($db)]);
@@ -330,6 +357,30 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             if ($error instanceof SYNTHProtocolCancelled) throw $error;
             synth_protocol_emit_terminal_error('context_required', $error->getMessage());
             exit;
+        }
+        if (in_array('social.tasks.v1',$wireEvent['capabilities'] ?? [],true)) {
+            require_once $path.'lib/synth_social_tasks.php';
+            $taskText=$wireEvent['type']==='input_audio' ? $transcript : ($wireEvent['payload']['text'] ?? '');
+            if (is_string($taskText) && synth_social_parse_directive($taskText,strval($GLOBALS['SYNTH_INPUT_TARGET'] ?? ''))!==null) {
+                try {
+                    require_once $path.'lib/synth_dialogue_policy.php';
+                    synth_dialogue_capture_origin_policy($db,$wireEvent,$GLOBALS,
+                        strval($wireEvent['payload']['control']['mode'] ?? 'STANDARD'),$transcript);
+                    $task=synth_social_admit_from_input($db,$wireEvent,$transcript);
+                    if ($task!==null) {
+                        $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=[$task];
+                        $GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']=$taskText;
+                        synth_protocol_emit_ack('social_task_accepted');
+                        exit;
+                    }
+                } catch (SYNTHProtocolCancelled $error) { throw $error; }
+                catch (DomainException $error) {
+                    $code=preg_match('/^social_[a-z0-9_]{1,56}$/D',$error->getMessage())===1
+                        ? $error->getMessage() : 'social_request_invalid';
+                    synth_protocol_emit_terminal_error('social_task_rejected',$code);
+                    exit;
+                }
+            }
         }
     }
     if (($wireEvent['type'] ?? '') === 'trigger') {
@@ -435,6 +486,10 @@ if (function_exists("synth_adapt_json_input_payload_for_pipeline")) {
         ]));
     }
 }
+
+// Echo admitted native input before semaphore waits, memory lookup and NPC prompt construction.
+// This uses the same generation/turn ownership checks as later streamed speech, with no TTS work.
+synth_emit_native_player_transcript($gameRequest);
 
 if (function_exists("synth_adapt_json_vision_payload_for_pipeline")) {
     $normalizedVisionPayload = synth_adapt_json_vision_payload_for_pipeline($gameRequest);
@@ -2093,6 +2148,13 @@ Logger::phaseStart("request_processor", [
     "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
 ]);
 require(__DIR__.DIRECTORY_SEPARATOR."processor".DIRECTORY_SEPARATOR."request.php");
+if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && ($gameRequest[0] ?? '') === 'combatbark') {
+    // Combat calls are a brief one-shot, not a full conversational reply. Keep the configured lower cap.
+    $configuredBarkTokens = intval($GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']['max_tokens'] ?? 0);
+    $overrideParameters['MAX_TOKENS'] = $configuredBarkTokens > 0 ? min(192, $configuredBarkTokens) : 192;
+    $request .= ' Speak one short combat sentence of at most twelve words. Do not start a conversation.';
+}
+
 Logger::phaseEnd("request_processor", [
     "type" => $gameRequest[0] ?? "",
     "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
@@ -2300,6 +2362,16 @@ if ($gameRequest[0] != "diary") {
 
 // Check if this event has been disabled before either direct or model responses.
 if (!empty($GLOBALS['PROMPTS'][$gameRequest[0]]['extra']['dontuse'])) terminate();
+
+if (synth_gift_menu_try_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) exit;
+
+// Classify once after claimed input/history logging and the negotiated action
+// catalog are ready, while the immutable capture can still pass its freshness
+// checks. A clear follower command completes an action-only response before
+// history, quest, memory or dialogue work; the verified result drives speech.
+require_once __DIR__.'/lib/synth_jev_actions.php';
+synth_jev_prepare_actions($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null);
+if (synth_wait_try_jev_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null)) exit;
 
 // Exact identification questions run after ordinary owned input/history logging.
 // Normal NPC emission retains speech policy, history, TTS and cancellation; no model/action/rechat path follows.
@@ -2733,6 +2805,8 @@ require_once(__DIR__.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."prompt_compo
 // JSON response validation and action schemas depend on the current request,
 // actor and negotiated capabilities. Rebuild them for every turn so long-lived
 // workers cannot reuse state from a previous speaker or capability set.
+// Reuse the early bounded decision; do not classify again on dialogue work,
+// connector retries, rechat, action-result followups or TTS work.
 if (function_exists('synthRefreshJsonResponseState')) {
     synthRefreshJsonResponseState();
 }
@@ -3028,6 +3102,13 @@ $contextData = synth_append_combat_observer_context(
 
 // The accepted current utterance is not historical context. Append it once after
 // the cue/memory blocks, whether prior history is compact, expanded, or empty.
+require_once __DIR__.'/lib/synth_wait_actions.php';
+$waitObserver=synth_wait_observer_message($GLOBALS['SYNTH_REQUEST_EVENT']['json']??[],
+    $equipmentActorStates,$targetIdentity);
+if($waitObserver!==[]) {
+    if(!isset($contextData)||!is_array($contextData))$contextData=[];
+    $contextData[]=$waitObserver;
+}
 $contextData = synth_append_equipment_observer_context(
     $contextData ?? [],
     $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [],

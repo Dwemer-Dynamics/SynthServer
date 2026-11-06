@@ -11,6 +11,37 @@ final class ActionCatalogTest extends TestCase
 {
     #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
     #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testActionlessConnectorContextInitializesBaseFunctionsWithoutWarnings(): void
+    {
+        ini_set('error_log', '/dev/null');
+        $GLOBALS['PLAYER_NAME'] = 'Fixture Player';
+        $GLOBALS['SYNTH_NAME'] = 'SYNTH Profile Test';
+        $GLOBALS['IS_NPC'] = true;
+        $GLOBALS['FUNCTIONS_ARE_ENABLED'] = false;
+        $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['dialogue.text'];
+        $GLOBALS['SYNTH_ACTION_CATALOG_DB_READY'] = false;
+        $GLOBALS['db'] = null;
+        unset($GLOBALS['BASE_FUNCTIONS']);
+        require_once dirname(__DIR__, 2).'/lib/logger.php';
+        restore_error_handler();
+        set_error_handler(static function (int $severity, string $message): bool {
+            if (str_contains($message, 'BASE_FUNCTIONS')) {
+                throw new \ErrorException($message, 0, $severity);
+            }
+            return false;
+        });
+        try {
+            require_once dirname(__DIR__, 2).'/functions/functions.php';
+        } finally {
+            restore_error_handler();
+        }
+        $this->assertSame([], $GLOBALS['SYNTH_BASE_FUNCTIONS_FALLBACK']);
+        $this->assertSame([], $GLOBALS['FUNCTIONS']);
+        $this->assertSame([], $GLOBALS['ENABLED_FUNCTIONS']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
     #[\PHPUnit\Framework\Attributes\DataProvider('nativeWaitCatalogActivationProvider')]
     public function testNativeWaitDefinitionCannotRestoreLegacyTargetOrParameterTemplate(bool $enabled): void
     {
@@ -91,6 +122,34 @@ final class ActionCatalogTest extends TestCase
         $GLOBALS['FUNCTIONS']=[];
         $this->assertNull(findFunctionByName('GiveCapsTo'));
         $this->assertNull(findFunctionByName('TakeCapsFromPlayer'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testGeneralGiftQueuesAnEmptyArgumentInventoryMenu(): void
+    {
+        ini_set('error_log','/dev/null');
+        $GLOBALS['PLAYER_NAME']='Player';$GLOBALS['SYNTH_NAME']='Marcy Long';$GLOBALS['IS_NPC']=true;
+        $GLOBALS['BASE_FUNCTIONS']=[];$GLOBALS['db']=null;$GLOBALS['SYNTH_ACTION_CATALOG_DB_READY']=false;
+        $event=['protocol_version'=>2,'runtime_variant'=>'flat','type'=>'input_text','payload'=>['text'=>'I have a gift for you'],
+            'capabilities'=>['dialogue.turn_ownership','action.transfer_inventory','action.inventory_observation','action.give_item_to',
+                'action.open_inventory','action.gift_menu_inventory','action.take_item_from_player','action.player_item_inventory']];
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=$event['capabilities'];
+        require_once dirname(__DIR__,2).'/lib/logger.php';restore_error_handler();
+        require_once dirname(__DIR__,2).'/functions/functions.php';
+        require_once dirname(__DIR__,2).'/connector/__jpd.php';require_once dirname(__DIR__,2).'/connector/openrouterjson.php';
+        self::assertNotNull(findFunctionByName('OpenInventory'));self::assertNull(findFunctionByName('TakeItemFromPlayer'));
+        $connector=new openrouterjson();$buffer=new ReflectionProperty(openrouterjson::class,'_buffer');
+        $buffer->setValue($connector,json_encode(['character'=>'Marcy Long','listener'=>'Player','mood'=>'neutral',
+            'action'=>'OpenInventory','target'=>'','item'=>'','amount'=>'','message'=>'What did you bring?']));
+        $GLOBALS['alreadysent']=[];$commands=$connector->processActions();self::assertCount(1,$commands);
+        $decoded=synthDecodeActionLine($commands[0]);self::assertSame([],$decoded['parameter']);self::assertSame([],$decoded['parameter_args']);
+        foreach (['target','item','amount','location'] as $field) {
+            $context=buildFunctionExecutionContextFromResponse(['action'=>'OpenInventory','message'=>'Speech',
+                'target'=>'','item'=>'','amount'=>'',$field=>'unexpected']);
+            $queue=[];$sent=[];self::assertFalse(queueFunctionExecutionCommand($queue,$sent,$context,'fixture','Marcy Long'));
+            self::assertSame([],$queue);
+        }
     }
 
     public function testPlayerPaymentContractCannotReuseNpcGivingCapsOrNpcFunds(): void
@@ -241,12 +300,14 @@ final class ActionCatalogTest extends TestCase
                 $parameters=['target'=>'Fixture Settler','amount'=>$amount]+($transferName==='GiveItemTo'?['item'=>'Rifle']:[]);
                 $context=buildFunctionExecutionContextFromResponse(['action'=>$transferName,
                     'message'=>'Speech is not an action argument.']+$parameters);
-                $this->assertSame($amount,$context['parameter_value']['amount']);
+                $normalized=$amount==='2'?2:$amount;
+                $this->assertSame($normalized,$context['parameter_value']['amount']);
                 $context['function_found']=true;
-                $buffer=[];$sent=[];$valid=is_int($amount) && $amount>=1 && $amount<=1000000;
+                $buffer=[];$sent=[];$valid=is_int($normalized) && $normalized>=1 && $normalized<=1000000;
                 $this->assertSame($valid,queueFunctionExecutionCommand($buffer,$sent,$context,'fixture','Piper'));
                 $this->assertCount($valid?1:0,$buffer);
-                $this->assertSame($valid,synthEncodeActionLine('Piper',$transferName,$parameters)!=='');
+                $nativeValid=is_int($amount) && $amount>=1 && $amount<=1000000;
+                $this->assertSame($nativeValid,synthEncodeActionLine('Piper',$transferName,$parameters)!=='');
             }
         }
         foreach ([['target'=>'Player'],['target'=>'Player','item'=>'2'],['target'=>'Player','amount'=>2,'item'=>''],
@@ -261,6 +322,56 @@ final class ActionCatalogTest extends TestCase
         $GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version']=1;
         $this->assertNotSame('',synthEncodeActionLine('Piper','GiveItemTo',['target'=>'Fixture Settler','item'=>'Rifle','amount'=>1.5]));
         $this->assertNotSame('',synthEncodeActionLine('Piper','GiveCapsTo',['target'=>'Player','item'=>'2']));
+    }
+
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    #[\PHPUnit\Framework\Attributes\PreserveGlobalState(false)]
+    public function testOpenRouterTransferQuantityTextReachesCommandBufferAsInteger(): void
+    {
+        ini_set('error_log','/dev/null');
+        $GLOBALS['PLAYER_NAME']='Fixture Player';$GLOBALS['SYNTH_NAME']='Sturges';
+        $GLOBALS['IS_NPC']=true;$GLOBALS['BASE_FUNCTIONS']=[];$GLOBALS['db']=null;
+        $GLOBALS['SYNTH_ACTION_CATALOG_DB_READY']=false;
+        $event=['protocol_version'=>2,'runtime_variant'=>'flat','type'=>'input_text','payload'=>['text'=>'I have a gift for you, a Submachine Gun'],
+            'capabilities'=>['dialogue.turn_ownership','action.transfer_inventory','action.inventory_observation',
+                'action.give_item_to','action.give_caps_to','action.caps_inventory',
+                'action.take_caps_from_player','action.player_caps_inventory','action.take_item_from_player','action.player_item_inventory']];
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=$event['capabilities'];
+        require_once dirname(__DIR__,2).'/lib/logger.php';restore_error_handler();
+        require_once dirname(__DIR__,2).'/functions/functions.php';
+        require_once dirname(__DIR__,2).'/connector/__jpd.php';
+        require_once dirname(__DIR__,2).'/connector/openrouterjson.php';
+        $buffer=new ReflectionProperty(openrouterjson::class,'_buffer');
+        foreach (['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'] as $code) {
+            foreach (['1'=>1,'1000000'=>1000000] as $text=>$quantity) {
+                $GLOBALS['alreadysent']=[];
+                $connector=new openrouterjson();
+                // Same shared speech envelope and quoted quantity as the observed helmet request.
+                $buffer->setValue($connector,json_encode(['character'=>'Sturges','listener'=>'Fixture Player',
+                    'mood'=>'neutral','action'=>$code,'target'=>'Fixture Player',
+                    'item'=>in_array($code,['GiveItemTo','TakeItemFromPlayer'],true)?'Army Helmet':'','amount'=>(string)$text,'message'=>'Here.']));
+                $commands=$connector->processActions();
+                $this->assertCount(1,$commands,$code);
+                $decoded=synthDecodeActionLine($commands[0]);
+                $this->assertSame($quantity,$decoded['parameter']['amount']);
+                $this->assertSame('Fixture Player',$decoded['parameter']['target']);
+                $this->assertTrue(synthNativeTransferParametersValid($decoded['parameter'],in_array($code,['GiveCapsTo','TakeCapsFromPlayer'],true)));
+                $this->assertSame([$decoded['parameter']['target'],...(in_array($code,['GiveItemTo','TakeItemFromPlayer'],true)?['Army Helmet']:[]),(string)$quantity],
+                    $decoded['parameter_args']);
+            }
+        }
+        foreach (['', '0','01','+1','-1','1.0','1e2',' 1','1 ','1000001','99999999999999999999',
+            1.0,1.5,true,null,[],['1']] as $quantity) {
+            foreach (['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'] as $code) {
+                $context=buildFunctionExecutionContextFromResponse(['action'=>$code,'target'=>'Fixture Player',
+                    'item'=>in_array($code,['GiveItemTo','TakeItemFromPlayer'],true)?'Army Helmet':'','amount'=>$quantity]);
+                $commands=[];$sent=[];
+                $omitted=$quantity==='' && in_array($code,['GiveItemTo','TakeItemFromPlayer'],true);
+                $this->assertSame($omitted,queueFunctionExecutionCommand($commands,$sent,$context,'fixture','Sturges'));
+                $this->assertCount($omitted?1:0,$commands);
+                if ($omitted) $this->assertArrayNotHasKey('amount',synthDecodeActionLine($commands[0])['parameter']);
+            }
+        }
     }
 
     public function testCapsIntentRequiresExactObservedCurrencyAndIntegerAmount(): void
@@ -524,6 +635,7 @@ final class ActionCatalogTest extends TestCase
             'StopWalk',
             'TakeASeat',
             'TakeCapsFromPlayer',
+            'TakeItemFromPlayer',
             'TravelTo',
             'UnequipItem',
             'WaitHere',

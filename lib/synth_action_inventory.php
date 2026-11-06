@@ -46,6 +46,10 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
     $session=$db->escapeLiteral($event['session_id']);$turn=$db->escapeLiteral($event['turn_id']);
     $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
     $variant=$db->escapeLiteral($event['runtime_variant']);
+    $turnOwner=synth_protocol_retains_gift_owner($event)
+        ? "((r.active_turn_id=$turn AND r.active_turn_sequence=$sequence)
+            OR (accepted.state='complete' AND accepted.error_code IS NULL AND parent.state='complete' AND parent.error_code IS NULL))"
+        : "(r.active_turn_id=$turn AND r.active_turn_sequence=$sequence)";
     $current=$event;$visited=[];$requests=[];$observed=[];$bytes=0;
     for ($depth=0;$depth<64;++$depth) {
         if (isset($requests[$current['request_id']])) throw new DomainException('action_inventory_ancestry_invalid');
@@ -83,8 +87,7 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                 JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
                 WHERE i.action_id=$action AND i.idempotency_key=$idempotency AND i.session_id=$session
                     AND i.turn_id=$turn AND i.generation=$generation AND i.state='complete'
-                    AND r.state='active' AND r.active_generation=$generation AND r.active_turn_id=$turn
-                    AND r.active_turn_sequence=$sequence AND r.runtime_variant=$variant");
+                    AND r.state='active' AND r.active_generation=$generation AND $turnOwner AND r.runtime_variant=$variant");
             if (!$row) throw new DomainException('action_inventory_ancestry_unavailable');
             $row=synth_protocol_transfer_inventory_owner($row);
             $parent=is_array($row['canonical_event'] ?? null) ? $row['canonical_event'] : json_decode(strval($row['canonical_event'] ?? ''),true);
@@ -105,9 +108,11 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                 'EquipItem','equip_item'=>'action.equip_item', 'UnequipItem','unequip_item'=>'action.unequip_item',
                 'Consume','consume'=>'action.consume', 'GiveItemTo','give_item_to'=>'action.give_item_to',
                 'GiveCapsTo','give_caps_to'=>'action.give_caps_to',
-                'TakeCapsFromPlayer','take_caps_from_player'=>'action.take_caps_from_player', default=>null,
+                'TakeCapsFromPlayer','take_caps_from_player'=>'action.take_caps_from_player',
+                'TakeItemFromPlayer','take_item_from_player'=>'action.take_item_from_player',
+                'OpenInventory','open_inventory'=>'action.open_inventory', default=>null,
             };
-            $transfer=in_array($mutation,['action.give_item_to','action.give_caps_to','action.take_caps_from_player'],true);
+            $transfer=in_array($mutation,['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory'],true);
             $paired=($terminal['schema'] ?? '')==='synth.action.transfer-result.v2';
             if (($paired && !$transfer) || (($terminal['schema'] ?? '')==='synth.action.result.v2' && ($mutation===null || $transfer)))
                 throw new DomainException('action_inventory_ancestry_invalid');
@@ -122,6 +127,10 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                     || !synth_protocol_supports_caps_transfer($current))) throw new DomainException('action_inventory_ancestry_capability');
                 if ($mutation==='action.take_caps_from_player' && (!synth_protocol_supports_player_caps($parent)
                     || !synth_protocol_supports_player_caps($current))) throw new DomainException('action_inventory_ancestry_capability');
+                if ($mutation==='action.take_item_from_player' && (!synth_protocol_supports_player_items($parent)
+                    || !synth_protocol_supports_player_items($current))) throw new DomainException('action_inventory_ancestry_capability');
+                if ($mutation==='action.open_inventory' && (!synth_protocol_supports_gift_menu($parent)
+                    || !synth_protocol_supports_gift_menu($current) || !$paired)) throw new DomainException('action_inventory_ancestry_capability');
                 $owners=['inventory'=>[$row['full_form_id'],$row['origin_plugin'],$row['playthrough_id']]];
                 if ($transfer) {
                     if (empty($row['recipient_form_id']) || empty($row['recipient_plugin'])

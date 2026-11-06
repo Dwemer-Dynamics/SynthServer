@@ -323,7 +323,14 @@ function synth_rechat_completed_lines(string $body, array $event): ?array
         if ($index===0) { if ($type!=='response_start') return null; }
         elseif ($index===count($wireLines)-1) {
             if ($type!=='response_end' || ($line['payload']['status'] ?? '')!=='complete') return null;
-        } elseif (!in_array($type,['dialogue','action','status'],true)) return null;
+        } elseif (!in_array($type,['dialogue','action','status'],true)) {
+            if ($type!=='social_task' || ($event['type'] ?? '')!=='social_task_progress'
+                || ($event['payload']['phase'] ?? '')!=='arrived' || ($event['runtime_variant'] ?? '')!=='flat'
+                || !in_array('social.tasks.v1',$event['capabilities'] ?? [],true)
+                || array_keys($line['payload'] ?? [])!==['task']
+                || ($line['payload']['task']['schema'] ?? '')!=='synth.social.task.v1'
+                || ($line['payload']['task']['task_id'] ?? '')!==($event['payload']['task_id'] ?? null)) return null;
+        }
         $result[]=['line'=>$line,'wire'=>$wireLine."\n"];
     }
     return $result;
@@ -383,6 +390,10 @@ function synth_rechat_completed_parent_evidence($connection, array $event): ?arr
         if (($origin[$field] ?? null)!==($event[$field] ?? null)) return null;
     }
     if (($origin['request_id'] ?? null)!==$parent || !synth_protocol_owns_dialogue_turn($origin)) return null;
+    if (($origin['type'] ?? '')==='social_task_progress') {
+        require_once __DIR__.'/synth_social_tasks.php';
+        if (!synth_social_arrival_parent_valid($connection,$origin)) return null;
+    }
     $body=synth_protocol_decode_bytea($row['response_body']);
     $lines=synth_rechat_completed_lines($body,$origin);
     if ($lines===null) return null;

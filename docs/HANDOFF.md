@@ -1,9 +1,182 @@
 # Synthserver developer handoff
 
+## Installed gift screen and shared wording
+
+The user approved general gifts opening the normal inventory exchange, while
+named items transfer directly. The shared Marcy wording helper is installed for
+all NPCs. The coordinated installed update adds owned, observed OpenInventory,
+post-menu paired receipts and model-valued gift batches. Automated checks pass;
+the reviewed DLL/PEX/backend are installed and hash verified. Next verify
+the correct NPC's free exchange opens and actual donations become gift facts.
+No fixed NPC bonus is used. See PROTOCOL.md. Menu gameplay remains unverified.
+
+
+## Player-pack follow-up wording correction
+
+Marcy's direct “grab the submachine gun” command hid TakeItemFromPlayer because
+the guard demanded a repeated possessive/source phrase. It selected EquipItem
+instead, which failed against her inventory. The one-file player-gift wording correction is installed and passes 128
+backend tests. A Marcy gameplay retest remains pending. Jun's pistol transfer is gameplay/receipt confirmed
+and recorded as a verified gift; its cancelled continuation saved no personal
+valuation. That separate appraisal issue remains open.
+
+
+## Installed player-pack gifts
+
+Startup requires action catalog version 20261106001. The migration adds the
+TakeItemFromPlayer builtin when missing and preserves existing action settings,
+including a previously registered or disabled named-gift action. Use the normal
+server bootstrap for clean installs and upgrades.
+
+The user explicitly requested player-to-NPC ordinary item transfers and personal
+gift valuation. The coordinated candidate adds TakeItemFromPlayer with its own
+flat v2 acknowledgement, exact Player donor/NPC recipient evidence and explicit
+direct-input authorization. Accepted gifts feed the existing relationship model
+with the recipient's saved biography/personality/goals; there are no fixed NPC
+scores. Failed handoffs and receipt retries cannot multiply gift appreciation.
+The coordinated flat client/backend update is installed and hash verified. Gameplay acceptance remains open. See PROTOCOL.md.
+
+
+## Current handoff priorities
+
+Rangroo's handoff scope is bios, world knowledge, diaries, actions, and basic
+rechat/profile setup. Preserve accepted work: flat NPC rechat and movement release
+were already gameplay confirmed with Codsworth and Jun, and completed rechat is
+also recorded in the current backend. All 11 stored actor sheets have valid
+profile/connector assignments and populated biography/personality fields.
+
+The 4 November read-only audit confirms all 204 reviewed biography templates are
+populated, all 207 expected actor mappings match, and all 125 lore articles are
+active with matching reviewed text and content hashes. Existing successful
+requests show biography and lore text reaching the provider. This completes the
+reviewed content pack, not an exhaustive Fallout cast/world census.
+
+One bounded deployment gap remains: Pearl, Maxwell, Bert Riggs, Gilda Broscoe,
+Keith McKinney and Santiago Avida retain the old exclusive prewar access tag in the
+installed pack/database. The reviewed candidate removes it for these live postwar
+Vault 118 actors. Their biographies are present; the obsolete tag restricts lore
+access. The installed JSON pack also predates other biography revisions already
+in the database. No runtime change was made by the audit.
+
+Manual NPC diary generation, the F6 shortcut and dashboard publication are
+gameplay verified. Continue only outstanding supported-action cases and specific
+reproduced failures; do not restart accepted biography, lore or basic rechat work.
+The directed follower-to-NPC errand failed, with no accepted social-task request
+found, and remains deferred separately from basic nearby rechat.
+
+## Diary button and written-entry viewer
+
+The paired candidate adds a selected-NPC Write Diary row to the flat game control
+menu, using the existing owned background request. The dashboard Diaries section
+reads accepted published reflections from their actual storage, filters by author
+and playthrough, searches text and displays full original entries safely as text.
+Home now includes those results in its diary count/latest preview and links to the
+viewer. The main menu and Roleplay Diaries tab reach the same section. Legacy log
+bookmarks remain available. This is an administrative archive; opening an entry
+does not change NPC recall, saved history or diary generation policy.
+The menu, reader and paired F6 shortcut are installed. Background calls now use
+the connector's existing 30/90-second model allowance and preserve larger configured
+values, correcting the old 15-second worker timeout. Flat gameplay on 4 November
+confirms the shortcut: Sturges' new 1,429-character entry completed on the first
+attempt in about 33 seconds. Published input/result hashes and ownership are valid,
+and the entry appears in the dashboard. Older failed requests remain preserved.
+VR shortcut gameplay remains unproven.
+
+## Supported NPC action return checks
+
+The 3 November action audit reproduced the profile connector warning when a
+context negotiated no native actions: the base registry was read after an empty
+population loop. The prepared one-line initialization preserves existing entries
+and is covered by an isolated actionless-context regression. This backend change
+is installed. Supported action/catalog, inventory, combat and social-task
+checks passed 145 tests / 2423 assertions after the transfer fix; the paired native action and adapter
+suites passed 3804 checks. Automated checks do not accept physical gameplay.
+
+The Sturges Army Helmet transfer failed before native dispatch: the model selected
+Give_Item_To with the correct recipient/item but amount was the JSON string "1".
+The request log prepared GiveItemTo then returned zero commands; the durable response
+contained dialogue only and no transfer intent existed. The candidate now normalizes
+canonical positive decimal quantity strings at the shared speech boundary only,
+with an exact empty optional GiveItemTo quantity treated as omitted. Native command
+and intent validation remain integer-only; fractions, padded/signed/exponent strings,
+extra arguments, ownership and paired receipt checks retain their strict rejection.
+An actual OpenRouter processActions regression reproduced the zero-command failure
+and passes with the fix. This shares the single functions/functions.php replacement
+with the profile-warning correction. The Army Helmet transfer and both 10-cap
+directions are now gameplay and receipt verified.
+
+The flat client negotiates inspection, inventory query, quest reading, end
+conversation, sheathing, Wait/Release, hostile-target attack, equipment,
+consumption, and paired item/caps transfers. Conversation approach and saved NPC
+visits use their separate ownership controllers. Catalog activation alone does
+not add a native executor: sitting, barter, generic movement/recruitment and
+pickup remain unadvertised. Keep those separate from fixes to supported paths.
+
+Accepted flat checks include inventory query, user-observed helmet equip/unequip,
+verified item/caps transfer, water consumption and owned conversation approach.
+A follower attack on its current visible hostile and broader movement cleanup
+remain separate checks. The directed NPC visit is failed/deferred.
+
+## Saved follower conversation tasks candidate
+
+Explicit typed or transcribed instructions such as "Go talk to Jun about the
+water pump" and "When we return to Sanctuary, talk to Jun about repairs" can
+admit a canonical, actor-owned task without an additional model call. The
+performer's journal context includes a deterministic task note. Executable
+progress uses separate append-only, save-scoped records; diary prose cannot
+create a task. Unknown or ambiguous people and places are rejected.
+
+The paired flat client navigates to the exact loaded recipient, proves arrival,
+starts a topic-only opening line and awaits the recipient's delivered reply.
+Completed progress needs an exact response route and a post-acknowledgment save
+checkpoint. The migration, paired installation and new gameplay acceptance are
+separate from the focused automated tests. VR remains deferred by the user.
+
+The same candidate repairs the observed quest-context query timeout with an
+equivalent, quest-only visibility projection, and closes failed response streams
+without exposing exception text. Existing quest/relationship acceptance remains
+valid; synthetic query timings do not establish gameplay turnaround.
+
+## Optional Jev action candidate
+
+The companion-command candidate reuses the existing Wait/Release executor and
+physical receipts. Jev now receives compact selected-actor facts and emits
+privacy-bounded decision metadata. Clear STANDARD-mode requests to a calm live
+teammate can complete an action-only response before dialogue generation; the
+existing verified-result continuation supplies the acknowledgement. Latest
+capture/age checks are repeated under the native intent lock. Ordinary NPCs and
+uncertain requests retain their existing dialogue/refusal path. No new planner,
+client protocol, model route or provider attempt is introduced. Installation and
+actual gameplay remain separate gates; see [JEV-ACTIONS.md](JEV-ACTIONS.md).
+
+Optional Jev intent selection narrows existing NPC actions before dialogue
+generation. It is disabled by default, uses a dedicated connector, has a 350 ms
+default budget (750 ms ceiling) without retries, and falls back to ordinary
+selection on uncertain, invalid, unavailable or late answers. Existing native
+ownership, capability, argument and action-result validation remain authoritative.
+This is a server-only candidate; live provider timing/accuracy, installation and
+flat/VR gameplay acceptance remain open. See [JEV-ACTIONS.md](JEV-ACTIONS.md).
+
 Updated: 2026-10-16. This is the current entry point for Synthserver development. Older
 migration and parity documents under `docs/` are kept as feature evidence.
 
 ## Flat alpha update candidate
+
+The local Codex bridge latency candidate reuses its app-server connection while
+creating a fresh ephemeral thread for every reply. It caches executable isolation
+hashing behind a checked runtime signature, bounds process reuse, detects provider
+EOF and retires generation when its HTTP caller disconnects. Replies remain fully
+validated before delivery. Synthetic timing and current-executable two-context
+isolation checks are distinct from installation and gameplay latency acceptance.
+See [CODEX-LOCAL-PROVIDER.md](CODEX-LOCAL-PROVIDER.md).
+
+That bridge candidate now recovers from settings-only Codex changes by retiring
+the old connection and rechecking two isolated synthetic scopes locally before
+the next real inference. Verified recovery is cached in memory without private
+file edits. Executable/code/proof changes and failed isolation remain guarded.
+Focused tests and a current-executable synthetic primary recovery fixture pass;
+the combined bridge install and game return check remain pending. The prior
+latency-only install proposal is superseded by the combined recovery proposal.
 
 The October 24 flat gameplay run completed an addressed Codsworth/Jun exchange,
 released both temporary holds, retained both exact directed relationship records

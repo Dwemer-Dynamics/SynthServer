@@ -33,7 +33,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         throw new InvalidArgumentException('Invalid native relationship evaluation input');
     }
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$responseId,$systemPrompt,$playerOnly) {
-        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)
+        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])
             .'SELECT * FROM relationship_response_evidence WHERE history_event_id=$1',[$responseId]);
         if (!$result) throw new RuntimeException('Unable to resolve relationship evaluation response');
         $response=pg_fetch_assoc($result); if (!$response) return null;
@@ -43,7 +43,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         $playerLines=$playerOnly ? synth_relationship_player_lines($context['payload'],$responsePayload) : [];
         if ($playerOnly && !$playerLines) return null;
         if (!synth_relationship_write_allowed($connection,$event,intval($response['actor_identity_id']),$responseId)) return null;
-        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event)
+        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
             .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$responseId]);
         if (!$result) throw new RuntimeException('Unable to check completed relationship evaluation');
         if (pg_fetch_assoc($result)) return null;
@@ -86,6 +86,16 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             'response_id'=>$responseId,'response'=>$responsePayload,
             'recent_events'=>$recent,'source_ids'=>$sources];
         if ($playerOnly) $input['player_lines']=$playerLines;
+        $gift=synth_player_gift_for_event($db,$event);
+        if ($gift!==null) {
+            // One physical handoff may be delivered again under another receipt request ID.
+            // Its dedicated evaluation is owned by the action, not by repeated thank-you speech.
+            if ($db->fetchOne("SELECT id FROM synth_meta.relationship_evaluations WHERE actor_identity_id=".intval($response['actor_identity_id'])
+                ." AND input_payload#>>'{received_gift,fact,action_id}'=".$db->escapeLiteral($gift['action_id'])." LIMIT 1")) return null;
+            $perspective=synth_player_gift_perspective($db,$event,intval($response['actor_identity_id']));
+            if ($perspective===null) return null;
+            $input['received_gift']=['fact'=>$gift,'recipient_perspective'=>$perspective];
+        }
         $json=json_encode($input,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if (strlen($json)>262144) throw new LengthException('Native relationship evaluation input too large');
         $result=@pg_query_params($connection,'INSERT INTO synth_meta.relationship_evaluations
@@ -118,7 +128,7 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
     if (synth_protocol_canonical_json($input['owner'])!==synth_protocol_canonical_json($event)) return null;
     $context=synth_protocol_current_context($db,$event);
     if (!$context || $context['payload']!=$input['context']) return null;
-    $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)
+    $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])
         .'SELECT response_payload FROM relationship_response_evidence WHERE history_event_id=$1 AND actor_identity_id=$2',
         [$row['response_history_event_id'],$row['actor_identity_id']]);
     if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation response');
@@ -133,9 +143,20 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
             || !is_array($input['subjects'] ?? null) || count($input['subjects'])!==1 || ($input['subjects'][0]['subject_id'] ?? null)!==$pair['subject_id']
             || ($input['subjects'][0]['label'] ?? null)!=='Player' || ($input['evaluation_policy'] ?? null)!=='synth.relationship.policy.v2') return null;
     } elseif (($input['schema'] ?? null)!=='synth.relationship.evaluation.v1' || isset($input['player_lines'])) return null;
-    $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)
-        .'SELECT d.history_event_id FROM synth_meta.relationship_evaluation_sources d
-            JOIN relationship_visible_sources s USING(history_event_id) WHERE d.evaluation_id=$1 ORDER BY d.history_event_id',[$evaluationId]);
+    if (isset($input['received_gift'])) {
+        $gift=synth_player_gift_for_event($db,$event);
+        if ($gift===null || synth_protocol_canonical_json($gift)!==synth_protocol_canonical_json($input['received_gift']['fact'] ?? [])
+            || intval($input['received_gift']['recipient_perspective']['actor_identity_id'] ?? 0)!==intval($row['actor_identity_id'])) return null;
+        require_once __DIR__.'/synth_profile_state.php';
+        if (($input['received_gift']['recipient_perspective']['profile_revision'] ?? null)!==(synth_profile_visible($db,$event,intval($row['actor_identity_id']))['revision'] ?? null)) return null;
+    }
+    // Player-only evaluations have exactly one source, the response already verified above.
+    $sourceQuery=($input['schema'] ?? null)==='synth.relationship.evaluation.v2'
+        ? 'SELECT history_event_id FROM synth_meta.relationship_evaluation_sources WHERE evaluation_id=$1 ORDER BY history_event_id'
+        : synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$input['source_ids'])
+            .'SELECT d.history_event_id FROM synth_meta.relationship_evaluation_sources d
+                JOIN relationship_visible_sources s USING(history_event_id) WHERE d.evaluation_id=$1 ORDER BY d.history_event_id';
+    $result=@pg_query_params($connection,$sourceQuery,[$evaluationId]);
     if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation sources');
     if (array_map('intval',array_column(pg_fetch_all($result),'history_event_id'))!==$input['source_ids']) return null;
     $result=@pg_query_params($connection,'SELECT count(*) AS n FROM synth_meta.relationship_evaluation_sources WHERE evaluation_id=$1',[$evaluationId]);
@@ -203,13 +224,17 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
             return null;
         }
         $capacity=synth_relationship_queue_has_capacity($connection,[intval($input['actor_identity_id'])]);
+        $jobPayload=['context_sequence'=>$event['context_sequence']];
+        if (isset(json_decode($input['input_payload'],true,flags:JSON_THROW_ON_ERROR)['received_gift'])) {
+            $jobPayload['schema']='synth.relationship.gift-job.v1';
+        }
         $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
             (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,deadline_at)
-            SELECT 'relationship',$1,$2,$3,$4,$5,$6,jsonb_build_object('context_sequence',$7::bigint),clock_timestamp()+INTERVAL '10 minutes'
+            SELECT 'relationship',$1,$2,$3,$4,$5,$6,$7::jsonb,clock_timestamp()+INTERVAL '10 minutes'
             WHERE NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1 AND state IN ('ready','failed','cancelled','stale'))
                 AND $8::boolean
             ON CONFLICT DO NOTHING RETURNING id",[$evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],
-                $event['generation'],$input['actor_identity_id'],$event['context_sequence'],$capacity ? 't' : 'f']);
+                $event['generation'],$input['actor_identity_id'],json_encode($jobPayload,JSON_THROW_ON_ERROR),$capacity ? 't' : 'f']);
         if (!$result) throw new RuntimeException('Unable to enqueue relationship evaluation');
         $created=pg_fetch_assoc($result); if ($created) return intval($created['id']);
         $result=@pg_query_params($connection,"SELECT id FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1
@@ -352,8 +377,14 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         }
         if (@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-relationship-result:'||$1||':'||$2,0))",
             [$evaluation['actor_identity_id'],$evaluation['response_history_event_id']])===false) throw new RuntimeException('Unable to lock relationship result');
-        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event)
-            .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$evaluation['response_history_event_id']]);
+        // A verified gift has one immutable response. A result for that receipt is a duplicate on every save.
+        $priorResultQuery=isset($input['received_gift'])
+            ? 'SELECT 1 FROM synth_meta.relationship_results result
+                JOIN synth_meta.relationship_evaluations prior ON prior.id=result.evaluation_id
+                WHERE prior.response_history_event_id=$1 LIMIT 1'
+            : synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
+                .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1';
+        $result=@pg_query_params($connection,$priorResultQuery,[$evaluation['response_history_event_id']]);
         if (!$result) throw new RuntimeException('Unable to check prior relationship result');
         if (pg_fetch_assoc($result)) throw new LogicException('Relationship response already evaluated');
         $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id

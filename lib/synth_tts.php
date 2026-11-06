@@ -4,7 +4,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "voice_clone_resolver.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "logger.php";
 
-function synth_tts_cache_seed(string $root, string $speaker, string $text): string
+function synth_tts_cache_seed(string $root, string $speaker, string $text, ?array $canonicalActor = null): string
 {
     $speaker = trim($speaker);
     $text = trim($text);
@@ -22,7 +22,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text): stri
         }
 
         $currentSpeaker = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
-        if ($speaker !== '' && $currentSpeaker !== '' && strcasecmp($speaker, $currentSpeaker) === 0) {
+        if ($canonicalActor === null && $speaker !== '' && $currentSpeaker !== '' && strcasecmp($speaker, $currentSpeaker) === 0) {
             $voice = trim(strval($GLOBALS["PATCH_OVERRIDE_VOICE"] ?? ''));
             if ($voice === '') {
                 $voice = trim(strval($GLOBALS["TTS_NPC_RESOLVED_VOICE_SAMPLE"] ?? ''));
@@ -34,7 +34,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text): stri
 
         $db = $GLOBALS["db"] ?? null;
         if ($voice === '' && is_object($db)) {
-            $voiceData = synth_tts_load_npc_voice_data($db, $speaker);
+            $voiceData = synth_tts_load_npc_voice_data($db, $speaker, $canonicalActor);
             $voice = trim(strval($voiceData['voiceid'] ?? ''));
             if ($voice !== '') {
                 $streaming = function_exists('synth_response_stream_requested')
@@ -43,7 +43,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text): stri
                 if (!$streaming) {
                     $voice = synth_resolve_tts_voice_reference($voice, [
                         'root' => $root,
-                        'actor_name' => $speaker,
+                        'actor_name' => $canonicalActor===null ? $speaker : '',
                         'voice_name' => $voiceData['voice_name'] ?? '',
                         'voice_formid' => $voiceData['voice_formid'] ?? '',
                     ]);
@@ -58,12 +58,15 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text): stri
         'root' => $root, 'sync_sample' => false, 'allow_game_scan' => false,
     ]) : '';
     $sampleHash = is_file($sample) ? (hash_file('sha256', $sample) ?: '') : '';
-    return "synth.tts.v5\n" . $ttsFunction . "\n" . $speaker . "\n" . $voice . "\n" . $sampleHash . "\n" . $text;
+    $actorSeed=$canonicalActor===null ? '' : "\nactor:".hash('sha256',json_encode([
+        strtoupper($canonicalActor['form_id'] ?? ''),strtolower($canonicalActor['origin_plugin'] ?? ''),
+        $canonicalActor['playthrough_id'] ?? ''],JSON_THROW_ON_ERROR));
+    return "synth.tts.v5\n" . $ttsFunction . "\n" . $speaker . "\n" . $voice . "\n" . $sampleHash . "\n" . $text.$actorSeed;
 }
 
-function synth_tts_cache_key(string $root, string $speaker, string $text): string
+function synth_tts_cache_key(string $root, string $speaker, string $text, ?array $canonicalActor = null): string
 {
-    return md5(synth_tts_cache_seed($root, $speaker, $text));
+    return md5(synth_tts_cache_seed($root, $speaker, $text, $canonicalActor));
 }
 
 function synth_tts_soundcache_path(string $root, string $speaker, string $text): string
@@ -125,14 +128,32 @@ function synth_tts_load_npc_voice(object $db, string $speaker): string
     return trim(strval($voiceData['voiceid'] ?? ''));
 }
 
-function synth_tts_load_npc_voice_data(object $db, string $speaker): array
+function synth_tts_load_npc_voice_data(object $db, string $speaker, ?array $canonicalActor = null): array
 {
     if ($speaker === '' || !method_exists($db, 'fetchOne')) {
         return [];
     }
 
-    $escaped = method_exists($db, 'escape') ? $db->escape($speaker) : str_replace("'", "''", $speaker);
-    $row = $db->fetchOne("SELECT voiceid, extended_data FROM synth.core_npc_master WHERE npc_name='{$escaped}' LIMIT 1");
+    if ($canonicalActor !== null) {
+        if (!method_exists($db,'escapeLiteral') || !is_string($canonicalActor['form_id'] ?? null)
+            || preg_match('/^0x[0-9a-f]{8}$/Di',$canonicalActor['form_id'])!==1
+            || strtoupper($canonicalActor['form_id'])==='0X00000000'
+            || !is_string($canonicalActor['origin_plugin'] ?? null) || strlen($canonicalActor['origin_plugin'])>255
+            || str_contains($canonicalActor['origin_plugin'],"\0") || preg_match('#^[^/\\\\]+\.(esm|esp|esl)$#Di',$canonicalActor['origin_plugin'])!==1
+            || !is_string($canonicalActor['playthrough_id'] ?? null) || $canonicalActor['playthrough_id']===''
+            || strlen($canonicalActor['playthrough_id'])>128 || str_contains($canonicalActor['playthrough_id'],"\0")
+            || preg_match('//u',$canonicalActor['playthrough_id'])!==1) return [];
+        $form=$db->escapeLiteral($canonicalActor['form_id']);
+        $plugin=$db->escapeLiteral($canonicalActor['origin_plugin']);
+        $playthrough=$db->escapeLiteral($canonicalActor['playthrough_id']);
+        $row=$db->fetchOne("SELECT n.voiceid,n.extended_data FROM synth.core_npc_master n
+            JOIN synth.actor_identities a ON a.id=n.actor_identity_id
+            WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
+                AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
+    } else {
+        $escaped = method_exists($db, 'escape') ? $db->escape($speaker) : str_replace("'", "''", $speaker);
+        $row = $db->fetchOne("SELECT voiceid, extended_data FROM synth.core_npc_master WHERE npc_name='{$escaped}' LIMIT 1");
+    }
     if (!is_array($row)) {
         return [];
     }
@@ -166,7 +187,7 @@ function synth_tts_load_npc_voice_data(object $db, string $speaker): array
         $voiceData['voice_formid'] = '';
     }
 
-    if ($voiceData['voiceid'] === '') {
+    if ($voiceData['voiceid'] === '' && $canonicalActor === null) {
         $fallbackVoiceId = synth_tts_find_actor_voiceid_from_local_samples($speaker);
         if ($fallbackVoiceId !== '') {
             $voiceData['voiceid'] = $fallbackVoiceId;
@@ -176,7 +197,7 @@ function synth_tts_load_npc_voice_data(object $db, string $speaker): array
     return $voiceData;
 }
 
-function synth_tts_generate_for_response(string $root, string $speaker, string $text): bool
+function synth_tts_generate_for_response(string $root, string $speaker, string $text, ?array $canonicalActor = null): bool
 {
     $text = trim($text);
     if ($text === '') {
@@ -188,6 +209,13 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
     $oldVoice = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? null;
     $hadName = array_key_exists("SYNTH_NAME", $GLOBALS);
     $hadVoice = array_key_exists("PATCH_OVERRIDE_VOICE", $GLOBALS);
+    $canonicalKeys=['SYNTH_CORE_CURRENT_NPC_DATA','SYNTH_CORE_CURRENT_PROFILE_DATA','SYNTH_SPEECH_ROLE',
+        'TTS_NPC_RESOLVED_VOICE','TTS_NPC_RESOLVED_VOICE_SAMPLE','TTS_NPC_ORIGINAL_VOICE','TTS_NPC_FALLBACK_VOICE',
+        'PATCH_OVERRIDE_VOICE_ID','SYNTH_ACTIVE_TTS_PLAN','LAST_LLM_RESPONSE','TTS_FALLBACK_FNCT'];
+    $canonicalSaved=[];
+    if ($canonicalActor!==null)foreach($canonicalKeys as $key) {
+        $canonicalSaved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key]??null];unset($GLOBALS[$key]);
+    }
     Logger::phaseStart($phaseName, [
         "speaker" => $speaker,
         "chars" => strlen($text),
@@ -207,8 +235,16 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         }
 
         $GLOBALS["SYNTH_NAME"] = $speaker;
+        if ($canonicalActor!==null) $GLOBALS['SYNTH_SPEECH_ROLE']='npc';
 
-        $cacheSeed = synth_tts_cache_seed($root, $speaker, $text);
+        $canonicalVoice=null;
+        if ($canonicalActor!==null) {
+            $db=$GLOBALS['db']??null;
+            $canonicalVoice=is_object($db)?synth_tts_load_npc_voice_data($db,$speaker,$canonicalActor):[];
+            if (trim(strval($canonicalVoice['voiceid']??''))==='') return false;
+        }
+
+        $cacheSeed = synth_tts_cache_seed($root, $speaker, $text, $canonicalActor);
         $cacheKey = md5($cacheSeed);
         $cachePath = $root . DIRECTORY_SEPARATOR . "soundcache" . DIRECTORY_SEPARATOR . $cacheKey . ".wav";
         $cacheReady = is_file($cachePath) && filesize($cachePath) > 44;
@@ -216,19 +252,28 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         if (!$cacheReady) {
             $db = $GLOBALS["db"] ?? null;
             if (is_object($db)) {
-                $voiceData = synth_tts_load_npc_voice_data($db, $speaker);
+                $voiceData = $canonicalVoice ?? synth_tts_load_npc_voice_data($db, $speaker, $canonicalActor);
                 $voice = trim(strval($voiceData['voiceid'] ?? ''));
                 if ($voice !== '') {
                     $GLOBALS["PATCH_OVERRIDE_VOICE"] = synth_resolve_tts_voice_reference($voice, [
                         'root' => $root,
-                        'actor_name' => $speaker,
+                        'actor_name' => $canonicalActor===null ? $speaker : '',
                         'voice_name' => $voiceData['voice_name'] ?? '',
                         'voice_formid' => $voiceData['voice_formid'] ?? '',
                     ]);
+                } elseif ($canonicalActor !== null) {
+                    unset($GLOBALS['PATCH_OVERRIDE_VOICE']);
                 }
             }
 
-            $result = callConfiguredTts($text, "default", $cacheSeed);
+            if ($canonicalActor!==null) {
+                // The existing immutable plan prevents provider-time name/profile lookups.
+                // Only this exact canonical row's voice may cross the generation boundary.
+                require_once __DIR__.'/synth_tts_plan.php';
+                $plan=synth_capture_tts_plan($root,$speaker,$text,'default');
+                $result=synth_with_tts_plan($plan,$plan['cache_seed'],$speaker,$root,
+                    static fn()=>callConfiguredTts($text,'default',$cacheSeed));
+            } else $result = callConfiguredTts($text, "default", $cacheSeed);
         } else {
             $result = $cachePath;
         }
@@ -269,6 +314,9 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         else unset($GLOBALS["SYNTH_NAME"]);
         if ($hadVoice) $GLOBALS["PATCH_OVERRIDE_VOICE"] = $oldVoice;
         else unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+        foreach($canonicalSaved as $key=>[$exists,$value]) {
+            if($exists)$GLOBALS[$key]=$value;else unset($GLOBALS[$key]);
+        }
     }
 }
 

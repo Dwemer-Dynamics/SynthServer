@@ -206,7 +206,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
         $requiredVersions = [
             'fallout4_content_pack' => 20261008003,
             'conf_opts' => 20260626001,
-            'core_action' => 20260716002,
+            'core_action' => 20261106001,
             'core_player' => 20260707001,
             'general_settings' => 20260722001,
             'global_settings_presets' => 20260828001,
