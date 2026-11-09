@@ -36,7 +36,7 @@ function synth_tts_job_validate_entry($db, array $entry, array $event, string $r
         throw new LogicException('Invalid durable speech input');
     }
     synth_validate_tts_plan($plan,$entry['cache_seed'],$entry['speaker'],$root);
-    $identity=synth_protocol_response_speaker($entry['speaker'],$plan['inputs']['SYNTH_SPEECH_ROLE'] ?? 'npc');
+    $identity=synth_protocol_response_speaker($entry['speaker'],$plan['inputs']['SYNTH_SPEECH_ROLE'] ?? 'npc',$event,$db);
     if ($identity===null || synth_protocol_canonical_json($identity)!==synth_protocol_canonical_json($entry['speaker_identity'] ?? null)) {
         throw new LogicException('Durable speech actor mismatch');
     }
@@ -44,11 +44,17 @@ function synth_tts_job_validate_entry($db, array $entry, array $event, string $r
 }
 
 // Admission is idempotent per utterance and stores only an opaque input reference/hash in general job metadata.
-function synth_tts_enqueue_job($db, array $entry, string $root): int
+// The v2 API passes its explicit claimed owner; legacy callers keep the claimed request globals and leases.
+function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedRequest $owner = null): int
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('Speech admission requires an owner');
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
-    synth_protocol_assert_request_active();
+    if ($owner!==null) {
+        $event=$owner->event;
+        synth_protocol_assert_owner_active($db,$event);
+    } else {
+        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('Speech admission requires an owner');
+        $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+        synth_protocol_assert_request_active();
+    }
     $actor=synth_tts_job_validate_entry($db,$entry,$event,$root);
     $input=array_intersect_key($entry,array_flip(['speaker','text','mood','cache_seed','cache_key','tts_plan','speaker_identity','utterance_id']));
     $input['protocol_event']=$event;
@@ -65,7 +71,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root): int
             throw new RuntimeException('Unable to persist private speech input');
         }
         fclose($file);$file=null;
-        return $db->withNativeRequestLock(static function($connection) use($db,$event,$input,$hash,$id,$actor,$root,&$keep): int {
+        $admit=static function($connection) use($db,$event,$input,$hash,$id,$actor,$root,&$keep): int {
             $origin=@pg_query_params($connection,"SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e
                 USING(session_id,request_id,generation,turn_id) WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3
                 AND p.event_sha256=e.request_sha256 AND p.event_sha256=$4",[$event['session_id'],$event['request_id'],$event['generation'],
@@ -94,7 +100,8 @@ function synth_tts_enqueue_job($db, array $entry, string $root): int
             // Retain the input even if an outer transaction later fails; no recovery ever trusts an unregistered file.
             $keep=true;
             return intval($row['id']);
-        },2000);
+        };
+        return $owner!==null ? $db->withClaimedRequestLock($owner,$admit,2000) : $db->withNativeRequestLock($admit,2000);
     } finally {
         if (is_resource($file)) fclose($file);
         if (!$keep) @unlink($path);

@@ -9,8 +9,15 @@ require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
 
-function synth_protocol_response_context(): array
+// An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
+function synth_protocol_response_context(?array $wire = null): array
 {
+    if ($wire !== null) {
+        return ['session_id' => strval($wire['session_id']), 'request_id' => strval($wire['request_id']),
+            'turn_id' => strval($wire['turn_id']), 'generation' => intval($wire['generation']),
+            'runtime_variant' => strval($wire['runtime_variant']), 'protocol_version' => intval($wire['protocol_version']),
+            'context_sequence' => intval($wire['context_sequence'] ?? 0)];
+    }
     $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT'] ?? null) ? $GLOBALS['SYNTH_REQUEST_EVENT'] : [];
     return [
         'session_id' => strval($event['json']['session_id'] ?? $event['session_id'] ?? ''),
@@ -23,9 +30,9 @@ function synth_protocol_response_context(): array
     ];
 }
 
-function synth_protocol_encode_response_line(string $type, array $payload, string $suffix): string
+function synth_protocol_encode_response_line(string $type, array $payload, string $suffix, ?array $wire = null): string
 {
-    $context = synth_protocol_response_context();
+    $context = synth_protocol_response_context($wire);
     $line = [
         'schema' => 'synth.response.line.v' . $context['protocol_version'],
         'protocol_version' => $context['protocol_version'],
@@ -58,12 +65,9 @@ function synth_protocol_write_response_line(string $type, array $payload, string
             synth_rechat_assert_action_emission($GLOBALS['db'],$event,$payload['action'] ?? [],true);
         }
     }
-    if ($type === 'dialogue' && ($ownedRechat || (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
-        && ($event['protocol_version'] ?? 1) === 2 && intval($event['context_sequence'] ?? 0) > 0
-        && in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)))) {
-        require_once __DIR__.'/synth_rechat_routes.php';
-        $wire=synth_rechat_record_emitted_route($GLOBALS['db'], $event, $wire, $routeMetadata);
-    }
+    // An owned rechat dialogue line has already required the claim above.
+    $wire = synth_protocol_prepare_line($GLOBALS['db'] ?? null, $event, !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']),
+        $type, $wire, $routeMetadata);
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = ($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? '') . $wire;
     echo $wire;
     if ($type==='action' && is_array($payload['action']??null)) {
@@ -80,10 +84,55 @@ function synth_protocol_write_response_line(string $type, array $payload, string
             catch(Throwable) { /* Logging cannot invalidate an already emitted command. */ }
         }
     }
+    synth_protocol_flush_output();
+}
+
+// Records the speaker/utterance route of a claimed owned-rechat or v2 turn-owned dialogue line before it is
+// buffered or sent. Shared by the legacy writer and request-local protocol output (which passes its explicit
+// claimed owner); returns the bytes to deliver.
+function synth_protocol_prepare_line($db, array $event, bool $claimed, string $type, string $wire, array $routeMetadata = [],
+    ?SYNTHClaimedRequest $owner = null): string
+{
+    if ($type === 'dialogue' && $claimed && (synth_protocol_owns_rechat($event) || (($event['protocol_version'] ?? 1) === 2
+        && intval($event['context_sequence'] ?? 0) > 0
+        && in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)))) {
+        require_once __DIR__.'/synth_rechat_routes.php';
+        $wire = synth_rechat_record_emitted_route($db, $event, $wire, $routeMetadata, $owner);
+    }
+    return $wire;
+}
+
+function synth_protocol_flush_output(): void
+{
     if (ob_get_level()) {
         @ob_flush();
     }
     @flush();
+}
+
+// Streaming responses are uncached and unbuffered by proxies; single-shot terminal bodies are never stored.
+function synth_protocol_ndjson_headers(bool $streaming): void
+{
+    if ($streaming) {
+        @ini_set("display_errors", "0");
+        @ini_set("output_buffering", "0");
+        @ini_set("zlib.output_compression", "0");
+    }
+    if (PHP_SAPI === 'cli' || headers_sent()) return;
+    header('Content-Type: application/x-ndjson; charset=utf-8');
+    if ($streaming) {
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');
+        return;
+    }
+    header('Cache-Control: no-store');
+    header('X-Content-Type-Options: nosniff');
+}
+
+// The configured server version, else 'source', opens every response.
+function synth_protocol_start_payload(): array
+{
+    return ['server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source')];
 }
 
 function synth_protocol_ensure_response_started(): void
@@ -92,9 +141,7 @@ function synth_protocol_ensure_response_started(): void
         return;
     }
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_STARTED'] = true;
-    synth_protocol_write_response_line('response_start', [
-        'server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source'),
-    ], 'start');
+    synth_protocol_write_response_line('response_start', synth_protocol_start_payload(), 'start');
 }
 
 function synth_protocol_next_line_suffix(string $kind): string
@@ -104,11 +151,12 @@ function synth_protocol_next_line_suffix(string $kind): string
     return $kind . ':' . $next;
 }
 
-function synth_protocol_response_speaker(string $speaker, ?string $speechRole = null): ?array
+// An explicit event and connection replace the request globals (durable speech admission passes both).
+function synth_protocol_response_speaker(string $speaker, ?string $speechRole = null, ?array $event = null, $explicitDb = null): ?array
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=$event ?? $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
     if (function_exists('synth_protocol_owns_rechat') && synth_protocol_owns_rechat($event)) {
-        $db=$GLOBALS['db'] ?? null;
+        $db=$explicitDb ?? $GLOBALS['db'] ?? null;
         $identity=$db ? synth_protocol_resolve_speaker_identity($db,$speaker) : null;
         $requestedRole=$speechRole ?? $GLOBALS['SYNTH_SPEECH_ROLE'] ?? null;
         // A temporary lane cannot impersonate the selected rechat responder, even with the same label.
@@ -119,7 +167,7 @@ function synth_protocol_response_speaker(string $speaker, ?string $speechRole = 
     $speechRole = $speechRole ?? synth_protocol_current_speech_role($speaker);
     if (!in_array($speechRole,['npc','player','narrator'],true)) return null;
     if (($event['protocol_version'] ?? 1)===2) {
-        $db=$GLOBALS['db'] ?? null;
+        $db=$explicitDb ?? $GLOBALS['db'] ?? null;
         $context=$db ? synth_protocol_current_context($db,$event) : null;
         if (!$context) return null;
         if ($speechRole==='player') return $context['player'];
@@ -325,10 +373,10 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
 }
 
 // Separate encoding allows admission to persist its acknowledgment atomically with durable work.
-function synth_protocol_encode_ack(string $status, array $detail = []): string
+function synth_protocol_encode_ack(string $status, array $detail = [], ?array $wire = null): string
 {
     // Explicit opt-in support, bound to the admitted init; older clients keep their original acknowledgement.
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = $wire ?? $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
     $combatTargets = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2
         && in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)
@@ -380,9 +428,7 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
         elseif ($quests) $status = 'init_quest_events_accepted';
         elseif ($tracking) $status = 'init_quest_tracking_accepted';
     }
-    $body = synth_protocol_encode_response_line('response_start', [
-        'server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source'),
-    ], 'start');
+    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload(), 'start', $wire);
     $statusPayload = ['code' => $status];
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
     if ($ambientNpc) $statusPayload['ambient_npc'] = true;
@@ -394,12 +440,12 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
     if (isset($detail['detail']) && trim(strval($detail['detail'])) !== '') {
         $statusPayload['detail'] = substr(trim(strval($detail['detail'])), 0, 1024);
     }
-    $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status');
+    $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status', $wire);
     if ($status==='social_task_accepted' && in_array($event['type'] ?? '',['input_text','input_audio'],true)
         && synth_social_supported($event) && is_string($GLOBALS['SYNTH_SOCIAL_INPUT_TEXT'] ?? null)
         && is_array($GLOBALS['SYNTH_PLAYER_IDENTITY'] ?? null)) {
         $body .= synth_protocol_encode_response_line('dialogue',['speaker'=>$GLOBALS['SYNTH_PLAYER_IDENTITY'],
-            'text'=>$GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']],'player_input');
+            'text'=>$GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']],'player_input',$wire);
     }
     if (synth_social_supported($event) && in_array($status,
             ['context_accepted','social_task_accepted','social_task_progress_accepted'],true)) {
@@ -407,19 +453,15 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
         if (!is_array($tasks) || !array_is_list($tasks) || count($tasks)>8)
             throw new LogicException('social_task_ack_invalid');
         foreach ($tasks as $index=>$task)
-            $body .= synth_protocol_encode_response_line('social_task',['task'=>$task],'social_task_'.$index);
+            $body .= synth_protocol_encode_response_line('social_task',['task'=>$task],'social_task_'.$index,$wire);
     }
-    $body .= synth_protocol_encode_response_line('response_end', ['status' => 'complete'], 'end');
+    $body .= synth_protocol_encode_response_line('response_end', ['status' => 'complete'], 'end', $wire);
     return $body;
 }
 
 function synth_protocol_emit_ack(string $status, array $detail = []): void
 {
-    if (PHP_SAPI !== 'cli' && !headers_sent()) {
-        header('Content-Type: application/x-ndjson; charset=utf-8');
-        header('Cache-Control: no-store');
-        header('X-Content-Type-Options: nosniff');
-    }
+    synth_protocol_ndjson_headers(false);
     $body=synth_protocol_encode_ack($status,$detail);
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = $body;
     echo $body;
@@ -446,22 +488,21 @@ function synth_protocol_emit_replay(array $claim): void
     echo $body;
 }
 
-function synth_protocol_emit_terminal_error(string $code, string $detail = ''): void
+function synth_protocol_encode_terminal_error(string $code, string $detail = '', ?array $wire = null): string
 {
-    if (PHP_SAPI !== 'cli' && !headers_sent()) {
-        header('Content-Type: application/x-ndjson; charset=utf-8');
-        header('Cache-Control: no-store');
-        header('X-Content-Type-Options: nosniff');
-    }
     $payload = ['code' => $code];
     if ($detail !== '') {
         $payload['detail'] = substr($detail, 0, 1024);
     }
-    $body = synth_protocol_encode_response_line('response_start', [
-        'server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source'),
-    ], 'start');
-    $body .= synth_protocol_encode_response_line('status', $payload, 'status');
-    $body .= synth_protocol_encode_response_line('response_end', ['status' => 'error'], 'end');
+    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload(), 'start', $wire);
+    $body .= synth_protocol_encode_response_line('status', $payload, 'status', $wire);
+    return $body . synth_protocol_encode_response_line('response_end', ['status' => 'error'], 'end', $wire);
+}
+
+function synth_protocol_emit_terminal_error(string $code, string $detail = ''): void
+{
+    synth_protocol_ndjson_headers(false);
+    $body = synth_protocol_encode_terminal_error($code, $detail);
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = $body;
     echo $body;
     $db = $GLOBALS['db'] ?? null;
@@ -920,20 +961,10 @@ function synth_start_json_response_buffer(): void
 
     $streamingEnabled = synth_json_streaming_enabled();
     if ($streamingEnabled) {
-        @ini_set("display_errors", "0");
-        @ini_set("output_buffering", "0");
-        @ini_set("zlib.output_compression", "0");
-    }
-
-    if (PHP_SAPI !== "cli" && !headers_sent()) {
-        if ($streamingEnabled) {
-            header("Content-Type: application/x-ndjson; charset=utf-8");
-            header("Cache-Control: no-cache");
-            header("X-Accel-Buffering: no");
-        } else {
-            header("Content-Type: application/x-ndjson; charset=utf-8");
-            header("Cache-Control: no-store");
-        }
+        synth_protocol_ndjson_headers(true);
+    } elseif (PHP_SAPI !== "cli" && !headers_sent()) {
+        header("Content-Type: application/x-ndjson; charset=utf-8");
+        header("Cache-Control: no-store");
     }
 
     if ($streamingEnabled) {

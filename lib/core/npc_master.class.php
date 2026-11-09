@@ -1812,9 +1812,11 @@ FROM restore
         if ($connectorId > 0) {
             $ttsConnector = new TTSConnector();
             $connectorData = $ttsConnector->getById($connectorId);
+            // An explicit profile's sample policy follows its own connector, never the runtime's active TTS.
             return $this->withResolvedVoiceSample(
                 $ttsConnector->resolveNpcVoiceForConnector($currentNpcData, $connectorData),
-                $currentNpcData
+                $currentNpcData,
+                $explicitProfile !== null && is_array($connectorData) ? strval($connectorData['driver'] ?? '') : null
             );
         }
 
@@ -1827,7 +1829,7 @@ FROM restore
         ], $currentNpcData);
     }
 
-    private function withResolvedVoiceSample(array $voiceResolution, array $currentNpcData): array
+    private function withResolvedVoiceSample(array $voiceResolution, array $currentNpcData, ?string $driver = null): array
     {
         $resolvedVoice = trim(strval($voiceResolution['resolved_voice'] ?? ''));
         if ($resolvedVoice === '') {
@@ -1853,7 +1855,7 @@ FROM restore
             'sync_sample' => false,
         ]);
 
-        $usesVoiceSample = synth_tts_active_provider_uses_voice_sample();
+        $usesVoiceSample = synth_tts_active_provider_uses_voice_sample($driver);
         $fallbackReason = '';
         if ($usesVoiceSample && $voiceSample === '') {
             $fallbackVoice = trim(strval($voiceResolution['fallback_voice'] ?? ''));
