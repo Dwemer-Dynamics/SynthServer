@@ -299,16 +299,8 @@ class sql
         return $this->lockedNativeRequest($owner->event, $operation, $statementTimeoutMs, false, false);
     }
 
-    // The same lock while an explicit owner is being bound to its accepted canonical claim. Liveness is not
-    // rechecked here: an owner superseded or cancelled since the claim must still conclude that claim.
-    public function withAcceptedClaimLock(array $event, callable $operation, int $statementTimeoutMs = 0)
-    {
-        return $this->lockedNativeRequest($event, $operation, $statementTimeoutMs, false, null);
-    }
-
-    // One implementation of the claim lock and transaction. Legacy callers also recheck their worker leases;
-    // $legacy=null (owner binding) checks no liveness.
-    private function lockedNativeRequest(array $event, callable $operation, int $statementTimeoutMs, bool $publication, ?bool $legacy)
+    // One implementation of the claim lock and transaction. Legacy callers also recheck their worker leases.
+    private function lockedNativeRequest(array $event, callable $operation, int $statementTimeoutMs, bool $publication, bool $legacy)
     {
         require_once __DIR__.'/synth_protocol_state.php';
         $this->re_connect();
@@ -343,8 +335,8 @@ class sql
             if (@pg_query_params(self::$link, 'SELECT pg_advisory_xact_lock(hashtext($1))', [$event['session_id']]) === false) {
                 throw new SYNTHNativeRequestLockUnavailable('Unable to lock native history owner');
             }
-            if ($legacy === true) synth_protocol_assert_request_active();
-            elseif ($legacy === false) synth_protocol_assert_owner_active($this, $event);
+            if ($legacy) synth_protocol_assert_request_active();
+            else synth_protocol_assert_owner_active($this, $event);
             if ($publication) {
                 // A context publishes its own positive capture, while its wire binding remains zero.
                 // Recheck the exact admitted bytes and captured payload under the existing session lock.

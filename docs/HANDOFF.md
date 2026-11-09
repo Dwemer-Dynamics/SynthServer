@@ -74,9 +74,9 @@ dispatches `/talk` and `speech_receipt` to `api/v2/dispatch.php` before
 `api/v2/ProtocolOutput.php` is the request-local `TurnOutput`: it applies the legacy streaming
 output setup, writes lines through the shared encoders and route recorder, and commits the first
 terminal outcome under the session advisory lock before sending it. The shared canonical claim
-produces `SYNTHClaimedRequest`, the one explicit owner: `fromClaim` verifies the stored canonical
-bytes, hash, turn and generation under the same lock without a liveness check, and the dispatcher
-binds it to the output before checking liveness, so a cancellation or supersession in between is
+returns `SYNTHClaimedRequest`, the one explicit owner, for the exact event it inserted (canonical
+bytes, hash, turn and generation) only after its COMMIT is attested, with no second lock or
+liveness check. The dispatcher binds it to the output before checking liveness, so a cancellation or supersession in between is
 recorded as that claim's cancelled outcome. The legacy writer keeps its order (route preparation,
 replay buffer, echo, dispatch diagnostics, flush); `withNativeRequestLock` and the other legacy
 APIs are unchanged. Evidence so far is PHPUnit with scripted doubles only. Pending probes: real

@@ -382,7 +382,7 @@ final class NativeDialogueTurnTest extends TestCase
         return [$sent,$db->row];
     }
 
-    // A claimed owner without the database recheck of fromClaim (exercised end-to-end over HTTP/PostgreSQL).
+    // A claimed owner without the canonical claim transaction (exercised end-to-end over HTTP/PostgreSQL).
     private function owner(array $event): SYNTHClaimedRequest
     {
         return Closure::bind(static fn() => new SYNTHClaimedRequest($event), null, SYNTHClaimedRequest::class)();
@@ -391,9 +391,9 @@ final class NativeDialogueTurnTest extends TestCase
     public function testClaimedOwnerIsExplicitExactAndNeverInstalledAsARequestGlobal(): void
     {
         $talk=$this->fixture('valid/input-text-native-turn.json');
-        foreach ([[['status'=>'replay'],$talk],[['status'=>'pending'],$talk],[['status'=>'accepted'],['context_sequence'=>0]+$talk],
-            [['status'=>'accepted'],['protocol_version'=>1]+$talk]] as [$claim,$event]) {
-            try { SYNTHClaimedRequest::fromClaim(null,$claim,$event); $this->fail('owner without a turn-bound claim'); }
+        // A non-turn-bound event is refused before the claim transaction begins (no database is touched).
+        foreach ([['context_sequence'=>0]+$talk,['protocol_version'=>1]+$talk] as $event) {
+            try { synth_protocol_claim_request(null,$event,true); $this->fail('owner without a turn-bound claim'); }
             catch (LogicException $error) { $this->assertSame('A claimed native context is required',$error->getMessage()); }
         }
         $other=['request_id'=>$talk['request_id'].'-other']+$talk;
@@ -473,9 +473,12 @@ final class NativeDialogueTurnTest extends TestCase
         $dispatch=file_get_contents(dirname(__DIR__,2).'/api/v2/dispatch.php');
         $this->assertLessThan(strpos($dispatch,'$output->assertActive();'),strpos($dispatch,'$output->claimed($owner);'));
         $state=file_get_contents(dirname(__DIR__,2).'/lib/synth_protocol_state.php');
-        $bind=substr($state,strpos($state,'public static function fromClaim('),1600);
-        $this->assertStringContainsString('withAcceptedClaimLock(',$bind);
-        $this->assertStringNotContainsString('synth_protocol_assert_owner_active',$bind);
+        // The owner is returned by the claim itself after its attested COMMIT: no second lock can strand it.
+        $claim=substr($state,strpos($state,'function synth_protocol_claim_request('));
+        $claim=substr($claim,0,strpos($claim,"\n}\n"));
+        $this->assertLessThan(strrpos($claim,'new SYNTHClaimedRequest($event)'),strrpos($claim,'synth_protocol_commit_transaction($db);'));
+        $this->assertStringNotContainsString('withAcceptedClaimLock',$state.file_get_contents(dirname(__DIR__,2).'/lib/postgresql.class.php'));
+        $this->assertStringContainsString("\$owner = \$claim['owner'];",$dispatch);
 
         // A receipt acknowledgement stores its exact bytes; later cancellation or failure changes nothing.
         [$sent,$row]=$this->concluded($talk,fn()=>null,function ($output) {

@@ -25,16 +25,16 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
     if (array_key_exists('SYNTH_SERVER_VERSION', $app->config)) $GLOBALS['SYNTH_SERVER_VERSION'] = $app->config['SYNTH_SERVER_VERSION'];
     try {
         $legacy(synthPlayer2HealthMarkGameActivity(...));
-        $claim = synth_protocol_claim_request($app->db, $event);
+        $claim = synth_protocol_claim_request($app->db, $event, true);
         if (($claim['status'] ?? '') === 'replay') { synth_protocol_emit_replay($claim); return; }
         if (($claim['status'] ?? '') === 'pending') {
             synth_reject_json_request(409, 'An identical request is already being processed', [
                 'code' => 'request_pending', 'retryable' => true]);
         }
-        // The one explicit owner of every persistence and admission write below; no request global is claimed.
-        // It is bound to the output before liveness is checked, so a cancellation or supersession since the
-        // claim is still concluded (recorded) as this claim's cancelled outcome.
-        $owner = SYNTHClaimedRequest::fromClaim($app->db, $claim, $event);
+        // The one explicit owner of every persistence and admission write below, returned by the committed claim
+        // itself; no request global is claimed. It is bound to the output before liveness is checked, so a
+        // cancellation or supersession since the claim is still concluded (recorded) as this claim's cancelled outcome.
+        $owner = $claim['owner'];
         $output->claimed($owner);
         $output->assertActive();
         $dialogue = $app->dialogue($output, $owner, $legacy);
