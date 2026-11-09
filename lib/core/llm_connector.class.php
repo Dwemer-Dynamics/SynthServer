@@ -258,6 +258,25 @@ class LLMConnector
         return $this->create($original);
     }
 
+    // Explicit OpenAI-compatible config for the native typed turn; never touches $GLOBALS["CONNECTOR"].
+    public function dialogueProviderConfig(array $row): array
+    {
+        $row = $this->normalizeConnectorRecord($row);
+        $url = trim(strval($row['url'] ?? ''));
+        $model = trim(strval($row['model'] ?? ''));
+        if ($url === '' || $model === '') throw new DomainException('provider_unsupported');
+        return [
+            'url' => $url,
+            'model' => $model,
+            'api_key' => $this->getApiKeyForBadge($row['api_badge_id'] ?? null),
+            'max_tokens' => intval($row['max_tokens'] ?? 1024),
+            'temperature' => floatval($row['temperature'] ?? 1.0),
+            'top_p' => floatval($row['top_p'] ?? 1.0),
+            'presence_penalty' => floatval($row['presence_penalty'] ?? 0.0),
+            'frequency_penalty' => floatval($row['frequency_penalty'] ?? 0.0),
+        ];
+    }
+
     public function setOldGlobals($currentConnectorData)
     {
         if (is_array($currentConnectorData)) {

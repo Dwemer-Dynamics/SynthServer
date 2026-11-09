@@ -4390,7 +4390,8 @@ function extractCoreUtteranceFromChatEvent($eventData)
 
 function synthGetVisibleChatDeliveryStates()
 {
-    return ['emitted', 'spoken'];
+    // presented: a native-turn line with a receipt-confirmed text presentation.
+    return ['emitted', 'spoken', 'presented'];
 }
 
 function synthGetInFlightChatDeliveryStates()

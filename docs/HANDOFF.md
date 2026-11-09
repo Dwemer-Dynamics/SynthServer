@@ -44,6 +44,24 @@ The coordinated flat client/backend update is installed and hash verified. Gamep
 
 ## Current handoff priorities
 
+**Stage 1 native typed turn (source candidate).** `lib/synth_dialogue_turn.php`
+owns context, provider stream, durable utterance records, explicit-input TTS jobs
+and player history for explicit `/talk` conversation-intent turns
+(`payload.intent: "conversation"`); unmarked typed text keeps the legacy action route. `lib/synth_dialogue_receipts.php`
+moves a line to spoken/presented/interrupted/failed and records heard NPC history
+from the stored text. Eligibility, identity and receipt rules are in
+`protocol/v2/README.md`. Limits: plain `openaijson` connectors only; TTS uses the
+NPC profile's own TTS connector and resolved voice, with no server-wide fallback;
+a missing or non-portable profile TTS makes the turn ineligible with a reason. Schema
+`synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances` and
+`synth_meta.json_object_has_unique_keys(text)`, which replaces the PostgreSQL 16-only
+`IS JSON OBJECT WITH UNIQUE KEYS` predicate in the wait-proof checks. Before this,
+every native history read failed on PostgreSQL 15. A scratch HTTP-plus-PostgreSQL 15
+probe ran the full turn through real `main.php` against a loopback fake
+OpenAI-compatible stream: TTS enqueue for the profile, receipt write, receipt-time
+history in the next prompt, and the receipt negatives. It also checked the output
+caps and malformed streams. No real provider or game check has run.
+
 Rangroo's handoff scope is bios, world knowledge, diaries, actions, and basic
 rechat/profile setup. Preserve accepted work: flat NPC rechat and movement release
 were already gameplay confirmed with Codsworth and Jun, and completed rechat is

@@ -154,7 +154,7 @@ function synth_wait_result_context($db,array $event): array
     if(in_array('action.wait_verified',$event['capabilities']??[],true)!==in_array('action.wait_verified',$origin['capabilities']??[],true))throw new DomainException('wait_result_capability_mismatch');
     $proof=synth_wait_result_observation($event,$name,$actor);
     if($proof!==null) {
-        $unique=$db->fetchOne('SELECT '.$db->escapeLiteral($result['detail']).' IS JSON OBJECT WITH UNIQUE KEYS AS valid');
+        $unique=$db->fetchOne('SELECT synth_meta.json_object_has_unique_keys('.$db->escapeLiteral($result['detail']).') AS valid');
         if(!in_array($unique['valid']??null,[true,'t',1,'1'],true))throw new DomainException('invalid_wait_observation');
     }
     $message=synth_wait_result_message($name,$actor['display_name']??'The addressed NPC',$result['status'],$proof!==null,$proof);
@@ -340,7 +340,7 @@ function synth_wait_history_visibility_sql(): string
             AND ((h.event_payload#>'{synth_wait_consequence,verified}')='false'::jsonb OR
                 ((h.event_payload#>'{synth_wait_consequence,verified}')='true'::jsonb AND wt.status='succeeded'
                     AND wr.canonical_event->'capabilities' @> '[\"action.wait_verified\"]'::jsonb AND wo.canonical_event->'capabilities' @> '[\"action.wait_verified\"]'::jsonb
-                    AND CASE WHEN octet_length(wt.result->>'detail')<=1024 AND (wt.result->>'detail') IS JSON OBJECT WITH UNIQUE KEYS THEN (wt.result->>'detail')::jsonb END=h.event_payload#>'{synth_wait_consequence,proof}'
+                    AND CASE WHEN octet_length(wt.result->>'detail')<=1024 AND synth_meta.json_object_has_unique_keys(wt.result->>'detail') THEN (wt.result->>'detail')::jsonb END=h.event_payload#>'{synth_wait_consequence,proof}'
                     AND h.event_payload#>>'{synth_wait_consequence,proof,schema}'='synth.action.wait.result.v1'
                     AND h.event_payload#>>'{synth_wait_consequence,proof,action_id}'=wi.action_id
                     AND h.event_payload#>>'{synth_wait_consequence,proof,action}'=h.event_payload#>>'{synth_wait_consequence,action}'

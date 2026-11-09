@@ -1792,7 +1792,13 @@ FROM restore
         return false;
     }
 
-    private function resolveNpcTtsVoice(array $currentNpcData): array
+    // Explicit-profile form of the legacy voice resolution; it reads no per-turn profile globals.
+    public function resolveNpcTtsVoiceForProfile(array $currentNpcData, array $profileData): array
+    {
+        return $this->resolveNpcTtsVoice($currentNpcData, $profileData);
+    }
+
+    private function resolveNpcTtsVoice(array $currentNpcData, ?array $explicitProfile = null): array
     {
         require_once dirname(__DIR__).'/synth_character_voice.php';
         $currentNpcData=synth_character_request_voice_profile($this->db,$currentNpcData);
@@ -1801,7 +1807,7 @@ FROM restore
         }
 
         $connectorData = null;
-        $profileData = $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] ?? [];
+        $profileData = $explicitProfile ?? ($GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] ?? []);
         $connectorId = intval($profileData['tts_connector_id'] ?? 0);
         if ($connectorId > 0) {
             $ttsConnector = new TTSConnector();
@@ -1891,16 +1897,18 @@ FROM restore
 
     private function applyNpcVoiceToTtsGlobals(string $voiceReference, string $voiceId = ''): void
     {
-        $voiceId = $voiceId !== '' ? $voiceId : $voiceReference;
+        foreach (self::ttsVoiceSettings($voiceReference, $voiceId) as $provider => $values) {
+            foreach ($values as $key => $value) $GLOBALS['TTS'][$provider][$key] = $value;
+        }
+    }
 
-        $GLOBALS['TTS']['XTTSFASTAPI']['voiceid'] = $voiceReference;
-        $GLOBALS['TTS']['CHATTERBOX']['voiceid'] = $voiceReference;
-        $GLOBALS['TTS']['POCKETTTS']['voiceid'] = $voiceReference;
-        $GLOBALS['TTS']['OMNIVOICE']['voiceid'] = $voiceReference;
-        $GLOBALS['TTS']['PIPERTTS']['voiceid'] = $voiceId;
-        $GLOBALS['TTS']['ELEVEN_LABS']['voice_id'] = $voiceId;
-        $GLOBALS['TTS']['KOKORO']['voiceid'] = $voiceId;
-        $GLOBALS['TTS']['CARTESIA']['voiceid'] = $voiceId;
-        $GLOBALS['TTS']['INWORLD']['voiceid'] = $voiceId;
+    // Pure per-provider voice keys for one resolved NPC voice.
+    public static function ttsVoiceSettings(string $voiceReference, string $voiceId = ''): array
+    {
+        $voiceId = $voiceId !== '' ? $voiceId : $voiceReference;
+        return ['XTTSFASTAPI' => ['voiceid' => $voiceReference], 'CHATTERBOX' => ['voiceid' => $voiceReference],
+            'POCKETTTS' => ['voiceid' => $voiceReference], 'OMNIVOICE' => ['voiceid' => $voiceReference],
+            'PIPERTTS' => ['voiceid' => $voiceId], 'ELEVEN_LABS' => ['voice_id' => $voiceId],
+            'KOKORO' => ['voiceid' => $voiceId], 'CARTESIA' => ['voiceid' => $voiceId], 'INWORLD' => ['voiceid' => $voiceId]];
     }
 }

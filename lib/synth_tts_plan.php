@@ -17,15 +17,17 @@ const SYNTH_TTS_PLAN_GLOBALS = [
 ];
 
 // Capture after NPC voice resolution, before choosing a cache key or emitting the reply.
-function synth_capture_tts_plan(string $root, string $speaker, string $cacheText, string $mood, ?string $text = null): array
+// Explicit inputs (a subset of SYNTH_TTS_PLAN_GLOBALS) replace the legacy globals snapshot entirely.
+function synth_capture_tts_plan(string $root, string $speaker, string $cacheText, string $mood, ?string $text = null, ?array $explicitInputs = null): array
 {
     $inputs = [];
     foreach (SYNTH_TTS_PLAN_GLOBALS as $key) {
-        if (array_key_exists($key, $GLOBALS)) $inputs[$key] = $GLOBALS[$key];
+        if ($explicitInputs === null && array_key_exists($key, $GLOBALS)) $inputs[$key] = $GLOBALS[$key];
+        elseif ($explicitInputs !== null && array_key_exists($key, $explicitInputs)) $inputs[$key] = $explicitInputs[$key];
     }
     $inputs['SYNTH_NAME'] = $speaker;
     require_once __DIR__.'/synth_protocol_state.php';
-    $inputs['SYNTH_SPEECH_ROLE'] = synth_protocol_current_speech_role($speaker);
+    $inputs['SYNTH_SPEECH_ROLE'] = $explicitInputs['SYNTH_SPEECH_ROLE'] ?? synth_protocol_current_speech_role($speaker);
     // Deep-copy plain data and reject accidental objects/resources instead of silently serializing them.
     array_walk_recursive($inputs, static function ($value): void {
         if (is_object($value) || is_resource($value)) throw new RuntimeException('Nonserializable speech settings');

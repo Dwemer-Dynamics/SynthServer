@@ -340,6 +340,10 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
             $event['capabilities'] ?? [])) === 0;
     $ambientNpc=$rechatScene && count(array_diff(['dialogue.ambient_npc','dialogue.listener_identity'],
         $event['capabilities'] ?? []))===0;
+    // Native typed turns and speech receipts are granted only to the init that asked for both contracts.
+    $nativeTurn=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
+        && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
+        && count(array_diff(['dialogue.turn_ownership','dialogue.native_turn'],$event['capabilities'] ?? []))===0;
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
@@ -383,6 +387,7 @@ function synth_protocol_encode_ack(string $status, array $detail = []): string
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
     if ($ambientNpc) $statusPayload['ambient_npc'] = true;
     if ($socialTasks) $statusPayload['social_tasks'] = true;
+    if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
     if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
     if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;

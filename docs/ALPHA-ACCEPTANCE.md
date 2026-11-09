@@ -1,5 +1,17 @@
 # Synthserver open-alpha acceptance
 
+## Stage 1 native typed turn
+
+- [x] Apply schema 20261109001 on a disposable PostgreSQL 15 database (reapply is idempotent).
+- [ ] Apply schema 20261109001 on the reviewed install.
+- [x] HTTP + disposable database: registered placed NPC `/talk` turn streams lines, enqueues
+  profile speech and stores generated utterances; receipts move only completed audio
+  to spoken history at the receipt-time frontier (fake loopback provider).
+- [x] HTTP + disposable database: duplicate receipts replay; conflicting, stale-generation,
+  unknown-line and wrong-character receipts are rejected; >12 lines, >1000-character
+  lines, truncated and malformed streams end the turn with an error and no fallback.
+- [ ] Real configured provider and TTS, flat in-game and VR in-headset `/talk` evidence.
+
 ## Generic gift inventory exchange
 
 - [ ] Flat rebuilt package: verify that “I have a gift for you, Jun” opens
