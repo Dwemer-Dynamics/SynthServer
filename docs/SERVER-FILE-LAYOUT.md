@@ -12,7 +12,7 @@ layout migration or compatibility tree is needed.
 | HTTP entry points | Root PHP files, including `index.php` and `main.php` |
 | Configuration samples and loader | `conf/` |
 | Shared runtime helpers and core models | `lib/`, `lib/core/` |
-| Native dialogue services, entities/repositories and drivers | `lib/managers/`, `lib/core/dialogue/`, `lib/drivers/{llm,tts}/` |
+| Native dialogue composition root, v2 API, services, contracts/entities/repositories and drivers | `bootstrap.php`, `api/v2/`, `managers/`, `core/{contracts,entities,dbmanager/repositories}/`, `drivers/{llm,tts}/` |
 | LLM connectors and templates | `connector/` |
 | Dialogue processing | `processor/` |
 | Prompt assembly and policies | `prompts/` |
@@ -34,6 +34,9 @@ CI already runs that audit; it does not require a sibling repository checkout.
 - `main_synth_pipeline.php`, `lib/synth_*.php`, Fallout catalogs and the SYNTH
   theme remain product-specific. Matching location does not mean replacing code
   with Skyrim or Morrowind behavior.
+- The native dialogue architecture uses only the approved top-level tree in the mapping above; it
+  has no copy under `lib/`, and legacy `lib/` code and the existing schema update chain stay where
+  they are.
 - Versioned native contracts stay in `protocol/`; tests in `unittests/`; source
   documentation in `docs/`; deployment/bootstrap tools in `tools/`.
 - SYNTH keeps its existing versioned schema update chain. LorkhanServer's

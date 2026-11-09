@@ -2,7 +2,7 @@
 
 namespace Synth\Core;
 
-require_once dirname(__DIR__, 2).'/synth_protocol_state.php';
+require_once dirname(__DIR__, 2).'/lib/synth_protocol_state.php';
 
 // Stable placed-character key: playthrough + normalized origin plugin + plugin-local REFERENCE ID.
 // Never the base NPC ID or display name. The runtime full form ID is only the current load-order binding.

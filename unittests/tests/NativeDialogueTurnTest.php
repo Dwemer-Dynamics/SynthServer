@@ -4,13 +4,13 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__, 2) . '/lib/request.php';
 require_once dirname(__DIR__, 2) . '/lib/response.php';
-require_once dirname(__DIR__, 2) . '/lib/synth_dialogue_turn.php';
+require_once dirname(__DIR__, 2) . '/api/v2/dispatch.php';
+require_once dirname(__DIR__, 2) . '/lib/synth_rechat_routes.php';
 
 use Synth\Core\CharacterKey;
 use Synth\Core\CharacterRepository;
 use Synth\Core\LlmDriver;
 use Synth\Core\PlacedCharacter;
-use Synth\Core\SaveState;
 use Synth\Core\SpeechDriver;
 use Synth\Core\TurnOutput;
 use Synth\Core\TurnRequest;
@@ -20,6 +20,7 @@ use Synth\Managers\CharacterManager;
 use Synth\Managers\ContextManager;
 use Synth\Managers\DialogueManager;
 use Synth\Managers\PromptManager;
+use Synth\Managers\SaveState;
 use Synth\Managers\SessionManager;
 use Synth\Managers\SpeechManager;
 
@@ -112,7 +113,7 @@ final class NativeDialogueTurnTest extends TestCase
     public function testOnlyPlainOpenAiCompatibleConnectorsAreOwned(): void
     {
         $base=['driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1/chat/completions','model'=>'m','reasoning_model'=>false,'metadata'=>'{}'];
-        $driver=new OpenAiCompatibleDriver(static function(): void {});
+        $driver=new OpenAiCompatibleDriver(static function(): void {},static fn(array $connector): array=>$connector);
         $this->assertTrue($driver->supports($base));
         foreach ([['driver'=>'player2json'],['driver'=>'openrouterjson'],['reasoning_model'=>true],['url'=>''],['model'=>''],
             ['metadata'=>'{"quickstart_managed":true}']] as $change) {
@@ -158,6 +159,11 @@ final class NativeDialogueTurnTest extends TestCase
             public function __construct() {}
             public function recordInput(TurnRequest $request, string $data): void { $this->rows[]=$data; }
             public function recordLine(TurnRequest $request, PlacedCharacter $character, string $lineId, string $text): void { $this->rows[]=[$lineId,$text]; }
+            public function recordReceipt(TurnRequest $receipt, array $character, string $characterId, string $state, ?\Closure $heard): string
+            {
+                $this->rows[]=[$state,$heard===null ? null : $heard('Stored line.')];
+                return $state;
+            }
         };
         $output=new class implements TurnOutput {
             public array $events=[];
@@ -245,11 +251,237 @@ final class NativeDialogueTurnTest extends TestCase
             $manager->converse($candidate);
             $this->assertSame([['reject',$reason]],$output->events,$reason);
         }
-        $source=file_get_contents(dirname(__DIR__,2).'/main_synth_pipeline.php');
-        $this->assertStringContainsString("if ((\$wireEvent['payload']['intent'] ?? null) === 'conversation')",$source);
-        $this->assertStringContainsString('synth_dialogue_turn_handle($db,$wireEvent)',$source);
-        $edge=file_get_contents(dirname(__DIR__,2).'/lib/synth_dialogue_turn.php');
-        $this->assertStringContainsString("synth_protocol_emit_terminal_error('native_turn_ineligible'",$edge);
+    }
+
+    // Only explicit conversation intent and speech receipts take the v2 dispatch, chosen before the pipeline loads.
+    public function testMainIngressDispatchesOnlyExplicitNativeDialogueBeforeThePipeline(): void
+    {
+        $talk=$this->fixture('valid/input-text-native-turn.json');
+        $this->assertSame('conversation',synth_api_v2_route($talk));
+        $this->assertSame('speech_receipt',synth_api_v2_route($this->fixture('valid/speech-receipt.json')));
+        $unmarked=$talk; unset($unmarked['payload']['intent']);
+        foreach (['unmarked'=>$unmarked,'v1'=>['protocol_version'=>1]+$talk,'audio'=>['type'=>'input_audio']+$talk,
+            'init'=>$this->fixture('valid/init-native-turn.json'),'halt'=>['type'=>'halt','payload'=>new stdClass()]+$talk] as $name=>$event)
+            $this->assertNull(synth_api_v2_route($event),$name);
+        $main=file_get_contents(dirname(__DIR__,2).'/main.php');
+        $dispatch=strpos($main,'synth_api_v2_dispatch(');
+        $this->assertNotFalse($dispatch);
+        $this->assertLessThan(strpos($main,'"main_synth_pipeline.php"'),$dispatch);
+        $this->assertSame(1,substr_count($main,'synth_decode_wire_event()'));
+        $pipeline=file_get_contents(dirname(__DIR__,2).'/main_synth_pipeline.php');
+        $this->assertStringContainsString('synth_decode_event_from_request($synthIngressEvent ?? null)',$pipeline);
+        foreach (['speech_receipt_accepted','native_turn','DialogueManager',"'intent'"] as $needle)
+            $this->assertStringNotContainsString($needle,$pipeline,$needle);
+        foreach (['synth_dialogue_turn.php','synth_dialogue_provider.php','synth_dialogue_receipts.php'] as $removed)
+            $this->assertFileDoesNotExist(dirname(__DIR__,2).'/lib/'.$removed);
+    }
+
+    // The native architecture lives only in the top-level tree; legacy lib/ keeps no duplicate copy.
+    public function testNativeArchitectureUsesTheTopLevelLayoutOnly(): void
+    {
+        $root=dirname(__DIR__,2);
+        foreach (['bootstrap.php','api/v2/dispatch.php','api/v2/routes.php','api/v2/ProtocolOutput.php',
+            'managers/DialogueManager.php','core/contracts/dialogue.php','core/entities/dialogue.php',
+            'core/dbmanager/repositories/UtteranceRepository.php','drivers/llm/OpenAiCompatibleDriver.php',
+            'drivers/tts/ProfileSpeechDriver.php'] as $file) $this->assertFileExists($root.'/'.$file);
+        foreach (['bootstrap.php','api','managers','drivers','core/contracts','core/entities','core/dbmanager','core/dialogue'] as $legacy)
+            $this->assertFileDoesNotExist($root.'/lib/'.$legacy);
+    }
+
+    // The legacy writer keeps its order: route prepared, replay body updated, echoed, dispatch diagnostics, then
+    // flushed. The explicit-owner route recorder is shared, not bypassed.
+    public function testSharedWriterKeepsTheLegacyEmissionOrder(): void
+    {
+        $source=file_get_contents(dirname(__DIR__,2).'/lib/response.php');
+        $start=strpos($source,'function synth_protocol_write_response_line(');
+        $writer=substr($source,$start,strpos($source,"\n}\n",$start)-$start);
+        $order=array_map(fn($needle)=>strpos($writer,$needle),['synth_protocol_prepare_line(',
+            "\$GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] =",'echo $wire;',"synth_jev_action_trace('dispatch'",
+            'synth_protocol_flush_output();']);
+        $this->assertNotContains(false,$order);
+        $sorted=$order; sort($sorted);
+        $this->assertSame($sorted,$order);
+        $this->assertStringContainsString('synth_rechat_record_emitted_route($db, $event, $wire, $routeMetadata, $owner)',$source);
+        $this->assertStringContainsString('synth_protocol_owns_rechat($event) ||',$source);
+    }
+
+    public function testReceiptRefusalsAndHeardPolicyPrecedeAnyWrite(): void
+    {
+        $receipt=$this->fixture('valid/speech-receipt.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson'];
+        foreach ([[['character'=>['form_id'=>'0xFF000802']+$receipt['payload']['character']],$this->talkContext(),'receipt_invalid'],
+            [[],null,'receipt_owner_mismatch']] as [$change,$context,$code]) {
+            [$manager,,$utterances]=$this->dialogue($context,$row);
+            try { $manager->receipt(array_replace_recursive($receipt,['payload'=>$change])); $this->fail($code); }
+            catch (DomainException $error) { $this->assertSame($code,$error->getMessage()); }
+            $this->assertSame([],$utterances->rows);
+        }
+        foreach (['audio_completed'=>['spoken',true],'text_presented'=>['presented',true],'interrupted'=>['interrupted',false],
+            'failed'=>['failed',false]] as $outcome=>[$state,$heard]) {
+            [$manager,,$utterances]=$this->dialogue($this->talkContext(),$row);
+            $this->assertSame($state,$manager->receipt(array_replace_recursive($receipt,['payload'=>['outcome'=>$outcome]])));
+            $target=$this->talkContext()['target']['display_name'];
+            $this->assertSame([$state,$heard ? $target.': Stored line. (talking to Nate)' : null],$utterances->rows[0]);
+        }
+    }
+
+    // A scripted request_executions/runtime_sessions double. $race runs as a competitor that committed just
+    // before this request took the session lock; bytes sent while a transaction is open are counted.
+    private function outcomeDb(array $event): object
+    {
+        return new class($event) {
+            public array $row; public array $session; public ?Closure $race=null; public int $failUpdates=0;
+            public bool $open=false; public int $sentInTransaction=0;
+            public function __construct(array $event) {
+                $this->row=['state'=>'claimed','error_code'=>null,'body'=>null];
+                $this->session=['state'=>'active','active_generation'=>$event['generation'],
+                    'active_turn_id'=>$event['turn_id'],'active_turn_sequence'=>$event['context_sequence']];
+            }
+            public function escapeLiteral($value): string { return "'".str_replace("'","''",strval($value))."'"; }
+            public function execQuery($sql) {
+                if ($sql==='BEGIN') $this->open=true;
+                if ($sql==='COMMIT' || $sql==='ROLLBACK') $this->open=false;
+                return true;
+            }
+            public function fetchOne($sql) {
+                if (str_contains($sql,'pg_advisory_xact_lock')) {
+                    if ($this->race) { ($this->race)($this); $this->race=null; }
+                    return ['pg_advisory_xact_lock'=>''];
+                }
+                if (str_contains($sql,'JOIN synth_meta.runtime_sessions')) return [
+                    'state'=>$this->row['state'],'error_code'=>$this->row['error_code'],'runtime_state'=>$this->session['state'],
+                    'active_generation'=>$this->session['active_generation'],'active_turn_id'=>$this->session['active_turn_id'],
+                    'active_turn_sequence'=>$this->session['active_turn_sequence']];
+                if (str_starts_with($sql,'SELECT state, error_code')) return $this->row;
+                if (str_starts_with($sql,'UPDATE synth_meta.request_executions')) {
+                    if ($this->failUpdates-- > 0) return false;
+                    if (!in_array($this->row['state'],['claimed','streaming'],true)) return null;
+                    preg_match("/SET state='(\\w+)'/",$sql,$state);
+                    preg_match("/response_body=(NULL|'\\\\x([0-9a-f]*)'::bytea)/",$sql,$body);
+                    preg_match("/error_code=(NULL|'(\\w+)')/",$sql,$code);
+                    $this->row=['state'=>$state[1],'error_code'=>$code[2] ?? null,
+                        'body'=>$body[1]==='NULL' ? null : hex2bin($body[2])];
+                    return ['state'=>$state[1]];
+                }
+                throw new LogicException('Unexpected outcome query: '.$sql);
+            }
+        };
+    }
+
+    private function concluded(array $event, callable $setup, callable $turn): array
+    {
+        $db=$this->outcomeDb($event); $setup($db);
+        $output=new Synth\Api\V2\ProtocolOutput($db,$event); $output->claimed($this->owner($event));
+        $sent='';
+        ob_start(function (string $chunk) use (&$sent,$db): string {
+            if ($chunk!=='' && $db->open) $db->sentInTransaction++;
+            $sent.=$chunk; return '';
+        });
+        try { $turn($output); } finally { ob_end_flush(); }
+        $this->assertSame(0,$db->sentInTransaction,'terminal bytes sent inside the outcome transaction');
+        return [$sent,$db->row];
+    }
+
+    // A claimed owner without the database recheck of fromClaim (exercised end-to-end over HTTP/PostgreSQL).
+    private function owner(array $event): SYNTHClaimedRequest
+    {
+        return Closure::bind(static fn() => new SYNTHClaimedRequest($event), null, SYNTHClaimedRequest::class)();
+    }
+
+    public function testClaimedOwnerIsExplicitExactAndNeverInstalledAsARequestGlobal(): void
+    {
+        $talk=$this->fixture('valid/input-text-native-turn.json');
+        foreach ([[['status'=>'replay'],$talk],[['status'=>'pending'],$talk],[['status'=>'accepted'],['context_sequence'=>0]+$talk],
+            [['status'=>'accepted'],['protocol_version'=>1]+$talk]] as [$claim,$event]) {
+            try { SYNTHClaimedRequest::fromClaim(null,$claim,$event); $this->fail('owner without a turn-bound claim'); }
+            catch (LogicException $error) { $this->assertSame('A claimed native context is required',$error->getMessage()); }
+        }
+        $other=['request_id'=>$talk['request_id'].'-other']+$talk;
+        try { (new Synth\Api\V2\ProtocolOutput(null,$talk))->claimed($this->owner($other)); $this->fail('foreign output owner'); }
+        catch (LogicException $error) { $this->assertSame('Native request owner mismatch',$error->getMessage()); }
+        $repository=new UtteranceRepository(null,$this->owner($talk));
+        try { $repository->recordInput(new TurnRequest($other,$this->talkContext()),'text'); $this->fail('foreign history owner'); }
+        catch (LogicException $error) { $this->assertSame('Native request owner mismatch',$error->getMessage()); }
+        try { synth_rechat_record_emitted_route(null,$talk,'{"type":"dialogue"}',[],$this->owner($other)); $this->fail('foreign route owner'); }
+        catch (LogicException $error) { $this->assertSame('Dialogue route owner mismatch',$error->getMessage()); }
+        // The dispatcher claims through the explicit owner only; legacy authority globals are not installed.
+        $source=file_get_contents(dirname(__DIR__,2).'/api/v2/dispatch.php');
+        $this->assertStringNotContainsString("GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']",$source);
+        $this->assertStringNotContainsString("GLOBALS['SYNTH_REQUEST_EVENT']",$source);
+    }
+
+    private function ends(string $wire): array
+    {
+        $lines=array_map(fn($line)=>json_decode($line,true,flags:JSON_THROW_ON_ERROR),array_values(array_filter(explode("\n",$wire))));
+        return array_map(fn($line)=>[$line['type'],$line['type']==='dialogue' ? null
+            : ($line['payload']['status'] ?? $line['payload']['code'] ?? null)],$lines);
+    }
+
+    public function testTerminalOutcomeCommitsUnderTheClaimLockBeforeItsBytesAndCompetitorsWin(): void
+    {
+        $talk=$this->fixture('valid/input-text-native-turn.json');
+        $plain=$talk; $plain['capabilities']=['dialogue.text','dialogue.native_turn'];
+        $converse=function ($output) {
+            $output->dialogue('dialogue:1','dialogue:1',['speaker'=>['display_name'=>'Piper'],'text'=>'Hello.']);
+            $output->complete();
+        };
+        $start=['response_start',null];
+
+        // Completion wins: the durable body is exactly the sent stream and replays byte-for-byte.
+        [$sent,$row]=$this->concluded($plain,fn()=>null,$converse);
+        $this->assertSame([$start,['dialogue',null],['response_end','complete']],$this->ends($sent));
+        $this->assertSame(['complete',null,$sent],[$row['state'],$row['error_code'],$row['body']]);
+        ob_start(); synth_protocol_emit_replay(['body'=>$row['body'],'content_type'=>'application/x-ndjson']);
+        $this->assertSame($sent,ob_get_clean());
+
+        // A cancel committed at the final-frame boundary wins: the delivered prefix closes as cancelled and the
+        // competitor's NULL-body cancellation (replayed as replay_unavailable) is never replaced.
+        $cancel=fn($db)=>$db->race=function ($db) { $db->row=['state'=>'cancelled','error_code'=>'turn_cancelled','body'=>null]; };
+        [$sent,$row]=$this->concluded($plain,$cancel,$converse);
+        $this->assertSame([$start,['dialogue',null],['response_end','cancelled']],$this->ends($sent));
+        $this->assertSame(['cancelled','turn_cancelled',null],[$row['state'],$row['error_code'],$row['body']]);
+
+        // A superseding turn that retired the owner before the row was swept also wins, for streams and acks.
+        $supersede=fn($db)=>$db->race=function ($db) { $db->session['active_turn_id']='turn-next'; };
+        foreach (['complete'=>fn($output)=>$output->complete(),
+            'ack'=>fn($output)=>$output->ack('speech_receipt_accepted',['detail'=>'spoken'])] as $name=>$finish) {
+            [$sent,$row]=$this->concluded($talk,$supersede,$finish);
+            $this->assertSame([$start,['response_end','cancelled']],$this->ends($sent),$name);
+            $this->assertSame(['cancelled','request_cancelled',null],[$row['state'],$row['error_code'],$row['body']],$name);
+        }
+
+        // A failed outcome write never reports completion: the generic failure is recorded and sent.
+        $failure=[$start,['dialogue',null],['status','backend_request_failed'],['response_end','error']];
+        [$sent,$row]=$this->concluded($plain,fn($db)=>$db->failUpdates=1,$converse);
+        $this->assertSame($failure,$this->ends($sent));
+        $this->assertSame(['failed','backend_request_failed',$sent],[$row['state'],$row['error_code'],$row['body']]);
+
+        // With persistence wholly unavailable the claim stays pending (a retry answers request_pending) and the
+        // wire still reports failure, never success.
+        [$sent,$row]=$this->concluded($plain,fn($db)=>$db->failUpdates=2,$converse);
+        $this->assertSame($failure,$this->ends($sent));
+        $this->assertSame('claimed',$row['state']);
+
+        // An owner superseded between the canonical claim and its liveness check is already bound to the output,
+        // so its claim is concluded as cancelled instead of staying claimed.
+        $retired=fn($db)=>$db->session['active_turn_id']='turn-next';
+        [$sent,$row]=$this->concluded($talk,$retired,function ($output) {
+            try { $output->assertActive(); $this->fail('superseded owner stayed live'); }
+            catch (SYNTHProtocolCancelled) { $output->cancelled(); } });
+        $this->assertSame([$start,['response_end','cancelled']],$this->ends($sent));
+        $this->assertSame(['cancelled','request_cancelled'],[$row['state'],$row['error_code']]);
+        $dispatch=file_get_contents(dirname(__DIR__,2).'/api/v2/dispatch.php');
+        $this->assertLessThan(strpos($dispatch,'$output->assertActive();'),strpos($dispatch,'$output->claimed($owner);'));
+        $state=file_get_contents(dirname(__DIR__,2).'/lib/synth_protocol_state.php');
+        $bind=substr($state,strpos($state,'public static function fromClaim('),1600);
+        $this->assertStringContainsString('withAcceptedClaimLock(',$bind);
+        $this->assertStringNotContainsString('synth_protocol_assert_owner_active',$bind);
+
+        // A receipt acknowledgement stores its exact bytes; later cancellation or failure changes nothing.
+        [$sent,$row]=$this->concluded($talk,fn()=>null,function ($output) {
+            $output->ack('speech_receipt_accepted',['detail'=>'spoken']); $output->cancelled(); $output->failed(); });
+        $this->assertSame(['complete',$sent],[$row['state'],$row['body']]);
+        $this->assertSame(['status','speech_receipt_accepted'],$this->ends($sent)[1]);
     }
 
     public function testInitAcknowledgementGrantsNativeTurnOnlyToTheRequestingInit(): void

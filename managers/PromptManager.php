@@ -4,7 +4,7 @@ namespace Synth\Managers;
 
 use Synth\Core\PlacedCharacter;
 
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
 
 // Pure prompt assembly from the NPC profile, bounded context and the player's text.
 final class PromptManager

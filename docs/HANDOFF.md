@@ -45,45 +45,49 @@ The coordinated flat client/backend update is installed and hash verified. Gamep
 ## Current handoff priorities
 
 **Stage 1 native typed turn (source candidate).** `Synth\Managers\DialogueManager`
-(`lib/managers/`) owns admission, context, provider stream, durable utterance records,
+(`managers/`) owns admission, context, provider stream, durable utterance records,
 explicit-input TTS jobs and player history for explicit `/talk` conversation-intent turns
 (`payload.intent: "conversation"`); unmarked typed text keeps the legacy action route.
-Dependencies: `SessionManager` (negotiation, mode, claimed snapshot via `Synth\Core\SaveState`),
+Dependencies: `SessionManager` (negotiation, mode, claimed snapshot via `Synth\Managers\SaveState`),
 `CharacterManager` (placed key vs runtime binding, registry, profile via `CharacterRepository`),
 `ContextManager` (situation, 12 heard history rows), pure `PromptManager`, `SpeechManager`
 over `Synth\Drivers\Tts\ProfileSpeechDriver`, `Synth\Drivers\Llm\OpenAiCompatibleDriver`,
-`UtteranceRepository` and a `TurnOutput` port. Contracts and entities are in `lib/core/dialogue/`;
-only repositories hold SQL, on the shared connection and `withNativeRequestLock` owner.
-`lib/synth_dialogue_turn.php` is the transitional edge: `synth_dialogue_turn_handle($db,$event)`
-composes the services and `SynthProtocolTurnOutput` writes NDJSON/request completion through the
-existing response globals. `lib/synth_dialogue_receipts.php`
-moves a line to spoken/presented/interrupted/failed and records heard NPC history
-from the stored text. Eligibility, identity and receipt rules are in
-`protocol/v2/README.md`. Limits: plain `openaijson` connectors only; TTS uses the
-NPC profile's own TTS connector and resolved voice, with no server-wide fallback;
-a missing or non-portable profile TTS makes the turn ineligible with a reason. Schema
-`synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances` and
-`synth_meta.json_object_has_unique_keys(text)`, which replaces the PostgreSQL 16-only
+`UtteranceRepository` and a `TurnOutput` port. Contracts are in `core/contracts/`, entities in
+`core/entities/` and SQL only in `core/dbmanager/repositories/`; `bootstrap.php` is the composition
+root. Legacy `lib/` and the existing schema update chain are unchanged by this layout.
+Eligibility, identity and receipt rules are in `protocol/v2/README.md`. Limits: plain
+`openaijson` connectors only; TTS uses the NPC profile's own TTS connector and resolved voice,
+with no server-wide fallback; a missing or non-portable profile TTS makes the turn ineligible
+with a reason. Schema `synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances`
+and `synth_meta.json_object_has_unique_keys(text)`, which replaces the PostgreSQL 16-only
 `IS JSON OBJECT WITH UNIQUE KEYS` predicate in the wait-proof checks. Before this,
 every native history read failed on PostgreSQL 15. A scratch HTTP-plus-PostgreSQL 15
 probe ran the full turn through real `main.php` against a loopback fake
-OpenAI-compatible stream: TTS enqueue for the profile, receipt write, receipt-time
-history in the next prompt, and the receipt negatives. It also checked the output
+OpenAI-compatible stream (before increment 2): TTS enqueue for the profile, receipt write,
+receipt-time history in the next prompt, and the receipt negatives. It also checked the output
 caps and malformed streams. No real provider or game check has run.
 
-**Stage A increment 2 (planned, not started).** Cut `/talk` over before
-`main_synth_pipeline.php`: a thin entry claims the request and calls
-`DialogueManager::converse(array $event)` directly. Request/response state moves from the
-response globals into `SessionManager` and a request repository; `SynthProtocolTurnOutput`
-and `synth_dialogue_turn_handle` are then removed, keeping the `TurnOutput` methods
-(`assertActive`, `allocateLine`, `dialogue`, `complete`, `fail`, `reject`) as the port. The
-speech-receipt route moves to `DialogueManager::receipt(array $event): string` over
-`UtteranceRepository` (`receiptOwner`/`recordReceipt`, which absorb
-`synth_dialogue_receipt_admit` and `synth_dialogue_heard_history_locked` with the same
-original-request provenance and receipt-time frontier). `CharacterKey::of` and
-`UtteranceRepository::historyFields` are already shared with receipts. Schema, wire bytes
-and receipt persistence semantics stay unchanged unless a coordinated protocol version says
-otherwise.
+**Stage A increment 2 (source candidate).** `main.php` decodes and validates the body once and
+dispatches `/talk` and `speech_receipt` to `api/v2/dispatch.php` before
+`main_synth_pipeline.php` loads; the transitional `lib/synth_dialogue_turn.php`,
+`lib/synth_dialogue_provider.php` and `lib/synth_dialogue_receipts.php` are removed.
+`api/v2/ProtocolOutput.php` is the request-local `TurnOutput`: it applies the legacy streaming
+output setup, writes lines through the shared encoders and route recorder, and commits the first
+terminal outcome under the session advisory lock before sending it. The shared canonical claim
+produces `SYNTHClaimedRequest`, the one explicit owner: `fromClaim` verifies the stored canonical
+bytes, hash, turn and generation under the same lock without a liveness check, and the dispatcher
+binds it to the output before checking liveness, so a cancellation or supersession in between is
+recorded as that claim's cancelled outcome. The legacy writer keeps its order (route preparation,
+replay buffer, echo, dispatch diagnostics, flush); `withNativeRequestLock` and the other legacy
+APIs are unchanged. Evidence so far is PHPUnit with scripted doubles only. Pending probes: real
+HTTP concurrency (cancel/supersede racing claim and terminal commit) and v2 route inclusion and
+legacy parity over HTTP plus a disposable PostgreSQL database.
+A receipt's first write, under the receipt's claimed lock, also requires the line's own origin turn
+unrevoked (not cancelled, superseded in flight or a completed input revoked by a later cancel) and
+its exact emitted `response_routes` row; otherwise `receipt_owner_mismatch`. Exact repeats and
+conflicts are unchanged, and an earlier unrevoked turn's emitted line stays receiptable after a later
+turn. `sql` built with explicit configuration (the v2 bootstrap) throws on connection failure, so v2
+answers the generic HTTP 500 `backend_request_failed`; the runtime-global constructor still exits.
 
 Rangroo's handoff scope is bios, world knowledge, diaries, actions, and basic
 rechat/profile setup. Preserve accepted work: flat NPC rechat and movement release
