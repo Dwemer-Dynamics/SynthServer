@@ -10,6 +10,10 @@
 - [x] HTTP + disposable database: duplicate receipts replay; conflicting, stale-generation,
   unknown-line and wrong-character receipts are rejected; >12 lines, >1000-character
   lines, truncated and malformed streams end the turn with an error and no fallback.
+- [x] Stage A increment 1: the same HTTP + PostgreSQL 15 probe passes unchanged against the
+  namespaced `DialogueManager` services behind the transitional edge.
+- [ ] Stage A increment 2: `/talk` and receipts dispatched before `main_synth_pipeline.php`;
+  transitional edge removed (see HANDOFF.md).
 - [ ] Real configured provider and TTS, flat in-game and VR in-headset `/talk` evidence.
 
 ## Generic gift inventory exchange

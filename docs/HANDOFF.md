@@ -44,10 +44,19 @@ The coordinated flat client/backend update is installed and hash verified. Gamep
 
 ## Current handoff priorities
 
-**Stage 1 native typed turn (source candidate).** `lib/synth_dialogue_turn.php`
-owns context, provider stream, durable utterance records, explicit-input TTS jobs
-and player history for explicit `/talk` conversation-intent turns
-(`payload.intent: "conversation"`); unmarked typed text keeps the legacy action route. `lib/synth_dialogue_receipts.php`
+**Stage 1 native typed turn (source candidate).** `Synth\Managers\DialogueManager`
+(`lib/managers/`) owns admission, context, provider stream, durable utterance records,
+explicit-input TTS jobs and player history for explicit `/talk` conversation-intent turns
+(`payload.intent: "conversation"`); unmarked typed text keeps the legacy action route.
+Dependencies: `SessionManager` (negotiation, mode, claimed snapshot via `Synth\Core\SaveState`),
+`CharacterManager` (placed key vs runtime binding, registry, profile via `CharacterRepository`),
+`ContextManager` (situation, 12 heard history rows), pure `PromptManager`, `SpeechManager`
+over `Synth\Drivers\Tts\ProfileSpeechDriver`, `Synth\Drivers\Llm\OpenAiCompatibleDriver`,
+`UtteranceRepository` and a `TurnOutput` port. Contracts and entities are in `lib/core/dialogue/`;
+only repositories hold SQL, on the shared connection and `withNativeRequestLock` owner.
+`lib/synth_dialogue_turn.php` is the transitional edge: `synth_dialogue_turn_handle($db,$event)`
+composes the services and `SynthProtocolTurnOutput` writes NDJSON/request completion through the
+existing response globals. `lib/synth_dialogue_receipts.php`
 moves a line to spoken/presented/interrupted/failed and records heard NPC history
 from the stored text. Eligibility, identity and receipt rules are in
 `protocol/v2/README.md`. Limits: plain `openaijson` connectors only; TTS uses the
@@ -61,6 +70,20 @@ probe ran the full turn through real `main.php` against a loopback fake
 OpenAI-compatible stream: TTS enqueue for the profile, receipt write, receipt-time
 history in the next prompt, and the receipt negatives. It also checked the output
 caps and malformed streams. No real provider or game check has run.
+
+**Stage A increment 2 (planned, not started).** Cut `/talk` over before
+`main_synth_pipeline.php`: a thin entry claims the request and calls
+`DialogueManager::converse(array $event)` directly. Request/response state moves from the
+response globals into `SessionManager` and a request repository; `SynthProtocolTurnOutput`
+and `synth_dialogue_turn_handle` are then removed, keeping the `TurnOutput` methods
+(`assertActive`, `allocateLine`, `dialogue`, `complete`, `fail`, `reject`) as the port. The
+speech-receipt route moves to `DialogueManager::receipt(array $event): string` over
+`UtteranceRepository` (`receiptOwner`/`recordReceipt`, which absorb
+`synth_dialogue_receipt_admit` and `synth_dialogue_heard_history_locked` with the same
+original-request provenance and receipt-time frontier). `CharacterKey::of` and
+`UtteranceRepository::historyFields` are already shared with receipts. Schema, wire bytes
+and receipt persistence semantics stay unchanged unless a coordinated protocol version says
+otherwise.
 
 Rangroo's handoff scope is bios, world knowledge, diaries, actions, and basic
 rechat/profile setup. Preserve accepted work: flat NPC rechat and movement release

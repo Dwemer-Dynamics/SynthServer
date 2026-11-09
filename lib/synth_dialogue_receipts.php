@@ -2,7 +2,7 @@
 
 // Delivery receipts for native-turn lines. Text and speaker come from the server record, never the request.
 require_once __DIR__.'/synth_protocol_state.php';
-require_once __DIR__.'/synth_dialogue_turn.php';
+require_once __DIR__.'/core/dialogue/UtteranceRepository.php';
 
 const SYNTH_DIALOGUE_RECEIPT_STATES=['audio_completed'=>'spoken','text_presented'=>'presented',
     'interrupted'=>'interrupted','failed'=>'failed'];
@@ -14,7 +14,7 @@ function synth_dialogue_receipt_admit($db, array $event): string
     $payload=$event['payload'];
     $state=SYNTH_DIALOGUE_RECEIPT_STATES[$payload['outcome'] ?? ''] ?? null;
     $character=is_array($payload['character'] ?? null) ? $payload['character'] : [];
-    $characterId=synth_dialogue_character_id($character);
+    $characterId=\Synth\Core\CharacterKey::of($character);
     if ($state===null || $characterId===null) throw new DomainException('receipt_invalid');
     $context=synth_protocol_original_context($db,$event);
     if ($context===null) throw new DomainException('receipt_owner_mismatch');
@@ -41,7 +41,7 @@ function synth_dialogue_receipt_admit($db, array $event): string
         if (!$update || pg_affected_rows($update)!==1) throw new RuntimeException('Unable to record receipt');
         if (in_array($state,['spoken','presented'],true)) {
             $speaker=strval($context['target']['display_name'] ?? $character['display_name'] ?? '');
-            synth_dialogue_heard_history_locked($connection,$event,$payload['dialogue_request_id'],synth_dialogue_history_fields(
+            synth_dialogue_heard_history_locked($connection,$event,$payload['dialogue_request_id'],\Synth\Core\UtteranceRepository::historyFields(
                 $context,'chat',$speaker.': '.$row['text'].' (talking to '.strval($context['player']['display_name'] ?? 'Player').')',
                 $payload['line_id'],$state));
         }
