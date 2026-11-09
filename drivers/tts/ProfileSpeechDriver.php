@@ -65,7 +65,7 @@ final class ProfileSpeechDriver implements SpeechDriver
         require_once dirname(__DIR__, 2).'/lib/synth_tts_jobs.php';
         require_once dirname(__DIR__, 2).'/lib/synth_tts_worker.php';
         $name = strval($speaker['display_name']);
-        $plan = ($this->legacy)(fn() => synth_capture_tts_plan($this->root, $name, $text, 'default', $text, $settings));
+        $plan = ($this->legacy)(fn() => synth_capture_tts_plan($this->root, $name, $text, 'default', $text, $settings, $speaker));
         if (empty($plan['portable'])) throw new \RuntimeException('speech_unavailable');
         $entry = ['speaker' => $name, 'speaker_identity' => $speaker, 'text' => $plan['text'], 'mood' => 'default',
             'cache_seed' => $plan['cache_seed'], 'cache_key' => md5($plan['cache_seed']), 'tts_plan' => $plan, 'utterance_id' => $lineId];

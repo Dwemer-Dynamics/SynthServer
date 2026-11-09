@@ -17,8 +17,10 @@ const SYNTH_TTS_PLAN_GLOBALS = [
 ];
 
 // Capture after NPC voice resolution, before choosing a cache key or emitting the reply.
-// Explicit inputs (a subset of SYNTH_TTS_PLAN_GLOBALS) replace the legacy globals snapshot entirely.
-function synth_capture_tts_plan(string $root, string $speaker, string $cacheText, string $mood, ?string $text = null, ?array $explicitInputs = null): array
+// Explicit inputs (a subset of SYNTH_TTS_PLAN_GLOBALS) replace the legacy globals snapshot entirely, and the
+// voice seed then derives only from them, the pinned samples and the resolved placed-character owner.
+function synth_capture_tts_plan(string $root, string $speaker, string $cacheText, string $mood, ?string $text = null,
+    ?array $explicitInputs = null, ?array $owner = null): array
 {
     $inputs = [];
     foreach (SYNTH_TTS_PLAN_GLOBALS as $key) {
@@ -38,6 +40,7 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
     $provider = synth_voice_clone_sync_provider_key($driver);
     $cloud = in_array($driver, ['cartesia', 'inworld'], true);
     if ($cloud) $provider = strtoupper($driver);
+    $voice = '';
     if ($provider !== '') {
         $voice = trim(strval($inputs['PATCH_OVERRIDE_VOICE'] ?? $inputs['TTS']['FORCED_VOICE_DEV']
             ?? $inputs['TTS'][$provider]['voiceid'] ?? ''));
@@ -77,7 +80,11 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
         'version' => 1, 'speaker' => $speaker, 'cache_text' => trim($cacheText),
         'text' => trim($text ?? $cacheText), 'mood' => $mood,
         // Preserve sample-sensitive cache identity for adapters whose immutable handoff is still pending.
-        'voice_seed' => synth_tts_cache_seed($root, $speaker, $cacheText),
+        // Explicit plans never consult the display-name registry or the global provider.
+        'voice_seed' => $explicitInputs === null ? synth_tts_cache_seed($root, $speaker, $cacheText)
+            : "synth.tts.native.v1\n" . $driver . "\n" . $speaker . "\n" . $voice . "\n"
+                . hash('sha256', json_encode(array_map(static fn($s) => $s['sha256'] ?? null, $samples), JSON_THROW_ON_ERROR))
+                . "\n" . trim($cacheText) . synth_tts_actor_seed($owner),
         'inputs' => $inputs, 'samples' => $samples,
     ];
     // Callables are process-local. Preserve them for the in-process queue, never serialize closures to JSON.
