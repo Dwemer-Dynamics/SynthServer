@@ -338,6 +338,9 @@ factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
   loopback-only development defaults. Never expose PostgreSQL or Apache beyond loopback.
 - The background processor (`service/start.sh`, `service/manager.php`) runs memory,
   relationship and TTS workers. `health.php` reports the database, schema and processor state.
+  It can be supervised or started directly with `service/start.sh`. The SYNTH UI and legacy game
+  traffic through `main.php` also start it on demand. Explicit v2 dialogue (`/talk` and speech
+  receipts) is dispatched before that step and never loads or probes the processor helper.
 - `start-dev.ps1` is an **optional** standalone PHP development server. It defaults to port
   **8085**, so a client that uses it needs a matching `BaseUrl`. It serves the checkout's parent
   directory, so the checkout folder must be named `Synthserver`.
