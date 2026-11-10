@@ -12,20 +12,49 @@
   lines, truncated and malformed streams end the turn with an error and no fallback.
 - [x] Stage A increment 1: the same HTTP + PostgreSQL 15 probe passes unchanged against the
   namespaced `DialogueManager` services behind the transitional edge.
-- [ ] Stage A increment 2: `/talk` and receipts dispatched to `api/v2/` before
+- [x] Stage A increment 2: `/talk` and receipts dispatched to `api/v2/` before
   `main_synth_pipeline.php`; transitional edge removed; owner bound to the output before liveness;
-  top-level architecture layout (see HANDOFF.md). Source and PHPUnit doubles only so far.
-- [ ] Stage A increment 2 over HTTP + disposable database: cancel/supersede racing the claim and
-  the terminal commit (real concurrency).
+  top-level architecture layout (see HANDOFF.md). Exact-head source review; the dispatch is also
+  traced over HTTP below.
+- [x] Stage A increment 2 over HTTP + disposable database (loopback PHP CLI server, four workers,
+  fake provider): a mid-stream cancel from a second connection closes the turn and refuses replay.
+  At the terminal commit a cancel queued first on the lock wins; a completion that wins is stored
+  byte-exact and replays without a second provider call until a later cancel revokes it, after
+  which replay is refused (5 tests / 384 assertions; startup candidate `d41e1fc` plus the
+  `main.php` change later committed as `3e637c6`). Production Apache streaming is not covered.
+- [ ] Stage A increment 2 over HTTP + disposable database: cancel/supersede contending with the
+  initial canonical claim. The terminal-commit concurrency probe does not isolate it.
 - [x] Stage A increment 2 over HTTP + disposable database: a receipt's first write requires an
   unrevoked origin turn and the line's emitted route. Cancelled, in-flight-superseded and
   completed-then-cancelled origins and generated-but-unemitted lines are rejected
   (`receipt_owner_mismatch`). An emitted line of an earlier unrevoked turn stays receiptable at
   the receipt-time frontier with its original provenance. A v2 database boot failure answers the
-  sanitized HTTP 500 `backend_request_failed`; the legacy pipeline keeps its constructor exit.
-- [ ] Stage A increment 2 over HTTP + disposable database: v2 route inclusion (only `/talk` and
-  receipts) and legacy parity of every other event, including unmarked typed text.
-- [ ] Real configured provider and TTS, flat in-game and VR in-headset `/talk` evidence.
+  sanitized HTTP 500 `backend_request_failed`; the legacy pipeline keeps its constructor exit
+  (5 tests / 237 assertions; same startup candidate).
+- [x] Stage A increment 2 over HTTP + disposable database: v2 route inclusion. An include trace
+  shows only `/talk`, receipts and their replays reach `api/v2/dispatch.php`; `init`, `context`,
+  cancel and unmarked typed text load `main_synth_pipeline.php`.
+- [ ] Legacy parity of every other event, including unmarked typed text. So far only coarse HTTP
+  route/output for unmarked text and nine legacy action/rechat unit suites (118 tests / 1706
+  assertions at `768d87c`, equal to the pre-cutover baseline); no every-event or full semantic comparison.
+- [ ] Full PHPUnit suite green on the Stage A head (two broad grouped reruns were stopped after
+  more than 10 minutes and are not counted).
+- [x] Stage A over HTTP + disposable database: two placed NPCs sharing a display name keep separate
+  models, queued TTS inputs, cache seeds and heard history across older/newer saved-anchor
+  reloads (1 test / 688 assertions with pinned voice samples, 1 / 641 with the shared fallback;
+  at `d41e1fc`, with a no-op TTS worker).
+  Each audience was only the addressed NPC; a shared same-name audience is not covered.
+- [x] Startup boundary over HTTP + disposable database with a stand-in start script: explicit
+  `/talk` and receipts, including a v2 database boot failure, never load or probe the background
+  processor helper; legacy `init`, `context` and unmarked typed text reach the helper's on-demand
+  check. With the processor missing, `init` and, separately isolated, unmarked typed text each
+  recorded a launch; `context` reached the check with no launch independently isolated. A healthy
+  processor is probed without a relaunch (3 tests / 91 assertions; same startup candidate).
+- [ ] Real background supervisor and TTS worker pickup, compaction, and `/talk` streaming through
+  production Apache.
+- [ ] Real configured provider and TTS synthesis with audible playback, flat in-game and VR
+  in-headset `/talk` evidence. Fake loopback provider output, queued TTS inputs and hand-posted
+  receipts do not count.
 
 ## Generic gift inventory exchange
 
