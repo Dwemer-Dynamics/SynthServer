@@ -665,27 +665,43 @@ class TTSConnector
             return;
         }
 
-        $GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] = intval($currentTTSData['id'] ?? 0);
-
-        $driver = $this->normalizeDriver($currentTTSData["driver"] ?? '');
-        if ($driver === '') {
-            $GLOBALS["TTSFUNCTION"] = 'none';
-            $GLOBALS["TTS_FUNCTION"] = 'none';
+        $settings = $this->runtimeSettings($currentTTSData);
+        $GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] = $settings['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'];
+        $GLOBALS["TTSFUNCTION"] = $settings['TTSFUNCTION'];
+        $GLOBALS["TTS_FUNCTION"] = $settings['TTS_FUNCTION'];
+        if ($settings['provider_key'] === '') {
             return;
         }
-
-        $GLOBALS["TTSFUNCTION"] = $driver;
-        $GLOBALS["TTS_FUNCTION"] = $driver;
-
-        $providerKey = $this->getProviderKeyFromDriver($driver);
-        if ($providerKey === '') {
-            return;
-        }
+        $providerKey = $settings['provider_key'];
 
         if (!isset($GLOBALS["TTS"]) || !is_array($GLOBALS["TTS"])) {
             $GLOBALS["TTS"] = [];
         }
-        $GLOBALS["TTS"][$providerKey] = [];
+        $GLOBALS["TTS"][$providerKey] = $settings['TTS'][$providerKey];
+
+        if (!empty($GLOBALS["TTS"][$providerKey]['language']) && !empty($GLOBALS["LANG_LLM_XTTS"])) {
+            $GLOBALS["LLM_LANG"] = preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval($GLOBALS["TTS"][$providerKey]['language']))));
+        }
+    }
+
+    // Pure connector mapping shared by the legacy globals path and explicit speech inputs.
+    public function runtimeSettings(array $currentTTSData): array
+    {
+        $settings = ['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID' => intval($currentTTSData['id'] ?? 0),
+            'TTSFUNCTION' => 'none', 'TTS_FUNCTION' => 'none', 'TTS' => [], 'provider_key' => ''];
+        $driver = $this->normalizeDriver($currentTTSData["driver"] ?? '');
+        if ($driver === '') {
+            return $settings;
+        }
+
+        $settings['TTSFUNCTION'] = $driver;
+        $settings['TTS_FUNCTION'] = $driver;
+
+        $providerKey = $this->getProviderKeyFromDriver($driver);
+        if ($providerKey === '') {
+            return $settings;
+        }
+        $settings['provider_key'] = $providerKey;
 
         $metadata = $this->decodeMetadata($currentTTSData['metadata'] ?? '{}');
         if ($this->isSchemaSeedRow($currentTTSData)) {
@@ -721,16 +737,14 @@ class TTSConnector
             }
         }
 
+        $settings['TTS'][$providerKey] = [];
         foreach ($metadata as $key => $value) {
             if ($value === '' || $value === null) {
                 continue;
             }
-            $GLOBALS["TTS"][$providerKey][$key] = $value;
+            $settings['TTS'][$providerKey][$key] = $value;
         }
-
-        if (!empty($GLOBALS["TTS"][$providerKey]['language']) && !empty($GLOBALS["LANG_LLM_XTTS"])) {
-            $GLOBALS["LLM_LANG"] = preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval($GLOBALS["TTS"][$providerKey]['language']))));
-        }
+        return $settings;
     }
 
     private function normalizeDriver($driver): string

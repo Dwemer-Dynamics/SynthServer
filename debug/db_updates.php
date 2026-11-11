@@ -5197,6 +5197,13 @@ if ($checkVersion('synth_protocol_schema') < 20260909001) {
     else Logger::error('Failed to apply patch synth_protocol_schema 20260909001');
 }
 
+// Additive native-turn utterance records; no existing history row is rewritten.
+if ($checkVersion('synth_protocol_schema') < 20261109001) {
+    $migrationOk = $GLOBALS['db']->execQuery(file_get_contents(__DIR__.'/../lib/core/database_schema/synth_protocol.sql')) !== false;
+    if ($migrationOk) $updateVersion('synth_protocol_schema', 20261109001);
+    else Logger::error('Failed to apply patch synth_protocol_schema 20261109001');
+}
+
 if ($checkVersion('visual_context_protocol') < 20260831001) {
     Logger::debug('Applying visual_context_protocol 20260831001 - bind PipVision to runtime, media and actor identity');
     $migrationOk = $db->execQuery(

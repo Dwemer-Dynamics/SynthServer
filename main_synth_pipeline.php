@@ -329,6 +329,27 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
         }
         exit;
     }
+    if (($wireEvent['type'] ?? '') === 'speech_receipt') {
+        require_once $path.'lib/synth_dialogue_receipts.php';
+        try { $state=synth_dialogue_receipt_admit($db,$wireEvent); }
+        catch (DomainException $error) {
+            synth_protocol_emit_terminal_error(in_array($error->getMessage(),['receipt_conflict','receipt_owner_mismatch'],true)
+                ? $error->getMessage() : 'receipt_invalid');
+            exit;
+        }
+        synth_protocol_emit_ack('speech_receipt_accepted',['detail'=>$state]);
+        exit;
+    }
+    if (($wireEvent['type'] ?? '') === 'input_text') {
+        // Stage 1: only explicit conversation intent (/talk) selects the native route; it never falls back to
+        // legacy. Unmarked typed text keeps the existing action-capable route unchanged.
+        if (($wireEvent['payload']['intent'] ?? null) === 'conversation') {
+            require_once $path.'lib/synth_dialogue_turn.php';
+            $nativeOwner=synth_dialogue_turn_owner($db,$wireEvent);
+            if (is_string($nativeOwner)) { synth_protocol_emit_terminal_error('native_turn_ineligible',$nativeOwner); exit; }
+            synth_dialogue_turn_run($db,$nativeOwner); exit;
+        }
+    }
     if (($wireEvent['type'] ?? '') === 'control') {
         require_once $path.'lib/synth_control.php';
         synth_protocol_emit_ack('control_state', ['detail'=>synth_control_status($db)]);

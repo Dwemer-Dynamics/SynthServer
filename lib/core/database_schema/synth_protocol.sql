@@ -930,3 +930,47 @@ ALTER TABLE synth_meta.diary_control_revisions DROP CONSTRAINT IF EXISTS diary_c
 ALTER TABLE synth_meta.diary_control_revisions ADD CONSTRAINT diary_control_revisions_control_payload_check
     CHECK(jsonb_typeof(control_payload)='object'
         AND COALESCE(control_payload->>'schema','') IN ('synth.diary.control.v1','synth.diary.control.v2'));
+
+-- Native-turn utterances are generated facts only. A delivery receipt alone moves a row to spoken/presented.
+CREATE TABLE IF NOT EXISTS synth_meta.dialogue_utterances (
+    session_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    line_id TEXT NOT NULL CHECK (length(line_id) BETWEEN 1 AND 160),
+    turn_id TEXT NOT NULL,
+    generation BIGINT NOT NULL CHECK (generation > 0),
+    context_sequence BIGINT NOT NULL CHECK (context_sequence > 0),
+    speaker_identity_id BIGINT NOT NULL REFERENCES synth.actor_identities(id),
+    character_id TEXT NOT NULL CHECK (character_id ~ '^chr:[0-9a-f]{40}$'),
+    text TEXT NOT NULL CHECK (length(text) BETWEEN 1 AND 4096),
+    text_sha256 CHAR(64) NOT NULL CHECK (text_sha256 ~ '^[0-9a-f]{64}$'),
+    state TEXT NOT NULL DEFAULT 'generated'
+        CHECK (state IN ('generated', 'spoken', 'presented', 'interrupted', 'failed')),
+    receipt_request_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    receipt_at TIMESTAMPTZ,
+    PRIMARY KEY (session_id, request_id, line_id),
+    FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id),
+    FOREIGN KEY (session_id, generation, context_sequence)
+        REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence),
+    CHECK ((state = 'generated') = (receipt_request_id IS NULL))
+);
+
+-- PostgreSQL 15 has no IS JSON predicate. Strict object test with unique keys at every depth; malformed text is false.
+CREATE OR REPLACE FUNCTION synth_meta.json_object_has_unique_keys(value TEXT) RETURNS BOOLEAN
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE parsed JSON;
+BEGIN
+    IF value IS NULL THEN RETURN NULL; END IF;
+    BEGIN parsed := value::json; EXCEPTION WHEN others THEN RETURN false; END;
+    IF json_typeof(parsed) <> 'object' THEN RETURN false; END IF;
+    RETURN NOT EXISTS (
+        WITH RECURSIVE nodes(node) AS (
+            SELECT parsed
+            UNION ALL
+            SELECT child.node FROM nodes n CROSS JOIN LATERAL (
+                SELECT e.value AS node FROM json_each(CASE WHEN json_typeof(n.node) = 'object' THEN n.node END) e
+                UNION ALL
+                SELECT a.value FROM json_array_elements(CASE WHEN json_typeof(n.node) = 'array' THEN n.node END) a) child)
+        SELECT 1 FROM nodes n WHERE json_typeof(n.node) = 'object'
+            AND (SELECT count(*) <> count(DISTINCT k) FROM json_object_keys(n.node) k));
+END $$;
