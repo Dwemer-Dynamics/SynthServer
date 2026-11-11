@@ -210,11 +210,17 @@ final class AutoGreetingRuntimeTest extends TestCase
             $this->markTestSkipped('Set SYNTH_CLIENT_ROOT to run the cross-repository activation wiring check.');
         }
         $session = file_get_contents($clientRoot.DIRECTORY_SEPARATOR.'plugin_session.hpp');
+        $triggers = file_get_contents($clientRoot.DIRECTORY_SEPARATOR.'activation_triggers.hpp');
         $client = file_get_contents($clientRoot.DIRECTORY_SEPARATOR.'synth_client.hpp');
 
+        // The session keeps admission and target selection; ActivationTriggers owns the request.
         $this->assertStringContainsString('activate_target(Snapshot snapshot, bool manual)', $session);
         $this->assertStringContainsString('selected_target(*snapshot, !manual)', $session);
-        $this->assertStringContainsString('client_.activate(actor, manual ? "manual" : "automatic", context_outcome.context_binding)', $session);
+        $this->assertStringContainsString('activation_.submit_activation(', $session);
+        $this->assertStringNotContainsString('client_.activate(', $session);
+        $this->assertStringContainsString('bool submit_activation(', $triggers);
+        $this->assertStringContainsString('client_.activate(actor, manual ? "manual" : "automatic", context_outcome.context_binding)', $triggers);
+        $this->assertStringContainsString('"auto_greeting", actor,', $triggers);
         $this->assertStringContainsString('protocol_native::encode_activate', $client);
     }
 }

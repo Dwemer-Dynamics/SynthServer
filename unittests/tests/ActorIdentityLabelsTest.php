@@ -43,7 +43,11 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
         self::assertSame('other', $labels[$oldSturges]['scope']);
         self::assertSame('latest', $labels[$latestSturges]['scope']);
         self::assertStringStartsWith('Latest captured save · ', $labels[$latestSturges]['label']);
-        self::assertStringContainsString('2026-10-07', $labels[$latestSturges]['detail']);
+        // PostgreSQL renders timestamptz in the session time zone; require the same instant, not UTC text.
+        $detailPrefix = 'Most recent accepted game context: ';
+        self::assertStringStartsWith($detailPrefix, $labels[$latestSturges]['detail']);
+        self::assertSame((new DateTimeImmutable('2026-10-07 00:00:00+00'))->getTimestamp(),
+            (new DateTimeImmutable(substr($labels[$latestSturges]['detail'], strlen($detailPrefix))))->getTimestamp());
         self::assertNotSame($labels[$oldSturges]['label'], $labels[$latestSturges]['label']);
         self::assertStringNotContainsString('label-save-latest', json_encode($labels));
         self::assertSame($before, $db->fetchAll('SELECT * FROM synth.actor_identities ORDER BY id'));
