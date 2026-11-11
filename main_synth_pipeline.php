@@ -345,9 +345,7 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
         // legacy. Unmarked typed text keeps the existing action-capable route unchanged.
         if (($wireEvent['payload']['intent'] ?? null) === 'conversation') {
             require_once $path.'lib/synth_dialogue_turn.php';
-            $nativeOwner=synth_dialogue_turn_owner($db,$wireEvent);
-            if (is_string($nativeOwner)) { synth_protocol_emit_terminal_error('native_turn_ineligible',$nativeOwner); exit; }
-            synth_dialogue_turn_run($db,$nativeOwner); exit;
+            synth_dialogue_turn_handle($db,$wireEvent); exit;
         }
     }
     if (($wireEvent['type'] ?? '') === 'control') {

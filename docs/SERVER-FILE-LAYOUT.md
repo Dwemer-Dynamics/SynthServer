@@ -12,6 +12,7 @@ layout migration or compatibility tree is needed.
 | HTTP entry points | Root PHP files, including `index.php` and `main.php` |
 | Configuration samples and loader | `conf/` |
 | Shared runtime helpers and core models | `lib/`, `lib/core/` |
+| Native dialogue services, entities/repositories and drivers | `lib/managers/`, `lib/core/dialogue/`, `lib/drivers/{llm,tts}/` |
 | LLM connectors and templates | `connector/` |
 | Dialogue processing | `processor/` |
 | Prompt assembly and policies | `prompts/` |
