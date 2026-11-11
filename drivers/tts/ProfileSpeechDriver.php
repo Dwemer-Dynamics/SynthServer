@@ -4,7 +4,7 @@ namespace Synth\Drivers\Tts;
 
 use Synth\Core\SpeechDriver;
 
-require_once dirname(__DIR__, 2).'/core/dialogue/contracts.php';
+require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
 
 // Explicit profile speech planning and the durable TTS queue edge. Plans carry only the profile connector's
 // own provider block and the resolved NPC voice, never another provider or per-turn prompt globals.
@@ -13,13 +13,24 @@ final class ProfileSpeechDriver implements SpeechDriver
     // Drivers whose existing speech plan is portable to the durable TTS worker.
     private const PORTABLE = ['xtts-fastapi', 'chatterbox', 'pockettts', 'cartesia', 'inworld'];
 
-    /** @param array $serverConfig server-wide LANG_LLM_XTTS / TTS_FFMPEG_FILTERS values only */
-    public function __construct(private $db, private string $root, private array $serverConfig) {}
+    /**
+     * @param array $serverConfig server-wide LANG_LLM_XTTS / TTS_FFMPEG_FILTERS values only
+     * @param \SYNTHClaimedRequest $owner explicit admission owner of every queued job
+     * @param \Closure $legacy runs one legacy connector/voice/plan call with only its named configuration in scope
+     */
+    public function __construct(private $db, private string $root, private array $serverConfig,
+        private \SYNTHClaimedRequest $owner, private \Closure $legacy) {}
 
     public function settings(array $npcRow, array $profile): ?array
     {
-        require_once dirname(__DIR__, 2).'/core/tts_connector.class.php';
-        require_once dirname(__DIR__, 2).'/core/npc_master.class.php';
+        return ($this->legacy)(fn() => $this->resolve($npcRow, $profile));
+    }
+
+    // TTSConnector and NpcMaster read the shared connection and voice directories from their legacy scope.
+    private function resolve(array $npcRow, array $profile): ?array
+    {
+        require_once dirname(__DIR__, 2).'/lib/core/tts_connector.class.php';
+        require_once dirname(__DIR__, 2).'/lib/core/npc_master.class.php';
         $tts = new \TTSConnector();
         $connectorId = intval($profile['tts_connector_id'] ?? 0);
         $connector = $connectorId > 0 ? $tts->getById($connectorId) : null;
@@ -50,15 +61,17 @@ final class ProfileSpeechDriver implements SpeechDriver
 
     public function queue(array $speaker, string $lineId, string $text, array $settings): string
     {
-        require_once dirname(__DIR__, 2).'/synth_tts_plan.php';
-        require_once dirname(__DIR__, 2).'/synth_tts_jobs.php';
-        require_once dirname(__DIR__, 2).'/synth_tts_worker.php';
+        require_once dirname(__DIR__, 2).'/lib/synth_tts_plan.php';
+        require_once dirname(__DIR__, 2).'/lib/synth_tts_jobs.php';
+        require_once dirname(__DIR__, 2).'/lib/synth_tts_worker.php';
         $name = strval($speaker['display_name']);
-        $plan = synth_capture_tts_plan($this->root, $name, $text, 'default', $text, $settings);
+        $plan = ($this->legacy)(fn() => synth_capture_tts_plan($this->root, $name, $text, 'default', $text, $settings, $speaker));
         if (empty($plan['portable'])) throw new \RuntimeException('speech_unavailable');
         $entry = ['speaker' => $name, 'speaker_identity' => $speaker, 'text' => $plan['text'], 'mood' => 'default',
             'cache_seed' => $plan['cache_seed'], 'cache_key' => md5($plan['cache_seed']), 'tts_plan' => $plan, 'utterance_id' => $lineId];
-        synth_tts_launch_job(synth_tts_enqueue_job($this->db, $entry, $this->root), $this->root);
+        // Admission commits under the claimed owner; the worker launch follows outside the transaction.
+        $job = synth_tts_enqueue_job($this->db, $entry, $this->root, $this->owner);
+        ($this->legacy)(fn() => synth_tts_launch_job($job, $this->root));
         return $entry['cache_key'];
     }
 }

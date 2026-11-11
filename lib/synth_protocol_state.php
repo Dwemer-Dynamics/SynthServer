@@ -226,38 +226,26 @@ function synth_protocol_assert_owner_active($db, array $event, bool $mayRetainGi
     }
 }
 
-// The explicit claimed owner of one turn-bound v2 request, produced only from an accepted canonical claim of
-// exactly that event: its stored canonical bytes, hash, turn and generation are verified under the session
-// advisory lock. Liveness is deliberately not checked here, so a claim cancelled or superseded since admission is
-// still finalized by its owner. It carries no authority by itself: every locked use rechecks the durable owner
-// row under the same lock (sql::withClaimedRequestLock).
+// The explicit claimed owner of one turn-bound v2 request. Only synth_protocol_claim_request produces it, from the
+// exact event whose canonical bytes, hash, turn and generation it inserted, and only after that transaction's
+// COMMIT is attested (any failed write aborts the transaction, so COMMIT cannot be attested). Liveness is
+// deliberately not part of it, so a claim cancelled or superseded since admission is still finalized by its owner.
+// It carries no authority by itself: every locked use rechecks the durable owner row under the session advisory
+// lock (sql::withClaimedRequestLock).
 final class SYNTHClaimedRequest
 {
     private function __construct(public readonly array $event) {}
 
-    public static function fromClaim($db, array $claim, array $event): self
+    // Checked before the claim transaction begins, so a refused owner never leaves an accepted claim behind.
+    public static function assertTurnBound(array $event): void
     {
-        if (($claim['status'] ?? '') !== 'accepted' || ($event['protocol_version'] ?? null) !== 2
+        if (($event['protocol_version'] ?? null) !== 2
             || !is_int($event['context_sequence'] ?? null) || $event['context_sequence'] < 1
             || !is_string($event['session_id'] ?? null) || !is_string($event['request_id'] ?? null)
             || !is_string($event['turn_id'] ?? null) || !is_int($event['generation'] ?? null)
             || !is_string($event['type'] ?? null)) {
             throw new LogicException('A claimed native context is required');
         }
-        $db->withAcceptedClaimLock($event, static function ($connection, array $locked) use ($event): void {
-            if ($locked !== $event) throw new LogicException('Claimed request owner changed');
-            $canonical = synth_protocol_canonical_json($event);
-            $proof = @pg_query_params($connection, "SELECT 1 FROM synth_meta.protocol_events p
-                JOIN synth_meta.request_executions e USING(session_id,request_id)
-                WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4
-                    AND e.request_sha256=p.event_sha256 AND p.generation=$5 AND e.generation=p.generation
-                    AND p.turn_id=$6 AND e.turn_id=p.turn_id AND p.event_type=$7 AND e.event_type=p.event_type",
-                [$event['session_id'], $event['request_id'], $canonical, hash('sha256', $canonical),
-                 $event['generation'], $event['turn_id'], $event['type']]);
-            if (!$proof) throw new RuntimeException('Unable to verify claimed request owner');
-            if (!pg_fetch_assoc($proof)) throw new LogicException('Claimed request canonical owner unavailable');
-        }, 2000);
-        return new self($event);
     }
 }
 
@@ -1407,10 +1395,12 @@ function synth_protocol_commit_transaction($db): void
 
 /**
  * Claims one protocol request transactionally. The transaction ends before dialogue,
- * provider, TTS, memory, relationship, profile or diary processing begins.
+ * provider, TTS, memory, relationship, profile or diary processing begins. With $explicitOwner
+ * an accepted claim also returns its SYNTHClaimedRequest owner, produced only after the attested COMMIT.
  */
-function synth_protocol_claim_request($db, array $event): array
+function synth_protocol_claim_request($db, array $event, bool $explicitOwner = false): array
 {
+    if ($explicitOwner) SYNTHClaimedRequest::assertTurnBound($event);
     $sessionId = synth_protocol_session_id($event);
     $canonical = synth_protocol_canonical_json($event);
     $hash = hash('sha256', $canonical);
@@ -1677,7 +1667,9 @@ function synth_protocol_claim_request($db, array $event): array
         if($event['type']==='action_result' && is_array($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']??null))
             synth_wait_trace_committed_result($event,$GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
         unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
-        return ['status' => 'accepted'];
+        if (!$explicitOwner) return ['status' => 'accepted'];
+        return ['status' => 'accepted',
+            'owner' => Closure::bind(static fn() => new SYNTHClaimedRequest($event), null, SYNTHClaimedRequest::class)()];
     } catch (Throwable $error) {
         $db->execQuery('ROLLBACK');
         if ($error instanceof DomainException) {

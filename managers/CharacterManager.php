@@ -8,9 +8,9 @@ use Synth\Core\PlacedCharacter;
 use Synth\Core\TurnRejected;
 use Synth\Core\TurnRequest;
 
-require_once dirname(__DIR__).'/core/dialogue/contracts.php';
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
-require_once dirname(__DIR__).'/core/dialogue/CharacterRepository.php';
+require_once dirname(__DIR__).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
+require_once dirname(__DIR__).'/core/dbmanager/repositories/CharacterRepository.php';
 
 // Resolves the addressed target to a registered placed NPC: stable placed key, current runtime binding
 // and the profile that owns its model and voice.

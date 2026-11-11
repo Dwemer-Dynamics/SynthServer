@@ -58,10 +58,16 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text, ?arra
         'root' => $root, 'sync_sample' => false, 'allow_game_scan' => false,
     ]) : '';
     $sampleHash = is_file($sample) ? (hash_file('sha256', $sample) ?: '') : '';
-    $actorSeed=$canonicalActor===null ? '' : "\nactor:".hash('sha256',json_encode([
+    return "synth.tts.v5\n" . $ttsFunction . "\n" . $speaker . "\n" . $voice . "\n" . $sampleHash . "\n" . $text
+        . synth_tts_actor_seed($canonicalActor);
+}
+
+// Placed-character component of a cache identity; empty for legacy name-only callers.
+function synth_tts_actor_seed(?array $canonicalActor): string
+{
+    return $canonicalActor===null ? '' : "\nactor:".hash('sha256',json_encode([
         strtoupper($canonicalActor['form_id'] ?? ''),strtolower($canonicalActor['origin_plugin'] ?? ''),
         $canonicalActor['playthrough_id'] ?? ''],JSON_THROW_ON_ERROR));
-    return "synth.tts.v5\n" . $ttsFunction . "\n" . $speaker . "\n" . $voice . "\n" . $sampleHash . "\n" . $text.$actorSeed;
 }
 
 function synth_tts_cache_key(string $root, string $speaker, string $text, ?array $canonicalActor = null): string

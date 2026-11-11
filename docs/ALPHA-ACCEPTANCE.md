@@ -12,8 +12,19 @@
   lines, truncated and malformed streams end the turn with an error and no fallback.
 - [x] Stage A increment 1: the same HTTP + PostgreSQL 15 probe passes unchanged against the
   namespaced `DialogueManager` services behind the transitional edge.
-- [ ] Stage A increment 2: `/talk` and receipts dispatched before `main_synth_pipeline.php`;
-  transitional edge removed (see HANDOFF.md).
+- [ ] Stage A increment 2: `/talk` and receipts dispatched to `api/v2/` before
+  `main_synth_pipeline.php`; transitional edge removed; owner bound to the output before liveness;
+  top-level architecture layout (see HANDOFF.md). Source and PHPUnit doubles only so far.
+- [ ] Stage A increment 2 over HTTP + disposable database: cancel/supersede racing the claim and
+  the terminal commit (real concurrency).
+- [x] Stage A increment 2 over HTTP + disposable database: a receipt's first write requires an
+  unrevoked origin turn and the line's emitted route. Cancelled, in-flight-superseded and
+  completed-then-cancelled origins and generated-but-unemitted lines are rejected
+  (`receipt_owner_mismatch`). An emitted line of an earlier unrevoked turn stays receiptable at
+  the receipt-time frontier with its original provenance. A v2 database boot failure answers the
+  sanitized HTTP 500 `backend_request_failed`; the legacy pipeline keeps its constructor exit.
+- [ ] Stage A increment 2 over HTTP + disposable database: v2 route inclusion (only `/talk` and
+  receipts) and legacy parity of every other event, including unmarked typed text.
 - [ ] Real configured provider and TTS, flat in-game and VR in-headset `/talk` evidence.
 
 ## Generic gift inventory exchange

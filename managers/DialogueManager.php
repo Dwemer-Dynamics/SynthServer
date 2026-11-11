@@ -3,14 +3,15 @@
 namespace Synth\Managers;
 
 use Synth\Core\AdmittedTurn;
+use Synth\Core\CharacterKey;
 use Synth\Core\LlmDriver;
 use Synth\Core\TurnOutput;
 use Synth\Core\TurnRejected;
 use Synth\Core\UtteranceRepository;
 
-require_once dirname(__DIR__).'/core/dialogue/contracts.php';
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
-require_once dirname(__DIR__).'/core/dialogue/UtteranceRepository.php';
+require_once dirname(__DIR__).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
+require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
 require_once __DIR__.'/SessionManager.php';
 require_once __DIR__.'/CharacterManager.php';
 require_once __DIR__.'/ContextManager.php';
@@ -19,6 +20,7 @@ require_once __DIR__.'/SpeechManager.php';
 
 // One explicit conversation turn: sequential admission, context, prompt, provider stream, utterance
 // records, speech and completion. Once admitted there is no legacy fallback; failures are terminal.
+// Delivery receipts for the emitted lines are recorded here too.
 final class DialogueManager
 {
     public const MAX_LINES = 12;
@@ -27,6 +29,8 @@ final class DialogueManager
     // Specific terminal details; anything else is reported as provider_failed.
     private const FAILURES = ['provider_unsupported', 'provider_stream_incomplete', 'provider_stream_malformed',
         'provider_output_oversized', 'provider_output_too_many_lines', 'provider_line_oversized', 'speech_unavailable'];
+    private const RECEIPT_STATES = ['audio_completed' => 'spoken', 'text_presented' => 'presented',
+        'interrupted' => 'interrupted', 'failed' => 'failed'];
 
     public function __construct(private SessionManager $sessions, private CharacterManager $characters,
         private ContextManager $context, private PromptManager $prompts, private LlmDriver $llm,
@@ -37,6 +41,24 @@ final class DialogueManager
         try { $turn = $this->admit($event); }
         catch (TurnRejected $rejected) { $this->output->reject($rejected->getMessage()); return; }
         $this->run($turn);
+    }
+
+    // Delivery receipt for one emitted line; returns the stored state. Text and speaker come from the server
+    // record, never the request. Refusals throw a DomainException naming receipt_invalid, receipt_owner_mismatch
+    // or receipt_conflict.
+    public function receipt(array $event): string
+    {
+        $payload = $event['payload'];
+        $state = self::RECEIPT_STATES[$payload['outcome'] ?? ''] ?? null;
+        $character = is_array($payload['character'] ?? null) ? $payload['character'] : [];
+        $characterId = CharacterKey::of($character);
+        if ($state === null || $characterId === null) throw new \DomainException('receipt_invalid');
+        $receipt = $this->sessions->receiptOwner($event);
+        $speaker = strval($receipt->context['target']['display_name'] ?? $character['display_name'] ?? '');
+        $player = $receipt->playerName();
+        $heard = $this->sessions->heard($state)
+            ? static fn(string $text): string => $speaker.': '.$text.' (talking to '.$player.')' : null;
+        return $this->utterances->recordReceipt($receipt, $character, $characterId, $state, $heard);
     }
 
     // The first unmet requirement is the reported reason.

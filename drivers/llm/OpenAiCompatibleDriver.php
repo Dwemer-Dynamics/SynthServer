@@ -4,15 +4,18 @@ namespace Synth\Drivers\Llm;
 
 use Synth\Core\LlmDriver;
 
-require_once dirname(__DIR__, 2).'/core/dialogue/contracts.php';
-require_once dirname(__DIR__, 2).'/provider_stream.php';
+require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__, 2).'/lib/provider_stream.php';
 
 // Plain OpenAI-compatible chat streaming from the stored connector; credentials stay in memory. Reasoning,
 // quickstart-managed and other drivers keep their legacy connector semantics and are not supported here.
 final class OpenAiCompatibleDriver implements LlmDriver
 {
-    /** @param \Closure():void $assertActive liveness check at every provider line */
-    public function __construct(private \Closure $assertActive, private int $maxBytes = 2 * 1024 * 1024) {}
+    /**
+     * @param \Closure():void $assertActive liveness check at every provider line
+     * @param \Closure(array):array $config url, model, api_key and sampling options of one stored connector
+     */
+    public function __construct(private \Closure $assertActive, private \Closure $config, private int $maxBytes = 2 * 1024 * 1024) {}
 
     public function supports(array $connector): bool
     {
@@ -26,8 +29,7 @@ final class OpenAiCompatibleDriver implements LlmDriver
     public function stream(array $connector, array $messages, callable $onText): void
     {
         if (!$this->supports($connector)) throw new \DomainException('provider_unsupported');
-        require_once dirname(__DIR__, 2).'/core/llm_connector.class.php';
-        $config = (new \LLMConnector())->dialogueProviderConfig($connector);
+        $config = ($this->config)($connector);
         $headers = ['Content-Type: application/json', 'Accept: text/event-stream'];
         if ($config['api_key'] !== '') $headers[] = 'Authorization: Bearer '.$config['api_key'];
         $context = stream_context_create(['http' => ['method' => 'POST', 'header' => $headers,

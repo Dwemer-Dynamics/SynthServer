@@ -2,17 +2,16 @@
 
 namespace Synth\Managers;
 
-use Synth\Core\SaveState;
 use Synth\Core\TurnRejected;
 use Synth\Core\TurnRequest;
 
-require_once dirname(__DIR__).'/core/dialogue/contracts.php';
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
-require_once dirname(__DIR__).'/core/dialogue/SaveState.php';
+require_once dirname(__DIR__).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
+require_once __DIR__.'/SaveState.php';
 
 // Request admission for an explicit conversation-intent (/talk) turn: the negotiated contract, a supported
 // mode and the claimed snapshot of the active save. Capability alone never selects this route, and the
-// route emits no actions, so action requests belong in unmarked text.
+// route emits no actions, so action requests belong in unmarked text. Also binds speech receipts.
 final class SessionManager
 {
     private const MODES = ['STANDARD', 'WHISPER', 'CLOSE', 'SHOUT'];
@@ -31,5 +30,18 @@ final class SessionManager
         $context = $this->saves->boundContext($event);
         if ($context === null) throw new TurnRejected('target_missing');
         return new TurnRequest($event, $context);
+    }
+
+    // A speech receipt is owned only by the claimed snapshot of the active save it names.
+    public function receiptOwner(array $event): TurnRequest
+    {
+        $context = $this->saves->boundContext($event);
+        if ($context === null) throw new \DomainException('receipt_owner_mismatch');
+        return new TurnRequest($event, $context);
+    }
+
+    public function heard(string $state): bool
+    {
+        return $this->saves->heard($state);
     }
 }

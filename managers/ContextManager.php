@@ -3,11 +3,10 @@
 namespace Synth\Managers;
 
 use Synth\Core\PlacedCharacter;
-use Synth\Core\SaveState;
 use Synth\Core\TurnRequest;
 
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
-require_once dirname(__DIR__).'/core/dialogue/SaveState.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
+require_once __DIR__.'/SaveState.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
 final class ContextManager

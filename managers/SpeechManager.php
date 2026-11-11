@@ -5,8 +5,8 @@ namespace Synth\Managers;
 use Synth\Core\PlacedCharacter;
 use Synth\Core\SpeechDriver;
 
-require_once dirname(__DIR__).'/core/dialogue/contracts.php';
-require_once dirname(__DIR__).'/core/dialogue/entities.php';
+require_once dirname(__DIR__).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__).'/core/entities/dialogue.php';
 
 // Speech comes only from the NPC profile's own TTS connector and resolved voice; there is no server-wide
 // fallback. A line that cannot be voiced is terminal for the turn, never a silent text-only line.
