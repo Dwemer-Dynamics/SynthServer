@@ -88,7 +88,17 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    8.2.35, 8.3.36, 8.4.27 or 8.5.12, each the distro's packaged binary matching dpkg's checksums
    with a patched embedded PHP version. Older releases, pre-releases, other branches, custom or
    unknown PHP paths and running Apache, PHP-FPM or PHP processes using a replaced or unverifiable
-   PHP binary are refused. If it fails, update only the distribution's PHP packages, keeping
+   PHP binary are refused. The single exception is a running process, under any name, whose
+   executable is under `/opt/chevo-runtime`: it passes only when that executable is the protected
+   chevo PHP 8.4.27 CLI or FPM in `/opt/chevo-runtime/php-8.4.27` and the process maps it. That
+   executable and every extension the process maps must be byte-identical to the retained
+   root-owned outputs in `/opt/chevo-build`, each with the SHA-256 pinned when the build was
+   reviewed. The pinned official release archive must be present, and the build's
+   `main/php_version.h` and the five `ext/sodium` sources the sodium build compiled must equal the
+   archive's (other sources are not compared). Every other executable mapping must be a `.so` of
+   an installed dpkg package that matches dpkg's recorded checksum, all checked by device and
+   inode. The check never runs that PHP, and the CLI and Apache checks above stay distro-only.
+   If it fails, update only the distribution's PHP packages, keeping
    existing configuration files: DwemerDistro launcher **Update Distro**, or `sudo apt-get update`
    inside the distribution and then, for the branch the check names,
    `sudo apt-get install --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $(dpkg-query -W -f='${binary:Package} ' 'phpX.Y*' libapache2-mod-phpX.Y)`.
