@@ -79,9 +79,27 @@ bytes, hash, turn and generation) only after its COMMIT is attested, with no sec
 liveness check. The dispatcher binds it to the output before checking liveness, so a cancellation or supersession in between is
 recorded as that claim's cancelled outcome. The legacy writer keeps its order (route preparation,
 replay buffer, echo, dispatch diagnostics, flush); `withNativeRequestLock` and the other legacy
-APIs are unchanged. Evidence so far is PHPUnit with scripted doubles only. Pending probes: real
-HTTP concurrency (cancel/supersede racing claim and terminal commit) and v2 route inclusion and
-legacy parity over HTTP plus a disposable PostgreSQL database.
+APIs are unchanged. Beyond PHPUnit doubles, controlled probes run real `main.php` under a
+loopback PHP CLI server (four workers) with a disposable PostgreSQL 15 database, a fake loopback
+OpenAI-compatible stream and controlled jobs and receipts. The startup, race and receipt probes ran
+the startup candidate `d41e1fc` plus the `main.php` change later committed as `3e637c6`; the
+identity/cache/save probe ran `d41e1fc` with a no-op TTS worker; the legacy suite comparison ran
+`768d87c`. Those evidence revisions are already recorded runs; this documentation-only pass did
+not rerun those tests. An include trace shows `/talk`, receipts and their
+replays reaching `api/v2/dispatch.php` without loading `main_synth_pipeline.php`; `init`,
+`context`, cancel and unmarked typed text stay on the pipeline. A mid-stream cancel from a second
+connection closes the turn cancelled after one provider call, cancels its TTS job and refuses
+replay. At the terminal commit, a cancel queued first on the session lock wins; a completion that
+wins is stored byte-equal to the wire and replays without a second provider call until a later
+cancel revokes it, after which replay is refused. Cancel/supersede contending with the initial
+canonical claim is not isolated by these probes. Two placed NPCs that share a display name keep
+separate models, queued TTS inputs, cache seeds and heard history through older/newer saved-anchor
+reloads. Each turn's audience was only the addressed NPC, so a shared same-name audience is
+unexercised. Unmarked typed text matches the pre-cutover baseline by route and coarse output only,
+and nine legacy action/rechat unit suites match it (118 tests). Neither is every-event or full
+semantic parity, and no full PHPUnit run has completed green. Fake provider output, queued TTS
+inputs and hand-posted receipts prove no synthesis or playback. Production Apache streaming,
+real supervisor/worker pickup, compaction, real providers and game runs remain unverified.
 A receipt's first write, under the receipt's claimed lock, also requires the line's own origin turn
 unrevoked (not cancelled, superseded in flight or a completed input revoked by a later cancel) and
 its exact emitted `response_routes` row; otherwise `receipt_owner_mismatch`. Exact repeats and
@@ -340,7 +358,9 @@ factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
   relationship and TTS workers. `health.php` reports the database, schema and processor state.
   It can be supervised or started directly with `service/start.sh`. The SYNTH UI and legacy game
   traffic through `main.php` also start it on demand. Explicit v2 dialogue (`/talk` and speech
-  receipts) is dispatched before that step and never loads or probes the processor helper.
+  receipts) is dispatched before that step and never loads or probes the processor helper; its
+  queued speech keeps the per-line TTS job launch. A controlled HTTP probe with a stand-in start
+  script confirms the split. Real supervisor pickup, compaction and production Apache are unverified.
 - `start-dev.ps1` is an **optional** standalone PHP development server. It defaults to port
   **8085**, so a client that uses it needs a matching `BaseUrl`. It serves the checkout's parent
   directory, so the checkout folder must be named `Synthserver`.
