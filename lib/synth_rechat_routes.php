@@ -217,15 +217,17 @@ function synth_rechat_listener_wire(array $event, array $line, array $route, str
 }
 
 // Persist the final wire-line hash before emission; pending rows alone never prove delivered dialogue.
-function synth_rechat_record_emitted_route($db, array $event, string $wire, array $metadata): string
+// An explicit claimed owner (v2 API) takes the same lock without request globals; legacy callers pass none.
+function synth_rechat_record_emitted_route($db, array $event, string $wire, array $metadata, ?SYNTHClaimedRequest $claimed = null): string
 {
+    if ($claimed!==null && $claimed->event!==$event) throw new LogicException('Dialogue route owner mismatch');
     $line=json_decode($wire,true,flags:JSON_THROW_ON_ERROR);
     if (($line['type'] ?? '')!=='dialogue' || ($line['protocol_version'] ?? null)!==2
         || !is_array($line['payload']['speaker'] ?? null)) throw new LogicException('Invalid dialogue route line');
     foreach (['request_id','turn_id','generation','context_sequence','runtime_variant'] as $field) {
         if (($line[$field] ?? null)!==($event[$field] ?? null)) throw new LogicException('Dialogue route owner mismatch');
     }
-    return $db->withNativeRequestLock(static function($connection,array $owner) use($db,$event,$line,$wire,$metadata) {
+    $record=static function($connection,array $owner) use($db,$event,$line,$wire,$metadata) {
         if ($owner!==$event) throw new LogicException('Dialogue route owner changed');
         $canonical=synth_protocol_canonical_json($event);
         $result=@pg_query_params($connection,"SELECT c.context_payload
@@ -301,7 +303,8 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
         if (!$result) throw new RuntimeException('Unable to persist dialogue route');
         if (!pg_fetch_assoc($result)) throw new LogicException('Conflicting dialogue route replay');
         return $wire;
-    },2000);
+    };
+    return $claimed!==null ? $db->withClaimedRequestLock($claimed,$record,2000) : $db->withNativeRequestLock($record,2000);
 }
 
 // Shared completion framing for dialogue parents and the requests that actually emitted their actions.

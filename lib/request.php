@@ -213,7 +213,15 @@ function synth_should_stream_json_response(array $event, string $acceptHeader = 
     return strpos($schema, "synth.event.") === 0 && $type !== "";
 }
 
-function synth_decode_event_from_request(): array
+// The single bounded decode and closed-contract validation of the request body; [] when there is none.
+function synth_decode_wire_event(): array
+{
+    $json = synth_decode_json_body();
+    return empty($json) ? [] : synth_protocol_validate_event($json);
+}
+
+// $wire is the event main.php already decoded and validated; it is never parsed or validated twice.
+function synth_decode_event_from_request(?array $wire = null): array
 {
     if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && isset($GLOBALS['SYNTH_TEST_NORMALIZED_EVENT'])) {
         $testEvent = $GLOBALS['SYNTH_TEST_NORMALIZED_EVENT'];
@@ -222,9 +230,8 @@ function synth_decode_event_from_request(): array
         }
     }
 
-    $json = synth_decode_json_body();
+    $json = $wire ?? synth_decode_wire_event();
     if (!empty($json)) {
-        $json = synth_protocol_validate_event($json);
         $GLOBALS['SYNTH_REQUEST_ID'] = $json['request_id'];
         $GLOBALS['SYNTH_TURN_ID'] = $json['turn_id'];
         $GLOBALS['SYNTH_GENERATION'] = $json['generation'];

@@ -523,9 +523,10 @@ if (!function_exists('synth_resolve_tts_voice_reference')) {
 }
 
 if (!function_exists('synth_tts_active_provider_uses_voice_sample')) {
-    function synth_tts_active_provider_uses_voice_sample(): bool
+    // $driver names an explicit connector driver; otherwise the runtime's active TTS function is used.
+    function synth_tts_active_provider_uses_voice_sample(?string $driver = null): bool
     {
-        $driver = strtolower(trim(strval($GLOBALS['TTSFUNCTION'] ?? ($GLOBALS['TTS_FUNCTION'] ?? ''))));
+        $driver = strtolower(trim(strval($driver ?? $GLOBALS['TTSFUNCTION'] ?? ($GLOBALS['TTS_FUNCTION'] ?? ''))));
         $driver = str_replace('_', '-', $driver);
         if ($driver === 'xtts' || $driver === 'xttsfastapi') {
             $driver = 'xtts-fastapi';

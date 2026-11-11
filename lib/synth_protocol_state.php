@@ -130,24 +130,10 @@ function synth_protocol_assert_request_active(): void
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return;
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
     $db = $GLOBALS['db'];
+    synth_protocol_assert_owner_active($db, $event, synth_protocol_retains_gift_owner($event));
     $session = $db->escapeLiteral(synth_protocol_session_id($event));
     $request = $db->escapeLiteral($event['request_id']);
     $generation = intval($event['generation']);
-    $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
-            r.active_turn_id, r.active_turn_sequence
-        FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING (session_id)
-        WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
-    // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
-    $retainedGift=synth_protocol_retains_gift_owner($event) && ($row['state'] ?? '')==='complete'
-        && ($row['error_code'] ?? null)===null;
-    if (!$row || !in_array($row['state'], ['claimed','streaming','complete'], true)
-        || in_array($row['error_code'] ?? '',['turn_cancelled','request_cancelled'],true)
-        || $row['runtime_state'] !== 'active' || intval($row['active_generation']) !== $generation
-        || (!$retainedGift && synth_protocol_owns_dialogue_turn($event)
-            && (($row['active_turn_id'] ?? '') !== $event['turn_id']
-                || intval($row['active_turn_sequence']) !== intval($event['context_sequence'])))) {
-        throw new SYNTHProtocolCancelled('request_cancelled');
-    }
     if (isset($GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE'])) {
         require_once __DIR__.'/synth_middleterm_jobs.php';
         synth_middleterm_assert_lease($db);
@@ -213,6 +199,65 @@ function synth_protocol_assert_request_active(): void
                 AND j.payload->>'context_sequence'='$sequence' AND j.state='running' AND j.lease_token=$token
                 AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()");
         if (!$job) throw new SYNTHProtocolCancelled('interaction_lease_lost');
+    }
+}
+
+// The claimed request's durable owner: live execution, active generation and, for turn-owned events, the
+// active turn and context sequence. Stale or cancelled requests throw the protocol cancellation.
+function synth_protocol_assert_owner_active($db, array $event, bool $mayRetainGift = false): void
+{
+    $session = $db->escapeLiteral(synth_protocol_session_id($event));
+    $request = $db->escapeLiteral($event['request_id']);
+    $generation = intval($event['generation']);
+    $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
+            r.active_turn_id, r.active_turn_sequence
+        FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING (session_id)
+        WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
+    // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
+    $retainedGift=$mayRetainGift && ($row['state'] ?? '')==='complete'
+        && ($row['error_code'] ?? null)===null;
+    if (!$row || !in_array($row['state'], ['claimed','streaming','complete'], true)
+        || in_array($row['error_code'] ?? '',['turn_cancelled','request_cancelled'],true)
+        || $row['runtime_state'] !== 'active' || intval($row['active_generation']) !== $generation
+        || (!$retainedGift && synth_protocol_owns_dialogue_turn($event)
+            && (($row['active_turn_id'] ?? '') !== $event['turn_id']
+                || intval($row['active_turn_sequence']) !== intval($event['context_sequence'])))) {
+        throw new SYNTHProtocolCancelled('request_cancelled');
+    }
+}
+
+// The explicit claimed owner of one turn-bound v2 request, produced only from an accepted canonical claim of
+// exactly that event: its stored canonical bytes, hash, turn and generation are verified under the session
+// advisory lock. Liveness is deliberately not checked here, so a claim cancelled or superseded since admission is
+// still finalized by its owner. It carries no authority by itself: every locked use rechecks the durable owner
+// row under the same lock (sql::withClaimedRequestLock).
+final class SYNTHClaimedRequest
+{
+    private function __construct(public readonly array $event) {}
+
+    public static function fromClaim($db, array $claim, array $event): self
+    {
+        if (($claim['status'] ?? '') !== 'accepted' || ($event['protocol_version'] ?? null) !== 2
+            || !is_int($event['context_sequence'] ?? null) || $event['context_sequence'] < 1
+            || !is_string($event['session_id'] ?? null) || !is_string($event['request_id'] ?? null)
+            || !is_string($event['turn_id'] ?? null) || !is_int($event['generation'] ?? null)
+            || !is_string($event['type'] ?? null)) {
+            throw new LogicException('A claimed native context is required');
+        }
+        $db->withAcceptedClaimLock($event, static function ($connection, array $locked) use ($event): void {
+            if ($locked !== $event) throw new LogicException('Claimed request owner changed');
+            $canonical = synth_protocol_canonical_json($event);
+            $proof = @pg_query_params($connection, "SELECT 1 FROM synth_meta.protocol_events p
+                JOIN synth_meta.request_executions e USING(session_id,request_id)
+                WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4
+                    AND e.request_sha256=p.event_sha256 AND p.generation=$5 AND e.generation=p.generation
+                    AND p.turn_id=$6 AND e.turn_id=p.turn_id AND p.event_type=$7 AND e.event_type=p.event_type",
+                [$event['session_id'], $event['request_id'], $canonical, hash('sha256', $canonical),
+                 $event['generation'], $event['turn_id'], $event['type']]);
+            if (!$proof) throw new RuntimeException('Unable to verify claimed request owner');
+            if (!pg_fetch_assoc($proof)) throw new LogicException('Claimed request canonical owner unavailable');
+        }, 2000);
+        return new self($event);
     }
 }
 
@@ -2073,7 +2118,18 @@ function synth_protocol_complete_request($db, string $state, string $contentType
     if (!is_array($event) || empty($event['request_id']) || empty($event['runtime_variant'])) {
         return;
     }
-    $session = $db->escapeLiteral(synth_protocol_session_id($event['json'] ?? $event));
+    synth_protocol_record_outcome($db, $event['json'] ?? $event, $state, $contentType, $body, $errorCode);
+    if ($state==='complete' && ($event['json']['protocol_version'] ?? 1)===2
+        && !empty($GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']['accepted'])) {
+        require_once __DIR__.'/relationship_response.php';
+        synth_relationship_store_response($db,$event['json'],$body);
+    }
+}
+
+// The first terminal outcome of a live claim is the replayable response; later writes never replace it.
+function synth_protocol_record_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): void
+{
+    $session = $db->escapeLiteral(synth_protocol_session_id($event));
     $requestId = $db->escapeLiteral($event['request_id']);
     $stateSql = $db->escapeLiteral($state);
     $contentTypeSql = $db->escapeLiteral($contentType);
@@ -2086,10 +2142,51 @@ function synth_protocol_complete_request($db, string $state, string $contentType
           WHERE session_id={$session} AND request_id={$requestId}
             AND state IN ('claimed','streaming')"
     );
-    if ($state==='complete' && ($event['json']['protocol_version'] ?? 1)===2
-        && !empty($GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']['accepted'])) {
-        require_once __DIR__.'/relationship_response.php';
-        synth_relationship_store_response($db,$event['json'],$body);
+}
+
+// Commits a live claim's terminal outcome under the session advisory lock shared with claim, cancel and
+// supersession, before any terminal byte is sent. Returns the durable winner: ['won'=>true] with the proposed
+// state, or the competing terminal state. A live row whose owner a competitor already retired is recorded as
+// cancelled with no replay body, as every other cancellation path does. Any persistence failure throws.
+function synth_protocol_commit_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): array
+{
+    $session = $db->escapeLiteral(synth_protocol_session_id($event));
+    $requestId = $db->escapeLiteral($event['request_id']);
+    $generation = intval($event['generation']);
+    if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin protocol outcome.');
+    try {
+        if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))")) {
+            throw new RuntimeException('Unable to lock protocol outcome owner.');
+        }
+        $row = $db->fetchOne("SELECT state, error_code FROM synth_meta.request_executions
+            WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation} FOR UPDATE");
+        if (!is_array($row)) throw new RuntimeException('Protocol outcome owner unavailable.');
+        if (!in_array($row['state'], ['claimed', 'streaming'], true)) {
+            synth_protocol_commit_transaction($db);
+            return ['won' => false, 'state' => strval($row['state']), 'error_code' => strval($row['error_code'] ?? '')];
+        }
+        $bodySql = $db->escapeLiteral('\\x' . bin2hex($body)) . '::bytea';
+        $won = true;
+        if ($state !== 'cancelled') {
+            try { synth_protocol_assert_owner_active($db, $event); }
+            catch (SYNTHProtocolCancelled) {
+                [$won, $state, $bodySql, $errorCode] = [false, 'cancelled', 'NULL', 'request_cancelled'];
+            }
+        }
+        $stateSql = $db->escapeLiteral($state);
+        $contentTypeSql = $db->escapeLiteral($contentType);
+        $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
+        $updated = $db->fetchOne("UPDATE synth_meta.request_executions
+            SET state={$stateSql}, response_content_type={$contentTypeSql},
+                response_body={$bodySql}, error_code={$errorSql}, completed_at=NOW()
+          WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation}
+            AND state IN ('claimed','streaming') RETURNING state");
+        if (($updated['state'] ?? null) !== $state) throw new RuntimeException('Unable to record protocol outcome.');
+        synth_protocol_commit_transaction($db);
+        return ['won' => $won, 'state' => $state, 'error_code' => $errorCode];
+    } catch (Throwable $error) {
+        $db->execQuery('ROLLBACK');
+        throw $error;
     }
 }
 

@@ -12,7 +12,8 @@ class sql
     private $connString = "";
     private $debug_level = 3; // 0 = quiet .. 3=use timer .. 5 = verbose
 
-    public function __construct()
+    /** @param ?array $settings explicit SYNTH_DB_* configuration in place of runtime globals (environment still wins) */
+    public function __construct(private ?array $settings = null)
     {
         if (!function_exists('pg_connect')) {
             throw new \RuntimeException("PHP PostgreSQL extension is not loaded; pg_connect() is unavailable.");
@@ -25,13 +26,13 @@ class sql
 
         if (!self::$link || self::$link === false) {
             Logger::error("SQL: connection init failed. " . $this->extract_caller() );
-            die("SQL: Error in connection.");
+            $this->connectionFailed("SQL: Error in connection.");
         }
 
         $stat = pg_connection_status(self::$link);
         if ((!isset($stat)) || ($stat !== PGSQL_CONNECTION_OK)) {
             Logger::error("SQL: connection init FAILED [$stat] " . $this->extract_caller() );
-            die("SQL: Error in connection.");
+            $this->connectionFailed("SQL: Error in connection.");
         }
 
         $this->applySearchPath();
@@ -44,8 +45,16 @@ class sql
     {
         if (!self::$link || @pg_query(self::$link, "SET search_path TO synth, synth_meta, public") === false) {
             Logger::error("SQL: could not configure Synthserver search path. " . $this->extract_caller());
-            die("SQL: Error configuring connection.");
+            $this->connectionFailed("SQL: Error configuring connection.");
         }
+    }
+
+    // Legacy (runtime-global) callers keep the historical exit. An explicit configuration (the v2 composition
+    // root) gets an exception, so its caller answers with the sanitized failure response instead of plaintext.
+    private function connectionFailed(string $message): never
+    {
+        if ($this->settings !== null) throw new \RuntimeException($message);
+        die($message);
     }
 
     private function readConnectionSetting(string $envName, string $globalName, string $default): string
@@ -55,8 +64,9 @@ class sql
             return trim(strval($envValue));
         }
 
-        if (isset($GLOBALS[$globalName]) && trim(strval($GLOBALS[$globalName])) !== '') {
-            return trim(strval($GLOBALS[$globalName]));
+        $settings = $this->settings ?? $GLOBALS;
+        if (isset($settings[$globalName]) && trim(strval($settings[$globalName])) !== '') {
+            return trim(strval($settings[$globalName]));
         }
 
         return $default;
@@ -208,40 +218,49 @@ class sql
             return $this->insertRow($table, $data);
         }
 
-        return $this->withNativeRequestLock(function ($connection, array $event) use ($data) {
-            $session = $event['session_id'];
-            $contextResult = @pg_query_params($connection,
-                'SELECT playthrough_id FROM synth_meta.context_snapshots
-                 WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
-                [$session, $event['generation'], $event['context_sequence']]);
-            $context = $contextResult ? pg_fetch_assoc($contextResult) : false;
-            if (!$context) throw new RuntimeException('Native history context unavailable');
-            require_once __DIR__.'/synth_rechat_routes.php';
-            $scene=synth_rechat_response_scene_locked($connection,$event);
-            $sceneSequence=$scene['scene_context_sequence'] ?? null;
-            // Caller-provided extra columns must never override native ownership or allocate an old row ID.
-            unset($data['rowid']);
-            $data['synth_session_id'] = $session;
-            $data['synth_generation'] = $event['generation'];
-            $data['synth_context_sequence'] = $event['context_sequence'];
-            $data['synth_request_id'] = $event['request_id'];
-            $columns = array_keys($data);
-            foreach ($columns as $column) {
-                if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column) !== 1) {
-                    throw new InvalidArgumentException('Invalid native history column');
-                }
+        return $this->withNativeRequestLock(fn($connection, array $event) => $this->insertNativeHistory($connection, $event, $data));
+    }
+
+    // The same native history insertion for an explicit claimed owner; no runtime global supplies authority.
+    public function insertClaimedHistory(SYNTHClaimedRequest $owner, array $data)
+    {
+        return $this->withClaimedRequestLock($owner, fn($connection, array $event) => $this->insertNativeHistory($connection, $event, $data));
+    }
+
+    private function insertNativeHistory($connection, array $event, array $data): bool
+    {
+        $session = $event['session_id'];
+        $contextResult = @pg_query_params($connection,
+            'SELECT playthrough_id FROM synth_meta.context_snapshots
+             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
+            [$session, $event['generation'], $event['context_sequence']]);
+        $context = $contextResult ? pg_fetch_assoc($contextResult) : false;
+        if (!$context) throw new RuntimeException('Native history context unavailable');
+        require_once __DIR__.'/synth_rechat_routes.php';
+        $scene=synth_rechat_response_scene_locked($connection,$event);
+        $sceneSequence=$scene['scene_context_sequence'] ?? null;
+        // Caller-provided extra columns must never override native ownership or allocate an old row ID.
+        unset($data['rowid']);
+        $data['synth_session_id'] = $session;
+        $data['synth_generation'] = $event['generation'];
+        $data['synth_context_sequence'] = $event['context_sequence'];
+        $data['synth_request_id'] = $event['request_id'];
+        $columns = array_keys($data);
+        foreach ($columns as $column) {
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column) !== 1) {
+                throw new InvalidArgumentException('Invalid native history column');
             }
-            $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
-            $query = 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
-                INSERT INTO synth_meta.history_events
-                    (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
-                SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,
-                    $'.(count($columns) + 1).',rowid,to_jsonb(inserted),$'.(count($columns) + 2).' FROM inserted';
-            if (@pg_query_params($connection, $query, [...array_values($data), $context['playthrough_id'],$sceneSequence]) === false) {
-                throw new RuntimeException('Unable to persist native history insertion');
-            }
-            return true;
-        });
+        }
+        $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
+        $query = 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
+            INSERT INTO synth_meta.history_events
+                (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
+            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,
+                $'.(count($columns) + 1).',rowid,to_jsonb(inserted),$'.(count($columns) + 2).' FROM inserted';
+        if (@pg_query_params($connection, $query, [...array_values($data), $context['playthrough_id'],$sceneSequence]) === false) {
+            throw new RuntimeException('Unable to persist native history insertion');
+        }
+        return true;
     }
 
     /** Capture once before a catalogue transaction; its direct adapter never reconnects. */
@@ -270,6 +289,27 @@ class sql
             || (!$publication && intval($event['context_sequence'] ?? 0) < 1)) {
             throw new LogicException('A claimed native context is required');
         }
+        return $this->lockedNativeRequest($event, $operation, $statementTimeoutMs, $publication, true);
+    }
+
+    // The explicit form of the same lock: the owner was produced by the canonical claim, and its durable
+    // execution/session/turn row is rechecked under the session advisory lock before the operation runs.
+    public function withClaimedRequestLock(SYNTHClaimedRequest $owner, callable $operation, int $statementTimeoutMs = 0)
+    {
+        return $this->lockedNativeRequest($owner->event, $operation, $statementTimeoutMs, false, false);
+    }
+
+    // The same lock while an explicit owner is being bound to its accepted canonical claim. Liveness is not
+    // rechecked here: an owner superseded or cancelled since the claim must still conclude that claim.
+    public function withAcceptedClaimLock(array $event, callable $operation, int $statementTimeoutMs = 0)
+    {
+        return $this->lockedNativeRequest($event, $operation, $statementTimeoutMs, false, null);
+    }
+
+    // One implementation of the claim lock and transaction. Legacy callers also recheck their worker leases;
+    // $legacy=null (owner binding) checks no liveness.
+    private function lockedNativeRequest(array $event, callable $operation, int $statementTimeoutMs, bool $publication, ?bool $legacy)
+    {
         require_once __DIR__.'/synth_protocol_state.php';
         $this->re_connect();
         $startedTransaction = pg_transaction_status(self::$link) === PGSQL_TRANSACTION_IDLE;
@@ -303,7 +343,8 @@ class sql
             if (@pg_query_params(self::$link, 'SELECT pg_advisory_xact_lock(hashtext($1))', [$event['session_id']]) === false) {
                 throw new SYNTHNativeRequestLockUnavailable('Unable to lock native history owner');
             }
-            synth_protocol_assert_request_active();
+            if ($legacy === true) synth_protocol_assert_request_active();
+            elseif ($legacy === false) synth_protocol_assert_owner_active($this, $event);
             if ($publication) {
                 // A context publishes its own positive capture, while its wire binding remains zero.
                 // Recheck the exact admitted bytes and captured payload under the existing session lock.
