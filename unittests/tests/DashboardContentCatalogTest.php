@@ -24,7 +24,8 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     {
         self::assertContains($page,['ui/home.php','ui/npc_upload.php','ui/worldknowledge_upload.php']);
         self::assertSame('testdb',self::$testDatabaseName);
-        self::assertSame('true',getenv('PHPUNIT_TEST'));
+        // phpunit.xml sets "true"; an outer runner may already export "1". Both mean the disposable suite.
+        self::assertContains(getenv('PHPUNIT_TEST'),['true','1'],'Render tests require the disposable PHPUnit suite flag.');
         $root=dirname(__DIR__,2);
         $conf=$root.'/conf/conf.php';
         // Never open, overwrite or import an existing installation's configuration.
