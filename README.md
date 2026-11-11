@@ -1,25 +1,26 @@
 # SynthServer
 
-Synthserver is the Fallout 4 backend for [SYNTH](https://github.com/Dwemer-Dynamics/SYNTH/tree/alpha). It owns
+Synthserver is the Fallout 4 backend for [SYNTH](https://github.com/Dwemer-Dynamics/SYNTH/tree/unstable). It owns
 the runtime, management UI, PostgreSQL schema, prompts, memory, and the LLM, TTS and STT
 connector configuration used by the native SYNTH (F4SE) and SYNTHVR (F4SEVR) plugins.
 
 ## Development branches
 
-**Start all work from `alpha` and target every pull request at `alpha`.** This is the SYNTH
-exception to the other Dwemer mods' unstable-first workflow. `synth` is the default branch;
-`unstable` and `dev` are reserved testing lanes, and `synth` is the main/release branch.
-Promotions require maintainer approval; branch names do not imply gameplay acceptance.
+**Start all work from `unstable` and open every topic pull request as a draft targeting
+`unstable`**, whether from this repository or from a fork branch of any name. `synth` is the
+default and main/release branch, `dev` is the testing lane, and `alpha` is a legacy branch that
+accepts no PRs. Only same-repository managed branches have promotion semantics: maintainers
+promote `unstable` to `dev` and `dev` to `synth`. Branch names do not imply gameplay acceptance.
 
 ```powershell
-git clone --branch alpha https://github.com/Dwemer-Dynamics/SynthServer.git Synthserver
+git clone --branch unstable https://github.com/Dwemer-Dynamics/SynthServer.git Synthserver
 cd Synthserver
 git switch -c feature/my-change
 ```
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/HANDOFF.md](docs/HANDOFF.md).
-GitHub may preselect the default `synth` branch for a new PR: change its base to `alpha`.
-The repository's PR branch-policy check rejects any other base.
+GitHub may preselect the default `synth` branch for a new PR: change its base to `unstable`.
+The repository's PR branch-policy check rejects any other topic base and any other promotion.
 
 ## Status
 
