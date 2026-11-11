@@ -270,8 +270,9 @@ installed and the normal launcher is tested. See [CODEX-LOCAL-PROVIDER.md](CODEX
 | Latest migration | `synth_protocol_schema` `20260909001` (`debug/db_updates.php`) |
 
 The public repositories are `Dwemer-Dynamics/SYNTH` and `Dwemer-Dynamics/Synthserver`.
-`synth` is the default branch; every development PR targets `alpha`. `synth` is the main/release
-branch; `dev` and `unstable` are reserved lanes. See [CONTRIBUTING.md](../CONTRIBUTING.md).
+`synth` is the default and main/release branch; every topic PR targets `unstable`. Promotions are
+only same-repository `unstable` to `dev` and `dev` to `synth`; `alpha` is a legacy branch. See
+[CONTRIBUTING.md](../CONTRIBUTING.md).
 Older branch names and hashes below identify historical private development checkpoints.
 
 Temporary flat conversation holds and active-dialogue wait pumping are prepared in the testing candidate.
@@ -309,7 +310,7 @@ capture limits; historical checkpoint sections do not establish game acceptance.
 
 The public server source comes from the completed private cleanup at `c12fb1b`, including
 the inspector retirement, runtime-helper cleanup and blended scrolling banner.
-The paired client source comes from `618e924`. Current work belongs on public `alpha`.
+The paired client source comes from `618e924`. Current work belongs on public `unstable`.
 The baseline table above records the earlier feature snapshot; it is not the public source head.
 This follow-up retires the management-only native inspector APIs and their exclusive helpers.
 It does not change the client, protocol, database schema, providers or active workers.

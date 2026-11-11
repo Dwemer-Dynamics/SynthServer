@@ -1,8 +1,12 @@
 # Synthserver Repository Instructions
 
 - Synthserver is the backend and web UI for the native SYNTH Fallout 4/F4SE and Fallout 4 VR/F4SEVR clients.
-- Start every feature branch from origin/alpha. Open every PR as a draft targeting alpha.
-- Never use the other Dwemer repos' unstable-first flow. See CONTRIBUTING.md.
+- Start every topic branch from origin/unstable. Open every topic PR, from this repo
+  or a fork (any branch name), as a draft targeting unstable. Never target dev, synth
+  or legacy alpha with a topic PR.
+- Only same-repo managed branches have promotion semantics: maintainer-only
+  unstable -> dev and dev -> synth. Reverse, skipped and alpha promotions are
+  rejected. See CONTRIBUTING.md.
 - Keep plugin/server contracts structured as JSON with explicit schema names.
 - Database changes must be represented in the baseline or migration chain as
   appropriate and remain safe for existing installs.

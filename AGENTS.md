@@ -46,8 +46,9 @@ These instructions apply to the entire repository.
 
 - Start from `docs/HANDOFF.md` (baseline, topology, deferred work, retired ledgers). Track open
   checks and publication gates in `docs/ALPHA-ACCEPTANCE.md`.
-- Start all work from `origin/alpha` and target every draft PR at `alpha`. Do not use
-  the other Dwemer mods' unstable-first workflow. Follow `CONTRIBUTING.md`.
+- Start all topic work from `origin/unstable` and target every draft topic PR at `unstable`.
+  Promotions are only same-repository `unstable` to `dev` and `dev` to `synth`; `alpha` is a
+  legacy branch and never a PR base or promotion source. Follow `CONTRIBUTING.md`.
 - Do not rebuild a chronological progress ledger. Update the relevant feature doc, the handoff
   and the acceptance checklist. Keep workstation paths, deployment receipts and private backup
   locations out of tracked files.
