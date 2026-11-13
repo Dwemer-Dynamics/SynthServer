@@ -123,6 +123,21 @@ final class NativeDialogueTurnTest extends TestCase
         $driver->stream(['driver'=>'player2json']+$base,[],static function(string $delta): void {});
     }
 
+    public function testDriverChecksOwnerBeforeConnectingAndRejectsMissingStatus(): void
+    {
+        $base=['driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1/chat/completions','model'=>'m','reasoning_model'=>false,
+            'metadata'=>'{}','api_key'=>'','max_tokens'=>64];
+        $text=static function(string $delta): void { throw new LogicException('unexpected_text'); };
+        $cancelled=new OpenAiCompatibleDriver(static function(): void { throw new SYNTHProtocolCancelled('request_cancelled'); },
+            static fn(array $connector): array=>$connector);
+        try { $cancelled->stream($base,[],$text); $this->fail('cancelled'); }
+        catch (SYNTHProtocolCancelled $error) { $this->assertSame('request_cancelled',$error->getMessage()); }
+        // A refused connection has no HTTP status and must fail generically, never as a parsed stream.
+        $driver=new OpenAiCompatibleDriver(static function(): void {},static fn(array $connector): array=>$connector);
+        try { $driver->stream($base,[],$text); $this->fail('refused'); }
+        catch (RuntimeException $error) { $this->assertSame('provider_failed',$error->getMessage()); }
+    }
+
     public function testSentencesStreamAsCompleteLines(): void
     {
         $buffer='Hello there. How are';
@@ -145,7 +160,8 @@ final class NativeDialogueTurnTest extends TestCase
             }
             public function conversationRows(array $event, string $targetName, int $limit): array
             {
-                return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')']];
+                return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
+                    ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
         };
         $characters=new class($row,$others,$saved) extends CharacterRepository {
@@ -213,6 +229,45 @@ final class NativeDialogueTurnTest extends TestCase
             'target'=>$this->fixture('valid/speech-receipt.json')['payload']['character'],'audience'=>[],'world'=>['game_time_ticks'=>42]];
     }
 
+    public function testOwnedInteriorAncestryReachesTheNextProviderPrompt(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $context=$this->talkContext();
+        // These CELL/XLCN/PNAM identities were checked against installed Fallout4.esm. Capture is simulated.
+        $context['world']=['location'=>'Dugout Inn','cell'=>'DmndDugoutInn01','worldspace'=>'','weather'=>'',
+            'interior'=>true,'game_time_ticks'=>42,'scene'=>['cell'=>['form_id'=>'0x00001E5D','origin_plugin'=>'Fallout4.esm'],'worldspace'=>null],
+            'location_ref'=>['form_id'=>'0x0000395C','origin_plugin'=>'Fallout4.esm'],
+            'location_ancestry'=>['end'=>'root','chain'=>[
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x00395C','display_name'=>'Dugout Inn'],
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CEF','display_name'=>'Diamond City'],
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CF0','display_name'=>'Commonwealth']]]];
+        foreach (['root','unresolved'] as $case) {
+            $snapshot=$context;
+            if ($case==='unresolved') {
+                array_pop($snapshot['world']['location_ancestry']['chain']);
+                $snapshot['world']['location_ancestry']['end']='unresolved';
+            }
+            [$manager,$output,,$llm]=$this->dialogue($snapshot,$row,[],['Understood.']);
+            $manager->converse($event);
+            $this->assertSame(['complete'],end($output->events));
+            $prompt=$llm->messages[0]['content'];
+            $this->assertStringContainsString('Current location: Dugout Inn, within Diamond City',$prompt);
+            $this->assertStringContainsString('interior: DmndDugoutInn01',$prompt);
+            $this->assertSame(1,substr_count($prompt,'Current location:'));
+            if ($case==='unresolved') {
+                $this->assertStringContainsString('beyond this is not known.',$prompt);
+                $this->assertStringNotContainsString('within Commonwealth',$prompt);
+            } else $this->assertStringContainsString('within Commonwealth',$prompt);
+            $this->assertStringNotContainsString('worldspace:',$prompt);
+            if ($case==='root') {
+                $manager->converse($event);
+                $this->assertSame(['complete'],end($output->events));
+                $this->assertSame(1,substr_count($llm->messages[0]['content'],'Current location:'));
+            }
+        }
+    }
+
     public function testAdmittedTurnStreamsBoundedVoicedLinesAndEndsTruthfully(): void
     {
         $event=$this->fixture('valid/input-text-native-turn.json');
@@ -223,7 +278,10 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([[$id.':dialogue:1','Holding, barely.','cache-'.$id.':dialogue:1'],[$id.':dialogue:2','Thanks.','cache-'.$id.':dialogue:2'],['complete']],$output->events);
         $this->assertStringEndsWith(': '.trim($event['payload']['text']).' (Talking to '.$this->talkContext()['target']['display_name'].')',$utterances->rows[0]);
         $this->assertSame([[$id.':dialogue:1','Holding, barely.'],[$id.':dialogue:2','Thanks.']],array_slice($utterances->rows,1));
-        $this->assertSame([['user','Hello.'],['assistant','Earlier.'],['user',trim($event['payload']['text'])]],
+        // Own-addressed input stays compact; input addressed elsewhere or without an addressee keeps attribution,
+        // a talking-to suffix (even an unparseable name) leading so the bounded long line keeps both names.
+        $this->assertSame([['user','Nate: Unaddressed.'],['user',mb_substr('(Talking to Pipér (Wright)) Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000),0,1000)],
+            ['user','Hello.'],['assistant','Earlier.'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
         // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.
