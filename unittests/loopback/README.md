@@ -39,6 +39,45 @@ Not covered: a client-initiated refresh, a cancelled worker result, a sibling sa
 has its own acknowledged revision, and a failed saved-profile read. The failed read is covered by
 `NativeDialogueTurnTest` and a disposable HTTP probe, not by this check.
 
+## Companion lifecycle
+
+`testCompiledClientCompanionLifecycle` is a separate run. It starts the same driver with the
+second argument `companion` (see the client's `tests/loopback_dialogue/README.md`). The fixture
+companion is Piper (`Fallout4.esm` `0x00002F1F`) in one flat session. The test seeds only a
+loopback LLM connector, a TTS connector and one `default_npc` profile, and it inserts no NPC row
+for Piper. Between phases it writes the fake provider's reply file: ordinary JSON answers on the
+legacy route, a JSON `WaitHere` answer for `Wait here.`, and plain text for the native turns. It
+installs no product hook and no substitute JEV route. It checks:
+
+- The stored snapshot: Piper's identity and audience, and the captured facts as sent.
+- The manual `active_agents` row from the client's `activate`.
+- The `core_npc_master` row that the server created for Piper's identity with the seeded default
+  profile. The native turn resolves that row and reads no saved dynamic profile for Piper.
+- Route ownership. The unmarked question and `Wait here.` complete on the legacy route, with the
+  openaijson prompt and no native utterance. Each marked conversation makes exactly one native
+  provider call and stores one utterance spoken by Piper's identity.
+- The Wait prompt observer reads the captured `wait_held=false` in the command prompt.
+- Exactly one pending `WaitHere` intent owned by Piper, with no target and empty arguments.
+- Two identical `unavailable` results both complete. The conflicting result, the superseded
+  result and the conversation bound to the cancelled context are never claimed. There is one
+  terminal result, the intent is `complete` and one Wait consequence is recorded unverified.
+- The client's server cancellation marks its context anchor `cancelled` (`turn_cancelled`). After
+  re-initialization the session runs generation 2.
+- The request accounting: init 2, context 6, activate 1, input_text 4, action_result 2 and
+  cancel 1. All are `complete` except the cancelled context.
+- The driver's local negatives, which are reported, not sent: the absent actor, the other plugin,
+  the VR scene with no VR Wait capabilities, the cancelled turn, the owner-cancelled result and
+  the stale-generation result.
+
+Simulated in this run:
+
+- The driver's captured actor state and the scene its validator checks are synthetic. The
+  executor outcome is the driver's labelled `SIMULATED` `unavailable` result. Nothing runs in a
+  game and no physical Wait is verified.
+- The test counts provider calls exactly only for the native turns. Legacy calls are checked
+  for the scripted request, and continuations after a result are counted but not required. If a
+  continuation runs, its prompt must report an unverified receipt.
+
 The test is outside `unittests/tests`, so ordinary PHPUnit discovery and CI never run it. Run
 directly, it skips before touching any database.
 
