@@ -178,6 +178,7 @@ Set `SYNTH_CLIENT_ROOT` to a SYNTH checkout to enable the cross-repository wirin
 
 ## Documents
 
+- [Documentation index](docs/README.md): components, notes, source entry points and tests
 - [Developer handoff](docs/HANDOFF.md) and [alpha acceptance and publication gates](docs/ALPHA-ACCEPTANCE.md)
 - [Protocol](docs/PROTOCOL.md), [file layout](docs/SERVER-FILE-LAYOUT.md) and [feature parity matrix](docs/FEATURE-PARITY-MATRIX.md)
 - [Migration source audit](docs/MIGRATION-SOURCE-AUDIT.md), [voice cloning](docs/VOICE-CLONING.md), [curated voice catalog](docs/CURATED-VOICE-CATALOG.md)

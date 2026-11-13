@@ -45,7 +45,8 @@ These instructions apply to the entire repository.
 ## Workflow
 
 - Start from `docs/HANDOFF.md` (baseline, topology, deferred work, retired ledgers). Track open
-  checks and publication gates in `docs/ALPHA-ACCEPTANCE.md`.
+  checks and publication gates in `docs/ALPHA-ACCEPTANCE.md`. Find component notes and source
+  entry points in `docs/README.md`; code and comment conventions are in `CONTRIBUTING.md`.
 - Start all topic work from `origin/unstable` and target every draft topic PR at `unstable`.
   Promotions are only same-repository `unstable` to `dev` and `dev` to `synth`; `alpha` is a
   legacy branch and never a PR base or promotion source. Follow `CONTRIBUTING.md`.
