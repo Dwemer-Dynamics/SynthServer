@@ -1,5 +1,13 @@
 # Synthserver developer handoff
 
+## Maintainer biography extractor
+
+The additive [biography audit and draft workflow](FALLOUT-BIOGRAPHY-EXTRACTOR.md)
+exports official actor metadata, reconciles catalog identities and prepares
+evidence-backed drafts outside the checkout. It never installs profiles.
+Structural exports do not certify named-cast completeness; source access,
+identity review and original field evidence remain explicit gates.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
