@@ -644,7 +644,10 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
     $relationships = $templateValue('relationships');
     $occupation = $templateValue('occupation');
     $appearance = $templateValue('appearance');
-    $skills = $templateValue('skills');
+    // Authored expertise joins the background once; the skills column never carries authored or runtime stats.
+    require_once __DIR__.'/synth_biography.php';
+    $npcStaticBio = synth_biography_background($npcStaticBio, $templateValue('skills'));
+    $skills = '';
     $speechstyle = $templateValue('speechstyle');
     $goals = $templateValue('goals');
 

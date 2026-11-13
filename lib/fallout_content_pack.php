@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__.'/synth_runtime.php';
+require_once __DIR__.'/synth_biography.php';
 
 require_once __DIR__.'/fallout_content_catalog.php';
 
@@ -49,10 +50,13 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
                 if (!$template || !in_array($template['npc_name'],$names,true)) continue;
                 $updates=[];$values=[];
                 foreach (SYNTH_FALLOUT_CONTENT_FIELDS as $field) {
+                    // Authored expertise is filled only as part of the background, never into skills.
+                    if ($field==='skills') continue;
                     $current=trim(strval($profile[$field] ?? ''));
                     $placeholder=($field==='personality' && $current==='A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.')
                         || ($field==='speechstyle' && $current==='Speaks plainly and reacts to the Sole Survivor and the current situation.');
                     $value=trim(strval($template[$field] ?? ''));
+                    if ($field==='npc_static_bio') $value=synth_biography_background($value,strval($template['skills'] ?? ''));
                     if (($current==='' || $placeholder) && $value!=='') {
                         $values[]=$value;$updates[]=$field.'=$'.count($values);
                     }

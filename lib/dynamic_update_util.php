@@ -936,11 +936,6 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
 
             $result = updateDynamicProfileField($npcName, $field, $historyData);
 
-            if ($field=="skills" && $result!==false && !isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
-                $skillsData=getInGameSkillDataFor($npcName);
-                $result.="\n$skillsData";
-            }
-
             if ($result !== false) {
                 $updatedFields[$field] = $result;
                 $successCount++;

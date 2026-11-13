@@ -7,6 +7,7 @@ use Synth\Core\TurnRequest;
 
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once __DIR__.'/SaveState.php';
+require_once dirname(__DIR__).'/lib/synth_biography.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
 final class ContextManager
@@ -24,6 +25,12 @@ final class ContextManager
                 ? strval($actor['display_name'] ?? '') : '', $payload['audience'] ?? [])))];
         if (is_array($payload['world'] ?? null)) $situation['world'] = array_intersect_key($payload['world'], array_flip(['location', 'time', 'weather']));
         return $situation;
+    }
+
+    // The addressed actor's own SPECIAL values from this bound snapshot; never a name or stored profile.
+    public function skills(TurnRequest $request, PlacedCharacter $character): string
+    {
+        return \synth_actor_stats_prompt($request->event, \synth_actor_stats_state($request->context, $character->identity));
     }
 
     // Oldest first, speaker prefix and talking-to suffix removed.

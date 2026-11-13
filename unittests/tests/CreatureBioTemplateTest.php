@@ -36,6 +36,11 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
             $template = synth_fetch_bio_template($this->db(), $name, '', $baseid);
             self::assertSame($expected, $template['npc_name'] ?? null, $name);
             self::assertTrue(boolval($template['is_nonverbal_creature'] ?? false), $name);
+            require_once dirname(__DIR__,2).'/managers/PromptManager.php';
+            $character=new \Synth\Core\PlacedCharacter('creature-test',['display_name'=>$name],1,$template,[],[]);
+            $prompt=(new \Synth\Managers\PromptManager())->messages($character,[],[],'Hello.')[0]['content'];
+            self::assertStringContainsString($template['speechstyle'],$prompt,$name);
+            self::assertStringContainsString('Respect nonverbal speech restrictions.',$prompt,$name);
         }
     }
 

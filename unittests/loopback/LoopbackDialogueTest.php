@@ -460,6 +460,9 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         }
         if ($name==='older_talk' || $name==='newer_talk') {
             $prompt=$this->prompt($name==='older_talk' ? 2 : 3);
+            $serialized=json_encode($prompt['messages'],JSON_THROW_ON_ERROR);
+            $this->assertStringContainsString($name==='older_talk' ? 'Strength 4/5' : 'Strength 4/6',$serialized);
+            $this->assertStringNotContainsString('Strength 4/4',$serialized,'saved actor stats cannot replace fresh capture');
             $this->report("prompt_$name",['session'=>$value['session'],'loaded_context'=>$value['loaded_context']]+$prompt);
             $this->profilePrompt($name,$prompt,$name==='older_talk' ? 'older' : 'newer',$this->canonical($value['session'],$value['request_id']));
             if ($name==='older_talk') {
@@ -635,6 +638,11 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame([],$this->utterances($session,$value['request_id']),'the legacy route records no native utterance');
         $this->assertGreaterThanOrEqual(1,$value['dialogue_lines']);
         $prompt=$this->scriptedRequest('question',self::QUESTION,true);
+        $this->assertStringContainsString('Strength 0/1.5',$prompt);
+        $this->assertStringContainsString('Luck unknown',$prompt);
+        $this->assertSame(1,substr_count($prompt,'Investigation, interviewing, writing and public advocacy.'));
+        $this->assertStringNotContainsString('actor_stats',$prompt);
+        $this->report('biography_ordinary_prompt',['bytes'=>strlen($prompt),'prompt'=>$prompt]);
         $this->script('Loopback companion reply CMP4410.');
         $this->report('companion_question',['npc'=>$this->companion['npc'],'request_id'=>$value['request_id'],
             'wait_observer'=>str_contains($prompt,self::WAIT_OBSERVED)]);
@@ -650,7 +658,11 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             'context_sequence'=>strval($value['context_sequence']),'speaker_identity_id'=>strval($piper),'text'=>$value['text']]],
             $this->utterances($session,$value['request_id']));
         $this->assertStringContainsString('CMP4410',$value['text']);
-        $this->scriptedRequest('conversation',self::CONVERSATION,false,true);
+        $prompt=$this->scriptedRequest('conversation',self::CONVERSATION,false,true);
+        foreach (['Short description:','Background:','Appearance:','Personality:','Occupation:','Speechstyle:','Goals:',
+            'Strength 0/1.5','Luck unknown'] as $section) $this->assertStringContainsString($section,$prompt);
+        $this->assertSame(1,substr_count($prompt,'Investigation, interviewing, writing and public advocacy.'));
+        $this->report('biography_native_prompt',['bytes'=>strlen($prompt),'prompt'=>$prompt]);
         // The native turn resolved the server-created row and profile, and no saved dynamic profile replaced it.
         $repository=new \Synth\Core\CharacterRepository(new sql());
         $registered=$repository->registered(self::PIPER,'Fallout4.esm',$playthrough);

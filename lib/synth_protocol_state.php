@@ -2438,7 +2438,7 @@ function synth_protocol_prompt_actor_states(
         if (!is_array($state)) continue;
         // A different participant's combat target is not knowledge for this response speaker.
         // The selected speaker's dedicated prompt is rendered separately from these generic states.
-        unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['conversation_held']);
+        unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['conversation_held'],$state['actor_stats']);
         // A historical numeric default does not prove a successful native actor-value read.
         foreach (['health_percent','action_points_percent'] as $field) {
             $available = ($state[$field . '_available'] ?? false) === true;

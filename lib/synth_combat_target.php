@@ -10,7 +10,7 @@ function synth_combat_identity_key(array $identity): string
 // Ordinary internal/history copies cannot distribute an NPC's current target to other readers.
 function synth_protocol_without_combat_targets(array $states): array
 {
-    foreach ($states as &$state) if (is_array($state)) unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness']);
+    foreach ($states as &$state) if (is_array($state)) unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['actor_stats']);
     unset($state);
     return $states;
 }
