@@ -226,7 +226,7 @@ final class NativeDialogueTurnTest extends TestCase
                 ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x00395C','display_name'=>'Dugout Inn'],
                 ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CEF','display_name'=>'Diamond City'],
                 ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CF0','display_name'=>'Commonwealth']]]];
-        foreach (['root','unresolved','repeat'] as $case) {
+        foreach (['root','unresolved'] as $case) {
             $snapshot=$context;
             if ($case==='unresolved') {
                 array_pop($snapshot['world']['location_ancestry']['chain']);
@@ -244,6 +244,11 @@ final class NativeDialogueTurnTest extends TestCase
                 $this->assertStringNotContainsString('within Commonwealth',$prompt);
             } else $this->assertStringContainsString('within Commonwealth',$prompt);
             $this->assertStringNotContainsString('worldspace:',$prompt);
+            if ($case==='root') {
+                $manager->converse($event);
+                $this->assertSame(['complete'],end($output->events));
+                $this->assertSame(1,substr_count($llm->messages[0]['content'],'Current location:'));
+            }
         }
     }
 
@@ -625,5 +630,47 @@ final class NativeDialogueTurnTest extends TestCase
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertArrayNotHasKey('native_turn',$status);
         } finally { $GLOBALS['SYNTH_REQUEST_EVENT']=$saved; }
+    }
+
+    // Condition comes only from the admitted snapshot's own rows for the exact player and responder.
+    public function testSituationConditionProjectsOnlyTheSnapshotRowsOfTheExactPlayerAndResponder(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $state=static fn(array $actor, $health, $ap, ?bool $healthOk=true, ?bool $apOk=true)=>['actor'=>$actor,
+            'health_percent'=>$health,'action_points_percent'=>$ap]+array_filter(['health_percent_available'=>$healthOk,
+            'action_points_percent_available'=>$apOk],static fn($flag)=>$flag!==null);
+        $snapshot=function (array ...$states): array { $context=$this->talkContext(); $context['actor_states']=$states; return $context; };
+        $condition=function (array $context) use ($event,$row): array {
+            [$manager,$output,,$llm]=$this->dialogue($context,$row,[],['Fine.']);
+            $manager->converse($event);
+            $this->assertSame(['complete'],end($output->events));
+            $system=$llm->messages[0]['content'];
+            $situation=json_decode(substr($system,strrpos($system,"\nSituation: ")+12),true,flags:JSON_THROW_ON_ERROR);
+            return [$situation['condition']['player'],$situation['condition']['responder']];
+        };
+        $player=$this->talkContext()['player'];
+        $npc=$this->talkContext()['target'];
+        $seen=static fn($health,$ap)=>['observation'=>'observed','health_percent'=>$health,'action_points_percent'=>$ap];
+        $unknown=['observation'=>'unknown','health_percent'=>null,'action_points_percent'=>null];
+
+        // Injured, then recovered on a separate snapshot; the stale snapshot keeps its own values and is not mutated.
+        $injured=$snapshot($state($player,40,75),$state($npc,25.5,60));
+        $copy=$injured;
+        $this->assertSame([$seen(40,75),$seen(25.5,60)],$condition($injured));
+        $this->assertSame([$seen(100,100),$seen(90,60)],$condition($snapshot($state($player,100,100),$state($npc,90,60))));
+        $this->assertSame([$seen(40,75),$seen(25.5,60)],$condition($injured));
+        $this->assertSame($copy,$injured);
+
+        // Zero is a valid read; an unattested placeholder is null and two unattested values are unknown.
+        $this->assertSame([$seen(0,null),$seen(null,0)],$condition($snapshot($state($player,0,50,true,false),$state($npc,100,0,null,true))));
+        $this->assertSame([$unknown,$unknown],$condition($snapshot($state($player,40,75,false,false),$state($npc,25,60,null,null))));
+
+        // Missing, duplicated or same-name rows of another identity are never the participant's condition.
+        $sameName=['form_id'=>'0x0001A4D8']+$npc;
+        $this->assertSame([$unknown,$seen(25,60)],$condition($snapshot($state($npc,25,60))));
+        $this->assertSame([$seen(40,75),$unknown],$condition($snapshot($state($player,40,75),$state($sameName,10,10))));
+        $this->assertSame([$seen(40,75),$unknown],$condition($snapshot($state($player,40,75),$state($npc,25,60),$state($npc,90,60))));
+        $this->assertSame([$unknown,$seen(25,60)],$condition($snapshot($state(['playthrough_id'=>'save-2']+$player,40,75),$state($npc,25,60))));
     }
 }
