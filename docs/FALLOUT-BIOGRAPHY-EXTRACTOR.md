@@ -39,6 +39,10 @@ named-cast completeness. Exact base identities, physical-form aliases and
 reference-only catalog bindings are reconciled independently. Unreviewed ACHR
 instances are counted separately and do not create additional biographies.
 An explicitly reviewed reference-only candidate retains that binding kind.
+An eligible reference whose exact base link points to a base that is also
+reviewed eligible is withheld as ambiguous together with that base, even under
+different character keys, until the reviewer excludes the redundant form. Several
+eligible references may still share a generic base that is not itself eligible.
 A base placed by a catalog-bound reference (for example a shared robot base) and
 a reference placing a catalog-bound base stay ambiguous with that reason; neither
 can become a second biography, and a shared base gains no name-specific binding.
@@ -80,8 +84,19 @@ The example identifiers are placeholders. `excluded` and `ambiguous` are also
 valid statuses with a reason. Every eligible decision is grouped by its proposed
 character key first: if more than one form shares a key, all of them are withheld
 (even when one is otherwise unresolved) until a canonical binding is settled. Existing
-catalog keys cannot become new candidates. All seven official base/DLC plugins
-are reported; structural exports alone do not certify a complete named census.
+catalog keys cannot become new candidates.
+
+Real ACHR records carry no FULL, so their exported `display_name` is empty. A
+reference entry may add a reviewed `display_name` (non-empty, at most 128 UTF-8
+bytes, no NUL); base entries may not. It is the draft label only: the exported
+record stays unchanged in `coverage.json`, the missing entry reports it as
+`draft_display_name`, and the candidate's `display_name` uses it. It is not
+evidence that the game record carries that name and is never used for binding,
+which still requires an exact `refid=`/`editorid=` proof. Base candidates and
+references without a reviewed label use the record's own name.
+
+All seven official base/DLC plugins are reported; structural exports alone do
+not certify a complete named census.
 
 ## Fetch permitted sources once
 
@@ -111,8 +126,10 @@ python tools/extract-fallout-biographies.py --inventory "WORK/inventory.json" --
 
 Caches retain the response, revision, timestamp, source URL, attribution, history
 link and policy evidence. Unavailable sources are cached as unavailable. Offline
-mode is the default and never contacts the network. Cached successful records
-are checked before use: response checksum, revision, timestamp, title,
+mode is the default and never contacts the network. Every existing cache file is
+checked before the first request or cache write; a mismatched, corrupt or
+unknown-status entry anywhere in the queue refuses the run. Cached successful records
+are checked: response checksum, revision, timestamp, title,
 canonical URL, attribution and history link, rights metadata, and robots
 permission for the exact article and rights request URLs. Local cache
 files and review ledgers remain maintainer-controlled evidence, not signatures

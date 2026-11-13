@@ -147,6 +147,12 @@ def audit(inventory, decisions, catalog):
                 raise ValueError('Invalid/duplicate actor review identity')
             if decision.get('status') not in ('eligible', 'excluded', 'ambiguous'):
                 raise ValueError('Invalid review status')
+            # ACHR records carry no FULL; a reviewed label names the draft only and never binds it.
+            if 'display_name' in decision:
+                label = decision['display_name']
+                if (decision['kind'] != 'reference' or not isinstance(label, str) or not label
+                        or len(label.encode()) > 128 or '\0' in label):
+                    raise ValueError('Invalid reviewed reference display name')
             reviewed[identity] = decision
         report['review_sha256'] = sha(decisions.read_bytes())
     # Group every eligible decision by proposed character before any form can become missing.
@@ -158,6 +164,18 @@ def audit(inventory, decisions, catalog):
             if not isinstance(character, str) or not re.fullmatch('[a-z0-9_]{1,100}', character) or character in catalog_keys:
                 raise ValueError('Invalid/existing candidate character key')
             proposed.setdefault(character, []).append(identity)
+    # An eligible reference placing an eligible base would yield two drafts for one actor whatever
+    # the keys; both wait until the reviewer excludes the redundant form. Shared bases stay possible.
+    open_forms = {identity for identity, decision in reviewed.items() if decision['status'] == 'eligible'
+                  and not effective[identity]['deleted'] and identity not in bindings}
+    paired = {}
+    for identity in open_forms:
+        row = effective[identity]
+        if row['kind'] == 'reference' and 'base' in row:
+            base = key(row['base']['plugin'], 'base', row['base']['local_id'])
+            if base in open_forms:
+                paired.setdefault(identity, set()).add(base)
+                paired.setdefault(base, set()).add(identity)
     # A base placed by a catalog-bound reference may be shared; it never gains a name-specific binding.
     bound_bases = {}
     for identity, row in effective.items():
@@ -180,6 +198,7 @@ def audit(inventory, decisions, catalog):
                 report['unreviewed_references'][row['plugin']] = report['unreviewed_references'].get(row['plugin'], 0) + 1
                 continue
         decision = reviewed.get(identity, {})
+        label = decision.get('display_name') or row['display_name']
         status, reason = 'ambiguous', 'Named identity/alias/cut-content classification requires review'
         base = key(row['base']['plugin'], 'base', row['base']['local_id']) if 'base' in row else None
         if row['deleted']:
@@ -192,18 +211,25 @@ def audit(inventory, decisions, catalog):
             reason = 'Base of catalog-bound reference ' + bound_bases[identity] + '; shared bases gain no name-specific binding'
         elif base in bindings:
             reason = 'Placed reference of catalog-bound base ' + base + ' (' + bindings[base] + ')'
+        elif identity in paired:
+            reason = ('Reviewed base/reference pair with ' + ', '.join(sorted(paired[identity]))
+                      + '; exclude the redundant form to select one canonical binding')
         elif decision.get('status') == 'eligible':
             # A reviewer must explicitly account for aliases before allowing a new biography.
             if len(proposed.get(decision.get('character_key'), [])) > 1:
                 # Unknown aliases need a reviewed single canonical binding, never one bio per form.
                 reason = 'Multiple reviewed forms share proposed character ' + decision['character_key'] + '; canonical binding unresolved'
-            elif decision.get('aliases_checked') is True and row['display_name'] and not row.get('name_unresolved') and decision.get('character_key'):
+            elif decision.get('aliases_checked') is True and label and not row.get('name_unresolved') and decision.get('character_key'):
                 status, reason = 'missing', decision['reason']
         elif decision:
             reason = decision['reason']
-        report['actors'].append({'identity': identity, 'status': status, 'reason': reason,
+        entry = {'identity': identity, 'status': status, 'reason': reason,
             'record': row, 'review': decision, 'catalog_key': bindings.get(identity),
-            'editor_id_unique': editors[row['editor_id'].lower()] == 1})
+            'editor_id_unique': editors[row['editor_id'].lower()] == 1}
+        if status == 'missing':
+            # The record stays as exported; a reviewed reference label is draft output only.
+            entry['draft_display_name'] = label
+        report['actors'].append(entry)
         report['plugins'][row['plugin']][status] += 1
     report['missing_catalog_bindings_in_export'] = sorted(set(bindings) - set(effective))
     report['totals'] = dict(Counter(entry['status'] for entry in report['actors']))
@@ -227,8 +253,10 @@ def fetch_bytes(url):
 
 
 def validate_source(entry):
-    if entry.get('status') != 'available':
+    if entry.get('status') == 'unavailable' and isinstance(entry.get('reason'), str):
         return
+    if entry.get('status') != 'available':
+        raise ValueError('Cached source status is malformed or unknown')
     source = entry['source']
     policy = obj(entry.get('policy'), 'cached policy')
     robot = urllib.robotparser.RobotFileParser()
@@ -285,17 +313,23 @@ def research(queue_path, cache, online):
                 or not isinstance(title, str) or not 1 <= len(title) <= 256 or set(source) != {'id', 'host', 'title'}):
             raise ValueError('Invalid source identity')
         ids.add(sid)
+    # Every existing cache entry is validated before the first request or cache write.
+    cached = {}
+    for source in queued:
+        target = cache / (source['id'] + '.json')
+        if target.exists():
+            entry = obj(read(target), 'cached source')
+            if entry.get('source') != source:
+                raise ValueError('Cache/source mismatch')
+            validate_source(entry)
+            cached[source['id']] = entry
     result = {}
     policies = {}
     for source in queued:
         sid, host, title = source['id'], source['host'], source['title']
         target = cache / (sid + '.json')
-        if target.exists():
-            cached = obj(read(target), 'cached source')
-            if cached.get('source') != source:
-                raise ValueError('Cache/source mismatch')
-            validate_source(cached)
-            result[sid] = cached
+        if sid in cached:
+            result[sid] = cached[sid]
             continue
         if not online:
             result[sid] = {'source': source, 'status': 'unavailable', 'reason': 'No cached response; offline mode'}
@@ -459,7 +493,7 @@ def drafts(report, ledger, sources, limit):
         record = entry['record']
         source = binding_source
         candidate = {'plugin': record['plugin'],
-            'npc_name': entry['review']['character_key'], 'display_name': record['display_name'],
+            'npc_name': entry['review']['character_key'], 'display_name': entry['draft_display_name'],
             'is_nonverbal_creature': False, 'fields': output,
             'source_url': 'https://' + source['source']['host'] + '/wiki/' + urllib.parse.quote(source['source']['title'])}
         if record['kind'] == 'reference':
