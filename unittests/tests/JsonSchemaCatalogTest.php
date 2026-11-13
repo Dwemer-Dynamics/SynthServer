@@ -11,6 +11,49 @@ require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'
 
 final class JsonSchemaCatalogTest extends TestCase
 {
+    public function testCompanionCombatEvidenceAndCurrentSpeakerAreRequired(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/player_reaction.php';
+        $root=dirname(__DIR__,2);
+        $event=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/player-combat-end-participants.json'),true);
+        $this->assertSame($event,synth_protocol_validate_event($event));
+        $transition=$event['payload']['player_event'];
+        $target=$event['payload']['player_event']['participants'][0];
+        $state=['actor'=>$target,'teammate'=>true,'alive'=>true,'disabled'=>false,'in_combat'=>false,
+            'hostile_to_player'=>false,'talking_to_player'=>false,'life_state'=>'alive','posture'=>'normal'];
+        $context=['target'=>$target,'payload'=>['audience'=>[$target],'actor_states'=>[$state]]];
+        $this->assertTrue(synthCompanionCommentSpeakerAvailable($context,$transition['participants']));
+        $this->assertFalse(synthCompanionCommentSpeakerAvailable($context,[]));
+        foreach (['teammate'=>false,'wait_held'=>true,'alive'=>false,'disabled'=>true,'in_combat'=>true] as $key=>$value) {
+            $bad=$context;$bad['payload']['actor_states'][0][$key]=$value;
+            $this->assertFalse(synthCompanionCommentSpeakerAvailable($bad,$transition['participants']),$key);
+        }
+        $bad=$context;$bad['target']['playthrough_id']='another-save';
+        $this->assertFalse(synthCompanionCommentSpeakerAvailable($bad,$transition['participants']));
+        $prompts=[];
+        synthApplyPlayerReactionPrompt($prompts,['kind'=>'combat_end','companion'=>true,'text'=>'Recorded combat ended.'],'');
+        $this->assertStringContainsString('Do not assume victory',$prompts['combatend']['cue'][0]);
+        $this->assertSame(['Recorded combat ended.'],$prompts['combatend']['player_request']);
+        $saved=$GLOBALS['SYNTH_REQUEST_EVENT']??null;
+        try {
+            foreach (['flat','vr'] as $lane) foreach ([false,true] as $complete) {
+                $caps=['context.player_events','dialogue.player_reactions','dialogue.companion_combat_comments'];
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['type'=>'init','protocol_version'=>2,'runtime_variant'=>$lane,
+                    'generation'=>1,'request_id'=>'companion-init','turn_id'=>'companion-turn',
+                    'capabilities'=>$complete?$caps:array_slice($caps,1)]];
+                $lines=explode("\n",trim(synth_protocol_encode_ack('init_accepted')));
+                $this->assertSame($lane==='flat'&&$complete,json_decode($lines[1],true)['payload']['companion_combat_comments']??false);
+            }
+        } finally {
+            if ($saved===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT']=$saved;
+        }
+        foreach (glob($root.'/protocol/v2/fixtures/invalid/companion-combat-comment-*.json') as $file) {
+            $script='require '.var_export($root.'/lib/request.php',true).'; synth_protocol_validate_event(json_decode(file_get_contents('.var_export($file,true).'),true)); echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,basename($file));
+        }
+    }
+
     public function testFreshRechatSceneKeepsSeparateParentOwnership(): void
     {
         require_once dirname(__DIR__,2).'/lib/request.php';

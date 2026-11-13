@@ -4,7 +4,8 @@
 function synthValidatePlayerEvent($event): array
 {
     if (!is_array($event) || array_is_list($event)
-        || count($event)!==6 || array_diff(array_keys($event),['event_id','kind','before','after','interval_ms','age_ms'])
+        || count($event)!==(array_key_exists('participants',$event)?7:6)
+        || array_diff(array_keys($event),['event_id','kind','before','after','interval_ms','age_ms','participants'])
         || !is_string($event['event_id'] ?? null) || !preg_match('/^player:[1-9][0-9]{0,15}$/D',$event['event_id'])
         || intval(substr($event['event_id'],7))>9007199254740991
         || !in_array($event['kind'] ?? '',['level_up','combat_end'],true)) {
@@ -26,7 +27,29 @@ function synthValidatePlayerEvent($event): array
     if ($after['game_time_ticks']<$before['game_time_ticks'] || $after['level']<$before['level']
         || ($event['kind']==='level_up' ? $after['level']<=$before['level'] : (!$before['in_combat'] || $after['in_combat'])))
         throw new DomainException('unproven_player_transition');
+    if (array_key_exists('participants',$event)) synthValidateCombatParticipants($event);
     return $event;
+}
+
+// Copied encounter observations only: a teammate seen in combat before this end, never a claimed role or outcome.
+function synthValidateCombatParticipants(array $event): void
+{
+    $participants=$event['participants'];
+    if ($event['kind']!=='combat_end' || !is_array($participants) || !array_is_list($participants)
+        || count($participants)<1 || count($participants)>8) throw new DomainException('invalid_combat_participants');
+    $seen=[];
+    foreach ($participants as $participant) {
+        if (!is_array($participant) || array_is_list($participant) || count($participant)!==6
+            || array_diff(array_keys($participant),['form_id','origin_plugin','playthrough_id','observed_game_time_ticks','in_combat','teammate'])
+            || !is_string($participant['form_id'] ?? null) || !preg_match('/^0x[0-9A-F]{8}$/D',$participant['form_id'])
+            || !is_string($participant['origin_plugin'] ?? null) || $participant['origin_plugin']==='' || strlen($participant['origin_plugin'])>260
+            || !is_string($participant['playthrough_id'] ?? null) || $participant['playthrough_id']==='' || strlen($participant['playthrough_id'])>128
+            || !is_int($participant['observed_game_time_ticks'] ?? null) || $participant['observed_game_time_ticks']<1
+            || $participant['observed_game_time_ticks']>$event['after']['game_time_ticks']
+            || ($participant['in_combat'] ?? null)!==true || ($participant['teammate'] ?? null)!==true
+            || isset($seen[$participant['form_id']])) throw new DomainException('invalid_combat_participants');
+        $seen[$participant['form_id']]=true;
+    }
 }
 
 // Runs inside context admission's session lock/transaction; duplicate delivery never moves its original save frontier.
@@ -38,6 +61,11 @@ function synthPersistPlayerEvent($db, array $event): void
         || !in_array('context.player_events',$event['capabilities'] ?? [],true)) throw new DomainException('player_events_capability_required');
     $transition=synthValidatePlayerEvent($payload['player_event']);
     $player=array_intersect_key($payload['player'],array_flip(['form_id','origin_plugin','playthrough_id']));
+    foreach ($transition['participants'] ?? [] as $participant) {
+        if (!in_array('dialogue.companion_combat_comments',$event['capabilities'] ?? [],true)
+            || $participant['playthrough_id']!==$payload['playthrough_id']
+            || strcasecmp($participant['form_id'],$player['form_id'])===0) throw new DomainException('combat_participants_unbound');
+    }
     $input=$transition;unset($input['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id']];
     $result=$db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM synth_meta.history_events
