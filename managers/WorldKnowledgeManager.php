@@ -15,7 +15,8 @@ require_once dirname(__DIR__).'/lib/worldknowledge_vocabulary.php';
 
 // World Knowledge for one native conversation turn: the shared effective catalogue, deterministic retriever,
 // access tiers and article renderer, driven only by explicit inputs (server configuration, stored general settings,
-// the admitted NPC and profile rows, and this request's bound snapshot). It writes no request globals.
+// the admitted NPC and profile rows, and this request's bound snapshot). It binds no ordinary per-turn identity or
+// settings globals; shared helpers it calls may still read process globals such as the legacy claimed-request flag.
 // Deliberate native limits: no extractor/LLM fallback, no stored current-topic signal and no forced location/actor
 // articles, so retrieval never adds a provider call. Quest participant tiers use the quest reader for this request,
 // which stays unavailable without a claimed legacy request; only reviewed public quest text can then be granted.

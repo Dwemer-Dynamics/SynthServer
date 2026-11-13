@@ -64,6 +64,8 @@ compiled client, game or VR):
   the reviewed public premise and never raw custom text. Two synthetic NPC refs with the same
   name, using real prewar and postwar base IDs in synthetic captured state, are kept apart
   (the prewar base denies, the postwar base gets basic); not verified in game.
-  The service does not read or write ordinary request globals.
+  The service takes its actor, profile, settings and world inputs explicitly and binds no
+  ordinary per-turn identity or settings globals (shared helpers may still read process
+  globals such as the legacy claimed-request flag).
 - The existing World Knowledge, forced-context, prewar, vocabulary, DLC, everyday-lore,
   quest-access and native dialogue suites pass unchanged.
