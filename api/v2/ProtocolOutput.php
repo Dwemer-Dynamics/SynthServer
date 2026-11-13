@@ -2,14 +2,14 @@
 
 namespace Synth\Api\V2;
 
-use Synth\Core\TurnOutput;
+use Synth\Core\NarratorOutput;
 
-require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
+require_once dirname(__DIR__, 2).'/core/contracts/narrator.php';
 require_once dirname(__DIR__, 2).'/lib/response.php';
 
 // Request-local NDJSON output and liveness for one v2 request. Lines use the shared wire encoders and route
 // recorder; the body kept here is the replayable response stored with the request's first terminal outcome.
-final class ProtocolOutput implements TurnOutput
+final class ProtocolOutput implements NarratorOutput
 {
     private string $body = '';
     private bool $started = false;
@@ -50,6 +50,13 @@ final class ProtocolOutput implements TurnOutput
     {
         $this->start();
         $this->line('dialogue', $payload, $suffix, ['utterance_id' => $lineId]);
+    }
+
+    // A typed line other than dialogue: private narrator state, reply and status lines.
+    public function emit(string $type, string $suffix, array $payload): void
+    {
+        $this->start();
+        $this->line($type, $payload, $suffix);
     }
 
     public function complete(): void

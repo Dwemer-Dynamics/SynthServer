@@ -948,6 +948,9 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'owned_speech_receipt_required']]);
         }
         $payload['character']=synth_protocol_validate_identity($payload['character'] ?? null,'payload.character');
+    } elseif (in_array($type,['narrator_command','narrator_turn','narrator_receipt'],true)) {
+        require_once __DIR__.'/synth_private_narrator.php';
+        $payload=synth_private_narrator_validate_payload($type,$payload);
     } elseif ($type === 'cancel') {
         synth_protocol_expect_exact_keys($payload, ['cancel_request_id'], [], 'payload');
         if (!synth_protocol_valid_id($payload['cancel_request_id'] ?? null)) {
@@ -971,7 +974,8 @@ function synth_protocol_validate_event(array $event): array
     synth_protocol_expect_exact_keys($event, $required, [], 'event');
 
     $types = ['init', 'input_text', 'input_audio', 'context', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result', 'cancel', 'halt'];
-    if ($version === 2) array_push($types,'control','social_task_request','social_task_progress','speech_receipt');
+    if ($version === 2) array_push($types,'control','social_task_request','social_task_progress','speech_receipt',
+        'narrator_command','narrator_turn','narrator_receipt');
     $valid = in_array($version, [1, 2], true)
         && $event['schema'] === 'synth.event.v' . $version
         && in_array($event['type'], $types, true)
@@ -993,7 +997,7 @@ function synth_protocol_validate_event(array $event): array
         synth_protocol_fail('invalid_envelope', 422, [['field' => 'event', 'issue' => 'invalid']]);
     }
     if ($version === 2) {
-        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result','social_task_request','social_task_progress','speech_receipt'], true);
+        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result','social_task_request','social_task_progress','speech_receipt','narrator_command','narrator_turn','narrator_receipt'], true);
         $sequence = $event['context_sequence'];
         if (!is_int($sequence) || $sequence > 9007199254740991
             || ($bound ? $sequence < 1 : $sequence !== 0)) {
@@ -1065,6 +1069,8 @@ function synth_protocol_validate_event(array $event): array
     if (($event['type']==='speech_receipt' || $conversationIntent || isset($seen['dialogue.native_turn']))
         && ($event['protocol_version']!==2 || !isset($seen['dialogue.native_turn']) || !isset($seen['dialogue.turn_ownership'])))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'native_turn_capability_required']]);
+    if (str_starts_with($event['type'],'narrator_') && !synth_private_narrator_supported($event))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'private_narrator_capability_required']]);
     $ownedRechat=in_array('dialogue.rechat.ownership',$event['capabilities'],true);
     $sceneRechat=in_array('dialogue.rechat.scene',$event['capabilities'],true);
     if ($event['type']==='context' && array_key_exists('scene',$event['payload']['world'] ?? []) && !$sceneRechat) {

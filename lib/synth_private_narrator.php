@@ -43,7 +43,8 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
         if (!synth_private_narrator_valid_definition_id($payload['definition_id'])
             || !synth_private_narrator_valid_record_id($payload['state_id'], 0)
             || ($kind === 'typed' && (!is_string($payload['text']) || trim($payload['text']) === ''
-                || strlen($payload['text']) > 4096 || preg_match('//u', $payload['text']) !== 1))) $invalid('narrator_turn_invalid');
+                || strlen($payload['text']) > 4096 || str_contains($payload['text'], "\0")
+                || preg_match('//u', $payload['text']) !== 1))) $invalid('narrator_turn_invalid');
         if ($kind === 'voice') $payload['media'] = synth_protocol_validate_media($payload['media'], 'payload.media');
     } else {
         synth_protocol_expect_exact_keys($payload, ['narrator_request_id', 'line_id', 'definition_id', 'revision_id',
