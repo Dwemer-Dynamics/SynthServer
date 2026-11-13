@@ -393,6 +393,80 @@ if (!function_exists('synthGetSelectOptionsForOverrideSetting')) {
     }
 }
 
+if (!function_exists('synthGetGlobalOnlySettingIds')) {
+    // Their consumers read synth.general_settings directly rather than the runtime globals, so a profile
+    // or NPC override would be stored but never applied. They are edited on the global pages only.
+    function synthGetGlobalOnlySettingIds(): array
+    {
+        return [
+            'GLOBAL_STT_CONNECTOR_ID',
+            'GLOBAL_ITT_CONNECTOR_ID',
+            'NEVER_CLEAR_RELATIONSHIP_DATA',
+            'PROMPT_CONTEXT_OPTIONS',
+            'PIPVISION_IMAGE_QUALITY',
+            'PIPVISION_REQUEST_TIMEOUT_SECONDS',
+            'VISUAL_CONTEXT_PROMPT_MAX_CHARS',
+            'VISUAL_CONTEXT_SCENE_TTL_MINUTES',
+        ];
+    }
+}
+
+if (!function_exists('synthDescribeInheritedSettings')) {
+    // What an override would replace for each catalog key, mirroring the runtime order: stored global row,
+    // then a profile metadata value that CoreProfile::setOldGlobals applies (not null or ''). With an NPC row,
+    // NpcMaster::setOldGlobalsFromCurrentNpcData then applies the emote_moods and prompt_head fields and the
+    // NPC metadata (not null, '' or []) before extended_data, so those replace the profile and global values.
+    function synthDescribeInheritedSettings(array $catalog, ?array $profileRow = null, ?array $npcRow = null): array
+    {
+        $profileMetadata = [];
+        if (is_array($profileRow)) {
+            $decoded = json_decode(strval($profileRow['metadata'] ?? '{}'), true);
+            $profileMetadata = is_array($decoded) ? $decoded : [];
+        }
+        $profileLabel = is_array($profileRow) ? trim(strval($profileRow['label'] ?? '')) : '';
+        if ($profileLabel === '' && is_array($profileRow)) {
+            $profileLabel = 'Profile ' . intval($profileRow['id'] ?? 0);
+        }
+
+        $npcMetadata = [];
+        $npcFields = [];
+        if (is_array($npcRow)) {
+            $decoded = json_decode(strval($npcRow['metadata'] ?? '{}'), true);
+            $npcMetadata = is_array($decoded) ? $decoded : [];
+            foreach (['REMOVE_ASTERISKS_FROM_PLAYER_INPUT', 'REMOVE_ASTERISKS_FROM_NPC_OUTPUT', 'INLINE_NARRATION_MODE',
+                'REMOVE_PLAYER_AUTOCHAT_ASTERISKS', 'PRESERVE_ASTERISKS_IN_CONTEXT'] as $narratorKey) {
+                unset($npcMetadata[$narratorKey]);
+            }
+            $moods = $npcRow['emote_moods'] ?? null;
+            if ($moods !== null && !empty(trim(strval($moods)))) {
+                $npcFields['EMOTEMOODS'] = ['NPC Emote Moods field', $moods];
+            }
+            $head = $npcRow['prompt_head'] ?? null;
+            if ($head !== null && trim(strval($head)) !== '') {
+                $npcFields['PROMPT_HEAD'] = ['NPC Prompt Head field', $head];
+            }
+        }
+
+        $inherited = [];
+        foreach ($catalog as $id => $entry) {
+            $value = $profileMetadata[$id] ?? null;
+            $npcValue = $npcMetadata[$id] ?? null;
+            if (array_key_exists($id, $npcMetadata) && (!empty($npcValue) || is_numeric($npcValue) || is_bool($npcValue))) {
+                $inherited[$id] = ['scope' => 'npc_metadata', 'source' => 'NPC metadata', 'value' => $npcValue];
+            } elseif (isset($npcFields[$id])) {
+                $inherited[$id] = ['scope' => 'npc_field', 'source' => $npcFields[$id][0], 'value' => $npcFields[$id][1]];
+            } elseif ($value !== null && $value !== '') {
+                $inherited[$id] = ['scope' => 'profile', 'source' => $profileLabel, 'value' => $value];
+            } elseif (($entry['global_value'] ?? null) !== null) {
+                $inherited[$id] = ['scope' => 'global', 'source' => 'Global', 'value' => $entry['global_value']];
+            } else {
+                $inherited[$id] = ['scope' => 'config', 'source' => 'Server config', 'value' => null];
+            }
+        }
+        return $inherited;
+    }
+}
+
 if (!function_exists('synthGetOverrideableGeneralSettingsCatalog')) {
     function synthGetOverrideableGeneralSettingsCatalog(): array
     {
@@ -407,7 +481,6 @@ if (!function_exists('synthGetOverrideableGeneralSettingsCatalog')) {
 
         $candidateIds = array_values(array_unique(array_merge(
             synthGetManagedGeneralSettingIds(),
-            ['GLOBAL_STT_CONNECTOR_ID', 'GLOBAL_ITT_CONNECTOR_ID'],
             array_keys($rowMap)
         )));
 
@@ -417,17 +490,16 @@ if (!function_exists('synthGetOverrideableGeneralSettingsCatalog')) {
             'RECHAT_ALLOW_ACTIONS',
         ];
         $managedIds = array_flip(synthGetManagedGeneralSettingIds());
-        $explicitOverrideIds = ['GLOBAL_STT_CONNECTOR_ID' => true, 'GLOBAL_ITT_CONNECTOR_ID' => true];
+        $globalOnlyIds = array_flip(synthGetGlobalOnlySettingIds());
 
         $catalog = [];
         foreach ($candidateIds as $id) {
-            if (in_array($id, $profileNativeIds, true)) {
+            if (in_array($id, $profileNativeIds, true) || isset($globalOnlyIds[$id])) {
                 continue;
             }
 
-            $isManagedOrExplicit = isset($managedIds[$id]) || isset($explicitOverrideIds[$id]);
             $definition = synthGetSchemaDefinition($id);
-            if (!$isManagedOrExplicit && empty($definition)) {
+            if (!isset($managedIds[$id]) && empty($definition)) {
                 continue;
             }
 
@@ -460,6 +532,8 @@ if (!function_exists('synthGetOverrideableGeneralSettingsCatalog')) {
                 'description' => trim(strval($rowMap[$id]['description'] ?? ($descriptions[$id] ?? synthGetSchemaDescription($id)))),
                 'category' => synthGetOverrideableGeneralSettingCategory($id),
                 'ui_label' => synthPrettySettingLabel($id),
+                // Stored global value, or null when no row exists and the server configuration applies.
+                'global_value' => isset($rowMap[$id]) ? strval($rowMap[$id]['value'] ?? '') : null,
             ];
 
             if (!empty($definition['values']) && is_array($definition['values'])) {

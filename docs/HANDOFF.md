@@ -672,6 +672,18 @@ request ownership, schema conversion, fallback and validation boundaries.
 Local synthetic provider/driver evidence is separate from gameplay acceptance.
 No installed game client is changed by this adapter.
 
+## Settings scope and inheritance
+
+Settings resolve Global → Profile → NPC. The override editor shows what each override replaces and
+the value Clear would inherit; for NPCs that includes NPC metadata and the Emote Moods and Prompt
+Head fields, which the runtime applies before `extended_data`. Explicit Off and 0 apply; `null` and
+`''` (and `[]` for NPCs) are skipped. Global-only settings are marked on the global page and cannot
+be overridden. The unmarked ordinary dialogue pipeline applies profile and NPC overrides from its
+next request. Native marked `/talk` uses only the profile's primary LLM and TTS connector; it ignores
+metadata overrides and the other model slots. The existing fallback to the default NPC profile is
+unchanged. Evidence is HTTP with a fake provider in a disposable database; there is no deployment,
+game, flat or VR claim.
+
 ## Observed equipment and save identity
 
 Present-tense equipment now has a compact projection from each dialogue request's
