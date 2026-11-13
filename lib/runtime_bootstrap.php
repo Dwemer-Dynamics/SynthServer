@@ -130,6 +130,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth_meta.middleterm_control_revisions',
             'synth_meta.middleterm_regeneration_approvals',
             'synth_meta.middleterm_replacements',
+            'synth_meta.narrator_pending_outputs',
         ];
 
         try {
