@@ -12,16 +12,25 @@ class SaveRepository
 
     public function snapshot(array $event): ?array
     {
-        return synth_protocol_original_context($this->db, $event);
+        $context = synth_protocol_original_context($this->db, $event);
+        if ($context !== null && ($event['type'] ?? '') === 'input_text'
+            && ($event['payload']['control']['mode'] ?? '') === 'WHISPER')
+            $context = synth_protocol_listener_private_context($context);
+        return $context;
     }
 
-    /** Newest first: the player's own input to, and the given delivery states of, the named placed NPC. */
+    /**
+     * Newest first: the player's own input, and chat lines in the given delivery states that the named placed
+     * NPC already witnessed. `own` is 1 for that NPC's own replies and 0 for other speakers' attributed lines.
+     */
     public function conversationRows(array $event, string $targetName, array $deliveredStates, int $limit): array
     {
         $states = implode(',', array_map(fn($state) => $this->db->escapeLiteral(strval($state)), $deliveredStates));
         $rows = $this->db->fetchAll(synth_protocol_history_cte($this->db, $event, $targetName)
-            ." SELECT type,data FROM native_history WHERE ((type='inputtext' AND speaker_identity_id=reader_player_id)
-                OR (type='chat' AND speaker_identity_id=reader_identity_id AND delivery_state IN ($states)))
+            ." SELECT type,data,CASE WHEN speaker_identity_id=reader_identity_id THEN 1 ELSE 0 END AS own
+            FROM native_history WHERE ((type='inputtext' AND speaker_identity_id=reader_player_id)
+                OR (type='chat' AND speaker_identity_id IS NOT NULL AND speaker_identity_id<>reader_player_id
+                    AND delivery_state IN ($states)))
             ORDER BY history_event_id DESC LIMIT ".intval($limit));
         return is_array($rows) ? $rows : [];
     }

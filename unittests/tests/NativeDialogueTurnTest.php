@@ -179,7 +179,8 @@ final class NativeDialogueTurnTest extends TestCase
             }
             public function conversationRows(array $event, string $targetName, int $limit): array
             {
-                return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
+                return [['type'=>'chat','own'=>0,'data'=>'Piper Wright: Witnessed. (talking to Nate)'],
+                    ['type'=>'chat','own'=>1,'data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
                     ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
         };
@@ -248,6 +249,19 @@ final class NativeDialogueTurnTest extends TestCase
             'target'=>$this->fixture('valid/speech-receipt.json')['payload']['character'],'audience'=>[],'world'=>['game_time_ticks'=>42]];
     }
 
+    public function testWhisperProjectsOnlyTheResolvedListenerWithoutChangingTheCapture(): void
+    {
+        $target=$this->fixture('valid/speech-receipt.json')['payload']['character'];
+        $player=array_replace($target,['form_id'=>'0x00000014','display_name'=>'Player']);
+        $other=array_replace($target,['form_id'=>'0x00002F25','display_name'=>'Nick Valentine']);
+        $capture=['player'=>$player,'target'=>$target,'payload'=>['audience'=>[$target,$other],
+            'actor_states'=>array_map(static fn($actor)=>['actor'=>$actor],[$player,$target,$other])]];
+        $private=synth_protocol_listener_private_context($capture);
+        $this->assertSame([$target],$private['payload']['audience']);
+        $this->assertSame([$player,$target],array_column($private['payload']['actor_states'],'actor'));
+        $this->assertSame([$target,$other],$capture['payload']['audience']);
+    }
+
     public function testOwnedInteriorAncestryReachesTheNextProviderPrompt(): void
     {
         $event=$this->fixture('valid/input-text-native-turn.json');
@@ -299,8 +313,9 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([[$id.':dialogue:1','Holding, barely.'],[$id.':dialogue:2','Thanks.']],array_slice($utterances->rows,1));
         // Own-addressed input stays compact; input addressed elsewhere or without an addressee keeps attribution,
         // a talking-to suffix (even an unparseable name) leading so the bounded long line keeps both names.
+        // Another NPC's witnessed delivered reply is attributed context, never this NPC's assistant turn.
         $this->assertSame([['user','Nate: Unaddressed.'],['user',mb_substr('(Talking to Pipér (Wright)) Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000),0,1000)],
-            ['user','Hello.'],['assistant','Earlier.'],['user',trim($event['payload']['text'])]],
+            ['user','Hello.'],['assistant','Earlier.'],['user','(talking to Nate) Piper Wright: Witnessed.'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
         // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.

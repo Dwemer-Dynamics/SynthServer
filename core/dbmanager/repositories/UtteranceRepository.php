@@ -42,8 +42,9 @@ class UtteranceRepository
         $payload = $event['payload'];
         $context = $receipt->context;
         return $this->db->withClaimedRequestLock($this->owner, static function ($connection) use ($event, $payload, $character, $characterId, $state, $heard, $context): string {
-            $result = @pg_query_params($connection, "SELECT u.state,u.character_id,u.text,a.full_form_id,a.origin_plugin,a.playthrough_id,
-                    o.request_id IS NOT NULL AS origin_valid,rr.speaker AS route_speaker
+            $result = @pg_query_params($connection, "SELECT u.state,u.character_id,u.text,u.speaker_identity_id,a.full_form_id,a.origin_plugin,a.playthrough_id,
+                    (o.request_id IS NOT NULL AND op.request_id IS NOT NULL) AS origin_valid,rr.speaker AS route_speaker,
+                    op.canonical_event#>>'{payload,control,mode}' AS origin_mode
                 FROM synth_meta.dialogue_utterances u
                 JOIN synth.actor_identities a ON a.id=u.speaker_identity_id
                 JOIN synth_meta.runtime_sessions r ON r.session_id=u.session_id AND r.state='active' AND r.active_generation=u.generation
@@ -51,6 +52,9 @@ class UtteranceRepository
                     AND o.generation=u.generation AND o.turn_id=u.turn_id AND o.event_type='input_text'
                     AND o.state IN ('claimed','streaming','complete','failed')
                     AND COALESCE(o.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')
+                LEFT JOIN synth_meta.protocol_events op ON op.session_id=o.session_id AND op.request_id=o.request_id
+                    AND op.generation=o.generation AND op.turn_id=o.turn_id AND op.event_type=o.event_type
+                    AND op.event_sha256=o.request_sha256
                 LEFT JOIN synth_meta.response_routes rr ON rr.session_id=u.session_id AND rr.request_id=u.request_id
                     AND rr.line_id=u.line_id AND rr.utterance_id=u.line_id AND rr.generation=u.generation
                     AND rr.context_sequence=u.context_sequence
@@ -75,8 +79,11 @@ class UtteranceRepository
                 receipt_at=NOW() WHERE session_id=$1 AND request_id=$2 AND line_id=$3 AND state='generated'",
                 [$event['session_id'], $payload['dialogue_request_id'], $payload['line_id'], $state, $event['request_id']]);
             if (!$update || pg_affected_rows($update) !== 1) throw new \RuntimeException('Unable to record receipt');
+            // The receipt has no mode of its own. Use the proven original turn to keep Whisper history listener-private.
+            if (($row['origin_mode'] ?? '') === 'WHISPER') $context = \synth_protocol_listener_private_context($context);
             if ($heard !== null) self::insertHeard($connection, $event, $payload['dialogue_request_id'],
-                self::historyFields($context, 'chat', $heard($row['text']), $payload['line_id'], $state));
+                self::historyFields($context, 'chat', $heard($row['text']), $payload['line_id'], $state),
+                ($row['origin_mode'] ?? '') === 'WHISPER' ? intval($row['speaker_identity_id']) : null);
             return $state;
         });
     }
@@ -91,7 +98,7 @@ class UtteranceRepository
     // Same native insertion as sql::insert, but provenance is the original dialogue request (whose generation,
     // context and turn the receipt owner already matched) rather than the receipt event. The history_events id
     // is allocated now, inside the receipt transaction, so receipt time is the insertion frontier.
-    private static function insertHeard($connection, array $event, string $dialogueRequestId, array $data): void
+    private static function insertHeard($connection, array $event, string $dialogueRequestId, array $data, ?int $privateListener = null): void
     {
         $data['synth_session_id'] = $event['session_id'];
         $data['synth_generation'] = $event['generation'];
@@ -99,15 +106,19 @@ class UtteranceRepository
         $data['synth_request_id'] = $dialogueRequestId;
         $columns = array_keys($data);
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
-        $snapshot = @pg_query_params($connection, 'SELECT playthrough_id FROM synth_meta.context_snapshots
+        $snapshot = @pg_query_params($connection, 'SELECT playthrough_id,player_identity_id FROM synth_meta.context_snapshots
             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3', [$event['session_id'], $event['generation'], $event['context_sequence']]);
         $snapshot = $snapshot ? pg_fetch_assoc($snapshot) : false;
         if (!$snapshot) throw new \RuntimeException('Native history context unavailable');
+        $scope = $privateListener === null ? null : json_encode(
+            [intval($snapshot['player_identity_id']), $privateListener], JSON_THROW_ON_ERROR);
         $result = @pg_query_params($connection, 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
             INSERT INTO synth_meta.history_events
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns) + 1).',rowid,to_jsonb(inserted),NULL
-            FROM inserted RETURNING id', [...array_values($data), $snapshot['playthrough_id']]);
+            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns) + 1).',rowid,
+                CASE WHEN $'.(count($columns) + 2).'::jsonb IS NULL THEN to_jsonb(inserted)
+                    ELSE to_jsonb(inserted)||jsonb_build_object(\'synth_dialogue_hearer_ids\',$'.(count($columns) + 2).'::jsonb) END,NULL
+            FROM inserted RETURNING id', [...array_values($data), $snapshot['playthrough_id'], $scope]);
         if (!$result || pg_num_rows($result) !== 1) throw new \RuntimeException('Unable to persist heard history');
     }
 

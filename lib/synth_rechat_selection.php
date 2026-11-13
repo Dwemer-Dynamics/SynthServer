@@ -3,14 +3,20 @@
 require_once __DIR__.'/synth_rechat_admission.php';
 require_once __DIR__.'/chat_helper_functions.php';
 
+// Known native life/posture exclusions shared by candidates and Close hearers.
+function synth_rechat_state_available(array $state): bool
+{
+    return ($state['alive'] ?? false)===true && ($state['disabled'] ?? true)===false
+        && !in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','essential_down','bleedout'],true)
+        && !(($state['life_state'] ?? '')==='restrained' && ($state['conversation_held'] ?? false)!==true)
+        && !in_array($state['posture'] ?? '',['want_to_sleep','waiting_for_sleep','sleeping'],true);
+}
+
 // Apply the same known native life/posture exclusions to the previous speaker and every candidate.
 function synth_rechat_candidate_available(array $candidate): bool
 {
     $state=$candidate['state'] ?? [];
-    if (($state['alive'] ?? false)!==true || ($state['disabled'] ?? true)!==false
-        || in_array($state['life_state'] ?? '',['dying','dead','unconscious','reanimate','recycle','essential_down','bleedout'],true)
-        || (($state['life_state'] ?? '')==='restrained' && ($state['conversation_held'] ?? false)!==true)
-        || in_array($state['posture'] ?? '',['want_to_sleep','waiting_for_sleep','sleeping'],true)) return false;
+    if (!synth_rechat_state_available(is_array($state) ? $state : [])) return false;
     $npc=$candidate['npc'];
     $race=strval($state['race'] ?? '').' '.strval($npc['race'] ?? '');
     // Native editor IDs concatenate words; expose their categories to the legacy whole-word classifier.
