@@ -10,6 +10,20 @@
 - [x] HTTP + disposable database: duplicate receipts replay; conflicting, stale-generation,
   unknown-line and wrong-character receipts are rejected; >12 lines, >1000-character
   lines, truncated and malformed streams end the turn with an error and no fallback.
+- [ ] HTTP + disposable database: a `/talk` prompt uses the save-visible dynamic profile revision
+  for the exact identity. The compiled-client loopback check covers this with revisions that the
+  production profile worker publishes. The first `/talk` and the older load see the revision
+  accepted before the older anchor. The newer load sees the revision accepted between the
+  anchors. No prompt sees the revision accepted after the newer anchor. A same-name sibling
+  identity reads none. The native strict read, the ordinary route's projection and the prompt
+  agree. Each test-sent refresh is admitted by real `main.php`, which queues exactly one
+  `actor:<id>` batch; the production worker drains it. A private-clone run passed; the
+  exact-commit run is pending. Still open: a cancelled worker result and a sibling save branch
+  that has its own acknowledged revision.
+- [ ] HTTP + disposable database: a failed saved-profile read ends the native `/talk` with the
+  `backend_request_failed` terminal. It writes no input, history or utterance and makes no
+  provider call. A disposable probe passed over real `main.php`. Unit coverage is in
+  `NativeDialogueTurnTest`. The probe is not tracked.
 - [x] Stage A increment 1: the same HTTP + PostgreSQL 15 probe passes unchanged against the
   namespaced `DialogueManager` services behind the transitional edge.
 - [x] Stage A increment 2: `/talk` and receipts dispatched to `api/v2/` before

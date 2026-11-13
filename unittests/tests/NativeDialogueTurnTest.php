@@ -134,7 +134,8 @@ final class NativeDialogueTurnTest extends TestCase
     }
 
     // Dialogue services over injected repository, driver and output fakes (no database or provider).
-    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool $speech=true): array
+    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool $speech=true,
+        array|Throwable|null $saved=null): array
     {
         $saves=new class($context) extends SaveState {
             public function __construct(private ?array $snapshot) {}
@@ -147,12 +148,23 @@ final class NativeDialogueTurnTest extends TestCase
                 return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')']];
             }
         };
-        $characters=new class($row,$others) extends CharacterRepository {
-            public function __construct(private ?array $row, private array $others) {}
+        $characters=new class($row,$others,$saved) extends CharacterRepository {
+            public array $savedReads=[];
+            public array $base=['npc_name'=>'Jun','prompt_head'=>'Base head.','npc_static_bio'=>'Base bio.','personality'=>'Weary.',
+                'occupation'=>'Base job.','skills'=>'Base skills.','speechstyle'=>'Base style.','goals'=>'Base goals.','voiceid'=>'jun_voice'];
+            public function __construct(private ?array $row, private array $others, private array|Throwable|null $saved) {}
             public function registered(string $fullFormId, string $originPlugin, string $playthroughId): ?array { return $this->row; }
             public function otherFormIds(string $originPlugin, string $playthroughId, int $identityId): array { return $this->others; }
-            public function npc(int $id): ?array { return ['id'=>$id,'npc_name'=>'Jun','personality'=>'Weary.']; }
+            public function npc(int $id): ?array { return ['id'=>$id]+$this->base; }
             public function profile(int $id): ?array { return ['id'=>$id,'tts_connector_id'=>5]; }
+            // Saved fields keyed by identity id; a Throwable is a failed read.
+            public function savedProfile(array $event, int $identityId): ?array
+            {
+                $this->savedReads[]=[$event,$identityId];
+                if ($this->saved instanceof Throwable) throw $this->saved;
+                $fields=$this->saved[$identityId] ?? null;
+                return $fields===null ? null : ['revision'=>100+$identityId,'fields'=>$fields];
+            }
         };
         $utterances=new class extends UtteranceRepository {
             public array $rows=[];
@@ -192,7 +204,7 @@ final class NativeDialogueTurnTest extends TestCase
         };
         $manager=new DialogueManager(new SessionManager($saves),new CharacterManager($characters),new ContextManager($saves),
             new PromptManager(),$llm,new SpeechManager($tts),$utterances,$output);
-        return [$manager,$output,$utterances,$llm];
+        return [$manager,$output,$utterances,$llm,$characters];
     }
 
     private function talkContext(): array
@@ -251,6 +263,85 @@ final class NativeDialogueTurnTest extends TestCase
             $manager->converse($candidate);
             $this->assertSame([['reject',$reason]],$output->events,$reason);
         }
+    }
+
+    private function savedFields(string $tag): array
+    {
+        return ['personality'=>"$tag personality.",'occupation'=>"$tag job.",'skills'=>"$tag skills.",
+            'speechstyle'=>"$tag style.",'goals'=>"$tag goals."];
+    }
+
+    // The saved revision is read with the admitted event for the resolved identity, never a name or a global, and
+    // overlays only the five dynamic fields of the turn's copy.
+    public function testSavedDynamicProfileOverlaysOnlyTheTurnCopyOfTheExactIdentity(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $saved=[9=>$this->savedFields('Saved'),10=>$this->savedFields('Sibling')];
+        $globals=[$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null,$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null];
+        [$manager,$output,,$llm,$characters]=$this->dialogue($this->talkContext(),$row,[],['Fine.'],true,$saved);
+        $manager->converse($event);
+        $this->assertSame([[$event,9]],$characters->savedReads);
+        $this->assertSame(['complete'],end($output->events));
+        $system=$llm->messages[0]['content'];
+        foreach (['Prompt head: Base head.','Npc static bio: Base bio.','Personality: Saved personality.',
+            'Occupation: Saved job.','Speechstyle: Saved style.'] as $line) $this->assertStringContainsString($line,$system);
+        foreach (['Weary.','Base job.','Base style.','Sibling'] as $base) $this->assertStringNotContainsString($base,$system);
+        $this->assertSame($globals,[$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null,$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null]);
+
+        // Identity, connector, voice, prompt fields and the base row stay as stored; only the copy changes.
+        $request=new TurnRequest($event,['target'=>$this->talkContext()['target']]);
+        $character=(new CharacterManager($characters))->resolve($request);
+        $this->assertSame(['id'=>3]+array_replace($characters->base,$saved[9]),$character->npc);
+        $this->assertSame([9,$row,['id'=>4,'tts_connector_id'=>5],$this->talkContext()['target']],
+            [$character->identityId,$character->connector,$character->profile,$character->identity]);
+
+        // Same display name, different identities: each reads its own revision; one without a revision stays base.
+        foreach ([10=>array_replace($characters->base,$saved[10]),11=>$characters->base] as $identity=>$expected) {
+            [,,,,$sibling]=$this->dialogue($this->talkContext(),['identity_id'=>$identity]+$row,[],[],true,$saved);
+            $character=(new CharacterManager($sibling))->resolve($request);
+            $this->assertSame([[$event,$identity]],$sibling->savedReads);
+            $this->assertSame(['id'=>3]+$expected,$character->npc,strval($identity));
+            $this->assertSame($this->talkContext()['target']['display_name'],$character->displayName());
+        }
+
+        // A refused target is never read.
+        [$manager,$output,,,$characters]=$this->dialogue($this->talkContext(),$row,['0x0701A4D7'],[],true,$saved);
+        $manager->converse($event);
+        $this->assertSame([[['reject','load_order_identity_ambiguous']],[]],[$output->events,$characters->savedReads]);
+    }
+
+    // A failed read is not an absent revision: the turn is not run on the base profile and nothing is written.
+    // Cancellation keeps its own outcome.
+    public function testSavedProfileReadFailureAndCancellationNeverFallBackToTheBaseProfile(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        foreach ([new RuntimeException('Unable to read saved native profile.'),new SYNTHProtocolCancelled('cancelled')] as $error) {
+            [$manager,$output,$utterances,$llm]=$this->dialogue($this->talkContext(),$row,[],['Never streamed.'],true,$error);
+            try { $manager->converse($event); $this->fail(get_class($error)); }
+            catch (Throwable $thrown) { $this->assertSame($error,$thrown); }
+            $this->assertSame([[],[],[]],[$output->events,$utterances->rows,$llm->messages],get_class($error));
+        }
+        require_once dirname(__DIR__,2).'/lib/synth_profile_state.php';
+        // A failing database: execQuery reports false, fetchOne reports [] (as sql::fetchOne does after logging).
+        $db=new class {
+            public array $queries=[];
+            public function escapeLiteral($value): string { return "'".str_replace("'","''",strval($value))."'"; }
+            public function execQuery($sql) { $this->queries[]=['exec',$sql]; return false; }
+            public function fetchOne($sql) { $this->queries[]=['fetch',$sql]; return []; }
+        };
+        // Only the native repository opts in to the strict read: one query, and failure is never an absent revision.
+        try { (new CharacterRepository($db))->savedProfile($event,9); $this->fail('failed read reported as absent'); }
+        catch (RuntimeException $error) { $this->assertSame('Unable to read saved native profile.',$error->getMessage()); }
+        $this->assertSame(['exec'],array_column($db->queries,0));
+        $this->assertStringContainsString('actor_identity_id=9',$db->queries[0][1]);
+        // Legacy callers keep their behaviour: the identical query through fetchOne, a failed read stays null.
+        $this->assertNull(synth_profile_visible($db,$event,9));
+        $this->assertSame(['exec','fetch'],array_column($db->queries,0));
+        $this->assertSame($db->queries[0][1],$db->queries[1][1]);
+        $this->assertNull(synth_profile_visible($db,$event,0,strict: true));
+        $this->assertCount(2,$db->queries);
     }
 
     // Only explicit conversation intent and speech receipts take the v2 dispatch, chosen before the pipeline loads.

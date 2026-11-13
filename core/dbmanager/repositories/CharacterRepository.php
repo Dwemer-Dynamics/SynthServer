@@ -2,6 +2,8 @@
 
 namespace Synth\Core;
 
+require_once dirname(__DIR__, 3).'/lib/synth_profile_state.php';
+
 // Character registry reads. Registered = an existing actor_identity-bound NPC row with a profile and its
 // primary LLM connector; never resolved by display name.
 class CharacterRepository
@@ -34,6 +36,13 @@ class CharacterRepository
     public function profile(int $id): ?array
     {
         return $this->one('SELECT * FROM synth.core_profiles WHERE id=$1', [$id]);
+    }
+
+    /** Latest dynamic NPC profile revision visible to the admitted event's save for exactly this identity: null
+     *  when none is eligible; throws when it cannot be read. */
+    public function savedProfile(array $event, int $identityId): ?array
+    {
+        return synth_profile_visible($this->db, $event, $identityId, strict: true);
     }
 
     private function one(string $sql, array $params): ?array
