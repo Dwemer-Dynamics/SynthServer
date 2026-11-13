@@ -133,6 +133,17 @@
   ownership/hashes and dashboard visibility (4 November 2026).
 - [ ] VR: verify a controller-accessible diary request and saved entry in-headset.
 
+## Location ancestry
+
+See [LOCATION-ANCESTRY.md](LOCATION-ANCESTRY.md). Ingress tests and fixtures only so far.
+
+- [ ] Flat, with the paired client: init returns `location_ancestry: true`, and a context
+  from a named interior stores `world.location_ancestry` in its snapshot unchanged.
+- [ ] In game, the next eligible prompt names the interior and its
+  containing location, and says nothing about parents past an unresolved end.
+- [ ] An older client (no capability) and a client without the acknowledgement keep
+  working with `location_ref` only.
+
 
 ## Jev companion command candidate
 

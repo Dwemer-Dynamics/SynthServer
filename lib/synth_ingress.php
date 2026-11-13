@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
+require_once __DIR__.'/synth_location.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
@@ -406,7 +407,7 @@ function synth_protocol_validate_world_state($value, string $field, int $version
     synth_protocol_expect_exact_keys(
         $value,
         ['location', 'cell', 'worldspace', 'weather', 'interior', 'game_time_ticks'],
-        $version===2 ? ['scene','location_ref'] : [],
+        $version===2 ? ['scene','location_ref','location_ancestry'] : [],
         $field
     );
     foreach (['location', 'cell', 'worldspace', 'weather'] as $label) {
@@ -420,6 +421,8 @@ function synth_protocol_validate_world_state($value, string $field, int $version
     }
     if (array_key_exists('location_ref',$value) && !synth_social_ref_valid($value['location_ref']))
         synth_protocol_fail('invalid_world_state',422,[['field'=>$field.'.location_ref','issue'=>'invalid_reference']]);
+    if (array_key_exists('location_ancestry',$value))
+        synth_location_validate_ancestry($value['location_ancestry'],$value['location_ref'] ?? null,$field.'.location_ancestry');
     if (array_key_exists('scene',$value)) {
         if (!synth_protocol_is_object($value['scene']))
             synth_protocol_fail('invalid_world_state',422,[['field'=>$field.'.scene','issue'=>'object_required']]);
@@ -1046,6 +1049,8 @@ function synth_protocol_validate_event(array $event): array
     }
     if ($event['type']==='context' && array_key_exists('location_ref',$event['payload']['world']??[]) && !isset($seen['context.location_identity']))
         synth_protocol_fail('invalid_payload',422,[['field'=>'payload.world.location_ref','issue'=>'location_identity_capability_required']]);
+    if ($event['type']==='context' && array_key_exists('location_ancestry',$event['payload']['world']??[]) && !synth_location_ancestry_supported($event))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'payload.world.location_ancestry','issue'=>'location_ancestry_capability_required']]);
     if (isset($seen['context.wait_state']) || isset($seen['action.wait_verified'])) {
         if ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat' || !isset($seen['dialogue.turn_ownership']))
             synth_protocol_fail('invalid_wait_capability',422);

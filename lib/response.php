@@ -8,6 +8,7 @@ require_once __DIR__.'/synth_protocol_state.php';
 require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
+require_once __DIR__.'/synth_location.php';
 
 // An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
 function synth_protocol_response_context(?array $wire = null): array
@@ -397,6 +398,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
         && in_array('context.actor_stats',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
+    $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);
@@ -436,6 +438,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
     if ($ambientNpc) $statusPayload['ambient_npc'] = true;
     if ($socialTasks) $statusPayload['social_tasks'] = true;
+    if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;

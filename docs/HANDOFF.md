@@ -4,6 +4,15 @@
 
 Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).
 
+## Plugin-local location ancestry
+
+Flat v2 contexts that negotiate `context.location_identity` and `context.location_ancestry`
+may carry `world.location_ancestry`: the current location and its parent chain as bounded
+plugin-local IDs with an explicit end. Ingress validates it strictly (`lib/synth_location.php`),
+init acknowledges it, and it is stored only inside the existing context snapshot; there is no
+database schema change. `ContextManager` projects its bounded current-location sentence into the
+next native prompt. Ordinary dialogue already includes the immutable world object. See LOCATION-ANCESTRY.md.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
