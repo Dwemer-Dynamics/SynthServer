@@ -16,6 +16,13 @@
 - [x] HTTP + disposable database: duplicate receipts replay; conflicting, stale-generation,
   unknown-line and wrong-character receipts are rejected; >12 lines, >1000-character
   lines, truncated and malformed streams end the turn with an error and no fallback.
+- [x] Provider cancellation and status (candidate `32d741e`): owner cancels stop a fake provider
+  stream in about 250 ms or before connecting; non-2xx bodies that are valid SSE give
+  `provider_failed` with no text, dialogue, jobs or error-body history. Recording-provider and compiled-client
+  loopback checks pass. See HANDOFF.md.
+- [ ] Agree and verify client/server deadline and disconnect behaviour: defaults are 30 seconds
+  for the client and 60 seconds for the provider; only durable owner cancellation is honoured.
+- [ ] Playback de-duplication of a replayed line through a real automatic identical-request retry.
 - [ ] HTTP + disposable database: a `/talk` prompt uses the save-visible dynamic profile revision
   for the exact identity. The compiled-client loopback check covers this with revisions that the
   production profile worker publishes. The first `/talk` and the older load see the revision
