@@ -7405,6 +7405,12 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         'SYNTH_SPEECHSTYLE' => 'Speech Style',
         'SYNTH_GOALS' => 'Goals'
     ];
+    // Authored expertise stays in the background once; Skills are only the exact actor's snapshot SPECIAL values.
+    require_once __DIR__.'/synth_biography.php';
+    $FOLLOWER_CONF['SYNTH_BACKGROUND'] = synth_biography_background(strval($FOLLOWER_CONF['SYNTH_BACKGROUND'] ?? ''),
+        strval($FOLLOWER_CONF['SYNTH_SKILLS'] ?? ''));
+    $FOLLOWER_CONF['SYNTH_SKILLS'] = ($FOLLOWER_CONF['SYNTH_NAME'] ?? '') === 'The Narrator' ? ''
+        : synth_actor_stats_for_request($GLOBALS['db'], strval($FOLLOWER_CONF['SYNTH_NAME'] ?? ''));
     $hasStructuredBiographyFields = false;
     foreach (array_keys($synthFields) as $structuredFieldName) {
         if (isset($FOLLOWER_CONF[$structuredFieldName]) && !empty(trim((string)$FOLLOWER_CONF[$structuredFieldName]))) {
@@ -7412,7 +7418,6 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
             break;
         }
     }
-    $SKILLS_ADD="";
     $EQUIPMENT_ADD="";
     $TARGET_EQUIPMENT_ADD="";
     $STATS_ADD="";
@@ -7428,47 +7433,6 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         $ACTIVITY_ADD = "\n\n<activity>\n#Activity\n" . ucfirst($activityStatus['summary']) . ".\n</activity>\n";
     }
 
-    if (isset($metaData["skills"])) {
-        // Convert numeric Fallout skills to descriptive levels, grouped by category.
-        $skillCategories = [
-            'Combat' => ['guns', 'energy_weapons', 'explosives', 'melee_weapons', 'unarmed'],
-            'Practical' => ['barter', 'lockpick', 'medicine', 'repair', 'science', 'survival'],
-            'Social' => ['speech'],
-            'Stealth' => ['sneak']
-        ];
-
-        $formattedSkills = "\n\nSkill Proficiencies:";
-
-        foreach ($skillCategories as $category => $skillNames) {
-            $categorySkills = [];
-            foreach ($skillNames as $skillName) {
-                if (isset($metaData["skills"][$skillName])) {
-                    $skillValue = $metaData["skills"][$skillName];
-                    $level = '';
-                    if ($skillValue >= 100) {
-                        $level = 'Master';
-                    } elseif ($skillValue >= 75) {
-                        $level = 'Expert';
-                    } elseif ($skillValue >= 50) {
-                        $level = 'Adept';
-                    } elseif ($skillValue >= 25) {
-                        $level = 'Apprentice';
-                    } else {
-                        $level = 'Novice';
-                    }
-
-                    // Always show skills, including Novice
-                    $categorySkills[] = ucfirst($skillName) . " (" . $level . ")";
-                }
-            }
-
-            if (!empty($categorySkills)) {
-                $formattedSkills .= "\n  - {$category}: " . implode(", ", $categorySkills);
-            }
-        }
-
-        $SKILLS_ADD = $formattedSkills;
-    }
 
     // Native equipment comes from the owned turn snapshot, not mutable biography metadata.
     $nativeEquipment = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
@@ -7709,11 +7673,6 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
                         $dynamicBio .= "\n<groups>\n" . synth_protocol_faction_prompt_label($extendedData, count($factionLines)) . ":\n" . implode("\n", $factionLines) . "\n</groups>";
                     }
                 }
-            }
-
-            // Add skills right after SYNTH_SKILLS section
-            if ($fieldName=="SYNTH_SKILLS") {
-                $dynamicBio.=!empty($SKILLS_ADD) ?"\n<rpg_skills>\n$SKILLS_ADD\n</rpg_skills>\n": "";
             }
 
         }

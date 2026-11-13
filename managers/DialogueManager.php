@@ -79,7 +79,7 @@ final class DialogueManager
         // Read prior history before this turn's own input row is inserted.
         try {
             $messages = $this->prompts->messages($character, $this->context->situation($request),
-                $this->context->history($request, $character), $request->text());
+                $this->context->history($request, $character), $request->text(), $this->context->skills($request, $character));
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()

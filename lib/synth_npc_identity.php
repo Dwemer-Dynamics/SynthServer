@@ -9,7 +9,7 @@ function synth_npc_native_request(): bool
 }
 
 // Name-only legacy facades may resolve only the current canonical target or a unique captured participant.
-function synth_npc_request_actor_id($db, string $name): ?int
+function synth_npc_request_actor_id($db, string $name, ?array $boundContext=null): ?int
 {
     if (!synth_npc_native_request()) return null;
     synth_protocol_assert_request_active();
@@ -21,7 +21,7 @@ function synth_npc_request_actor_id($db, string $name): ?int
         }
         return null;
     }
-    $context=synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+    $context=$boundContext ?? synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
     if (!$context) return null;
     $matches=[];
     $target=synth_protocol_response_actor_identity($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json'],$context);

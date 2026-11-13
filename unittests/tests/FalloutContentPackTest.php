@@ -80,7 +80,9 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $template=synth_fetch_bio_template($db,'My renamed Codsworth','','Fallout4.esm|000179FF');
         foreach (['core','npc_static_bio','personality','speechstyle'] as $field) {
             self::assertNotEmpty($template[$field]);
-            self::assertSame($template[$field],$profile[$field]);
+            $expected=$field==='npc_static_bio'
+                ? synth_biography_background($template[$field],$template['skills']) : $template[$field];
+            self::assertSame($expected,$profile[$field]);
         }
         self::assertSame('My renamed Codsworth',$profile['npc_name']);
         self::assertSame('My edited occupation.',$profile['occupation']);
@@ -107,6 +109,74 @@ final class FalloutContentPackTest extends DatabaseTestCase
         } finally {
             unlink($root.'/data/fallout4_content_pack.json');rmdir($root.'/data');rmdir($root);
         }
+    }
+
+    // Every authored catalog value survives the layout; expertise joins the background exactly once.
+    public function testBiographyLayoutKeepsEveryAuthoredValueAndRepairsOnlyExactFactoryImports(): void
+    {
+        $pack=synthLoadFalloutContentPack(dirname(__DIR__,2));
+        foreach ($pack['npcs'] as $npc) {
+            $bio=$npc['fields']['npc_static_bio'];$skills=trim($npc['fields']['skills']);
+            $merged=synth_biography_background($bio,$skills);
+            self::assertStringStartsWith(trim($bio),$merged,$npc['npc_name']);
+            if ($skills!=='') self::assertSame(1,substr_count($merged,$skills),$npc['npc_name']);
+            self::assertSame($merged,synth_biography_background($merged,$skills),$npc['npc_name']);
+        }
+        $db=$this->db();
+        $factory=$db->fetchOne("SELECT t.npc_name,t.npc_static_bio,t.skills FROM synth.bio_templates t JOIN synth.bio_template_actor_map m ON m.template_name=t.npc_name WHERE m.base_plugin='Fallout4.esm' AND m.base_local_formid='000179FF'");
+        $merged=synth_biography_background($factory['npc_static_bio'],$factory['skills']);
+        $rows=[];
+        foreach (['fresh','legacy','edited','ambiguous','locked','unbound','conflicting','edited_personality'] as $index=>$case) {
+            $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','repair-$case','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
+            synth_upsert_npc_profile($db,'Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm'],intval($identity['id']));
+            $rows[$case]=intval($db->fetchOne('SELECT id FROM synth.core_npc_master WHERE actor_identity_id='.intval($identity['id']))['id']);
+        }
+        $fresh=$db->fetchOne('SELECT npc_static_bio,skills FROM synth.core_npc_master WHERE id='.$rows['fresh']);
+        self::assertSame([$merged,null],[$fresh['npc_static_bio'],$fresh['skills']]);
+        $set=static fn(string $case,string $sql,array $params=[])=>$db->execQuery("UPDATE synth.core_npc_master SET $sql WHERE id=".$rows[$case],$params);
+        foreach (['legacy','locked','unbound','conflicting','edited_personality'] as $case) $set($case,'npc_static_bio=$1,skills=$2',[$factory['npc_static_bio'],$factory['skills']]);
+        $set('edited','npc_static_bio=$1,skills=$2',['Operator background.','Operator expertise.']);
+        $set('ambiguous','npc_static_bio=$1,skills=NULL',[$factory['npc_static_bio']]);
+        $set('locked','lock_profile=1');
+        $set('unbound',"metadata=metadata-'bio_template'");
+        $set('edited_personality',"personality='Operator personality.'");
+        $conflict=$rows['conflicting'];
+        $db->execQuery("UPDATE synth.actor_identities SET full_form_id='0x0001CA7E' WHERE id=(SELECT actor_identity_id FROM synth.core_npc_master WHERE id=$conflict)");
+        $db->execQuery("INSERT INTO synth.bio_template_actor_map(template_name,reference_plugin,reference_local_formid) VALUES('fo4_piper','Fallout4.esm','0001CA7E')");
+        $snapshot=static fn()=>$db->fetchAll('SELECT id,npc_static_bio,skills,lock_profile FROM synth.core_npc_master WHERE id IN ('.implode(',',$rows).') ORDER BY id');
+        // Run the operator CLI in its own process so it loads the production sql class and its pinned transaction.
+        $run=static function(array $args): array {
+            $environment=getenv();
+            unset($environment['PHPUNIT_TEST']);
+            $environment['SYNTH_DB_HOST']='localhost';$environment['SYNTH_DB_NAME']='testdb';
+            $environment['SYNTH_DB_USER']='dwemer';$environment['SYNTH_DB_PASSWORD']='dwemer';
+            $process=proc_open(array_merge([PHP_BINARY,dirname(__DIR__,2).'/tools/repair-npc-biography.php'],$args),
+                [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,dirname(__DIR__,2),$environment);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $output=stream_get_contents($pipes[1]);$errors=stream_get_contents($pipes[2]);
+            fclose($pipes[1]);fclose($pipes[2]);
+            self::assertSame(0,proc_close($process),'Biography repair CLI failed: '.$output.$errors);
+            $lines=array_map(static fn($line)=>json_decode($line,true,512,JSON_THROW_ON_ERROR),array_values(array_filter(explode("\n",$output))));
+            return [array_pop($lines),array_column($lines,'status','id')];
+        };
+        $before=$snapshot();
+        [$summary,$statuses]=$run([]);
+        self::assertSame($before,$snapshot());
+        self::assertSame(['dry_run',0],[$summary['mode'],$summary['applied']]);
+        self::assertSame(['repair','customized','ambiguous','locked','provenance_missing'],
+            [$statuses[$rows['legacy']],$statuses[$rows['edited']],$statuses[$rows['ambiguous']],$statuses[$rows['locked']],$statuses[$rows['unbound']]]);
+        [$summary]=$run(['--apply']);
+        self::assertSame(2,$summary['applied']);
+        $after=$snapshot();
+        $legacy=$db->fetchOne('SELECT npc_static_bio,skills FROM synth.core_npc_master WHERE id='.$rows['legacy']);
+        self::assertSame([$merged,null],[$legacy['npc_static_bio'],$legacy['skills']]);
+        foreach ($before as $index=>$row) if (!in_array(intval($row['id']),[$rows['legacy'],$rows['edited_personality']],true)) self::assertSame($row,$after[$index]);
+        [$summary]=$run(['--apply']);
+        self::assertSame([0,0],[$summary['applied'],$summary['repair']]);
+        self::assertSame($after,$snapshot());
+        self::assertSame('Operator personality.',$db->fetchOne('SELECT personality FROM synth.core_npc_master WHERE id='.$rows['edited_personality'])['personality']);
+        fwrite(STDOUT,'BIOGRAPHY_REPAIR '.json_encode(['fixture_rows'=>8,'first_applied'=>2,'second_applied'=>$summary['applied'],'preserved'=>['edited','ambiguous','locked','unbound','conflicting'],'summary'=>$summary]).PHP_EOL);
     }
 
     public function testCliUpgradeHandlesLegacyVersionTableWithoutUniqueKey(): void

@@ -94,9 +94,10 @@ final class FalloutAliasContentPackTest extends DatabaseTestCase
             self::assertSame(2,synthInstallFalloutContentPack($this->db(),$root,true)['profiles_filled']);
             $profileIds=[];
             foreach ($ids as $index=>$id) {
-                $profile=$this->db()->fetchOne('SELECT id,npc_static_bio,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
+                $profile=$this->db()->fetchOne('SELECT id,npc_static_bio,skills,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
                 $profileIds[]=$profile['id'];
-                self::assertSame($row['fields']['npc_static_bio'],$profile['npc_static_bio']);
+                self::assertSame([synth_biography_background($row['fields']['npc_static_bio'],$row['fields']['skills']),null],
+                    [$profile['npc_static_bio'],$profile['skills']]);
                 self::assertSame('fixture_form_voice_'.$index,$profile['voiceid']);
                 self::assertSame('Authored form relationships '.$index.'.',$profile['relationships']);
             }

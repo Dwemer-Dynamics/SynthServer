@@ -323,6 +323,60 @@ final class NativeDialogueTurnTest extends TestCase
         }
     }
 
+    // Skills are only the addressed actor's own SPECIAL values in the bound snapshot: never a same-name actor, another
+    // save, the stored profile text or a missing capability. Zero stays zero; absence is unknown.
+    public function testSkillsAreOnlyTheExactActorSnapshotSpecialValues(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $event['capabilities'][]='context.actor_stats';
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $context=$this->talkContext();$target=$context['target'];
+        $stats=static fn(int $bonus)=>['observation'=>'base_current','special'=>array_combine(SYNTH_ACTOR_SPECIAL,
+            array_map(static fn($base)=>['base'=>$base,'current'=>$base+$bonus],[4,4,4,6,5,5,0]))];
+        $sameName=['form_id'=>'0x0001A4D8']+$target;
+        $prompt=function(array $event,array $states) use ($context,$row): string {
+            [$manager,,,$llm]=$this->dialogue(['actor_states'=>$states]+$context,$row,[],['Fine.']);
+            $manager->converse($event);
+            return $llm->messages[0]['content'];
+        };
+        $system=$prompt($event,[['actor'=>$sameName,'actor_stats'=>$stats(3)],['actor'=>$target,'actor_stats'=>$stats(0)]]);
+        $this->assertStringContainsString('Skills (SPECIAL, base/current): Strength 4/4, Perception 4/4, Endurance 4/4, Charisma 6/6, Intelligence 5/5, Agility 5/5, Luck 0/0',$system);
+        $this->assertSame(1,substr_count($system,'Skills'));
+        $this->assertSame(1,substr_count($system,'Base skills.'));
+        $this->assertStringContainsString("Background: Base bio.\n\nExpertise: Base skills.",$system);
+        foreach (['absent'=>[],'same_name_only'=>[['actor'=>$sameName,'actor_stats'=>$stats(1)]],
+            'other_save'=>[['actor'=>['playthrough_id'=>'save-2']+$target,'actor_stats'=>$stats(1)]],
+            'unavailable'=>[['actor'=>$target,'actor_stats'=>['observation'=>'unavailable']]],'not_captured'=>[['actor'=>$target]]] as $case=>$states) {
+            $system=$prompt($event,$states);
+            $this->assertStringContainsString('Skills (SPECIAL): unknown',$system,$case);
+            $this->assertStringNotContainsString('base/current',$system,$case);
+        }
+        $partial=$stats(0);$partial['special']['strength']=['base'=>0,'current'=>1.5];$partial['special']['luck']=null;
+        $this->assertStringContainsString('Strength 0/1.5',$prompt($event,[['actor'=>$target,'actor_stats'=>$partial]]));
+        $this->assertStringContainsString('Luck unknown',$prompt($event,[['actor'=>$target,'actor_stats'=>$partial]]));
+        $duplicate=['actor'=>$target,'actor_stats'=>$stats(0)];
+        $this->assertStringContainsString('Skills (SPECIAL): unknown',$prompt($event,[$duplicate,$duplicate]));
+        $this->assertArrayNotHasKey('actor_stats',synth_protocol_without_combat_targets([$duplicate])[0]);
+        $legacy=$this->fixture('valid/input-text-native-turn.json');
+        $this->assertStringNotContainsString('Skills',$prompt($legacy,[['actor'=>$target,'actor_stats'=>$stats(1)]]));
+    }
+
+    public function testActorStatsAdmissionRequiresCapabilityAndExactBoundedShape(): void
+    {
+        $root=dirname(__DIR__,2);
+        foreach (glob($root.'/protocol/v2/fixtures/valid/context-actor-stats*.json') as $file) {
+            $event=json_decode(file_get_contents($file),true,flags:JSON_THROW_ON_ERROR);
+            $this->assertSame($event,synth_protocol_validate_event($event),basename($file));
+        }
+        $invalid=glob($root.'/protocol/v2/fixtures/invalid/context-actor-stats-*.json');
+        $this->assertCount(4,$invalid);
+        foreach ($invalid as $file) {
+            $script='require '.var_export($root.'/lib/request.php',true).';synth_protocol_validate_event(json_decode('.var_export(file_get_contents($file),true).',true));echo "ACCEPTED";';
+            $output=(string)shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script));
+            $this->assertStringNotContainsString('ACCEPTED',$output,basename($file));
+        }
+    }
+
     private function savedFields(string $tag): array
     {
         return ['personality'=>"$tag personality.",'occupation'=>"$tag job.",'skills'=>"$tag skills.",
@@ -342,8 +396,9 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([[$event,9]],$characters->savedReads);
         $this->assertSame(['complete'],end($output->events));
         $system=$llm->messages[0]['content'];
-        foreach (['Prompt head: Base head.','Npc static bio: Base bio.','Personality: Saved personality.',
-            'Occupation: Saved job.','Speechstyle: Saved style.'] as $line) $this->assertStringContainsString($line,$system);
+        foreach (['Prompt head: Base head.',"Background: Base bio.\n\nExpertise: Saved skills.",'Personality: Saved personality.',
+            'Occupation: Saved job.','Speech style: Saved style.','Goals: Saved goals.'] as $line) $this->assertStringContainsString($line,$system);
+        $this->assertStringNotContainsString('Skills',$system);
         foreach (['Weary.','Base job.','Base style.','Sibling'] as $base) $this->assertStringNotContainsString($base,$system);
         $this->assertSame($globals,[$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null,$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null]);
 
@@ -644,6 +699,11 @@ final class NativeDialogueTurnTest extends TestCase
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertTrue($status['native_turn'] ?? false);
+            $full=$init;$full['capabilities'][]='context.actor_stats';$full['capabilities'][]='action.inventory_observation';
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$full];
+            $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
+            $this->assertSame('init_action_inventory_accepted',$status['code']);
+            $this->assertTrue($status['actor_stats'] ?? false);
             $init['capabilities']=['dialogue.text','dialogue.native_turn'];
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];

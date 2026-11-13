@@ -360,6 +360,10 @@ final class JsonSchemaCatalogTest extends TestCase
             'then'=>['properties'=>['life_state'=>['enum'=>['alive','restrained']],
                 'alive'=>['const'=>true],'disabled'=>['const'=>false],
                 'actor'=>['properties'=>['form_id'=>['not'=>['pattern'=>'^0x0{6}14$']]]]]]]],$waitRules);
+        $this->assertSame(['strength','perception','endurance','charisma','intelligence','agility','luck'],
+            $v2['properties']['actor_stats']['properties']['special']['required']);
+        unset($v2['properties']['actor_stats'],$v2['$defs']['special_value']);
+        if (($v2['$defs'] ?? null)===[]) unset($v2['$defs']);
         unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held'],$v2['properties']['wait_held']);
         $v2['allOf']=array_values(array_filter($v2['allOf'], static fn(array $rule): bool =>
             array_intersect(['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held'],$rule['if']['required'] ?? [])===[]));
@@ -951,6 +955,15 @@ final class JsonSchemaCatalogTest extends TestCase
             try { synth_profile_validate_input(array_replace($input,$change),$owner,15,'npc');$this->fail('Invalid worker input accepted.'); }
             catch (LogicException|JsonException $error) { $this->assertNotSame('',$error->getMessage()); }
         }
+        // NPC selections never regenerate legacy expertise; one left empty is rejected before any prompt work.
+        require_once dirname(__DIR__,2).'/lib/synth_biography.php';
+        $this->assertSame(['personality','goals'],synth_biography_dynamic_npc_fields(['personality','skills','goals']));
+        $this->assertSame([],synth_biography_dynamic_npc_fields(['skills']));
+        $previous=$GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'] ?? null;
+        $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']=['Piper'=>['fields'=>[]]];
+        try { synth_profile_prepare_fields('Piper',['skills'],'frozen');$this->fail('Skills-only NPC selection accepted.'); }
+        catch (LogicException $error) { $this->assertSame('Invalid native profile field selection.',$error->getMessage()); }
+        finally { if ($previous===null) unset($GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']);else $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']=$previous; }
     }
 
     public function testNativeProfileFieldsAreBoundedAndPlayerPerspectiveIsExplicit(): void

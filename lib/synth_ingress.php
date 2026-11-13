@@ -253,7 +253,7 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
          'weapon_drawn', 'movement_speed', 'sprinting', 'talking_to_player', 'in_power_armor',
          'current_package'],
         array_merge(['inventory_observation', 'faction_completeness', 'health_percent_available', 'action_points_percent_available'],
-            $version === 2 ? ['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held'] : []),
+            $version === 2 ? ['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held','actor_stats'] : []),
         $field
     );
     $value['actor'] = synth_protocol_validate_identity($value['actor'] ?? null, $field . '.actor');
@@ -274,6 +274,10 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
             (!in_array($value['life_state'] ?? '',['alive','restrained'],true) || ($value['alive'] ?? false)!==true ||
              ($value['disabled'] ?? true)!==false || ($value['actor']['form_id'] ?? '')==='0x00000014')))
             synth_protocol_fail('invalid_wait_state',422,[['field'=>$field.'.wait_held','issue'=>'live_owned_npc_required']]);
+    }
+    if (array_key_exists('actor_stats',$value)) {
+        require_once __DIR__.'/synth_biography.php';
+        $value['actor_stats']=synth_protocol_validate_actor_stats($value['actor_stats'],$field.'.actor_stats');
     }
     if (array_key_exists('enemy_awareness',$value)) {
         $value['enemy_awareness']=synth_protocol_validate_enemy_awareness($value['enemy_awareness'],$field.'.enemy_awareness',$value,$player);
@@ -1093,6 +1097,9 @@ function synth_protocol_validate_event(array $event): array
     if ($event['type'] === 'context') foreach ($event['payload']['actor_states'] ?? [] as $index => $state) {
         if (array_key_exists('combat_contacts',$state) && !synth_combat_contacts_supported($event)) {
             synth_protocol_fail('invalid_combat_contacts',422,[['field'=>'payload.actor_states.'.$index.'.combat_contacts','issue'=>'owned_flat_capabilities_required']]);
+        }
+        if (array_key_exists('actor_stats',$state) && !in_array('context.actor_stats',$event['capabilities'],true)) {
+            synth_protocol_fail('invalid_actor_stats',422,[['field'=>'payload.actor_states.'.$index.'.actor_stats','issue'=>'capability_required']]);
         }
         if (array_key_exists('enemy_awareness',$state) && !synth_enemy_awareness_supported($event)) {
             synth_protocol_fail('invalid_enemy_awareness',422,[['field'=>'payload.actor_states.'.$index.'.enemy_awareness','issue'=>'owned_flat_capabilities_required']]);

@@ -7,6 +7,7 @@ use Synth\Core\TurnRequest;
 
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once __DIR__.'/SaveState.php';
+require_once dirname(__DIR__).'/lib/synth_biography.php';
 require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
 
@@ -32,6 +33,12 @@ final class ContextManager
             is_array($request->context['player'] ?? null) ? $request->context['player'] : [],
             is_array($request->context['target'] ?? null) ? $request->context['target'] : []);
         return $situation;
+    }
+
+    // The addressed actor's own SPECIAL values from this bound snapshot; never a name or stored profile.
+    public function skills(TurnRequest $request, PlacedCharacter $character): string
+    {
+        return \synth_actor_stats_prompt($request->event, \synth_actor_stats_state($request->context, $character->identity));
     }
 
     // Oldest first. This NPC's own lines and player input addressed to it lose the speaker prefix and

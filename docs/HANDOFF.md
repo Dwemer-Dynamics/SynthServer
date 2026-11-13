@@ -1,5 +1,9 @@
 # Synthserver developer handoff
 
+## NPC biography and SPECIAL candidate
+
+Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).
+
 ## Optional post-combat companion comments
 
 The paired source candidate validates acknowledged encounter participants before

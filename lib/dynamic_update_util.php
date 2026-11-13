@@ -918,7 +918,8 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
         }
         
         // Get dynamic profile fields to update
-        $fieldsToUpdate = $characterDynamicProfileFields;
+        require_once __DIR__.'/synth_biography.php';
+        $fieldsToUpdate = synth_biography_dynamic_npc_fields($characterDynamicProfileFields);
         
         if (empty($fieldsToUpdate)) {
             Logger::debug("processSingleDynamicProfile: No fields selected for dynamic updates for $npcName");
@@ -935,11 +936,6 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
             error_log("[processSingleDynamicProfile] Updating $npcName $field");
 
             $result = updateDynamicProfileField($npcName, $field, $historyData);
-
-            if ($field=="skills" && $result!==false && !isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
-                $skillsData=getInGameSkillDataFor($npcName);
-                $result.="\n$skillsData";
-            }
 
             if ($result !== false) {
                 $updatedFields[$field] = $result;

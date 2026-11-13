@@ -154,7 +154,8 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
                 self::assertSame('Authored fixture personality.',$profile['personality']);
                 self::assertSame('fixture_voice',$profile['voiceid']);
                 self::assertSame('Authored fixture relationships.',$profile['relationships']);
-                if ($index===0) self::assertSame($pack['npcs'][0]['fields']['npc_static_bio'],$profile['npc_static_bio']);
+                if ($index===0) self::assertSame([synth_biography_background($pack['npcs'][0]['fields']['npc_static_bio'],
+                    $pack['npcs'][0]['fields']['skills']),null],[$profile['npc_static_bio'],$profile['skills']]);
                 else self::assertNull($profile['npc_static_bio']);
             }
             $before=$db->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.core_npc_master t WHERE actor_identity_id IN ('

@@ -14,6 +14,7 @@ is never in-game evidence.
 - [SERVER-FILE-LAYOUT.md](SERVER-FILE-LAYOUT.md): which folder owns what.
 - [PROTOCOL.md](PROTOCOL.md) and [protocol/README.md](../protocol/README.md): the wire contract
   mirrored with the SYNTH client.
+- [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md): authored layout, guarded existing-profile repair and runtime SPECIAL ownership.
 
 ## Components
 

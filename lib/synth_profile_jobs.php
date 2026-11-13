@@ -16,6 +16,10 @@ function synth_profile_prepare_fields(string $name, array $fields, string $histo
 {
     if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]) || !$fields
         || array_diff($fields,array_keys(synth_profile_fields([])))) throw new LogicException('Invalid native profile field selection.');
+    require_once __DIR__.'/synth_biography.php';
+    // An NPC selection left empty by the expertise policy has no native field to generate.
+    if ($name!=='The Narrator' && !($fields=synth_biography_dynamic_npc_fields($fields)))
+        throw new LogicException('Invalid native profile field selection.');
     $fields=array_values(array_unique($fields));
     foreach ($fields as $field) if (updateDynamicProfileField($name,$field,$history,true)!==true) {
         throw new RuntimeException('Native profile prompt preparation failed.');

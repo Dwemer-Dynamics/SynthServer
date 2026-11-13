@@ -393,6 +393,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $nativeTurn=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && count(array_diff(['dialogue.turn_ownership','dialogue.native_turn'],$event['capabilities'] ?? []))===0;
+    $actorStats=$status==='init_accepted' && ($event['type'] ?? '')==='init'
+        && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
+        && in_array('context.actor_stats',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
     // Participant-bound postcombat remarks are granted only to a flat init that asked for every prerequisite.
     $companionComments=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat'
@@ -442,6 +445,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($socialTasks) $statusPayload['social_tasks'] = true;
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
+    if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
     if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
