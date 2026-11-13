@@ -6,9 +6,10 @@ Native `/talk` conversation turns previously sent no lore. The candidate adds de
 request-owned selection through the existing catalogue, retriever, tier policy and renderer
 (`managers/WorldKnowledgeManager.php`). It uses explicit configuration, profile and NPC settings,
 the admitted actor and the bound snapshot. It adds no provider call, extractor fallback or forced
-location/actor articles. Participant-only quest tiers stay unavailable on this path. Only PHP lint
-and `git diff --check` have run; disposable-database and loopback checks are pending. No schema
-change, deployment or game acceptance. See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md).
+location/actor articles. Participant-only quest tiers stay unavailable on this path. The vocabulary
+article can still appear on a turn with no matched topic. Disposable-database loopback checks and the
+existing focused suites pass; no compiled client, game or VR check has run. No schema change,
+deployment or game acceptance. See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md).
 
 ## NPC biography and SPECIAL candidate
 

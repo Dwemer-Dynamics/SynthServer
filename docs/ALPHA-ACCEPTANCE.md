@@ -2,13 +2,15 @@
 
 ## Native conversation World Knowledge
 
-See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Only static checks so far.
+See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopback and suite checks only.
 
-- [ ] Disposable loopback: an eligible advanced-tier NPC receives advanced text and no basic text, and a
-  basic-tier NPC receives basic text and no advanced text. Each turn makes exactly one provider call.
-- [ ] Controls: a test-authored prewar tag and profile `WORLDKNOWLEDGE_INFINIUM=false` give neither tier;
-  the disabled turn reads no catalogue. An unmatched input stays `no_match`.
-- [ ] Existing World Knowledge, quest-access, everyday-lore and native dialogue suites pass unchanged.
+- [x] Disposable loopback: for the same selected topic, an eligible advanced-tier NPC receives its advanced
+  text and not its basic text, and a basic-tier NPC the reverse. The separate vocabulary article stays basic.
+  Each turn makes exactly one provider call.
+- [x] Controls: a test-authored prewar tag and profile `WORLDKNOWLEDGE_INFINIUM=false` give neither tier;
+  the disabled turn records a `disabled` audit row without catalogue data. Unmatched input selects no
+  topic article and makes no extra call; the vocabulary article may remain.
+- [x] Existing World Knowledge, quest-access, everyday-lore and native dialogue suites pass unchanged.
 - [ ] Flat in game, then VR independently: a lore question to an eligible NPC reflects the article.
 
 ## NPC biography and actor stats

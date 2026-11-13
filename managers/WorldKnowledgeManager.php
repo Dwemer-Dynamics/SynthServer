@@ -30,7 +30,8 @@ final class WorldKnowledgeManager
 
     public function __construct(private $db, private array $config, private SettingsRepository $settings) {}
 
-    // The bounded <oghma> block for this turn, or '' when disabled, unmatched or unavailable. $history is this
+    // The bounded <oghma> block for this turn, or '' when disabled, unavailable or no article applies. Unmatched
+    // input selects no topic article but may still return the proactive vocabulary article. $history is this
     // turn's already-read native conversation, used only for the deterministic short follow-up fallback.
     public function context(TurnRequest $request, PlacedCharacter $character, array $history): string
     {

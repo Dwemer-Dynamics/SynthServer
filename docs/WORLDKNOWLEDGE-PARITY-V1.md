@@ -34,8 +34,11 @@ Inputs are explicit and request-owned:
 
 Deliberate native limits:
 
-- No extractor/LLM fallback and no stored `current_worldknowledge_topic`; retrieval adds no
-  provider call. An unmatched turn stays `no_match`.
+- No extractor/LLM fallback and no stored `current_worldknowledge_topic`, even when the
+  fallback and its connector are configured; retrieval adds no provider call. An unmatched
+  or unknown input selects no topic article. The vocabulary article does not depend on the
+  input, so an eligible non-prewar NPC still receives it and the audit status is
+  `grounded`. `no_match` is recorded only when no article at all is selected.
 - No forced location, race or faction articles; those signals affect access tags only.
 - The quest reader runs for this request but stays unavailable without a claimed legacy
   request. Participant-only quest tiers are therefore denied; reviewed public quest text
@@ -45,3 +48,22 @@ Deliberate native limits:
 - A catalogue or settings read failure gives no articles and an `unavailable` audit row.
   It does not fail the turn. Each turn writes one `synth.worldknowledge_audit` row with
   `request_type=conversation`.
+
+Validation so far (disposable PostgreSQL, real `main.php` over loopback, fake provider; no
+compiled client, game or VR):
+
+- Same question on native and ordinary routes: for the same selected topic, an advanced-tier
+  NPC gets only its advanced text and a basic-tier NPC only its basic text; the separate
+  vocabulary article stays basic. A test-authored `prewar` tag gives a denial marker
+  and profile `WORLDKNOWLEDGE_INFINIUM=false` gives no block. Each native turn makes one
+  provider call. In these four cases the ordinary prompts were unchanged, apart from
+  the per-request shuffled mood list.
+- Native boundaries: Global/Profile/NPC precedence, including string and boolean `false`.
+  A custom override is served while the factory rows stay unchanged. Unmatched and
+  unknown input with the fallback configured makes no extra call. A quest topic gets only
+  the reviewed public premise and never raw custom text. Two synthetic NPC refs with the same
+  name, using real prewar and postwar base IDs in synthetic captured state, are kept apart
+  (the prewar base denies, the postwar base gets basic); not verified in game.
+  The service does not read or write ordinary request globals.
+- The existing World Knowledge, forced-context, prewar, vocabulary, DLC, everyday-lore,
+  quest-access and native dialogue suites pass unchanged.
