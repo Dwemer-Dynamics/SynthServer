@@ -61,11 +61,18 @@ function synth_profile_history_cte($db, array $event, int $actorId, bool $narrat
 }
 
 // Return the latest saved profile while allowing other derived journals to verify exact prior profile revisions.
-function synth_profile_visible($db, array $event, int $actorId, bool $narrator=false): ?array
+// Null means no eligible revision. A strict reader (the native dialogue repository) runs the same single query but
+// throws on a failed read instead of reporting it as an absent revision; legacy callers keep fetchOne's behaviour.
+function synth_profile_visible($db, array $event, int $actorId, bool $narrator=false, bool $strict=false): ?array
 {
     if ($actorId<1) return null;
-    $row=$db->fetchOne(synth_profile_history_cte($db,$event,$actorId,$narrator)
-        .' SELECT history_event_id,result_fields FROM native_profiles ORDER BY history_event_id DESC LIMIT 1');
+    $sql=synth_profile_history_cte($db,$event,$actorId,$narrator)
+        .' SELECT history_event_id,result_fields FROM native_profiles ORDER BY history_event_id DESC LIMIT 1';
+    if ($strict) {
+        $result=$db->execQuery($sql);
+        if (!$result) throw new RuntimeException('Unable to read saved native profile.');
+        $row=pg_fetch_assoc($result);
+    } else $row=$db->fetchOne($sql);
     if (!$row) return null;
     $fields=synth_protocol_decode_json($row['result_fields']);
     $keys=array_keys($fields);sort($keys);$expected=array_keys(synth_profile_fields([]));sort($expected);

@@ -49,7 +49,11 @@ The coordinated flat client/backend update is installed and hash verified. Gamep
 explicit-input TTS jobs and player history for explicit `/talk` conversation-intent turns
 (`payload.intent: "conversation"`); unmarked typed text keeps the legacy action route.
 Dependencies: `SessionManager` (negotiation, mode, claimed snapshot via `Synth\Managers\SaveState`),
-`CharacterManager` (placed key vs runtime binding, registry, profile via `CharacterRepository`),
+`CharacterManager` (placed key vs runtime binding, registry, profile via `CharacterRepository`;
+the admitted event's save-visible dynamic profile revision for the exact identity, read through
+`synth_profile_visible` without request globals, replaces only the five dynamic fields of the turn's
+NPC copy; the repository opts in to the strict read, so a failed read ends the request as a backend
+failure, never as the base profile, while legacy callers keep their `fetchOne` behaviour),
 `ContextManager` (situation, 12 heard history rows), pure `PromptManager`, `SpeechManager`
 over `Synth\Drivers\Tts\ProfileSpeechDriver`, `Synth\Drivers\Llm\OpenAiCompatibleDriver`,
 `UtteranceRepository` and a `TurnOutput` port. Contracts are in `core/contracts/`, entities in
@@ -419,7 +423,9 @@ protocol or database schema.
   `sudo bash SERVER/unittests/loopback/run-loopback-dialogue.sh CLIENT`. It builds the client's
   test driver and runs it against real `main.php`, a disposable PostgreSQL cluster and a
   loopback fake provider, all in private namespaces. It checks the duplicated receipt and the
-  older and newer co-save loads. See [unittests/loopback/README.md](../unittests/loopback/README.md)
+  older and newer co-save loads, and that each `/talk` prompt carries the dynamic profile revision
+  its save makes visible (published by the production profile worker against a loopback JSON
+  provider). See [unittests/loopback/README.md](../unittests/loopback/README.md)
   for prerequisites and limits. It is not game evidence.
 - `ui/tests/stt-test.php` needs a locally supplied WAV (`debug/data/test.wav` or a CLI path).
   No sample or expected transcript ships. Without a sample it reports that the test is

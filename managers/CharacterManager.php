@@ -12,8 +12,8 @@ require_once dirname(__DIR__).'/core/contracts/dialogue.php';
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/CharacterRepository.php';
 
-// Resolves the addressed target to a registered placed NPC: stable placed key, current runtime binding
-// and the profile that owns its model and voice.
+// Resolves the addressed target to a registered placed NPC: stable placed key, current runtime binding,
+// the profile that owns its model and voice, and its save-visible dynamic profile.
 final class CharacterManager
 {
     public function __construct(private CharacterRepository $characters) {}
@@ -36,6 +36,10 @@ final class CharacterManager
         $npc = $this->characters->npc(intval($row['npc_id']));
         $profile = $this->characters->profile(intval($row['profile_id']));
         if ($npc === null || $profile === null) throw new TurnRejected('tts_profile_unsupported');
+        // The admitted save's latest revision for this exact identity replaces only the five dynamic fields of this
+        // turn's copy; prompt head, biography, voice and connector stay base. A failed read is a backend failure.
+        $saved = $this->characters->savedProfile($request->event, intval($row['identity_id']));
+        if ($saved !== null) $npc = array_replace($npc, \synth_profile_fields($saved['fields']));
         return new PlacedCharacter($key, $target, intval($row['identity_id']), $npc, $profile, $row);
     }
 }

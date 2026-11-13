@@ -10,6 +10,35 @@ one `spoken` utterance owned by the first receipt. The older load's provider pro
 contain the line, and the newer load's prompt must contain it exactly once. Each `/talk` makes
 exactly one provider call, and all 13 client requests must complete.
 
+It also checks that each `/talk` prompt uses the dynamic profile revision that its save makes
+visible for the exact target identity:
+
+- One revision is accepted before the older anchor. The first `/talk` and the older load use it.
+- One is accepted while the first `/talk` is held at its provider, between the anchors. The
+  provider reply is a FIFO, so the hold is deterministic. The newer load uses this revision.
+- One is accepted after the newer anchor. No prompt uses it.
+- A same-named sibling identity in the same save has no revision and never appears in a prompt.
+  Base `core_npc_master` rows are never rewritten.
+- For each prompt, the native repository's strict read and the ordinary route's projection must
+  match the prompt.
+
+Part of this coverage is simulated:
+
+- The driver has no profile refresh, so the test sends its three `profile_refresh` events. Real
+  `main.php` admits them into the client's session on a second loopback server instance. The
+  run therefore completes 16 requests: 13 from the client and 3 from the test.
+- The client does not declare `profiles.dynamic.refresh`. The test adds that capability to the
+  session row for each refresh request, then checks that the exact declared set is restored. A
+  test-owned `init` can't supply it, because an init must advance the client's generation.
+- The HTTP admission must queue exactly one batch keyed `actor:<identity id>`. The test runs
+  `service/manager.php dynamicprofile` inline in a fresh process with `pcntl_fork` disabled.
+  That worker uses a loopback JSON provider and must drain the batch. The test never inserts a
+  revision itself.
+
+Not covered: a client-initiated refresh, a cancelled worker result, a sibling save branch that
+has its own acknowledged revision, and a failed saved-profile read. The failed read is covered by
+`NativeDialogueTurnTest` and a disposable HTTP probe, not by this check.
+
 The test is outside `unittests/tests`, so ordinary PHPUnit discovery and CI never run it. Run
 directly, it skips before touching any database.
 
