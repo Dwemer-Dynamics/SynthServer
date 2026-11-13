@@ -2315,7 +2315,7 @@ document.addEventListener('DOMContentLoaded', () => {
  $itemEquipped = !empty($item['equipped']);
  $itemCondition = isset($item['condition']) ? floatval($item['condition']) : null;
  $itemBaseId = isset($item['baseid']) ? htmlspecialchars((string)$item['baseid'], ENT_QUOTES, 'UTF-8') : '&mdash;';
- ?><tr style="border-bottom:1px solid #3a3a3a;"><td style="padding:6px 8px; color:#cfd9ea;"><?= $itemName ?></td><td style="padding:6px 8px; text-align:center; color:#9fb1c9;"><?= $itemType !== null ? $itemType : '&mdash;' ?></td><td style="padding:6px 8px; text-align:center; color:<?= $itemEquipped ? 'var(--synth-accent)' : '#777' ?>;"><?= $itemEquipped ? 'Yes' : 'No' ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9;"><?= $itemCondition !== null ? number_format($itemCondition, 1) : '&mdash;' ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9; font-family:monospace; font-size:11px;"><?= $itemBaseId ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9; font-weight:600;"><?= $itemCount ?></td></tr><?php endforeach; ?></tbody></table><div style="margin-top:12px; padding:8px; background:#1a1a1a; border-radius:6px; border:1px solid #4a4a4a;"><strong style="color:var(--synth-accent);">Total Items:</strong><span style="color:#cfd9ea;"><?= count($metadataInventory) ?> unique items</span></div></div><?php else: ?><div style="color:#9fb1c9;">No inventory data found in metadata.</div><?php endif; ?></div></details></div><div class="form-item span-2"><details class="npc-metadata-collapse" id="npc_metadata_collapse"><summary>Metadata (JSON)</summary><div class="npc-metadata-collapse-body"><textarea name="metadata" style="display:none"><?= htmlspecialchars($editItem["metadata"] ?? "") ?></textarea><small class="hint">General NPC metadata used by systems.</small><div id="metadata"></div></div></details></div><div class="form-item span-2"><label for="extended_data">Setting Overrides</label><small class="hint">Override global and profile settings for this specific NPC. Changes here take precedence over all other configurations.</small><?php
+ ?><tr style="border-bottom:1px solid #3a3a3a;"><td style="padding:6px 8px; color:#cfd9ea;"><?= $itemName ?></td><td style="padding:6px 8px; text-align:center; color:#9fb1c9;"><?= $itemType !== null ? $itemType : '&mdash;' ?></td><td style="padding:6px 8px; text-align:center; color:<?= $itemEquipped ? 'var(--synth-accent)' : '#777' ?>;"><?= $itemEquipped ? 'Yes' : 'No' ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9;"><?= $itemCondition !== null ? number_format($itemCondition, 1) : '&mdash;' ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9; font-family:monospace; font-size:11px;"><?= $itemBaseId ?></td><td style="padding:6px 8px; text-align:right; color:#9fb1c9; font-weight:600;"><?= $itemCount ?></td></tr><?php endforeach; ?></tbody></table><div style="margin-top:12px; padding:8px; background:#1a1a1a; border-radius:6px; border:1px solid #4a4a4a;"><strong style="color:var(--synth-accent);">Total Items:</strong><span style="color:#cfd9ea;"><?= count($metadataInventory) ?> unique items</span></div></div><?php else: ?><div style="color:#9fb1c9;">No inventory data found in metadata.</div><?php endif; ?></div></details></div><div class="form-item span-2"><details class="npc-metadata-collapse" id="npc_metadata_collapse"><summary>Metadata (JSON)</summary><div class="npc-metadata-collapse-body"><textarea name="metadata" style="display:none"><?= htmlspecialchars($editItem["metadata"] ?? "") ?></textarea><small class="hint">General NPC metadata used by systems.</small><div id="metadata"></div></div></details></div><div class="form-item span-2"><label for="extended_data">Setting Overrides</label><small class="hint">Global &rarr; Profile &rarr; NPC. Overrides here apply to this NPC only; Clear inherits again. Main dialogue pipeline only; native <code>/talk</code> ignores them. Inherited values reflect the saved profile, NPC metadata and the Emote Moods and Prompt Head fields.</small><?php
  // Configure override editor for NPC mode
  $reservedKeys = [
   'middle_term_enabled', 'individual_memory_enabled', 'auto_diary_enabled',
@@ -2335,10 +2335,32 @@ document.addEventListener('DOMContentLoaded', () => {
  $currentOverrides[$key] = $value;
  }
  }
+ // The runtime assigns the default NPC profile to an NPC saved without one; an unsaved NPC or a missing
+ // profile has no known profile layer, so the preview does not claim a source below the NPC's own data.
+ $npcSavedProfile = null;
+ $npcSavedProfileId = intval(is_array($editItem) ? ($editItem['profile_id'] ?? 0) : 0);
+ if (is_array($editItem) && $npcSavedProfileId <= 0) {
+ $npcSavedProfileId = intval(is_array($defaultProfileRow ?? null) ? ($defaultProfileRow['id'] ?? 0) : 0);
+ }
+ foreach ((array)($profileRows ?? []) as $profileRow) {
+ if ($npcSavedProfileId > 0 && intval($profileRow['id'] ?? 0) === $npcSavedProfileId) {
+ $npcSavedProfile = $profileRow;
+ break;
+ }
+ }
+ $npcInherited = synthDescribeInheritedSettings($npcOverrideCatalog, $npcSavedProfile, is_array($editItem) ? $editItem : null);
+ if ($npcSavedProfile === null) {
+ foreach ($npcInherited as $inheritedKey => $inheritedInfo) {
+ if (in_array($inheritedInfo['scope'], ['profile', 'global', 'config'], true)) {
+ $npcInherited[$inheritedKey] = ['scope' => 'unknown', 'source' => is_array($editItem) ? 'Profile not found' : 'Profile not saved yet', 'value' => null];
+ }
+ }
+ }
  $overrideEditorConfig = [
  'mode' => 'npc',
  'fieldName' => 'extended_data',
  'settingsCatalog' => $npcOverrideCatalog,
+ 'inherited' => $npcInherited,
  'reservedKeys' => $reservedKeys,
  'currentData' => $currentOverrides,
  'systemFields' => $systemFields,

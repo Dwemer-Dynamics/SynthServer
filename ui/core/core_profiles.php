@@ -2133,7 +2133,7 @@ const saveAllBtn = document.getElementById('btn_save_all');
             </div>
         </div>
         <div class="provider-body" style="display:block;">
-            <small style="color:#9fb1c9; display:block; margin-bottom:8px;">Override global settings for this profile. Changes here take precedence over global configurations.</small>
+            <small style="color:#9fb1c9; display:block; margin-bottom:8px;">Global &rarr; Profile &rarr; NPC. Overrides here apply to NPCs using this profile unless the NPC overrides them; Clear inherits the global value. The main dialogue pipeline uses them from its next request. Native <code>/talk</code> uses only this profile's primary LLM and TTS connector.</small>
             <?php
             // Configure override editor for Profile mode
             $profileOverrideCatalog = synthGetOverrideableGeneralSettingsCatalog();
@@ -2142,7 +2142,8 @@ const saveAllBtn = document.getElementById('btn_save_all');
                 if (!empty($editItem["metadata"])) {
                     $metaData = json_decode($editItem["metadata"], true);
                     if (is_array($metaData)) {
-                        foreach (array_keys($profileOverrideCatalog) as $key) {
+                        // Global-only keys are listed so a stale, unapplied override can be cleared.
+                        foreach (array_merge(array_keys($profileOverrideCatalog), synthGetGlobalOnlySettingIds()) as $key) {
                             if (array_key_exists($key, $metaData)) {
                                 $currentProfileOverrides[$key] = $metaData[$key];
                             }
@@ -2161,6 +2162,7 @@ const saveAllBtn = document.getElementById('btn_save_all');
                 'mode' => 'profile',
                 'fieldName' => 'metadata',
                 'settingsCatalog' => $profileOverrideCatalog,
+                'inherited' => synthDescribeInheritedSettings($profileOverrideCatalog),
                 'reservedKeys' => ['DYNAMIC_PROFILE_ENABLED', 'MIDDLE_TERM_MEMORY_ENABLED', 'AUTO_DIARY_ENABLED', 'AUTO_DIARY_WAIT_ENABLED', 'LATEST_DIARY_CONTEXT_ENABLED', 'LLM_RANDOMIZER_ENABLED', 'RPG_COMMENTS', 'RPG_COMMENTS_CHANCE', 'DYNAMIC_PROFILE_FIELDS'],
                 'currentData' => $currentProfileOverrides,
                 'systemFields' => [],

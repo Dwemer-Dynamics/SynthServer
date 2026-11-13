@@ -188,6 +188,65 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
         $this->assertSame('community:sanctuary,domain:medicine', $GLOBALS['WORLDKNOWLEDGE']);
     }
 
+    // Request order: stored globals, then the profile, then the NPC. Profile metadata is stored as the
+    // profile page posts it (strings); omission and '' inherit, Off and 0 are explicit.
+    public function testProfileAndNpcOverridesResolveOverGlobalSettings(): void
+    {
+        require_once dirname(__DIR__, 2) . '/lib/core/core_profiles.class.php';
+        require_once dirname(__DIR__, 2) . '/lib/core/tts_connector.class.php';
+        $saved = $GLOBALS;
+        unset($saved['GLOBALS'], $saved['db']);
+        try {
+            $this->assertTrue(synthSetGeneralSetting('HIDE_AMBIENT_COMBAT', true));
+            $this->assertTrue(synthSetGeneralSetting('WORLDKNOWLEDGE_RESULT_LIMIT', 3));
+            $inheriting = ['id' => 1, 'label' => 'Inherits', 'metadata' => '{}'];
+            $explicit = ['id' => 2, 'label' => 'Explicit', 'metadata' => json_encode(
+                ['HIDE_AMBIENT_COMBAT' => 'false', 'WORLDKNOWLEDGE_RESULT_LIMIT' => '0'])];
+            $resolve = function (array $profile, array $npc = []): array {
+                synthLoadGeneralSettingsIntoGlobals();
+                (new CoreProfile())->setOldGlobals($profile);
+                $this->npcMaster->setOldGlobalsFromCurrentNpcData(['npc_name' => 'Override Test'] + $npc, false);
+                return [$GLOBALS['HIDE_AMBIENT_COMBAT'], $GLOBALS['WORLDKNOWLEDGE_RESULT_LIMIT']];
+            };
+
+            $this->assertSame([true, 3], $resolve($inheriting));
+            $this->assertSame([false, 0], $resolve($explicit));
+            $this->assertSame([true, 0], $resolve($explicit, ['extended_data' => json_encode(
+                ['HIDE_AMBIENT_COMBAT' => true, 'WORLDKNOWLEDGE_RESULT_LIMIT' => ''])]));
+            $this->assertSame([false, 3], $resolve($inheriting, ['extended_data' => json_encode(
+                ['HIDE_AMBIENT_COMBAT' => false])]));
+
+            // A cleared override (key removed) follows later global changes.
+            $this->assertTrue(synthSetGeneralSetting('WORLDKNOWLEDGE_RESULT_LIMIT', 5));
+            $this->assertSame([true, 5], $resolve($inheriting));
+
+            $catalog = synthGetOverrideableGeneralSettingsCatalog();
+            $this->assertSame('true', $catalog['HIDE_AMBIENT_COMBAT']['global_value']);
+            foreach (synthGetGlobalOnlySettingIds() as $id) {
+                $this->assertArrayNotHasKey($id, $catalog);
+            }
+            $inherited = synthDescribeInheritedSettings($catalog, $explicit);
+            $this->assertSame(['scope' => 'profile', 'source' => 'Explicit', 'value' => '0'], $inherited['WORLDKNOWLEDGE_RESULT_LIMIT']);
+            $this->assertSame(['scope' => 'global', 'source' => 'Global', 'value' => 'true'],
+                synthDescribeInheritedSettings($catalog, $inheriting)['HIDE_AMBIENT_COMBAT']);
+
+            // NPC metadata applies after the profile and before extended_data, so clearing the NPC override
+            // reveals it; an empty metadata value is skipped and the profile value shows instead.
+            $npcMetadata = ['metadata' => json_encode(['HIDE_AMBIENT_COMBAT' => true, 'WORLDKNOWLEDGE_RESULT_LIMIT' => ''])];
+            $this->assertSame([true, 0], $resolve($explicit, $npcMetadata));
+            $preview = synthDescribeInheritedSettings($catalog, $explicit, $npcMetadata);
+            $this->assertSame(['scope' => 'npc_metadata', 'source' => 'NPC metadata', 'value' => true], $preview['HIDE_AMBIENT_COMBAT']);
+            $this->assertSame('profile', $preview['WORLDKNOWLEDGE_RESULT_LIMIT']['scope']);
+        } finally {
+            foreach (array_diff_key($GLOBALS, $saved, ['GLOBALS' => 1, 'db' => 1]) as $key => $_) {
+                unset($GLOBALS[$key]);
+            }
+            foreach ($saved as $key => $value) {
+                $GLOBALS[$key] = $value;
+            }
+        }
+    }
+
     public function testNpcMetadataRoundTripsUnicode(): void
     {
         $created = $this->npcMaster->create([
