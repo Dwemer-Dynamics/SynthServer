@@ -37,6 +37,8 @@ function narrator_private_handle_post(): ?array
                 if (!$retired || pg_affected_rows($retired) !== 1) throw new DomainException('Narrator is already retired.');
                 narrator_private_retire_replies($connection, $definitionId);
             });
+            // A fresh token stops a resubmitted page from repeating the change.
+            $_SESSION['private_narrator_csrf'] = bin2hex(random_bytes(32));
             return [true, 'Narrator retired. Saves that already use it keep their revision.'];
         }
         if ($action !== 'save') return [false, 'Unknown private narrator action.'];
@@ -78,6 +80,7 @@ function narrator_private_handle_post(): ?array
             narrator_private_retire_replies($connection, $id);
             return intval($inserted['revision_id']);
         });
+        $_SESSION['private_narrator_csrf'] = bin2hex(random_bytes(32));
         return [true, "Saved {$fields['name']} as revision {$saved}. Select it in game to apply it."];
     } catch (DomainException $error) {
         return [false, $error->getMessage()];
@@ -101,7 +104,8 @@ function narrator_private_retire_replies($connection, string $definitionId): voi
         throw new RuntimeException('Unable to retire pending narrator replies.');
 }
 
-function narrator_private_render(string $webRoot): void
+// $result is the [success, message] pair from narrator_private_handle_post() for this request, if any.
+function narrator_private_render(string $webRoot, ?array $result = null): void
 {
     $ready = narrator_private_ready();
     $definitions = $revisions = $profiles = [];
@@ -117,14 +121,29 @@ function narrator_private_render(string $webRoot): void
         $profiles = $GLOBALS['db']->fetchAll('SELECT id,label FROM synth.core_profiles ORDER BY id') ?: [];
     }
     $editing = null;
-    $requested = strval($_GET['narrator_definition'] ?? '');
+    $requested = is_string($_GET['narrator_definition'] ?? null) ? $_GET['narrator_definition'] : '';
+    // A failed save redisplays what was submitted and stays aimed at the definition it targeted, even a retired or
+    // unknown one, so saving again fails again instead of creating another narrator.
+    $failedSave = $result && !$result[0] && ($_POST['private_narrator_action'] ?? '') === 'save';
+    if ($failedSave) $requested = is_string($_POST['definition_id'] ?? null) ? trim($_POST['definition_id']) : '';
     foreach ($definitions as $row) if ($row['definition_id'] === $requested) $editing = $row;
+    $editId = $failedSave ? $requested : strval($editing['definition_id'] ?? '');
+    if ($failedSave) {
+        $submitted = ['definition_id' => $editId, 'profile_id' => is_string($_POST['profile_id'] ?? null) ? intval($_POST['profile_id']) : 0];
+        foreach (array_keys(NARRATOR_PRIVATE_FIELDS) as $field)
+            $submitted[$field] = is_string($_POST[$field] ?? null) ? $_POST[$field] : '';
+    }
     $profileLabels = array_column($profiles, 'label', 'id');
-    $value = static fn(string $field) => htmlspecialchars(strval($editing[$field] ?? ''));
+    $value = static fn(string $field) => htmlspecialchars(strval(($failedSave ? $submitted : $editing)[$field] ?? ''));
     $base = '?'.(isset($_GET['embed']) ? 'embed=1&' : '');
+    $home = rtrim($base, '&').'#private-narrators';
+    $formAction = $editId !== '' ? $base.'narrator_definition='.urlencode($editId).'#private-narrators' : $home;
     ?>
 <div class="content-section full-width-section private-narrators" id="private-narrators">
  <h2>Private Narrators</h2>
+ <?php if ($result): ?>
+ <p class="private-narrators-result<?php echo $result[0] ? '' : ' error'; ?>" role="<?php echo $result[0] ? 'status' : 'alert'; ?>"><?php echo htmlspecialchars(strval($result[1])); ?></p>
+ <?php endif; ?>
  <span class="hint">Named narrators that only the player hears. Each save stores the narrator revisions it applied, the selection and the private transcript, and loading it restores them. Saving here creates a new revision; select the narrator again in game to apply it. Private lines never enter NPC dialogue, diaries or memories.</span>
  <?php if (!$ready): ?>
  <p class="hint">Private narrator tables are not installed yet. Run the database update, then reload this page.</p>
@@ -147,14 +166,14 @@ function narrator_private_render(string $webRoot): void
     </td>
     <td><?php echo $row['profile_id'] === null ? 'Default narrator profile' : htmlspecialchars(strval($profileLabels[$row['profile_id']] ?? 'Profile '.$row['profile_id'])); ?></td>
     <td><?php echo $row['voice'] === '' ? '<span class="hint-inline">Profile default</span>' : htmlspecialchars($row['voice']); ?></td>
-    <td class="private-narrators-actions">
-     <a class="private-narrators-btn" href="<?php echo htmlspecialchars($base.'narrator_definition='.urlencode($row['definition_id'])); ?>#private-narrators-form">Edit</a>
-     <form method="post" action="" onsubmit="return confirm('Retire this narrator? Saves that already use it keep their revision.');">
+    <td><div class="private-narrators-actions">
+     <a class="private-narrators-btn" href="<?php echo htmlspecialchars($base.'narrator_definition='.urlencode($row['definition_id'])); ?>#private-narrators-form" aria-label="Edit <?php echo htmlspecialchars($row['name']); ?>">Edit</a>
+     <form method="post" action="<?php echo htmlspecialchars($home); ?>" onsubmit="return confirm('Retire this narrator? Saves that already use it keep their revision.');">
       <input type="hidden" name="private_narrator_csrf" value="<?php echo htmlspecialchars($_SESSION['private_narrator_csrf']); ?>">
       <input type="hidden" name="private_narrator_action" value="retire"><input type="hidden" name="definition_id" value="<?php echo htmlspecialchars($row['definition_id']); ?>">
-      <button type="submit" class="private-narrators-btn private-narrators-btn-muted">Retire</button>
+      <button type="submit" class="private-narrators-btn private-narrators-btn-muted" aria-label="Retire <?php echo htmlspecialchars($row['name']); ?>">Retire</button>
      </form>
-    </td>
+    </div></td>
    </tr>
   <?php endforeach; ?>
   </tbody>
@@ -162,9 +181,9 @@ function narrator_private_render(string $webRoot): void
  <?php else: ?>
  <p class="hint">No private narrators yet. Create one below.</p>
  <?php endif; ?>
- <form method="post" action="" class="private-narrators-form" id="private-narrators-form">
+ <form method="post" action="<?php echo htmlspecialchars($formAction); ?>" class="private-narrators-form" id="private-narrators-form">
   <input type="hidden" name="private_narrator_csrf" value="<?php echo htmlspecialchars($_SESSION['private_narrator_csrf']); ?>">
-  <h3><?php echo $editing ? 'Edit '.$value('name').' (new revision)' : 'New private narrator'; ?></h3>
+  <h3><?php echo $editing ? 'Edit '.htmlspecialchars($editing['name']).' (new revision)' : ($editId !== '' ? 'Edit unavailable narrator (new revision)' : 'New private narrator'); ?></h3>
   <input type="hidden" name="private_narrator_action" value="save">
   <input type="hidden" name="definition_id" value="<?php echo $value('definition_id'); ?>">
   <div class="private-narrators-row">
@@ -173,7 +192,7 @@ function narrator_private_render(string $webRoot): void
    <div><label for="private_narrator_profile">Profile</label><select id="private_narrator_profile" name="profile_id">
     <option value="">Default narrator profile</option>
     <?php foreach ($profiles as $profile): ?>
-    <option value="<?php echo intval($profile['id']); ?>" <?php echo intval($editing['profile_id'] ?? 0) === intval($profile['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars(strval($profile['label'] ?? 'Profile '.$profile['id'])); ?></option>
+    <option value="<?php echo intval($profile['id']); ?>" <?php echo intval(($failedSave ? $submitted : $editing)['profile_id'] ?? 0) === intval($profile['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars(strval($profile['label'] ?? 'Profile '.$profile['id'])); ?></option>
     <?php endforeach; ?>
    </select></div>
   </div>
@@ -182,8 +201,8 @@ function narrator_private_render(string $webRoot): void
   <label for="private_narrator_style">Speaking style</label><textarea id="private_narrator_style" name="style" rows="2" maxlength="2000"><?php echo $value('style'); ?></textarea>
   <span class="hint">The profile supplies the language model and text-to-speech connector. Replies need a voiced profile.</span>
   <div class="private-narrators-buttons">
-   <button type="submit" class="btn-save"><?php echo $editing ? 'Save Revision' : 'Create Narrator'; ?></button>
-   <?php if ($editing): ?><a class="private-narrators-btn private-narrators-btn-muted" href="<?php echo htmlspecialchars(rtrim($base, '&?')); ?>#private-narrators">Cancel</a><?php endif; ?>
+   <button type="submit" class="btn-save"><?php echo $editId !== '' ? 'Save Revision' : 'Create Narrator'; ?></button>
+   <?php if ($editId !== ''): ?><a class="private-narrators-btn private-narrators-btn-muted" href="<?php echo htmlspecialchars($home); ?>">Cancel</a><?php endif; ?>
   </div>
  </form>
  <?php endif; ?>
@@ -200,6 +219,8 @@ function narrator_private_render(string $webRoot): void
  .private-narrators-btn { display: inline-block; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(var(--synth-accent-rgb), 0.4); background: rgba(var(--synth-accent-rgb), 0.12); color: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
  .private-narrators-btn-muted { border-color: rgba(255, 255, 255, 0.2); background: transparent; }
  .private-narrators-btn:focus-visible, .private-narrators-table summary:focus-visible { outline: 2px solid var(--synth-accent); outline-offset: 2px; }
+ .private-narrators-result { margin: 8px 0 12px; padding: 8px 12px; border-left: 3px solid var(--synth-accent); background: rgba(var(--synth-accent-rgb), 0.08); }
+ .private-narrators-result.error { border-left-color: #e57373; background: rgba(229, 115, 115, 0.1); }
  .private-narrators-form h3 { margin: 8px 0 4px; }
  .private-narrators-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
  .private-narrators-row label, .private-narrators-form > label { display: block; margin: 10px 0 4px; color: var(--synth-accent); }
