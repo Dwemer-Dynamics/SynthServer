@@ -688,7 +688,15 @@ class openaijson
 
         $contextData=$contextDataCopy;
 
-        $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? : 1.0);
+        $temperature = $GLOBALS["CONNECTOR"][$this->name]["temperature"] ?? null;
+        // Explicit numeric zero is preserved; legacy unset, blank and false values still use the default.
+        if (is_numeric($temperature) && floatval($temperature) == 0.0) {
+            $temperature = 0.0;
+        } else if ($temperature) {
+            $temperature = floatval($temperature);
+        } else {
+            $temperature = 1.0;
+        }
         if ($temperature < 0.0) $temperature = 0.0;
         else if ($temperature > 2.0) $temperature = 2.0;
 
@@ -768,6 +776,7 @@ class openaijson
         } elseif ($this->_is_groq_com) { // --- exception made for groq.com
 
             if ($temperature < 0.000001) $temperature = 0.000001; // groq.com want this > 1e-8, never 0.0
+            $data['temperature'] = $temperature;
 
             if ($this->_is_reasoning) {
             /*  groq.com:
@@ -1324,7 +1333,15 @@ class openaijson
 
         $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 512));
 
-        $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? : 0.7);
+        $temperature = $GLOBALS["CONNECTOR"][$this->name]["temperature"] ?? null;
+        // Explicit numeric zero is preserved; legacy unset, blank and false values still use the default.
+        if (is_numeric($temperature) && floatval($temperature) == 0.0) {
+            $temperature = 0.0;
+        } else if ($temperature) {
+            $temperature = floatval($temperature);
+        } else {
+            $temperature = 0.7;
+        }
         if ($temperature < 0.0) $temperature = 0.0;
         else if ($temperature > 2.0) $temperature = 2.0;
 
@@ -1413,6 +1430,7 @@ class openaijson
         } elseif ($this->_is_groq_com) { // --- exception made for groq.com
 
             if ($temperature < 0.000001) $temperature = 0.000001; // groq.com want this > 1e-8, never 0.0
+            $data['temperature'] = $temperature;
 
             if ($this->_is_reasoning) {
             /*  groq.com:

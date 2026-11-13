@@ -1550,9 +1550,16 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     $db->execQuery("UPDATE synth_meta.runtime_sessions
                         SET active_turn_id={$turnId}, active_turn_sequence={$sequence}, updated_at=NOW()
                         WHERE session_id={$session} AND active_generation={$generation}");
+                    // A new context supersedes the old owner even when its turn ID is reused.
                     $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
                             response_body=NULL, error_code='superseded_turn', completed_at=NOW()
-                        WHERE session_id={$session} AND generation={$generation} AND turn_id<>{$turnId}
+                        WHERE session_id={$session} AND generation={$generation}
+                          AND (turn_id<>{$turnId} OR EXISTS (
+                            SELECT 1 FROM synth_meta.protocol_events owner
+                            WHERE owner.session_id={$session} AND owner.generation={$generation}
+                              AND owner.request_id=request_executions.request_id
+                              AND owner.event_sha256=request_executions.request_sha256
+                              AND owner.canonical_event->>'context_sequence' IS DISTINCT FROM '{$sequence}'))
                           AND (event_type IN ('input_text','input_audio','trigger','action_result')
                             OR (event_type='social_task_progress' AND request_id IN (
                                 SELECT p.request_id FROM synth_meta.protocol_events p
@@ -1562,7 +1569,9 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                                     AND p.event_sha256=request_executions.request_sha256)))
                           AND state IN ('claimed','streaming')");
                     $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
-                        WHERE session_id={$session} AND generation={$generation} AND turn_id<>{$turnId}
+                        WHERE session_id={$session} AND generation={$generation}
+                          AND (turn_id<>{$turnId} OR COALESCE(payload->'protocol_event'->>'context_sequence',
+                            payload->>'context_sequence') IS DISTINCT FROM '{$sequence}')
                           AND (job_type<>'diary' OR payload->>'schema' IS DISTINCT FROM 'synth.diary.job.v1')
                           AND (job_type<>'relationship' OR relationship_evaluation_id IS NULL
                             OR payload->>'schema' IS DISTINCT FROM 'synth.relationship.gift-job.v1')
