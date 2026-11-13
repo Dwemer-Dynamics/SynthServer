@@ -123,6 +123,21 @@ final class NativeDialogueTurnTest extends TestCase
         $driver->stream(['driver'=>'player2json']+$base,[],static function(string $delta): void {});
     }
 
+    public function testDriverChecksOwnerBeforeConnectingAndRejectsMissingStatus(): void
+    {
+        $base=['driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1/chat/completions','model'=>'m','reasoning_model'=>false,
+            'metadata'=>'{}','api_key'=>'','max_tokens'=>64];
+        $text=static function(string $delta): void { throw new LogicException('unexpected_text'); };
+        $cancelled=new OpenAiCompatibleDriver(static function(): void { throw new SYNTHProtocolCancelled('request_cancelled'); },
+            static fn(array $connector): array=>$connector);
+        try { $cancelled->stream($base,[],$text); $this->fail('cancelled'); }
+        catch (SYNTHProtocolCancelled $error) { $this->assertSame('request_cancelled',$error->getMessage()); }
+        // A refused connection has no HTTP status and must fail generically, never as a parsed stream.
+        $driver=new OpenAiCompatibleDriver(static function(): void {},static fn(array $connector): array=>$connector);
+        try { $driver->stream($base,[],$text); $this->fail('refused'); }
+        catch (RuntimeException $error) { $this->assertSame('provider_failed',$error->getMessage()); }
+    }
+
     public function testSentencesStreamAsCompleteLines(): void
     {
         $buffer='Hello there. How are';
