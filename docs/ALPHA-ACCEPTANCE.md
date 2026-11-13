@@ -6,6 +6,12 @@
 - [ ] VR in headset: independently verify the same capture and prompt behavior.
 - [ ] Existing installation: review the biography repair dry run and back up the database before an explicitly authorized apply.
 
+## Private narrator
+
+- [ ] Reviewed installation upgrade and paired client negotiation (no deployment is part of this change).
+- [ ] Flat and VR game acceptance independently: saved revisions/selection/transcript, cancellation and next-NPC privacy.
+- [ ] Live configured model, speech recognition and voice-provider acceptance. Disposable tone fixtures prove no voice quality.
+
 ## Optional companion combat comments
 
 - [ ] Verify the paired flat client's participant, cancellation and delayed-output

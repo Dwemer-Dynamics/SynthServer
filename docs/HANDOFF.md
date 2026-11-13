@@ -28,6 +28,13 @@ evidence-backed drafts outside the checkout. It never installs profiles.
 Structural exports do not certify named-cast completeness; source access,
 identity review and original field evidence remain explicit gates.
 
+## Private narrator candidate
+
+The optional private narrator contract adds separate immutable definition revisions and save-branched private
+transcripts. Existing context snapshots capture opaque private-state IDs; SCTX and ordinary NPC receipts remain
+unchanged. Private data is excluded from NPC history and journal sources. See [PRIVATE-NARRATOR.md](PRIVATE-NARRATOR.md).
+The additive migration is `private_narrator_schema` 20261113001. No deployment or gameplay acceptance is included.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
