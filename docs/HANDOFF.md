@@ -415,6 +415,12 @@ protocol or database schema.
   database that holds real data.
 - `unittests/tests/AutoGreetingRuntimeTest.php` reads the client source through
   `SYNTH_CLIENT_ROOT` (default `../SYNTH`). If the client source is missing, the test is skipped.
+- The opt-in compiled-client loopback dialogue check runs outside PHPUnit discovery and CI:
+  `sudo bash SERVER/unittests/loopback/run-loopback-dialogue.sh CLIENT`. It builds the client's
+  test driver and runs it against real `main.php`, a disposable PostgreSQL cluster and a
+  loopback fake provider, all in private namespaces. It checks the duplicated receipt and the
+  older and newer co-save loads. See [unittests/loopback/README.md](../unittests/loopback/README.md)
+  for prerequisites and limits. It is not game evidence.
 - `ui/tests/stt-test.php` needs a locally supplied WAV (`debug/data/test.wav` or a CLI path).
   No sample or expected transcript ships. Without a sample it reports that the test is
   unavailable and makes no provider call.
