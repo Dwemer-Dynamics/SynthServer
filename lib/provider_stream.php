@@ -14,10 +14,13 @@ final class SynthProviderStream
     private bool $failed = false;
     private int $received = 0;
     private int $nextGuard = 0;
+    private int $status = 0;
 
-    public function __construct(string $url, $context, private int $maxBytes = 16 * 1024 * 1024)
+    // $assertActive is an extra explicit owner check for callers that hold no global request claim.
+    public function __construct(string $url, $context, private int $maxBytes = 16 * 1024 * 1024,
+        private ?Closure $assertActive = null)
     {
-        synth_protocol_assert_request_active();
+        $this->assertActive();
         if (!in_array(strtolower(strval(parse_url($url, PHP_URL_SCHEME))), ['http','https'], true)) {
             throw new InvalidArgumentException('Provider URL must use HTTP or HTTPS');
         }
@@ -53,6 +56,7 @@ final class SynthProviderStream
                     $redirect = $follow && in_array($status, [301,302,303,307,308], true)
                         && count(preg_grep('/^Location:/i', $this->headers)) > 0;
                     $this->headersReady = $status >= 200 && !$redirect;
+                    if ($this->headersReady) $this->status = $status;
                 }
                 return strlen($line);
             },
@@ -129,10 +133,15 @@ final class SynthProviderStream
     public function metadata(): array { return ['wrapper_data' => $this->headers]; }
     public function eof(): bool { return $this->done && $this->buffer === ''; }
     public function failed(): bool { return $this->failed; }
+    // Final HTTP status after interim and followed redirect responses; 0 when none arrived.
+    public function status(): int { return $this->status; }
 
     private function assertActive(): void
     {
-        try { synth_protocol_assert_request_active(); }
+        try {
+            synth_protocol_assert_request_active();
+            if ($this->assertActive !== null) ($this->assertActive)();
+        }
         catch (Throwable $error) { $this->close(); throw $error; }
     }
 
