@@ -34,6 +34,9 @@ See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay 
   `backend_request_failed` terminal. It writes no input, history or utterance and makes no
   provider call. A disposable probe passed over real `main.php`. Unit coverage is in
   `NativeDialogueTurnTest`. The probe is not tracked.
+- [ ] Flat and VR in game, separately: a typed native `/talk` after the player and the responder
+  are injured reflects each one's condition, and a later turn after healing reflects recovery.
+  Unit coverage (snapshot only, fake provider) is in `NativeDialogueTurnTest`.
 - [x] Stage A increment 1: the same HTTP + PostgreSQL 15 probe passes unchanged against the
   namespaced `DialogueManager` services behind the transitional edge.
 - [x] Stage A increment 2: `/talk` and receipts dispatched to `api/v2/` before

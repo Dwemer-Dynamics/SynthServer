@@ -406,6 +406,16 @@ preserves the originally frozen scalar values and flags rather than mixing reads
 Roll out the accepting server before the emitting client; strict older servers
 reject unknown optional fields. Both protocol lanes share this additive contract.
 
+The native typed `/talk` prompt adds a `condition` block for the player and the
+exact responder only (`lib/synth_condition_prompt.php`). Each value is copied once
+from that turn's claimed snapshot as the current/permanent actor value ratio,
+clamped to 0-100 percent; the effective HUD maximum is unverified. It is not live,
+not a trend, not a cause or visible injury. A row matches
+only the exact runtime form ID, origin plugin and playthrough, never a display name.
+A missing, duplicate or foreign row, or one attesting neither value, is `unknown`
+with nulls; an unattested value is null; an attested zero stays zero. Generic,
+`input_audio` and voice routes keep the generic actor-state projection above.
+
 
 ## Faction-list completeness (2026-09-05)
 
