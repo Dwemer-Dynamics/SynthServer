@@ -399,6 +399,27 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
         $this->assertSame(['Varmint rifle'], $extended['inventory']);
     }
 
+    public function testCreateAndCreateProfileMoveLegacyExpertiseIntoBackgroundOnce(): void
+    {
+        $this->assertTrue($this->npcMaster->create(['npc_name' => 'Expertise Create Test',
+            'npc_static_bio' => 'Rebuilt the bridge.', 'skills' => 'Bridge repair.']));
+        $row = $this->npcMaster->getByName('Expertise Create Test');
+        $this->assertSame(["Rebuilt the bridge.
+
+Expertise: Bridge repair.", null], [$row['npc_static_bio'], $row['skills']]);
+
+        $this->npcMaster->createProfile('Expertise Profile Test', ['npc_static_bio' => 'Ran the diner.', 'skills' => 'Cooking.']);
+        $merged = "Ran the diner.
+
+Expertise: Cooking.";
+        $row = $this->npcMaster->getByName('Expertise Profile Test');
+        $this->assertSame([$merged, null], [$row['npc_static_bio'], $row['skills']]);
+        // An overwrite carrying an already merged background keeps the expertise exactly once.
+        $this->npcMaster->createProfile('Expertise Profile Test', ['npc_static_bio' => $merged, 'skills' => 'Cooking.'], true);
+        $row = $this->npcMaster->getByName('Expertise Profile Test');
+        $this->assertSame([$merged, null], [$row['npc_static_bio'], $row['skills']]);
+    }
+
     public function testExplicitIndividualMemoryDisableRemovesSetting(): void
     {
         $this->assertTrue($this->npcMaster->create([

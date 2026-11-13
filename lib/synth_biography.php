@@ -14,6 +14,12 @@ function synth_biography_background(string $background, string $expertise): stri
     return $background==='' ? SYNTH_EXPERTISE_PREFIX.$expertise : $background."\n\n".SYNTH_EXPERTISE_PREFIX.$expertise;
 }
 
+// Dynamic NPC updates never regenerate legacy expertise; SPECIAL values are observed at runtime instead.
+function synth_biography_dynamic_npc_fields(array $fields): array
+{
+    return array_values(array_filter($fields,static fn($field)=>$field!=='skills'));
+}
+
 function synth_actor_stats_supported(array $event): bool
 {
     return ($event['protocol_version'] ?? 1)===2 && in_array('context.actor_stats',$event['capabilities'] ?? [],true);
@@ -80,6 +86,9 @@ function synth_actor_stats_for_request($db,string $npcName): string
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
     if (!is_array($event) || !synth_actor_stats_supported($event)) return '';
     require_once __DIR__.'/synth_npc_identity.php';
+    // A legacy or cancelled request never loads the bound context; the actor lookup rechecks both against it.
+    if (!synth_npc_native_request()) return synth_actor_stats_prompt($event,null);
+    synth_protocol_assert_request_active();
     $context=synth_protocol_current_context($db,$event);
     $actorId=synth_npc_request_actor_id($db,$npcName,$context);
     $identity=$actorId===null ? null

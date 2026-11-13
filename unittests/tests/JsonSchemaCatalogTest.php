@@ -912,6 +912,15 @@ final class JsonSchemaCatalogTest extends TestCase
             try { synth_profile_validate_input(array_replace($input,$change),$owner,15,'npc');$this->fail('Invalid worker input accepted.'); }
             catch (LogicException|JsonException $error) { $this->assertNotSame('',$error->getMessage()); }
         }
+        // NPC selections never regenerate legacy expertise; one left empty is rejected before any prompt work.
+        require_once dirname(__DIR__,2).'/lib/synth_biography.php';
+        $this->assertSame(['personality','goals'],synth_biography_dynamic_npc_fields(['personality','skills','goals']));
+        $this->assertSame([],synth_biography_dynamic_npc_fields(['skills']));
+        $previous=$GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'] ?? null;
+        $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']=['Piper'=>['fields'=>[]]];
+        try { synth_profile_prepare_fields('Piper',['skills'],'frozen');$this->fail('Skills-only NPC selection accepted.'); }
+        catch (LogicException $error) { $this->assertSame('Invalid native profile field selection.',$error->getMessage()); }
+        finally { if ($previous===null) unset($GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']);else $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']=$previous; }
     }
 
     public function testNativeProfileFieldsAreBoundedAndPlayerPerspectiveIsExplicit(): void

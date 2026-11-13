@@ -114,7 +114,6 @@ final class FalloutContentPackTest extends DatabaseTestCase
     // Every authored catalog value survives the layout; expertise joins the background exactly once.
     public function testBiographyLayoutKeepsEveryAuthoredValueAndRepairsOnlyExactFactoryImports(): void
     {
-        global $argv;
         $pack=synthLoadFalloutContentPack(dirname(__DIR__,2));
         foreach ($pack['npcs'] as $npc) {
             $bio=$npc['fields']['npc_static_bio'];$skills=trim($npc['fields']['skills']);
@@ -145,11 +144,19 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $db->execQuery("UPDATE synth.actor_identities SET full_form_id='0x0001CA7E' WHERE id=(SELECT actor_identity_id FROM synth.core_npc_master WHERE id=$conflict)");
         $db->execQuery("INSERT INTO synth.bio_template_actor_map(template_name,reference_plugin,reference_local_formid) VALUES('fo4_piper','Fallout4.esm','0001CA7E')");
         $snapshot=static fn()=>$db->fetchAll('SELECT id,npc_static_bio,skills,lock_profile FROM synth.core_npc_master WHERE id IN ('.implode(',',$rows).') ORDER BY id');
-        $run=static function(array $args) use (&$argv): array {
-            $saved=$GLOBALS['argv'] ?? null;$GLOBALS['argv']=$argv=array_merge(['repair-npc-biography.php'],$args);
-            ob_start();
-            try { require dirname(__DIR__,2).'/tools/repair-npc-biography.php';$output=ob_get_contents(); }
-            finally { ob_end_clean();if ($saved===null) unset($GLOBALS['argv']);else $GLOBALS['argv']=$saved; }
+        // Run the operator CLI in its own process so it loads the production sql class and its pinned transaction.
+        $run=static function(array $args): array {
+            $environment=getenv();
+            unset($environment['PHPUNIT_TEST']);
+            $environment['SYNTH_DB_HOST']='localhost';$environment['SYNTH_DB_NAME']='testdb';
+            $environment['SYNTH_DB_USER']='dwemer';$environment['SYNTH_DB_PASSWORD']='dwemer';
+            $process=proc_open(array_merge([PHP_BINARY,dirname(__DIR__,2).'/tools/repair-npc-biography.php'],$args),
+                [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,dirname(__DIR__,2),$environment);
+            self::assertIsResource($process);
+            fclose($pipes[0]);
+            $output=stream_get_contents($pipes[1]);$errors=stream_get_contents($pipes[2]);
+            fclose($pipes[1]);fclose($pipes[2]);
+            self::assertSame(0,proc_close($process),'Biography repair CLI failed: '.$output.$errors);
             $lines=array_map(static fn($line)=>json_decode($line,true,512,JSON_THROW_ON_ERROR),array_values(array_filter(explode("\n",$output))));
             return [array_pop($lines),array_column($lines,'status','id')];
         };

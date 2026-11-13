@@ -998,6 +998,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_npc"])) {
  // Don't overwrite the name when importing to existing NPC
  unset($npcData['npc_name']);
 
+ // Imported legacy expertise joins the background once (the imported one, else the target's); skills stay clear.
+ if (array_key_exists('skills', $npcData)) {
+ if (is_string($npcData['skills']) && trim($npcData['skills']) !== '') {
+ $importedBackground = array_key_exists('npc_static_bio', $npcData) ? $npcData['npc_static_bio'] : ($existingNpc['npc_static_bio'] ?? '');
+ if (!is_string($importedBackground ?? '')) throw new InvalidArgumentException('Imported background must be text');
+ $npcData['npc_static_bio'] = synth_biography_background($importedBackground ?? '', $npcData['skills']);
+ }
+ $npcData['skills'] = '';
+ }
+
  $npc->update($targetId, $npcData);
  echo json_encode(['ok' => true, 'message' => 'Biography imported to existing NPC', 'id' => $targetId]);
  } else {

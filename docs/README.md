@@ -5,8 +5,6 @@ them. This index only points to existing documents. Status and open checks stay 
 [HANDOFF.md](HANDOFF.md) and [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md); an HTTP or PHPUnit check
 is never in-game evidence.
 
-- [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md): authored layout, guarded existing-profile repair and runtime SPECIAL ownership.
-
 ## Start here
 
 - [README](../README.md): topology, install, configuration, tests and release audit.
@@ -16,6 +14,7 @@ is never in-game evidence.
 - [SERVER-FILE-LAYOUT.md](SERVER-FILE-LAYOUT.md): which folder owns what.
 - [PROTOCOL.md](PROTOCOL.md) and [protocol/README.md](../protocol/README.md): the wire contract
   mirrored with the SYNTH client.
+- [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md): authored layout, guarded existing-profile repair and runtime SPECIAL ownership.
 
 ## Components
 

@@ -918,8 +918,8 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
         }
         
         // Get dynamic profile fields to update
-        // SPECIAL values are observed at runtime; retain legacy expertise but never regenerate it as a skill.
-        $fieldsToUpdate = array_values(array_filter($characterDynamicProfileFields,static fn($field)=>$field!=='skills'));
+        require_once __DIR__.'/synth_biography.php';
+        $fieldsToUpdate = synth_biography_dynamic_npc_fields($characterDynamicProfileFields);
         
         if (empty($fieldsToUpdate)) {
             Logger::debug("processSingleDynamicProfile: No fields selected for dynamic updates for $npcName");

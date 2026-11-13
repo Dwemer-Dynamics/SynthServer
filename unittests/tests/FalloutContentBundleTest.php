@@ -195,12 +195,13 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             self::assertSame('Operator-authored World Knowledge.',$this->db()->fetchOne("SELECT topic_desc FROM synth.worldknowledge WHERE canonical_topic='bundle_authored'")['topic_desc']);
             self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.worldknowledge WHERE canonical_topic='bundle_fixture_legacy_seed'")['n']);
             foreach ($ids as $index=>$id) {
-                $profile=$this->db()->fetchOne('SELECT npc_static_bio,personality,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
+                $profile=$this->db()->fetchOne('SELECT npc_static_bio,skills,personality,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
                 self::assertSame('Authored profile personality.',$profile['personality']);
                 self::assertSame('preserved_fixture_voice',$profile['voiceid']);
                 self::assertSame('Authored profile relationships.',$profile['relationships']);
                 if ($index===0) self::assertSame('Operator-authored custom background.',$profile['npc_static_bio']);
-                elseif ($index===1) self::assertSame($pack['npcs'][1]['fields']['npc_static_bio'],$profile['npc_static_bio']);
+                elseif ($index===1) self::assertSame([synth_biography_background($pack['npcs'][1]['fields']['npc_static_bio'],
+                    $pack['npcs'][1]['fields']['skills']),null],[$profile['npc_static_bio'],$profile['skills']]);
                 else self::assertNull($profile['npc_static_bio']);
             }
             self::assertSame('2',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.bio_template_actor_map WHERE template_name LIKE 'fo4_bundle_%'")['n']);
