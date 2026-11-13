@@ -35,6 +35,43 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
 - Prefer the existing PHPUnit suites. Add a new test file only when existing suites cannot
   cover a high-risk change.
 
+## Code and comments
+
+These apply to new and changed code. Do not reformat or re-comment untouched code.
+
+- Start a new PHP file with a brief comment on what it owns when the file name alone does not
+  say so. Put a brief purpose comment above a class or function only when its role is unclear
+  from its name and signature.
+- Comment intent where it is not obvious: trust-boundary checks, ownership and locking,
+  save/playthrough scope, transaction and replay rules, deliberate refusals and fallbacks that
+  are not taken. Do not restate the code. There is no comment-per-function or per-line quota.
+- Use descriptive names and straightforward flow. Keep one owner per responsibility, as in
+  [SERVER-FILE-LAYOUT.md](docs/SERVER-FILE-LAYOUT.md). Do not add a helper that is used once and
+  makes the flow harder to follow.
+- Match the file's existing formatting and naming: `snake_case` functions in `lib/`, namespaced
+  classes in `managers/`, `core/` and `drivers/`. There is no repository-wide formatter.
+- At the PHP boundary, validate client and model data before use, use prepared queries, keep
+  writes inside the existing owner's transaction, and fail explicitly instead of returning a
+  success-shaped default. Never log secrets.
+
+Examples from the current source:
+
+```php
+// managers/SpeechManager.php: what the class owns and refuses
+// Speech comes only from the NPC profile's own TTS connector and resolved voice; there is no server-wide
+// fallback. A line that cannot be voiced is terminal for the turn, never a silent text-only line.
+
+// lib/synth_wait_actions.php: intent above a function whose name does not show the limit
+// Waiting changes only the addressed NPC. It is never an autonomous or narrator action.
+```
+
+## Documentation
+
+Find component notes and their source entry points in [docs/README.md](docs/README.md). Update the
+relevant feature note, [docs/HANDOFF.md](docs/HANDOFF.md) and
+[docs/ALPHA-ACCEPTANCE.md](docs/ALPHA-ACCEPTANCE.md); do not start a chronological ledger. State
+what was checked and what remains unchecked. Use relative links with the exact Git path case.
+
 ## Checks before opening a PR
 
 ```powershell
@@ -43,7 +80,15 @@ git diff --check
 ```
 
 Run `php -l` on changed PHP files and the relevant PHPUnit tests against a disposable
-PostgreSQL database. For UI changes, check the affected pages at desktop and narrow widths.
+PostgreSQL database. To run one test file, from `unittests/` after `composer install`:
+
+```bash
+./vendor/bin/phpunit tests/NativeWaitActionTest.php
+```
+
+`SYNTH_CLIENT_ROOT` applies to `AutoGreetingRuntimeTest`, not the example above: it points that
+test's cross-repository activation wiring check at your SYNTH checkout (default: a sibling `SYNTH`
+directory next to the server root; the check is skipped if the client source is not found). For UI changes, check the affected pages at desktop and narrow widths.
 
 ## Licensing
 
