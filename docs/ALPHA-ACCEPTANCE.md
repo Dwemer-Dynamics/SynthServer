@@ -6,6 +6,16 @@
 - [ ] Flat and VR game acceptance independently: saved revisions/selection/transcript, cancellation and next-NPC privacy.
 - [ ] Live configured model, speech recognition and voice-provider acceptance. Disposable tone fixtures prove no voice quality.
 
+## Optional companion combat comments
+
+- [ ] Verify the paired flat client's participant, cancellation and delayed-output
+  cases in game; check that ordinary history contains no invented player line.
+- [ ] Verify existing RPG enable/chance and Control mode priorities.
+- [ ] VR: keep the capability unavailable until its separate capture/admission work
+  and headset acceptance pass.
+
+See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay proof.
+
 ## Stage 1 native typed turn
 
 - [x] Apply schema 20261109001 on a disposable PostgreSQL 15 database (reapply is idempotent).

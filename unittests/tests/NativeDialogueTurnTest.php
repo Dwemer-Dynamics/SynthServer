@@ -179,7 +179,8 @@ final class NativeDialogueTurnTest extends TestCase
             }
             public function conversationRows(array $event, string $targetName, int $limit): array
             {
-                return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')']];
+                return [['type'=>'chat','data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
+                    ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
         };
         $characters=new class($row,$others,$saved) extends CharacterRepository {
@@ -296,7 +297,10 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([[$id.':dialogue:1','Holding, barely.','cache-'.$id.':dialogue:1'],[$id.':dialogue:2','Thanks.','cache-'.$id.':dialogue:2'],['complete']],$output->events);
         $this->assertStringEndsWith(': '.trim($event['payload']['text']).' (Talking to '.$this->talkContext()['target']['display_name'].')',$utterances->rows[0]);
         $this->assertSame([[$id.':dialogue:1','Holding, barely.'],[$id.':dialogue:2','Thanks.']],array_slice($utterances->rows,1));
-        $this->assertSame([['user','Hello.'],['assistant','Earlier.'],['user',trim($event['payload']['text'])]],
+        // Own-addressed input stays compact; input addressed elsewhere or without an addressee keeps attribution,
+        // a talking-to suffix (even an unparseable name) leading so the bounded long line keeps both names.
+        $this->assertSame([['user','Nate: Unaddressed.'],['user',mb_substr('(Talking to Pipér (Wright)) Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000),0,1000)],
+            ['user','Hello.'],['assistant','Earlier.'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
         // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.

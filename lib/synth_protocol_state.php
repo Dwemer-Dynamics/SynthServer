@@ -2757,9 +2757,10 @@ function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$game
     if ($selectedNarrator) $internalType='narration';
     $questReaction=null;
     $playerReaction=null;
-    if ($kind==='player_reaction') {
+    if ($kind==='player_reaction' || $kind==='companion_combat_comment') {
         require_once __DIR__.'/player_reaction.php';
-        $playerReaction=synthBindPlayerReaction($db,$wireEvent,$context);
+        $playerReaction=$kind==='player_reaction' ? synthBindPlayerReaction($db,$wireEvent,$context)
+            : synthBindCompanionCombatComment($db,$wireEvent,$context);
         if ($playerReaction===null) return false;
         $internalType=$playerReaction['kind']==='level_up'?'rpg_lvlup':'combatend';
     }

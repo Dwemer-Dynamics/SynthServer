@@ -833,7 +833,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         $payload['actor'] = synth_protocol_validate_identity($payload['actor'] ?? null, 'payload.actor');
         if (!in_array($payload['kind'] ?? null, [
             'auto_greeting', 'bored', 'combat_bark', 'rechat',
-            'external_comment', 'external_reaction', 'external_tts', ...($version === 2 ? ['quest_updated','player_reaction'] : []),
+            'external_comment', 'external_reaction', 'external_tts', ...($version === 2 ? ['quest_updated','player_reaction','companion_combat_comment'] : []),
         ], true)) {
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.kind', 'issue' => 'invalid']]);
         }
@@ -866,7 +866,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
                 }
             }
         }
-        if ($kind === 'player_reaction'
+        if (in_array($kind,['player_reaction','companion_combat_comment'],true)
             ? (!is_string($payload['event_id'] ?? null) || !preg_match('/^player:[1-9][0-9]{0,15}$/D',$payload['event_id'])
                 || intval(substr($payload['event_id'],7))>9007199254740991 || array_key_exists('game_time_ticks',$payload))
             : array_key_exists('event_id',$payload)) {
@@ -1117,6 +1117,19 @@ function synth_protocol_validate_event(array $event): array
             || !in_array('context.player_events',$event['capabilities'],true)
             || !in_array('dialogue.player_reactions',$event['capabilities'],true)))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'owned_flat_player_reaction_required']]);
+    if ($event['type']==='trigger' && $event['payload']['kind']==='companion_combat_comment'
+        && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
+            || count(array_diff(['context.player_events','dialogue.player_reactions','dialogue.companion_combat_comments'],
+                $event['capabilities']))!==0))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'owned_flat_companion_comment_required']]);
+    if ($event['type']==='context' && isset($event['payload']['player_event']['participants'])
+        && !in_array('dialogue.companion_combat_comments',$event['capabilities'],true))
+        synth_protocol_fail('invalid_player_event',422,[['field'=>'capabilities','issue'=>'companion_combat_comments_required']]);
+    if ($event['type']==='context') foreach ($event['payload']['player_event']['participants'] ?? [] as $participant) {
+        if ($participant['playthrough_id']!==$event['payload']['playthrough_id']
+            || in_array($participant['form_id'],['0x00000000',$event['payload']['player']['form_id']],true))
+            synth_protocol_fail('invalid_player_event',422,[['field'=>'participants','issue'=>'foreign_or_invalid_actor']]);
+    }
     if ($event['type']==='trigger' && $event['payload']['kind']==='quest_updated'
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('dialogue.quest_reactions',$event['capabilities'],true)

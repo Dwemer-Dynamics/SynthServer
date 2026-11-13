@@ -399,6 +399,11 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
         $privateNarrator=synth_private_narrator_supported($event) && isset($GLOBALS['db'])
             && synth_private_narrator_schema_ready($GLOBALS['db']);
     }
+    // Participant-bound postcombat remarks are granted only to a flat init that asked for every prerequisite.
+    $companionComments=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
+        && ($event['runtime_variant'] ?? '')==='flat'
+        && count(array_diff(['context.player_events','dialogue.player_reactions','dialogue.companion_combat_comments'],
+            $event['capabilities'] ?? []))===0;
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
@@ -444,6 +449,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
+    if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
     if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
     if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;
