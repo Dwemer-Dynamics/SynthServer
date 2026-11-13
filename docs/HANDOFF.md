@@ -1,5 +1,14 @@
 # Synthserver developer handoff
 
+## Plugin-local location ancestry
+
+Flat v2 contexts that negotiate `context.location_identity` and `context.location_ancestry`
+may carry `world.location_ancestry`: the current location and its parent chain as bounded
+plugin-local IDs with an explicit end. Ingress validates it strictly (`lib/synth_location.php`),
+init acknowledges it, and it is stored only inside the existing context snapshot; there is no
+database schema change. `ContextManager` projects its bounded current-location sentence into the
+next native prompt. Ordinary dialogue already includes the immutable world object. See LOCATION-ANCESTRY.md.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
