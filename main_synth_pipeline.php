@@ -1098,6 +1098,29 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? $GLOBALS["MINIME_T5"] :
     }
 }
 
+// A request-scoped model slot that the selected profile leaves empty is refused here, while that profile still owns the
+// turn. The later default-profile recovery would answer with another profile's connector and speaker. A stored
+// preference (no payload.control) keeps the first-configured-connector fallback in LLMRandomizer.
+// The admitted player transcript is echoed before the MAIN lock, so a streamed response may already be open: close that
+// same stream (as synth_emit_failed_json_response does) and keep the delivered bytes as the replayable failed outcome.
+$requestModelSlot = $GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'] ?? null;
+if ($requestModelSlot !== null && !empty($currentProfileData) && empty($currentConnectorData)
+    && intval($connectorSlot ?? 0) === intval($requestModelSlot)) {
+    $bufferLevel = intval($GLOBALS['SYNTH_JSON_RESPONSE_BUFFER_LEVEL'] ?? 0);
+    if ($bufferLevel > 0) {
+        while (ob_get_level() >= $bufferLevel) @ob_end_clean();
+    }
+    synth_protocol_ensure_response_started();
+    synth_protocol_write_response_line('status', ['code'=>'model_slot_unconfigured',
+        'detail'=>'Model slot '.intval($requestModelSlot).' has no connector on the responding profile.'],
+        synth_protocol_next_line_suffix('status'));
+    synth_protocol_write_response_line('response_end', ['status'=>'error'], 'end');
+    $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
+    synth_protocol_complete_request($db, 'failed', 'application/x-ndjson',
+        strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? ''), 'model_slot_unconfigured');
+    exit;
+}
+
 if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]) && $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] && !synth_protocol_response_is_narrator()) {
     $npcMasterForVoiceRefresh = isset($npcMaster) && ($npcMaster instanceof NpcMaster)
         ? $npcMaster
