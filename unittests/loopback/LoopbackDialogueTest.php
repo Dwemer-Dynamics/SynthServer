@@ -460,7 +460,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         }
         if ($name==='older_talk' || $name==='newer_talk') {
             $prompt=$this->prompt($name==='older_talk' ? 2 : 3);
-            $serialized=json_encode($prompt['messages'],JSON_THROW_ON_ERROR);
+            $serialized=json_encode($prompt['messages'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
             $this->assertStringContainsString($name==='older_talk' ? 'Strength 4/5' : 'Strength 4/6',$serialized);
             $this->assertStringNotContainsString('Strength 4/4',$serialized,'saved actor stats cannot replace fresh capture');
             $this->report("prompt_$name",['session'=>$value['session'],'loaded_context'=>$value['loaded_context']]+$prompt);
