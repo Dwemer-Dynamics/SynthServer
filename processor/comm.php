@@ -1023,12 +1023,39 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     $npcList = $decodedProfilePayload["npcs"];
     $enabledNPCs = [];
     
+    // Native v2 keys are stable actor bindings re-derived from the claimed request, never display names.
+    $nativeBindings = null;
+    $requestEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    if (($requestEvent['protocol_version'] ?? 1) === 2) {
+        $nativeBindings = [];
+        try {
+            if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($requestEvent['type'] ?? '') !== 'profile_refresh') {
+                throw new LogicException('Native profile eligibility requires its claimed profile refresh.');
+            }
+            require_once($GLOBALS["ENGINE_PATH"] . "/lib/synth_profile_scope.php");
+            synth_protocol_assert_request_active();
+            $nativeBindings = synth_profile_refresh_bindings($GLOBALS['db'], $requestEvent, true);
+        } catch (SYNTHProtocolCancelled $error) {
+            throw $error;
+        } catch (Throwable $e) {
+            Logger::error("updateprofiles_batch_async: Native profile bindings unavailable: " . $e->getMessage());
+            synth_buffer_command_response_line("The Narrator", "DebugNotification", [
+                "message" => "Unable to queue dynamic profile updates.",
+            ]);
+            terminate();
+        }
+    }
+
     Logger::info("updateprofiles_batch_async: Checking " . count($npcList) . " NPCs for enabled dynamic profiles");
     
     // First pass: quickly check which NPCs have DYNAMIC_PROFILE enabled
     foreach ($npcList as $npcName) {
         $npcName = trim($npcName);
         if (empty($npcName)) continue;
+        if ($nativeBindings !== null && !isset($nativeBindings[$npcName])) {
+            Logger::warn("updateprofiles_batch_async: Skipping unbound native profile key");
+            continue;
+        }
         
         // Handle The Narrator separately
         if ($npcName === "The Narrator") {
@@ -1044,8 +1071,14 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         }
         
         // Check if profile exists for this NPC
-        $npcMaster=new NpcMaster();
-        $npcData=$npcMaster->getByName($npcName);
+        if ($nativeBindings !== null) {
+            $binding = $nativeBindings[$npcName];
+            $npcData = empty($binding['narrator']) ? $GLOBALS['db']->fetchOne('SELECT * FROM synth.core_npc_master WHERE id=' . intval($binding['npc_id'] ?? 0)
+                . ' AND actor_identity_id=' . intval($binding['actor_identity_id'] ?? 0) . ' LIMIT 1') : null;
+        } else {
+            $npcMaster=new NpcMaster();
+            $npcData=$npcMaster->getByName($npcName);
+        }
         if (!$npcData) {
             continue;
         }
