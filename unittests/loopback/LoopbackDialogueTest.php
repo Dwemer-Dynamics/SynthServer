@@ -12,6 +12,9 @@
 // itself and inserts no revision. One revision precedes the older anchor; one is published while the first /talk
 // waits on its provider (the reply file is a FIFO), between the older and newer anchors; one follows the newer anchor
 // and no snapshot ever acknowledges it. Each /talk prompt must carry exactly the revision its save makes visible.
+//
+// testCompiledClientCompanionLifecycle is an independent run of the same driver in its "companion" scenario (see the
+// companion section below): Piper with SYNTHETIC captured state and a SIMULATED "unavailable" executor outcome.
 require_once dirname(__DIR__).'/tests/DatabaseTestCase.php';
 require_once dirname(__DIR__,2).'/lib/request.php';
 require_once dirname(__DIR__,2).'/lib/synth_profile_state.php';
@@ -27,6 +30,17 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private const OLDER='LPR-OLDER';
     private const NEWER='LPR-NEWER';
     private const UNACKNOWLEDGED='LPR-UNACKNOWLEDGED';
+    // Companion scenario: the driver's fixture companion and its labelled SIMULATED executor outcome.
+    private const PIPER='0x00002F1F';
+    private const SIMULATED='SIMULATED loopback executor: no game runtime, nothing was executed';
+    private const QUESTION='Piper, what do you make of this place?';
+    private const CONVERSATION='Piper, tell me about Diamond City.';
+    private const SUPERSEDING='Piper, are you still with me?';
+    private const COMMAND='Wait here.';
+    // The legacy openaijson connector's response instruction; the native prompt never carries it.
+    private const LEGACY_JSON='Use only this JSON object';
+    private const WAIT_OBSERVED='[Native Wait observer for Piper] The fresh selected-actor capture confirms no SYNTH-owned Wait hold.';
+    private const WAIT_UNVERIFIED='This result does not establish a verified Wait or Release postcondition';
     private array $servers=[];
     private $connection=null;
     private string $address='';
@@ -41,6 +55,10 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private array $identities=[];
     private array $revisions=[];
     private array $profileEvidence=[];
+    // Companion scenario: Piper's identity and seeded profile, driver evidence by kind, provider requests already seen.
+    private array $companion=[];
+    private array $driverEvidence=[];
+    private int $providerSeen=0;
     // Set only once this class has created testdb inside the runner, so no inherited teardown can drop a database or
     // touch conf/ on a direct invocation or after a refused setup.
     private static bool $ownsDatabase=false;
@@ -298,13 +316,17 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     }
     // The provider request made by the driver's latest /talk and how often its prompt carries the heard line.
     private function prompt(int $expected): array {
-        $file=$this->llmDir.'/requests.ndjson';
-        $requests=is_file($file) ? array_map(static fn($l)=>json_decode($l,true),array_values(array_filter(explode("\n",file_get_contents($file))))) : [];
+        $requests=$this->providerRequests();
         $this->assertCount($expected,$requests,'exactly one provider call per /talk');
         $messages=json_encode(end($requests)['messages'] ?? null,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $this->assertNotSame('null',$messages);
         return ['heard'=>substr_count($messages,self::HEARD),'token'=>substr_count($messages,self::TOKEN),
             'sha256'=>hash('sha256',$messages),'messages'=>json_decode($messages,true)];
+    }
+    // Every request body the loopback dialogue provider has received, in order.
+    private function providerRequests(): array {
+        $file=$this->llmDir.'/requests.ndjson';
+        return is_file($file) ? array_map(static fn($l)=>json_decode($l,true),array_values(array_filter(explode("\n",file_get_contents($file))))) : [];
     }
     private function frontier(array $anchor): int {
         $rows=$this->query('SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
@@ -313,35 +335,31 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         return intval($rows[0]['history_event_id']);
     }
 
-    public function testCompiledClientLoopbackDialogue(): void {
+    // Runs the compiled driver against the main server. Every stdout line goes to $line in order (before a PHASE line
+    // is handled); each PHASE line goes to $phase and is then answered with GO. Returns the phases once the driver has
+    // printed DONE and exited 0.
+    private function runDriver(array $arguments,callable $phase,?callable $line=null): array {
         $driver=getenv('SYNTH_LOOPBACK_DRIVER');
         $this->assertIsString($driver);$this->assertFileIsReadable($driver);
         $stderr=tempnam(sys_get_temp_dir(),'synth-loopback-driver-');
         $pipes=[];
         // stderr goes to a file, so a chatty driver can never block on a full pipe the test is not reading.
-        $process=proc_open([$driver,'http://'.$this->address],[0=>['pipe','r'],1=>['pipe','w'],2=>['file',$stderr,'w']],$pipes,
+        $process=proc_open([$driver,'http://'.$this->address,...$arguments],[0=>['pipe','r'],1=>['pipe','w'],2=>['file',$stderr,'w']],$pipes,
             sys_get_temp_dir(),['PATH'=>'/usr/bin:/bin','LANG'=>'C.UTF-8']);
         $this->assertIsResource($process);
         $phases=[];$done=false;$buffer='';
         try {
             stream_set_blocking($pipes[1],false);
             // Every line is bounded: the driver's own HTTP timeouts are shorter than this wait.
-            while (($line=$this->readLine($pipes[1],$buffer))!==null) {
-                fwrite(STDERR,"DRIVER $line\n");
-                if ($line==='DONE') {$done=true;continue;}
-                $this->assertStringStartsNotWith('FAILED',$line,$this->tail());
-                // The first context ACK after the context phase is the older anchor; its /talk is next.
-                if ($this->windowArmed && str_starts_with($line,'LOOPBACK ')) {
-                    $evidence=json_decode(substr($line,9),true,32,JSON_THROW_ON_ERROR);
-                    if (($evidence['kind'] ?? '')==='context_ack') {
-                        $this->windowArmed=false;
-                        $this->window($evidence['session'],intval($evidence['sequence']));
-                    }
-                }
-                if (!str_starts_with($line,'PHASE ')) continue;
-                [,$name,$json]=explode(' ',$line,3);
+            while (($text=$this->readLine($pipes[1],$buffer))!==null) {
+                fwrite(STDERR,"DRIVER $text\n");
+                if ($text==='DONE') {$done=true;continue;}
+                $this->assertStringStartsNotWith('FAILED',$text,$this->tail());
+                if ($line!==null) $line($text);
+                if (!str_starts_with($text,'PHASE ')) continue;
+                [,$name,$json]=explode(' ',$text,3);
                 $phases[]=$name;
-                $this->phase($name,json_decode($json,true,32,JSON_THROW_ON_ERROR));
+                $phase($name,json_decode($json,true,32,JSON_THROW_ON_ERROR));
                 fwrite($pipes[0],"GO\n");fflush($pipes[0]);
             }
         } finally {
@@ -355,6 +373,20 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         }
         $this->assertTrue($done,'driver did not finish');
         $this->assertSame(0,$exit,'driver exit');
+        return $phases;
+    }
+
+    public function testCompiledClientLoopbackDialogue(): void {
+        $phases=$this->runDriver([],$this->phase(...),function(string $line): void {
+            // The first context ACK after the context phase is the older anchor; its /talk is next.
+            if ($this->windowArmed && str_starts_with($line,'LOOPBACK ')) {
+                $evidence=json_decode(substr($line,9),true,32,JSON_THROW_ON_ERROR);
+                if (($evidence['kind'] ?? '')==='context_ack') {
+                    $this->windowArmed=false;
+                    $this->window($evidence['session'],intval($evidence['sequence']));
+                }
+            }
+        });
         $this->assertSame(['context','checkpoint','older_talk','newer_talk'],$phases);
         // Every client request (and the three test-sent refreshes) was claimed and completed by real main.php.
         $requests=$this->query("SELECT event_type,count(*) AS n FROM synth_meta.request_executions WHERE state='complete' GROUP BY event_type ORDER BY event_type");
@@ -440,5 +472,314 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             return;
         }
         $this->fail("unknown phase $name");
+    }
+
+    // ---- Companion scenario: an independent run of the same driver with the second argument "companion" ----
+    // The driver's captured actor state is SYNTHETIC and its executor outcome is SIMULATED ("unavailable"); nothing runs
+    // in a game. Every init, context, activate, question, conversation, command and result below is the compiled client's
+    // over real HTTP to real main.php. The test only seeds loopback connectors and a default_npc profile, scripts the
+    // loopback provider's reply file between phases and reads PostgreSQL and the provider requests.
+
+    public function testCompiledClientCompanionLifecycle(): void {
+        $phases=$this->runDriver(['companion'],$this->companionPhase(...),function(string $line): void {
+            if (!str_starts_with($line,'LOOPBACK ')) return;
+            $evidence=json_decode(substr($line,9),true,32,JSON_THROW_ON_ERROR);
+            $this->driverEvidence[strval($evidence['kind'] ?? '')][]=$evidence;
+        });
+        $this->assertSame(['companion_context','companion_question','companion_conversation','companion_action','companion_result',
+            'companion_done'],$phases);
+        $this->report('companion',['synthetic_state'=>'driver-captured Piper actor state and scene are SYNTHETIC',
+            'executor'=>'SIMULATED unavailable result; no physical Wait was executed or verified',
+            'identity'=>$this->companion['piper'],'npc'=>$this->companion['npc'],'profile'=>$this->companion['profile'],
+            'provider_calls'=>$this->companion['provider_calls'],'accounting'=>$this->companion['accounting']]);
+    }
+
+    private function companionPhase(string $name,array $value): void {
+        match ($name) {
+            'companion_context'=>$this->companionContext($value),
+            'companion_question'=>$this->companionQuestion($value),
+            'companion_conversation'=>$this->companionConversation($value),
+            'companion_action'=>$this->companionAction($value),
+            'companion_result'=>$this->companionResult($value),
+            'companion_done'=>$this->companionDone($value),
+            default=>$this->fail("unknown companion phase $name"),
+        };
+    }
+
+    private static function actorKey($actor): ?array {
+        return is_array($actor) ? [strtoupper(strval($actor['form_id'] ?? '')),strtolower(strval($actor['origin_plugin'] ?? '')),
+            $actor['playthrough_id'] ?? null] : null;
+    }
+    private function execution(string $session,string $request): array {
+        return $this->query('SELECT event_type,state,error_code FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',
+            [$session,$request]);
+    }
+    private function completed(string $session,string $request,string $type): void {
+        $this->assertSame([['event_type'=>$type,'state'=>'complete','error_code'=>null]],$this->execution($session,$request),"$type $request ".$this->tail());
+    }
+    // A refusal the client reported happened before any claim: no execution and no canonical event exist.
+    private function neverClaimed(string $session,string $request,string $label): void {
+        $this->assertNotSame('',$request,"$label request id");
+        $this->assertSame([],$this->execution($session,$request),"$label was never claimed");
+        $this->assertSame([],$this->query('SELECT id FROM synth_meta.protocol_events WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+    }
+    private function utterances(string $session,?string $request=null): array {
+        return $this->query('SELECT request_id,line_id,generation,context_sequence,speaker_identity_id,text FROM synth_meta.dialogue_utterances
+            WHERE session_id=$1 AND ($2::text IS NULL OR request_id=$2) ORDER BY created_at,request_id',[$session,$request]);
+    }
+    private function evidenceOf(string $kind): array {
+        $this->assertArrayHasKey($kind,$this->driverEvidence,"driver evidence $kind");
+        $this->assertCount(1,$this->driverEvidence[$kind],"one $kind evidence line");
+        return $this->driverEvidence[$kind][0];
+    }
+    private function script(string $reply): void {file_put_contents($this->llmDir.'/reply',$reply);}
+    // One legacy openaijson answer for Piper. An empty action keeps the turn speech-only.
+    private function ordinaryReply(string $message,string $action=''): string {
+        return json_encode(['character'=>'Piper','listener'=>'Sole Survivor','message'=>$message,'action'=>$action,'target'=>''],
+            JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    }
+    // Provider requests since the previous call, each as its encoded messages.
+    private function newProviderRequests(): array {
+        $all=$this->providerRequests();
+        $new=array_slice($all,$this->providerSeen);$this->providerSeen=count($all);
+        return array_map(static fn($request)=>json_encode($request['messages'] ?? null,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$new);
+    }
+    // The scripted answer's own request comes first in its window, carries its player text and has its route's shape:
+    // the legacy openaijson instruction, or a native prompt without it. Only scripted answers are counted exactly.
+    private function scriptedRequest(string $label,string $text,bool $legacy,bool $exactlyOne=false): string {
+        $new=$this->newProviderRequests();
+        $this->companion['provider_calls'][$label]=count($new);
+        $this->assertNotEmpty($new,"$label made no provider call ".$this->tail());
+        if ($exactlyOne) $this->assertCount(1,$new,"$label: exactly one provider call");
+        $this->assertStringContainsString($text,$new[0],"$label prompt carries its player text");
+        if ($legacy) $this->assertStringContainsString(self::LEGACY_JSON,$new[0],"$label stays on the legacy route");
+        else $this->assertStringNotContainsString(self::LEGACY_JSON,$new[0],"$label is a native turn");
+        return $new[0];
+    }
+    // Loopback connectors and one default_npc profile only. No NPC row is inserted for Piper: the server's ordinary
+    // route must create it from her captured identity and this default profile.
+    private function seedCompanionProfile(): int {
+        $llm=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+            VALUES('loopback companion llm','{}',$1,'loopback-model','openaijson',0,300,0.3,0.8) RETURNING id",[$this->llmUrl])[0]['id'];
+        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url)
+            VALUES('xtts-fastapi','loopback companion tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
+        $this->query("UPDATE synth.core_profiles SET default_npc='0' WHERE default_npc='1'");
+        $profile=intval($this->query("INSERT INTO synth.core_profiles(label,default_npc,tts_connector_id,llm_primary_id,metadata)
+            VALUES('loopback companion default','1',$1,$2,'{}') RETURNING id",[$tts,$llm])[0]['id']);
+        $this->assertSame([['id'=>strval($profile)]],$this->query("SELECT id FROM synth.core_profiles WHERE default_npc='1'"));
+        return $profile;
+    }
+
+    private function companionContext(array $value): void {
+        $this->assertTrue($value['synthetic_state'],'the driver labels its captured actor state SYNTHETIC');
+        $session=$value['session'];$playthrough=$value['playthrough_id'];
+        $this->assertSame([1,strtoupper(self::PIPER),'Piper'],[$value['generation'],strtoupper($value['target_form']),$value['target_name']]);
+        $this->completed($session,$value['context_request_id'],'context');
+        $runtime=$this->query('SELECT active_generation,runtime_variant,state,capabilities::text AS capabilities FROM synth_meta.runtime_sessions
+            WHERE session_id=$1',[$session]);
+        $this->assertSame(['1','flat','active'],[$runtime[0]['active_generation'],$runtime[0]['runtime_variant'],$runtime[0]['state']]);
+        $capabilities=json_decode($runtime[0]['capabilities'],true,8,JSON_THROW_ON_ERROR);
+        foreach (['dialogue.native_turn','dialogue.turn_ownership','dialogue.turn_cancel','action.wait_here','action.release_wait',
+            'action.wait_verified','context.wait_state'] as $capability) $this->assertContains($capability,$capabilities);
+        $this->assertNotContains('action.inventory_observation',$capabilities,'no inventory observation is negotiated');
+        // Piper's identity comes from the client's context, keyed by form, origin plugin and playthrough.
+        $identity=$this->query("SELECT id,display_name FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1)
+            AND lower(origin_plugin)='fallout4.esm' AND playthrough_id=$2",[self::PIPER,$playthrough]);
+        $this->assertCount(1,$identity,'Piper identity');
+        $this->assertSame('Piper',$identity[0]['display_name']);
+        $piper=intval($identity[0]['id']);$key=[strtoupper(self::PIPER),'fallout4.esm',$playthrough];
+        $snapshot=$this->query('SELECT target_identity_id,playthrough_id,context_payload FROM synth_meta.context_snapshots
+            WHERE session_id=$1 AND generation=1 AND snapshot_sequence=$2',[$session,intval($value['sequence'])]);
+        $this->assertCount(1,$snapshot);
+        $this->assertSame([strval($piper),$playthrough],[$snapshot[0]['target_identity_id'],$snapshot[0]['playthrough_id']]);
+        $payload=json_decode($snapshot[0]['context_payload'],true,64,JSON_THROW_ON_ERROR);
+        $this->assertSame([$key,'Piper'],[self::actorKey($payload['target'] ?? null),$payload['target']['display_name'] ?? null]);
+        $this->assertSame([$key],array_map(self::actorKey(...),$payload['audience'] ?? []),'audience');
+        $this->assertSame('complete',$payload['audience_observation'] ?? null);
+        // The SYNTHETIC captured facts, persisted as sent.
+        $this->assertCount(1,$payload['actor_states'] ?? [],'one captured actor state');
+        $state=$payload['actor_states'][0];
+        $facts=['actor'=>self::actorKey($state['actor'] ?? null),'base_form_id'=>strtoupper(strval($state['base_form_id'] ?? '')),
+            'base_origin_plugin'=>$state['base_origin_plugin'] ?? null,'alive'=>$state['alive'] ?? null,'level'=>$state['level'] ?? null,
+            'race'=>$state['race'] ?? null,'sex'=>$state['sex'] ?? null,'teammate'=>$state['teammate'] ?? null,
+            'line_of_sight'=>$state['line_of_sight'] ?? null,'life_state'=>$state['life_state'] ?? null,'wait_held'=>$state['wait_held'] ?? null];
+        $this->assertSame(['actor'=>$key,'base_form_id'=>'0X00002F1E','base_origin_plugin'=>'Fallout4.esm','alive'=>true,'level'=>12,
+            'race'=>'HumanRace','sex'=>'female','teammate'=>true,'line_of_sight'=>'visible','life_state'=>'alive','wait_held'=>false],$facts);
+        $this->assertSame([],$this->query('SELECT id FROM synth.core_npc_master WHERE actor_identity_id=$1',[$piper]),'no NPC row for Piper yet');
+        $this->assertSame([],$this->providerRequests(),'no provider call before the first question');
+        $this->companion=['session'=>$session,'playthrough'=>$playthrough,'piper'=>$piper,'key'=>$key,
+            'profile'=>$this->seedCompanionProfile(),'npc'=>null,'provider_calls'=>[],'accounting'=>[]];
+        $this->script($this->ordinaryReply('Loopback companion answer CMP4400.'));
+        $this->report('companion_context',['synthetic_state'=>true,'identity'=>$piper,'facts'=>$facts]);
+    }
+
+    private function companionQuestion(array $value): void {
+        ['session'=>$session,'piper'=>$piper,'key'=>$key,'profile'=>$profile]=$this->companion;
+        $this->assertSame($session,$value['session']);
+        // The manual activation bound to context 1.
+        $this->completed($session,$value['activate_request_id'],'activate');
+        $activation=$this->canonical($session,$value['activate_request_id']);
+        $this->assertSame(['manual',$key],[$activation['payload']['source'] ?? null,self::actorKey($activation['payload']['actor'] ?? null)]);
+        $this->assertSame([['generation'=>'1','actor_identity_id'=>strval($piper),'source'=>'manual','state'=>'active']],
+            $this->query('SELECT generation,actor_identity_id,source,state FROM synth_meta.active_agents WHERE session_id=$1',[$session]));
+        // The ordinary route created Piper's NPC row, bound to her identity with the default profile.
+        $npc=$this->query('SELECT id,npc_name,profile_id FROM synth.core_npc_master WHERE actor_identity_id=$1',[$piper]);
+        $this->assertCount(1,$npc,'server-created Piper NPC row '.$this->tail());
+        $this->assertSame(['Piper',strval($profile)],[$npc[0]['npc_name'],$npc[0]['profile_id']]);
+        $this->companion['npc']=intval($npc[0]['id']);
+        // Unmarked question: legacy route, no native utterance, the scripted ordinary JSON answer.
+        $this->completed($session,$value['request_id'],'input_text');
+        $event=$this->canonical($session,$value['request_id']);
+        $this->assertSame(self::QUESTION,$event['payload']['text']);
+        $this->assertArrayNotHasKey('intent',$event['payload'],'the question is unmarked');
+        $this->assertSame([],$this->utterances($session,$value['request_id']),'the legacy route records no native utterance');
+        $this->assertGreaterThanOrEqual(1,$value['dialogue_lines']);
+        $prompt=$this->scriptedRequest('question',self::QUESTION,true);
+        $this->script('Loopback companion reply CMP4410.');
+        $this->report('companion_question',['npc'=>$this->companion['npc'],'request_id'=>$value['request_id'],
+            'wait_observer'=>str_contains($prompt,self::WAIT_OBSERVED)]);
+    }
+
+    private function companionConversation(array $value): void {
+        ['session'=>$session,'piper'=>$piper,'playthrough'=>$playthrough,'npc'=>$npcId,'profile'=>$profile]=$this->companion;
+        $this->completed($session,$value['request_id'],'input_text');
+        $event=$this->canonical($session,$value['request_id']);
+        $this->assertSame([self::CONVERSATION,'conversation'],[$event['payload']['text'],$event['payload']['intent'] ?? null]);
+        // Native route: exactly one utterance spoken by Piper's identity, carrying the scripted reply.
+        $this->assertSame([['request_id'=>$value['request_id'],'line_id'=>$value['line_id'],'generation'=>'1',
+            'context_sequence'=>strval($value['context_sequence']),'speaker_identity_id'=>strval($piper),'text'=>$value['text']]],
+            $this->utterances($session,$value['request_id']));
+        $this->assertStringContainsString('CMP4410',$value['text']);
+        $this->scriptedRequest('conversation',self::CONVERSATION,false,true);
+        // The native turn resolved the server-created row and profile, and no saved dynamic profile replaced it.
+        $repository=new \Synth\Core\CharacterRepository(new sql());
+        $registered=$repository->registered(self::PIPER,'Fallout4.esm',$playthrough);
+        $this->assertSame([strval($piper),strval($npcId),strval($profile)],
+            [$registered['identity_id'] ?? null,$registered['npc_id'] ?? null,$registered['profile_id'] ?? null]);
+        $this->assertNull($repository->savedProfile($event,$piper),'no saved dynamic profile for Piper');
+        $this->script($this->ordinaryReply('Alright, I will wait here.','Wait_Here'));
+    }
+
+    private function companionAction(array $value): void {
+        ['session'=>$session,'piper'=>$piper]=$this->companion;
+        // Local negatives the driver ran with the shipped validator: SYNTHETIC scenes, never sent.
+        $negatives=$this->evidenceOf('companion_wait_negatives');
+        $this->assertSame([true,true,true,0,true],[$negatives['absent_actor'],$negatives['other_plugin'],$negatives['vr_scene'],
+            $negatives['vr_capabilities'],$negatives['cancelled_turn']]);
+        $this->assertSame(1,$this->evidenceOf('companion_command')['actions']);
+        $this->assertSame(['wait_here',strtoupper(self::PIPER)],[$value['name'],strtoupper($value['actor_form'])]);
+        // Unmarked "Wait here.": legacy route, no native utterance, exactly one pending intent owned by Piper.
+        $this->completed($session,$value['request_id'],'input_text');
+        $event=$this->canonical($session,$value['request_id']);
+        $this->assertSame(self::COMMAND,$event['payload']['text']);
+        $this->assertArrayNotHasKey('intent',$event['payload'],'the command is unmarked');
+        $this->assertSame([],$this->utterances($session,$value['request_id']),'the legacy route records no native utterance');
+        $intents=$this->query('SELECT action_id,idempotency_key,request_id,turn_id,generation,action_name,capability,actor_identity_id,
+                target_identity_id,arguments::text AS arguments,state,deadline_at>created_at AS deadline
+            FROM synth_meta.action_intents WHERE session_id=$1',[$session]);
+        $this->assertSame([['action_id'=>$value['action_id'],'idempotency_key'=>$value['idempotency_key'],'request_id'=>$value['request_id'],
+            'turn_id'=>$value['turn_id'],'generation'=>'1','action_name'=>'WaitHere','capability'=>'action.wait_here',
+            'actor_identity_id'=>strval($piper),'target_identity_id'=>null,'arguments'=>'{}','state'=>'pending','deadline'=>'t']],$intents,$this->tail());
+        $this->assertSame([],$this->query('SELECT action_id FROM synth_meta.action_terminal_results'));
+        // The scripted model Wait answer, prompted with the Wait observer's reading of the captured wait_held=false.
+        $prompt=$this->scriptedRequest('command',self::COMMAND,true);
+        $this->assertStringContainsString(self::WAIT_OBSERVED,$prompt,'the Wait prompt observer consumed the captured state');
+        // The prompt offers the catalog's public label Wait_Here; the scripted answer uses it and the persisted intent keeps the canonical WaitHere code.
+        $this->assertStringContainsString('AVAILABLE ACTION: Wait_Here (',$prompt,'Wait_Here is offered');
+        $this->companion['action']=$value;
+        // Any continuation the result requests stays speech-only.
+        $this->script($this->ordinaryReply('Understood, Blue.'));
+    }
+
+    private function companionResult(array $value): void {
+        ['session'=>$session,'action'=>$action]=$this->companion;
+        $this->assertSame([true,'unavailable',$action['action_id']],[$value['simulated'],$value['status'],$value['action_id']]);
+        // The SIMULATED outcome sent twice: two claims, identical results, both complete.
+        $ids=$value['result_request_ids'];
+        $this->assertCount(2,$ids);$this->assertNotSame($ids[0],$ids[1]);
+        $results=[];
+        foreach ($ids as $id) {
+            $this->completed($session,$id,'action_result');
+            $results[]=$this->canonical($session,$id)['payload']['result'];
+        }
+        $this->assertSame($results[0],$results[1],'identical duplicate results');
+        $this->assertSame([$action['action_id'],$action['idempotency_key'],'unavailable',self::SIMULATED],
+            [$results[0]['action_id'],$results[0]['idempotency_key'],$results[0]['status'],$results[0]['detail']]);
+        // The contradicting "failed" result was refused before any claim.
+        $conflict=$this->evidenceOf('companion_conflict');
+        $this->assertSame([$value['conflict_request_id'],'HTTP 409: action_result_conflict'],[$conflict['request_id'],$conflict['detail']]);
+        $this->neverClaimed($session,$value['conflict_request_id'],'conflicting result');
+        // One terminal result, the intent complete, and one unverified Wait consequence: no physical Wait is claimed.
+        $this->assertSame([['status'=>'unavailable','reported'=>'unavailable','detail'=>self::SIMULATED]],
+            $this->query("SELECT status,result->>'status' AS reported,result->>'detail' AS detail FROM synth_meta.action_terminal_results
+                WHERE action_id=$1",[$action['action_id']]));
+        $this->assertSame([['state'=>'complete']],$this->query('SELECT state FROM synth_meta.action_intents WHERE action_id=$1',[$action['action_id']]));
+        $consequence=$this->query("SELECT request_id,event_payload#>>'{synth_wait_consequence,verified}' AS verified,
+                event_payload#>>'{synth_wait_consequence,result,status}' AS status,
+                (event_payload->'synth_wait_consequence') ? 'proof' AS proof,event_payload->>'data' AS message
+            FROM synth_meta.history_events WHERE session_id=$1 AND event_payload ? 'synth_wait_consequence'",[$session]);
+        $this->assertCount(1,$consequence,'one Wait consequence');
+        $this->assertSame([$ids[0],'false','unavailable','f'],[$consequence[0]['request_id'],$consequence[0]['verified'],
+            $consequence[0]['status'],$consequence[0]['proof']]);
+        $this->assertStringContainsString('No successful physical waiting or release was verified',$consequence[0]['message']);
+        // Unscripted continuations are counted, not required. Any continuation prompt sees only an unverified receipt.
+        $continuations=$this->newProviderRequests();
+        $this->companion['provider_calls']['result_continuations']=count($continuations);
+        foreach ($continuations as $prompt) $this->assertStringNotContainsString('was verified to enter',$prompt);
+        if ($continuations!==[]) $this->assertStringContainsString(self::WAIT_UNVERIFIED,$continuations[0],'the result observer reports an unverified receipt');
+        $this->script('Loopback companion reply CMP4420.');
+        $this->report('companion_result',['executor'=>'SIMULATED','status'=>'unavailable','verified'=>false,'result_request_ids'=>$ids,
+            'continuations'=>count($continuations)]);
+    }
+
+    private function companionDone(array $value): void {
+        ['session'=>$session,'piper'=>$piper,'action'=>$action]=$this->companion;
+        $this->assertSame(2,$value['generation']);
+        // The superseding conversation is a native Piper turn with the scripted reply.
+        $this->completed($session,$value['superseding_request_id'],'input_text');
+        $superseding=$this->utterances($session,$value['superseding_request_id']);
+        $this->assertCount(1,$superseding);
+        $this->assertSame(strval($piper),$superseding[0]['speaker_identity_id']);
+        $this->assertStringContainsString('CMP4420',$superseding[0]['text']);
+        $this->scriptedRequest('superseding',self::SUPERSEDING,false,true);
+        // Server refusals the driver reported: the stale result and the conversation bound to the cancelled context.
+        $stale=$this->evidenceOf('companion_stale');
+        $this->assertSame([$value['stale_request_id'],'HTTP 409: superseded_turn'],[$stale['request_id'],$stale['detail']]);
+        $this->neverClaimed($session,$value['stale_request_id'],'superseded result');
+        $cancel=$this->evidenceOf('companion_cancel');
+        $this->assertSame([$value['cancel_request_id'],$value['cancelled_context_request_id'],$value['refused_request_id'],'HTTP 409: turn_cancelled'],
+            [$cancel['cancel_request_id'],$cancel['anchor_request_id'],$cancel['refused_request_id'],$cancel['detail']]);
+        $this->neverClaimed($session,$value['refused_request_id'],'cancelled-turn conversation');
+        foreach ($this->providerRequests() as $request)
+            $this->assertStringNotContainsString('Piper, never mind.',json_encode($request['messages'] ?? null,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        // Server cancellation: the cancel completed and its context anchor is cancelled as the turn.
+        $this->completed($session,$value['cancel_request_id'],'cancel');
+        $this->assertSame($value['cancelled_context_request_id'],$this->canonical($session,$value['cancel_request_id'])['payload']['cancel_request_id']);
+        $this->assertSame([['event_type'=>'context','state'=>'cancelled','error_code'=>'turn_cancelled']],
+            $this->execution($session,$value['cancelled_context_request_id']));
+        // Local refusals never reached the server: the owner-cancelled result and the stale-generation result.
+        $local=$this->evidenceOf('companion_local_cancel');
+        $this->assertSame('request cancelled before send',$local['detail']);
+        if ($local['request_id']!=='') $this->neverClaimed($session,$local['request_id'],'locally cancelled result');
+        $this->assertSame('turn owner belongs to another runtime generation',$this->evidenceOf('companion_generation')['refusal']);
+        // Generation invalidation: the re-initialization is generation 2 and the session now runs it.
+        $this->completed($session,$value['reinit_request_id'],'init');
+        $this->assertSame('2',$this->query('SELECT generation FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',
+            [$session,$value['reinit_request_id']])[0]['generation']);
+        $this->assertSame([['active_generation'=>'2','state'=>'active']],
+            $this->query('SELECT active_generation,state FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session]));
+        // Nothing after the result changed the intent, its one terminal result or the one unverified consequence.
+        $this->assertSame([[$action['action_id'],'complete']],array_map('array_values',$this->query('SELECT action_id,state FROM synth_meta.action_intents')));
+        $this->assertSame([['status'=>'unavailable']],$this->query('SELECT status FROM synth_meta.action_terminal_results'));
+        $this->assertSame('1',$this->query("SELECT count(*) AS n FROM synth_meta.history_events WHERE event_payload ? 'synth_wait_consequence'")[0]['n']);
+        $this->assertSame([strval($piper),strval($piper)],array_column($this->utterances($session),'speaker_identity_id'),'two native Piper turns');
+        // Request accounting: 16 claims; only the cancelled context anchor is not complete.
+        $counts=array_map('intval',array_column($this->query('SELECT event_type,count(*) AS n FROM synth_meta.request_executions
+            GROUP BY event_type ORDER BY event_type'),'n','event_type'));
+        $this->assertSame(['action_result'=>2,'activate'=>1,'cancel'=>1,'context'=>6,'init'=>2,'input_text'=>4],$counts);
+        $this->assertSame([['request_id'=>$value['cancelled_context_request_id'],'state'=>'cancelled']],
+            $this->query("SELECT request_id,state FROM synth_meta.request_executions WHERE state<>'complete'"));
+        $this->companion['accounting']=['requests'=>$counts,'refused_before_claim'=>3,
+            'active_agents'=>$this->query('SELECT generation,source,state FROM synth_meta.active_agents WHERE session_id=$1',[$session])];
     }
 }
