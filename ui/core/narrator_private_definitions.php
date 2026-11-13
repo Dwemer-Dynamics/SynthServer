@@ -225,6 +225,7 @@ function narrator_private_render(string $webRoot, ?array $result = null): void
  .private-narrators-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
  .private-narrators-row label, .private-narrators-form > label { display: block; margin: 10px 0 4px; color: var(--synth-accent); }
  .private-narrators-row input, .private-narrators-row select { width: 100%; box-sizing: border-box; }
+ .private-narrators-form textarea { box-sizing: border-box; }
  .private-narrators-buttons { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
  .private-narrators-buttons .btn-save { margin-bottom: 0; }
  .private-narrators .hint-inline { color: #9a9a9a; font-size: 12px; }
