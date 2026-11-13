@@ -10,6 +10,13 @@
 
 See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay proof.
 
+## Maintainer biography extractor
+
+- [ ] Review named-cast classification, source policies and original draft field
+  evidence from the [external extractor workflow](FALLOUT-BIOGRAPHY-EXTRACTOR.md)
+  before importing any candidates. Structural exports and synthetic CLI probes
+  do not establish full cast coverage or gameplay acceptance.
+
 ## Stage 1 native typed turn
 
 - [x] Apply schema 20261109001 on a disposable PostgreSQL 15 database (reapply is idempotent).
