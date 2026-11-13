@@ -5419,6 +5419,13 @@ if ($checkVersion('social_tasks_schema') < 20261102001) {
     $updateVersion('social_tasks_schema',20261102001);
 }
 
+// Private narrator definitions and save-branched private state; additive, idempotent and fresh/upgrade safe.
+if ($checkVersion('private_narrator_schema') < 20261113001) {
+    if ($db->execQuery(file_get_contents(__DIR__.'/../lib/core/database_schema/synth_private_narrator.sql')) === false)
+        throw new RuntimeException('Unable to prepare private narrator schema');
+    $updateVersion('private_narrator_schema',20261113001);
+}
+
 // The authored catalogue is an additive SQL release, separate from historical seeds.
 require_once __DIR__.'/../lib/fallout_catalogue_sql.php';
 if ($checkVersion('fallout4_catalogue_sql') < SYNTH_FALLOUT_CATALOGUE_SQL_VERSION) {
