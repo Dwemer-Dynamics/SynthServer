@@ -154,6 +154,33 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->query("UPDATE synth_meta.worker_jobs SET lease_until=clock_timestamp()-INTERVAL '1 second',available_at=clock_timestamp()-INTERVAL '1 second' WHERE id=$1",[$this->jobId]);
     }
 
+    public function testRealAdmissionRetiresOlderSequenceWithReusedTurnId(): void
+    {
+        // Supply the init metadata omitted by this worker fixture; turn changes use real admission.
+        $init=$this->event;$init['type']='init';$init['request_id']='memory-recovery-init';
+        $init['context_sequence']=0;$init['payload']=[];$this->persistRequest($init);
+        $this->query("UPDATE synth_meta.runtime_sessions SET capabilities=$1::jsonb WHERE session_id=$2",
+            [$this->json($this->event['capabilities']),$this->event['session_id']]);
+        $ingress=new sql();
+        $claim=synth_memory_claim($this->database,$this->jobId);$this->assertNotNull($claim);
+        $pending=$this->event;$pending['request_id']='memory-recovery-pending';
+        $this->assertSame('accepted',synth_protocol_claim_request($ingress,$pending)['status']);
+        $this->copySnapshot(3,1000003);
+        $this->query("UPDATE synth_meta.context_snapshots SET history_event_id=$1
+            WHERE session_id=$2 AND generation=1 AND snapshot_sequence=3",[$this->historyId,$this->event['session_id']]);
+        $next=$this->event;$next['request_id']='memory-recovery-next';$next['context_sequence']=3;
+        $this->assertSame('accepted',synth_protocol_claim_request($ingress,$next)['status']);
+        $this->assertTrue(synth_protocol_commit_outcome($ingress,$next,'complete','application/x-ndjson','')['won']);
+        $this->assertSame('cancelled',$this->job()['state']);
+        $execution=pg_fetch_assoc($this->query("SELECT state FROM synth_meta.request_executions
+            WHERE session_id=$1 AND request_id=$2",[$next['session_id'],$pending['request_id']]));
+        $this->assertSame('cancelled',$execution['state']);
+        $this->assertSame('replay',synth_protocol_claim_request($ingress,$next)['status']);
+        $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['AUTO_CREATE_SUMMARY_MIN_EVENTS']=1;
+        $this->assertNotNull(synth_memory_dispatch($this->database,static fn()=>'Recovered memory.'));
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries'))['n']);
+    }
+
     private function setSnapshotClock(int $sequence,mixed $clock,bool $present=true): void
     {
         if (!$present) {
