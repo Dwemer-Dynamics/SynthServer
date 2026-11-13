@@ -560,6 +560,11 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $event = ['protocol_version'=>2,'session_id'=>'rpg:one','generation'=>2,'context_sequence'=>7];
         $key = synthRpgCommentCooldownKey($db,$event);
         $this->assertStringStartsWith('SYNTH_RPG_V2:',$key);
+        $companion=$event+['type'=>'trigger','payload'=>['kind'=>'companion_combat_comment']];
+        $companionKey=synthRpgCommentCooldownKey($db,$companion);
+        $this->assertStringStartsWith('SYNTH_COMPANION_COMBAT_V2:',$companionKey);
+        $this->assertNotSame($key,$companionKey);
+        $this->assertSame($companionKey,synthRpgCommentCooldownKey($db,$companion+['turn_id'=>'another-turn']));
         $this->assertStringContainsString('c.snapshot_sequence=7',$db->query);
         $this->assertStringContainsString("r.state='active'",$db->query);
         $this->assertStringContainsString('r.active_generation=c.generation',$db->query);
