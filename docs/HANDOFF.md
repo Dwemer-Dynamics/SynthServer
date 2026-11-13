@@ -1,5 +1,12 @@
 # Synthserver developer handoff
 
+## Optional post-combat companion comments
+
+The paired source candidate validates acknowledged encounter participants before
+admitting a flat companion remark. Existing RPG controls remain authoritative.
+See [the feature note](COMPANION-COMBAT-COMMENTS.md). No schema migration, deployment
+or gameplay acceptance is claimed; VR remains unavailable.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
