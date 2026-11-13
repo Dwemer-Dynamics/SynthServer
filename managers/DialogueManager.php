@@ -17,6 +17,7 @@ require_once __DIR__.'/CharacterManager.php';
 require_once __DIR__.'/ContextManager.php';
 require_once __DIR__.'/PromptManager.php';
 require_once __DIR__.'/SpeechManager.php';
+require_once __DIR__.'/WorldKnowledgeManager.php';
 
 // One explicit conversation turn: sequential admission, context, prompt, provider stream, utterance
 // records, speech and completion. Once admitted there is no legacy fallback; failures are terminal.
@@ -34,7 +35,8 @@ final class DialogueManager
 
     public function __construct(private SessionManager $sessions, private CharacterManager $characters,
         private ContextManager $context, private PromptManager $prompts, private LlmDriver $llm,
-        private SpeechManager $speech, private UtteranceRepository $utterances, private TurnOutput $output) {}
+        private SpeechManager $speech, private UtteranceRepository $utterances, private TurnOutput $output,
+        private ?WorldKnowledgeManager $knowledge = null) {}
 
     public function converse(array $event): void
     {
@@ -78,8 +80,12 @@ final class DialogueManager
         $character = $turn->character;
         // Read prior history before this turn's own input row is inserted.
         try {
-            $messages = $this->prompts->messages($character, $this->context->situation($request),
-                $this->context->history($request, $character), $request->text(), $this->context->skills($request, $character));
+            $situation = $this->context->situation($request);
+            $history = $this->context->history($request, $character);
+            // Deterministic lore selection; it degrades to no articles and never calls a provider.
+            $knowledge = $this->knowledge?->context($request, $character, $history) ?? '';
+            $messages = $this->prompts->messages($character, $situation, $history, $request->text(),
+                $this->context->skills($request, $character), $knowledge);
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()

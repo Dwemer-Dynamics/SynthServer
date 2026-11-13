@@ -4,10 +4,11 @@ declare(strict_types=1);
 require_once __DIR__.'/worldknowledge_runtime.php';
 
 /** A small everyday vocabulary reference, separate from topic-specific expertise. */
-function synthWorldKnowledgeVocabularyContext(array $catalog,array $knowledgeTags): ?array
+function synthWorldKnowledgeVocabularyContext(array $catalog,array $knowledgeTags,?array $context=null): ?array
 {
     $tags=array_values(array_unique(array_filter(array_map('synthWorldKnowledgeNormalizeAccessTag',$knowledgeTags))));
-    if (synthWorldKnowledgeCurrentNpcIsPrewar() || in_array('prewar',$tags,true)) return null;
+    if (synthWorldKnowledgeCurrentNpcIsPrewar($context===null ? null : (is_array($context['npc'] ?? null) ? $context['npc'] : []))
+        || in_array('prewar',$tags,true)) return null;
     $matches=[];
     foreach ($catalog as $row) {
         if (!is_array($row)) continue;
@@ -23,7 +24,7 @@ function synthWorldKnowledgeVocabularyContext(array $catalog,array $knowledgeTag
     // Never proactively grant specialist/advanced facts, even to a knowall profile.
     $row['topic_desc']='';
     $row['knowledge_class']='';
-    $decision=synthWorldKnowledgeAccessDecision($row,$tags);
+    $decision=synthWorldKnowledgeAccessDecision($row,$tags,$context);
     if ($decision['level']!=='basic' || trim(strval($decision['description']))==='') return null;
     $decision['description']=mb_strcut(strval($decision['description']),0,2000,'UTF-8');
     $decision['source']='vocabulary';

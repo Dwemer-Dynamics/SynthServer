@@ -80,10 +80,12 @@ if (!function_exists('synthWorldKnowledgeBuildLocationSignalGroups')) {
 }
 
 if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
-    /** Collect grounded race/species and faction labels from the active NPC profile. */
-    function synthWorldKnowledgeCurrentNpcSignals($db): array
+    /** Collect grounded race/species and faction labels from the active NPC profile.
+     *  A native caller passes its admitted NPC row; faction names then come only from the explicit $db. */
+    function synthWorldKnowledgeCurrentNpcSignals($db, ?array $npc = null): array
     {
-        $npc = $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? [];
+        $explicit = $npc !== null;
+        $npc = $npc ?? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? []);
         if (!is_array($npc)) {
             return ['race' => [], 'faction' => []];
         }
@@ -115,7 +117,7 @@ if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
             $formId = trim((string)($faction['formid'] ?? ''));
             if ($formId !== '') {
                 $formIds[] = $formId;
-                if (function_exists('lookupDescriptionByFormID')) {
+                if (!$explicit && function_exists('lookupDescriptionByFormID')) {
                     $record = lookupDescriptionByFormID($formId);
                     if (is_array($record) && trim((string)($record['name'] ?? '')) !== '') {
                         $factionSignals[] = (string)$record['name'];
@@ -149,20 +151,31 @@ if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
 }
 
 if (!function_exists('synthWorldKnowledgeCollectLocationSignalGroups')) {
-    function synthWorldKnowledgeCollectLocationSignalGroups($db): array
+    /** Location and worldspace signals. A native caller passes its bound snapshot's world object and never
+     *  falls back to the latest stored world context or last known location. */
+    function synthWorldKnowledgeCollectLocationSignalGroups($db, ?array $world = null): array
     {
-        $payload = function_exists('synthLatestWorldContextPayload')
-            ? synthLatestWorldContextPayload()
-            : null;
-        $location = function_exists('synthWorldContextLocationFromPayload')
-            ? synthWorldContextLocationFromPayload($payload)
-            : '';
-        if ($location === '' && function_exists('DataLastKnownLocationHuman')) {
-            $location = trim((string)DataLastKnownLocationHuman(false, false));
+        if ($world !== null) {
+            // Same unknown-value rule as synthWorldContextLocationFromPayload, which native requests do not load.
+            $known = static fn($value): string => is_string($value) && !in_array(strtolower(trim($value)),
+                ['', 'unknown', 'unknown location', 'none', 'null'], true) ? trim($value) : '';
+            $worldspace = $known($world['worldspace'] ?? null);
+            $location = $known($world['location'] ?? null);
+            if ($location === '') $location = $worldspace;
+        } else {
+            $payload = function_exists('synthLatestWorldContextPayload')
+                ? synthLatestWorldContextPayload()
+                : null;
+            $location = function_exists('synthWorldContextLocationFromPayload')
+                ? synthWorldContextLocationFromPayload($payload)
+                : '';
+            if ($location === '' && function_exists('DataLastKnownLocationHuman')) {
+                $location = trim((string)DataLastKnownLocationHuman(false, false));
+            }
+            $worldspace = function_exists('synthWorldContextWorldspaceFromPayload')
+                ? synthWorldContextWorldspaceFromPayload($payload)
+                : '';
         }
-        $worldspace = function_exists('synthWorldContextWorldspaceFromPayload')
-            ? synthWorldContextWorldspaceFromPayload($payload)
-            : '';
 
         $rows = [];
         if ($location !== '' && $db && method_exists($db, 'fetchAll')) {
