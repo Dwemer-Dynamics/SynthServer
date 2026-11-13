@@ -4,6 +4,13 @@
 
 Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).
 
+## Optional post-combat companion comments
+
+The paired source candidate validates acknowledged encounter participants before
+admitting a flat companion remark. Existing RPG controls remain authoritative.
+See [the feature note](COMPANION-COMBAT-COMMENTS.md). No schema migration, deployment
+or gameplay acceptance is claimed; VR remains unavailable.
+
 ## Plugin-local location ancestry
 
 Flat v2 contexts that negotiate `context.location_identity` and `context.location_ancestry`

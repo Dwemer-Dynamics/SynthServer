@@ -391,6 +391,7 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             if (!synth_protocol_bind_trigger_context($db, $wireEvent, $gameRequest, $triggerStopReason)) {
                 synth_protocol_emit_ack(match($wireEvent['payload']['kind'] ?? '') {
                     'player_reaction'=>'player_reaction_suppressed',
+                    'companion_combat_comment'=>'companion_combat_comment_suppressed',
                     'rechat'=>'rechat_complete',
                     'bored'=>'ambient_exchange_suppressed',
                     'quest_updated'=>'quest_reaction_suppressed', default=>'auto_greeting_suppressed'},
@@ -2114,7 +2115,8 @@ if (in_array('Training', $GLOBALS["ENABLED_FUNCTIONS"]) && isset($currentNpcData
 }
 
 // Native facts override legacy/custom victory cues only after all prompt sources have loaded.
-if (($wireEvent['type'] ?? '')==='trigger' && ($wireEvent['payload']['kind'] ?? '')==='player_reaction'
+if (($wireEvent['type'] ?? '')==='trigger'
+    && in_array($wireEvent['payload']['kind'] ?? '',['player_reaction','companion_combat_comment'],true)
     && isset($GLOBALS['SYNTH_EXTERNAL_REQUEST']['player_change'])) {
     require_once __DIR__.'/lib/player_reaction.php';
     synthApplyPlayerReactionPrompt($PROMPTS,$GLOBALS['SYNTH_EXTERNAL_REQUEST']['player_change'],
@@ -2434,7 +2436,8 @@ if (!empty($rpgCommentEventType)) {
         terminate();
     }
     if (!$rpgAllowed) {
-        Logger::info("RPG comment {$rpgCommentEventType} skipped (60-second cooldown active)");
+        $rpgWindow=synthRpgCommentCompanion($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])?30:60;
+        Logger::info("RPG comment {$rpgCommentEventType} skipped ({$rpgWindow}-second cooldown active)");
         terminate();
     }
 }
