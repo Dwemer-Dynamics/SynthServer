@@ -41,14 +41,24 @@ final class ContextManager
         return \synth_actor_stats_prompt($request->event, \synth_actor_stats_state($request->context, $character->identity));
     }
 
-    // Oldest first, speaker prefix and talking-to suffix removed.
+    // Oldest first. This NPC's own lines and player input addressed to it lose the speaker prefix and
+    // talking-to suffix. Player input addressed to someone else, or without a readable addressee, keeps its
+    // stored attribution so it is never presented as direct input to this NPC; its talking-to suffix, even one
+    // with an unparseable name, leads the line so truncation of a long body cannot cut it off.
     public function history(TurnRequest $request, PlacedCharacter $character): array
     {
         $messages = [];
         foreach (array_reverse($this->saves->conversationRows($request->event, $character->displayName(), self::HISTORY_ROWS)) as $row) {
-            $text = preg_replace('/\s+\((?:talking|Talking) to [^()]*\)$/u', '', strval($row['data']));
-            $colon = strpos($text, ': ');
-            $text = trim($colon === false ? $text : substr($text, $colon + 2));
+            $text = strval($row['data']);
+            $suffix = preg_match('/\s+\((?:talking|Talking) to ([^()]*)\)$/u', $text, $match, PREG_OFFSET_CAPTURE) === 1;
+            if ($row['type'] === 'chat' || ($suffix && $match[1][0] === $character->displayName())) {
+                if ($suffix) $text = substr($text, 0, $match[0][1]);
+                $colon = strpos($text, ': ');
+                $text = $colon === false ? $text : substr($text, $colon + 2);
+            } elseif (preg_match('/^(.*)\s+(\((?:talking|Talking) to .*\))$/su', $text, $tail) === 1) {
+                $text = $tail[2].' '.$tail[1];
+            }
+            $text = trim($text);
             if ($text !== '') $messages[] = ['role' => $row['type'] === 'chat' ? 'assistant' : 'user',
                 'content' => mb_substr($text, 0, self::LINE_CHARS)];
         }
