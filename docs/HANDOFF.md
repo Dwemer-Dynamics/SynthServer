@@ -9,6 +9,13 @@ init acknowledges it, and it is stored only inside the existing context snapshot
 database schema change. `ContextManager` projects its bounded current-location sentence into the
 next native prompt. Ordinary dialogue already includes the immutable world object. See LOCATION-ANCESTRY.md.
 
+## Private narrator candidate
+
+The optional private narrator contract adds separate immutable definition revisions and save-branched private
+transcripts. Existing context snapshots capture opaque private-state IDs; SCTX and ordinary NPC receipts remain
+unchanged. Private data is excluded from NPC history and journal sources. See [PRIVATE-NARRATOR.md](PRIVATE-NARRATOR.md).
+The additive migration is `private_narrator_schema` 20261113001. No deployment or gameplay acceptance is included.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while

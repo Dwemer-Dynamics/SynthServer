@@ -109,7 +109,7 @@ function synth_protocol_owns_dialogue_turn(array $event): bool
 {
     return ($event['protocol_version'] ?? 1) === 2
         && in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)
-        && (in_array($event['type'] ?? '', ['input_text', 'input_audio', 'trigger', 'action_result'], true)
+        && (in_array($event['type'] ?? '', ['input_text', 'input_audio', 'trigger', 'action_result', 'narrator_turn'], true)
             || (($event['type'] ?? '') === 'social_task_progress' && ($event['payload']['phase'] ?? '') === 'arrived'
                 && in_array('social.tasks.v1',$event['capabilities'] ?? [],true) && ($event['runtime_variant'] ?? '')==='flat')
             || (($event['type'] ?? '') === 'activate' && ($event['payload']['source'] ?? '') === 'manual'));
@@ -634,6 +634,9 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
             [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
             throw new RuntimeException('Unable to finalize captured observation history frontier');
         }
+        // Private narrator state is captured beside this snapshot by opaque ID; the snapshot itself is not touched.
+        require_once __DIR__.'/synth_private_narrator.php';
+        synth_private_narrator_capture_context($db, $event, $sessionId);
     }
 }
 
@@ -1553,7 +1556,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
                             response_body=NULL, error_code='superseded_turn', completed_at=NOW()
                         WHERE session_id={$session} AND generation={$generation} AND turn_id<>{$turnId}
-                          AND (event_type IN ('input_text','input_audio','trigger','action_result')
+                          AND (event_type IN ('input_text','input_audio','trigger','action_result','narrator_turn')
                             OR (event_type='social_task_progress' AND request_id IN (
                                 SELECT p.request_id FROM synth_meta.protocol_events p
                                 WHERE p.session_id={$session} AND p.generation={$generation}

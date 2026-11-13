@@ -1,5 +1,11 @@
 # Synthserver open-alpha acceptance
 
+## Private narrator
+
+- [ ] Reviewed installation upgrade and paired client negotiation (no deployment is part of this change).
+- [ ] Flat and VR game acceptance independently: saved revisions/selection/transcript, cancellation and next-NPC privacy.
+- [ ] Live configured model, speech recognition and voice-provider acceptance. Disposable tone fixtures prove no voice quality.
+
 ## Stage 1 native typed turn
 
 - [x] Apply schema 20261109001 on a disposable PostgreSQL 15 database (reapply is idempotent).

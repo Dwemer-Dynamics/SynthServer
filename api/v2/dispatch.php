@@ -37,6 +37,7 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
         $owner = $claim['owner'];
         $output->claimed($owner);
         $output->assertActive();
+        if ($route === 'narrator') { $app->privateNarrator($output, $owner, $legacy)->handle($event); return; }
         $dialogue = $app->dialogue($output, $owner, $legacy);
         if ($route === 'conversation') { $dialogue->converse($event); return; }
         try { $state = $dialogue->receipt($event); }

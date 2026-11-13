@@ -393,6 +393,12 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $nativeTurn=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && count(array_diff(['dialogue.turn_ownership','dialogue.native_turn'],$event['capabilities'] ?? []))===0;
+    $privateNarrator=false;
+    if ($status==='init_accepted' && ($event['type'] ?? '')==='init') {
+        require_once __DIR__.'/synth_private_narrator.php';
+        $privateNarrator=synth_private_narrator_supported($event) && isset($GLOBALS['db'])
+            && synth_private_narrator_schema_ready($GLOBALS['db']);
+    }
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
@@ -437,6 +443,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($socialTasks) $statusPayload['social_tasks'] = true;
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
+    if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
     if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;
     if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;

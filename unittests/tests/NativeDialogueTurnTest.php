@@ -82,6 +82,25 @@ final class NativeDialogueTurnTest extends TestCase
         return $text;
     }
 
+    public function testPrivateNarratorIngressUsesItsOwnRouteAndReceiptIdentity(): void
+    {
+        foreach (['narrator-command-select','narrator-turn-typed','narrator-turn-voice','narrator-turn-scene','narrator-receipt'] as $name) {
+            $event=$this->fixture('valid/'.$name.'.json');
+            $this->assertSame($event,synth_protocol_validate_event($event));
+            $this->assertSame('narrator',synth_api_v2_route($event));
+        }
+        foreach (['narrator-command-no-capability','narrator-command-state-definition','narrator-command-select-missing',
+            'narrator-turn-typed-media','narrator-turn-voice-no-media','narrator-turn-unbound',
+            'narrator-receipt-npc-character','narrator-receipt-presented'] as $name) {
+            $event=$this->fixture('invalid/'.$name.'.json');
+            $script='require '.var_export(dirname(__DIR__,2).'/lib/request.php',true).';synth_protocol_validate_event(json_decode('
+                .var_export(json_encode($event),true).',true));echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,$name);
+            $this->assertFalse(json_decode($output,true)['ok'] ?? true,$name);
+        }
+    }
+
     public function testProviderStreamRequiresTerminalCompletion(): void
     {
         $chunk=static fn(string $text, ?string $finish=null)=>'data: '.json_encode(['choices'=>[['delta'=>['content'=>$text],'finish_reason'=>$finish]]])."\n";
