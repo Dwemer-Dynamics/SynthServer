@@ -584,7 +584,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $capabilities=json_decode($runtime[0]['capabilities'],true,8,JSON_THROW_ON_ERROR);
         foreach (['dialogue.native_turn','dialogue.turn_ownership','dialogue.turn_cancel','action.wait_here','action.release_wait',
             'action.wait_verified','context.wait_state'] as $capability) $this->assertContains($capability,$capabilities);
-        $this->assertNotContains('action.inventory_observation',$capabilities,'no inventory observation is negotiated');
+        $this->assertContains('action.inventory_observation',$capabilities,'exercise the specialized flat init acknowledgement');
         // Piper's identity comes from the client's context, keyed by form, origin plugin and playthrough.
         $identity=$this->query("SELECT id,display_name FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1)
             AND lower(origin_plugin)='fallout4.esm' AND playthrough_id=$2",[self::PIPER,$playthrough]);
