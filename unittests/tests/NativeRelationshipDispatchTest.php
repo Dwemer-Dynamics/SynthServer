@@ -577,6 +577,12 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             'action.inventory_observation','action.take_item_from_player','action.player_item_inventory']);
         if ($menu) {$parent['payload']['text']='I have a gift for you';$parent['capabilities']=array_merge($parent['capabilities'],['action.open_inventory','action.gift_menu_inventory']);}
         $this->request($parent);
+        // The action-result continuation inherits the original gift input's saved policy.
+        $policy=['private'=>false,'rounds'=>3,'probability'=>100,'mode'=>'conversational','allow_actions'=>true,
+            'random_narration'=>false,'narration_chance'=>0,'narration_cooldown'=>0];
+        $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+            VALUES($1,$2,'STANDARD',$3::jsonb,$4)",
+            [$parent['session_id'],$parent['request_id'],$this->json($policy),$parent['payload']['text']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$parent];
         $action=['schema'=>'synth.action.v1','action_id'=>'gift:one','idempotency_key'=>'gift:key',
             'name'=>'take_item_from_player','capability'=>'action.take_item_from_player','server_code'=>'TakeItemFromPlayer',
