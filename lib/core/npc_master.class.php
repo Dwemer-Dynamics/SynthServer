@@ -315,6 +315,12 @@ class NpcMaster
     // Create (Insert)
     public function create($data)
     {
+        // All new/imported NPC rows preserve legacy expertise in Background rather than a Skills field.
+        if (is_array($data) && is_string($data['skills'] ?? null) && trim($data['skills'])!=='') {
+            require_once dirname(__DIR__).'/synth_biography.php';
+            $data['npc_static_bio']=synth_biography_background(strval($data['npc_static_bio'] ?? ''),$data['skills']);
+            $data['skills']='';
+        }
         if (synth_npc_native_request()) {
             require_once dirname(__DIR__).'/synth_runtime.php';
             synth_ensure_npc($this->db,(string)($data['npc_name'] ?? ''));
@@ -1003,6 +1009,9 @@ class NpcMaster
             'npc_name'     => $npcname,
             'npc_codename' => $codename,
         ]);
+        require_once dirname(__DIR__).'/synth_biography.php';
+        $rowData['npc_static_bio']=synth_biography_background(strval($rowData['npc_static_bio'] ?? ''),strval($rowData['skills'] ?? ''));
+        $rowData['skills']='';
 
         if (empty($rowData['voiceid']) && !empty($FORCE_PARMS['voice'])) {
             $rowData['voiceid'] = $FORCE_PARMS['voice'];

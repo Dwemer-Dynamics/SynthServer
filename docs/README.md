@@ -5,6 +5,8 @@ them. This index only points to existing documents. Status and open checks stay 
 [HANDOFF.md](HANDOFF.md) and [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md); an HTTP or PHPUnit check
 is never in-game evidence.
 
+- [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md): authored layout, guarded existing-profile repair and runtime SPECIAL ownership.
+
 ## Start here
 
 - [README](../README.md): topology, install, configuration, tests and release audit.

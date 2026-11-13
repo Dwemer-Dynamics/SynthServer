@@ -12,12 +12,12 @@ final class PromptManager
 {
     // Authored expertise is part of the background; skills are only the actor's captured SPECIAL values.
     private const PROFILE_FIELDS = ['prompt_head' => 'Prompt head', 'core' => 'Short description', 'npc_static_bio' => 'Background',
-        'appearance' => 'Appearance', 'personality' => 'Personality', 'occupation' => 'Occupation', 'speechstyle' => 'Speechstyle',
+        'appearance' => 'Appearance', 'personality' => 'Personality', 'occupation' => 'Occupation', 'speechstyle' => 'Speech style',
         'goals' => 'Goals'];
 
     public function messages(PlacedCharacter $character, array $situation, array $history, string $text, string $skills = ''): array
     {
-        $system = "You are {$character->displayName()} in Fallout 4. Return only the character's utterance, no narration, actions or markup. Respect nonverbal speech restrictions.";
+        $system = "You are {$character->displayName()} in Fallout 4. Reply in character with the character's utterance only, no narration, actions or markup. Respect nonverbal speech restrictions.";
         foreach (self::PROFILE_FIELDS as $field => $label) {
             $value = trim(strval($character->npc[$field] ?? ''));
             if ($field === 'npc_static_bio') $value = \synth_biography_background($value, strval($character->npc['skills'] ?? ''));

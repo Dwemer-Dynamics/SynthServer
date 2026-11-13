@@ -21,7 +21,7 @@ php tools/repair-npc-biography.php
 ```
 
 The first command is a dry run. Review the JSON row reports and summary before applying.
-`--apply` runs one transaction and locks the candidate profile rows. Only an actor-bound profile
+`--apply` uses a pinned management transaction with two-second statement/lock waits. It locks only matching profile updates, while holding identity mappings and custom template overlays stable. Only an actor-bound profile
 with `metadata.bio_template`, one consistent stable identity mapping, and an exact factory
 background/expertise pair is changed. The comparison source is the shipped content pack, not
 editable database templates. Only Background and the legacy expertise column change. Other
@@ -52,3 +52,5 @@ their existing contract and supply no new stat section.
 
 Off-game tests and builds cannot establish actual engine values or gameplay behavior. Flat and
 VR game-dependent acceptance remains separate; neither deployment nor gameplay is implied.
+
+Legacy expertise is retained for compatibility but excluded from new model-generated NPC profile updates. Captured numeric values are not rounded or ranked into proficiency labels.

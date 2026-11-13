@@ -339,7 +339,7 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame(['complete'],end($output->events));
         $system=$llm->messages[0]['content'];
         foreach (['Prompt head: Base head.',"Background: Base bio.\n\nExpertise: Saved skills.",'Personality: Saved personality.',
-            'Occupation: Saved job.','Speechstyle: Saved style.','Goals: Saved goals.'] as $line) $this->assertStringContainsString($line,$system);
+            'Occupation: Saved job.','Speech style: Saved style.','Goals: Saved goals.'] as $line) $this->assertStringContainsString($line,$system);
         $this->assertStringNotContainsString('Skills',$system);
         foreach (['Weary.','Base job.','Base style.','Sibling'] as $base) $this->assertStringNotContainsString($base,$system);
         $this->assertSame($globals,[$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null,$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null]);
@@ -641,6 +641,11 @@ final class NativeDialogueTurnTest extends TestCase
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertTrue($status['native_turn'] ?? false);
+            $full=$init;$full['capabilities'][]='context.actor_stats';$full['capabilities'][]='action.inventory_observation';
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$full];
+            $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
+            $this->assertSame('init_action_inventory_accepted',$status['code']);
+            $this->assertTrue($status['actor_stats'] ?? false);
             $init['capabilities']=['dialogue.text','dialogue.native_turn'];
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];

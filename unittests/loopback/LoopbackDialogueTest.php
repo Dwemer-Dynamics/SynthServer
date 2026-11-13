@@ -301,7 +301,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         }
         if ($visible!==null) {
             $this->assertStringContainsString('Personality: '.$visible['fields']['personality'],$prompt['messages'][0]['content'],$label);
-            $this->assertStringContainsString('Speechstyle: '.$visible['fields']['speechstyle'],$prompt['messages'][0]['content'],$label);
+            $this->assertStringContainsString('Speech style: '.$visible['fields']['speechstyle'],$prompt['messages'][0]['content'],$label);
             $this->assertStringNotContainsString(self::BASE,$messages,"$label base personality");
         } else $this->assertStringContainsString('Personality: '.self::BASE,$prompt['messages'][0]['content'],$label);
         $this->assertStringNotContainsString(self::SIBLING,$messages,"$label sibling");
@@ -659,7 +659,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->utterances($session,$value['request_id']));
         $this->assertStringContainsString('CMP4410',$value['text']);
         $prompt=$this->scriptedRequest('conversation',self::CONVERSATION,false,true);
-        foreach (['Short description:','Background:','Appearance:','Personality:','Occupation:','Speechstyle:','Goals:',
+        foreach (['Short description:','Background:','Appearance:','Personality:','Occupation:','Speech style:','Goals:',
             'Strength 0/1.5','Luck unknown'] as $section) $this->assertStringContainsString($section,$prompt);
         $this->assertSame(1,substr_count($prompt,'Investigation, interviewing, writing and public advocacy.'));
         $this->report('biography_native_prompt',['bytes'=>strlen($prompt),'prompt'=>$prompt]);

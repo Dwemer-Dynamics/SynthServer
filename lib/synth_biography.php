@@ -80,8 +80,8 @@ function synth_actor_stats_for_request($db,string $npcName): string
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
     if (!is_array($event) || !synth_actor_stats_supported($event)) return '';
     require_once __DIR__.'/synth_npc_identity.php';
-    $actorId=synth_npc_request_actor_id($db,$npcName);
     $context=synth_protocol_current_context($db,$event);
+    $actorId=synth_npc_request_actor_id($db,$npcName,$context);
     $identity=$actorId===null ? null
         : $db->fetchOne('SELECT full_form_id AS form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id='.intval($actorId));
     return synth_actor_stats_prompt($event,is_array($identity) && is_array($context) ? synth_actor_stats_state($context,$identity) : null);
