@@ -1,5 +1,14 @@
 # Synthserver developer handoff
 
+## Plugin-local location ancestry
+
+Flat v2 contexts that negotiate `context.location_identity` and `context.location_ancestry`
+may carry `world.location_ancestry`: the current location and its parent chain as bounded
+plugin-local IDs with an explicit end. Ingress validates it strictly (`lib/synth_location.php`),
+init acknowledges it, and it is stored only inside the existing context snapshot; there is no
+database schema change. `ContextManager` projects its bounded current-location sentence into the
+next native prompt. Ordinary dialogue already includes the immutable world object. See LOCATION-ANCESTRY.md.
+
 ## Installed gift screen and shared wording
 
 The user approved general gifts opening the normal inventory exchange, while
@@ -70,6 +79,24 @@ probe ran the full turn through real `main.php` against a loopback fake
 OpenAI-compatible stream (before increment 2): TTS enqueue for the profile, receipt write,
 receipt-time history in the next prompt, and the receipt negatives. It also checked the output
 caps and malformed streams. No real provider or game check has run.
+
+Provider cancellation and status (source `32d741e`).
+`OpenAiCompatibleDriver` passes its durable owner check to `SynthProviderStream`, which runs it
+before connecting and at its bounded waits as well as the global request guard. The stream records
+the final HTTP status after interim and followed redirect responses; the native turn rejects a
+non-2xx status, a missing status or a transport failure with the generic `provider_failed` before
+any SSE line reaches the text callback. Other stream consumers, the connector subset, protocol and
+storage are unchanged. Evidence on that commit: a fake provider saw owner cancels return in about
+250 ms instead of about 2 s, no call for a cancel before connect, and no text from 401, 429 or 500
+bodies that are valid SSE. A real-main, disposable-PostgreSQL recording-provider matrix covered
+supported and declined connectors for one NPC, a 60-second provider timeout before output, a truncated
+stream after one delivered line, a simulated receipt in the next provider request, exact-request
+replay and HTTP failures with no dialogue, jobs or error-body history. The compiled-client loopback
+check still passes with no client change. Limits: the fix honours the owner's cancellation only; a
+client disconnect or the client's 30-second default deadline does not become a server cancel before
+the 60-second provider timeout. Playback de-duplication is unproven: a naive replay simulation can
+count one line twice, and no real automatic identical-request retry route was established. No real
+provider, TTS synthesis, audio playback, game or deployment check has run.
 
 **Stage A increment 2 (source candidate).** `main.php` decodes and validates the body once and
 dispatches `/talk` and `speech_receipt` to `api/v2/dispatch.php` before

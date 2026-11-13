@@ -7,6 +7,7 @@ use Synth\Core\TurnRequest;
 
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once __DIR__.'/SaveState.php';
+require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
@@ -24,6 +25,8 @@ final class ContextManager
             'audience' => array_values(array_filter(array_map(static fn($actor) => is_array($actor)
                 ? strval($actor['display_name'] ?? '') : '', $payload['audience'] ?? [])))];
         if (is_array($payload['world'] ?? null)) $situation['world'] = array_intersect_key($payload['world'], array_flip(['location', 'time', 'weather']));
+        $location = synth_location_prompt_line($payload['world'] ?? null);
+        if ($location !== '') $situation['location'] = $location;
         // Only this snapshot's rows for the exact player and responder; never a name match or an older value.
         $situation['condition'] = \synth_condition_prompt(is_array($payload) ? $payload : [],
             is_array($request->context['player'] ?? null) ? $request->context['player'] : [],

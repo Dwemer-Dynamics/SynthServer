@@ -123,6 +123,21 @@ final class NativeDialogueTurnTest extends TestCase
         $driver->stream(['driver'=>'player2json']+$base,[],static function(string $delta): void {});
     }
 
+    public function testDriverChecksOwnerBeforeConnectingAndRejectsMissingStatus(): void
+    {
+        $base=['driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1/chat/completions','model'=>'m','reasoning_model'=>false,
+            'metadata'=>'{}','api_key'=>'','max_tokens'=>64];
+        $text=static function(string $delta): void { throw new LogicException('unexpected_text'); };
+        $cancelled=new OpenAiCompatibleDriver(static function(): void { throw new SYNTHProtocolCancelled('request_cancelled'); },
+            static fn(array $connector): array=>$connector);
+        try { $cancelled->stream($base,[],$text); $this->fail('cancelled'); }
+        catch (SYNTHProtocolCancelled $error) { $this->assertSame('request_cancelled',$error->getMessage()); }
+        // A refused connection has no HTTP status and must fail generically, never as a parsed stream.
+        $driver=new OpenAiCompatibleDriver(static function(): void {},static fn(array $connector): array=>$connector);
+        try { $driver->stream($base,[],$text); $this->fail('refused'); }
+        catch (RuntimeException $error) { $this->assertSame('provider_failed',$error->getMessage()); }
+    }
+
     public function testSentencesStreamAsCompleteLines(): void
     {
         $buffer='Hello there. How are';
@@ -212,6 +227,45 @@ final class NativeDialogueTurnTest extends TestCase
     {
         return ['player'=>['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'save-1','display_name'=>'Nate'],
             'target'=>$this->fixture('valid/speech-receipt.json')['payload']['character'],'audience'=>[],'world'=>['game_time_ticks'=>42]];
+    }
+
+    public function testOwnedInteriorAncestryReachesTheNextProviderPrompt(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $context=$this->talkContext();
+        // These CELL/XLCN/PNAM identities were checked against installed Fallout4.esm. Capture is simulated.
+        $context['world']=['location'=>'Dugout Inn','cell'=>'DmndDugoutInn01','worldspace'=>'','weather'=>'',
+            'interior'=>true,'game_time_ticks'=>42,'scene'=>['cell'=>['form_id'=>'0x00001E5D','origin_plugin'=>'Fallout4.esm'],'worldspace'=>null],
+            'location_ref'=>['form_id'=>'0x0000395C','origin_plugin'=>'Fallout4.esm'],
+            'location_ancestry'=>['end'=>'root','chain'=>[
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x00395C','display_name'=>'Dugout Inn'],
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CEF','display_name'=>'Diamond City'],
+                ['origin_plugin'=>'Fallout4.esm','local_form_id'=>'0x002CF0','display_name'=>'Commonwealth']]]];
+        foreach (['root','unresolved'] as $case) {
+            $snapshot=$context;
+            if ($case==='unresolved') {
+                array_pop($snapshot['world']['location_ancestry']['chain']);
+                $snapshot['world']['location_ancestry']['end']='unresolved';
+            }
+            [$manager,$output,,$llm]=$this->dialogue($snapshot,$row,[],['Understood.']);
+            $manager->converse($event);
+            $this->assertSame(['complete'],end($output->events));
+            $prompt=$llm->messages[0]['content'];
+            $this->assertStringContainsString('Current location: Dugout Inn, within Diamond City',$prompt);
+            $this->assertStringContainsString('interior: DmndDugoutInn01',$prompt);
+            $this->assertSame(1,substr_count($prompt,'Current location:'));
+            if ($case==='unresolved') {
+                $this->assertStringContainsString('beyond this is not known.',$prompt);
+                $this->assertStringNotContainsString('within Commonwealth',$prompt);
+            } else $this->assertStringContainsString('within Commonwealth',$prompt);
+            $this->assertStringNotContainsString('worldspace:',$prompt);
+            if ($case==='root') {
+                $manager->converse($event);
+                $this->assertSame(['complete'],end($output->events));
+                $this->assertSame(1,substr_count($llm->messages[0]['content'],'Current location:'));
+            }
+        }
     }
 
     public function testAdmittedTurnStreamsBoundedVoicedLinesAndEndsTruthfully(): void

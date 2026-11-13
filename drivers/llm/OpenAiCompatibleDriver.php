@@ -12,7 +12,7 @@ require_once dirname(__DIR__, 2).'/lib/provider_stream.php';
 final class OpenAiCompatibleDriver implements LlmDriver
 {
     /**
-     * @param \Closure():void $assertActive liveness check at every provider line
+     * @param \Closure():void $assertActive liveness check before connecting, during provider waits and at every line
      * @param \Closure(array):array $config url, model, api_key and sampling options of one stored connector
      */
     public function __construct(private \Closure $assertActive, private \Closure $config, private int $maxBytes = 2 * 1024 * 1024) {}
@@ -34,8 +34,12 @@ final class OpenAiCompatibleDriver implements LlmDriver
         if ($config['api_key'] !== '') $headers[] = 'Authorization: Bearer '.$config['api_key'];
         $context = stream_context_create(['http' => ['method' => 'POST', 'header' => $headers,
             'content' => self::requestBody($config, $messages), 'timeout' => 60]]);
-        $stream = new \SynthProviderStream($config['url'], $context, $this->maxBytes);
+        // The owner check also runs before connecting and at the stream's bounded waits, not only per line.
+        $stream = new \SynthProviderStream($config['url'], $context, $this->maxBytes, $this->assertActive);
         try {
+            // Error bodies may still be valid SSE; never parse or echo them.
+            $status = $stream->status();
+            if ($stream->failed() || $status < 200 || $status > 299) throw new \RuntimeException('provider_failed');
             self::parseSse(static fn() => $stream->readLine(), $onText, $this->assertActive);
             if ($stream->failed()) throw new \RuntimeException('provider_failed');
         } finally { $stream->close(); }
