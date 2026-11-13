@@ -57,9 +57,10 @@ $fetch=static function(string $sql,array $params) use ($connection): array {
             AND npc_static_bio IS NOT DISTINCT FROM $3 AND skills IS NOT DISTINCT FROM $4
             AND actor_identity_id=$5 AND metadata IS NOT DISTINCT FROM $6::jsonb
             AND base IS NOT DISTINCT FROM $7 AND refid IS NOT DISTINCT FROM $8
+            AND extended_data IS NOT DISTINCT FROM $11::jsonb
             AND EXISTS (SELECT 1 FROM synth.actor_identities a WHERE a.id=$5 AND a.full_form_id=$9 AND a.origin_plugin=$10)
             RETURNING id',[$result['npc_static_bio'],intval($row['id']),$row['npc_static_bio'],$row['skills'],
-                $row['actor_identity_id'],$row['metadata'],$row['base'],$row['refid'],$row['full_form_id'],$row['origin_plugin']]);
+                $row['actor_identity_id'],$row['metadata'],$row['base'],$row['refid'],$row['full_form_id'],$row['origin_plugin'],$row['extended_data']]);
         if (!is_array($updated) || count($updated)!==1) throw new RuntimeException('NPC profile changed during repair: '.intval($row['id']));
         ++$applied;
     }
