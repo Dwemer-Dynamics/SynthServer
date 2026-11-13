@@ -87,8 +87,8 @@ character key first: if more than one form shares a key, all of them are withhel
 catalog keys cannot become new candidates.
 
 Real ACHR records carry no FULL, so their exported `display_name` is empty. A
-reference entry may add a reviewed `display_name` (non-empty, at most 128 UTF-8
-bytes, no NUL); base entries may not. It is the draft label only: the exported
+reference entry may add a reviewed `display_name` (non-empty single line, at most
+128 UTF-8 bytes, no ASCII control characters); base entries may not. It is the draft label only: the exported
 record stays unchanged in `coverage.json`, the missing entry reports it as
 `draft_display_name`, and the candidate's `display_name` uses it. It is not
 evidence that the game record carries that name and is never used for binding,
@@ -126,8 +126,8 @@ python tools/extract-fallout-biographies.py --inventory "WORK/inventory.json" --
 
 Caches retain the response, revision, timestamp, source URL, attribution, history
 link and policy evidence. Unavailable sources are cached as unavailable. Offline
-mode is the default and never contacts the network. Every existing cache file is
-checked before the first request or cache write; a mismatched, corrupt or
+mode is the default and never contacts the network. Every existing cache file for a
+queued source is checked before the first request or cache write; a mismatched, corrupt or
 unknown-status entry anywhere in the queue refuses the run. Cached successful records
 are checked: response checksum, revision, timestamp, title,
 canonical URL, attribution and history link, rights metadata, and robots

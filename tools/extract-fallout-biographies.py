@@ -150,8 +150,8 @@ def audit(inventory, decisions, catalog):
             # ACHR records carry no FULL; a reviewed label names the draft only and never binds it.
             if 'display_name' in decision:
                 label = decision['display_name']
-                if (decision['kind'] != 'reference' or not isinstance(label, str) or not label
-                        or len(label.encode()) > 128 or '\0' in label):
+                if (decision['kind'] != 'reference' or not isinstance(label, str) or not label.strip()
+                        or len(label.encode()) > 128 or re.search('[\x00-\x1f\x7f]', label)):
                     raise ValueError('Invalid reviewed reference display name')
             reviewed[identity] = decision
         report['review_sha256'] = sha(decisions.read_bytes())
