@@ -325,7 +325,8 @@ if ($EXECUTION_MODE=="STANDARD") {
         // Reuse the owned structured response/action pipeline, not the legacy process/global command queue.
         $instruction = synthModeExtractPlayerText($gameRequest, $receivedData ?? '');
         $gameRequest[0] = 'cheatmode';
-        $gameRequest[3] = '<Director instruction: '.$instruction.'. Respond as the selected character and use only supported structured actions; do not claim unsupported game changes.>';
+        // Bracketed so event scoping reads it as a context label, not a "Director instruction" speaker; rows then keep the selected NPC's audience.
+        $gameRequest[3] = '[Director instruction: '.$instruction.'. Respond as the selected character and use only supported structured actions; do not claim unsupported game changes.]';
         $GLOBALS['FUNCTIONS_ARE_ENABLED'] = true;
     } else {
     
