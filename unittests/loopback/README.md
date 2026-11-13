@@ -46,8 +46,8 @@ second argument `companion` (see the client's `tests/loopback_dialogue/README.md
 companion is Piper (`Fallout4.esm` `0x00002F1F`) in one flat session. The test seeds only a
 loopback LLM connector, a TTS connector and one `default_npc` profile, and it inserts no NPC row
 for Piper. Between phases it writes the fake provider's reply file: ordinary JSON answers on the
-legacy route, a JSON `WaitHere` answer for `Wait here.`, and plain text for the native turns. It
-installs no product hook and no substitute JEV route. It checks:
+legacy route, a JSON answer naming the offered `Wait_Here` label for `Wait here.`, and plain text
+for the native turns. It installs no product hook and no substitute JEV route. It checks:
 
 - The stored snapshot: Piper's identity and audience, and the captured facts as sent.
 - The manual `active_agents` row from the client's `activate`.
@@ -56,8 +56,10 @@ installs no product hook and no substitute JEV route. It checks:
 - Route ownership. The unmarked question and `Wait here.` complete on the legacy route, with the
   openaijson prompt and no native utterance. Each marked conversation makes exactly one native
   provider call and stores one utterance spoken by Piper's identity.
-- The Wait prompt observer reads the captured `wait_held=false` in the command prompt.
-- Exactly one pending `WaitHere` intent owned by Piper, with no target and empty arguments.
+- The Wait prompt observer reads the captured `wait_held=false` in the command prompt. That prompt
+  offers the catalog's public label `Wait_Here`, which the scripted answer uses.
+- Exactly one pending intent owned by Piper with the canonical `WaitHere` code, no target and empty
+  arguments, so the parser mapped the label to the code.
 - Two identical `unavailable` results both complete. The conflicting result, the superseded
   result and the conversation bound to the cancelled context are never claimed. There is one
   terminal result, the intent is `complete` and one Wait consequence is recorded unverified.

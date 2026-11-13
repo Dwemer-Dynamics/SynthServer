@@ -657,7 +657,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame([strval($piper),strval($npcId),strval($profile)],
             [$registered['identity_id'] ?? null,$registered['npc_id'] ?? null,$registered['profile_id'] ?? null]);
         $this->assertNull($repository->savedProfile($event,$piper),'no saved dynamic profile for Piper');
-        $this->script($this->ordinaryReply('Alright, I will wait here.','WaitHere'));
+        $this->script($this->ordinaryReply('Alright, I will wait here.','Wait_Here'));
     }
 
     private function companionAction(array $value): void {
@@ -684,7 +684,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         // The scripted model Wait answer, prompted with the Wait observer's reading of the captured wait_held=false.
         $prompt=$this->scriptedRequest('command',self::COMMAND,true);
         $this->assertStringContainsString(self::WAIT_OBSERVED,$prompt,'the Wait prompt observer consumed the captured state');
-        $this->assertStringContainsString('WaitHere',$prompt,'WaitHere is offered');
+        // The prompt offers the catalog's public label Wait_Here; the scripted answer uses it and the persisted intent keeps the canonical WaitHere code.
+        $this->assertStringContainsString('AVAILABLE ACTION: Wait_Here (',$prompt,'Wait_Here is offered');
         $this->companion['action']=$value;
         // Any continuation the result requests stays speech-only.
         $this->script($this->ordinaryReply('Understood, Blue.'));
