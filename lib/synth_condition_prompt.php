@@ -53,7 +53,7 @@ function synth_condition_prompt(array $payload, array $player, array $responder)
     };
     return [
         'semantics' => [
-            'unit' => "percent (0-100) of the actor's permanent maximum, not the current HUD bar",
+            'unit' => 'current/permanent actor value ratio, clamped to 0-100 percent; effective HUD maximum unverified',
             'sampling' => 'one snapshot taken with this turn; not live and not a trend',
             'null' => 'unknown this turn; do not guess',
             'not' => 'a cause, a disease or a guaranteed visible injury',
