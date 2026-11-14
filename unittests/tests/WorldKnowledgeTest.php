@@ -490,6 +490,63 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $this->assertStringContainsString("The stimpack vendor is a wasteland medic who buys and sells stimpaks", $capturedContent);
     }
 
+    // Native WorldKnowledgeManager uses only its explicit NPC/profile inputs, even with conflicting request globals set.
+    public function testNativeWorldKnowledgeManagerUsesExplicitInputsNotRequestGlobals(): void
+    {
+        require_once dirname(__DIR__, 2).'/managers/WorldKnowledgeManager.php';
+        $advanced = 'laser musket a recognizable symbol';
+        $basic = 'name and symbols recall the militia of the Revolutionary era';
+        // Fixture-only: actor_identity_id matches the PlacedCharacter identityId (1) below, as an admitted NPC row would.
+        $npc = static fn(string $tags, array $metadata = [], string $base = '0x00002F1E') => ['npc_name' => 'Unit Test',
+            'actor_identity_id' => 1, 'worldknowledge_tags' => $tags, 'race' => 'HumanRace', 'metadata' => json_encode($metadata, JSON_FORCE_OBJECT),
+            'extended_data' => json_encode(['baseid' => $base, 'base_origin_plugin' => 'Fallout4.esm'])];
+        $context = static fn($manager, array $row, bool $enabled) => $manager->context(
+            new \Synth\Core\TurnRequest(['protocol_version' => 2, 'session_id' => 'wk-native', 'request_id' => 'wk-native',
+                'payload' => ['text' => 'What do you know about the Minutemen?', 'intent' => 'conversation']], ['payload' => []]),
+            new \Synth\Core\PlacedCharacter('k1', ['display_name' => 'Unit Test'], 1, $row,
+                ['metadata' => json_encode(['WORLDKNOWLEDGE_INFINIUM' => $enabled])], []),
+            []
+        );
+        $poison = ['WORLDKNOWLEDGE' => 'knowall', 'SYNTH_NAME' => 'Poison Name', 'WORLDKNOWLEDGE_INFINIUM' => true,
+            'SYNTH_CORE_CURRENT_NPC_DATA' => $npc('knowall'),
+            'SYNTH_CORE_CURRENT_PROFILE_DATA' => ['metadata' => ['WORLDKNOWLEDGE_INFINIUM' => true]]];
+        $saved = array_intersect_key($GLOBALS, $poison);
+        $db = new sql();
+        try {
+            foreach ($poison as $key => $value) $GLOBALS[$key] = $value;
+            $manager = new \Synth\Managers\WorldKnowledgeManager($db, ['WORLDKNOWLEDGE_INFINIUM' => false],
+                new \Synth\Core\SettingsRepository($db));
+            $db->execQuery('DELETE FROM synth.worldknowledge_audit');
+
+            $advancedBlock = $context($manager, $npc('commonwealth,minutemen'), true);
+            $this->assertStringContainsString($advanced, $advancedBlock);
+            $this->assertStringNotContainsString($basic, $advancedBlock);
+
+            // Profile false, NPC metadata "true": the NPC layer wins, and its commonwealth-only tags give basic text.
+            $basicBlock = $context($manager, $npc('commonwealth', ['WORLDKNOWLEDGE_INFINIUM' => 'true']), false);
+            $this->assertStringContainsString($basic, $basicBlock);
+            $this->assertStringNotContainsString($advanced, $basicBlock);
+
+            $this->assertSame('', $context($manager, $npc('commonwealth,minutemen'), false));
+
+            // Prewar base (000AA763) denies the topic despite postwar tags.
+            $prewarBlock = $context($manager, $npc('commonwealth,minutemen', [], '0x000AA763'), true);
+            $this->assertStringContainsString('era_not_authorized', $prewarBlock);
+            $this->assertStringNotContainsString($advanced, $prewarBlock);
+            $this->assertStringNotContainsString($basic, $prewarBlock);
+
+            foreach ($poison as $key => $value) $this->assertSame($value, $GLOBALS[$key] ?? null, $key);
+            $audit = $db->fetchAll("SELECT status, settings->'sources'->>'enabled' AS source
+                FROM synth.worldknowledge_audit ORDER BY audit_id");
+            $this->assertSame(['grounded', 'grounded', 'disabled', 'grounded'], array_column($audit, 'status'));
+            $this->assertSame(['core_profile', 'npc', 'core_profile', 'core_profile'], array_column($audit, 'source'));
+        } finally {
+            foreach ($poison as $key => $value) unset($GLOBALS[$key]);
+            foreach ($saved as $key => $value) $GLOBALS[$key] = $value;
+            $db->close();
+        }
+    }
+
     private function expectPromptInContext($streamContext, $expectedPrompt) {
         $options = stream_context_get_options($streamContext);
         $content = json_decode($options['http']['content']);

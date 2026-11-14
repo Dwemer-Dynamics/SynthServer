@@ -6,12 +6,13 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'worldknowledge_retrieval.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'worldknowledge_topic.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'quest_access.php';
 
-/** Report which already-applied configuration layer supplied a World Knowledge setting. */
-function synthWorldKnowledgeSettingSource(string $name): string
+/** Report which already-applied configuration layer supplied a World Knowledge setting.
+ *  A native caller passes its admitted NPC and profile rows instead of the request globals. */
+function synthWorldKnowledgeSettingSource(string $name, ?array $npc = null, ?array $profile = null): string
 {
-    $npc = is_array($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null)
+    $npc = $npc ?? (is_array($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null)
         ? $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA']
-        : [];
+        : []);
     foreach (['extended_data', 'metadata'] as $field) {
         $values = $npc[$field] ?? [];
         if (is_string($values)) {
@@ -21,9 +22,9 @@ function synthWorldKnowledgeSettingSource(string $name): string
             return 'npc';
         }
     }
-    $profile = is_array($GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA'] ?? null)
+    $profile = $profile ?? (is_array($GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA'] ?? null)
         ? $GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA']
-        : [];
+        : []);
     $metadata = $profile['metadata'] ?? [];
     if (is_string($metadata)) {
         $metadata = json_decode($metadata, true);
@@ -31,9 +32,11 @@ function synthWorldKnowledgeSettingSource(string $name): string
     return is_array($metadata) && array_key_exists($name, $metadata) ? 'core_profile' : 'global';
 }
 
-/** Resolve Global -> Core Profile -> NPC values into the Oghma parity settings contract. */
-function synthWorldKnowledgeEffectiveSettings(): array
+/** Resolve Global -> Core Profile -> NPC values into the Oghma parity settings contract.
+ *  $inputs is the already-layered setting map; ordinary requests use the applied globals. */
+function synthWorldKnowledgeEffectiveSettings(?array $inputs = null, ?array $npc = null, ?array $profile = null): array
 {
+    $inputs ??= $GLOBALS;
     $bool = static function (mixed $value, bool $default = false): bool {
         if (is_bool($value)) {
             return $value;
@@ -43,21 +46,21 @@ function synthWorldKnowledgeEffectiveSettings(): array
         }
         return !in_array(strtolower(trim(strval($value))), ['0', 'false', 'no', 'off'], true);
     };
-    $topicCount = max(1, min(3, intval($GLOBALS['WORLDKNOWLEDGE_AMOUNT'] ?? 1)));
-    $resultLimit = max(1, min(5, intval($GLOBALS['WORLDKNOWLEDGE_RESULT_LIMIT'] ?? 3)));
-    $fallbackKey = array_key_exists('WORLDKNOWLEDGE_EXTRACTOR_FALLBACK', $GLOBALS)
+    $topicCount = max(1, min(3, intval($inputs['WORLDKNOWLEDGE_AMOUNT'] ?? 1)));
+    $resultLimit = max(1, min(5, intval($inputs['WORLDKNOWLEDGE_RESULT_LIMIT'] ?? 3)));
+    $fallbackKey = array_key_exists('WORLDKNOWLEDGE_EXTRACTOR_FALLBACK', $inputs)
         ? 'WORLDKNOWLEDGE_EXTRACTOR_FALLBACK'
         : 'WORLDKNOWLEDGE_CUSTOM';
     $values = [
-        'enabled' => $bool($GLOBALS['WORLDKNOWLEDGE_INFINIUM'] ?? true, true),
-        'extractor_fallback_enabled' => $bool($GLOBALS[$fallbackKey] ?? false),
+        'enabled' => $bool($inputs['WORLDKNOWLEDGE_INFINIUM'] ?? true, true),
+        'extractor_fallback_enabled' => $bool($inputs[$fallbackKey] ?? false),
         'topic_count' => $topicCount,
         'result_limit' => $resultLimit,
-        'racial_context_enabled' => $bool($GLOBALS['RACE_WORLDKNOWLEDGE'] ?? true, true),
-        'faction_context_enabled' => $bool($GLOBALS['FACTION_WORLDKNOWLEDGE'] ?? true, true),
-        'location_context_enabled' => $bool($GLOBALS['LOCATION_WORLDKNOWLEDGE'] ?? true, true),
-        'extractor_timeout_ms' => max(250, min(3000, intval($GLOBALS['WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS'] ?? 1500))),
-        'connector_id' => trim(strval($GLOBALS['CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM'] ?? '')),
+        'racial_context_enabled' => $bool($inputs['RACE_WORLDKNOWLEDGE'] ?? true, true),
+        'faction_context_enabled' => $bool($inputs['FACTION_WORLDKNOWLEDGE'] ?? true, true),
+        'location_context_enabled' => $bool($inputs['LOCATION_WORLDKNOWLEDGE'] ?? true, true),
+        'extractor_timeout_ms' => max(250, min(3000, intval($inputs['WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS'] ?? 1500))),
+        'connector_id' => trim(strval($inputs['CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM'] ?? '')),
     ];
     $sourceKeys = [
         'enabled' => 'WORLDKNOWLEDGE_INFINIUM',
@@ -72,7 +75,7 @@ function synthWorldKnowledgeEffectiveSettings(): array
     ];
     $sources = [];
     foreach ($sourceKeys as $field => $key) {
-        $sources[$field] = synthWorldKnowledgeSettingSource($key);
+        $sources[$field] = synthWorldKnowledgeSettingSource($key, $npc, $profile);
     }
     $canonical = $values;
     ksort($canonical, SORT_STRING);
@@ -128,9 +131,9 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
 }
 
 /** Identify known 2077 actors from captured native identity, never from dialogue or names. */
-function synthWorldKnowledgeCurrentNpcIsPrewar(): bool
+function synthWorldKnowledgeCurrentNpcIsPrewar(?array $npc = null): bool
 {
-    $npc = $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null;
+    $npc = $npc ?? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null);
     if (!is_array($npc)) {
         return false;
     }
@@ -154,24 +157,27 @@ function synthWorldKnowledgeCurrentNpcIsPrewar(): bool
     return in_array(strtoupper($matches[1]), ['000AA763', '000ABF9E'], true);
 }
 
-function synthWorldKnowledgeKnowledgeTags(): array
+/** Access tags for the current actor. A native caller passes its request-owned context
+ *  ['db', 'npc', 'tags', 'name', 'world'] instead of the ordinary request globals. */
+function synthWorldKnowledgeKnowledgeTags(?array $context = null): array
 {
-    if (synthWorldKnowledgeCurrentNpcIsPrewar()) {
+    $currentNpc = $context === null ? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? []) : ($context['npc'] ?? []);
+    if (synthWorldKnowledgeCurrentNpcIsPrewar($context === null ? null : (is_array($currentNpc) ? $currentNpc : []))) {
         // Location, worldspace and same-name postwar factory defaults cannot grant future lore.
         return ['prewar'];
     }
     $tags = [];
-    foreach (explode(',', strval($GLOBALS['WORLDKNOWLEDGE'] ?? '')) as $value) {
+    foreach (explode(',', strval($context === null ? ($GLOBALS['WORLDKNOWLEDGE'] ?? '') : ($context['tags'] ?? ''))) as $value) {
         $tags[] = $value;
     }
 
-    $npcName = synthWorldKnowledgeNormalizeAccessTag(strval($GLOBALS['SYNTH_NAME'] ?? ''));
+    $npcName = synthWorldKnowledgeNormalizeAccessTag(strval($context === null
+        ? ($GLOBALS['SYNTH_NAME'] ?? '') : ($context['name'] ?? '')));
     if ($npcName !== '') {
         $tags[] = $npcName;
     }
 
-    $db = $GLOBALS['db'] ?? null;
-    $currentNpc = $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? [];
+    $db = $context === null ? ($GLOBALS['db'] ?? null) : ($context['db'] ?? null);
     $npcCodename = is_array($currentNpc)
         ? trim(strval($currentNpc['npc_codename'] ?? ''))
         : '';
@@ -191,7 +197,8 @@ function synthWorldKnowledgeKnowledgeTags(): array
         }
     }
     if (function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
-        $signals = synthWorldKnowledgeCurrentNpcSignals($db);
+        $signals = synthWorldKnowledgeCurrentNpcSignals($db,
+            $context === null ? null : (is_array($currentNpc) ? $currentNpc : []));
         foreach ((array)($signals['race'] ?? []) as $value) {
             $tag = synthWorldKnowledgeNormalizeAccessTag($value);
             if ($tag !== '') {
@@ -207,7 +214,8 @@ function synthWorldKnowledgeKnowledgeTags(): array
     }
 
     if (function_exists('synthWorldKnowledgeCollectLocationSignalGroups')) {
-        $signals = synthWorldKnowledgeCollectLocationSignalGroups($db);
+        $signals = $context === null ? synthWorldKnowledgeCollectLocationSignalGroups($db)
+            : synthWorldKnowledgeCollectLocationSignalGroups($db, is_array($context['world'] ?? null) ? $context['world'] : []);
         foreach ((array)($signals['location'] ?? []) as $value) {
             $tag = synthWorldKnowledgeNormalizeAccessTag($value);
             if ($tag !== '') {
@@ -270,8 +278,9 @@ function synthWorldKnowledgeNormalizeRegionTags($value): array
     return [];
 }
 
-/** Resolve authored quest access once for both tiers, independently of profile tags. */
-function synthWorldKnowledgeQuestAccessGates(array $row): ?array
+/** Resolve authored quest access once for both tiers, independently of profile tags.
+ *  A native caller passes the quest reader view obtained for its own request. */
+function synthWorldKnowledgeQuestAccessGates(array $row, ?array $questView = null): ?array
 {
     $rawTopic = synthWorldKnowledgeCanonicalTopic(strval($row['topic'] ?? $row['canonical_topic'] ?? ''));
     $rawCanonical = strval($row['canonical_topic'] ?? $rawTopic);
@@ -296,11 +305,11 @@ function synthWorldKnowledgeQuestAccessGates(array $row): ?array
         return ['advanced' => $denied, 'basic' => $denied];
     }
 
-    $view = ['schema' => 'synth.quest.access.v1', 'perspective' => 'npc',
+    $view = $questView ?? ['schema' => 'synth.quest.access.v1', 'perspective' => 'npc',
         'observation' => 'unavailable', 'roles' => []];
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
     $db = $GLOBALS['db'] ?? null;
-    if (is_array($event) && ($event['protocol_version'] ?? null) === 2
+    if ($questView === null && is_array($event) && ($event['protocol_version'] ?? null) === 2
         && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && is_object($db)) {
         try {
             $view = synthQuestAccessReaderView($db, $event);
@@ -316,17 +325,20 @@ function synthWorldKnowledgeQuestAccessGates(array $row): ?array
     ];
 }
 
-/** Resolve one article to advanced, basic, or denied without exposing protected text. */
-function synthWorldKnowledgeAccessDecision(array $row, array $knowledgeTags): array
+/** Resolve one article to advanced, basic, or denied without exposing protected text.
+ *  A native caller passes ['npc', 'quest_view'] for its own request instead of the request globals. */
+function synthWorldKnowledgeAccessDecision(array $row, array $knowledgeTags, ?array $context = null): array
 {
     // Authored quest policy precedes knowall, flat access classes and basic fallback.
     // Protected tiers use reviewed replacements, never raw custom or legacy article text.
-    $questGates = synthWorldKnowledgeQuestAccessGates($row);
+    $questGates = synthWorldKnowledgeQuestAccessGates($row, $context === null ? null
+        : (is_array($context['quest_view'] ?? null) ? $context['quest_view'] : []));
     $normalizedTags = array_values(array_unique(array_filter(array_map(
         'synthWorldKnowledgeNormalizeAccessTag',
         $knowledgeTags
     ))));
-    $prewarOnly = synthWorldKnowledgeCurrentNpcIsPrewar() || in_array('prewar', $normalizedTags, true);
+    $prewarOnly = synthWorldKnowledgeCurrentNpcIsPrewar($context === null ? null
+        : (is_array($context['npc'] ?? null) ? $context['npc'] : [])) || in_array('prewar', $normalizedTags, true);
     if ($prewarOnly) {
         $normalizedTags = ['prewar'];
     }

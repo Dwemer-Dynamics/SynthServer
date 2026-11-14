@@ -20,6 +20,7 @@ use Synth\Managers\PromptManager;
 use Synth\Managers\SaveState;
 use Synth\Managers\SessionManager;
 use Synth\Managers\SpeechManager;
+use Synth\Managers\WorldKnowledgeManager;
 
 require_once __DIR__.'/lib/postgresql.class.php';
 require_once __DIR__.'/lib/settings.php';
@@ -68,7 +69,8 @@ final class Bootstrap
             new OpenAiCompatibleDriver($output->assertActive(...),
                 static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row))),
             new SpeechManager(new ProfileSpeechDriver($this->db, $this->root, $this->speechConfig(), $owner, $legacy)),
-            new UtteranceRepository($this->db, $owner), $output);
+            new UtteranceRepository($this->db, $owner), $output,
+            new WorldKnowledgeManager($this->db, $this->config, new SettingsRepository($this->db)));
     }
 
     /** Private narrator requests: the same claimed owner, LLM driver family and legacy adapter scope. */

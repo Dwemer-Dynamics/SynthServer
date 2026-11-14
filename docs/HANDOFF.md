@@ -1,5 +1,16 @@
 # Synthserver developer handoff
 
+## Native conversation World Knowledge candidate
+
+Native `/talk` conversation turns previously sent no lore. The candidate adds deterministic,
+request-owned selection through the existing catalogue, retriever, tier policy and renderer
+(`managers/WorldKnowledgeManager.php`). It uses explicit configuration, profile and NPC settings,
+the admitted actor and the bound snapshot. It adds no provider call, extractor fallback or forced
+location/actor articles. Participant-only quest tiers stay unavailable on this path. The vocabulary
+article can still appear on a turn with no matched topic. Disposable-database loopback checks and the
+existing focused suites pass; no compiled client, game or VR check has run. No schema change,
+deployment or game acceptance. See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md).
+
 ## NPC biography and SPECIAL candidate
 
 Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).
