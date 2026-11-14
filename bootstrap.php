@@ -65,7 +65,7 @@ final class Bootstrap
         // Shared connector normalization and API badge lookup; credentials stay inside the driver call.
         $connectors = new \LLMConnector();
         return new DialogueManager(new SessionManager($saves), new CharacterManager(new CharacterRepository($this->db)),
-            new ContextManager($saves), new PromptManager(),
+            new ContextManager($saves, $this->db, $owner), new PromptManager(),
             new OpenAiCompatibleDriver($output->assertActive(...),
                 static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row))),
             new SpeechManager(new ProfileSpeechDriver($this->db, $this->root, $this->speechConfig(), $owner, $legacy)),

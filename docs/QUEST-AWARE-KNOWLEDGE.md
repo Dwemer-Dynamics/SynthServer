@@ -118,6 +118,21 @@ ask about that earlier conversation; they cannot disclose the newly sampled priv
 objective. An uninformed actor's reaction is suppressed. World-knowledge rechat
 topic selection also uses the responder's saved history instead of global latest chat.
 
+## Native conversation turns
+
+Native `/talk` conversation turns use the same reader with the turn's explicit claimed owner instead
+of the legacy claimed-request flag. The owner must be this exact event, and the claimed lock rechecks
+its durable row. The admitted NPC is passed as the exact recipient, so a different or impostor identity
+yields the unavailable view. Saved ancestry, runtime lane, completed-input and canonical-text checks,
+the 64-row/one-mebibyte evidence bound, the latest-eight projection and the 8 KiB renderer are unchanged.
+
+`ContextManager::questKnowledge` reads the view once per turn. The rendered block is added to the system
+prompt only when it holds attributed reports or authored participant background; an unavailable view
+adds nothing. World Knowledge participant tiers reuse the same view, so no second quest read occurs.
+Native conversation modes are never the narrator role; the player's journal stays private. A failed
+read degrades to the unavailable view without failing the turn. Ordinary dialogue is unchanged.
+Context Selections (`active_quests`) are a legacy-pipeline setting and do not apply to this path.
+
 ## Authored participant background and quest articles
 
 `data/fallout_quest_knowledge_rules.json` supplies eight reviewed quest rules,

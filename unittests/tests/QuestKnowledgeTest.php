@@ -21,11 +21,22 @@ final class QuestKnowledgeFixtureDatabase
     }
     public function fetchOne(string $sql): ?array {return pg_fetch_assoc($this->execQuery($sql)) ?: null;}
     public function fetchAll(string $sql): array {return pg_fetch_all($this->execQuery($sql)) ?: [];}
+    public int $claimedLocks=0;
+    // The explicit-owner form: no request global supplies authority; the owner row is still rechecked under the lock.
+    public function withClaimedRequestLock(SYNTHClaimedRequest $owner,callable $operation,int $statementTimeoutMs=0)
+    {
+        $this->claimedLocks++;
+        return $this->lockedOwner($owner->event,$operation,$statementTimeoutMs,false);
+    }
     public function withNativeRequestLock(callable $operation,int $statementTimeoutMs=0)
     {
         $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? 1)!==2)
             throw new LogicException('Fixture needs claimed native request');
+        return $this->lockedOwner($event,$operation,$statementTimeoutMs,true);
+    }
+    private function lockedOwner(array $event,callable $operation,int $statementTimeoutMs,bool $legacy)
+    {
         // Prepared rechat readers nest the same captured owner lock; retain the outer transaction.
         if ($this->lockOwner!==null) {
             if ($this->lockOwner!==$event) throw new LogicException('Fixture nested owner changed');
@@ -45,7 +56,8 @@ final class QuestKnowledgeFixtureDatabase
                 [$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],$event['context_sequence']]);
             if (!pg_fetch_assoc($result)) throw new SYNTHProtocolCancelled('Fixture owner inactive');
             // Match the production PostgreSQL lock's post-lock cancellation-error check.
-            synth_protocol_assert_request_active();
+            if ($legacy) synth_protocol_assert_request_active();
+            else synth_protocol_assert_owner_active($this,$event);
             $this->locks++;
             $this->lockOwner=$event;
             $value=$operation($this->connection,$event);
@@ -489,6 +501,36 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->selectCurrent('quest-retention-rewind',2,1,'preston',0,$anchor);
         $this->assertSame([],$this->view()['reports']);
     }
+    // Native dialogue reads with its explicit claimed owner; the legacy flag never stands in for it.
+    public function testExplicitClaimedOwnerKeepsRecipientSaveLaneAndCompletionGuards(): void
+    {
+        $owner=static fn(array $event)=>Closure::bind(static fn()=>new SYNTHClaimedRequest($event),null,SYNTHClaimedRequest::class)();
+        $view=fn(?array $reader=null)=>synthQuestKnowledgeView($this->fixtureDb,$this->event,$this->context,$reader,false,$owner($this->event));
+        $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=false;
+        $this->assertSame('unavailable',$this->view()['observation']);
+        $known=$view($this->identities['preston']);
+        $this->assertSame(['I finished When Freedom Calls.'],array_column($known['reports'],'report'));
+        $this->assertSame([],$known['journal']);
+        $this->assertSame(1,$this->fixtureDb->claimedLocks);
+        $other=$this->event;$other['request_id']='another-request';
+        $this->assertSame('unavailable',synthQuestKnowledgeView($this->fixtureDb,$this->event,$this->context,null,false,$owner($other))['observation']);
+        $this->assertSame('unavailable',$view($this->identities['piper'])['observation']);
+        $this->assertSame('unavailable',$view($this->identities['impostor'])['observation']);
+        $this->selectCurrent('quest-session-one',1,3,'piper',$this->historyId);
+        $this->assertSame([],$view()['reports']);
+        $this->selectCurrent('quest-session-one',1,4,'preston',$this->historyId,lane:'vr');
+        $this->assertSame([],$view()['reports']);
+        $this->session('quest-owner-rewind',2,'quest-save-one');
+        $anchor=['session_id'=>'quest-session-one','generation'=>1,'context_sequence'=>1,'playthrough_id'=>'quest-save-one'];
+        $this->selectCurrent('quest-owner-rewind',2,1,'preston',0,$anchor);
+        $this->assertSame([],$view()['reports']);
+        $this->selectCurrent('quest-session-one',1,5,'preston',$this->historyId);
+        $this->assertCount(1,$view()['reports']);
+        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='claimed' WHERE session_id=$1 AND request_id=$2",
+            [$this->sourceEvent['session_id'],$this->sourceEvent['request_id']]);
+        $this->assertSame([],$view()['reports']);
+    }
+
     private function view(?array $reader=null,bool $narrator=false): array
     {
         return synthQuestKnowledgeView($this->fixtureDb,$this->event,$this->context,$reader,$narrator);
