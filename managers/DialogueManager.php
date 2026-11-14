@@ -82,10 +82,13 @@ final class DialogueManager
         try {
             $situation = $this->context->situation($request);
             $history = $this->context->history($request, $character);
+            // One locked quest read serves both the prompt block and World Knowledge participant access.
+            $quest = $this->context->questKnowledge($request, $character);
             // Deterministic lore selection; it degrades to no articles and never calls a provider.
-            $knowledge = $this->knowledge?->context($request, $character, $history) ?? '';
+            $knowledge = $this->knowledge?->context($request, $character, $history, $quest) ?? '';
             $messages = $this->prompts->messages($character, $situation, $history, $request->text(),
-                $this->context->skills($request, $character), $knowledge);
+                $this->context->skills($request, $character), $knowledge,
+                $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '');
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()

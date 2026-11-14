@@ -40,11 +40,12 @@ Deliberate native limits:
   input, so an eligible non-prewar NPC still receives it and the audit status is
   `grounded`. `no_match` is recorded only when no article at all is selected.
 - No forced location, race or faction articles; those signals affect access tags only.
-- The quest reader runs for this request but stays unavailable without a claimed legacy
-  request. Participant-only quest tiers are therefore denied; reviewed public quest text
-  can still be granted.
+- Participant-only quest tiers reuse the quest view the native turn already read with its
+  explicit claimed owner and the admitted NPC, so no second quest read occurs. An unavailable
+  view denies those tiers; reviewed public quest text can still be granted.
 - At most `WORLDKNOWLEDGE_RESULT_LIMIT` topics (maximum 5) plus one vocabulary article,
-  each cut to 4000 bytes. A disabled turn reads no catalogue, tags or quest state.
+  each cut to 4000 bytes. When disabled, World Knowledge reads no catalogue, tags or quest
+  state; the turn's separate native quest context still reads its quest view.
 - A catalogue or settings read failure gives no articles and an `unavailable` audit row.
   It does not fail the turn. Each turn writes one `synth.worldknowledge_audit` row with
   `request_type=conversation`.

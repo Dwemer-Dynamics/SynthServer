@@ -114,9 +114,15 @@ function synthQuestAccessReaderView($db,array $event): array
         || !is_object($db) || !method_exists($db,'withNativeRequestLock')) return $unavailable;
     $context=synth_protocol_current_context($db,$event);
     $narrator=synth_protocol_quest_response_is_narrator($db,$event);
-    $view=synthQuestKnowledgeView($db,$event,$context ?? [],null,$narrator);
-    $roles=is_array($view['participant_background'] ?? null) ? $view['participant_background'] : [];
-    return ['schema'=>'synth.quest.access.v1','perspective'=>$view['perspective'],
+    return synthQuestAccessViewFromKnowledge(synthQuestKnowledgeView($db,$event,$context ?? [],null,$narrator));
+}
+
+// The same projection from a view the locked reader already produced for this request (native dialogue).
+function synthQuestAccessViewFromKnowledge(array $view): array
+{
+    $roles=($view['schema'] ?? '')==='synth.quest.knowledge.v1' && ($view['perspective'] ?? '')==='npc'
+        && is_array($view['participant_background'] ?? null) ? $view['participant_background'] : [];
+    return ['schema'=>'synth.quest.access.v1','perspective'=>$view['perspective'] ?? 'npc',
         'observation'=>$roles ? 'complete' : 'unavailable','roles'=>$roles];
 }
 
