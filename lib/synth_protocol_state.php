@@ -522,6 +522,10 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                     FROM jsonb_array_elements(COALESCE(origin.context_payload->'audience','[]'::jsonb))
                         WITH ORDINALITY a(actor,ordinality)
                 ) candidates WHERE id IS NOT NULL AND btrim(name)<>''
+                    -- Missing scopes preserve old rows; a present empty or malformed scope grants no identity.
+                    AND (NOT (h.event_payload ? 'synth_dialogue_hearer_ids')
+                        OR (jsonb_typeof(h.event_payload->'synth_dialogue_hearer_ids')='array'
+                            AND h.event_payload->'synth_dialogue_hearer_ids' @> jsonb_build_array(id)))
             )
             SELECT (
                 SELECT MIN(id) FROM actors
@@ -2548,14 +2552,42 @@ function synth_protocol_original_context($db, array $event): ?array
     ];
 }
 
+// Whisper readers use only the resolved listener; the immutable capture remains available for ownership checks.
+function synth_protocol_listener_private_context(array $context): array
+{
+    $same = static function($left, $right): bool {
+        return is_array($left) && is_array($right)
+            && isset($left['form_id'], $left['origin_plugin'], $left['playthrough_id'],
+                $right['form_id'], $right['origin_plugin'], $right['playthrough_id'])
+            && strcasecmp($left['form_id'], $right['form_id']) === 0
+            && strcasecmp($left['origin_plugin'], $right['origin_plugin']) === 0
+            && $left['playthrough_id'] === $right['playthrough_id'];
+    };
+    $target = $context['target'] ?? null;
+    $player = $context['player'] ?? null;
+    $context['payload']['audience'] = is_array($target) ? [$target] : [];
+    $context['payload']['actor_states'] = array_values(array_filter($context['payload']['actor_states'] ?? [],
+        static fn($state): bool => is_array($state)
+            && ($same($state['actor'] ?? null, $target) || $same($state['actor'] ?? null, $player))));
+    return $context;
+}
+
 // Response consumers share a fresh inventory view; admission and persisted captures retain the original context.
 function synth_protocol_current_context($db, array $event): ?array
 {
     $context=synth_protocol_original_context($db,$event);
+    if ($context!==null && in_array($event['type'] ?? '', ['input_text','input_audio'], true)
+        && ($event['payload']['control']['mode'] ?? '')==='WHISPER')
+        $context=synth_protocol_listener_private_context($context);
     if (in_array('dialogue.rechat.scene',$event['capabilities'] ?? [],true)
         && (synth_protocol_owns_rechat($event) || ($event['type'] ?? '')==='action_result')) {
         require_once __DIR__.'/synth_rechat_routes.php';
         $context=synth_rechat_scene_context($db,$event) ?? $context;
+    }
+    if ($context!==null && !isset($context['scene_context_sequence']) && synth_protocol_owns_rechat($event)) {
+        require_once __DIR__.'/synth_rechat_routes.php';
+        // Without a fresh scene no Close bystander is proven to still be within range.
+        if (synth_rechat_close_root($db,$event)) $context['payload']['audience']=[];
     }
     if ($context!==null && ($event['protocol_version'] ?? 1)===2
         && (($event['type'] ?? '')==='action_result'
@@ -2694,8 +2726,14 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
     }
     if ($audienceSnapshot !== '') {
         $structured['audience_snapshot'] = $audienceSnapshot;
-        $gameRequest[4] = $audienceSnapshot;
     }
+    // The ordinary pipeline reads field 4 as {"people": pipe}; carry the captured player, addressed
+    // listener and audience in that adapter form so Close/Standard hearers persist with the turn.
+    $hearers = [str_replace('|', ' ', $playerName)];
+    if (!$narrator && !$eventOnly) $hearers[] = str_replace('|', ' ', $targetName);
+    $hearers = array_values(array_unique(array_merge($hearers, $people)));
+    $gameRequest[4] = json_encode(['people' => '|' . implode('|', $hearers) . '|'],
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     $gameRequest[0] = 'inputtext';
     $gameRequest[3] = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     $GLOBALS['gameRequest'] = &$gameRequest;

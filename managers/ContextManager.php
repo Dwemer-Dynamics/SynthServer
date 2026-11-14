@@ -51,7 +51,9 @@ final class ContextManager
         foreach (array_reverse($this->saves->conversationRows($request->event, $character->displayName(), self::HISTORY_ROWS)) as $row) {
             $text = strval($row['data']);
             $suffix = preg_match('/\s+\((?:talking|Talking) to ([^()]*)\)$/u', $text, $match, PREG_OFFSET_CAPTURE) === 1;
-            if ($row['type'] === 'chat' || ($suffix && $match[1][0] === $character->displayName())) {
+            // Only this NPC's own delivered replies are assistant turns; witnessed lines by others stay attributed.
+            $own = $row['type'] === 'chat' && intval($row['own'] ?? 1) === 1;
+            if ($own || ($row['type'] !== 'chat' && $suffix && $match[1][0] === $character->displayName())) {
                 if ($suffix) $text = substr($text, 0, $match[0][1]);
                 $colon = strpos($text, ': ');
                 $text = $colon === false ? $text : substr($text, $colon + 2);
@@ -59,7 +61,7 @@ final class ContextManager
                 $text = $tail[2].' '.$tail[1];
             }
             $text = trim($text);
-            if ($text !== '') $messages[] = ['role' => $row['type'] === 'chat' ? 'assistant' : 'user',
+            if ($text !== '') $messages[] = ['role' => $own ? 'assistant' : 'user',
                 'content' => mb_substr($text, 0, self::LINE_CHARS)];
         }
         return $messages;

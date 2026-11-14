@@ -75,6 +75,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         if (!$narrator) $lastNpc=$message;
     }
     return ['event'=>$event,'messages'=>$messages,'last_npc'=>$lastNpc,'player'=>$context['player'] ?? null,
+        'hearers'=>array_keys($actors),
         'response_sha256'=>hash('sha256',$body),'bytes'=>strlen($body)];
 }
 
@@ -89,7 +90,7 @@ function synth_rechat_history($db, array $event): array
         $result=@pg_query_params($connection,'SELECT root_request_id FROM synth_meta.rechat_chains WHERE id=$1 AND session_id=$2',
             [$chainId,$event['session_id']]);
         if (!$result || !($chain=pg_fetch_assoc($result))) throw new LogicException('rechat_history_chain_unavailable');
-        $node=$event; $visited=[$event['request_id']=>true]; $groups=[]; $bytes=0; $reachedRoot=false;
+        $node=$event; $visited=[$event['request_id']=>true]; $groups=[]; $bytes=0; $reachedRoot=false; $parentEvent=null;
         for ($depth=0;$depth<64 && $bytes<8*1024*1024;++$depth) {
             $edge=null; $actionParent=null;
             if (synth_protocol_owns_rechat($node)) {
@@ -117,11 +118,16 @@ function synth_rechat_history($db, array $event): array
             if ($actionParent!==null && synth_protocol_canonical_json($actionParent)!==synth_protocol_canonical_json($response['event'])) {
                 throw new LogicException('rechat_history_action_mismatch');
             }
-            $groups[]=$response['messages']; $bytes+=$response['bytes']; $node=$response['event'];
+            $groups[]=$response; $bytes+=$response['bytes']; $node=$response['event']; $parentEvent ??= $node;
             if ($parent===$chain['root_request_id']) { $reachedRoot=true; break; }
         }
+        // A Close responder recalls only chain lines it was projected to hear; it always heard the root.
+        $reader=$selection['role']==='npc' && $parentEvent!==null && synth_rechat_close_root_locked($connection,$event,$parentEvent)
+            ? synth_rechat_actor_key($selection['identity'] ?? []) : null;
         $messages=[];
-        foreach (array_reverse($groups) as $group) $messages=array_merge($messages,$group);
+        foreach (array_reverse($groups) as $group) {
+            if ($reader===null || in_array($reader,$group['hearers'],true)) $messages=array_merge($messages,$group['messages']);
+        }
         if ($reachedRoot && in_array($node['type'],['input_text','input_audio'],true)) {
             $result=@pg_query_params($connection,'SELECT input_text FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',
                 [$event['session_id'],$node['request_id']]);

@@ -8,7 +8,8 @@ function synth_dialogue_origin_policy(array $settings, string $executionMode): a
     $executionMode=strtoupper(trim($executionMode));
     if (!in_array($executionMode,['STANDARD','WHISPER','CLOSE','SHOUT','NARRATOR','DIRECTOR',
         'INJECTION_LOG','INJECTION_CHAT','CHEATMODE','AUTOCHAT'],true)) throw new InvalidArgumentException('dialogue_mode_invalid');
-    $policy=['private'=>in_array($executionMode,['WHISPER','CLOSE'],true)];
+    // Close is a captured small group: bystanders may hear and continue within the configured budget.
+    $policy=['private'=>$executionMode==='WHISPER'];
     foreach (['RECHAT_H'=>'rounds','RECHAT_P'=>'probability','RANDOM_NARATION_CHANCE'=>'narration_chance',
         'RANDOM_NARRATION_COOLDOWN'=>'narration_cooldown'] as $key=>$field) {
         if (!is_scalar($settings[$key] ?? null) || !is_numeric($settings[$key])) throw new InvalidArgumentException('dialogue_policy_invalid');
@@ -19,6 +20,8 @@ function synth_dialogue_origin_policy(array $settings, string $executionMode): a
         $policy[$field]=filter_var($settings[$key],FILTER_VALIDATE_BOOLEAN,FILTER_NULL_ON_FAILURE);
         if ($policy[$field]===null) throw new InvalidArgumentException('dialogue_policy_invalid');
     }
+    // Narration would speak to listeners outside the captured hearing group.
+    if (in_array($executionMode,['WHISPER','CLOSE'],true)) $policy['random_narration']=false;
     $policy['mode']=strtolower(trim(strval($settings['RECHAT_MODE'] ?? '')));
     if (!in_array($policy['mode'],['tight','conversational','group','random'],true)) throw new InvalidArgumentException('dialogue_policy_invalid');
     return $policy;

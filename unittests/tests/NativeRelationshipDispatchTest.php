@@ -168,6 +168,14 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     }
     private function continuation(string $role,bool $prepared=true,?array $parent=null,?int $chainId=null,bool $scene=true,?array $capturedActor=null): array {
         $parent ??= $this->parent;
+        if ($chainId===null && in_array($parent['type'],['input_text','input_audio'],true)) {
+            // Production root admission freezes this policy before a chain can exist.
+            $policy=['private'=>false,'rounds'=>3,'probability'=>100,'mode'=>'conversational','allow_actions'=>false,
+                'random_narration'=>false,'narration_chance'=>0,'narration_cooldown'=>0];
+            $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+                VALUES($1,$2,'STANDARD',$3::jsonb,$4) ON CONFLICT(session_id,request_id) DO NOTHING",
+                [$parent['session_id'],$parent['request_id'],$this->json($policy),$parent['payload']['text'] ?? null]);
+        }
         $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$parent['request_id']]))['body'];
         $child=$parent;$child['request_id']='relationship-child-'.$role.'-'.($chainId ?? 'first');$child['type']='trigger';
         $child['capabilities']=array_values(array_unique([...$child['capabilities'],'dialogue.rechat.ownership','dialogue.rechat.scene']));
@@ -263,6 +271,71 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $this->assertSame($before,$request);$this->assertSame($child,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
         foreach (['rechat_chains','rechat_continuations','rechat_selections'] as $table)
             $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.'.$table))['n'],'Stopping must not reserve or publish a responder.');
+    }
+    public static function closeContinuationCases(): array {
+        return ['captured bystander still near'=>['near'],'captured bystander moved past 200'=>['moved'],
+            'addressed speaker moved past 200'=>['speaker'],'missing bystander position'=>['unknown'],'rounds disabled'=>['rounds'],
+            'scene without fresh capture'=>['no-scene'],'sleeping bystander'=>['sleeping'],
+            'unconscious bystander'=>['unconscious']];
+    }
+    #[\PHPUnit\Framework\Attributes\DataProvider('closeContinuationCases')]
+    public function testCloseContinuationHearsOnlyCapturedGroupStillWithinRange(string $case): void {
+        require_once dirname(__DIR__,2).'/lib/synth_dialogue_policy.php';
+        $nick=$this->secondaryNpc([1,2,3],['form_id'=>'0x00002F25','origin_plugin'=>'Fallout4.esm',
+            'playthrough_id'=>'relationship-dispatch-save','display_name'=>'Nick Valentine'])['identity'];
+        $newcomer=$this->secondaryNpc([2],['form_id'=>'0x0001A4E7','origin_plugin'=>'Fallout4.esm',
+            'playthrough_id'=>'relationship-dispatch-save','display_name'=>'Deacon'])['identity'];
+        $piper=$this->context['target'];
+        [$child,$chain]=$this->continuation('npc',true,null,null,$case!=='no-scene');
+        $this->query('DELETE FROM synth_meta.rechat_chains WHERE id=$1',[$chain]);
+        $settings=['RECHAT_H'=>$case==='rounds' ? 0 : 1,'RECHAT_P'=>100,'RECHAT_MODE'=>'conversational','RECHAT_ALLOW_ACTIONS'=>false,
+            'RANDOM_NARATION'=>true,'RANDOM_NARATION_CHANCE'=>100,'RANDOM_NARRATION_COOLDOWN'=>0];
+        $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+            VALUES($1,$2,'CLOSE',$3::jsonb,$4) ON CONFLICT(session_id,request_id)
+                DO UPDATE SET execution_mode=EXCLUDED.execution_mode,policy=EXCLUDED.policy,input_text=EXCLUDED.input_text",
+            [$this->parent['session_id'],$this->parent['request_id'],
+            $this->json(synth_dialogue_origin_policy($settings,'CLOSE')),$this->parent['payload']['text']]);
+        // SYNTHETIC body distances: the client captured Piper and Nick; the fresh scene also names a newcomer.
+        $state=static fn(array $actor,?float $distance): array=>['actor'=>$actor,'alive'=>true,'disabled'=>false,'life_state'=>'alive',
+            'posture'=>'normal','race'=>'HumanRace','position'=>['x'=>$distance ?? 0,'y'=>0,'z'=>0]]+($distance===null ? [] : ['distance'=>$distance]);
+        $captured=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM synth_meta.context_snapshots WHERE snapshot_sequence=1'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
+        $captured['actor_states']=[$state($piper,150.0),$state($nick,180.0)];
+        $this->query('UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb WHERE snapshot_sequence=1',[$this->json($captured)]);
+        $fresh=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM synth_meta.context_snapshots WHERE snapshot_sequence=2'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
+        $fresh['actor_states']=[$state($piper,$case==='speaker' ? 250.0 : 150.0),
+            $state($nick,match ($case) {'moved'=>200.5,'unknown'=>null,default=>200.0}),$state($newcomer,40.0)];
+        if ($case==='sleeping') $fresh['actor_states'][1]['posture']='sleeping';
+        if ($case==='unconscious') $fresh['actor_states'][1]['life_state']='unconscious';
+        $this->query("UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb,
+                received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id=$2)-INTERVAL '100 milliseconds'
+            WHERE snapshot_sequence=2",[$this->json($fresh),$child['request_id']]);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
+        $request=['trigger',1,2,'unchanged'];$stop=null;
+        $admitted=synth_protocol_bind_trigger_context($this->database,$child,$request,$stop);
+        $selection=pg_fetch_assoc($this->query("SELECT s.role,s.identity,c.policy FROM synth_meta.rechat_selections s
+            JOIN synth_meta.rechat_continuations d USING(session_id,request_id) JOIN synth_meta.rechat_chains c ON c.id=d.chain_id"));
+        if ($case==='speaker') {
+            // A departed addressed speaker stops before any responder is reserved or a provider is asked.
+            $this->assertFalse($admitted);$this->assertSame('ineligible',$stop);$this->assertFalse($selection);
+            return;
+        }
+        $policy=json_decode($selection['policy'],true,flags:JSON_THROW_ON_ERROR);
+        $this->assertFalse($policy['private']);$this->assertFalse($policy['random_narration'],'Close never schedules the narrator');
+        if ($case!=='near') {
+            // No newcomer, departed or unproven bystander may answer, and disabled rounds make no extra provider request.
+            $this->assertFalse($admitted);$this->assertSame('terminal',$selection['role']);
+            $this->assertSame($case==='rounds' ? 'budget_exhausted' : 'no_candidate',$stop);
+            return;
+        }
+        $this->assertTrue($admitted);$this->assertSame('npc',$selection['role']);
+        $this->assertSame('0x00002F25',json_decode($selection['identity'],true)['form_id']);
+        $this->assertSame('|Piper Wright|Nick Valentine|',$request[4],'prompt people come from the narrowed Close group');
+        $context=synth_protocol_current_context($this->database,$child);
+        $this->assertSame(['0x00002F1F','0x00002F25'],array_column($context['payload']['audience'],'form_id'));
+        $this->assertSame(['0x00002F1F','0x00002F25'],array_column(array_column($context['payload']['actor_states'],'actor'),'form_id'));
+        // Listener routing resolves only inside the narrowed group; a newcomer named by the model stays unrouted.
+        $this->assertSame('addressed',synth_response_listener_route($nick,['listener'=>'Piper Wright'],$context['payload'],$child)['availability']);
+        $this->assertSame('unavailable',synth_response_listener_route($nick,['listener'=>'Deacon'],$context['payload'],$child)['availability']);
     }
     private function ambientFixture(bool $robot=false): array {
         require_once dirname(__DIR__,2).'/lib/synth_ambient_npc.php';
@@ -504,6 +577,12 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             'action.inventory_observation','action.take_item_from_player','action.player_item_inventory']);
         if ($menu) {$parent['payload']['text']='I have a gift for you';$parent['capabilities']=array_merge($parent['capabilities'],['action.open_inventory','action.gift_menu_inventory']);}
         $this->request($parent);
+        // The action-result continuation inherits the original gift input's saved policy.
+        $policy=['private'=>false,'rounds'=>3,'probability'=>100,'mode'=>'conversational','allow_actions'=>true,
+            'random_narration'=>false,'narration_chance'=>0,'narration_cooldown'=>0];
+        $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+            VALUES($1,$2,'STANDARD',$3::jsonb,$4)",
+            [$parent['session_id'],$parent['request_id'],$this->json($policy),$parent['payload']['text']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$parent];
         $action=['schema'=>'synth.action.v1','action_id'=>'gift:one','idempotency_key'=>'gift:key',
             'name'=>'take_item_from_player','capability'=>'action.take_item_from_player','server_code'=>'TakeItemFromPlayer',

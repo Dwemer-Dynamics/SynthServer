@@ -2250,9 +2250,10 @@ if (($gameRequest[0] ?? "") === "rechat" && isset($GLOBALS["RECHAT_RESOLVED_TARG
 }
 $authoritativePeople = $hasAuthoritativeRequestAudience ? $requestAudienceSnapshot : $resolvedRechatPeople;
 
-if (function_exists('isPrivateConversationExecutionMode') &&
+// Whisper alone is listener-private. Close keeps its captured small-group audience as hearers.
+if (function_exists('isWhisperExecutionMode') &&
     function_exists('buildPrivateConversationPeople') &&
-    isPrivateConversationExecutionMode() &&
+    isWhisperExecutionMode() &&
     in_array($gameRequest[0] ?? "", $playerInputEventTypes, true)) {
     $privatePeople = buildPrivateConversationPeople($GLOBALS["SYNTH_NAME"] ?? "");
     if ($privatePeople !== "") {
@@ -2555,11 +2556,14 @@ if (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNT
         $GLOBALS["COMMAND_PROMPT"] = "";
     }
     $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Whisper mode is active. {$GLOBALS["PLAYER_NAME"]} is whispering to you. Reply by whispering back in a quiet, discreet, close-range tone and keep the delivery private.]";
-} elseif (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNTH_EXECUTION_MODE"]) === "CLOSE") {
+} elseif ((isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNTH_EXECUTION_MODE"]) === "CLOSE")
+    || (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])
+        && synth_rechat_close_root($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json']))) {
+    // Owned continuations execute as STANDARD; their Close semantics come from the proven chain root.
     if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string($GLOBALS["COMMAND_PROMPT"])) {
         $GLOBALS["COMMAND_PROMPT"] = "";
     }
-    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Close mode is active. {$GLOBALS["PLAYER_NAME"]} is speaking privately to you at close range. Reply discreetly to the player only; do not address or involve bystanders.]";
+    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Close mode is active. {$GLOBALS["PLAYER_NAME"]} is talking at close range in a small group; only the people nearby can hear. Reply only as yourself at a quiet conversational volume and do not speak for anyone else.]";
 } elseif (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNTH_EXECUTION_MODE"]) === "SHOUT") {
     if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string($GLOBALS["COMMAND_PROMPT"])) {
         $GLOBALS["COMMAND_PROMPT"] = "";

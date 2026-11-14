@@ -36,7 +36,7 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         throw new LogicException('rechat_scene_reference_invalid');
     $canonical=synth_protocol_canonical_json($event);
     $result=@pg_query_params($connection,"SELECT fresh.context_payload,previous.context_payload AS previous_context,
-            p.canonical_event AS parent_event
+            p.canonical_event AS parent_event,root.context_payload AS root_context
         FROM synth_meta.context_snapshots fresh
         JOIN synth_meta.runtime_sessions s ON s.session_id=fresh.session_id
             AND s.active_generation=fresh.generation AND s.playthrough_id=fresh.playthrough_id AND s.state='active'
@@ -55,6 +55,8 @@ function synth_rechat_scene_context_locked($connection, array $event): array
             AND previous.generation=fresh.generation AND previous.playthrough_id=fresh.playthrough_id
             AND previous.player_identity_id=fresh.player_identity_id
             AND previous.snapshot_sequence=COALESCE((p.canonical_event#>>'{payload,scene_context_sequence}')::bigint,$8::bigint)
+        JOIN synth_meta.context_snapshots root ON root.session_id=fresh.session_id AND root.generation=fresh.generation
+            AND root.playthrough_id=fresh.playthrough_id AND root.snapshot_sequence=$8::bigint
         WHERE fresh.session_id=$1 AND fresh.generation=$2 AND fresh.snapshot_sequence=$3
             AND fresh.snapshot_sequence>previous.snapshot_sequence AND s.runtime_variant=$10
             AND child.state IN ('claimed','streaming','complete')
@@ -68,6 +70,7 @@ function synth_rechat_scene_context_locked($connection, array $event): array
     $payload=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
     $previous=json_decode($row['previous_context'],true,flags:JSON_THROW_ON_ERROR);
     $parent=json_decode($row['parent_event'],true,flags:JSON_THROW_ON_ERROR);
+    $root=json_decode($row['root_context'],true,flags:JSON_THROW_ON_ERROR);
     if (($parent['type'] ?? '')==='action_result') {
         require_once __DIR__.'/synth_rechat_admission.php';
         $origin=synth_rechat_action_chain_origin($connection,$event,$parent);
@@ -114,8 +117,87 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         || !in_array($payload['audience_observation'] ?? '',['complete','partial'],true))
         throw new LogicException('rechat_scene_changed');
     if ($scene!==$previousScene) throw new SYNTHRechatSceneChanged('rechat_scene_changed');
+    $hearers=null;
+    if (synth_rechat_close_root_locked($connection,$event,$parent)) {
+        $payload=synth_rechat_close_audience($root,$payload);
+        if ($payload===null) throw new SYNTHRechatSceneChanged('rechat_close_listener_departed');
+        // Canonical keys of the projected hearers; history persists their snapshot-aligned identity IDs.
+        $hearers=[];
+        foreach (array_merge([$payload['target']],$payload['audience']) as $actor) $hearers[]=synth_rechat_actor_key($actor);
+    }
     return ['payload'=>$payload,'player'=>$payload['player'],'target'=>$payload['target'],
-        'scene_context_sequence'=>$event['payload']['scene_context_sequence']];
+        'scene_context_sequence'=>$event['payload']['scene_context_sequence']]+($hearers===null ? [] : ['close_hearers'=>$hearers]);
+}
+
+// Close semantics follow the chain root's frozen execution mode; a continuation's own STANDARD mode
+// cannot prove them. The caller holds the live owner's lock and supplies its proven parent request.
+function synth_rechat_close_root_locked($connection, array $event, array $parent): bool
+{
+    require_once __DIR__.'/synth_rechat_admission.php';
+    $origin=synth_rechat_action_chain_origin($connection,$event,$parent);
+    $root=$origin['request_id'] ?? null;
+    if (($origin['type'] ?? '')==='trigger' && ($origin['payload']['kind'] ?? '')==='rechat') {
+        $chain=synth_rechat_find_chain($connection,$event,strval($root));
+        if ($chain===null) throw new LogicException('rechat_parent_reservation_missing');
+        $root=$chain['root_request_id'];
+    }
+    $result=@pg_query_params($connection,"SELECT d.execution_mode FROM synth_meta.dialogue_origin_policies d
+        JOIN synth_meta.protocol_events p USING(session_id,request_id)
+        JOIN synth_meta.request_executions e USING(session_id,request_id)
+        WHERE d.session_id=$1 AND d.request_id=$2 AND p.generation=$3 AND p.turn_id=$4
+            AND p.canonical_event->>'context_sequence'=$5::text AND e.generation=p.generation AND e.turn_id=p.turn_id
+            AND e.event_type=p.event_type AND e.request_sha256=p.event_sha256",
+        [$event['session_id'],$root,$event['generation'],$event['turn_id'],$event['context_sequence']]);
+    if (!$result) throw new RuntimeException('rechat_root_mode_query_failed');
+    $row=pg_fetch_assoc($result);
+    // Admission already requires the root's saved policy; its absence cannot fall back to a wider mode.
+    if (!$row) throw new LogicException('rechat_root_policy_unavailable');
+    return $row['execution_mode']==='CLOSE';
+}
+
+// Request-level form for prompt policy: only an owned continuation with a completed parent can inherit Close.
+function synth_rechat_close_root($db, array $event): bool
+{
+    if (!synth_protocol_owns_rechat($event)) return false;
+    return $db->withNativeRequestLock(static function($connection,array $owner) use($event) {
+        if ($owner!==$event) throw new LogicException('rechat_root_owner_changed');
+        // Without completed parent proof no continuation can be prepared, so there is nothing to inherit.
+        $proof=synth_rechat_completed_parent_evidence($connection,$event);
+        return $proof!==null && synth_rechat_close_root_locked($connection,$event,$proof['request']);
+    },2000);
+}
+
+// One bounded Close hearing projection for candidates, prompts, routes and history: the root capture's
+// target/audience, narrowed to fresh available actors (same life/posture exclusions as candidates)
+// whose body-measured player distance is at most 200.
+// A fresh scene never adds a newcomer. Missing or ambiguous state is not hearing evidence.
+// Returns null when the previous speaker itself is no longer such a hearer.
+function synth_rechat_close_audience(array $root, array $fresh): ?array
+{
+    require_once __DIR__.'/synth_rechat_selection.php';
+    $captured=[]; $states=[];
+    foreach (array_merge([$root['target'] ?? null],$root['audience'] ?? []) as $actor) {
+        if (is_array($actor) && ($key=synth_rechat_actor_key($actor))!==null) $captured[$key]=true;
+    }
+    foreach ($fresh['actor_states'] ?? [] as $state) {
+        $key=is_array($state) ? synth_rechat_actor_key(is_array($state['actor'] ?? null) ? $state['actor'] : []) : null;
+        if ($key!==null) $states[$key]=array_key_exists($key,$states) ? null : $state;
+    }
+    $playerKey=synth_rechat_actor_key(is_array($fresh['player'] ?? null) ? $fresh['player'] : []);
+    $hears=static function($actor) use($captured,$states,$playerKey): bool {
+        $key=is_array($actor) ? synth_rechat_actor_key($actor) : null;
+        $state=$key===null ? null : ($states[$key] ?? null);
+        $distance=$state['distance'] ?? null;
+        return $key!==null && $key!==$playerKey && isset($captured[$key]) && is_array($state)
+            && synth_rechat_state_available($state)
+            && (is_int($distance) || is_float($distance)) && is_finite((float)$distance) && $distance>=0 && $distance<=200;
+    };
+    if ($playerKey===null || !$hears($fresh['target'] ?? null)) return null;
+    $fresh['audience']=array_values(array_filter(is_array($fresh['audience'] ?? null) ? $fresh['audience'] : [],$hears));
+    $fresh['actor_states']=array_values(array_filter(is_array($fresh['actor_states'] ?? null) ? $fresh['actor_states'] : [],
+        static fn($state): bool=>is_array($state) && is_array($state['actor'] ?? null)
+            && (synth_rechat_actor_key($state['actor'])===$playerKey || $hears($state['actor']))));
+    return $fresh;
 }
 
 // Canonical keys preserve case-sensitive save identity; labels never grant actor ownership.
