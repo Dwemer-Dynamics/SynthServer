@@ -57,6 +57,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private array $profileEvidence=[];
     // Companion scenario: Piper's identity and seeded profile, driver evidence by kind, provider requests already seen.
     private array $companion=[];
+    // Witness scenario: its session and the per-prompt witnessed-line counts.
+    private array $witness=[];
     private array $driverEvidence=[];
     private int $providerSeen=0;
     // Set only once this class has created testdb inside the runner, so no inherited teardown can drop a database or
@@ -497,6 +499,58 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             'provider_calls'=>$this->companion['provider_calls'],'accounting'=>$this->companion['accounting']]);
     }
 
+    // Witness scenario: one SYNTHETIC first-observed line (Preston speaks; Piper is the only granted witness). The actual
+    // provider messages must carry it once for Piper and never for Nick, a same-name Piper or Piper restored from a
+    // pre-observation save, on both routes.
+    public function testCompiledClientObservedDialogueWitnesses(): void {
+        $phases=$this->runDriver(['witness'],$this->witnessPhase(...));
+        $this->assertSame(['witness_observed','witness_ordinary','witness_talk','witness_ordinary','witness_talk',
+            'witness_ordinary','witness_talk','witness_restored_ordinary','witness_restored_talk'],$phases);
+        $this->report('observed_dialogue',['synthetic_state'=>'driver-published observation; no game evidence',
+            'provider_prompts'=>$this->witness['prompts'] ?? []]);
+    }
+
+    private function witnessPhase(string $name,array $value): void {
+        if ($name==='witness_observed') {
+            $this->assertTrue($value['synthetic_state']);
+            $session=$value['session'];$playthrough=$value['playthrough_id'];
+            $this->completed($session,$value['first_request_id'],'context');
+            $this->completed($session,$value['retry_request_id'],'context');
+            $identity=fn(string $form)=>intval($this->query("SELECT id FROM synth.actor_identities WHERE game='fo4'
+                AND upper(full_form_id)=upper($1) AND playthrough_id=$2",[$form,$playthrough])[0]['id'] ?? 0);
+            // The retry is idempotent: one row, bound to the first observation's scene and canonical witness.
+            $rows=$this->query("SELECT context_sequence,event_payload->>'data' AS data,event_payload->>'people' AS people,
+                event_payload->'synth_witness_observation' AS binding FROM synth_meta.history_events
+                WHERE session_id=$1 AND event_payload->>'type'='backgroundchat'",[$session]);
+            $this->assertCount(1,$rows,'one first-observed row '.$this->tail());
+            $binding=json_decode($rows[0]['binding'],true,16,JSON_THROW_ON_ERROR);
+            $this->assertSame(['Preston Garvey: Loopback vanilla line VWL5520.',''],[$rows[0]['data'],$rows[0]['people']]);
+            $this->assertSame(['first_observed',$identity('0x0001A4D7'),[$identity('0x00002F1F')]],
+                [$binding['basis'],$binding['speaker_identity_id'],$binding['witness_identity_ids']]);
+            $this->witness=['session'=>$session,'prompts'=>[]];
+            $this->seedCompanionProfile();
+            $this->script($this->ordinaryReply('Loopback witness answer.'));
+            return;
+        }
+        // A replacement session restored from the pre-observation save is past its cutoff: no granted reader there.
+        $restored=str_starts_with($name,'witness_restored_');
+        if ($restored) $this->assertNotSame($this->witness['session'],$value['session']);
+        else $this->assertSame($this->witness['session'],$value['session']);
+        $label=$name.':'.$value['target_name'].':'.$value['target_form'];
+        $this->completed($value['session'],$value['request_id'],'input_text');
+        $new=$this->newProviderRequests();
+        $this->assertNotEmpty($new,"$label made no provider call ".$this->tail());
+        $granted=!$restored && strtoupper($value['target_form'])===strtoupper(self::PIPER);
+        $count=substr_count($new[0],'VWL5520');
+        $this->witness['prompts'][$label]=$count;
+        if ($granted) $this->assertSame(1,$count,"$label provider prompt carries the witnessed line exactly once");
+        else $this->assertSame(0,$count,"$label provider prompt must not carry an ungranted line");
+        // Script the next request: the native reply for this target, or the next target's ordinary JSON answer.
+        if (str_ends_with($name,'_ordinary')) $this->script('Loopback witness reply.');
+        else $this->script($this->ordinaryReply('Loopback witness answer.','',
+            ['0x00002F1F'=>'Nick Valentine','0x00002F25'=>'Piper'][$value['target_form']] ?? 'Piper'));
+    }
+
     private function companionPhase(string $name,array $value): void {
         match ($name) {
             'companion_context'=>$this->companionContext($value),
@@ -537,8 +591,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     }
     private function script(string $reply): void {file_put_contents($this->llmDir.'/reply',$reply);}
     // One legacy openaijson answer for Piper. An empty action keeps the turn speech-only.
-    private function ordinaryReply(string $message,string $action=''): string {
-        return json_encode(['character'=>'Piper','listener'=>'Sole Survivor','message'=>$message,'action'=>$action,'target'=>''],
+    private function ordinaryReply(string $message,string $action='',string $character='Piper'): string {
+        return json_encode(['character'=>$character,'listener'=>'Sole Survivor','message'=>$message,'action'=>$action,'target'=>''],
             JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
     }
     // Provider requests since the previous call, each as its encoded messages.
