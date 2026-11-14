@@ -786,4 +786,67 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([$seen(40,75),$unknown],$condition($snapshot($state($player,40,75),$state($npc,25,60),$state($npc,90,60))));
         $this->assertSame([$unknown,$seen(25,60)],$condition($snapshot($state(['playthrough_id'=>'save-2']+$player,40,75),$state($npc,25,60))));
     }
+
+    // Everyone keeps the same single responder and replies; only the recorded addressee and situation say "everyone".
+    public function testEveryoneTalkIsRecordedAsPublicWithoutChangingItsResponder(): void
+    {
+        $normal=$this->fixture('valid/input-text-native-turn.json');
+        $public=$normal;
+        $public['capabilities']=array_merge($normal['capabilities'],['control.menu','dialogue.everyone']);
+        $public['payload']+=['control'=>['mode'=>'SHOUT','model_slot'=>1],'audience_intent'=>'everyone','audience_reset_epoch'=>0];
+        $this->assertSame($public,synth_protocol_validate_event($public));
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        foreach ([[$normal,false],[$public,true]] as [$event,$everyone]) {
+            [$manager,$output,$utterances,$llm]=$this->dialogue($this->talkContext(),$row,[],['Fine.']);
+            $manager->converse($event);
+            $this->assertSame([[$event['request_id'].':dialogue:1','Fine.','cache-'.$event['request_id'].':dialogue:1'],['complete']],$output->events);
+            $addressee=$everyone ? 'everyone' : $this->talkContext()['target']['display_name'];
+            $this->assertStringEndsWith(' (Talking to '.$addressee.')',$utterances->rows[0]);
+            $system=$llm->messages[0]['content'];
+            $situation=json_decode(substr($system,strrpos($system,"\nSituation: ")+12),true,flags:JSON_THROW_ON_ERROR);
+            $this->assertSame($everyone,$situation['addressed_everyone'] ?? false);
+        }
+    }
+
+    // Everyone needs a non-player responder that is a captured audience member with one available state, and a
+    // continuation keeps only original members present in the fresh audience, without Close's 200-unit bound.
+    public function testEveryoneHearersNeedCapturedAudienceMembershipAndAvailableState(): void
+    {
+        $payload=$this->fixture('valid/context.json')['payload'];
+        $preston=$payload['target'];
+        $state=static fn(array $actor,float $distance,array $extra=[]): array
+            =>array_merge($payload['actor_states'][0],['actor'=>$actor,'distance'=>$distance],$extra);
+        $this->assertTrue(synth_rechat_everyone_responder($payload));
+        foreach ([
+            'missing state'=>['actor_states'=>[]],
+            'ambiguous state'=>['actor_states'=>[$state($preston,125),$state($preston,125)]],
+            'dead'=>['actor_states'=>[$state($preston,125,['alive'=>false,'life_state'=>'dead'])]],
+            'unconscious'=>['actor_states'=>[$state($preston,125,['life_state'=>'unconscious'])]],
+            'unattested audience'=>['audience_observation'=>'unavailable'],
+            'player anchor'=>['target'=>$payload['player'],'audience'=>[$payload['player']]],
+            'target not in audience'=>['audience'=>[]],
+        ] as $case=>$change) $this->assertFalse(synth_rechat_everyone_responder(array_merge($payload,$change)),$case);
+        $untagged=$payload;
+        unset($untagged['audience_observation']);
+        $this->assertFalse(synth_rechat_everyone_responder($untagged));
+
+        $codsworth=['form_id'=>'0x0001CA7D','display_name'=>'Codsworth']+$preston;
+        $dogmeat=['form_id'=>'0x0001D162','display_name'=>'Dogmeat']+$preston;
+        $root=['target'=>$preston,'audience'=>[$preston,$codsworth]];
+        $fresh=['audience'=>[$preston,$codsworth,$dogmeat],
+            'actor_states'=>[$state($preston,500),$state($codsworth,900),$state($dogmeat,50)]]+$payload;
+        $key=static fn(array $actors): array=>array_map(static fn(array $actor)=>$actor['display_name'],$actors);
+        $everyone=synth_rechat_close_audience($root,$fresh,false);
+        $this->assertSame(['Preston Garvey','Codsworth'],$key($everyone['audience']));
+        $this->assertSame(['Preston Garvey','Codsworth'],$key(array_column($everyone['actor_states'],'actor')));
+        // The fresh target alone does not prove hearing, and an absent root member keeps no state.
+        $this->assertNull(synth_rechat_close_audience($root,['audience'=>[]]+$fresh,false));
+        $partial=synth_rechat_close_audience($root,['audience'=>[$preston]]+$fresh,false);
+        $this->assertSame(['Preston Garvey'],$key(array_column($partial['actor_states'],'actor')));
+        // Close keeps its exact 200-unit bound and ignores fresh audience membership for the target.
+        $this->assertNull(synth_rechat_close_audience($root,$fresh));
+        $close=synth_rechat_close_audience($root,['audience'=>[],'actor_states'=>[$state($preston,125),$state($codsworth,900)]]+$fresh);
+        $this->assertSame([],$close['audience']);
+        $this->assertSame(['Preston Garvey'],$key(array_column($close['actor_states'],'actor')));
+    }
 }

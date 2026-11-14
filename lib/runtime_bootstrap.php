@@ -247,7 +247,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'worldknowledge_npc_common_cleanup' => 20260814004,
             'worldknowledge_npc_class_cleanup' => 20260814005,
             'worldknowledge_catalog_integrity' => 20260814006,
-            'synth_protocol_schema' => 20261109001,
+            'synth_protocol_schema' => 20261113002,
             'synth_relationship_prompt' => 20260811003,
             'synth_fo4_prompt_examples' => 20260811004,
         ];

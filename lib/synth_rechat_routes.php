@@ -118,8 +118,10 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         throw new LogicException('rechat_scene_changed');
     if ($scene!==$previousScene) throw new SYNTHRechatSceneChanged('rechat_scene_changed');
     $hearers=null;
-    if (synth_rechat_close_root_locked($connection,$event,$parent)) {
-        $payload=synth_rechat_close_audience($root,$payload);
+    $rootAudience=synth_rechat_root_audience_locked($connection,$event,$parent);
+    if ($rootAudience!==null) {
+        // Everyone keeps the root group but not Close's 200-unit bound; the fresh capture's own range applies.
+        $payload=synth_rechat_close_audience($root,$payload,$rootAudience==='close');
         if ($payload===null) throw new SYNTHRechatSceneChanged('rechat_close_listener_departed');
         // Canonical keys of the projected hearers; history persists their snapshot-aligned identity IDs.
         $hearers=[];
@@ -133,6 +135,13 @@ function synth_rechat_scene_context_locked($connection, array $event): array
 // cannot prove them. The caller holds the live owner's lock and supplies its proven parent request.
 function synth_rechat_close_root_locked($connection, array $event, array $parent): bool
 {
+    return synth_rechat_root_audience_locked($connection,$event,$parent)==='close';
+}
+
+// The proven chain root's captured-group audience: 'close' (frozen Close mode), 'everyone' (the root's canonical
+// explicit public intent) or null for an ordinary root, whose continuations keep their existing fresh audience.
+function synth_rechat_root_audience_locked($connection, array $event, array $parent): ?string
+{
     require_once __DIR__.'/synth_rechat_admission.php';
     $origin=synth_rechat_action_chain_origin($connection,$event,$parent);
     $root=$origin['request_id'] ?? null;
@@ -141,7 +150,8 @@ function synth_rechat_close_root_locked($connection, array $event, array $parent
         if ($chain===null) throw new LogicException('rechat_parent_reservation_missing');
         $root=$chain['root_request_id'];
     }
-    $result=@pg_query_params($connection,"SELECT d.execution_mode FROM synth_meta.dialogue_origin_policies d
+    $result=@pg_query_params($connection,"SELECT d.execution_mode,p.canonical_event#>>'{payload,audience_intent}' AS audience_intent
+        FROM synth_meta.dialogue_origin_policies d
         JOIN synth_meta.protocol_events p USING(session_id,request_id)
         JOIN synth_meta.request_executions e USING(session_id,request_id)
         WHERE d.session_id=$1 AND d.request_id=$2 AND p.generation=$3 AND p.turn_id=$4
@@ -152,45 +162,58 @@ function synth_rechat_close_root_locked($connection, array $event, array $parent
     $row=pg_fetch_assoc($result);
     // Admission already requires the root's saved policy; its absence cannot fall back to a wider mode.
     if (!$row) throw new LogicException('rechat_root_policy_unavailable');
-    return $row['execution_mode']==='CLOSE';
+    if ($row['execution_mode']==='CLOSE') return 'close';
+    return $row['audience_intent']==='everyone' && in_array($row['execution_mode'],['STANDARD','SHOUT'],true) ? 'everyone' : null;
 }
 
 // Request-level form for prompt policy: only an owned continuation with a completed parent can inherit Close.
 function synth_rechat_close_root($db, array $event): bool
 {
-    if (!synth_protocol_owns_rechat($event)) return false;
+    return synth_rechat_root_audience($db,$event)==='close';
+}
+
+// Request-level root audience ('close', 'everyone' or null) under the live owner's lock.
+function synth_rechat_root_audience($db, array $event): ?string
+{
+    if (!synth_protocol_owns_rechat($event)) return null;
     return $db->withNativeRequestLock(static function($connection,array $owner) use($event) {
         if ($owner!==$event) throw new LogicException('rechat_root_owner_changed');
         // Without completed parent proof no continuation can be prepared, so there is nothing to inherit.
         $proof=synth_rechat_completed_parent_evidence($connection,$event);
-        return $proof!==null && synth_rechat_close_root_locked($connection,$event,$proof['request']);
+        return $proof===null ? null : synth_rechat_root_audience_locked($connection,$event,$proof['request']);
     },2000);
 }
 
 // One bounded Close hearing projection for candidates, prompts, routes and history: the root capture's
 // target/audience, narrowed to fresh available actors (same life/posture exclusions as candidates)
-// whose body-measured player distance is at most 200.
+// whose body-measured player distance is at most 200. An Everyone root ($closeRange false) uses the same
+// narrowing to members of the fresh capture's audience without the Close distance bound; the fresh target
+// alone is not proof that it still hears.
 // A fresh scene never adds a newcomer. Missing or ambiguous state is not hearing evidence.
 // Returns null when the previous speaker itself is no longer such a hearer.
-function synth_rechat_close_audience(array $root, array $fresh): ?array
+function synth_rechat_close_audience(array $root, array $fresh, bool $closeRange = true): ?array
 {
     require_once __DIR__.'/synth_rechat_selection.php';
-    $captured=[]; $states=[];
+    $captured=[]; $states=[]; $present=[];
     foreach (array_merge([$root['target'] ?? null],$root['audience'] ?? []) as $actor) {
         if (is_array($actor) && ($key=synth_rechat_actor_key($actor))!==null) $captured[$key]=true;
+    }
+    foreach (is_array($fresh['audience'] ?? null) ? $fresh['audience'] : [] as $actor) {
+        if (is_array($actor) && ($key=synth_rechat_actor_key($actor))!==null) $present[$key]=true;
     }
     foreach ($fresh['actor_states'] ?? [] as $state) {
         $key=is_array($state) ? synth_rechat_actor_key(is_array($state['actor'] ?? null) ? $state['actor'] : []) : null;
         if ($key!==null) $states[$key]=array_key_exists($key,$states) ? null : $state;
     }
     $playerKey=synth_rechat_actor_key(is_array($fresh['player'] ?? null) ? $fresh['player'] : []);
-    $hears=static function($actor) use($captured,$states,$playerKey): bool {
+    $hears=static function($actor) use($captured,$states,$present,$playerKey,$closeRange): bool {
         $key=is_array($actor) ? synth_rechat_actor_key($actor) : null;
         $state=$key===null ? null : ($states[$key] ?? null);
         $distance=$state['distance'] ?? null;
         return $key!==null && $key!==$playerKey && isset($captured[$key]) && is_array($state)
             && synth_rechat_state_available($state)
-            && (is_int($distance) || is_float($distance)) && is_finite((float)$distance) && $distance>=0 && $distance<=200;
+            && ($closeRange ? (is_int($distance) || is_float($distance)) && is_finite((float)$distance)
+                && $distance>=0 && $distance<=200 : isset($present[$key]));
     };
     if ($playerKey===null || !$hears($fresh['target'] ?? null)) return null;
     $fresh['audience']=array_values(array_filter(is_array($fresh['audience'] ?? null) ? $fresh['audience'] : [],$hears));
@@ -198,6 +221,15 @@ function synth_rechat_close_audience(array $root, array $fresh): ?array
         static fn($state): bool=>is_array($state) && is_array($state['actor'] ?? null)
             && (synth_rechat_actor_key($state['actor'])===$playerKey || $hears($state['actor']))));
     return $fresh;
+}
+
+// Everyone's first claim: the non-player responder must be a captured audience member with one available
+// captured state in an attested capture. The native adapter always reports audience quality; a legacy or
+// unavailable audience cannot prove a public hearer.
+function synth_rechat_everyone_responder(array $payload): bool
+{
+    return in_array($payload['audience_observation'] ?? null,['complete','partial'],true)
+        && synth_rechat_close_audience($payload,$payload,false)!==null;
 }
 
 // Canonical keys preserve case-sensitive save identity; labels never grant actor ownership.

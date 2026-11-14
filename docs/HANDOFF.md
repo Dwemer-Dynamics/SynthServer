@@ -1,5 +1,17 @@
 # Synthserver developer handoff
 
+## Everyone audience candidate
+
+Everyone is an explicit public audience for one Standard or Shout turn, negotiated as `dialogue.everyone`;
+Normal input and older clients are unchanged. The client chooses one captured responder; at first claim the
+server checks that it is an available non-player member of an observed captured audience and checks the
+acknowledged reset epoch, then makes one reply and keeps continuations inside the original captured group.
+Every global mode writer now shares one audience gate and resets incompatible audiences atomically. The
+dashboard home page's Audience fieldset saves the preference for one explicitly chosen session. The additive
+migration is `synth_protocol_schema` 20261113002. See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md) and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience); production database, paired-client, deployment
+and gameplay acceptance remain pending.
+
 ## NPC biography and SPECIAL candidate
 
 Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).

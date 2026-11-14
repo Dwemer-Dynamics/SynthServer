@@ -765,6 +765,8 @@ uses the current v2 contract without changing schemas; see [QUEST-AWARE-KNOWLEDG
 
 The additive v2 `control.menu` capability permits a `control` event with `context_sequence: 0` and exactly `payload.setting` / `payload.value`. Settings are `status` (empty value), `mode` (the nine allowed mode identifiers), or `model_slot` (`"1"` through `"4"`). It uses normal initialized-session, generation, request replay and capability checks, and never advances the active dialogue turn. Preferences reuse existing `conf_opts` rows inside the session claim transaction. The terminal acknowledgement has status `control_state` and bounded detail `MODE|SLOT`.
 
+The additive `dialogue.everyone` capability adds setting `audience` (`normal` or `everyone`), status `control_audience` on a negotiated init or `control_state`, and paired `audience_intent: "everyone"` / `audience_reset_epoch` on Standard or Shout input. See [protocol/v2/README.md](../protocol/v2/README.md) and [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md).
+
 Negotiated v2 `input_text` and `input_audio` may additionally include `payload.control` containing exactly `mode` and integer `model_slot`. These are admission-time values, not a read of subsequent global settings. Narrator input owns the narrator response role. Native Director uses the selected NPC's safe structured response/action pipeline; full multi-NPC Director orchestration remains unimplemented. Existing v1 payloads remain unchanged.
 
 ## Fresh-scene continuation contract (not activated)

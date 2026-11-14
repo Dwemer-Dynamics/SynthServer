@@ -121,8 +121,9 @@ function synth_rechat_history($db, array $event): array
             $groups[]=$response; $bytes+=$response['bytes']; $node=$response['event']; $parentEvent ??= $node;
             if ($parent===$chain['root_request_id']) { $reachedRoot=true; break; }
         }
-        // A Close responder recalls only chain lines it was projected to hear; it always heard the root.
-        $reader=$selection['role']==='npc' && $parentEvent!==null && synth_rechat_close_root_locked($connection,$event,$parentEvent)
+        // A Close or Everyone responder recalls only chain lines it was projected to hear; it always heard the root.
+        $rootAudience=$parentEvent===null ? null : synth_rechat_root_audience_locked($connection,$event,$parentEvent);
+        $reader=$selection['role']==='npc' && $rootAudience!==null
             ? synth_rechat_actor_key($selection['identity'] ?? []) : null;
         $messages=[];
         foreach (array_reverse($groups) as $group) {
@@ -137,7 +138,9 @@ function synth_rechat_history($db, array $event): array
                 require_once __DIR__.'/synth_dialogue_policy.php';
                 $input=synth_dialogue_origin_input($node,$node['type']==='input_audio' ? $origin['input_text'] : null);
                 if ($input!==$origin['input_text']) throw new LogicException('rechat_history_input_mismatch');
-                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],'text'=>$input]);
+                // The root's public intent is kept apart from its transport responder and from who could hear.
+                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],'text'=>$input]
+                    +(($node['payload']['audience_intent'] ?? null)==='everyone' ? ['addressed'=>'everyone'] : []));
             }
         }
         $truncated=!$reachedRoot; $size=0; $recent=[];

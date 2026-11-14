@@ -10,6 +10,7 @@ require_once __DIR__.'/SaveState.php';
 require_once dirname(__DIR__).'/lib/synth_biography.php';
 require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
+require_once dirname(__DIR__).'/lib/synth_control.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
 final class ContextManager
@@ -32,6 +33,8 @@ final class ContextManager
         $situation['condition'] = \synth_condition_prompt(is_array($payload) ? $payload : [],
             is_array($request->context['player'] ?? null) ? $request->context['player'] : [],
             is_array($request->context['target'] ?? null) ? $request->context['target'] : []);
+        // Explicit public address: the player spoke to everyone in the audience, not to this responder alone.
+        if (\synth_control_everyone_input($request->event)) $situation['addressed_everyone'] = true;
         return $situation;
     }
 

@@ -675,7 +675,8 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (!synth_control_valid_change($payload['setting'], $payload['value']))
             synth_protocol_fail('invalid_control', 422);
     } elseif ($type === 'input_text') {
-        synth_protocol_expect_exact_keys($payload, ['text'], $version === 2 ? ['control', 'intent'] : [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['text'],
+            $version === 2 ? ['control', 'intent', 'audience_intent', 'audience_reset_epoch'] : [], 'payload');
         if (!is_string($payload['text']) || trim($payload['text']) === '' || strlen($payload['text']) > 4096) {
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.text', 'issue' => 'invalid']]);
         }
@@ -683,7 +684,8 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (array_key_exists('intent', $payload) && $payload['intent'] !== 'conversation')
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.intent', 'issue' => 'unknown']]);
     } elseif ($type === 'input_audio') {
-        synth_protocol_expect_exact_keys($payload, ['media'], $version === 2 ? ['control'] : [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['media'],
+            $version === 2 ? ['control', 'audience_intent', 'audience_reset_epoch'] : [], 'payload');
         $payload['media'] = synth_protocol_validate_media($payload['media'] ?? null, 'payload.media');
     } elseif ($type === 'context') {
         synth_protocol_expect_exact_keys(
@@ -1184,6 +1186,24 @@ function synth_protocol_validate_event(array $event): array
                 !is_int($control['model_slot']) || $control['model_slot'] < 1 || $control['model_slot'] > 4)
                 synth_protocol_fail('invalid_control', 422);
         }
+        if ($event['type'] === 'control' && $event['payload']['setting'] === 'audience'
+            && !in_array('dialogue.everyone', $event['capabilities'], true))
+            synth_protocol_fail('audience_capability_required', 422);
+    }
+    // Explicit public audience on ordinary input only: the paired acknowledged epoch, the negotiated capability,
+    // an explicit Standard/Shout selection and a bound context. An epoch alone or any other intent is refused.
+    if (in_array($event['type'], ['input_text', 'input_audio'], true) && is_array($event['payload'])
+        && (array_key_exists('audience_intent', $event['payload']) || array_key_exists('audience_reset_epoch', $event['payload']))) {
+        require_once __DIR__.'/synth_control.php';
+        $epoch = $event['payload']['audience_reset_epoch'] ?? null;
+        if (($event['payload']['audience_intent'] ?? null) !== 'everyone'
+            || !is_int($epoch) || $epoch < 0 || $epoch > 9007199254740991)
+            synth_protocol_fail('invalid_audience', 422, [['field' => 'payload.audience_intent', 'issue' => 'invalid']]);
+        if (!synth_control_everyone_supported($event))
+            synth_protocol_fail('audience_capability_required', 422);
+        if (!in_array($event['payload']['control']['mode'] ?? null, ['STANDARD', 'SHOUT'], true)
+            || intval($event['context_sequence'] ?? 0) < 1)
+            synth_protocol_fail('invalid_audience', 422, [['field' => 'payload.control.mode', 'issue' => 'standard_or_shout_with_context_required']]);
     }
     return $event;
 }

@@ -1,5 +1,21 @@
 # Synthserver open-alpha acceptance
 
+## Everyone audience
+
+- [ ] Disposable PostgreSQL: fresh install and upgrade apply `synth_protocol_schema` 20261113002 idempotently.
+- [ ] HTTP + disposable database: negotiated init returns `control_audience` (new session epoch 0, re-init
+      advances it); an unnegotiated init and an unmigrated database return no field.
+- [ ] Control `audience`, `mode` and `status` round trips keep `MODE|SLOT` and report the stored audience;
+      Whisper/Close/Narrator reset every active session atomically, Standard/Shout keep preferences.
+- [ ] First claim: stale epoch, incompatible mode, and a player, non-member, ambiguous or unobserved-audience
+      responder are refused; replay after a reset returns the stored outcome; concurrent mode reset and
+      Everyone claim serialize.
+- [ ] Dashboard Audience fieldset: explicit session choice, Apply saves Normal/Everyone, a restarted session
+      generation is refused, and a timed-out save reports unknown.
+- [ ] Continuations stay in the original group with no newcomers or random narrator; history labels say
+      everyone while the responder profile is used.
+- [ ] Paired client, then flat and VR in game, separately.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.
