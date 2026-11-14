@@ -368,6 +368,12 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             'reply_to_line_id'=>'fixture:dialogue','scene_context_sequence'=>$sceneSequence];
         $this->persistRequest($child);
         if ($chainId===null) {
+            // Production root admission saves the mode before a continuation can be prepared.
+            $originPolicy=['private'=>false,'rounds'=>3,'probability'=>100,'mode'=>'conversational','allow_actions'=>false,
+                'random_narration'=>false,'narration_chance'=>0,'narration_cooldown'=>0];
+            $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+                VALUES($1,$2,'STANDARD',$3::jsonb,$4) ON CONFLICT(session_id,request_id) DO NOTHING",
+                [$parent['session_id'],$parent['request_id'],$this->json($originPolicy),$parent['payload']['text'] ?? null]);
             $policy=['source_profile_id'=>$fixture['source_binding']['profile_id'],'source_actor_identity_id'=>$this->actorId];
             $chainId=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.rechat_chains
                 (session_id,root_request_id,generation,context_sequence,turn_id,runtime_variant,mode,policy,budget,used_rounds,terminal_reason)

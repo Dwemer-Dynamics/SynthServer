@@ -12,7 +12,8 @@
 //      Routes the turn privately to the selected listener using a quiet request-local range.
 //
 // * Close (CLOSE)
-//      Routes the turn privately to one nearby listener within the plugin-owned 200-unit close radius.
+//      Addresses one selected listener in a small group within the plugin-owned 200-unit close radius;
+//      captured nearby NPCs may overhear and only those still nearby may continue.
 //
 // * Shout (SHOUT)
 //      Expands local hearing/activation range and marks dialogue as shouted.
@@ -309,7 +310,7 @@ if ($EXECUTION_MODE=="STANDARD") {
     // The game plugin owns request-local whisper distance and audience routing.
 
 } else if ($EXECUTION_MODE=="CLOSE") {
-    // The game plugin owns the compact 200-unit close radius and target-only audience.
+    // The game plugin owns the compact 200-unit close radius and its captured small-group audience.
 
 } else if ($EXECUTION_MODE=="SHOUT") {
     // The game plugin owns request-local shout distance and audience routing.

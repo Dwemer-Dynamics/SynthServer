@@ -468,11 +468,13 @@ final class ResponseRuntimeRegressionTest extends TestCase
     {
         require_once dirname(__DIR__,2).'/lib/synth_dialogue_policy.php';
         $settings=['RECHAT_H'=>0,'RECHAT_P'=>100,'RECHAT_MODE'=>'group','RECHAT_ALLOW_ACTIONS'=>'false',
-            'RANDOM_NARATION'=>false,'RANDOM_NARATION_CHANCE'=>15,'RANDOM_NARRATION_COOLDOWN'=>2,
+            'RANDOM_NARATION'=>true,'RANDOM_NARATION_CHANCE'=>15,'RANDOM_NARRATION_COOLDOWN'=>2,
             'source_profile_id'=>123,'PROVIDER_KEY'=>'not-a-real-key'];
-        foreach (['STANDARD'=>false,'WHISPER'=>true,'CLOSE'=>true,'SHOUT'=>false] as $mode=>$private) {
+        foreach (['STANDARD'=>false,'WHISPER'=>true,'CLOSE'=>false,'SHOUT'=>false] as $mode=>$private) {
             $policy=synth_dialogue_origin_policy($settings,$mode);
             $this->assertSame($private,$policy['private']);
+            // Close is a non-private small group, but narration never reaches past its captured hearers.
+            $this->assertSame(!in_array($mode,['WHISPER','CLOSE'],true),$policy['random_narration']);
             $this->assertSame(0,$policy['rounds']);
             $this->assertFalse($policy['allow_actions']);
             $this->assertCount(8,$policy);

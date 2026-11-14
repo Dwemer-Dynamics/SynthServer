@@ -231,7 +231,7 @@ class sql
     {
         $session = $event['session_id'];
         $contextResult = @pg_query_params($connection,
-            'SELECT playthrough_id FROM synth_meta.context_snapshots
+            'SELECT playthrough_id,player_identity_id,target_identity_id FROM synth_meta.context_snapshots
              WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$session, $event['generation'], $event['context_sequence']]);
         $context = $contextResult ? pg_fetch_assoc($contextResult) : false;
@@ -251,16 +251,48 @@ class sql
                 throw new InvalidArgumentException('Invalid native history column');
             }
         }
+        $hearers = isset($scene['close_hearers'])
+            ? json_encode($this->closeHearerIdentityIds($connection, $event, intval($sceneSequence), $scene['close_hearers']),
+                JSON_THROW_ON_ERROR) : null;
+        if (in_array($event['type'] ?? '', ['input_text','input_audio'], true)
+            && ($event['payload']['control']['mode'] ?? '') === 'WHISPER')
+            $hearers = json_encode(array_values(array_filter(array_map('intval',
+                [$context['player_identity_id'], $context['target_identity_id']]))), JSON_THROW_ON_ERROR);
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
+        // A projected Close row records exactly which snapshot identities could hear it; others keep raw scene reconstruction.
         $query = 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
             INSERT INTO synth_meta.history_events
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,
-                $'.(count($columns) + 1).',rowid,to_jsonb(inserted),$'.(count($columns) + 2).' FROM inserted';
-        if (@pg_query_params($connection, $query, [...array_values($data), $context['playthrough_id'],$sceneSequence]) === false) {
+                $'.(count($columns) + 1).',rowid,
+                CASE WHEN $'.(count($columns) + 3).'::jsonb IS NULL THEN to_jsonb(inserted)
+                    ELSE to_jsonb(inserted)||jsonb_build_object(\'synth_dialogue_hearer_ids\',$'.(count($columns) + 3).'::jsonb) END,
+                $'.(count($columns) + 2).' FROM inserted';
+        if (@pg_query_params($connection, $query, [...array_values($data), $context['playthrough_id'],$sceneSequence,$hearers]) === false) {
             throw new RuntimeException('Unable to persist native history insertion');
         }
         return true;
+    }
+
+    // Align projected canonical keys with the immutable scene snapshot's resolved identity IDs; never resolve by name.
+    private function closeHearerIdentityIds($connection, array $event, int $sceneSequence, array $keys): array
+    {
+        $result = @pg_query_params($connection,
+            'SELECT player_identity_id,target_identity_id,audience_identity_ids,context_payload FROM synth_meta.context_snapshots
+             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
+            [$event['session_id'], $event['generation'], $sceneSequence]);
+        $row = $result ? pg_fetch_assoc($result) : false;
+        if (!$row) throw new RuntimeException('Close hearer snapshot unavailable');
+        $payload = json_decode($row['context_payload'], true, flags: JSON_THROW_ON_ERROR);
+        $audienceIds = json_decode($row['audience_identity_ids'] ?? '[]', true, flags: JSON_THROW_ON_ERROR);
+        $ids = [intval($row['player_identity_id'])];
+        $actors = [[$payload['target'] ?? null, $row['target_identity_id']]];
+        foreach ($payload['audience'] ?? [] as $i => $actor) $actors[] = [$actor, $audienceIds[$i] ?? null];
+        foreach ($actors as [$actor, $id]) {
+            $key = is_array($actor) ? synth_rechat_actor_key($actor) : null;
+            if ($key !== null && in_array($key, $keys, true) && is_numeric($id) && intval($id) > 0) $ids[] = intval($id);
+        }
+        return array_values(array_unique($ids));
     }
 
     /** Capture once before a catalogue transaction; its direct adapter never reconnects. */
