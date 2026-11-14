@@ -18,7 +18,12 @@ the existing locked quest reader once per turn with the explicit claimed owner (
 and the admitted NPC as the exact recipient. The same rendered `<quest_knowledge>` block reaches the
 prompt only when it has attributed reports or authored participant background; World Knowledge
 participant tiers reuse that view. The narrator role, journal privacy and all reader checks are
-unchanged. Disposable loopback and focused suites only; no client, game or VR check. See
+unchanged. A report typed on a native turn (no origin policy) is admitted only from its exact canonical
+conversation event and stored line. This reader declines explicit Everyone native reports; merging #36
+alone does not enable them (needs coordinated #36 reader integration/validation under the existing hold).
+In disposable fixtures, ordinary asks to Piper (Wright) fail before the provider at both 7950230 and
+this candidate (`backend_request_failed`); native turns to that target work.
+Disposable loopback and focused suites only; no client, game or VR check. See
 [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 
 ## NPC biography and SPECIAL candidate

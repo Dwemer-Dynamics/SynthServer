@@ -82,6 +82,25 @@ function synthQuestKnowledgeDisplayFragment(string $value, bool $target = false)
     return trim((string)preg_replace('/\s+/',' ',str_replace(["\r","\n",'|'],' ',$value)));
 }
 
+// The native typed route freezes no origin policy. Only its exact v2 conversation event qualifies, and
+// only the line DialogueManager stores verbatim: raw player name, trim(text), raw captured target name.
+// Unknown payload fields (for example an unintegrated audience intent) fail closed rather than broaden.
+function synthQuestKnowledgeNativeTypedLine(array $event, array $history, array $player, array $target): ?string
+{
+    $payload=$event['payload'] ?? null;
+    if ($event['type']!=='input_text' || !is_array($payload) || ($payload['intent'] ?? null)!=='conversation'
+        || array_diff(array_keys($payload),['text','intent','control'])!==[]
+        || array_diff(['dialogue.native_turn','dialogue.turn_ownership'],$event['capabilities'])!==[]
+        || ($history['type'] ?? null)!=='inputtext' || !synthQuestKnowledgeText($payload['text'] ?? null)) return null;
+    if (array_key_exists('control',$payload)) {
+        $control=$payload['control'];
+        if (!is_array($control) || count($control)!==2 || !in_array('control.menu',$event['capabilities'],true)
+            || !in_array($control['mode'] ?? null,['STANDARD','WHISPER','CLOSE','SHOUT'],true)
+            || !is_int($control['model_slot'] ?? null) || $control['model_slot']<1 || $control['model_slot']>4) return null;
+    }
+    return $player['display_name'].': '.trim($payload['text']).' (Talking to '.$target['display_name'].')';
+}
+
 /**
  * Decode one already save-visible immutable source. This pure helper cannot grant visibility.
  * JSON fields: event_payload, context_payload, canonical_event. Scalar owner fields come from
@@ -142,6 +161,12 @@ function synthQuestKnowledgePlayerReportFromEvidence(array $source): array
     $text=$source['input_text'] ?? null;
     if (!synthQuestKnowledgeText($text) || ($event['type']==='input_text' && ($event['payload']['text'] ?? null)!==$text)) return [];
     if ($event['type']==='input_audio' && !is_array($event['payload']['media'] ?? null)) return [];
+    if (($source['origin_source'] ?? null)==='native_typed') {
+        $line=synthQuestKnowledgeNativeTypedLine($event,$history,$player,$target);
+        if ($line===null || ($history['data'] ?? null)!==$line) return [];
+        return ['player_name'=>$player['display_name'],'report'=>$text,'history_event_id'=>$ids['history_event_id'],
+            'active_quests'=>$context['active_quests']];
+    }
     $prefix=synthQuestKnowledgeDisplayFragment($player['display_name']).': '.synthQuestKnowledgeDisplayFragment($text);
     $verb=match($mode) {'WHISPER'=>'Whispering','CLOSE'=>'Speaking privately','SHOUT'=>'Shouting',default=>'Talking'};
     $suffix=' ('.$verb.' to '.synthQuestKnowledgeDisplayFragment($target['display_name'],true).')';
@@ -300,7 +325,8 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
                 'playthrough_id',c.playthrough_id,'snapshot_sequence',c.snapshot_sequence,
                 'active_quests_observation',c.context_payload->'active_quests_observation',
                 'active_quests',c.context_payload->'active_quests') AS context_payload,
-            p.canonical_event,p.event_sha256,p.event_type,e.turn_id,d.execution_mode,d.input_text
+            p.canonical_event,p.event_sha256,p.event_type,e.turn_id,s.execution_mode,s.input_text,
+            CASE WHEN d.request_id IS NULL THEN 'native_typed' ELSE 'origin_policy' END AS origin_source
         FROM native_history n JOIN synth_meta.history_events h ON h.id=n.history_event_id
         JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
@@ -308,7 +334,11 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
             AND e.generation=h.generation AND e.state='complete'
         JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
-        JOIN synth_meta.dialogue_origin_policies d ON d.session_id=e.session_id AND d.request_id=e.request_id
+        LEFT JOIN synth_meta.dialogue_origin_policies d ON d.session_id=e.session_id AND d.request_id=e.request_id
+        -- Ordinary turns keep their frozen origin; only a native conversation event supplies its own text/mode.
+        CROSS JOIN LATERAL (SELECT
+            CASE WHEN d.request_id IS NULL THEN coalesce(p.canonical_event#>>'{payload,control,mode}','STANDARD') ELSE d.execution_mode END AS execution_mode,
+            CASE WHEN d.request_id IS NULL THEN p.canonical_event#>>'{payload,text}' ELSE d.input_text END AS input_text) s
         JOIN synth.actor_identities player ON player.id=c.player_identity_id AND player.game='fo4' AND player.playthrough_id=c.playthrough_id
             AND upper(player.full_form_id)=upper(c.context_payload->'player'->>'form_id')
             AND lower(player.origin_plugin)=lower(c.context_payload->'player'->>'origin_plugin')
@@ -319,9 +349,12 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
             AND n.speaker_identity_id=c.player_identity_id AND c.target_identity_id<>c.player_identity_id
             AND p.event_type IN ('input_text','input_audio')
             AND p.canonical_event->>'runtime_variant'=".$db->escapeLiteral($event['runtime_variant'])."
-            AND d.execution_mode IN ('STANDARD','WHISPER','CLOSE','SHOUT')
+            AND (d.request_id IS NOT NULL OR (p.event_type='input_text' AND n.type='inputtext'
+                AND p.canonical_event#>>'{payload,intent}'='conversation'
+                AND p.canonical_event->'capabilities' @> jsonb_build_array('dialogue.native_turn','dialogue.turn_ownership')))
+            AND s.execution_mode IN ('STANDARD','WHISPER','CLOSE','SHOUT')
             AND c.context_payload->>'active_quests_observation' IN ('complete','partial')
-            AND octet_length(d.input_text) BETWEEN 1 AND 4096
+            AND octet_length(s.input_text) BETWEEN 1 AND 4096
             AND octet_length(h.event_payload::text)<=32768 AND octet_length(p.canonical_event::text)<=16384
         ORDER BY h.id DESC LIMIT 64
     ), bounded_quest_reports AS (
@@ -397,12 +430,18 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
         if (!$actor) return $unavailable;
         $result=@pg_query($connection,synthQuestKnowledgeReportQuery($db,$event,$actor));
         if (!$result) throw new RuntimeException('quest_knowledge_reports_read_failed');
-        $reports=[];$seen=[];$antecedents=[];$blocked=[];$anonymousBlocked=[];
+        $reports=[];$seen=[];$antecedents=[];$blocked=[];$anonymousBlocked=[];$nativeRequests=[];
         // The SQL reader still supplies the same latest 64 rows / one mebibyte.
         // Resolve earlier-to-later, then retain the original latest-eight output order.
         foreach (array_reverse(pg_fetch_all($result) ?: []) as $source) {
             $playerReport=synthQuestKnowledgePlayerReportFromEvidence($source);
             if (!$playerReport) continue;
+            // Fully matched native history rows for one request are duplicate evidence of one statement.
+            if ($source['origin_source']==='native_typed') {
+                $request=$source['session_id'].'|'.$source['generation'].'|'.$source['request_id'];
+                if (isset($nativeRequests[$request])) continue;
+                $nativeRequests[$request]=true;
+            }
             $named=synthQuestKnowledgeMatchNames($playerReport['report'],$playerReport['active_quests']);
             $ambiguous=synthQuestKnowledgeAmbiguousNameMentioned($playerReport['report'],$playerReport['active_quests']);
             $assertion=$ambiguous ? null : synthQuestKnowledgeNamedPlanAssertion($playerReport['report'],$named);

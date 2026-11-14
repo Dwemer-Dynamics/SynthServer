@@ -22,6 +22,15 @@ See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md). Disposable loopback an
 - [x] Preston receives the same authored background on both routes; a same-name actor receives none.
   Each turn makes one provider call.
 - [x] The explicit-owner reader keeps recipient, earlier-save, runtime-lane and completed-input checks.
+- [x] Disposable loopback: a report typed on a native turn in each of the four modes reaches Piper on both
+  routes without an origin-policy row; Nick and a same-name actor receive none.
+- [x] Disposable loopback: completed, cancelled-while-claimed and completed-then-cancelled native sources,
+  earlier/later saved anchors, a VR session and a private Whisper with captured unaddressed actors.
+- [ ] Everyone native source: declined by this reader; merging #36 alone does not enable it. Support
+  needs coordinated #36 reader integration/validation under the existing hold, then runtime evidence
+  for the addressed responder only.
+- [ ] Disposable fixture target Piper (Wright): ordinary asks return `backend_request_failed` with no
+  provider call at both 7950230 and this candidate; native turns succeed.
 - [ ] Flat in game, then VR independently: an informed NPC recalls the report on a native turn; another does not.
 
 ## NPC biography and actor stats

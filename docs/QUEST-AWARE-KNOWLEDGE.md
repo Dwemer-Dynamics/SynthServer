@@ -133,6 +133,23 @@ Native conversation modes are never the narrator role; the player's journal stay
 read degrades to the unavailable view without failing the turn. Ordinary dialogue is unchanged.
 Context Selections (`active_quests`) are a legacy-pipeline setting and do not apply to this path.
 
+A report the player typed on a native turn is also a source. That route freezes no origin policy, so
+only a completed `input_text` with `intent=conversation`, the negotiated `dialogue.native_turn` and
+`dialogue.turn_ownership` capabilities, no other payload field and a known mode (an explicit
+`control.menu` control, otherwise STANDARD) qualifies. Its mode and text come from the canonical event.
+The stored line must be exactly the producer's `<player>: trim(<text>) (Talking to <target>)`, with
+raw names, whitespace, newlines and pipes. Each row is decoded on its own, so a contradictory line or
+context fails individually; fully matched rows for one request are the same statement and count once
+before follow-up resolution. The same owner, hash, context, recipient, ancestry, lane and size checks
+apply; the quote stays the canonical text. Ordinary and audio turns still require their frozen origin
+row. This reader declines every explicit Everyone native report: an audience field is not a known
+shape here, with no fallback audience. Merging #36 alone does not change this; support needs a
+separately coordinated #36 reader integration and validation under the existing hold.
+
+In disposable fixtures, ordinary asks to the target Piper (Wright) returned `backend_request_failed`
+with no provider call, at both 7950230 and this candidate; the failure phase is only known to be
+before the provider. Native turns to that fixture target work.
+
 ## Authored participant background and quest articles
 
 `data/fallout_quest_knowledge_rules.json` supplies eight reviewed quest rules,
