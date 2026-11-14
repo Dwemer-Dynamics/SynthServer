@@ -422,6 +422,186 @@ final class ResponseRuntimeRegressionTest extends TestCase
         synth_rechat_history($db,[]);
     }
 
+    // Auto Chat's rewrite stage fails closed before any provider, derived-text change or state; its rechat root is only
+    // the one proven generated line; raw-intent shortcuts never see Auto Chat intent; the pipeline order is fixed.
+    public function testAutoChatStageFailsClosedAndRootUsesOnlyItsProvenGeneratedLine(): void
+    {
+        $root=dirname(__DIR__,2);
+        require_once $root.'/lib/response.php';
+        require_once $root.'/lib/synth_autochat.php';
+        require_once $root.'/lib/synth_rechat_routes.php';
+        require_once $root.'/lib/synth_combat_target.php';
+        require_once $root.'/lib/synth_social_tasks.php';
+        require_once $root.'/lib/synth_jev_actions.php';
+        require_once $root.'/lib/synth_runtime.php';
+        require_once $root.'/lib/request.php';
+        require_once $root.'/lib/synth_player_rewrite.php';
+        $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_INPUT_TARGET_IDENTITY','CORE_CONNECTOR_PLAYER',
+            'HTTP_TIMEOUT','SYNTH_AUTOCHAT','JEV_ACTIONS_ENABLED','FUNCTIONS_ARE_ENABLED','SYNTH_JEV_ACTION_POLICY','SYNTH_JEV_ACTION_DIAGNOSTIC',
+            'SYNTH_STRUCTURED_INPUT_FIELDS','SYNTH_PLAYER_INPUT_TEXT','SYNTH_INPUT_TARGET','SYNTH_SKIP_PLAYER_TTS'];
+        $saved=array_intersect_key($GLOBALS,array_flip($keys));
+        $target=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'pt-auto','display_name'=>'Piper'];
+        $player=['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'pt-auto','display_name'=>'Nora'];
+        $context=['player'=>$player,'target'=>$target,'payload'=>['player'=>$player,'target'=>$target,'audience'=>[$target]]];
+        $event=['protocol_version'=>2,'type'=>'input_text','session_id'=>'session:auto','request_id'=>'auto:1','turn_id'=>'turn:auto',
+            'generation'=>7,'context_sequence'=>9,'runtime_variant'=>'flat',
+            'capabilities'=>['dialogue.turn_ownership','social.tasks.v1','context.saved_anchor','context.combat_contacts','context.combat_targets'],
+            'payload'=>['text'=>'Wait here and tell me who that is','control'=>['mode'=>'AUTOCHAT','model_slot'=>1]]];
+        try {
+            $GLOBALS['db']=$db=new class($context) {
+                public array $queries=[];
+                public ?array $connector=['id'=>2,'driver'=>'openai','url'=>'http://127.0.0.1:9/v1','model'=>'m','metadata'=>''];
+                public function __construct(public array $context) {}
+                public function escape(string $value): string { return $value; }
+                public function escapeLiteral(string $value): string { return "'".$value."'"; }
+                public array $history=[];
+                public function insertNativeHistoryOnce(array $data): bool { $this->history[]=$data; return true; }
+                public function fetchOne(string $query): ?array {
+                    $this->queries[]=$query;
+                    if (str_contains($query,'synth_meta.request_executions')) return ['state'=>'streaming','error_code'=>null,
+                        'runtime_state'=>'active','active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
+                    if (str_contains($query,'context_snapshots')) return ['context_payload'=>json_encode($this->context)];
+                    return str_contains($query,'core_llm_connector') ? $this->connector : null;
+                }
+                public function fetchAll(string $query, $log=false): array { $this->queries[]=$query; return []; }
+            };
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+            $GLOBALS['CORE_CONNECTOR_PLAYER']=2;$GLOBALS['HTTP_TIMEOUT']=15;unset($GLOBALS['SYNTH_AUTOCHAT']);
+            $bound=['inputtext',0,0,json_encode(['schema'=>'synth.input.v1','npc'=>'Piper','text'=>$event['payload']['text'],'game'=>'fo4'])];
+            $attempt=static function (array $request, ?array $responder) use ($db,$event): array {
+                $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY']=$responder;$db->queries=[];
+                try { synth_autochat_prepare($db,$event,$request,null); return [$request,null]; }
+                catch (Throwable $error) { return [$request,$error]; }
+            };
+            // A responder other than the addressed target, and an unsupported, missing or unconfigured player connector,
+            // fail closed with a closed detail: no provider call, no derived-text change, no accepted state.
+            foreach ([['rewrite_target_mismatch',['form_id'=>'0x0001A4D8']+$target,null],['provider_unsupported',$target,null],
+                ['provider_unsupported',$target,'missing'],['provider_unsupported',$target,'unconfigured']] as [$code,$responder,$variant]) {
+                if ($variant==='missing') $db->connector=null;
+                if ($variant==='unconfigured') $GLOBALS['CORE_CONNECTOR_PLAYER']=0;
+                [$request,$error]=$attempt($bound,$responder);
+                $this->assertSame($code,$error?->getMessage(),strval($variant));
+                $this->assertSame($code,synth_autochat_failure($error));
+                $this->assertSame($bound,$request);
+                $this->assertNull(synth_autochat_line());
+                if ($code==='rewrite_target_mismatch') $this->assertSame([],array_filter($db->queries,static fn($q)=>str_contains($q,'core_llm_connector')));
+            }
+            // Only the bound structured inputtext is rewritten; the legacy `**` wrapper or another type never reaches a read.
+            foreach ([['inputtext',0,0,'**(Wait here)'],['cheatmode',0,0,$bound[3]]] as $unbound) {
+                [,$error]=$attempt($unbound,$target);
+                $this->assertSame('provider_failed',synth_autochat_failure($error));
+                $this->assertSame([],$db->queries);
+            }
+            $this->assertSame('provider_failed',synth_autochat_failure(new RuntimeException('Bearer secret at http://provider')));
+            foreach ([array_replace_recursive($event,['payload'=>['control'=>['mode'=>'STANDARD']]]),array_replace($event,['request_id'=>'auto:other'])] as $foreign) {
+                try { synth_autochat_rewrite($db,$foreign,null); $this->fail('Foreign or ordinary owner entered the stage'); }
+                catch (LogicException $error) { $this->assertSame('autochat_owner_required',$error->getMessage()); }
+            }
+            $id=synth_autochat_utterance_id($event);
+            $this->assertMatchesRegularExpression('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D',$id);
+            $this->assertNotSame($id,synth_autochat_utterance_id(array_replace($event,['request_id'=>'auto:2'])));
+            // The ordinary adapter's exact derived text for the bound player and canonical target is frozen once.
+            $accepted=['text'=>'Hold this spot for me.','target'=>$target,'player'=>'Nora','utterance_id'=>$id,'published'=>false,'data'=>null];
+            $structured=['schema'=>'synth.input.v1','npc'=>'Piper','npc_id'=>$target['form_id'],'npc_plugin'=>$target['origin_plugin'],
+                'player'=>'Nora','player_id'=>$player['form_id'],'player_plugin'=>$player['origin_plugin'],'playthrough_id'=>'pt-auto',
+                'text'=>'Hold this spot for me.','game'=>'fo4'];
+            $freeze=static function (array $fields) use ($accepted): ?string {
+                $GLOBALS['SYNTH_AUTOCHAT']=['text'=>$fields['text']]+$accepted;
+                $request=['inputtext',0,0,json_encode($fields)];
+                $adapted=synth_adapt_json_input_payload_for_pipeline($request);
+                try { synth_autochat_freeze_input($adapted,$request); return $GLOBALS['SYNTH_AUTOCHAT']['data']; }
+                catch (LogicException $error) { return $error->getMessage(); }
+            };
+            $this->assertSame('Nora: Hold this spot for me. (Talking to Piper)',$freeze($structured));
+            foreach ([['npc'=>'Nick Valentine'],['npc_id'=>'0x0001A4D8'],['playthrough_id'=>'pt-other'],['player'=>'Nate']] as $change) {
+                $this->assertSame('autochat_derived_text_mismatch',$freeze(array_replace($structured,$change)),json_encode($change));
+            }
+            // A grunt-like line still carries its speaker and addressee, so the whole-text combat-grunt filter cannot drop it.
+            $grunt=$freeze(['text'=>'Hmm!']+$structured);
+            $this->assertSame('Nora: Hmm! (Talking to Piper)',$grunt);
+            // The history row is exactly the frozen text, stored as accepted input (`received`) and never claims delivery.
+            $row=['type'=>'inputtext','data'=>'Nora: Hold this spot for me. (Talking to Piper)','people'=>'|Nora|Piper|'];
+            foreach (['unfrozen'=>[$accepted,[]],'raw intent'=>[null,['data'=>'Nora: Wait here (Talking to Piper)']],
+                'embedded line'=>[null,['data'=>'Nora: Wait. Nora: Hold this spot for me. (Talking to Piper)']],
+                'other target'=>[null,['data'=>'Nora: Hold this spot for me. (Talking to Nick Valentine)']],
+                'claimed delivery'=>[null,['delivery_state'=>'spoken']],'foreign utterance'=>[null,['utterance_id'=>'utt_0123']]] as $case=>[$state,$change]) {
+                $GLOBALS['SYNTH_AUTOCHAT']=$state ?? ['data'=>$row['data']]+$accepted;
+                try { synth_autochat_record_history($db,array_replace($row,$change)); $this->fail('History stored: '.$case); }
+                catch (LogicException $error) { $this->assertSame('autochat_history_mismatch',$error->getMessage(),$case); }
+            }
+            $this->assertSame([],$db->history);
+            synth_autochat_record_history($db,$row);
+            $this->assertSame([['utterance_id'=>$id,'delivery_state'=>'received']+$row],$db->history);
+            // Rewrite pair context: the player's input to this exact target and the target's own heard replies only.
+            // A witnessed NPC line or observed vanilla line is omitted, never presented as the player's speech.
+            $pair=synth_autochat_pair_history(array_reverse([
+                ['type'=>'backgroundchat','own'=>0,'data'=>'Danny Sullivan: Overheard. (Talking to Piper)'],
+                ['type'=>'chat','own'=>0,'data'=>'Nick Valentine: Witnessed. (talking to Nora)'],
+                ['type'=>'inputtext','own'=>0,'data'=>'Nora: Hello, Piper. (Talking to Piper)'],
+                ['type'=>'inputtext','own'=>0,'data'=>'Nora: Hi, Nick. (Talking to Nick Valentine)'],
+                ['type'=>'inputtext','own'=>0,'data'=>'Nora: Unaddressed.'],
+                ['type'=>'chat','own'=>1,'data'=>'Piper: Hey, Blue. (talking to Nora)']]),'Piper');
+            $this->assertSame([['role'=>'user','content'=>'Hello, Piper.'],['role'=>'assistant','content'=>'Hey, Blue.']],$pair);
+            $prompt=json_encode(SynthPlayerRewrite::messages('Nora','Piper','ask',[],$pair));
+            $this->assertStringContainsString('Nora: Hello, Piper.\nPiper: Hey, Blue.\n',$prompt);
+            foreach (['Overheard','Witnessed','Nick','Unaddressed'] as $foreign) $this->assertStringNotContainsString($foreign,$prompt);
+            // Raw-intent shortcuts stay closed to Auto Chat intent even when every capability is negotiated.
+            $GLOBALS['JEV_ACTIONS_ENABLED']=true;$GLOBALS['FUNCTIONS_ARE_ENABLED']=true;$db->queries=[];
+            synth_jev_prepare_actions($db,$event,null,static fn()=>throw new LogicException('jev_provider_called'));
+            $this->assertSame('ineligible',$GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason']);
+            $this->assertNull(synth_combat_identification_reply($db,$event));
+            $this->assertNull(synth_social_admit_from_input($db,$event));
+            $this->assertSame([],$db->queries);
+            // Rechat root: exactly one player line routed to the original target under the root's utterance id.
+            $route=['listener_state'=>'addressed','listener'=>json_encode($target),'utterance_id'=>$id];
+            $proven=['target'=>$target,'player_lines'=>[['line_id'=>'dialogue:2','text'=>'Hold this spot for me.','route'=>$route]]];
+            $this->assertSame('Hold this spot for me.',synth_autochat_root_line($proven,$event));
+            $line=$proven['player_lines'][0];
+            foreach (['missing'=>['player_lines'=>[]]+$proven,'duplicated'=>['player_lines'=>[$line,$line]]+$proven,
+                'foreign listener'=>['player_lines'=>[['route'=>['listener'=>json_encode(['form_id'=>'0x0001A4D8']+$target)]+$route]+$line]]+$proven,
+                'unaddressed'=>['player_lines'=>[['route'=>['listener_state'=>'unknown','listener'=>null]+$route]+$line]]+$proven,
+                'foreign utterance'=>['player_lines'=>[['route'=>['utterance_id'=>'utt_0123']+$route]+$line]]+$proven,
+                'invalid text'=>['player_lines'=>[['line_id'=>'dialogue:2','text'=>null,'route'=>['listener_state'=>'invalid','listener'=>null]]]]+$proven,
+                'no target'=>['target'=>null]+$proven,'ordinary root'=>$proven] as $case=>$response) {
+                try {
+                    synth_autochat_root_line($response,$case==='ordinary root'
+                        ? array_replace_recursive($event,['payload'=>['control'=>['mode'=>'STANDARD']]]) : $event);
+                    $this->fail('Unproven Auto Chat root accepted: '.$case);
+                } catch (LogicException $error) { $this->assertSame('rechat_history_autochat_unproven',$error->getMessage(),$case); }
+            }
+            $this->assertSame($event,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+        } finally {
+            foreach ($keys as $key) {
+                if (array_key_exists($key,$saved)) $GLOBALS[$key]=$saved[$key]; else unset($GLOBALS[$key]);
+            }
+        }
+        // Order of the owned pipeline: frozen origin policy, then rewrite, then echo; every raw-intent shortcut and the
+        // legacy respeech/speech-table rewrite are closed to Auto Chat.
+        $pipeline=file_get_contents($root.'/main_synth_pipeline.php');
+        $policy=strpos($pipeline,"synth_dialogue_capture_origin_policy(\$db,\$GLOBALS['SYNTH_REQUEST_EVENT']['json']");
+        $rewrite=strpos($pipeline,'synth_autochat_prepare(');
+        $echo=strpos($pipeline,'synth_emit_native_player_transcript($gameRequest);');
+        $this->assertTrue($policy!==false && $rewrite>$policy && $echo>$rewrite);
+        foreach (['if (!$synthAutoChat && in_array(\'social.tasks.v1\'','if (!$synthAutoChat && synth_gift_menu_try_handoff(',
+            'if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"])',
+            'if (!$synthAutoChat && isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && $GLOBALS["SYNTH_EXECUTION_MODE"] === "AUTOCHAT"',
+            'if ($synthAutoChat) synth_autochat_freeze_input($normalizedInputPayload ?? [], $gameRequest);',
+            'if ($synthAutoChat && $gameRequest[0] === \'inputtext\') synth_autochat_record_history($db, $eventlogInsert);'] as $gate) {
+            $this->assertStringContainsString($gate,$pipeline);
+        }
+        // The combat-grunt filter compares the whole derived text (proven above to carry speaker and addressee), before
+        // the history stage; the pair context never uses the shared history formatter.
+        $filter=strpos($pipeline,'$trimmedData = trim($data);');
+        $this->assertTrue($filter!==false && $filter<strpos($pipeline,'synth_autochat_record_history(')
+            && $filter>strpos($pipeline,'synth_autochat_freeze_input('));
+        foreach (['$data = isset($gameRequest[3]) ? $gameRequest[3] : \'\';','if (in_array($trimmedData, $combatGrunts)) {'] as $shape) {
+            $this->assertStringContainsString($shape,$pipeline);
+        }
+        $this->assertStringNotContainsString('->history(',file_get_contents($root.'/lib/synth_autochat.php'));
+        $this->assertStringNotContainsString('PLAYER_RESPEECH',file_get_contents($root.'/lib/synth_autochat.php'));
+        $this->assertStringNotContainsString('player_rewrite.php`',file_get_contents($root.'/lib/synth_autochat.php'));
+    }
+
     public function testOriginInputSeparatesCanonicalTextFromServerTranscription(): void
     {
         require_once dirname(__DIR__,2).'/lib/synth_dialogue_policy.php';

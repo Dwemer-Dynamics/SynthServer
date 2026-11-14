@@ -27,6 +27,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     $lines=synth_rechat_completed_lines($body,$event);
     if ($lines===null) throw new LogicException('rechat_history_completion_invalid');
     $context=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
+    $originalTarget=$context['target'] ?? null;
     $scene=synth_rechat_response_scene_locked($connection,$event);
     if ($scene!==null) $context=$scene['payload'];
     $actors=[];
@@ -50,7 +51,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     if (!$result) throw new RuntimeException('rechat_history_routes_unavailable');
     $routes=[];
     foreach (pg_fetch_all($result) as $route) $routes[$route['line_id']]=$route;
-    $messages=[]; $lastNpc=null;
+    $messages=[]; $lastNpc=null; $playerLines=[];
     foreach ($lines as $entry) {
         $line=$entry['line'];
         if ($line['type']!=='dialogue') continue;
@@ -63,10 +64,17 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         $key=synth_rechat_actor_key($speaker);
         $narrator=$key===null && ($speaker['kind'] ?? '')==='narrator' && ($speaker['id'] ?? '')==='narrator';
         if (!$narrator && ($key===null || !isset($actors[$key]))) throw new LogicException('rechat_history_speaker_unavailable');
-        if ($key!==null && $key===$playerKey) continue; // Original player input is separately proven, not a generated rewrite.
+        $text=$line['payload']['text'] ?? null;
+        if ($key!==null && $key===$playerKey) {
+            // Ordinary roots prove their player input separately. Only an Auto Chat root reads its generated line,
+            // and only through synth_autochat_root_line.
+            if (is_string($text) && mb_check_encoding($text,'UTF-8') && mb_strlen($text,'UTF-8')<=4096)
+                $playerLines[]=['line_id'=>$line['line_id'],'text'=>$text,'route'=>$route];
+            else $playerLines[]=['line_id'=>$line['line_id'],'text'=>null,'route'=>['listener_state'=>'invalid','listener'=>null]];
+            continue;
+        }
         if ($selection!==null && ($selection['role']==='narrator' ? !$narrator
             : $key!==synth_rechat_actor_key($selection['identity'] ?? []))) throw new LogicException('rechat_history_speaker_not_selected');
-        $text=$line['payload']['text'] ?? null;
         if (!is_string($text) || !mb_check_encoding($text,'UTF-8') || mb_strlen($text,'UTF-8')>4096) {
             throw new LogicException('rechat_history_text_invalid');
         }
@@ -75,6 +83,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         if (!$narrator) $lastNpc=$message;
     }
     return ['event'=>$event,'messages'=>$messages,'last_npc'=>$lastNpc,'player'=>$context['player'] ?? null,
+        'target'=>$originalTarget,'player_lines'=>$playerLines,
         'hearers'=>array_keys($actors),
         'response_sha256'=>hash('sha256',$body),'bytes'=>strlen($body)];
 }
@@ -130,11 +139,19 @@ function synth_rechat_history($db, array $event): array
             if ($reader===null || in_array($reader,$group['hearers'],true)) $messages=array_merge($messages,$group['messages']);
         }
         if ($reachedRoot && in_array($node['type'],['input_text','input_audio'],true)) {
-            $result=@pg_query_params($connection,'SELECT input_text FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',
+            $result=@pg_query_params($connection,'SELECT input_text,execution_mode FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',
                 [$event['session_id'],$node['request_id']]);
             if (!$result) throw new RuntimeException('rechat_history_input_unavailable');
             $origin=pg_fetch_assoc($result);
-            if ($origin && $origin['input_text']!==null) {
+            require_once __DIR__.'/synth_autochat.php';
+            // The frozen policy and the canonical root must agree on Auto Chat; a mismatch is never resolved either way.
+            if (($origin && $origin['execution_mode']==='AUTOCHAT')!==synth_autochat_selected($node)) {
+                throw new LogicException('rechat_history_autochat_unproven');
+            }
+            if (synth_autochat_selected($node)) {
+                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],
+                    'text'=>synth_autochat_root_line($response,$node)]);
+            } elseif ($origin && $origin['input_text']!==null) {
                 require_once __DIR__.'/synth_dialogue_policy.php';
                 $input=synth_dialogue_origin_input($node,$node['type']==='input_audio' ? $origin['input_text'] : null);
                 if ($input!==$origin['input_text']) throw new LogicException('rechat_history_input_mismatch');

@@ -6,7 +6,7 @@ function synth_control_valid_change($setting, $value): bool
     if (!is_string($setting) || !is_string($value)) return false;
     return match ($setting) {
         'status' => $value === '',
-        'mode' => in_array($value, ['STANDARD','WHISPER','CLOSE','SHOUT','NARRATOR','DIRECTOR','INJECTION_LOG','INJECTION_CHAT','CHEATMODE'], true),
+        'mode' => in_array($value, ['STANDARD','WHISPER','CLOSE','SHOUT','NARRATOR','DIRECTOR','INJECTION_LOG','INJECTION_CHAT','CHEATMODE','AUTOCHAT'], true),
         'model_slot' => in_array($value, ['1','2','3','4'], true),
         'audience' => in_array($value, ['normal','everyone'], true),
         default => false,

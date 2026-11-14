@@ -152,14 +152,21 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $this->query('INSERT INTO synth_meta.protocol_events(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,1,$4,$5::jsonb,$6)',
             [$event['session_id'],$event['request_id'],$event['turn_id'],$event['type'],$canonical,$hash]);
     }
-    private function response(array $event,?array $listener=null,?array $speaker=null): string {
+    // An Auto Chat root also carries its one generated player line, routed to the target under its utterance id.
+    private function response(array $event,?array $listener=null,?array $speaker=null,?string $generated=null): string {
         $listener ??= $this->context['player'];$speaker ??= $this->context['target'];
         $lines=[];
-        foreach (['response_start'=>['server_version'=>'fixture'],'dialogue'=>['speaker'=>$speaker,'text'=>'You are welcome.'],
-            'response_end'=>['status'=>'complete']] as $type=>$payload) {
+        foreach (['response_start'=>['server_version'=>'fixture'],'player'=>['speaker'=>$this->context['player'],'text'=>$generated],
+            'dialogue'=>['speaker'=>$speaker,'text'=>'You are welcome.'],'response_end'=>['status'=>'complete']] as $type=>$payload) {
+            if ($type==='player' && $generated===null) continue;
             $lines[$type]=$this->json(['schema'=>'synth.response.line.v2','protocol_version'=>2,'game'=>'fo4','request_id'=>$event['request_id'],
-                'turn_id'=>$event['turn_id'],'generation'=>1,'context_sequence'=>$event['context_sequence'],'runtime_variant'=>'flat','line_id'=>'fixture:'.$type,'type'=>$type,'payload'=>$payload])."\n";
+                'turn_id'=>$event['turn_id'],'generation'=>1,'context_sequence'=>$event['context_sequence'],'runtime_variant'=>'flat','line_id'=>'fixture:'.$type,
+                'type'=>$type==='player' ? 'dialogue' : $type,'payload'=>$payload])."\n";
         }
+        if ($generated!==null) $this->query("INSERT INTO synth_meta.response_routes(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
+            VALUES($1,$2,'fixture:player',$3,1,$4,$5::jsonb,'addressed',$6::jsonb,$7)",
+            [$event['session_id'],$event['request_id'],hash('sha256',$lines['player']),$event['context_sequence'],
+                $this->json($this->context['player']),$this->json($this->context['target']),synth_autochat_utterance_id($event)]);
         $body=implode('',$lines);$this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$event['request_id']]);
         $this->query("INSERT INTO synth_meta.response_routes(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener)
             VALUES($1,$2,'fixture:dialogue',$3,1,$4,$5::jsonb,'addressed',$6::jsonb)",
@@ -718,6 +725,143 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $job=synth_relationship_enqueue_evaluation($this->database,$evaluation);
         $this->assertNotNull($job);return $job;
     }
+    // Auto Chat's generated player row is one deterministic stage of its owner: the exact row is reused, a conflicting
+    // text is refused and a cancelled owner writes nothing. Real sql::insertNativeHistoryOnce under the claim lock.
+    public function testAutoChatPlayerHistoryStageIsInsertedOnceReusedExactlyAndRefusesConflict(): void {
+        $event=$this->parent;$event['request_id']='relationship-autochat';
+        $event['payload']=['text'=>'[grateful] thank her','control'=>['mode'=>'AUTOCHAT','model_slot'=>1]];
+        $this->request($event);
+        $script=<<<'PHP'
+require 'lib/postgresql.class.php';
+require 'lib/synth_protocol_state.php';
+require 'lib/synth_autochat.php';
+$db=new sql();
+$GLOBALS['db']=$db;$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+$event=json_decode(stream_get_contents(STDIN),true,flags:JSON_THROW_ON_ERROR);
+$GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+$stage=static function (string $text, string $gamets, int $localts) use ($db,$event): string {
+    $data='Nora: '.$text.' (Talking to Piper Wright)';
+    $GLOBALS['SYNTH_AUTOCHAT']=['text'=>$text,'target'=>[],'player'=>'Nora','utterance_id'=>synth_autochat_utterance_id($event),
+        'published'=>false,'data'=>$data];
+    try {
+        synth_autochat_record_history($db,['type'=>'inputtext','data'=>$data,'sess'=>'web',
+            'localts'=>$localts,'ts'=>1000,'gamets'=>$gamets,'people'=>'|Nora|Piper Wright|','location'=>'','party'=>'']);
+        return 'stored';
+    } catch (SYNTHProtocolCancelled) { return 'cancelled'; }
+    catch (LogicException $error) { return $error->getMessage(); }
+};
+$results=[];
+// "text@gamets"; processing time differs on every re-entry and is never compared.
+foreach (explode(',',$argv[1] ?? '') as $i=>$item) { [$text,$gamets]=explode('@',$item)+[1=>'1000']; $results[]=$stage($text,$gamets,1000+$i); }
+echo json_encode(['results'=>$results,'idle'=>$db->isTransactionIdle()],JSON_THROW_ON_ERROR);
+PHP;
+        $run=function (string $texts) use ($script,$event): array {
+            $environment=getenv();unset($environment['PHPUNIT_TEST']);
+            $environment['SYNTH_DB_HOST']='localhost';$environment['SYNTH_DB_NAME']='testdb';
+            $environment['SYNTH_DB_USER']='dwemer';$environment['SYNTH_DB_PASSWORD']='dwemer';
+            $process=proc_open([PHP_BINARY,'-r',$script,'--',$texts],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,dirname(__DIR__,2),$environment);
+            $this->assertIsResource($process);
+            fwrite($pipes[0],$this->json($event));fclose($pipes[0]);
+            $output=stream_get_contents($pipes[1]);$diagnostic=stream_get_contents($pipes[2]);
+            fclose($pipes[1]);fclose($pipes[2]);proc_close($process);
+            return json_decode($output,true,flags:JSON_THROW_ON_ERROR)+['diagnostic'=>$diagnostic];
+        };
+        $rows=fn(): array => pg_fetch_all($this->query("SELECT e.data,e.utterance_id,e.delivery_state,h.event_payload->>'delivery_state' AS payload_state
+            FROM synth.eventlog e JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid WHERE h.request_id='relationship-autochat'")) ?: [];
+        // Same logical stage re-entered (new processing time) is reused; other text or game time is a conflict.
+        $first=$run('Thanks for the help.,Thanks for the help.,Something else.,Thanks for the help.@2000');
+        $this->assertSame(['stored','stored','native_history_stage_conflict','native_history_stage_conflict'],$first['results'],$first['diagnostic']);
+        $this->assertTrue($first['idle']);
+        $this->assertCount(1,$rows());
+        $this->assertSame('Nora: Thanks for the help. (Talking to Piper Wright)',$rows()[0]['data']);
+        $this->assertStringStartsWith('autochat.',$rows()[0]['utterance_id']);
+        // Accepted generated input, set explicitly before any wire output; never spoken or emitted.
+        $this->assertSame(['received','received'],[$rows()[0]['delivery_state'],$rows()[0]['payload_state']]);
+        // A history payload that disagrees with its eventlog row, or a stage row of another generation, is never reused.
+        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||'{\"data\":\"Nora: Other.\"}'::jsonb WHERE request_id='relationship-autochat'");
+        $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth_meta.history_events h SET event_payload=to_jsonb(e) FROM synth.eventlog e WHERE h.eventlog_rowid=e.rowid AND h.request_id='relationship-autochat'");
+        $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth.eventlog SET synth_generation=synth_generation+1 WHERE synth_request_id='relationship-autochat'");
+        $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth.eventlog SET synth_generation=synth_generation-1 WHERE synth_request_id='relationship-autochat'");
+        // The root stage is written with no scene and no hearer projection; a row claiming either is not this stage.
+        $this->query("UPDATE synth_meta.history_events SET scene_context_sequence=context_sequence WHERE request_id='relationship-autochat'");
+        $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth_meta.history_events SET scene_context_sequence=NULL WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||'{\"synth_dialogue_hearer_ids\":[]}'::jsonb WHERE request_id='relationship-autochat'");
+        $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload-'synth_dialogue_hearer_ids' WHERE request_id='relationship-autochat'");
+        $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
+        $this->assertCount(1,$rows());
+        // A second row under the same stage key is never reconciled by picking one.
+        $this->query("INSERT INTO synth.eventlog(type,data,sess,localts,ts,gamets,people,location,party,utterance_id,synth_session_id,
+                synth_generation,synth_context_sequence,synth_request_id) SELECT type,data,sess,localts,ts,gamets,people,location,party,
+                utterance_id,synth_session_id,synth_generation,synth_context_sequence,synth_request_id FROM synth.eventlog WHERE synth_request_id='relationship-autochat'");
+        $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,'relationship-dispatch-save',max(rowid),'{}'::jsonb
+            FROM synth.eventlog WHERE synth_request_id='relationship-autochat' GROUP BY 1,2,3,4");
+        $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
+        $this->query("UPDATE synth_meta.runtime_sessions SET active_turn_sequence=2 WHERE session_id='relationship-dispatch-session'");
+        $this->assertSame(['cancelled'],$run('Thanks for the help.')['results']);
+        $this->assertCount(2,$rows());
+    }
+    // A continuation of an Auto Chat root recalls the root's one generated line from its completed body and recorded
+    // route through the real locked history reader, never the frozen raw intent. Any unproven route, hash, speaker,
+    // listener, utterance, body or mode fails closed, and the restored proof reads the same history again.
+    public function testAutoChatRootContinuationHistoryUsesOnlyTheProvenGeneratedLineOnce(): void {
+        require_once dirname(__DIR__,2).'/lib/synth_autochat.php';
+        require_once dirname(__DIR__,2).'/lib/synth_rechat_history.php';
+        $root=$this->parent;$root['request_id']='relationship-autochat-root';
+        $root['payload']=['text'=>'[grateful] thank her','control'=>['mode'=>'AUTOCHAT','model_slot'=>1]];
+        $generated='Thanks for pulling me out of there.';
+        $this->request($root);
+        $this->response($root,null,null,$generated);
+        // Root admission freezes Auto Chat with the raw intent before any chain exists.
+        $this->query("INSERT INTO synth_meta.dialogue_origin_policies(session_id,request_id,execution_mode,policy,input_text)
+            VALUES($1,$2,'AUTOCHAT','{}'::jsonb,$3)",[$root['session_id'],$root['request_id'],$root['payload']['text']]);
+        [$child]=$this->continuation('npc',true,$root,null,false);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
+        $expected=synth_protocol_canonical_json(['truncated'=>false,'messages'=>[
+            ['request_id'=>$root['request_id'],'role'=>'player','speaker'=>$this->context['player'],'text'=>$generated],
+            ['request_id'=>$root['request_id'],'line_id'=>'fixture:dialogue','role'=>'npc','speaker'=>$this->context['target'],'text'=>'You are welcome.']]]);
+        $read=function () use ($child,$expected,$generated,$root): void {
+            $history=synth_rechat_history($this->database,$child);
+            $this->assertSame($expected,synth_protocol_canonical_json($history));
+            // The prompt carries this exact encoding: the generated line once, the raw intent never.
+            $prompt=json_encode($history,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+            $this->assertSame(1,substr_count($prompt,$generated));
+            $this->assertStringNotContainsString($root['payload']['text'],$prompt);
+        };
+        $read();
+        $hash=pg_fetch_assoc($this->query("SELECT line_sha256 FROM synth_meta.response_routes WHERE request_id=$1 AND line_id='fixture:player'",[$root['request_id']]))['line_sha256'];
+        $body=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$root['request_id']]))['body']);
+        $stripped=implode('',preg_grep('/"line_id":"fixture:player"/',preg_split('/(?<=\n)/',$body,-1,PREG_SPLIT_NO_EMPTY),PREG_GREP_INVERT));
+        $this->assertNotSame($body,$stripped);
+        $route=static fn(string $set): string => "UPDATE synth_meta.response_routes SET $set WHERE request_id='relationship-autochat-root' AND line_id<>'fixture:dialogue'";
+        // The continuation's reserved parent hash follows the body, so only the missing generated line can refuse it.
+        $completed=static fn(string $bytes): string => "UPDATE synth_meta.request_executions SET response_body=decode('".bin2hex($bytes)."','hex')
+                WHERE request_id='relationship-autochat-root';
+            UPDATE synth_meta.rechat_continuations SET parent_response_sha256='".hash('sha256',$bytes)."' WHERE parent_request_id='relationship-autochat-root'";
+        $mode=static fn(string $mode): string => "UPDATE synth_meta.dialogue_origin_policies SET execution_mode='$mode' WHERE request_id='relationship-autochat-root'";
+        $target=pg_escape_literal($this->connection,$this->json($this->context['target']));
+        $utterance=synth_autochat_utterance_id($root);
+        foreach (['missing route'=>[$route("line_id='fixture:moved'"),$route("line_id='fixture:player'"),'rechat_prepared_parent_unavailable'],
+            'line hash'=>[$route("line_sha256=repeat('0',64)"),$route("line_sha256='$hash'"),'rechat_prepared_parent_unavailable'],
+            'swapped speaker'=>[$route('speaker=listener,listener=speaker'),$route('speaker=listener,listener=speaker'),'rechat_prepared_parent_unavailable'],
+            'foreign listener'=>[$route('listener=speaker'),$route("listener=$target::jsonb"),'rechat_history_autochat_unproven'],
+            'foreign utterance'=>[$route("utterance_id='autochat.foreign'"),$route("utterance_id='$utterance'"),'rechat_history_autochat_unproven'],
+            'missing utterance'=>[$route('utterance_id=NULL'),$route("utterance_id='$utterance'"),'rechat_history_autochat_unproven'],
+            'body without generated line'=>[$completed($stripped),$completed($body),'rechat_history_autochat_unproven'],
+            'raw-intent policy'=>[$mode('STANDARD'),$mode('AUTOCHAT'),'rechat_history_autochat_unproven']] as $case=>[$mutate,$restore,$error]) {
+            $this->query($mutate);
+            try { synth_rechat_history($this->database,$child); $this->fail('Unproven Auto Chat root history accepted: '.$case); }
+            catch (LogicException $refused) { $this->assertSame($error,$refused->getMessage(),$case); }
+            $this->query($restore);
+            $read();
+        }
+    }
+
     public function testCompletedInputCancellationCannotGenerateOrPublishResult(): void {
         $this->query("UPDATE synth_meta.request_executions SET error_code='request_cancelled',response_body=NULL WHERE request_id='relationship-parent'");
         $calls=0;
