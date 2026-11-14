@@ -22,6 +22,7 @@ class SaveRepository
     /**
      * Newest first: the player's own input, and chat lines in the given delivery states that the named placed
      * NPC already witnessed. `own` is 1 for that NPC's own replies and 0 for other speakers' attributed lines.
+     * First-observed vanilla lines (`backgroundchat`) appear only through their canonical witness binding.
      */
     public function conversationRows(array $event, string $targetName, array $deliveredStates, int $limit): array
     {
@@ -30,7 +31,9 @@ class SaveRepository
             ." SELECT type,data,CASE WHEN speaker_identity_id=reader_identity_id THEN 1 ELSE 0 END AS own
             FROM native_history WHERE ((type='inputtext' AND speaker_identity_id=reader_player_id)
                 OR (type='chat' AND speaker_identity_id IS NOT NULL AND speaker_identity_id<>reader_player_id
-                    AND delivery_state IN ($states)))
+                    AND delivery_state IN ($states))
+                OR (type='backgroundchat' AND witness_basis='first_observed' AND speaker_identity_id IS NOT NULL
+                    AND speaker_identity_id<>reader_player_id))
             ORDER BY history_event_id DESC LIMIT ".intval($limit));
         return is_array($rows) ? $rows : [];
     }

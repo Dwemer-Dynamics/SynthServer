@@ -500,7 +500,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             original.localts,original.ts,original.rowid,original.people,original.location,original.party,
             original.utterance_id,original.delivery_state,
             h.id AS history_event_id,s.reader_identity_id,s.reader_player_id,ownership.speaker_identity_id,
-            origin.context_payload->'world'->>'location' AS source_location {$roleColumns}
+            origin.context_payload->'world'->>'location' AS source_location,witness.basis AS witness_basis {$roleColumns}
         FROM $scopes s JOIN $historyEvents h
             ON h.session_id=s.session_id AND h.generation=s.generation AND h.playthrough_id=s.playthrough_id
             AND h.id<=s.cutoff {$sourceFilter}
@@ -511,6 +511,18 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             type text,data text,sess text,gamets bigint,localts bigint,ts bigint,rowid bigint,
             people text,location text,party text,utterance_id text,delivery_state text)
         {$roleJoin}
+        -- A first-observed witness row is visible only through its canonical insertion-time binding:
+        -- the speaker or a granted witness, never the player perspective, a later audience or a name.
+        CROSS JOIN LATERAL (
+            SELECT binding.basis,binding.speaker,binding.basis='first_observed' AND binding.speaker IS NOT NULL
+                AND s.reader_identity_id IS DISTINCT FROM s.reader_player_id
+                AND (s.reader_identity_id=binding.speaker
+                    OR (jsonb_typeof(h.event_payload#>'{synth_witness_observation,witness_identity_ids}')='array'
+                        AND h.event_payload#>'{synth_witness_observation,witness_identity_ids}' @> jsonb_build_array(s.reader_identity_id))) AS visible
+            FROM (SELECT h.event_payload#>>'{synth_witness_observation,basis}' AS basis,
+                CASE WHEN (h.event_payload#>>'{synth_witness_observation,speaker_identity_id}') ~ '^[1-9][0-9]{0,15}$'
+                    THEN (h.event_payload#>>'{synth_witness_observation,speaker_identity_id}')::bigint END AS speaker) binding
+        ) witness
         CROSS JOIN LATERAL (
             WITH actors AS (
                 SELECT id,lower(btrim(replace(name,'|',' '))) AS name FROM (
@@ -527,14 +539,14 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                         OR (jsonb_typeof(h.event_payload->'synth_dialogue_hearer_ids')='array'
                             AND h.event_payload->'synth_dialogue_hearer_ids' @> jsonb_build_array(id)))
             )
-            SELECT (
+            SELECT CASE WHEN h.event_payload ? 'synth_witness_observation' THEN witness.speaker ELSE (
                 SELECT MIN(id) FROM actors
                 WHERE left(lower(original.data),length(name)+1)=name||':'
                 HAVING COUNT(DISTINCT id)=1
-            ) AS speaker_identity_id,
-            EXISTS (
+            ) END AS speaker_identity_id,
+            CASE WHEN h.event_payload ? 'synth_witness_observation' THEN COALESCE(witness.visible,false) ELSE EXISTS (
                 {$visibility}
-            ) AS visible
+            ) END AS visible
         ) ownership WHERE {$historyVisibility}
     ) ";
 }
@@ -624,6 +636,8 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         synthPersistPlayerEvent($db, $event);
         require_once __DIR__.'/actor_event.php';
         synthPersistActorEvents($db, $event);
+        require_once __DIR__.'/observed_dialogue.php';
+        synthPersistObservedDialogue($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE synth_meta.context_snapshots c
@@ -632,7 +646,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
                    AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
                    AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment')
+                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment','backgroundchat')
             ),0))
             WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
             [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
@@ -2640,7 +2654,7 @@ function synth_protocol_prompt_snapshot($db): ?array
     $context = synth_protocol_current_context($db, $event);
     $payload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
     // Native source records are audit evidence, not witnessed prompt context. Read the owned history projection instead.
-    unset($payload['actor_events'],$payload['quest_events']);
+    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue']);
     if (!synth_protocol_quest_response_is_narrator($db,$event)) {
         unset($payload['active_quests'],$payload['active_quests_observation']);
     } else {

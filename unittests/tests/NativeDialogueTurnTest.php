@@ -179,7 +179,9 @@ final class NativeDialogueTurnTest extends TestCase
             }
             public function conversationRows(array $event, string $targetName, int $limit): array
             {
-                return [['type'=>'chat','own'=>0,'data'=>'Piper Wright: Witnessed. (talking to Nate)'],
+                return [['type'=>'backgroundchat','own'=>0,'data'=>'Danny Sullivan: Gate. (Talking to Nate)'],
+                    ['type'=>'backgroundchat','own'=>0,'data'=>'Danny Sullivan: Overheard. (Talking to '.$targetName.')'],
+                    ['type'=>'chat','own'=>0,'data'=>'Piper Wright: Witnessed. (talking to Nate)'],
                     ['type'=>'chat','own'=>1,'data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
                     ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
@@ -314,8 +316,10 @@ final class NativeDialogueTurnTest extends TestCase
         // Own-addressed input stays compact; input addressed elsewhere or without an addressee keeps attribution,
         // a talking-to suffix (even an unparseable name) leading so the bounded long line keeps both names.
         // Another NPC's witnessed delivered reply is attributed context, never this NPC's assistant turn.
+        // Observed vanilla lines stay verbatim even when their literal text ends with a talking-to suffix.
         $this->assertSame([['user','Nate: Unaddressed.'],['user',mb_substr('(Talking to Pipér (Wright)) Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000),0,1000)],
-            ['user','Hello.'],['assistant','Earlier.'],['user','(talking to Nate) Piper Wright: Witnessed.'],['user',trim($event['payload']['text'])]],
+            ['user','Hello.'],['assistant','Earlier.'],['user','(talking to Nate) Piper Wright: Witnessed.'],
+            ['user','Danny Sullivan: Overheard. (Talking to Jun)'],['user','Danny Sullivan: Gate. (Talking to Nate)'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
         // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.

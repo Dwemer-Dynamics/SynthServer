@@ -1,5 +1,13 @@
 # Synthserver open-alpha acceptance
 
+## Vanilla dialogue witnesses
+
+- [ ] Provider prompt probe: ordinary and `/talk` answers from witnesses reflect the observed
+  line, and answers from non-witnesses do not.
+- [ ] Flat in game with the paired client; VR is not offered.
+
+See [VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md). Disposable checks only.
+
 ## Native conversation World Knowledge
 
 See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopback and suite checks only.

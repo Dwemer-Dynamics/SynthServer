@@ -1,5 +1,12 @@
 # Synthserver developer handoff
 
+## Vanilla dialogue witnesses candidate
+
+Admits flat `context.observed_dialogue` (policy `same_cell_speaker_radius_1000_v1`) into one
+identity-bound history row. Ordinary and `/talk` reads use the bound hearers. There is no
+migration, no provider prompt probe and no game run. VR is unavailable. See
+[VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md).
+
 ## Native conversation World Knowledge candidate
 
 Native `/talk` conversation turns previously sent no lore. The candidate adds deterministic,
