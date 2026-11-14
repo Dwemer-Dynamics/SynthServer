@@ -3,8 +3,11 @@
 ## Vanilla dialogue witnesses candidate
 
 Admits flat `context.observed_dialogue` (policy `same_cell_speaker_radius_1000_v1`) into one
-identity-bound history row. Ordinary and `/talk` reads use the bound hearers. There is no
-migration, no provider prompt probe and no game run. VR is unavailable. See
+identity-bound history row. Ordinary and `/talk` reads use the bound hearers. The full existing
+suite passes with one skip, and the skipped client-wiring test passed separately against the
+paired client. A loopback prompt check with a fake provider and synthetic state shows the line
+reaches only the granted witness. A source review found no wrong-grant defect. There is no
+model-answer review, migration or game run. VR is unavailable. See
 [VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md).
 
 ## Native conversation World Knowledge candidate
