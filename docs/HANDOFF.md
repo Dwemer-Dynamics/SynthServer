@@ -31,6 +31,19 @@ participant tiers reuse that view. The narrator role, journal privacy and all re
 unchanged. Disposable loopback and focused suites only; no client, game or VR check. See
 [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 
+## Readable paper notes candidate (server)
+
+Flat `1.11.240` clients can report a note the player actually opened (`note_read`). The read becomes an immutable,
+private player grant. An explicit `note_share` hands the newest visible read to the bound snapshot's addressed
+target. Only that recipient's later native `/talk` and ordinary prompts carry the bounded, quoted
+`<shared_notes>` block, and only from saves that contain the share. Additive schema `readable_notes_schema`. Each
+grant is keyed by its own immutable history marker and seen only through the saved insertion frontier.
+Disposable-PostgreSQL probes passed, and the compiled flat client core ran against this server over loopback HTTP
+(scratch callbacks and injected reads, not native or game proof). No game or VR check; VR is refused. The mode guard
+sees modes only, not the unmerged Everyone audience, which the client refuses locally; combined integration is held.
+See
+[READABLE-NOTES.md](READABLE-NOTES.md).
+
 ## NPC biography and SPECIAL candidate
 
 Authored expertise is preserved once in Background. Skills come only from the exact actor’s copied SPECIAL base/current observations after a negotiated init acknowledgement. New imports use the layout; the server provides an operator-only, provenance-guarded dry-run/apply repair. No database schema change, deployment or game acceptance is implied. See [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md) and [protocol/v2/README.md](../protocol/v2/README.md).

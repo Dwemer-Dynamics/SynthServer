@@ -17,8 +17,9 @@ final class PromptManager
 
     // $knowledge is the turn's already rendered and bounded World Knowledge block, framed as in ordinary dialogue.
     // $questKnowledge is the already rendered, 8 KiB-bounded <quest_knowledge> block for this NPC.
+    // $noteKnowledge is the already rendered, 12 KiB-bounded <shared_notes> block of notes handed to this NPC.
     public function messages(PlacedCharacter $character, array $situation, array $history, string $text, string $skills = '',
-        string $knowledge = '', string $questKnowledge = ''): array
+        string $knowledge = '', string $questKnowledge = '', string $noteKnowledge = ''): array
     {
         $system = "You are {$character->displayName()} in Fallout 4. Reply in character with the character's utterance only, no narration, actions or markup. Respect nonverbal speech restrictions.";
         foreach (self::PROFILE_FIELDS as $field => $label) {
@@ -29,6 +30,7 @@ final class PromptManager
         if ($skills !== '') $system .= "\n".$skills;
         if ($knowledge !== '') $system .= "\n<fallout_context>\n<knowledge>\n".$knowledge."\n</knowledge>\n</fallout_context>";
         if ($questKnowledge !== '') $system .= "\n".$questKnowledge;
+        if ($noteKnowledge !== '') $system .= "\n".$noteKnowledge;
         $situation = json_encode($situation, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         return [['role' => 'system', 'content' => $system."\nSituation: ".$situation], ...$history,
             ['role' => 'user', 'content' => $text]];

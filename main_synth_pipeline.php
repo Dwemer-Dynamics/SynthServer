@@ -2514,6 +2514,10 @@ if ($gameRequest[0] != "diary") {
         "chars" => strlen((string)$task),
     ], "info");
     Logger::info("Task injected for {$GLOBALS["SYNTH_NAME"]}");
+    // Only notes the player explicitly handed to this responder; private reads and other recipients' notes never
+    // qualify. Prompt-only: the block is not written to history, memory or diary.
+    require_once __DIR__.'/lib/synth_notes.php';
+    $GLOBALS["COMMAND_PROMPT"].=synth_note_legacy_prompt($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? []);
 }
 
 // Offer memory in CONTEXT
