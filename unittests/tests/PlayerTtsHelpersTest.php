@@ -267,6 +267,21 @@ PHP;
         $this->assertSame('hello', $GLOBALS['SYNTH_PLAYER_INPUT_TEXT']);
         $this->assertTrue($GLOBALS['SYNTH_SKIP_PLAYER_TTS']);
         $this->assertSame('{"people":"|Doc Mitchell|Graussy|Veronica|"}', $gameRequest[4]);
+
+        // An explicit Everyone turn names its public audience; the responder stays the transport target.
+        $saved = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        try {
+            $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => json_decode(file_get_contents(dirname(__DIR__, 2)
+                . '/protocol/v2/fixtures/valid/input-text-everyone.json'), true, flags: JSON_THROW_ON_ERROR)];
+            $gameRequest = ['inputtext', '1', '2', $payload];
+            synth_adapt_json_input_payload_for_pipeline($gameRequest);
+            $this->assertSame('Graussy: hello (Talking to everyone)', $gameRequest[3]);
+            $this->assertSame('Doc Mitchell', $GLOBALS['SYNTH_INPUT_TARGET']);
+            $this->assertSame('Graussy: hello (Shouting to everyone)', convertTalkingTagsToShouting($gameRequest[3]));
+            $this->assertTrue(extractTalkTargetMetadata($gameRequest[3])['isBroadcast']);
+        } finally {
+            if ($saved === null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT'] = $saved;
+        }
     }
 
     public function testRuntimePlayerTextExtractionRequiresJsonPayload(): void

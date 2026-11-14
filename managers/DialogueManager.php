@@ -92,7 +92,7 @@ final class DialogueManager
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()
-            .' (Talking to '.$character->displayName().')');
+            .' (Talking to '.(\synth_control_everyone_input($request->event) ? 'everyone' : $character->displayName()).')');
         $buffer = ''; $count = 0; $total = 0;
         // Over-limit output stops provider consumption and ends the turn as an error; nothing is truncated.
         $emit = function (string $text) use ($turn, &$count): void {

@@ -974,3 +974,9 @@ BEGIN
         SELECT 1 FROM nodes n WHERE json_typeof(n.node) = 'object'
             AND (SELECT count(*) <> count(DISTINCT k) FROM json_object_keys(n.node) k));
 END $$;
+
+-- Explicit Everyone audience: a per-session preference and the epoch that forced resets advance.
+ALTER TABLE synth_meta.runtime_sessions
+    ADD COLUMN IF NOT EXISTS audience_intent TEXT NOT NULL DEFAULT 'normal'
+        CHECK (audience_intent IN ('normal', 'everyone')),
+    ADD COLUMN IF NOT EXISTS audience_reset_epoch BIGINT NOT NULL DEFAULT 0 CHECK (audience_reset_epoch >= 0);

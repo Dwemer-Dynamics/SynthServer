@@ -1418,11 +1418,20 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
     $hashSql = $db->escapeLiteral($hash);
     $canonicalSql = $db->escapeLiteral($canonical);
     $generation = intval($event['generation']);
+    // Mode writes, audience preferences and Everyone input order on the global audience gate before the session
+    // lock. Its raw connection is captured before BEGIN; nothing may reconnect inside the transaction.
+    require_once __DIR__.'/synth_control.php';
+    $audienceGate = synth_control_audience_gate($event);
+    $audienceConnection = $audienceGate === null ? null : $db->getCatalogueSqlConnection();
 
     if ($db->execQuery('BEGIN') === false) {
         synth_protocol_fail('database_unavailable', 503);
     }
     try {
+        if ($audienceConnection !== null) {
+            require_once __DIR__.'/synth_audience_control.php';
+            synth_audience_lock_gate($audienceConnection, $audienceGate);
+        }
         $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))");
         $existing = $db->fetchOne(
             "SELECT request_sha256, state, response_content_type, response_body, error_code, claimed_at
@@ -1473,7 +1482,15 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             $clientVersion = $db->escapeLiteral($event['client_version']);
             $runtimeVersion = $db->escapeLiteral($event['runtime_version']);
             $capabilities = $db->escapeLiteral(json_encode($event['capabilities'], JSON_UNESCAPED_SLASHES));
-            $db->execQuery(
+            // A new generation of a negotiated session returns to Normal and advances the audience epoch, so no
+            // earlier acknowledgement survives it. Without the migration Everyone is not acknowledged (fail closed).
+            $audienceReset = $event['type'] === 'init' && synth_control_everyone_supported($event)
+                && $db->fetchOne("SELECT 1 AS ready FROM pg_attribute WHERE attrelid='synth_meta.runtime_sessions'::regclass
+                    AND attname='audience_reset_epoch' AND NOT attisdropped");
+            $audienceSql = $audienceReset ? ", audience_intent='normal',
+                     audience_reset_epoch=synth_meta.runtime_sessions.audience_reset_epoch+1" : '';
+            $audienceReturning = $audienceReset ? ' RETURNING audience_intent, audience_reset_epoch' : '';
+            $upsert =
                 "INSERT INTO synth_meta.runtime_sessions
                     (session_id, playthrough_id, game, runtime_variant, client_version, runtime_version,
                      active_generation, capabilities, state)
@@ -1483,8 +1500,14 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                      game='fo4', runtime_variant=EXCLUDED.runtime_variant,
                      client_version=EXCLUDED.client_version, runtime_version=EXCLUDED.runtime_version,
                      active_generation=EXCLUDED.active_generation, capabilities=EXCLUDED.capabilities,
-                     state='active', active_turn_id=NULL, active_turn_sequence=0, updated_at=NOW()"
-            );
+                     state='active', active_turn_id=NULL, active_turn_sequence=0, updated_at=NOW(){$audienceSql}{$audienceReturning}";
+            if (!$audienceReset) $db->execQuery($upsert);
+            else {
+                $upserted = $db->fetchOne($upsert);
+                if (!is_array($upserted)) throw new RuntimeException('Unable to reset the session audience.');
+                $GLOBALS['SYNTH_AUDIENCE_INIT_ACK'] = ['intent' => strval($upserted['audience_intent']),
+                    'reset_epoch' => intval($upserted['audience_reset_epoch'])];
+            }
             if ($event['type'] === 'init' && is_array($event['payload']['plugins'] ?? null)) {
                 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php');
                 $persistedPlugins = synthReplaceLoadedGamePlugins($event['payload']['plugins']);
@@ -1534,6 +1557,18 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             if (is_array($event['payload']) && isset($event['payload']['capture_id'])) {
                 require_once __DIR__ . '/visual_context_request.php';
                 synth_visual_bound_capture($db, $event);
+            }
+            // First canonical claim of Everyone: the client's non-player responder must be a captured audience
+            // member with one available captured state, and the acknowledged epoch is compared under the gate,
+            // session lock and row lock that order every reset. The current preference is not re-read here.
+            // Replays returned above; admitted turns are never re-checked. There is no directed fallback.
+            if (synth_control_everyone_input($event)) {
+                require_once __DIR__.'/synth_rechat_routes.php';
+                $captured = synth_protocol_original_context($db, $event);
+                if (!is_array($captured['payload'] ?? null) || !synth_rechat_everyone_responder($captured['payload']))
+                    throw new DomainException('audience_target_not_captured');
+                synth_audience_assert_everyone($audienceConnection, $sessionId, $generation,
+                    intval($event['payload']['audience_reset_epoch']));
             }
             if (synth_protocol_owns_dialogue_turn($event)) {
                 if (in_array('dialogue.turn_cancel', $event['capabilities'], true)) {
@@ -1600,8 +1635,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         );
 
         if ($event['type'] === 'control') {
-            require_once __DIR__.'/synth_control.php';
-            synth_control_apply($db, $event);
+            synth_control_apply($db, $event, $audienceConnection);
         } elseif ($event['type'] === 'context') {
             synth_protocol_persist_context($db, $event, $sessionId);
         } elseif ($event['type'] === 'activate') {
@@ -2586,8 +2620,8 @@ function synth_protocol_current_context($db, array $event): ?array
     }
     if ($context!==null && !isset($context['scene_context_sequence']) && synth_protocol_owns_rechat($event)) {
         require_once __DIR__.'/synth_rechat_routes.php';
-        // Without a fresh scene no Close bystander is proven to still be within range.
-        if (synth_rechat_close_root($db,$event)) $context['payload']['audience']=[];
+        // Without a fresh scene no Close or Everyone bystander is proven to still hear.
+        if (synth_rechat_root_audience($db,$event)!==null) $context['payload']['audience']=[];
     }
     if ($context!==null && ($event['protocol_version'] ?? 1)===2
         && (($event['type'] ?? '')==='action_result'

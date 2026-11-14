@@ -144,7 +144,10 @@ function synthQuestKnowledgePlayerReportFromEvidence(array $source): array
     if ($event['type']==='input_audio' && !is_array($event['payload']['media'] ?? null)) return [];
     $prefix=synthQuestKnowledgeDisplayFragment($player['display_name']).': '.synthQuestKnowledgeDisplayFragment($text);
     $verb=match($mode) {'WHISPER'=>'Whispering','CLOSE'=>'Speaking privately','SHOUT'=>'Shouting',default=>'Talking'};
-    $suffix=' ('.$verb.' to '.synthQuestKnowledgeDisplayFragment($target['display_name'],true).')';
+    // An Everyone report was stored as addressed to everyone; its reader remains the identity-bound target.
+    require_once __DIR__.'/synth_control.php';
+    $addressee=synth_control_everyone_input($event) ? 'everyone' : synthQuestKnowledgeDisplayFragment($target['display_name'],true);
+    $suffix=' ('.$verb.' to '.$addressee.')';
     if (!is_string($history['data'] ?? null) || !in_array($history['data'],[$prefix,$prefix.$suffix],true)) return [];
     return ['player_name'=>$player['display_name'],'report'=>$text,'history_event_id'=>$ids['history_event_id'],
         'active_quests'=>$context['active_quests']];

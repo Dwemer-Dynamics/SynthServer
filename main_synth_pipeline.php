@@ -304,7 +304,9 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             require_once $path.'lib/synth_social_tasks.php';
             $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=synth_social_offers($db,$wireEvent);
         }
-        synth_protocol_emit_ack(($wireEvent['type'] ?? 'event') . '_accepted');
+        // The negotiated init ACK reports the audience reset it committed; its stored body is what replays return.
+        synth_protocol_emit_ack(($wireEvent['type'] ?? 'event') . '_accepted',
+            is_array($GLOBALS['SYNTH_AUDIENCE_INIT_ACK'] ?? null) ? ['control_audience'=>$GLOBALS['SYNTH_AUDIENCE_INIT_ACK']] : []);
         exit;
     }
     synth_protocol_assert_request_active();
@@ -333,7 +335,16 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
     // them to api/v2. Unmarked typed text keeps the existing action-capable route unchanged.
     if (($wireEvent['type'] ?? '') === 'control') {
         require_once $path.'lib/synth_control.php';
-        synth_protocol_emit_ack('control_state', ['detail'=>synth_control_status($db)]);
+        $controlState = ['detail'=>synth_control_status($db)];
+        try {
+            $controlAudience = synth_control_audience_status($db, $wireEvent);
+            if ($controlAudience !== null) $controlState['control_audience'] = $controlAudience;
+        } catch (Throwable $error) {
+            // The control itself committed. Without a readable audience the client disables Everyone; it never
+            // assumes a directed fallback.
+            Logger::warn('Control audience status unavailable'.Logger::formatContext(['reason'=>$error->getMessage()]));
+        }
+        synth_protocol_emit_ack('control_state', $controlState);
         exit;
     }
     $transcript = null;
@@ -2551,14 +2562,17 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext","ch
 error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
 
 // Mode-specific response behavior keeps private and projected speech distinct.
+// Owned continuations inherit the proven chain root's captured-group audience (Close or Everyone).
+require_once __DIR__.'/lib/synth_rechat_routes.php';
+require_once __DIR__.'/lib/synth_control.php';
+$rechatRootAudience = synth_rechat_root_audience($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? []);
 if (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNTH_EXECUTION_MODE"]) === "WHISPER") {
     if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string($GLOBALS["COMMAND_PROMPT"])) {
         $GLOBALS["COMMAND_PROMPT"] = "";
     }
     $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Whisper mode is active. {$GLOBALS["PLAYER_NAME"]} is whispering to you. Reply by whispering back in a quiet, discreet, close-range tone and keep the delivery private.]";
 } elseif ((isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNTH_EXECUTION_MODE"]) === "CLOSE")
-    || (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])
-        && synth_rechat_close_root($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json']))) {
+    || $rechatRootAudience === 'close') {
     // Owned continuations execute as STANDARD; their Close semantics come from the proven chain root.
     if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string($GLOBALS["COMMAND_PROMPT"])) {
         $GLOBALS["COMMAND_PROMPT"] = "";
@@ -2569,6 +2583,13 @@ if (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)$GLOBALS["SYNT
         $GLOBALS["COMMAND_PROMPT"] = "";
     }
     $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Shout mode is active. {$GLOBALS["PLAYER_NAME"]} is speaking loudly across the area. Reply loudly enough to be heard and treat the exchange as public, audible dialogue.]";
+}
+// Explicit public audience: the responder is only the transport, never the sole addressee.
+if (synth_control_everyone_input($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? []) || $rechatRootAudience === 'everyone') {
+    if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string($GLOBALS["COMMAND_PROMPT"])) {
+        $GLOBALS["COMMAND_PROMPT"] = "";
+    }
+    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[{$GLOBALS["PLAYER_NAME"]} addressed everyone nearby, not you alone. Reply only as yourself, as one voice in the group, and do not speak for anyone else.]";
 }
 
 

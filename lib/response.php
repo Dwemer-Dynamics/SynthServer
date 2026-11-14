@@ -460,6 +460,14 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if (isset($detail['detail']) && trim(strval($detail['detail'])) !== '') {
         $statusPayload['detail'] = substr(trim(strval($detail['detail'])), 0, 1024);
     }
+    // Only an init or control_state of a session that negotiated Everyone carries the closed audience object.
+    $audience = $detail['control_audience'] ?? null;
+    if (is_array($audience) && ($status === 'control_state' || ($event['type'] ?? '') === 'init')) {
+        require_once __DIR__.'/synth_control.php';
+        if (synth_control_everyone_supported($event) && in_array($audience['intent'] ?? null, ['normal','everyone'], true)
+            && is_int($audience['reset_epoch'] ?? null) && $audience['reset_epoch'] >= 0)
+            $statusPayload['control_audience'] = ['intent'=>$audience['intent'], 'reset_epoch'=>$audience['reset_epoch']];
+    }
     $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status', $wire);
     if ($status==='social_task_accepted' && in_array($event['type'] ?? '',['input_text','input_audio'],true)
         && synth_social_supported($event) && is_string($GLOBALS['SYNTH_SOCIAL_INPUT_TEXT'] ?? null)

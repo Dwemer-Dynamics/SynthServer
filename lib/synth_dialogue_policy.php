@@ -47,6 +47,9 @@ function synth_dialogue_capture_origin_policy($db, array $event, array $settings
     if (!synth_protocol_owns_dialogue_turn($event) || ($event['type'] ?? '')==='action_result'
         || (($event['type'] ?? '')==='trigger' && ($event['payload']['kind'] ?? '')==='rechat')) return;
     $policy=synth_dialogue_origin_policy($settings,$executionMode);
+    // Like Close, an Everyone turn keeps its continuations inside the captured group, so no random narrator.
+    require_once __DIR__.'/synth_control.php';
+    if (synth_control_everyone_input($event)) $policy['random_narration']=false;
     $inputText=synth_dialogue_origin_input($event,$transcript);
     $db->withNativeRequestLock(static function($connection,array $owner) use($event,$policy,$executionMode,$inputText) {
         if ($owner!==$event) throw new LogicException('dialogue_policy_owner_changed');
