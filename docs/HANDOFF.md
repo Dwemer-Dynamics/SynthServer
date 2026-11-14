@@ -10,36 +10,42 @@ Every global mode writer now shares one audience gate and resets incompatible au
 dashboard home page's Audience fieldset saves the preference for one explicitly chosen session. The additive
 migration is `synth_protocol_schema` 20261113002. See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md) and
 [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience). These automated checks passed on exact
-commit exports:
+commit exports of the pair combined with vanilla dialogue witnesses (server `d288852`, client `ed4b155`):
 
-- The full suite passed on disposable PostgreSQL 17 (server `301b18f`, client `6720a1c`).
+- The full suite passed on disposable PostgreSQL 17: 1313 tests, 26641 assertions, none failed or skipped.
 - A paired run drove a compiled-client driver over real HTTP, covering migration, held duplicates, receipt
-  boundaries and bounded continuations.
+  boundaries and bounded continuations. The repository loopback check also passed, including the vanilla
+  witness case.
 - Quest checks passed: an ordinary Everyone report is quest-readable only by the frozen exact responder.
-- Static pair reviews of the combined quest source found no new integration blockers.
+- A private-history control found no leak: Whisper, Close and vanilla rows stay with their own hearers across
+  ordinary and native Everyone turns, within the inherited 12-row native budget.
+- The paired client's native Windows and portable Linux checks passed on the same pins.
+- Independent exact-source and runtime-evidence reviews found no new privacy or integration blockers.
 
 Still open:
 
 - Native `/talk` records `(Talking to everyone)` in Shout too; ordinary input uses `(Shouting to everyone)`.
 - Native-origin reports lack the required origin policy and are excluded as quest sources in Standard and
-  Shout, with or without Everyone. This inherited producer gap is separate from Everyone.
+  Shout, with or without Everyone. This inherited producer gap is separate from Everyone and unchanged.
 - Cancelled-source exclusion is proven only for the quest block, not the generic full prompt.
 - The legacy `setconf`, requested-mode and Director call sites have not run; only their shared writer was
   tested.
 - Primary dashboard visual acceptance is blocked; automated headless checks do not replace it.
-- Hosted Actions were disabled at the last live check.
-- Merge and the AutoChat handoff are held until verification or a human waiver.
-- These checks and the vanilla witness checks below predate their merge and do not cover the combined pair.
+- Hosted Actions are unavailable and have not passed for this pair; the local Debian 12 run is a workflow
+  equivalent, not the hosted Ubuntu image. Gameplay and deployment are unverified. Publication state is
+  tracked on the pull requests.
 - Flat and VR client DLLs were built and their packages checked, but there is no native gameplay, microphone,
-  headset, deployment or publication evidence.
+  headset, performance, deployment or publication evidence.
 
 ## Vanilla dialogue witnesses candidate
 
 Admits flat `context.observed_dialogue` (policy `same_cell_speaker_radius_1000_v1`) into one
-identity-bound history row. Ordinary and `/talk` reads use the bound hearers. The full existing
-suite passes with one skip, and the skipped client-wiring test passed separately against the
-paired client. A loopback prompt check with a fake provider and synthetic state shows the line
-reaches only the granted witness. A source review found no wrong-grant defect. There is no
+identity-bound history row. Ordinary and `/talk` reads use the bound hearers. On the earlier
+witness-only slice, the full existing suite passed with one skip, and the skipped client-wiring
+test passed separately against the paired client; the combined Everyone pair's full suite above
+(1313 tests, 26641 assertions) had no skips. A loopback prompt check with a fake provider and synthetic state shows the line
+reaches only the granted witness; it was rerun on the combined Everyone pair. The witness grant is
+dialogue-only, not physical-perception proof. A source review found no wrong-grant defect. There is no
 model-answer review, migration or game run. VR is unavailable. See
 [VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md).
 

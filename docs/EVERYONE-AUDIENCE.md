@@ -78,28 +78,48 @@ The wire contract (`dialogue.everyone`, status `control_audience`, control `sett
 ## Evidence boundary
 
 Off-game checks only; acceptance is tracked in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience).
-Exact commit archives (server `301b18f`, paired client `6720a1c`), each independently regenerated to match
-its pin, were checked on Linux with PHP 8.2 and disposable PostgreSQL, with the source unchanged after
-each run:
+Exact commit archives of the combined pair with vanilla dialogue witnesses (server `d288852`, client
+`ed4b155`) were checked on Linux with PHP 8.2 and disposable PostgreSQL, with the source hash unchanged
+before and after each run:
 
-- The full PHPUnit suite passed on PostgreSQL 17: 1313 tests, 26622 assertions, no failures, errors or skips.
-- A focused paired run on PostgreSQL 17 (3 tests, 1249 assertions) drove synthetic actor snapshots through the compiled client
-  driver and codec over real loopback HTTP. It covered:
+- The full PHPUnit suite passed on PostgreSQL 17: 1313 tests, 26641 assertions, no failures, errors or skips.
+- A focused paired run on PostgreSQL 17 (3 tests, 1239 assertions) drove synthetic actor snapshots through the
+  compiled client driver and codec over real loopback HTTP. The assertion count varies with a deliberately
+  unforced concurrency case and is not a fixed expectation. It covered:
   - Migration: a fresh install, an upgrade from a pre-Everyone install that preserves seeded UTF-8 rows byte for
     byte, and an idempotent re-run.
   - A duplicate while the provider is held returns `request_pending` and changes nothing.
   - Delivered and undelivered native replies stay distinct in heard history and in the witnesses' next prompts.
   - Ordinary emitted history appears in the next prompt without a receipt.
   - Continuations stay bounded.
+- The repository loopback check (3 tests, 772 assertions) includes a vanilla `first_observed` witness: Piper
+  sees the line once; Nick, a same-name Piper and a session restored from before the observation see none.
+  That policy (`same_cell_speaker_radius_1000_v1`) is dialogue-only and is not physical-perception proof.
 - On PostgreSQL 15 with pgvector, the original quest-knowledge checks (6 tests, 198 assertions) and an
-  Everyone quest probe (2 tests, 346 assertions) passed for the rules under [Quest knowledge](#quest-knowledge).
+  Everyone quest probe (2 tests, 346 assertions) passed for the rules under [Quest knowledge](#quest-knowledge),
+  including the exact recipient and the older-anchor full-prompt cutoff.
+- A private-history control (1 test, 757 assertions) hand-posted v2 events to the real endpoint:
+  - Whisper reaches only its listener. A Close continuation uses the original group narrowed to the fresh
+    capture, so it selects Nick and not the newcomer Deacon.
+  - Ordinary and native Everyone turns in Standard and Shout to Piper, Nick and Deacon: Piper keeps her own
+    private and witness rows, Nick keeps only his Close rows (no Whisper or vanilla line), and Deacon gets
+    none of the private or vanilla markers.
+  - Early, mid and late saved anchors cut the private rows and the observation off at the right points.
+  - Native readers keep the inherited 12-row budget and heard-only rows. An unreceipted ordinary reply is
+    visible to the ordinary reader only, not to the native heard-history reader. The check does not show
+    that every private row stays visible beyond that budget.
 - The shared global mode writer was exercised directly. The legacy `setconf`, requested-mode and Director
   call sites that use it were confirmed only by reading the source, not run.
-- Static reviews of the exact pair, including the combined quest source, found no new integration blockers.
+- Independent exact-source and runtime-evidence reviews of the pair found no new privacy or integration
+  blockers.
 - The dashboard Audience fieldset passed automated headless browser checks only. Primary visual acceptance is
   still blocked, so Apply and the Everyone POST are untested in a browser.
+- The paired client's native and portable checks, and this repository's release-tree audit and content SQL
+  parity check, passed on the same pins; see the client acceptance notes. The portable run used local Debian 12
+  tools as a workflow equivalent, not the hosted Ubuntu image. Hosted Actions are unavailable and have not
+  passed for this pair.
 
 Synthetic actors over real HTTP and PostgreSQL through the compiled client codec are not `PluginSession`,
-game, microphone, headset or deployment proof. Not covered: flat or VR gameplay. Ordinary replies
+game, microphone, headset, performance or deployment proof. Not covered: flat or VR gameplay. Ordinary replies
 stay visible at emission without a native receipt, and the existing Whisper limit for third-party action
 results is unchanged.
