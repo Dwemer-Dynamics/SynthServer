@@ -86,9 +86,11 @@ final class DialogueManager
             $quest = $this->context->questKnowledge($request, $character);
             // Deterministic lore selection; it degrades to no articles and never calls a provider.
             $knowledge = $this->knowledge?->context($request, $character, $history, $quest) ?? '';
+            // Saved read only; an unavailable or disabled diary is simply absent.
+            $latestDiary = $this->context->latestDiary($request, $character);
             $messages = $this->prompts->messages($character, $situation, $history, $request->text(),
                 $this->context->skills($request, $character), $knowledge,
-                $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '');
+                $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '', $latestDiary);
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()

@@ -213,6 +213,18 @@ co-save checkpoint semantics match the other roles. Native Player entries are no
 legacy diarylog or automatically shared with NPC/Narrator dialogue. Native diary management and
 player-context recall controls remain separate migration work.
 
+Native `/talk` conversation turns (`input_text` with `intent=conversation`) now read the addressed
+NPC's latest diary entry when its profile metadata sets `LATEST_DIARY_CONTEXT_ENABLED`.
+`ContextManager::latestDiary` calls `synth_diary_visible` for the placed character's canonical
+identity under the turn's claimed-request lock, so a stale or superseded turn reads nothing and
+cancellation propagates. Any other read failure leaves the entry out. Topic (200 characters) and
+content (2,000 characters) are bounded and XML-escaped. `PromptManager` frames the entry as the
+character's own subjective reflection, not a record of witnessed events. No provider, embedding or
+write is added. Off-repository loopback evidence covers enabled/disabled profiles, an absent actor, a
+same-name replacement, earlier and later loaded-save anchors, and stale owners. The ordinary
+pipeline's latest-diary inclusion, memory and relationship context on native turns, and
+in-game evidence are not covered by this change.
+
 The manual NPC/Narrator workers and journals have PHPUnit, disposable SQL and loopback connector
 evidence. Public completion tracking is connected but not game-accepted. Server automatic admission
 and saved cooldowns are implemented, but no sleep/wait observation, management migration or gameplay
