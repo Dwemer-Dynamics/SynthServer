@@ -1,5 +1,18 @@
 # Synthserver open-alpha acceptance
 
+## Vanilla dialogue witnesses
+
+- [x] Disposable loopback prompt check (fake provider, synthetic state): the line reaches the
+  granted witness's ordinary and `/talk` prompts once each, and never a non-witness, a same-name
+  actor or a save loaded from before the observation. A retry keeps one history row.
+- [x] Full existing suite on a private disposable database: 1310 tests, 0 failures, 1 skip; the
+  skipped client-wiring test passed separately against the paired client.
+- [ ] Model answers: ordinary and `/talk` answers from witnesses reflect the observed line, and
+  answers from non-witnesses do not.
+- [ ] Flat in game with the paired client; VR is not offered.
+
+See [VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md). Disposable checks only.
+
 ## Native conversation World Knowledge
 
 See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopback and suite checks only.

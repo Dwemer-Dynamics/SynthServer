@@ -46,7 +46,8 @@ final class ContextManager
     // Oldest first. This NPC's own lines and player input addressed to it lose the speaker prefix and
     // talking-to suffix. Player input addressed to someone else, or without a readable addressee, keeps its
     // stored attribution so it is never presented as direct input to this NPC; its talking-to suffix, even one
-    // with an unparseable name, leads the line so truncation of a long body cannot cut it off.
+    // with an unparseable name, leads the line so truncation of a long body cannot cut it off. Observed vanilla
+    // lines (`backgroundchat`) are never player input and stay verbatim whatever their literal text ends with.
     public function history(TurnRequest $request, PlacedCharacter $character): array
     {
         $messages = [];
@@ -55,11 +56,12 @@ final class ContextManager
             $suffix = preg_match('/\s+\((?:talking|Talking) to ([^()]*)\)$/u', $text, $match, PREG_OFFSET_CAPTURE) === 1;
             // Only this NPC's own delivered replies are assistant turns; witnessed lines by others stay attributed.
             $own = $row['type'] === 'chat' && intval($row['own'] ?? 1) === 1;
-            if ($own || ($row['type'] !== 'chat' && $suffix && $match[1][0] === $character->displayName())) {
+            if ($own || ($row['type'] === 'inputtext' && $suffix && $match[1][0] === $character->displayName())) {
                 if ($suffix) $text = substr($text, 0, $match[0][1]);
                 $colon = strpos($text, ': ');
                 $text = $colon === false ? $text : substr($text, $colon + 2);
-            } elseif (preg_match('/^(.*)\s+(\((?:talking|Talking) to .*\))$/su', $text, $tail) === 1) {
+            } elseif (in_array($row['type'], ['inputtext', 'chat'], true)
+                && preg_match('/^(.*)\s+(\((?:talking|Talking) to .*\))$/su', $text, $tail) === 1) {
                 $text = $tail[2].' '.$tail[1];
             }
             $text = trim($text);
