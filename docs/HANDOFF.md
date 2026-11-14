@@ -9,8 +9,23 @@ acknowledged reset epoch, then makes one reply and keeps continuations inside th
 Every global mode writer now shares one audience gate and resets incompatible audiences atomically. The
 dashboard home page's Audience fieldset saves the preference for one explicitly chosen session. The additive
 migration is `synth_protocol_schema` 20261113002. See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md) and
-[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience); production database, paired-client, deployment
-and gameplay acceptance remain pending.
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience). These automated checks passed on exact
+commit exports:
+
+- The full suite passed on disposable PostgreSQL 17.
+- A paired run drove a compiled-client driver over real HTTP, covering migration, held duplicates, receipt
+  boundaries and bounded continuations.
+- Static pair reviews found no blockers.
+
+Still open:
+
+- The legacy `setconf`, requested-mode and Director call sites have not run; only their shared writer was
+  tested.
+- Primary dashboard visual acceptance is blocked; automated headless checks do not replace it.
+- Hosted Actions were disabled or queued when last checked.
+- Merge and the AutoChat handoff are held until verification or a human waiver.
+- Flat and VR client DLLs were built and their packages checked, but there is no native gameplay, microphone,
+  headset, deployment or publication evidence.
 
 ## Native conversation World Knowledge candidate
 

@@ -66,5 +66,23 @@ The wire contract (`dialogue.everyone`, status `control_audience`, control `sett
 ## Evidence boundary
 
 Off-game checks only; acceptance is tracked in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience).
-The production-path PostgreSQL claim, replay and concurrency checks and the paired-client matrix have not
-been run, and deployment and flat or VR gameplay are unverified.
+Exact server/client commit exports were checked on Linux with PHP 8.2 and disposable PostgreSQL 17:
+
+- The full PHPUnit suite passed: 1312 tests, 26609 assertions, no failures or skips.
+- A focused paired run (3 tests, 1244 assertions) drove synthetic actor snapshots through the compiled client
+  driver and codec over real loopback HTTP. It covered:
+  - Migration: a fresh install, an upgrade from a pre-Everyone install that preserves seeded UTF-8 rows byte for
+    byte, and an idempotent re-run.
+  - A duplicate while the provider is held returns `request_pending` and changes nothing.
+  - Delivered and undelivered native replies stay distinct in heard history and in the witnesses' next prompts.
+  - Ordinary emitted history appears in the next prompt without a receipt.
+  - Continuations stay bounded.
+- The shared global mode writer was exercised directly. The legacy `setconf`, requested-mode and Director
+  call sites that use it were confirmed only by reading the source, not run.
+- Static reviews of the exact pair found no blockers.
+- The dashboard Audience fieldset passed automated headless browser checks only. Primary visual acceptance is
+  still blocked, so Apply and the Everyone POST are untested in a browser.
+
+Not covered: `PluginSession`, game, microphone or headset; deployment; flat or VR gameplay. Ordinary replies
+stay visible at emission without a native receipt, and the existing Whisper limit for third-party action
+results is unchanged.

@@ -2,19 +2,25 @@
 
 ## Everyone audience
 
-- [ ] Disposable PostgreSQL: fresh install and upgrade apply `synth_protocol_schema` 20261113002 idempotently.
-- [ ] HTTP + disposable database: negotiated init returns `control_audience` (new session epoch 0, re-init
-      advances it); an unnegotiated init and an unmigrated database return no field.
-- [ ] Control `audience`, `mode` and `status` round trips keep `MODE|SLOT` and report the stored audience;
-      Whisper/Close/Narrator reset every active session atomically, Standard/Shout keep preferences.
-- [ ] First claim: stale epoch, incompatible mode, and a player, non-member, ambiguous or unobserved-audience
-      responder are refused; replay after a reset returns the stored outcome; concurrent mode reset and
-      Everyone claim serialize.
-- [ ] Dashboard Audience fieldset: explicit session choice, Apply saves Normal/Everyone, a restarted session
-      generation is refused, and a timed-out save reports unknown.
-- [ ] Continuations stay in the original group with no newcomers or random narrator; history labels say
-      everyone while the responder profile is used.
-- [ ] Paired client, then flat and VR in game, separately.
+See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md#evidence-boundary). These are off-game results on exact
+server/client commit exports, run on Linux with disposable PostgreSQL 17. No `PluginSession`, game,
+microphone or headset was involved.
+
+- [x] Full PHPUnit: 1312 tests, 26609 assertions, 0 failures, 0 skipped.
+- [x] Migration: a fresh install, an upgrade from a pre-Everyone install that keeps seeded UTF-8 rows
+      byte-identical, and an idempotent re-run of `synth_protocol_schema` 20261113002.
+- [x] Paired run (3 tests, 1244 assertions): synthetic actors went through the compiled client driver and codec
+      over real loopback HTTP. A duplicate while the provider is held returns `request_pending` and writes
+      nothing. Delivered and undelivered native replies stay distinct in heard history and in the witnesses'
+      next prompts. Ordinary emitted history is visible without a receipt. Continuations stay bounded.
+- [x] The shared global mode writer resets active sessions to Normal and advances the epoch. Standard and an
+      invalid mode leave sessions unchanged, and a held gate times out without writing.
+- [ ] The legacy `setconf`, requested-mode and Director reset call sites run at runtime. So far they are
+      confirmed only by reading the source.
+- [ ] Dashboard Audience fieldset, primary visual check: Apply saves Normal or Everyone, a restarted
+      generation is refused, and a timed-out save reports unknown. This is blocked by browser URL policy, and
+      the 14 automated headless checks (GET only) do not replace it.
+- [ ] Flat in game, then VR in headset, separately.
 
 ## Native conversation World Knowledge
 
