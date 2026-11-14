@@ -30,4 +30,11 @@ if (str_starts_with($_SERVER['REQUEST_URI']??'','/offer-failure')) {
     }
     $GLOBALS['db']=new ContextAckFailureSql();
 }
+// The real media endpoint for client uploads. The cli-server sets no PATH_INFO for a router script.
+$path=strval(parse_url($_SERVER['REQUEST_URI']??'',PHP_URL_PATH));
+if (str_starts_with($path,'/media.php/')) {
+    $_SERVER['PATH_INFO']=substr($path,strlen('/media.php'));
+    require $root.'/media.php';
+    exit;
+}
 require $root.'/main.php';

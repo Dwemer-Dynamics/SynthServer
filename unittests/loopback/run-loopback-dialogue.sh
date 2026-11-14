@@ -10,7 +10,7 @@
 # any application or database write, it proves the namespaces are private and only loopback exists, then makes every
 # inherited mount read-only. Everything written afterwards lives on private bounded tmpfs that disappears with the
 # namespace: the git-archive exports of both HEAD commits, the PostgreSQL cluster on 127.0.0.1:5432, runtime
-# conf/data/log, a no-op TTS worker and the compiled driver. /var/www, /home/dwemer and /var/lib/postgresql are hidden,
+# conf/data/log/soundcache, a no-op TTS worker and the compiled driver. /var/www, /home/dwemer and /var/lib/postgresql are hidden,
 # so no deployed tree or host database can be reached. The fake provider and every server stay on loopback.
 set -euo pipefail
 umask 022
@@ -127,11 +127,13 @@ isolated_step() {
     done
     printf '127.0.0.1 localhost\n' > "$WORK/hosts/hosts"; mount --bind "$WORK/hosts/hosts" /etc/hosts
     local root=$WORK/server dir
-    mkdir "$root" "$WORK/src/data/tmp"
+    # soundcache/ is untracked: the voice roots' media, STT temporary file and TTS cache. An empty directory leaves
+    # the file-only source hash unchanged.
+    mkdir "$root" "$WORK/src/data/tmp" "$WORK/src/soundcache"
     printf '<?php exit(0);\n' > "$WORK/hosts/tts_worker.php"
     local source_before; source_before=$(tree_sha256 "$WORK/src")
     mount --rbind "$WORK/src" "$root"; mount -o remount,bind,ro "$root"
-    for dir in conf data log ui/tmp; do
+    for dir in conf data log ui/tmp soundcache; do
         mount -t tmpfs -o size=256m,mode=0755 tmpfs "$root/$dir"; cp -a "$WORK/src/$dir/." "$root/$dir/"; chown -R nobody "$root/$dir"
     done
     mount --bind "$WORK/hosts/tts_worker.php" "$root/service/tts_worker.php"

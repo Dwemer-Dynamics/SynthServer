@@ -61,6 +61,16 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private array $witness=[];
     private array $driverEvidence=[];
     private int $providerSeen=0;
+    // Auto Chat scenario: the fresh-install default player connector, its run state and rewrite requests already seen.
+    private const AUTOCHAT_MODEL='google/gemini-2.5-flash-lite';
+    private const AUTOCHAT_BIO='Loopback player bio LPB7700.';
+    private const AUTOCHAT_SIBLING='0x0001A4E1';
+    // The server's own transcripts of the two uploaded voice roots, and the player voice's configured override.
+    private const AUTOCHAT_TRANSCRIPT='LAI250 tell the settler the generator hums again.';
+    private const AUTOCHAT_REFUSED_TRANSCRIPT='LAI260 say nothing at all.';
+    private const AUTOCHAT_VOICE='loopback_player_mimic_voice';
+    private array $autochat=[];
+    private int $rewriteSeen=0;
     // Set only once this class has created testdb inside the runner, so no inherited teardown can drop a database or
     // touch conf/ on a direct invocation or after a refused setup.
     private static bool $ownsDatabase=false;
@@ -848,5 +858,436 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->query("SELECT request_id,state FROM synth_meta.request_executions WHERE state<>'complete'"));
         $this->companion['accounting']=['requests'=>$counts,'refused_before_claim'=>3,
             'active_agents'=>$this->query('SELECT generation,source,state FROM synth_meta.active_agents WHERE session_id=$1',[$session])];
+    }
+
+    // ---- Auto Chat scenario: an independent run of the same driver with the second argument "autochat" ----
+    // Explicitly selected AUTOCHAT typed roots on the ordinary route. The rewrite goes to the fresh-install default
+    // player connector (OpenRouter row #2, non-streamed), repointed at its own loopback route, and from the third root a
+    // Quickstart-managed openaijson row on that route; the NPC answer goes to the NPC connector's SSE route. The test changes only provider URLs and its own settings and sends no request.
+    // Two voice roots upload a WAV to the real media.php and send input_audio; the server's configured localwhisper STT
+    // connector and the player's configured mimic3 voice call fake routes on the same loopback provider. A rechat
+    // continuation is not covered here (README.md).
+
+    public function testCompiledClientAutoChat(): void {
+        // <dir>/rewrite_mode: ok, empty, incomplete or provider (HTTP 500). <dir>/rewrite_reply may be a FIFO that holds the call.
+        // /stt answers <dir>/stt_text for the uploaded file; /api/tts answers the tiny WAV <dir>/tts.wav. Both record the request.
+        file_put_contents($this->llmDir.'/rewrite_router.php',<<<'PHP'
+            <?php declare(strict_types=1);
+            $dir=getenv('SYNTH_LOOPBACK_LLM_DIR');
+            $path=strval(parse_url($_SERVER['REQUEST_URI'] ?? '',PHP_URL_PATH));
+            if ($path==='/stt') {
+                $file=$_FILES['file']['tmp_name'] ?? '';
+                file_put_contents($dir.'/stt_requests.ndjson',json_encode(['fields'=>array_keys($_FILES),
+                    'sha256'=>is_uploaded_file($file) ? hash_file('sha256',$file) : null])."\n",FILE_APPEND|LOCK_EX);
+                header('Content-Type: application/json');
+                echo json_encode(['text'=>strval(file_get_contents($dir.'/stt_text'))]);
+                exit;
+            }
+            if ($path==='/api/tts') {
+                file_put_contents($dir.'/tts_requests.ndjson',json_encode(['method'=>$_SERVER['REQUEST_METHOD'] ?? '',
+                    'text'=>$_GET['text'] ?? null,'voice'=>$_GET['voice'] ?? null])."\n",FILE_APPEND|LOCK_EX);
+                header('Content-Type: audio/wav');
+                echo file_get_contents($dir.'/tts.wav');
+                exit;
+            }
+            $body=json_decode(strval(file_get_contents('php://input')),true);
+            file_put_contents($dir.'/rewrite_requests.ndjson',json_encode($body)."\n",FILE_APPEND|LOCK_EX);
+            $mode=trim(strval(@file_get_contents($dir.'/rewrite_mode')));
+            if ($mode==='provider') {http_response_code(500);exit;}
+            $content=$mode==='empty' ? '' : strval(file_get_contents($dir.'/rewrite_reply'));
+            header('Content-Type: application/json');
+            echo json_encode(['id'=>'loopback-rewrite','object'=>'chat.completion','model'=>$body['model'] ?? null,'choices'=>[['index'=>0,
+                'message'=>['role'=>'assistant','content'=>$content],'finish_reason'=>$mode==='incomplete' ? 'length' : 'stop']]]);
+            PHP);
+        $rewrite=$this->startServer($this->llmDir.'/rewrite_router.php',$this->environment+['SYNTH_LOOPBACK_LLM_DIR'=>$this->llmDir]);
+        $this->autochat=['rewrite_url'=>'http://'.$rewrite.'/v1/chat/completions','fake_base'=>'http://'.$rewrite,'history'=>[]];
+        // Workers, so the exact duplicate and the cancel reach main.php while a held root still occupies one.
+        $this->address=$this->startServer(dirname(__DIR__).'/fixtures/context_ack_router.php',$this->environment+['PHP_CLI_SERVER_WORKERS'=>'4']);
+        $phases=$this->runDriver(['autochat'],$this->autochatPhase(...),function(string $line): void {
+            if (!str_starts_with($line,'LOOPBACK ')) return;
+            $evidence=json_decode(substr($line,9),true,32,JSON_THROW_ON_ERROR);
+            $this->driverEvidence[strval($evidence['kind'] ?? '')][]=$evidence;
+        });
+        $this->assertSame(['autochat_context','autochat_typed','autochat_grunt','autochat_voice','autochat_sibling','autochat_failed',
+            'autochat_failed','autochat_failed','autochat_failed','autochat_failed','autochat_rewrite_held','autochat_rewrite_cancelled','autochat_npc_held',
+            'autochat_npc_cancelled','autochat_older_talk','autochat_newer_talk'],$phases);
+        // One rewrite call per root; NPC calls only for the four accepted roots, the held one and the two /talk turns. One
+        // STT call per voice root; one player voice call, for the voice root (the grunt's voice endpoint refuses connections).
+        $this->assertCount(11,$this->rewriteRequests());
+        $this->assertCount(7,$this->providerRequests());
+        $this->assertCount(2,self::ndjson($this->llmDir.'/stt_requests.ndjson'));
+        $this->assertCount(1,self::ndjson($this->llmDir.'/tts_requests.ndjson'));
+        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            WHERE strpos(e.data,'LAI')>0")[0]['n'],'no raw intent in history');
+        $this->report('autochat',array_diff_key($this->autochat,['rewrite_url'=>0,'fake_base'=>0]));
+    }
+
+    private function autochatPhase(string $name,array $value): void {
+        match ($name) {
+            'autochat_context'=>$this->autochatContext($value),
+            'autochat_typed'=>$this->autochatTyped($value),
+            'autochat_grunt'=>$this->autochatGrunt($value),
+            'autochat_voice'=>$this->autochatVoice($value),
+            'autochat_sibling'=>$this->autochatSibling($value),
+            'autochat_failed'=>$this->autochatFailed($value),
+            'autochat_rewrite_held','autochat_npc_held'=>$this->autochatHeld($name,$value),
+            'autochat_rewrite_cancelled','autochat_npc_cancelled'=>$this->autochatCancelled($name,$value),
+            'autochat_older_talk','autochat_newer_talk'=>$this->autochatTalk($name,$value),
+            default=>$this->fail("unknown autochat phase $name"),
+        };
+    }
+
+    // The driver's first generated line: exactly 4096 bytes of two-byte UTF-8; one byte more is the oversized case.
+    private static function autochatLine(bool $oversized=false): string {
+        return ($oversized ? 'LAC4097 ' : 'LAC4096 ').str_repeat("\u{e9}",2044).($oversized ? '!' : '');
+    }
+    private static function ndjson(string $file): array {
+        return is_file($file) ? array_map(static fn($l)=>json_decode($l,true),array_values(array_filter(explode("\n",file_get_contents($file))))) : [];
+    }
+    private function rewriteRequests(): array {return self::ndjson($this->llmDir.'/rewrite_requests.ndjson');}
+    // The smallest valid 16-bit mono PCM WAV the speech cache accepts (more than a bare header), distinct from any upload.
+    private static function autochatWave(): string {
+        return pack('a4Va4a4VvvVVvva4V','RIFF',40,'WAVE','fmt ',16,1,1,8000,16000,2,16,'data',4)."\x5a\x00\x5a\x00";
+    }
+    // The uploaded object: published by the real media.php, registered ready under its opaque sha256 reference.
+    private function autochatUpload(array $value,string $label): string {
+        $upload=$this->rootEvidence('autochat_upload','label',$label);
+        $this->assertSame($value['media_id'],$upload['media_id']);
+        $this->assertContains($upload['status'],[200,201]);
+        $sha=substr($value['media_id'],6);
+        $this->assertSame([['content_type'=>'audio/wav','byte_length'=>strval($upload['size']),'sha256'=>$sha,'state'=>'ready']],
+            $this->query('SELECT content_type,byte_length,sha256,state FROM synth_meta.media_objects WHERE media_id=$1',[$value['media_id']]));
+        return $sha;
+    }
+    // The server's STT connector received exactly the uploaded bytes once for this root.
+    private function autochatTranscribed(string $sha): void {
+        $stt=self::ndjson($this->llmDir.'/stt_requests.ndjson');
+        $seen=$this->autochat['stt_seen'] ?? 0;
+        $this->assertSame([['fields'=>['file'],'sha256'=>$sha]],array_slice($stt,$seen),'one STT call with the uploaded bytes');
+        $this->autochat['stt_seen']=count($stt);
+    }
+    // The root's canonical voice event: the opaque media reference only, never any text.
+    private function autochatAudioEvent(array $value): array {
+        $event=$this->canonical($value['session'],$value['request_id']);
+        $this->assertSame(['input_audio',$value['media_id'],'AUTOCHAT'],
+            [$event['type'],$event['payload']['media']['media_id'] ?? null,$event['payload']['control']['mode'] ?? null]);
+        $this->assertArrayNotHasKey('text',$event['payload']);
+        return $event;
+    }
+    // New [rewrite, NPC] provider request bodies since the previous call.
+    private function autochatCalls(): array {
+        $rewrite=$this->rewriteRequests();$npc=$this->providerRequests();
+        $new=[array_slice($rewrite,$this->rewriteSeen),array_slice($npc,$this->providerSeen)];
+        [$this->rewriteSeen,$this->providerSeen]=[count($rewrite),count($npc)];
+        return $new;
+    }
+    private static function messages(array $request): string {
+        return json_encode($request['messages'] ?? null,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    }
+    private function rewriteScript(string $mode,string $reply=''): void {
+        file_put_contents($this->llmDir.'/rewrite_mode',$mode);
+        file_put_contents($this->llmDir.'/rewrite_reply',$reply);
+    }
+    private function playerRows(array $values): void {
+        foreach ($values as $id=>$value) {
+            $this->query('DELETE FROM synth.core_player WHERE id=$1',[$id]);
+            if ($value!==null) $this->query('INSERT INTO synth.core_player(id,value) VALUES($1,$2)',[$id,strval($value)]);
+        }
+    }
+    // The root's player history rows (the generated stage is type inputtext).
+    private function autochatRows(string $session,string $request): array {
+        return $this->query("SELECT h.id,e.type,e.data,e.utterance_id FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            WHERE h.session_id=$1 AND h.request_id=$2 AND e.type LIKE 'inputtext%'",[$session,$request]);
+    }
+    private function autochatRoutes(string $session,string $request): array {
+        return $this->query('SELECT speaker,listener_state,listener,utterance_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',
+            [$session,$request]);
+    }
+    private function rootEvidence(string $kind,string $key,string $value): array {
+        $found=array_values(array_filter($this->driverEvidence[$kind] ?? [],static fn($e)=>($e[$key] ?? null)===$value));
+        $this->assertCount(1,$found,"driver $kind evidence for $value");
+        return $found[0];
+    }
+    // The resent exact bytes replayed the stored body. The caller's call counts show nothing was reinvoked.
+    private function autochatReplay(string $label,string $session,string $request): void {
+        $replay=$this->rootEvidence('autochat_replay','label',$label);
+        $this->assertSame([['body'=>$replay['body']]],$this->query("SELECT convert_from(response_body,'UTF8') AS body
+            FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2",[$session,$request]),"$label replay is the durable response");
+    }
+
+    private function autochatContext(array $value): void {
+        $this->registerActor(['form_id'=>$value['target_form'],'playthrough_id'=>$value['playthrough_id']]);
+        $this->assertSame([],$this->providerRequests(),'no provider call before the first root');
+        $this->assertCount(1,$this->query("UPDATE synth.core_llm_connector SET url=$1 WHERE id=2 AND driver='openrouterjson' AND model=$2
+            AND reasoning_model IS NULL RETURNING id",[$this->autochat['rewrite_url'],self::AUTOCHAT_MODEL]),'the default player connector row');
+        // The default player connector, and no legacy in-process rechat, so every provider call is counted exactly.
+        foreach (['CORE_CONNECTOR_PLAYER'=>'2','RECHAT_H'=>'0','RECHAT_P'=>'0'] as $id=>$setting) {
+            $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES($1,$2,'loopback autochat')
+                ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[$id,$setting]);
+        }
+        $this->playerRows(['bio'=>self::AUTOCHAT_BIO,'speech_style'=>'Dry and brief.']);
+        $this->autochat+=['session'=>$value['session'],'playthrough'=>$value['playthrough_id'],'model'=>self::AUTOCHAT_MODEL];
+        $this->rewriteScript('ok',self::autochatLine());
+        $this->script($this->ordinaryReply('Good news LNR101.','','Settler'));
+    }
+
+    // One accepted root: the raw intent stays canonical and frozen in policy; exactly one rewrite and one NPC call; the
+    // NPC prompt carries the generated line, never the intent; one owned history row and one addressed player route
+    // carry it, under the deterministic utterance id; no native utterance or receipt says it was spoken.
+    // A voice root's intent is the server's own transcript: the canonical event keeps only the media reference, and
+    // the frozen origin policy keeps the exact transcript.
+    private function autochatAccepted(array $value,string $line,?string $transcript=null): array {
+        require_once dirname(__DIR__,2).'/lib/synth_autochat.php';
+        ['session'=>$session,'request_id'=>$request]=$value;
+        $intent=$transcript ?? $value['intent'];
+        $this->assertSame($this->autochat['session'],$session);
+        $this->completed($session,$request,$transcript===null ? 'input_text' : 'input_audio');
+        if ($transcript===null) {
+            $event=$this->canonical($session,$request);
+            $this->assertSame([$intent,'AUTOCHAT'],[$event['payload']['text'],$event['payload']['control']['mode'] ?? null]);
+        } else $event=$this->autochatAudioEvent($value);
+        $this->assertArrayNotHasKey('intent',$event['payload']);
+        $this->assertSame([['input_text'=>$intent,'execution_mode'=>'AUTOCHAT']],$this->query('SELECT input_text,execution_mode
+            FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+        [$rewrite,$npc]=$this->autochatCalls();
+        $this->assertCount(1,$rewrite,'exactly one rewrite call');
+        $this->assertCount(1,$npc,'exactly one NPC call');
+        $this->assertSame([$this->autochat['model'],false],[$rewrite[0]['model'] ?? null,$rewrite[0]['stream'] ?? null],'rewrite route');
+        $this->assertSame('loopback-model',$npc[0]['model'] ?? null,'NPC route');
+        $rewritePrompt=self::messages($rewrite[0]);$npcPrompt=self::messages($npc[0]);
+        $this->assertSame(1,substr_count($rewritePrompt,'Sole Survivor:'.$intent),'the rewrite prompt carries the intent once');
+        $this->assertStringContainsString($line,$npcPrompt);
+        $this->assertStringNotContainsString('LAI',$npcPrompt,'the NPC never sees a raw intent');
+        $utterance=synth_autochat_utterance_id($event);
+        $rows=$this->autochatRows($session,$request);
+        $this->assertCount(1,$rows,'one player history row '.$this->tail());
+        $this->assertSame(['inputtext',$utterance,1],[$rows[0]['type'],$rows[0]['utterance_id'],substr_count($rows[0]['data'],$line)]);
+        $this->assertStringNotContainsString('LAI',$rows[0]['data']);
+        $routes=array_values(array_filter($this->autochatRoutes($session,$request),static fn($r)=>$r['utterance_id']===$utterance));
+        $this->assertCount(1,$routes,'one published player line');
+        $playthrough=$this->autochat['playthrough'];
+        $this->assertSame([['0X00000014','fallout4.esm',$playthrough],'addressed',[strtoupper($value['target_form']),'fallout4.esm',$playthrough]],
+            [self::actorKey(json_decode($routes[0]['speaker'],true)),$routes[0]['listener_state'],self::actorKey(json_decode($routes[0]['listener'],true))]);
+        $this->assertSame([],$this->utterances($session,$request),'no native utterance or receipt for the generated line');
+        $evidence=$this->rootEvidence('autochat_root','request_id',$request);
+        $this->assertSame([1,$line],[$evidence['player_lines'],$evidence['text']],'the wire carries the exact generated line once');
+        $this->assertGreaterThanOrEqual(1,$evidence['npc_lines']);
+        $this->autochat['npc_prompt_line_count'][$request]=substr_count($npcPrompt,$line);
+        return ['rewrite'=>$rewritePrompt,'history'=>intval($rows[0]['id']),'evidence'=>$evidence];
+    }
+
+    private function autochatTyped(array $value): void {
+        $root=$this->autochatAccepted($value,self::autochatLine());
+        $this->assertSame(4096,strlen($root['evidence']['text']),'exact 4 KiB wire text');
+        $this->assertSame([false,false],[$root['evidence']['speech'],$root['evidence']['media']],'no player TTS: text-only');
+        $this->assertStringContainsString('Player Backstory: '.self::AUTOCHAT_BIO,$root['rewrite']);
+        $this->autochatReplay('typed',$value['session'],$value['request_id']);
+        $this->autochat['history']['typed']=$root['history'];
+        // The next root uses the player's configured voice; its loopback TTS endpoint refuses connections.
+        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url) VALUES('xtts-fastapi','loopback player tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
+        $this->playerRows(['tts_connector_id'=>$tts,'tts_voice_override'=>'loopback_player_voice']);
+        $this->rewriteScript('ok','Hmm!');
+        $this->script($this->ordinaryReply('Something wrong LNR202?','','Settler'));
+    }
+
+    private function autochatGrunt(array $value): void {
+        $root=$this->autochatAccepted($value,'Hmm!');
+        // The pair's earlier generated line is now its history; the earlier raw intent never was.
+        $this->assertSame(1,substr_count($root['rewrite'],'LAC4096'));
+        $this->assertStringNotContainsString('LAI101',$root['rewrite']);
+        // A failed voice keeps the line visible and never offers playable media.
+        $this->assertFalse($root['evidence']['media']);
+        $this->assertNotSame('ready',$root['evidence']['speech_status']);
+        $this->autochat['player_tts_failure']=['speech'=>$root['evidence']['speech'],'status'=>$root['evidence']['speech_status']];
+        $this->autochat['history']['grunt']=$root['history'];
+        // The voice root: the server's configured localwhisper STT connector and the player's configured mimic3 voice
+        // (direct WAV, no converter), both on the fake provider.
+        $stt=$this->query("INSERT INTO synth.core_stt_connector(driver,label,metadata,url) VALUES('localwhisper','loopback stt','{}',$1) RETURNING id",
+            [$this->autochat['fake_base'].'/stt'])[0]['id'];
+        $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES('GLOBAL_STT_CONNECTOR_ID',$1,'loopback autochat')
+            ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[strval($stt)]);
+        file_put_contents($this->llmDir.'/stt_text',self::AUTOCHAT_TRANSCRIPT);
+        file_put_contents($this->llmDir.'/tts.wav',self::autochatWave());
+        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url) VALUES('mimic3','loopback player voice','{}',$1) RETURNING id",
+            [$this->autochat['fake_base']])[0]['id'];
+        $this->playerRows(['tts_connector_id'=>$tts,'tts_voice_override'=>self::AUTOCHAT_VOICE]);
+        $this->rewriteScript('ok','The generator hums again LGV250.');
+        $this->script($this->ordinaryReply('Music to my ears LNR250.','','Settler'));
+    }
+
+    // The voice root: the uploaded bytes reach the configured STT once; that same transcript is the rewrite intent and
+    // the frozen origin input; the line is voiced once through the player's configured connector and voice, and the
+    // wire's speech is ready with exactly that registered media. Nothing here plays it or says it was heard.
+    private function autochatVoice(array $value): void {
+        $line='The generator hums again LGV250.';
+        $this->autochatTranscribed($this->autochatUpload($value,'voice'));
+        $root=$this->autochatAccepted($value,$line,self::AUTOCHAT_TRANSCRIPT);
+        // Both earlier generated lines of the pair are rewrite history exactly once; their raw intents never are.
+        $this->assertSame([1,1],[substr_count($root['rewrite'],'LAC4096'),substr_count($root['rewrite'],'Hmm!')],'pair history');
+        foreach (['LAI101','LAI202'] as $token) $this->assertStringNotContainsString($token,$root['rewrite']);
+        $this->assertSame([['method'=>'GET','text'=>$line,'voice'=>self::AUTOCHAT_VOICE]],self::ndjson($this->llmDir.'/tts_requests.ndjson'),
+            'one player voice call with the exact line and the configured voice');
+        $wave=self::autochatWave();
+        $utterance=synth_autochat_utterance_id($this->canonical($value['session'],$value['request_id']));
+        $evidence=$root['evidence'];
+        $this->assertSame([true,'ready',true,$utterance,'media/'.hash('sha256',$wave),hash('sha256',$wave)],
+            [$evidence['speech'],$evidence['speech_status'],$evidence['media'],$evidence['speech_utterance'],$evidence['speech_media'],
+                $evidence['speech_sha256']],'ready player speech names the voiced media');
+        $this->assertSame([['state'=>'ready','byte_length'=>strval(strlen($wave)),'request_id'=>$value['request_id'],'utterance_id'=>$utterance]],
+            $this->query('SELECT state,byte_length,request_id,utterance_id FROM synth_meta.media_objects WHERE media_id=$1',[$evidence['speech_media']]));
+        $this->autochat['player_tts_ready']=['media_id'=>$evidence['speech_media'],'utterance_id'=>$utterance];
+        $this->autochat['history']['voice']=$root['history'];
+        $this->playerRows(['tts_connector_id'=>null,'tts_voice_override'=>null]);
+        file_put_contents($this->llmDir.'/stt_text',self::AUTOCHAT_REFUSED_TRANSCRIPT);
+        // Every later root uses an official Quickstart-managed openaijson player row, non-streamed, on the same route.
+        $quickstart=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+            VALUES('loopback quickstart player',$1,$2,'loopback-quickstart-rewrite','openaijson',0,300,0.3,0.8) RETURNING id",
+            [json_encode(['quickstart_managed'=>true,'disable_streaming'=>true]),$this->autochat['rewrite_url']])[0]['id'];
+        $this->query("UPDATE synth.general_settings SET value=$1 WHERE id='CORE_CONNECTOR_PLAYER'",[strval($quickstart)]);
+        $this->autochat['model']='loopback-quickstart-rewrite';
+        $this->rewriteScript('ok','Evening, neighbour LGS303.');
+        $this->script($this->ordinaryReply('Evening LNR303.','','Settler'));
+    }
+
+    private function autochatSibling(array $value): void {
+        $this->assertSame(strtoupper(self::AUTOCHAT_SIBLING),strtoupper($value['target_form']));
+        $root=$this->autochatAccepted($value,'Evening, neighbour LGS303.');
+        // A same-named Settler with another reference sees neither the other Settler's generated lines nor their intents.
+        foreach (['LAC4096','LAI101','LAI202','LGV250','LAI250'] as $token) $this->assertStringNotContainsString($token,$root['rewrite'],"sibling rewrite prompt $token");
+        $older=$this->frontier($value['older_anchor']);$newer=$this->frontier($value['newer_anchor']);
+        ['typed'=>$typed,'grunt'=>$grunt]=$this->autochat['history'];
+        $this->assertLessThan($typed,$older,'older anchor excludes the first generated line');
+        $this->assertGreaterThanOrEqual(max($grunt,$this->autochat['history']['voice']),$newer,'newer anchor covers the earlier generated lines');
+        $this->assertGreaterThan($newer,$root['history']);
+        $this->autochat['anchors']=['older'=>$older,'newer'=>$newer,'rows'=>$this->autochat['history']+['sibling'=>$root['history']]];
+        $this->rewriteScript('empty');
+    }
+
+    // A refused rewrite: one rewrite call, then the closed provider_failed terminal and nothing else.
+    private function autochatFailed(array $value): void {
+        ['session'=>$session,'request_id'=>$request,'case'=>$case]=$value;
+        $voice=$case==='voice_empty';
+        $this->assertSame([['event_type'=>$voice ? 'input_audio' : 'input_text','state'=>'failed','error_code'=>'provider_failed']],
+            $this->execution($session,$request),$this->tail());
+        if ($voice) {
+            // The refused voice root's own transcript reached the rewrite and stays the frozen origin input.
+            $this->autochatTranscribed($this->autochatUpload($value,'voice_empty'));
+            $this->autochatAudioEvent($value);
+            $this->assertSame([['input_text'=>self::AUTOCHAT_REFUSED_TRANSCRIPT,'execution_mode'=>'AUTOCHAT']],$this->query('SELECT input_text,execution_mode
+                FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+        } else $this->assertSame($value['intent'],$this->canonical($session,$request)['payload']['text']);
+        $detail=['voice_empty'=>'provider_output_empty','empty'=>'provider_output_empty','incomplete'=>'provider_output_incomplete','provider'=>'provider_failed',
+            'oversized'=>'provider_output_oversized'][$case];
+        $evidence=$this->rootEvidence('autochat_root','request_id',$request);
+        $this->assertSame(['provider_failed',$detail,0,0],[$evidence['code'],$evidence['detail'],$evidence['player_lines'],$evidence['npc_lines']]);
+        [$rewrite,$npc]=$this->autochatCalls();
+        $this->assertCount(1,$rewrite,"$case: one rewrite call");
+        if ($voice) $this->assertSame(1,substr_count(self::messages($rewrite[0]),'Sole Survivor:'.self::AUTOCHAT_REFUSED_TRANSCRIPT));
+        $this->assertSame([],$npc,"$case: no NPC call");
+        $this->assertSame([[],[]],[$this->autochatRows($session,$request),$this->autochatRoutes($session,$request)],"$case: no history or player line");
+        if ($case==='provider') $this->autochatReplay('provider',$session,$request);
+        $this->autochat['failed'][$case]=$detail;
+        if ($case==='voice_empty') $this->rewriteScript('empty');
+        elseif ($case==='empty') $this->rewriteScript('incomplete','Cut off LGX402');
+        elseif ($case==='incomplete') $this->rewriteScript('provider');
+        elseif ($case==='provider') $this->rewriteScript('ok',self::autochatLine(true));
+        else {
+            // The next rewrite is held until autochatCancelled releases it.
+            $this->rewriteScript('ok');
+            unlink($this->llmDir.'/rewrite_reply');
+            $this->assertTrue(posix_mkfifo($this->llmDir.'/rewrite_reply',0600));
+        }
+    }
+
+    private function autochatHeld(string $name,array $value): void {
+        $this->assertSame($this->autochat['session'],$value['session']);
+        $rewriteHeld=$name==='autochat_rewrite_held';
+        $file=$this->llmDir.($rewriteHeld ? '/rewrite_requests.ndjson' : '/requests.ndjson');
+        $expected=($rewriteHeld ? $this->rewriteSeen : $this->providerSeen)+1;
+        $deadline=hrtime(true)+10_000_000_000;
+        while ((is_file($file) ? count(array_filter(explode("\n",file_get_contents($file)))) : 0)<$expected && hrtime(true)<$deadline) usleep(10000);
+        [$rewrite,$npc]=$this->autochatCalls();
+        $this->assertCount(1,$rewrite,"$name: one rewrite call ".$this->tail());
+        $this->assertCount($rewriteHeld ? 0 : 1,$npc,"$name: NPC calls before the cancel");
+        if (!$rewriteHeld) {
+            $this->assertStringContainsString('Hold on LGN606.',self::messages($npc[0]));
+            $this->assertStringNotContainsString('LAI',self::messages($npc[0]));
+        }
+    }
+
+    // Releases a held loopback provider without blocking: opened O_NONBLOCK ('n'), a FIFO with no reader refuses the
+    // open (ENXIO) instead of waiting, so a provider that already gave up cannot hold the test past the deadline. The
+    // FIFO is always removed. Returns whether the whole reply reached a reader.
+    private function releaseFifo(string $fifo,string $reply): bool {
+        $deadline=hrtime(true)+2_000_000_000;
+        try {
+            do {
+                $pipe=@fopen($fifo,'wn');
+                if ($pipe===false) {usleep(10000);continue;}
+                $written=0;
+                try {
+                    // A short write or EAGAIN returns less; a closed reader returns false (the CLI ignores SIGPIPE).
+                    while ($written<strlen($reply) && hrtime(true)<$deadline) {
+                        $n=@fwrite($pipe,substr($reply,$written));
+                        if ($n===false) break;
+                        $written+=$n;
+                        if ($n===0) usleep(10000);
+                    }
+                } finally {fclose($pipe);}
+                return $written===strlen($reply);
+            } while (hrtime(true)<$deadline);
+            return false;
+        } finally {@unlink($fifo);}
+    }
+
+    // The durable cancel ACK came first. A held rewrite never reaches an NPC; a held NPC call had already started and stays
+    // counted, and nothing new starts after the ACK. The root then ends cancelled (by the cancel or its own owner check)
+    // or failed, never complete and never still live; its state at the ACK and whether the release was read are reported.
+    private function autochatCancelled(string $name,array $value): void {
+        ['session'=>$session,'request_id'=>$request]=$value;
+        $rewriteHeld=$name==='autochat_rewrite_cancelled';
+        $this->completed($session,$value['cancel_request_id'],'cancel');
+        $this->assertSame($value['context_request_id'],$this->canonical($session,$value['cancel_request_id'])['payload']['cancel_request_id']);
+        if ($rewriteHeld) $this->assertSame(409,$value['pending_status'],'the exact duplicate was pending, never reclaimed');
+        $this->assertSame([[],[]],$this->autochatCalls(),"$name: nothing new before the release");
+        $atAck=$this->execution($session,$request)[0] ?? [];
+        $released=$this->releaseFifo($this->llmDir.($rewriteHeld ? '/rewrite_reply' : '/reply'),
+            $rewriteHeld ? 'Never spoken LGR505.' : $this->ordinaryReply('Too late LNR606.','','Settler'));
+        $deadline=hrtime(true)+5_000_000_000;
+        do {
+            $final=$this->execution($session,$request)[0] ?? [];
+            if (!in_array($final['state'] ?? '',['claimed','streaming'],true)) break;
+            usleep(20000);
+        } while (hrtime(true)<$deadline);
+        $this->assertSame([[],[]],$this->autochatCalls(),"$name: no call after the cancel ACK");
+        [$state,$code]=[$final['state'] ?? null,$final['error_code'] ?? null];
+        $this->assertTrue(($state==='cancelled' && in_array($code,['turn_cancelled','request_cancelled'],true))
+            || ($state==='failed' && is_string($code) && $code!==''),"$name: terminal cancelled or failed root ".json_encode($final).' '.$this->tail());
+        $rows=$this->autochatRows($session,$request);$routes=$this->autochatRoutes($session,$request);
+        if ($rewriteHeld) $this->assertSame([[],[]],[$rows,$routes],'a cancelled rewrite leaves no history or player line');
+        $this->autochat['cancelled'][$name]=['at_ack'=>[$atAck['state'] ?? null,$atAck['error_code'] ?? null],'state'=>$state,
+            'error_code'=>$code,'released'=>$released,'history_rows'=>count($rows),'routes'=>count($routes)];
+        if ($rewriteHeld) {
+            $this->rewriteScript('ok','Hold on LGN606.');
+            unlink($this->llmDir.'/reply');
+            $this->assertTrue(posix_mkfifo($this->llmDir.'/reply',0600));
+        } else $this->script('Older autochat load reply.');
+    }
+
+    // Replacement sessions from the co-saves: the generated line is visible exactly when the loaded save covers it, and
+    // no raw intent, foreign Settler line or later line ever is.
+    private function autochatTalk(string $name,array $value): void {
+        $this->assertNotSame($this->autochat['session'],$value['session']);
+        $this->completed($value['session'],$value['request_id'],'input_text');
+        [$rewrite,$npc]=$this->autochatCalls();
+        $this->assertSame([],$rewrite,'/talk makes no rewrite call');
+        $this->assertCount(1,$npc,'one native /talk provider call');
+        $prompt=self::messages($npc[0]);
+        $older=$name==='autochat_older_talk';
+        $this->assertSame($older ? 0 : 1,substr_count($prompt,'LAC4096'),"$name generated line");
+        foreach (['LAI','LGS303','LGN606','LGR505'] as $token) $this->assertStringNotContainsString($token,$prompt,"$name $token");
+        $this->autochat['talk'][$name]=['loaded_context'=>$value['loaded_context'],'generated'=>substr_count($prompt,'LAC4096'),
+            'grunt'=>substr_count($prompt,'Hmm!')];
+        if ($older) $this->script('Newer autochat load reply.');
     }
 }
