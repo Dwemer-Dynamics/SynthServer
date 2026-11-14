@@ -25,21 +25,33 @@ The wire contract (`dialogue.everyone`, status `control_audience`, control `sett
 
 - The client-selected responder is only the transport. There is one provider reply and no per-hearer
   dispatch.
-- Ordinary input is recorded as `(Talking to everyone)` (`(Shouting to everyone)` in Shout). The existing
-  people scope already treats that label as a broadcast and keeps the captured hearers. The provider
-  prompt says the player addressed everyone nearby. The transport target still selects the profile.
-- Native `/talk` records the same label, adds `addressed_everyone` to the situation, keeps zero
-  follow-ups and still records heard history only from an accepted delivery receipt.
+- Ordinary input is recorded as `(Talking to everyone)` in Standard and `(Shouting to everyone)` in Shout.
+  The existing people scope already treats that label as a broadcast and keeps the captured hearers. The
+  provider prompt says the player addressed everyone nearby. The transport target still selects the profile.
+- Native `/talk` currently records `(Talking to everyone)` in both Standard and Shout, adds
+  `addressed_everyone` to the situation, keeps zero follow-ups and still records heard history only from an
+  accepted delivery receipt.
 - Ordinary text and audio keep their bounded continuation budget. Candidates, prompts, routes and
   continuation history use the original captured group narrowed to available members of the fresh
   capture's audience (the candidates' state exclusions apply): no newcomers and no Close distance bound,
   and the previous speaker must itself still be such a member. Close keeps its 200-unit bound. Without a
   fresh scene no bystander is assumed to hear. Everyone turns schedule no random narrator. The rechat
   root input keeps `addressed: "everyone"`.
-- Quest-knowledge source verification accepts the Everyone label; its reader remains the identity-bound
-  responder.
 - Existing emitted-history rules are unchanged: an ordinary reply is history-visible when emitted, which
   is not proof of playback.
+
+## Quest knowledge
+
+- An ordinary Everyone report is a quest source for the frozen exact responder only, on both the ordinary and
+  the native consumer. A bystander (Nick in the checks) gets no quest block even when generic history
+  contains the public speech. Hearers receive no journal or participant grant.
+- Saved-anchor controls: the earlier one asserts the Everyone marker is absent anywhere in the full prompt;
+  the later one keeps attributed ordinary reports.
+- Native-origin reports lack the origin policy that quest sources require, so they are excluded in Standard
+  and Shout with or without Everyone. This is an inherited, separate producer gap, not an Everyone
+  regression. This integration preserves native report production, native mode labels and origin-policy
+  writes.
+- Exclusion of a cancelled source is proven only for the quest block, not for the generic full prompt.
 
 ## State, locking and migration
 
@@ -66,10 +78,12 @@ The wire contract (`dialogue.everyone`, status `control_audience`, control `sett
 ## Evidence boundary
 
 Off-game checks only; acceptance is tracked in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience).
-Exact server/client commit exports were checked on Linux with PHP 8.2 and disposable PostgreSQL 17:
+Exact commit archives (server `301b18f`, paired client `6720a1c`), each independently regenerated to match
+its pin, were checked on Linux with PHP 8.2 and disposable PostgreSQL, with the source unchanged after
+each run:
 
-- The full PHPUnit suite passed: 1312 tests, 26609 assertions, no failures or skips.
-- A focused paired run (3 tests, 1244 assertions) drove synthetic actor snapshots through the compiled client
+- The full PHPUnit suite passed on PostgreSQL 17: 1313 tests, 26622 assertions, no failures, errors or skips.
+- A focused paired run on PostgreSQL 17 (3 tests, 1249 assertions) drove synthetic actor snapshots through the compiled client
   driver and codec over real loopback HTTP. It covered:
   - Migration: a fresh install, an upgrade from a pre-Everyone install that preserves seeded UTF-8 rows byte for
     byte, and an idempotent re-run.
@@ -77,12 +91,15 @@ Exact server/client commit exports were checked on Linux with PHP 8.2 and dispos
   - Delivered and undelivered native replies stay distinct in heard history and in the witnesses' next prompts.
   - Ordinary emitted history appears in the next prompt without a receipt.
   - Continuations stay bounded.
+- On PostgreSQL 15 with pgvector, the original quest-knowledge checks (6 tests, 198 assertions) and an
+  Everyone quest probe (2 tests, 346 assertions) passed for the rules under [Quest knowledge](#quest-knowledge).
 - The shared global mode writer was exercised directly. The legacy `setconf`, requested-mode and Director
   call sites that use it were confirmed only by reading the source, not run.
-- Static reviews of the exact pair found no blockers.
+- Static reviews of the exact pair, including the combined quest source, found no new integration blockers.
 - The dashboard Audience fieldset passed automated headless browser checks only. Primary visual acceptance is
   still blocked, so Apply and the Everyone POST are untested in a browser.
 
-Not covered: `PluginSession`, game, microphone or headset; deployment; flat or VR gameplay. Ordinary replies
+Synthetic actors over real HTTP and PostgreSQL through the compiled client codec are not `PluginSession`,
+game, microphone, headset or deployment proof. Not covered: flat or VR gameplay. Ordinary replies
 stay visible at emission without a native receipt, and the existing Whisper limit for third-party action
 results is unchanged.

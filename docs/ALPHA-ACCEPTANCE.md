@@ -3,16 +3,20 @@
 ## Everyone audience
 
 See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md#evidence-boundary). These are off-game results on exact
-server/client commit exports, run on Linux with disposable PostgreSQL 17. No `PluginSession`, game,
-microphone or headset was involved.
+commit archives (server `301b18f`, client `6720a1c`), run on Linux with disposable PostgreSQL. Synthetic
+actors over real HTTP are not `PluginSession`, game, microphone, headset or deployment proof.
 
-- [x] Full PHPUnit: 1312 tests, 26609 assertions, 0 failures, 0 skipped.
+- [x] Full PHPUnit on PostgreSQL 17: 1313 tests, 26622 assertions, 0 failures, 0 errors, 0 skipped.
 - [x] Migration: a fresh install, an upgrade from a pre-Everyone install that keeps seeded UTF-8 rows
       byte-identical, and an idempotent re-run of `synth_protocol_schema` 20261113002.
-- [x] Paired run (3 tests, 1244 assertions): synthetic actors went through the compiled client driver and codec
+- [x] Paired run (3 tests, 1249 assertions): synthetic actors went through the compiled client driver and codec
       over real loopback HTTP. A duplicate while the provider is held returns `request_pending` and writes
       nothing. Delivered and undelivered native replies stay distinct in heard history and in the witnesses'
       next prompts. Ordinary emitted history is visible without a receipt. Continuations stay bounded.
+- [x] Quest knowledge on PostgreSQL 15 with pgvector (original 6 tests, 198 assertions; Everyone probe 2 tests,
+      346 assertions): an ordinary Everyone report reaches only the frozen exact responder on both consumers;
+      bystander Nick gets no quest block; native-origin reports stay excluded as an inherited producer gap.
+      Cancelled-source exclusion is proven for the quest block only, not the generic full prompt.
 - [x] The shared global mode writer resets active sessions to Normal and advances the epoch. Standard and an
       invalid mode leave sessions unchanged, and a held gate times out without writing.
 - [ ] The legacy `setconf`, requested-mode and Director reset call sites run at runtime. So far they are

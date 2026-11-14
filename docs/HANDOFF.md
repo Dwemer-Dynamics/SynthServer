@@ -12,17 +12,22 @@ migration is `synth_protocol_schema` 20261113002. See [EVERYONE-AUDIENCE.md](EVE
 [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience). These automated checks passed on exact
 commit exports:
 
-- The full suite passed on disposable PostgreSQL 17.
+- The full suite passed on disposable PostgreSQL 17 (server `301b18f`, client `6720a1c`).
 - A paired run drove a compiled-client driver over real HTTP, covering migration, held duplicates, receipt
   boundaries and bounded continuations.
-- Static pair reviews found no blockers.
+- Quest checks passed: an ordinary Everyone report is quest-readable only by the frozen exact responder.
+- Static pair reviews of the combined quest source found no new integration blockers.
 
 Still open:
 
+- Native `/talk` records `(Talking to everyone)` in Shout too; ordinary input uses `(Shouting to everyone)`.
+- Native-origin reports lack the required origin policy and are excluded as quest sources in Standard and
+  Shout, with or without Everyone. This inherited producer gap is separate from Everyone.
+- Cancelled-source exclusion is proven only for the quest block, not the generic full prompt.
 - The legacy `setconf`, requested-mode and Director call sites have not run; only their shared writer was
   tested.
 - Primary dashboard visual acceptance is blocked; automated headless checks do not replace it.
-- Hosted Actions were disabled or queued when last checked.
+- Hosted Actions were disabled at the last live check.
 - Merge and the AutoChat handoff are held until verification or a human waiver.
 - Flat and VR client DLLs were built and their packages checked, but there is no native gameplay, microphone,
   headset, deployment or publication evidence.
