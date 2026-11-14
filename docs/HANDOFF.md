@@ -6,8 +6,8 @@ Explicit `AUTOCHAT` rewrites typed or server-transcribed intent into one generat
 publishes it at once as player speech (player TTS when configured) and lets the selected NPC answer
 on the ordinary route. `/talk` refuses the mode and Everyone cannot carry it. Supported rewrite
 providers are default OpenRouter #2 and Quickstart `openaijson`; anything else fails closed. No
-schema, setting or table change. See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in
-[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
+new settings, tables or capabilities; the existing control-mode enum gains `AUTOCHAT`.
+See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
 
 ## Everyone audience candidate
 
