@@ -169,7 +169,7 @@ final class NativeDialogueTurnTest extends TestCase
 
     // Dialogue services over injected repository, driver and output fakes (no database or provider).
     private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool $speech=true,
-        array|Throwable|null $saved=null): array
+        array|Throwable|null $saved=null, ?object $db=null, ?SYNTHClaimedRequest $owner=null, ?string $metadata=null): array
     {
         $saves=new class($context) extends SaveState {
             public function __construct(private ?array $snapshot) {}
@@ -186,15 +186,19 @@ final class NativeDialogueTurnTest extends TestCase
                     ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
         };
-        $characters=new class($row,$others,$saved) extends CharacterRepository {
+        $characters=new class($row,$others,$saved,$metadata) extends CharacterRepository {
             public array $savedReads=[];
             public array $base=['npc_name'=>'Jun','prompt_head'=>'Base head.','npc_static_bio'=>'Base bio.','personality'=>'Weary.',
                 'occupation'=>'Base job.','skills'=>'Base skills.','speechstyle'=>'Base style.','goals'=>'Base goals.','voiceid'=>'jun_voice'];
-            public function __construct(private ?array $row, private array $others, private array|Throwable|null $saved) {}
+            public function __construct(private ?array $row, private array $others, private array|Throwable|null $saved,
+                private ?string $metadata=null) {}
             public function registered(string $fullFormId, string $originPlugin, string $playthroughId): ?array { return $this->row; }
             public function otherFormIds(string $originPlugin, string $playthroughId, int $identityId): array { return $this->others; }
             public function npc(int $id): ?array { return ['id'=>$id]+$this->base; }
-            public function profile(int $id): ?array { return ['id'=>$id,'tts_connector_id'=>5]; }
+            public function profile(int $id): ?array
+            {
+                return ['id'=>$id,'tts_connector_id'=>5]+($this->metadata===null ? [] : ['metadata'=>$this->metadata]);
+            }
             // Saved fields keyed by identity id; a Throwable is a failed read.
             public function savedProfile(array $event, int $identityId): ?array
             {
@@ -240,7 +244,7 @@ final class NativeDialogueTurnTest extends TestCase
                 return 'cache-'.$lineId;
             }
         };
-        $manager=new DialogueManager(new SessionManager($saves),new CharacterManager($characters),new ContextManager($saves),
+        $manager=new DialogueManager(new SessionManager($saves),new CharacterManager($characters),new ContextManager($saves,$db,$owner),
             new PromptManager(),$llm,new SpeechManager($tts),$utterances,$output);
         return [$manager,$output,$utterances,$llm,$characters];
     }
@@ -493,6 +497,73 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame($db->queries[0][1],$db->queries[1][1]);
         $this->assertNull(synth_profile_visible($db,$event,0,strict: true));
         $this->assertCount(2,$db->queries);
+    }
+
+    // The opted-in latest diary is read under the turn's own claim lock for the placed identity id, then bounded,
+    // escaped and framed once. Disabled or foreign-owner turns never query; a failed read is omitted and
+    // cancellation propagates before any write or provider call.
+    public function testLatestDiaryIsReadUnderTheTurnClaimForTheExactIdentityOnly(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $other=$this->owner(['request_id'=>$event['request_id'].'-other']+$event);
+        $on='{"LATEST_DIARY_CONTEXT_ENABLED":true}';
+        $entry=['topic'=>'Day <we>','content'=>'Saw "them" & <we> ran. '.str_repeat('a',2500)];
+        // name => [metadata, owner, entry or read failure, expected lock reads, diary block present]
+        $cases=['enabled'=>[$on,null,$entry,1,true],'no_entry'=>[$on,null,null,1,false],
+            'read_failure'=>[$on,null,new RuntimeException('statement timeout'),1,false],
+            'disabled'=>['{"LATEST_DIARY_CONTEXT_ENABLED":false}',null,$entry,0,false],'no_metadata'=>[null,null,$entry,0,false],
+            'foreign_owner'=>[$on,$other,$entry,0,false],'cancelled'=>[$on,null,new SYNTHProtocolCancelled('cancelled'),1,false]];
+        foreach ($cases as $name=>[$metadata,$owner,$result,$reads,$present]) {
+            $db=new class($result) {
+                public array $locks=[]; public array $questLocks=[]; public array $queries=[];
+                public function __construct(private array|Throwable|null $result) {}
+                public function escapeLiteral($value): string { return "'".str_replace("'","''",strval($value))."'"; }
+                public function withClaimedRequestLock(SYNTHClaimedRequest $owner, callable $operation, int $statementTimeoutMs = 0)
+                {
+                    // The quest reader takes its own claim lock first; it is unavailable here, so only the diary read is scripted.
+                    if ((new ReflectionFunction($operation))->getClosureScopeClass()?->getName()!==ContextManager::class) {
+                        $this->questLocks[]=[$owner->event,$statementTimeoutMs];
+                        throw new RuntimeException('quest knowledge unavailable');
+                    }
+                    $this->locks[]=[$owner->event,$statementTimeoutMs];
+                    if ($this->result instanceof Throwable) throw $this->result;
+                    return $operation(null,$owner->event);
+                }
+                public function fetchOne($sql)
+                {
+                    $this->queries[]=$sql;
+                    return is_array($this->result) && str_contains($sql,'native_diaries')
+                        ? ['history_event_id'=>7,'result_payload'=>json_encode($this->result),'content_revision'=>0] : [];
+                }
+            };
+            [$manager,$output,$utterances,$llm]=$this->dialogue($this->talkContext(),$row,[],['Fine.'],true,null,$db,
+                $owner ?? $this->owner($event),$metadata);
+            if ($name==='cancelled') {
+                try { $manager->converse($event); $this->fail($name); }
+                catch (SYNTHProtocolCancelled $error) { $this->assertSame('cancelled',$error->getMessage()); }
+                $this->assertSame([[],[],[]],[$output->events,$utterances->rows,$llm->messages],$name);
+            } else {
+                $manager->converse($event);
+                $this->assertSame(['complete'],end($output->events),$name);
+                $system=$llm->messages[0]['content'];
+                $this->assertSame($present ? 1 : 0,substr_count($system,'<latest_diary_entry>'),$name);
+                if ($present) $enabled=$system;
+            }
+            $this->assertSame([$name==='foreign_owner' ? [] : [[$event,2000]],array_fill(0,$reads,[$event,2000])],
+                [$db->questLocks,$db->locks],$name);
+            if ($reads===0) $this->assertSame([],$db->queries,$name);
+            // The reader is scoped to the placed identity id and the owner's admitted session, never a name.
+            if (in_array($name,['enabled','no_entry'],true)) {
+                $this->assertStringContainsString('i.actor_identity_id=9',end($db->queries),$name);
+                $this->assertStringContainsString("'".$event['session_id']."'",end($db->queries),$name);
+            }
+        }
+        // Framing, the 2000-character bound and XML escaping of untrusted saved text.
+        $this->assertStringContainsString("<latest_diary_entry>\nYour own latest diary entry: a private, subjective reflection"
+            ." written earlier, not a record of witnessed events.\nDate: Day &lt;we&gt;\nSaw &quot;them&quot; &amp; &lt;we&gt; ran. "
+            .str_repeat('a',1977)."\n</latest_diary_entry>",$enabled);
+        $this->assertStringNotContainsString('<we>',$enabled);
     }
 
     // Only explicit conversation intent and speech receipts take the v2 dispatch, chosen before the pipeline loads.

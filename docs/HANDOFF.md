@@ -238,6 +238,11 @@ attempt in about 33 seconds. Published input/result hashes and ownership are val
 and the entry appears in the dashboard. Older failed requests remain preserved.
 VR shortcut gameplay remains unproven.
 
+Native `/talk` turns now include the addressed NPC's own latest save-visible diary entry when
+the profile enables latest-diary context (see `NATIVE-DIARY-MIGRATION.md`). This is loopback
+evidence only. Native memory and relationship context, the ordinary-route diary omission and
+physical witness capture are not part of it.
+
 ## Supported NPC action return checks
 
 The 3 November action audit reproduced the profile connector warning when a

@@ -17,8 +17,11 @@ final class ContextManager
 {
     public const HISTORY_ROWS = 12;
     public const LINE_CHARS = 1000;
+    public const DIARY_TOPIC_CHARS = 200;
+    public const DIARY_CHARS = 2000;
 
-    // $db and $owner are the explicit claimed admission owner for the quest reader; without them it is unavailable.
+    // The database and claimed owner are optional so pure history/situation callers need neither. Without them
+    // the quest reader is unavailable and no diary is read.
     public function __construct(private SaveState $saves, private $db = null, private ?\SYNTHClaimedRequest $owner = null) {}
 
     public function situation(TurnRequest $request): array
@@ -69,6 +72,28 @@ final class ContextManager
                 'content' => mb_substr($text, 0, self::LINE_CHARS)];
         }
         return $messages;
+    }
+
+    // The addressed actor's latest diary entry visible at this turn's saved frontier, when its profile opts in.
+    // synth_diary_visible is the authority: the canonical identity bound to this placed NPC and the save's
+    // ancestry, never the profile's actor, a display name or a newer save. It is read under the claim lock, so a
+    // stale or superseded turn reads nothing; cancellation propagates and any other failure omits the entry.
+    // Returns escaped, bounded text; no provider is called and nothing is written.
+    public function latestDiary(TurnRequest $request, PlacedCharacter $character): string
+    {
+        $metadata = json_decode(strval($character->profile['metadata'] ?? ''), true);
+        if ($this->db === null || $this->owner === null || $this->owner->event !== $request->event || !is_array($metadata)
+            || !filter_var($metadata['LATEST_DIARY_CONTEXT_ENABLED'] ?? false, FILTER_VALIDATE_BOOLEAN)) return '';
+        try {
+            require_once dirname(__DIR__).'/lib/synth_diary_state.php';
+            $entry = $this->db->withClaimedRequestLock($this->owner,
+                fn($connection, array $event): ?array => \synth_diary_visible($this->db, $event, $character->identityId), 2000);
+        } catch (\SYNTHProtocolCancelled $error) { throw $error; }
+        catch (\Throwable) { return ''; }
+        $content = trim(mb_substr(strval($entry['content'] ?? ''), 0, self::DIARY_CHARS));
+        if ($content === '') return '';
+        $topic = trim(mb_substr(strval($entry['topic'] ?? ''), 0, self::DIARY_TOPIC_CHARS));
+        return htmlspecialchars(($topic !== '' ? "Date: {$topic}\n" : '').$content, ENT_QUOTES | ENT_XML1 | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     // The existing locked quest reader for this exact claimed request and addressed NPC: attributed player reports

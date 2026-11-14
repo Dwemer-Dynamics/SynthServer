@@ -192,6 +192,8 @@ See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay 
   completed on the first attempt in about 33 seconds, with valid published
   ownership/hashes and dashboard visibility (4 November 2026).
 - [ ] VR: verify a controller-accessible diary request and saved entry in-headset.
+- [ ] Native `/talk` latest-diary context: loopback evidence only (fake provider, synthetic
+  dialogue source). Flat in-game and VR use are not verified. The ordinary-route omission remains open.
 
 ## Location ancestry
 
