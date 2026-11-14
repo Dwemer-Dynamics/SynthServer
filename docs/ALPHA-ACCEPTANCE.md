@@ -16,6 +16,19 @@
       everyone while the responder profile is used.
 - [ ] Paired client, then flat and VR in game, separately.
 
+## Native conversation World Knowledge
+
+See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopback and suite checks only.
+
+- [x] Disposable loopback: for the same selected topic, an eligible advanced-tier NPC receives its advanced
+  text and not its basic text, and a basic-tier NPC the reverse. The separate vocabulary article stays basic.
+  Each turn makes exactly one provider call.
+- [x] Controls: a test-authored prewar tag and profile `WORLDKNOWLEDGE_INFINIUM=false` give neither tier;
+  the disabled turn records a `disabled` audit row without catalogue data. Unmatched input selects no
+  topic article and makes no extra call; the vocabulary article may remain.
+- [x] Existing World Knowledge, quest-access, everyday-lore and native dialogue suites pass unchanged.
+- [ ] Flat in game, then VR independently: a lore question to an eligible NPC reflects the article.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.

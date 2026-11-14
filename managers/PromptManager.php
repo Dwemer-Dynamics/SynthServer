@@ -15,7 +15,9 @@ final class PromptManager
         'appearance' => 'Appearance', 'personality' => 'Personality', 'occupation' => 'Occupation', 'speechstyle' => 'Speech style',
         'goals' => 'Goals'];
 
-    public function messages(PlacedCharacter $character, array $situation, array $history, string $text, string $skills = ''): array
+    // $knowledge is the turn's already rendered and bounded World Knowledge block, framed as in ordinary dialogue.
+    public function messages(PlacedCharacter $character, array $situation, array $history, string $text, string $skills = '',
+        string $knowledge = ''): array
     {
         $system = "You are {$character->displayName()} in Fallout 4. Reply in character with the character's utterance only, no narration, actions or markup. Respect nonverbal speech restrictions.";
         foreach (self::PROFILE_FIELDS as $field => $label) {
@@ -24,6 +26,7 @@ final class PromptManager
             if ($value !== '') $system .= "\n".$label.": ".mb_substr($value, 0, 4000);
         }
         if ($skills !== '') $system .= "\n".$skills;
+        if ($knowledge !== '') $system .= "\n<fallout_context>\n<knowledge>\n".$knowledge."\n</knowledge>\n</fallout_context>";
         $situation = json_encode($situation, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         return [['role' => 'system', 'content' => $system."\nSituation: ".$situation], ...$history,
             ['role' => 'user', 'content' => $text]];
