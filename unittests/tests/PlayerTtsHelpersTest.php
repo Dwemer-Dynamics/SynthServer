@@ -106,6 +106,82 @@ PHP;
         foreach (['cache_only','legacy','narrator','unclaimed','no_capability'] as $case) $this->assertGreaterThan(0,$results[$case]['voice_queries'],$case);
     }
 
+    // Auto Chat never echoes its intent. Only the accepted line is published, once per owner, as the player's own
+    // speech addressed to the exact target under its deterministic utterance id; cancellation publishes nothing.
+    public function testAutoChatPublishesOnlyItsAcceptedLineOnceAndNeverEchoesIntent(): void
+    {
+        $root=var_export(dirname(__DIR__,2),true);
+        $code=<<<'PHP'
+$root=ROOT_PATH;
+require $root.'/lib/logger.php';
+require $root.'/lib/chat_helper_functions.php';
+require $root.'/lib/response.php';
+require $root.'/lib/player_tts_helpers.php';
+function audit_log($file=''): void {}
+$GLOBALS['db']=new class {
+    public bool $cancel=false;
+    public function escape(string $value): string { return $value; }
+    public function escapeLiteral(string $value): string { return "'".$value."'"; }
+    public function query(string $query): never { throw new LogicException('unexpected_publication_work'); }
+    public function fetchOne(string $query): ?array {
+        if (!str_contains($query,'synth_meta.request_executions')) return null;
+        return ['state'=>$this->cancel?'cancelled':'streaming','error_code'=>null,'runtime_state'=>'active',
+            'active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
+    }
+};
+$target=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'pt-auto','display_name'=>'Piper'];
+$result=[];
+foreach (['accepted','repeated','unaccepted','cancelled','ordinary','buffer_failure'] as $case) {
+    $event=['protocol_version'=>2,'type'=>'input_text','session_id'=>'session:auto','request_id'=>'auto:'.$case,'turn_id'=>'turn:auto',
+        'generation'=>7,'context_sequence'=>9,'capabilities'=>['dialogue.turn_ownership'],
+        'payload'=>['text'=>'[sarcastic] ask about the paper','control'=>['mode'=>$case==='ordinary'?'STANDARD':'AUTOCHAT','model_slot'=>1]]];
+    $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;$GLOBALS['db']->cancel=false;
+    $GLOBALS['SYNTH_NAME']='Piper';$GLOBALS['PLAYER_NAME']='Nora';$GLOBALS['SYNTH_SPEECH_ROLE']='npc';$GLOBALS['TTSFUNCTION']='none';
+    $GLOBALS['SYNTH_JSON_RESPONSE_LINES']=[];
+    unset($GLOBALS['SYNTH_AUTOCHAT'],$GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER']);
+    if (in_array($case,['accepted','repeated','cancelled','buffer_failure'],true)) $GLOBALS['SYNTH_AUTOCHAT']=['text'=>'So, Publick Occurrences still printing lies?',
+        'target'=>$target,'utterance_id'=>synth_autochat_utterance_id($event),'published'=>false];
+    $gameRequest=['inputtext',0,0,'Nora: So, Publick Occurrences still printing lies? (Talking to Piper)'];
+    $echo=synth_emit_native_player_transcript($gameRequest);
+    $GLOBALS['db']->cancel=$case==='cancelled';
+    // A buffer that cannot take the line makes publication throw out of the player processor.
+    if ($case==='buffer_failure') $GLOBALS['SYNTH_JSON_RESPONSE_LINES']='unbufferable';
+    $error='';
+    try {
+        include $root.'/processor/player_tts.php';
+        if ($case==='repeated') include $root.'/processor/player_tts.php';
+    } catch (SYNTHProtocolCancelled) { $error='cancelled'; }
+    catch (Error) { $error='buffer_failed'; }
+    $published=$GLOBALS['SYNTH_AUTOCHAT']['published'] ?? null;
+    // Nothing was marked published, so the same owner's line is still publishable exactly once.
+    if ($case==='buffer_failure') { $GLOBALS['SYNTH_JSON_RESPONSE_LINES']=[]; synth_autochat_emit_player_line(false); }
+    $result[$case]=['published'=>$published,'echo'=>$echo,'lines'=>$GLOBALS['SYNTH_JSON_RESPONSE_LINES'],'error'=>$error,'role'=>$GLOBALS['SYNTH_SPEECH_ROLE'],
+        'utterance'=>synth_autochat_utterance_id($event),'event_unchanged'=>$event===$GLOBALS['SYNTH_REQUEST_EVENT']['json']];
+}
+echo json_encode($result,JSON_THROW_ON_ERROR);
+PHP;
+        $output=shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg(str_replace('ROOT_PATH',$root,$code)));
+        $results=json_decode(strval($output),true,flags:JSON_THROW_ON_ERROR);
+        foreach ($results as $case=>$result) {
+            $this->assertSame('npc',$result['role'],$case);
+            $this->assertTrue($result['event_unchanged'],$case);
+            $this->assertSame($case==='ordinary',$result['echo'],$case);
+        }
+        $this->assertSame(['buffer_failed',false,true],[$results['buffer_failure']['error'],$results['buffer_failure']['published'],$results['accepted']['published']]);
+        foreach (['accepted','repeated','buffer_failure'] as $case) {
+            $this->assertCount(1,$results[$case]['lines'],$case);
+            $line=$results[$case]['lines'][0];
+            $this->assertSame(['Player','player','So, Publick Occurrences still printing lies?','Piper','0x0001A4D7','Fallout4.esm',
+                $results[$case]['utterance'],true],[$line['speaker'],$line['speech_role'],$line['text'],$line['listener'],
+                $line['listener_formid'],$line['metadata']['listener_plugin'],$line['utterance_id'],$line['text_only']],$case);
+            $this->assertStringNotContainsString('sarcastic',json_encode($line),$case);
+        }
+        $this->assertNotSame($results['accepted']['utterance'],$results['repeated']['utterance']);
+        foreach (['unaccepted','cancelled'] as $case) $this->assertSame([],$results[$case]['lines'],$case);
+        $this->assertSame('cancelled',$results['cancelled']['error']);
+        $this->assertSame('__player_text_only',$results['ordinary']['lines'][0]['listener']);
+    }
+
     public function testOnlyOwnedPortablePlayerSpeechUsesDeferredJobs(): void
     {
         $keys = ['SYNTH_RESPONSE_FORMAT', 'SYNTH_SPEECH_ROLE', 'SYNTH_PROTOCOL_REQUEST_CLAIMED', 'SYNTH_REQUEST_EVENT'];

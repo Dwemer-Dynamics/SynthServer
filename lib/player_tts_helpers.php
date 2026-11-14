@@ -1,11 +1,14 @@
 <?php
 
+require_once __DIR__.'/synth_autochat.php';
+
 // A native player's own text/transcript is an acknowledgement, independent of NPC prompt and voice work.
-// Bind deduplication to the exact admitted request; a fallback must not repeat it.
+// Bind deduplication to the exact admitted request; a fallback must not repeat it. Auto Chat intent is never
+// echoed: that turn publishes only its accepted generated line (synth_autochat_emit_player_line).
 function synth_emit_native_player_transcript(array $gameRequest): bool
 {
     $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || synth_autochat_selected($event)
         || !synth_protocol_owns_dialogue_turn($event)
         || !in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
         || !in_array($gameRequest[0] ?? '', ['inputtext', 'inputtext_s', 'narrator_inputtext'], true)

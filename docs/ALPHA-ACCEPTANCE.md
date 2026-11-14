@@ -1,5 +1,17 @@
 # Synthserver open-alpha acceptance
 
+## Auto Chat
+
+See [AUTO-CHAT.md](AUTO-CHAT.md#automated-checks).
+
+- [ ] Automated: the listed database-free PHPUnit cases, the disposable-PostgreSQL history case and
+  the paired `testCompiledClientAutoChat` loopback, on the exact client and server commits.
+- [ ] Fake provider: exactly one rewrite call per Auto Chat root; ordinary routes keep their counts.
+- [ ] Older-save load after an Auto Chat turn: the generated row follows the saved-ancestry cutoffs.
+- [ ] Flat in game and VR in headset, separately: selection, typed and voice turns, the generated
+  player line and the NPC reply.
+- [ ] Physical microphone input and heard player voice, flat and VR independently.
+
 ## Everyone audience
 
 See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md#evidence-boundary). These are off-game results on exact

@@ -348,7 +348,9 @@ final class NativeDialogueTurnTest extends TestCase
         $cases=['native_turn_not_negotiated'=>[[$unmarked,$context,$row,[]],
                 [array_replace($event,['capabilities'=>['dialogue.text','dialogue.turn_ownership']]),$context,$row,[]],
                 [array_replace($event,['type'=>'input_audio']),$context,$row,[]]],
-            'conversation_mode_unsupported'=>[[array_replace_recursive($event,['payload'=>['control'=>['mode'=>'NARRATOR','model_slot'=>1]]]),$context,$row,[]]],
+            'conversation_mode_unsupported'=>[[array_replace_recursive($event,['payload'=>['control'=>['mode'=>'NARRATOR','model_slot'=>1]]]),$context,$row,[]],
+                // /talk never runs Auto Chat; that mode stays on the ordinary pipeline's generated-player stage.
+                [array_replace_recursive($event,['payload'=>['control'=>['mode'=>'AUTOCHAT','model_slot'=>1]]]),$context,$row,[]]],
             'target_not_placed_reference'=>[[$event,array_replace($context,['target'=>['form_id'=>'0xFF000802']+$npc]),$row,[]]],
             'npc_not_registered'=>[[$event,$context,null,[]]],
             'llm_connector_unsupported'=>[[$event,$context,['driver'=>'player2json']+$row,[]]],

@@ -278,8 +278,9 @@ if (in_array($gameRequest[0], ["conversation_start", "conversation_end"], true))
 // Database Connection
 $db = $GLOBALS["db"] ?? new sql();
 $GLOBALS["db"] = $db;
-unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
+unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'], $GLOBALS['SYNTH_AUTOCHAT']);
 $inventoryPromptText = '';
+$synthAutoChat = false;
 
 if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
     $wireEvent = is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)
@@ -371,7 +372,10 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             synth_protocol_emit_terminal_error('context_required', $error->getMessage());
             exit;
         }
-        if (in_array('social.tasks.v1',$wireEvent['capabilities'] ?? [],true)) {
+        // Explicit Auto Chat intent is an instruction for the player's line, never a command: no raw-intent shortcut.
+        require_once $path.'lib/synth_autochat.php';
+        $synthAutoChat = synth_autochat_selected($wireEvent);
+        if (!$synthAutoChat && in_array('social.tasks.v1',$wireEvent['capabilities'] ?? [],true)) {
             require_once $path.'lib/synth_social_tasks.php';
             $taskText=$wireEvent['type']==='input_audio' ? $transcript : ($wireEvent['payload']['text'] ?? '');
             if (is_string($taskText) && synth_social_parse_directive($taskText,strval($GLOBALS['SYNTH_INPUT_TARGET'] ?? ''))!==null) {
@@ -489,6 +493,20 @@ if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
     }
 }
 
+// Auto Chat: the raw intent is frozen above; one rewrite call replaces only the derived structured text before any
+// echo, shortcut, history row or NPC prompt reads it. A failed or uncertain rewrite ends the turn here with no NPC
+// provider call, no echo and no history; it is not retried (the request claim replays the stored failure).
+if ($synthAutoChat) {
+    try {
+        synth_autochat_prepare($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'], $gameRequest, $transcript ?? null);
+        $inventoryPromptText = synth_autochat_line()['text'];
+    } catch (SYNTHProtocolCancelled $error) { throw $error; }
+    catch (Throwable $error) {
+        synth_protocol_emit_terminal_error('provider_failed', synth_autochat_failure($error));
+        exit;
+    }
+}
+
 if (function_exists("synth_adapt_json_input_payload_for_pipeline")) {
     $normalizedInputPayload = synth_adapt_json_input_payload_for_pipeline($gameRequest);
     if (!empty($normalizedInputPayload["changed"])) {
@@ -500,6 +518,9 @@ if (function_exists("synth_adapt_json_input_payload_for_pipeline")) {
         ]));
     }
 }
+// History, the NPC prompt and the published player line must all carry the exact accepted line; the adapter's exact
+// derived text for the bound player and target is frozen here for the history row.
+if ($synthAutoChat) synth_autochat_freeze_input($normalizedInputPayload ?? [], $gameRequest);
 
 // Echo admitted native input before semaphore waits, memory lookup and NPC prompt construction.
 // This uses the same generation/turn ownership checks as later streamed speech, with no TTS work.
@@ -584,7 +605,7 @@ require(__DIR__."/processor/misc.php");
 // Will change  $gameRequest[3] with the rewritten LLM request.
 
 $player_rewrite_speech = "";
-if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"]) && $GLOBALS["PLAYER_RESPEECH"]) {
+if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"]) && $GLOBALS["PLAYER_RESPEECH"]) {
     // Use preg_replace to remove the name and colon before the dialogue
     $cleaned_player_dialogue = addcslashes(preg_replace('/^[^:]+:/', '', $gameRequest[3]),'"');
     error_log($cleaned_player_dialogue);
@@ -2390,7 +2411,9 @@ if ($gameRequest[0] != "diary") {
             "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
             "people_chars" => strlen((string)$eventPeople),
         ]);
-        $db->insert('eventlog', $eventlogInsert);
+        // Auto Chat's generated player row is a deterministic stage of this owner, inserted or reused once.
+        if ($synthAutoChat && $gameRequest[0] === 'inputtext') synth_autochat_record_history($db, $eventlogInsert);
+        else $db->insert('eventlog', $eventlogInsert);
         Logger::phaseEnd("eventlog_insert", [
             "type" => $gameRequest[0] ?? "",
             "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
@@ -2402,7 +2425,7 @@ if ($gameRequest[0] != "diary") {
 // Check if this event has been disabled before either direct or model responses.
 if (!empty($GLOBALS['PROMPTS'][$gameRequest[0]]['extra']['dontuse'])) terminate();
 
-if (synth_gift_menu_try_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) exit;
+if (!$synthAutoChat && synth_gift_menu_try_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) exit;
 
 // Classify once after claimed input/history logging and the negotiated action
 // catalog are ready, while the immutable capture can still pass its freshness
@@ -3332,7 +3355,8 @@ if (sizeof($talkedSoFar) == 0) {
             }
 
             // Update speech table with LLM-generated text for AUTOCHAT mode
-            if (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && $GLOBALS["SYNTH_EXECUTION_MODE"] === "AUTOCHAT"
+            // Native Auto Chat already stored its exact owned row; never the broad name/gamets speech rewrite.
+            if (!$synthAutoChat && isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && $GLOBALS["SYNTH_EXECUTION_MODE"] === "AUTOCHAT"
                 && in_array($gameRequest[0], ["inputtext", "inputtext_s"])
                 && sizeof($talkedSoFar) > 0) {
 

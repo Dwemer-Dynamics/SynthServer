@@ -1,5 +1,14 @@
 # Synthserver developer handoff
 
+## Auto Chat candidate
+
+Explicit `AUTOCHAT` rewrites typed or server-transcribed intent into one generated player line,
+publishes it at once as player speech (player TTS when configured) and lets the selected NPC answer
+on the ordinary route. `/talk` refuses the mode and Everyone cannot carry it. Supported rewrite
+providers are default OpenRouter #2 and Quickstart `openaijson`; anything else fails closed. No
+schema, setting or table change. See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
+
 ## Everyone audience candidate
 
 Everyone is an explicit public audience for one Standard or Shout turn, negotiated as `dialogue.everyone`;
