@@ -489,7 +489,11 @@ function synth_adapt_json_input_payload_for_pipeline(array &$gameRequest): array
     $target = synth_sanitize_pipeline_input_fragment(str_replace(["(", ")"], " ", $target));
 
     $display = $player !== "" ? "{$player}: {$text}" : $text;
-    if ($target !== "" && strcasecmp($target, "The Narrator") !== 0) {
+    // An explicit public turn names its audience; its responder stays the transport target below.
+    require_once __DIR__ . "/synth_control.php";
+    if (synth_control_everyone_input($GLOBALS["SYNTH_REQUEST_EVENT"]["json"] ?? [])) {
+        $display .= " (Talking to everyone)";
+    } elseif ($target !== "" && strcasecmp($target, "The Narrator") !== 0) {
         $display .= " (Talking to {$target})";
     }
 

@@ -220,16 +220,20 @@ function synthModeExtractRequestedMode(array $gameRequest, string $receivedData)
     return in_array($mode, $allowedModes, true) ? $mode : '';
 }
 
+// Legacy global mode write through the shared audience gate; it commits before any later service call.
+function synthModeWriteGlobal($db, string $mode): void
+{
+    require_once __DIR__.'/../lib/synth_control.php';
+    try {
+        synth_control_write_global_mode($db, $mode);
+    } catch (Throwable $error) {
+        Logger::error("Mode change failed: ".$error->getMessage());
+    }
+}
+
 function synthModeResetToStandard($db): void
 {
-    $db->upsertRow(
-        'conf_opts',
-        array(
-            'id' => 'synth_mode',
-            'value' => 'STANDARD'
-        ),
-        "id='synth_mode'"
-    );
+    synthModeWriteGlobal($db, 'STANDARD');
 }
 
 function synthModeNotify(string $message): void
@@ -289,14 +293,7 @@ if (!in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]))
     $REQUESTED_EXECUTION_MODE = synthModeExtractRequestedMode($gameRequest, $receivedData ?? '');
     if ($REQUESTED_EXECUTION_MODE !== '') {
         $EXECUTION_MODE = $REQUESTED_EXECUTION_MODE;
-        if (!$nativeInput) $db->upsertRow(
-            'conf_opts',
-            array(
-                'id' => 'synth_mode',
-                'value' => $EXECUTION_MODE
-            ),
-            "id='synth_mode'"
-        );
+        if (!$nativeInput) synthModeWriteGlobal($db, $EXECUTION_MODE);
     }
 }
 

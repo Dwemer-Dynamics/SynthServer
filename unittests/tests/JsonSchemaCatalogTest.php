@@ -144,6 +144,61 @@ final class JsonSchemaCatalogTest extends TestCase
             $this->assertStringNotContainsString('ACCEPTED',$output,$case);
         }
     }
+
+    // Everyone is a paired, negotiated public audience on ordinary input only; Normal and older clients are unchanged.
+    public function testEveryoneAudienceIsExplicitPairedAndNegotiated(): void
+    {
+        $root=dirname(__DIR__,2);
+        require_once $root.'/lib/request.php';
+        require_once $root.'/lib/synth_control.php';
+        $fixture=static fn(string $name): array=>json_decode(file_get_contents($root.'/protocol/v2/fixtures/'.$name),true,flags:JSON_THROW_ON_ERROR);
+        $text=$fixture('valid/input-text-everyone.json');
+        $control=$fixture('valid/control-audience.json');
+        $this->assertSame($text,synth_protocol_validate_event($text));
+        $this->assertSame($control,synth_protocol_validate_event($control));
+        $this->assertSame('everyone',synth_protocol_validate_event($fixture('valid/input-audio-everyone.json'))['payload']['audience_intent']);
+        $this->assertTrue(synth_control_everyone_input($text));
+        $this->assertTrue(synth_control_valid_change('audience','normal'));
+        $this->assertFalse(synth_control_valid_change('audience','redirected'));
+        // Mode writers exclusive, Everyone and audience preference shared, everything else takes no gate.
+        $status=$fixture('valid/control-status.json');
+        $mode=$status;$mode['payload']=['setting'=>'mode','value'=>'WHISPER'];
+        $normal=$text;unset($normal['payload']['audience_intent'],$normal['payload']['audience_reset_epoch']);
+        $this->assertSame([true,false,false,null,null],array_map('synth_control_audience_gate',[$mode,$control,$text,$status,$normal]));
+        $this->assertFalse(synth_control_everyone_input($normal));
+        $cases=array_map(static fn($file)=>json_decode(file_get_contents($file),true),
+            array_merge(glob($root.'/protocol/v2/fixtures/invalid/input-text-everyone-*.json'),
+                glob($root.'/protocol/v2/fixtures/invalid/control-audience-*.json')));
+        $bad=$text;$bad['capabilities']=['dialogue.text','control.menu'];$cases[]=$bad;
+        $bad=$text;$bad['context_sequence']=0;$cases[]=$bad;
+        $bad=$text;$bad['payload']['audience_reset_epoch']=-1;$cases[]=$bad;
+        $bad=$text;$bad['schema']='synth.event.v1';$bad['protocol_version']=1;unset($bad['context_sequence'],$bad['payload']['control']);$cases[]=$bad;
+        foreach ($cases as $index=>$event) {
+            $script='require '.var_export($root.'/lib/request.php',true).';synth_protocol_validate_event(json_decode('.var_export(json_encode($event),true).',true));echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,'case '.$index);
+        }
+        // Only a negotiated init or control_state carries the closed object; malformed values are never emitted.
+        $audience=['intent'=>'everyone','reset_epoch'=>3];
+        $init=$fixture('valid/init-flat.json');
+        $saved=$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        try {
+            $ack=static function (array $event, string $code, array $detail): array {
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+                return json_decode(explode("\n",synth_protocol_encode_ack($code,$detail))[1],true)['payload'];
+            };
+            $expected=json_decode(explode("\n",file_get_contents($root.'/protocol/v2/fixtures/valid/response-control-audience.ndjson'))[1],true)['payload'];
+            $this->assertSame($expected,$ack($control,'control_state',['detail'=>'STANDARD|1','control_audience'=>$audience]));
+            $this->assertArrayNotHasKey('control_audience',$ack($status,'control_state',['detail'=>'STANDARD|1','control_audience'=>$audience]));
+            $this->assertArrayNotHasKey('control_audience',$ack($control,'control_state',['control_audience'=>['intent'=>'everyone','reset_epoch'=>-1]]));
+            $this->assertArrayNotHasKey('control_audience',$ack($init,'init_accepted',['control_audience'=>$audience]));
+            $init['capabilities']=array_merge($init['capabilities'],['control.menu','dialogue.everyone']);
+            $this->assertSame(['intent'=>'normal','reset_epoch'=>4],$ack($init,'init_accepted',['control_audience'=>['intent'=>'normal','reset_epoch'=>4]])['control_audience']);
+        } finally {
+            if ($saved===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT']=$saved;
+        }
+    }
+
     public function testTransferReceiptsRequireTwoIndependentBoundedObservations(): void
     {
         require_once dirname(__DIR__,2).'/lib/request.php';

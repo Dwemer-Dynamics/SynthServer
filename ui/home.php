@@ -650,6 +650,51 @@ include(__DIR__ . DIRECTORY_SEPARATOR . "tmpl" . DIRECTORY_SEPARATOR . "head.htm
         font-weight: 400;
     }
 
+    .audience-control {
+        margin: 16px 0 0;
+        min-width: 0;
+    }
+
+    .audience-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+        margin-top: 8px;
+    }
+
+    .audience-row label {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+    }
+
+    .audience-row select {
+        flex: 1 1 200px;
+        min-width: 0;
+        width: auto;
+        max-width: 100%;
+        padding: 6px 8px;
+    }
+
+    .audience-row .btn-base {
+        margin: 0;
+        padding: 6px 14px;
+        font-size: 0.9rem;
+    }
+
+    .audience-help,
+    .audience-note,
+    .audience-status {
+        margin: 6px 0 0;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+    }
+
+    .audience-help {
+        color: #f2f2f2;
+    }
+
     .quest-list {
         margin-top: 18px;
         padding-top: 16px;
@@ -951,6 +996,22 @@ $debugPaneLink = false;
                         <tr><td>Active Model</td><td><?php echo synth_home_h($currentModel); ?></td></tr>
                     </table>
                 </div>
+                <fieldset id="audienceControl" class="audience-control" aria-busy="true" aria-describedby="audienceHelp">
+                    <legend class="section-label">Audience</legend>
+                    <p id="audienceHelp" class="audience-help">Save, then press SYNTH Control in game to refresh. Applies to future input.</p>
+                    <div class="audience-row">
+                        <label for="audienceSession">Game session</label>
+                        <select id="audienceSession" disabled><option value="">Choose a game session</option></select>
+                        <button type="button" id="audienceRefresh" class="btn-base" disabled>Refresh list</button>
+                    </div>
+                    <div class="audience-row" role="radiogroup" aria-label="Audience preference">
+                        <label><input type="radio" name="audienceIntent" value="normal" checked disabled> Normal</label>
+                        <label><input type="radio" name="audienceIntent" value="everyone" disabled> Everyone</label>
+                        <button type="button" id="audienceApply" class="btn-base" disabled>Apply</button>
+                    </div>
+                    <p id="audienceNote" class="audience-note muted" hidden></p>
+                    <p id="audienceStatus" class="audience-status" role="status" aria-live="polite">Loading game sessions...</p>
+                </fieldset>
                 <div class="quest-list">
                     <h4 class="section-label">Current Quests</h4>
                     <div class="table-wrap">
@@ -1429,6 +1490,137 @@ $debugPaneLink = false;
                     cyclePeriod();
                 }
             });
+        })();
+
+        (() => {
+            const endpoint = <?php echo json_encode($webRoot . '/ui/api/audience_control.php'); ?>;
+            const box = document.getElementById('audienceControl');
+            if (!box) return;
+            const select = document.getElementById('audienceSession');
+            const refreshButton = document.getElementById('audienceRefresh');
+            const applyButton = document.getElementById('audienceApply');
+            const radios = box.querySelectorAll('input[name="audienceIntent"]');
+            const note = document.getElementById('audienceNote');
+            const status = document.getElementById('audienceStatus');
+            let sessions = [];
+            let csrfToken = '';
+            let everyoneAllowed = false;
+            let busy = false;
+            let requestId = 0;
+
+            const intentLabel = intent => intent === 'everyone' ? 'Everyone' : 'Normal';
+            const selectedSession = () => sessions.find(session => session.session_id === select.value) || null;
+            const selectedIntent = () => (box.querySelector('input[name="audienceIntent"]:checked') || {}).value || 'normal';
+            // Shown as option text only (never HTML); the session id tail separates otherwise identical rows.
+            const describe = session => `${session.runtime_variant === 'vr' ? 'VR' : 'Flat'} - playthrough ${session.playthrough_id || '?'}`
+                + ` - client ${session.client_version || '?'} - ...${String(session.session_id).slice(-8)}`
+                + ` - saved: ${intentLabel(session.audience_intent)}`;
+
+            function render() {
+                box.setAttribute('aria-busy', busy ? 'true' : 'false');
+                select.disabled = busy || sessions.length === 0;
+                refreshButton.disabled = busy;
+                radios.forEach(radio => { radio.disabled = busy || (radio.value === 'everyone' && !everyoneAllowed); });
+                applyButton.disabled = busy || !csrfToken || !selectedSession() || (selectedIntent() === 'everyone' && !everyoneAllowed);
+            }
+
+            // The radios show the server-saved preference for the chosen session, not what the game has applied.
+            function syncIntent() {
+                const session = selectedSession();
+                const intent = session ? session.audience_intent : 'normal';
+                radios.forEach(radio => { radio.checked = radio.value === intent; });
+            }
+
+            // One request at a time: controls stay disabled while busy, and a superseded reply is ignored.
+            async function request(options) {
+                const id = ++requestId;
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 8000);
+                busy = true;
+                render();
+                try {
+                    const response = await fetch(endpoint, Object.assign({ credentials: 'same-origin', cache: 'no-store', signal: controller.signal }, options));
+                    const result = await response.json().catch(() => null);
+                    if (!response.ok || !result || result.ok !== true) {
+                        throw new Error(result && typeof result.error === 'string' ? result.error : 'Audience request failed.');
+                    }
+                    return id === requestId ? result : null;
+                } catch (error) {
+                    if (id === requestId) {
+                        // A timed-out POST may still have been saved by the server.
+                        const timeoutMessage = options.method === 'POST'
+                            ? 'Save status is unknown. Refresh the list before trying again.'
+                            : 'The server did not answer in time. Try again.';
+                        status.textContent = error.name === 'AbortError' ? timeoutMessage : error.message;
+                    }
+                    return null;
+                } finally {
+                    clearTimeout(timer);
+                    if (id === requestId) busy = false;
+                }
+            }
+
+            async function loadSessions() {
+                const previous = selectedSession();
+                status.textContent = 'Loading game sessions...';
+                const result = await request({ method: 'GET' });
+                sessions = result && Array.isArray(result.sessions) ? result.sessions : [];
+                csrfToken = result && typeof result.csrf_token === 'string' ? result.csrf_token : '';
+                everyoneAllowed = !!result && result.everyone_allowed === true;
+                select.length = 0;
+                select.add(new Option('Choose a game session', ''));
+                sessions.forEach(session => select.add(new Option(describe(session), session.session_id)));
+                // Keep an explicit choice only for the same session generation; never preselect a session otherwise.
+                if (previous && sessions.some(session => session.session_id === previous.session_id && session.active_generation === previous.active_generation)) {
+                    select.value = previous.session_id;
+                }
+                const lines = [];
+                if (result) {
+                    const mode = result.mode ? result.mode.charAt(0) + result.mode.slice(1).toLowerCase().replace(/_/g, ' ') : 'the current';
+                    if (!everyoneAllowed) lines.push(`Everyone is unavailable in ${mode} mode. Switch to Standard or Shout first.`);
+                    if (!sessions.length) lines.push('No active game session supports Everyone. Start the game with a compatible SYNTH client, then refresh the list.');
+                    if (result.truncated) lines.push('Only the first 16 game sessions are shown. If yours is missing, close other game sessions and refresh the list.');
+                    status.textContent = sessions.length ? `${sessions.length} game session(s) found. Choose one to change.` : '';
+                }
+                note.textContent = lines.join(' ');
+                note.hidden = !lines.length;
+                syncIntent();
+                render();
+            }
+
+            async function applyIntent() {
+                const session = selectedSession();
+                if (!session || busy) return;
+                // The generation is copied at Apply so the server refuses the write if that session has restarted.
+                const generation = session.active_generation;
+                status.textContent = 'Saving...';
+                const result = await request({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ csrf_token: csrfToken, session_id: session.session_id, generation: generation, intent: selectedIntent() })
+                });
+                if (result) {
+                    if (result.session_id === session.session_id && result.generation === generation && result.audience) {
+                        session.audience_intent = result.audience.intent;
+                        session.audience_reset_epoch = result.audience.reset_epoch;
+                        select.options[select.selectedIndex].text = describe(session);
+                        syncIntent();
+                    }
+                    status.textContent = result.message || 'Saved on the server. Press SYNTH Control in game to refresh.';
+                }
+                render();
+            }
+
+            select.addEventListener('change', () => {
+                const session = selectedSession();
+                syncIntent();
+                status.textContent = session ? `Saved on the server: ${intentLabel(session.audience_intent)}. The game uses it after a SYNTH Control refresh.` : '';
+                render();
+            });
+            radios.forEach(radio => radio.addEventListener('change', render));
+            refreshButton.addEventListener('click', loadSessions);
+            applyButton.addEventListener('click', applyIntent);
+            loadSessions();
         })();
 
         document.addEventListener('click', event => {

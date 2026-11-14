@@ -5204,6 +5204,13 @@ if ($checkVersion('synth_protocol_schema') < 20261109001) {
     else Logger::error('Failed to apply patch synth_protocol_schema 20261109001');
 }
 
+// Everyone audience preference and reset epoch on runtime_sessions; requests never create these columns.
+if ($checkVersion('synth_protocol_schema') < 20261113002) {
+    $migrationOk = $GLOBALS['db']->execQuery(file_get_contents(__DIR__.'/../lib/core/database_schema/synth_protocol.sql')) !== false;
+    if ($migrationOk) $updateVersion('synth_protocol_schema', 20261113002);
+    else Logger::error('Failed to apply patch synth_protocol_schema 20261113002');
+}
+
 if ($checkVersion('visual_context_protocol') < 20260831001) {
     Logger::debug('Applying visual_context_protocol 20260831001 - bind PipVision to runtime, media and actor identity');
     $migrationOk = $db->execQuery(
