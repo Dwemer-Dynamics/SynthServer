@@ -88,7 +88,8 @@ final class DialogueManager
             $knowledge = $this->knowledge?->context($request, $character, $history, $quest) ?? '';
             $messages = $this->prompts->messages($character, $situation, $history, $request->text(),
                 $this->context->skills($request, $character), $knowledge,
-                $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '');
+                $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '',
+                $this->context->noteKnowledge($request, $character));
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()

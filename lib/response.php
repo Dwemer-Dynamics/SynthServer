@@ -402,6 +402,13 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
         $privateNarrator=synth_private_narrator_supported($event) && isset($GLOBALS['db'])
             && synth_private_narrator_schema_ready($GLOBALS['db']);
     }
+    // Readable notes are granted only to an exact audited flat init with its plugin manifest on a migrated schema.
+    $readableNotes=false;
+    if ($status==='init_accepted' && ($event['type'] ?? '')==='init') {
+        require_once __DIR__.'/synth_notes.php';
+        $readableNotes=synth_note_runtime_supported($event) && is_array($event['payload']['plugins'] ?? null)
+            && isset($GLOBALS['db']) && synth_note_schema_ready($GLOBALS['db']);
+    }
     // Participant-bound postcombat remarks are granted only to a flat init that asked for every prerequisite.
     $companionComments=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat'
@@ -457,6 +464,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
+    if ($readableNotes) $statusPayload['readable_notes'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
     if ($combatTargets && synth_combat_contacts_supported($event)) $statusPayload['combat_contacts'] = true;

@@ -1,6 +1,7 @@
 <?php
 
-// Thin v2 dispatch for explicit native dialogue: conversation-intent typed turns and speech receipts.
+// Thin v2 dispatch for explicit native dialogue: conversation-intent typed turns and speech receipts, plus the
+// private narrator and readable-note events.
 // main.php selects it from the single validated wire event before main_synth_pipeline.php is loaded; every
 // other event, including unmarked typed text, keeps the legacy pipeline.
 require_once dirname(__DIR__, 2).'/lib/request.php';
@@ -38,6 +39,16 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
         $output->claimed($owner);
         $output->assertActive();
         if ($route === 'narrator') { $app->privateNarrator($output, $owner, $legacy)->handle($event); return; }
+        if ($route === 'note') {
+            require_once dirname(__DIR__, 2).'/lib/synth_notes.php';
+            try { $state = synth_note_handle($app->db, $owner); }
+            catch (DomainException $error) {
+                $output->terminal(str_starts_with($error->getMessage(), 'note_') ? $error->getMessage() : 'note_refused');
+                return;
+            }
+            $output->ack($event['type'].'_accepted', ['detail' => $state]);
+            return;
+        }
         $dialogue = $app->dialogue($output, $owner, $legacy);
         if ($route === 'conversation') { $dialogue->converse($event); return; }
         try { $state = $dialogue->receipt($event); }

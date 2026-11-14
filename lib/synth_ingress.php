@@ -954,6 +954,10 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'owned_speech_receipt_required']]);
         }
         $payload['character']=synth_protocol_validate_identity($payload['character'] ?? null,'payload.character');
+    } elseif ($type === 'note_read' || $type === 'note_share') {
+        require_once __DIR__.'/synth_notes.php';
+        if ($version!==2) synth_protocol_fail('invalid_payload',422,[['field'=>'payload','issue'=>'note_v2_required']]);
+        $payload=synth_note_validate_payload($type,$payload);
     } elseif (in_array($type,['narrator_command','narrator_turn','narrator_receipt'],true)) {
         require_once __DIR__.'/synth_private_narrator.php';
         $payload=synth_private_narrator_validate_payload($type,$payload);
@@ -981,7 +985,7 @@ function synth_protocol_validate_event(array $event): array
 
     $types = ['init', 'input_text', 'input_audio', 'context', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result', 'cancel', 'halt'];
     if ($version === 2) array_push($types,'control','social_task_request','social_task_progress','speech_receipt',
-        'narrator_command','narrator_turn','narrator_receipt');
+        'narrator_command','narrator_turn','narrator_receipt','note_read','note_share');
     $valid = in_array($version, [1, 2], true)
         && $event['schema'] === 'synth.event.v' . $version
         && in_array($event['type'], $types, true)
@@ -1003,7 +1007,7 @@ function synth_protocol_validate_event(array $event): array
         synth_protocol_fail('invalid_envelope', 422, [['field' => 'event', 'issue' => 'invalid']]);
     }
     if ($version === 2) {
-        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result','social_task_request','social_task_progress','speech_receipt','narrator_command','narrator_turn','narrator_receipt'], true);
+        $bound = in_array($event['type'], ['input_text', 'input_audio', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result','social_task_request','social_task_progress','speech_receipt','narrator_command','narrator_turn','narrator_receipt','note_read','note_share'], true);
         $sequence = $event['context_sequence'];
         if (!is_int($sequence) || $sequence > 9007199254740991
             || ($bound ? $sequence < 1 : $sequence !== 0)) {
@@ -1075,6 +1079,12 @@ function synth_protocol_validate_event(array $event): array
     if (($event['type']==='speech_receipt' || $conversationIntent || isset($seen['dialogue.native_turn']))
         && ($event['protocol_version']!==2 || !isset($seen['dialogue.native_turn']) || !isset($seen['dialogue.turn_ownership'])))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'native_turn_capability_required']]);
+    // Readable notes are flat-only; a VR or partial declaration is refused rather than silently ignored.
+    if (isset($seen['note.read.v1']) || isset($seen['note.share.v1']) || str_starts_with($event['type'],'note_')) {
+        require_once __DIR__.'/synth_notes.php';
+        if (!synth_note_supported($event,isset($seen['note.share.v1']) || $event['type']==='note_share'))
+            synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'flat_note_capability_required']]);
+    }
     if (str_starts_with($event['type'],'narrator_') && !synth_private_narrator_supported($event))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'private_narrator_capability_required']]);
     $ownedRechat=in_array('dialogue.rechat.ownership',$event['capabilities'],true);

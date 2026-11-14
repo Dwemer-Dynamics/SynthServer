@@ -5426,6 +5426,13 @@ if ($checkVersion('private_narrator_schema') < 20261113001) {
     $updateVersion('private_narrator_schema',20261113001);
 }
 
+// Readable note revisions and typed private read/share grants; additive, idempotent and fresh/upgrade safe.
+if ($checkVersion('readable_notes_schema') < 20261113002) {
+    if ($db->execQuery(file_get_contents(__DIR__.'/../lib/core/database_schema/synth_readable_notes.sql')) === false)
+        throw new RuntimeException('Unable to prepare readable note schema');
+    $updateVersion('readable_notes_schema',20261113002);
+}
+
 // The authored catalogue is an additive SQL release, separate from historical seeds.
 require_once __DIR__.'/../lib/fallout_catalogue_sql.php';
 if ($checkVersion('fallout4_catalogue_sql') < SYNTH_FALLOUT_CATALOGUE_SQL_VERSION) {

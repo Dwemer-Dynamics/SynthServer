@@ -11,6 +11,7 @@ require_once dirname(__DIR__).'/lib/synth_biography.php';
 require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
 require_once dirname(__DIR__).'/lib/quest_knowledge.php';
+require_once dirname(__DIR__).'/lib/synth_notes.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
 final class ContextManager
@@ -81,5 +82,21 @@ final class ContextManager
             return \synthQuestKnowledgeView($this->db, $request->event, $request->context, $character->identity, false, $this->owner);
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { return \synthQuestKnowledgeUnavailable(); }
+    }
+
+    // Notes the player explicitly handed to this exact NPC in the request's saved ancestry, as the bounded quoted
+    // <shared_notes> block. Independent of the quest view; the player's private reads never qualify. A failed read is
+    // optional context and yields no block.
+    public function noteKnowledge(TurnRequest $request, PlacedCharacter $character): string
+    {
+        if ($this->db === null || $this->owner === null || $this->owner->event !== $request->event) return '';
+        try {
+            if (!\synth_note_schema_ready($this->db)) return '';
+            $identity = $character->identity;
+            $db = $this->db;
+            return \synth_note_prompt($this->db->withClaimedRequestLock($this->owner,
+                static fn($connection, array $event): array => \synth_note_shared_with($db, $connection, $event, $identity), 2000));
+        } catch (\SYNTHProtocolCancelled $error) { throw $error; }
+        catch (\Throwable) { return ''; }
     }
 }

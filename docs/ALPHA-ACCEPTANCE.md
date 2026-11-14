@@ -37,6 +37,20 @@ See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md). Disposable loopback an
 - [x] The explicit-owner reader keeps recipient, earlier-save, runtime-lane and completed-input checks.
 - [ ] Flat in game, then VR independently: an informed NPC recalls the report on a native turn; another does not.
 
+## Readable paper notes
+
+See [READABLE-NOTES.md](READABLE-NOTES.md).
+
+- [x] Ingress rejects VR, partial capabilities, dynamic/zero-local BOOK forms, origin/reference/recipient claims
+  and broadcast modes; protocol fixtures are mirrored and the manifest verifies.
+- [x] Disposable PostgreSQL (scratch probe, not CI): fresh and 7950230 upgrade migration plus an idempotent rerun;
+  grants anchored to immutable history markers; a bound context never sees a later read or share; replay,
+  conflict, stale and cancelled owners add no grant; revised text keeps the prior revision.
+- [x] Fake-provider HTTP through real `main.php` (scratch probe): a private read reaches no prompt; after the share
+  both routes carry it for Piper only; Nick, a same-name impostor and saves before the share see nothing; a save
+  after the share keeps the revision it was given.
+- [ ] Flat in game: open a note, `/share-note` to Piper, then ask her about it on both routes. VR stays unsupported.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.
