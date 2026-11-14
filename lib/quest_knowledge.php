@@ -335,17 +335,20 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
     ) SELECT * FROM bounded_quest_reports WHERE source_bytes<=1048576 ORDER BY history_event_id DESC";
 }
 
-/** Read actor-owned player reports; current proximity never grants the player's journal. */
-function synthQuestKnowledgeView($db, array $event, array $context, ?array $reader = null, bool $narrator = false): array
+/** Read actor-owned player reports; current proximity never grants the player's journal.
+ *  An explicit claimed owner (native dialogue) replaces the legacy claimed flag; it must be this exact event. */
+function synthQuestKnowledgeView($db, array $event, array $context, ?array $reader = null, bool $narrator = false,
+    ?SYNTHClaimedRequest $claimed = null): array
 {
     $unavailable=synthQuestKnowledgeUnavailable($narrator);
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? null)!==2
-        || !is_object($db) || !method_exists($db,'withNativeRequestLock')
+    if (($claimed===null ? empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) : $claimed->event!==$event)
+        || ($event['protocol_version'] ?? null)!==2
+        || !is_object($db) || !method_exists($db,$claimed===null ? 'withNativeRequestLock' : 'withClaimedRequestLock')
         || !synthQuestKnowledgePositiveId($event['generation'] ?? null)
         || !synthQuestKnowledgePositiveId($event['context_sequence'] ?? null)
         || !is_string($event['session_id'] ?? null) || !is_string($event['request_id'] ?? null)
         || !is_string($event['turn_id'] ?? null) || !in_array($event['runtime_variant'] ?? '',['flat','vr'],true)) return $unavailable;
-    return $db->withNativeRequestLock(static function($connection,array $owner) use($db,$event,$context,$reader,$narrator,$unavailable) {
+    $read=static function($connection,array $owner) use($db,$event,$context,$reader,$narrator,$unavailable) {
         if ($owner!==$event) throw new LogicException('quest_knowledge_owner_changed');
         $canonical=synth_protocol_canonical_json($event);
         // Recheck the canonical owner on the captured handle, including narrator reads.
@@ -436,7 +439,8 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
         if (!$reports && !$background) return $unavailable;
         return ['schema'=>'synth.quest.knowledge.v1','perspective'=>'npc','observation'=>'partial','journal'=>[],
             'reports'=>$reports,'participant_background'=>$background];
-    },2000);
+    };
+    return $claimed!==null ? $db->withClaimedRequestLock($claimed,$read,2000) : $db->withNativeRequestLock($read,2000);
 }
 
 // Provenance IDs remain internal. Escaped JSON keeps untrusted quotes outside prompt markup.

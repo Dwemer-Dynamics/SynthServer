@@ -35,6 +35,17 @@ See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopb
 - [x] Existing World Knowledge, quest-access, everyday-lore and native dialogue suites pass unchanged.
 - [ ] Flat in game, then VR independently: a lore question to an eligible NPC reflects the article.
 
+## Native conversation quest knowledge
+
+See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md). Disposable loopback and suite checks only.
+
+- [x] Disposable loopback: after a named When Freedom Calls report to Piper, ordinary and native prompts
+  carry the same attributed block; Nick receives no report, and no route sends the objective, editor ID or stage.
+- [x] Preston receives the same authored background on both routes; a same-name actor receives none.
+  Each turn makes one provider call.
+- [x] The explicit-owner reader keeps recipient, earlier-save, runtime-lane and completed-input checks.
+- [ ] Flat in game, then VR independently: an informed NPC recalls the report on a native turn; another does not.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.

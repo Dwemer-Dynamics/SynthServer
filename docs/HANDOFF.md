@@ -33,10 +33,20 @@ Native `/talk` conversation turns previously sent no lore. The candidate adds de
 request-owned selection through the existing catalogue, retriever, tier policy and renderer
 (`managers/WorldKnowledgeManager.php`). It uses explicit configuration, profile and NPC settings,
 the admitted actor and the bound snapshot. It adds no provider call, extractor fallback or forced
-location/actor articles. Participant-only quest tiers stay unavailable on this path. The vocabulary
+location/actor articles. Participant-only quest tiers use the native quest view below. The vocabulary
 article can still appear on a turn with no matched topic. Disposable-database loopback checks and the
 existing focused suites pass; no compiled client, game or VR check has run. No schema change,
 deployment or game acceptance. See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md).
+
+## Native conversation quest knowledge candidate
+
+Native `/talk` turns previously omitted the quest block that ordinary dialogue sends. The candidate reads
+the existing locked quest reader once per turn with the explicit claimed owner (no legacy claimed flag)
+and the admitted NPC as the exact recipient. The same rendered `<quest_knowledge>` block reaches the
+prompt only when it has attributed reports or authored participant background; World Knowledge
+participant tiers reuse that view. The narrator role, journal privacy and all reader checks are
+unchanged. Disposable loopback and focused suites only; no client, game or VR check. See
+[QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md).
 
 ## NPC biography and SPECIAL candidate
 

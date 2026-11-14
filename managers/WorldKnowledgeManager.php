@@ -18,8 +18,9 @@ require_once dirname(__DIR__).'/lib/worldknowledge_vocabulary.php';
 // the admitted NPC and profile rows, and this request's bound snapshot). It binds no ordinary per-turn identity or
 // settings globals; shared helpers it calls may still read process globals such as the legacy claimed-request flag.
 // Deliberate native limits: no extractor/LLM fallback, no stored current-topic signal and no forced location/actor
-// articles, so retrieval never adds a provider call. Quest participant tiers use the quest reader for this request,
-// which stays unavailable without a claimed legacy request; only reviewed public quest text can then be granted.
+// articles, so retrieval never adds a provider call. Quest participant tiers use the view the native turn already read
+// with its explicit claimed owner; without one they fall back to the legacy reader, which stays unavailable without a
+// claimed legacy request, so only reviewed public quest text can then be granted.
 final class WorldKnowledgeManager
 {
     // Runtime names this feature reads, layered Global -> Profile -> NPC like the ordinary pipeline.
@@ -33,8 +34,9 @@ final class WorldKnowledgeManager
 
     // The bounded <oghma> block for this turn, or '' when disabled, unavailable or no article applies. Unmatched
     // input selects no topic article but may still return the proactive vocabulary article. $history is this
-    // turn's already-read native conversation, used only for the deterministic short follow-up fallback.
-    public function context(TurnRequest $request, PlacedCharacter $character, array $history): string
+    // turn's already-read native conversation, used only for the deterministic short follow-up fallback. $quest is
+    // this turn's locked quest reader view (ContextManager::questKnowledge), used only for participant access.
+    public function context(TurnRequest $request, PlacedCharacter $character, array $history, ?array $quest = null): string
     {
         $started = hrtime(true);
         $npc = $character->npc;
@@ -92,7 +94,8 @@ final class WorldKnowledgeManager
             $trace['retrieval_elapsed_ms'] = round((hrtime(true) - $retrievalStarted) / 1_000_000, 3);
             $topics = array_slice($retrieval['topics'], 0, intval($values['result_limit']));
 
-            $access = ['npc' => $npc, 'quest_view' => \synthQuestAccessReaderView($this->db, $request->event)];
+            $access = ['npc' => $npc, 'quest_view' => $quest !== null ? \synthQuestAccessViewFromKnowledge($quest)
+                : \synthQuestAccessReaderView($this->db, $request->event)];
             $world = $request->context['payload']['world'] ?? null;
             $tags = \synthWorldKnowledgeKnowledgeTags(['db' => $this->db, 'npc' => $npc,
                 'tags' => strval($inputs['WORLDKNOWLEDGE'] ?? ''), 'name' => strval($inputs['SYNTH_NAME'] ?? ''),

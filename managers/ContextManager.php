@@ -11,6 +11,7 @@ require_once dirname(__DIR__).'/lib/synth_biography.php';
 require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
 require_once dirname(__DIR__).'/lib/synth_control.php';
+require_once dirname(__DIR__).'/lib/quest_knowledge.php';
 
 // Bounded turn context: the snapshot's situation and recent heard conversation with this NPC.
 final class ContextManager
@@ -18,7 +19,8 @@ final class ContextManager
     public const HISTORY_ROWS = 12;
     public const LINE_CHARS = 1000;
 
-    public function __construct(private SaveState $saves) {}
+    // $db and $owner are the explicit claimed admission owner for the quest reader; without them it is unavailable.
+    public function __construct(private SaveState $saves, private $db = null, private ?\SYNTHClaimedRequest $owner = null) {}
 
     public function situation(TurnRequest $request): array
     {
@@ -68,5 +70,17 @@ final class ContextManager
                 'content' => mb_substr($text, 0, self::LINE_CHARS)];
         }
         return $messages;
+    }
+
+    // The existing locked quest reader for this exact claimed request and addressed NPC: attributed player reports
+    // and authored participant background, never the player's journal. Native /talk modes are never the narrator.
+    // A failed read is optional context and yields the unavailable view.
+    public function questKnowledge(TurnRequest $request, PlacedCharacter $character): array
+    {
+        if ($this->db === null || $this->owner === null) return \synthQuestKnowledgeUnavailable();
+        try {
+            return \synthQuestKnowledgeView($this->db, $request->event, $request->context, $character->identity, false, $this->owner);
+        } catch (\SYNTHProtocolCancelled $error) { throw $error; }
+        catch (\Throwable) { return \synthQuestKnowledgeUnavailable(); }
     }
 }
