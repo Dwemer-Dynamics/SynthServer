@@ -531,6 +531,52 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertSame([],$view()['reports']);
     }
 
+    // A native typed turn freezes no origin policy; only its exact canonical event and stored line qualify.
+    #[PHPUnit\Framework\Attributes\DataProvider('nativeTypedSourceProvider')]
+    public function testNativeTypedSourceRequiresExactCanonicalShapeAndStoredLine(string $case,bool $known): void
+    {
+        $text=$case==='odd' ? "  I finished When Freedom Calls |  (native)\nnext\t" : 'Native: I finished When Freedom Calls.';
+        $event=$this->inputEvent('quest-session-one',1,1,'native-source',$text);
+        $event['capabilities']=[...$event['capabilities'],'dialogue.native_turn','control.menu'];
+        $event['payload']+=['intent'=>'conversation'];
+        if ($case==='shout' || $case==='no_menu' || $case==='bad_mode') $event['payload']['control']=['mode'=>$case==='bad_mode' ? 'EVERYONE' : 'SHOUT','model_slot'=>1];
+        if ($case==='no_menu') $event['capabilities']=array_values(array_diff($event['capabilities'],['control.menu']));
+        if ($case==='no_native') $event['capabilities']=array_values(array_diff($event['capabilities'],['dialogue.native_turn']));
+        if ($case==='no_intent') unset($event['payload']['intent']);
+        if ($case==='everyone') $event['payload']['audience_intent']='everyone';
+        if ($case==='audio') {$event['type']='input_audio';$event['payload']=['media'=>['id'=>'a'],'intent'=>'conversation'];}
+        $this->request($event,$case==='claimed' ? 'claimed' : 'complete');
+        $this->fixtureDb->execQuery("DELETE FROM synth_meta.dialogue_origin_policies WHERE request_id='native-source'");
+        $line=match($case) {'normalized'=>'I finished When Freedom Calls | (native) next','other_target'=>trim($text).' (Talking to Piper Wright)',
+            'shout_label'=>trim($text).' (Shouting to Preston Garvey)',default=>trim($text).' (Talking to Preston Garvey)'};
+        // Fully matched duplicates are one statement; an earlier contradictory row fails on its own.
+        if ($case==='bad_line' || $case==='bad_context') {
+            $bad=$this->history($event,$this->sourcePayload,$case==='bad_line' ? trim($text).' (Talking to Piper Wright)' : $line);
+            if ($case==='bad_context') $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{synth_context_sequence}','9') WHERE id=$1",[$bad]);
+        }
+        $frontier=$this->history($event,$this->sourcePayload,$line);
+        if ($case==='duplicate') $frontier=$this->history($event,$this->sourcePayload,$line);
+        if ($case==='hash') $this->fixtureDb->execQuery("UPDATE synth_meta.protocol_events SET canonical_event=jsonb_set(canonical_event,'{payload,text}','\"Native: I finished When Freedom Calls!\"') WHERE request_id='native-source'");
+        $this->selectCurrent('quest-session-one',1,3,'preston',$frontier);
+        $reports=array_column($this->view()['reports'],'report');
+        $this->assertSame($known ? 1 : 0,count(array_keys($reports,$text,true)),$case);
+        $this->assertContains('I finished When Freedom Calls.',$reports,'ordinary origin source unchanged');
+        $this->assertSame('0',$this->fixtureDb->fetchOne("SELECT count(*) AS n FROM synth_meta.dialogue_origin_policies WHERE request_id='native-source'")['n']);
+        if (!$known) return;
+        foreach (['piper','impostor'] as $other) {
+            $this->selectCurrent('quest-session-one',1,$other==='piper' ? 4 : 5,$other,$frontier);
+            $this->assertNotContains($text,array_column($this->view()['reports'],'report'),$other);
+        }
+    }
+
+    public static function nativeTypedSourceProvider(): array
+    {
+        $cases=['standard'=>true,'shout'=>true,'odd'=>true,'duplicate'=>true,'bad_line'=>true,'bad_context'=>true];
+        foreach (['normalized','other_target','shout_label','no_menu','bad_mode','no_native','no_intent','everyone','audio',
+            'claimed','hash'] as $denied) $cases[$denied]=false;
+        return array_combine(array_keys($cases),array_map(null,array_keys($cases),array_values($cases)));
+    }
+
     private function view(?array $reader=null,bool $narrator=false): array
     {
         return synthQuestKnowledgeView($this->fixtureDb,$this->event,$this->context,$reader,$narrator);
