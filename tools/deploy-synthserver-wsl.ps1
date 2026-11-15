@@ -18,6 +18,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "PHP runtime security preflight failed in WSL distro '$Distro'; nothing was deployed. Update the distro's PHP packages, restart Apache and PHP-FPM, then deploy again."
 }
 
+# Read-only: the dependency install below runs Composer as the unprivileged nobody user through sudo, so look for it
+# on that same PATH before touching the deployment target.
+& wsl.exe -d $Distro -- sudo -u nobody sh -c 'command -v composer >/dev/null'
+if ($LASTEXITCODE -ne 0) {
+    throw "Composer is missing from the install user's PATH in WSL distro '$Distro'. Install Composer with the distribution's package manager, then retry."
+}
+
 & wsl.exe -d $Distro -- sudo install -d -m 0755 -o www-data -g www-data $Target
 if ($LASTEXITCODE -ne 0) { throw "Failed to create the Synthserver deployment directory." }
 

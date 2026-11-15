@@ -50,8 +50,10 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 ## Install
 
 1. **WSL environment.** You need a WSL 2 distribution with `sudo`, `rsync`, Apache 2, PHP 8
-   (CLI plus the Apache module, with the `curl`, `mbstring`, `pgsql` and `xml` extensions) and
-   PostgreSQL with `pgvector`. A DwemerDistro installation provides this environment.
+   (CLI plus the Apache module, with the `curl`, `mbstring`, `pgsql` and `xml` extensions),
+   Composer on the default `sudo` `PATH`, and PostgreSQL with `pgvector`. Check each one in your
+   distribution, including DwemerDistro, and install any that are missing with its package
+   manager first; the deploy script does not install them.
 2. **Database role.** Create the loopback-only role used by the sample configuration, if it
    does not exist:
 
@@ -108,7 +110,9 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    `sudo apt-get install --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $(dpkg-query -W -f='${binary:Package} ' 'phpX.Y*' libapache2-mod-phpX.Y)`.
    Stop if apt proposes removing packages; a full distribution upgrade is not needed. Restart
    Apache, PHP-FPM and PHP workers, then deploy again. A refused deployment changes no configuration, data or database. The deploy script
-   never installs packages.
+   never installs distribution (apt) packages; the only packages it installs are the locked
+   Composer dependencies, into a private staging directory. If Composer is missing it stops
+   before changing the deployment target.
 6. **Check.** Open `http://127.0.0.1:8087/Synthserver/health.php`, then
    `http://127.0.0.1:8087/Synthserver/ui/quickstart.php`.
 
