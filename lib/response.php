@@ -99,8 +99,53 @@ function synth_protocol_prepare_line($db, array $event, bool $claimed, string $t
         && in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)))) {
         require_once __DIR__.'/synth_rechat_routes.php';
         $wire = synth_rechat_record_emitted_route($db, $event, $wire, $routeMetadata, $owner);
+        $line = json_decode($wire, true, flags: JSON_THROW_ON_ERROR);
+        $utterance = $line['payload']['speech']['utterance_id'] ?? $routeMetadata['utterance_id']
+            ?? $routeMetadata['metadata']['utterance_id'] ?? null;
+        synth_receipt_note_route(is_string($utterance) ? $utterance : null, !empty($line['payload']['receipt_required']));
     }
     return $wire;
+}
+
+// Ordinary delivery receipts, request-local. An enrolled NPC line's emission-time prechat and chat rows are never
+// written: only an accepted heard receipt inserts its history. A held row is written once the line's route shows it
+// was not enrolled (or its line never reached a route), so no row is ever inserted and later rewritten. Streaming
+// lines are routed before returnLines logs them; buffered lines are routed later, at emission. Diagnostics stay.
+function synth_receipt_history_owner(): bool
+{
+    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)) return false;
+    require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
+    return \Synth\Core\UtteranceRepository::ordinaryOrigin($event, \Synth\Core\UtteranceRepository::DELIVERY_RECEIPTS);
+}
+
+function synth_receipt_note_route(?string $utterance, bool $enrolled): void
+{
+    if ($utterance === null || $utterance === '') return;
+    $GLOBALS['SYNTH_RECEIPT_ROUTED'][$utterance] = $enrolled;
+    if (!$enrolled) synth_receipt_release_history($utterance);
+    else unset($GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$utterance]);
+}
+
+// True when the caller must not log these rows now: they belong to an enrolled line or wait for its route.
+function synth_receipt_hold_history(string $utterance, array $rows): bool
+{
+    if ($utterance === '' || !synth_receipt_history_owner()) return false;
+    if (array_key_exists($utterance, $GLOBALS['SYNTH_RECEIPT_ROUTED'] ?? [])) return $GLOBALS['SYNTH_RECEIPT_ROUTED'][$utterance];
+    $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$utterance] = array_merge(
+        $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$utterance] ?? [], $rows);
+    return true;
+}
+
+// Null releases every held row whose line never reached a route (an unresolved speaker), as before receipts.
+function synth_receipt_release_history(?string $utterance = null): void
+{
+    $held = $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'] ?? [];
+    foreach ($utterance === null ? array_keys($held) : [$utterance] as $key) {
+        $rows = $held[$key] ?? [];
+        unset($GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$key]);
+        foreach ($rows as $row) logEvent($row);
+    }
 }
 
 function synth_protocol_flush_output(): void
@@ -393,6 +438,10 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $nativeTurn=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && count(array_diff(['dialogue.turn_ownership','dialogue.native_turn'],$event['capabilities'] ?? []))===0;
+    // Ordinary NPC delivery receipts are a separate grant; /talk receipts never imply them and they never select /talk.
+    $deliveryReceipts=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
+        && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
+        && count(array_diff(['dialogue.turn_ownership','dialogue.delivery_receipts'],$event['capabilities'] ?? []))===0;
     $actorStats=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && in_array('context.actor_stats',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
@@ -410,6 +459,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
+    // First-observed vanilla dialogue is flat-only; VR and older clients never receive the acknowledgement.
+    $observedDialogue=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
+        && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.observed_dialogue',$event['capabilities'] ?? [],true);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);
@@ -450,7 +502,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($ambientNpc) $statusPayload['ambient_npc'] = true;
     if ($socialTasks) $statusPayload['social_tasks'] = true;
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
+    if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
+    if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
@@ -459,6 +513,14 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($combatTargets && synth_enemy_awareness_supported($event)) $statusPayload['enemy_awareness'] = true;
     if (isset($detail['detail']) && trim(strval($detail['detail'])) !== '') {
         $statusPayload['detail'] = substr(trim(strval($detail['detail'])), 0, 1024);
+    }
+    // Only an init or control_state of a session that negotiated Everyone carries the closed audience object.
+    $audience = $detail['control_audience'] ?? null;
+    if (is_array($audience) && ($status === 'control_state' || ($event['type'] ?? '') === 'init')) {
+        require_once __DIR__.'/synth_control.php';
+        if (synth_control_everyone_supported($event) && in_array($audience['intent'] ?? null, ['normal','everyone'], true)
+            && is_int($audience['reset_epoch'] ?? null) && $audience['reset_epoch'] >= 0)
+            $statusPayload['control_audience'] = ['intent'=>$audience['intent'], 'reset_epoch'=>$audience['reset_epoch']];
     }
     $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status', $wire);
     if ($status==='social_task_accepted' && in_array($event['type'] ?? '',['input_text','input_audio'],true)
@@ -1010,6 +1072,7 @@ function synth_emit_buffered_json_response(): void
 
         $GLOBALS["SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED"] = true;
         synth_protocol_ensure_response_started();
+        synth_receipt_release_history();
         synth_protocol_write_response_line('response_end', ['status' => 'complete'], 'end');
         $db = $GLOBALS['db'] ?? null;
         if ($db && function_exists('synth_protocol_complete_request')) {
@@ -1034,6 +1097,7 @@ function synth_emit_buffered_json_response(): void
 
     synth_emit_json_response_envelope($GLOBALS["SYNTH_JSON_RESPONSE_LINES"] ?? []);
     if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
+    synth_receipt_release_history();
     synth_protocol_write_response_line('response_end', ['status' => 'complete'], 'end');
     $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
     $db = $GLOBALS['db'] ?? null;

@@ -1,5 +1,99 @@
 # Synthserver open-alpha acceptance
 
+## Auto Chat
+
+See [AUTO-CHAT.md](AUTO-CHAT.md#automated-checks).
+
+- [ ] Automated: the listed database-free PHPUnit cases, the disposable-PostgreSQL history case and
+  the paired `testCompiledClientAutoChat` loopback, on the exact client and server commits.
+- [ ] Fake provider: exactly one rewrite call per Auto Chat root; ordinary routes keep their counts.
+- [ ] Older-save load after an Auto Chat turn: the generated row follows the saved-ancestry cutoffs.
+- [ ] Flat in game and VR in headset, separately: selection, typed and voice turns, the generated
+  player line and the NPC reply.
+- [ ] Physical microphone input and heard player voice, flat and VR independently.
+
+## Doctrine settings read pilot
+
+- [x] Measured on Debian PHP 8.2.35 (`pgsql`, `pdo_pgsql`, `ctype`, `mbstring`), Debian
+      Composer 2.5.5 and PostgreSQL 17.11.
+- [x] Lock checked with that PHP and Composer: `validate` passes (exit 2 on a stale lock) and
+      `check-platform-reqs --lock --no-dev` passes.
+- [x] Actual install as `nobody` from the lock: 23 packages, zero dev packages.
+- [x] Parity with the legacy reads: quoted, empty, nonexistent and SQL `NULL` values; direct
+      writes visible within a transaction and gone after rollback.
+- [x] A backend terminated mid-request ends in the same `SQL: bad connection.` stop as a plain
+      legacy `execQuery()`. This is existing `re_connect()` behavior, not a regression.
+- [x] Full PHPUnit suite on disposable PostgreSQL, on upstream base `3181ed18`: 1322 tests,
+      26848 assertions, zero skips or failures, including `SettingsRepositoryTest`.
+- [x] Native loopback, server snapshot `b38d2c57` with client `59faa806`: 4 tests, 1291
+      assertions, including Auto Chat. Real native server `main.php`, the compiled client driver
+      and a fake provider.
+- [x] Migration: a clean bootstrap gives 54 settings and a legacy seeded upgrade gives 55, with
+      byte-identical `synth` schema dumps; a rollback to the legacy build reads the sentinel
+      setting.
+- [x] PostgreSQL 15.20 and 17.11 parity, and a cold 65536-key `values()` read that succeeds.
+- [ ] Hosted CI with the new root `composer install` step.
+- [ ] Deploy and upgrade of the WSL install from an earlier tree (vendor staging, Apache serving
+      `/talk` and the speech language read).
+- [ ] In-game play and live providers.
+
+## Everyone audience
+
+See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md#evidence-boundary). These are off-game results on exact
+commit archives of the combined pair with vanilla dialogue witnesses (server `d288852`, client `ed4b155`),
+run on Linux with disposable PostgreSQL and the source hash unchanged after each run. Synthetic actors over
+real HTTP are not `PluginSession`, game, microphone, headset, performance or deployment proof.
+
+- [x] Full PHPUnit on PostgreSQL 17: 1313 tests, 26641 assertions, 0 failures, 0 errors, 0 skipped.
+- [x] Migration: a fresh install, an upgrade from a pre-Everyone install that keeps seeded UTF-8 rows
+      byte-identical, and an idempotent re-run of `synth_protocol_schema` 20261113002.
+- [x] Paired run (3 tests, 1239 assertions; the count varies with an unforced concurrency case): synthetic
+      actors went through the compiled client driver and codec over real loopback HTTP. A duplicate while the
+      provider is held returns `request_pending` and writes nothing. Delivered and undelivered native replies
+      stay distinct in heard history and in the witnesses' next prompts. Ordinary emitted history is visible
+      without a receipt. Continuations stay bounded.
+- [x] Quest knowledge on PostgreSQL 15 with pgvector (original 6 tests, 198 assertions; Everyone probe 2 tests,
+      346 assertions): an ordinary Everyone report reaches only the frozen exact responder on both consumers;
+      bystander Nick gets no quest block; older anchors cut the full prompt off; native-origin reports stay
+      excluded as an inherited producer gap outside this change. Cancelled-source exclusion is proven for the
+      quest block only, not the generic full prompt.
+- [x] Private-history control (1 test, 757 assertions, hand-posted v2 events): Whisper reaches only its
+      listener; a Close continuation selects Nick from the original group and not the newcomer Deacon. Across
+      ordinary and native Everyone Standard and Shout turns, Piper keeps her own private and witness rows, Nick
+      keeps only his Close rows, and Deacon gets none of the private or vanilla markers. Early, mid and late
+      saved anchors hold. Native readers keep the inherited 12-row budget and heard-only rows, so this does not
+      show every private row persisting beyond that budget; unreceipted ordinary replies reach only the
+      ordinary reader.
+- [x] The shared global mode writer resets active sessions to Normal and advances the epoch. Standard and an
+      invalid mode leave sessions unchanged, and a held gate times out without writing.
+- [ ] The legacy `setconf`, requested-mode and Director reset call sites run at runtime. So far they are
+      confirmed only by reading the source.
+- [ ] Dashboard Audience fieldset, primary visual check: Apply saves Normal or Everyone, a restarted
+      generation is refused, and a timed-out save reports unknown. This is blocked by browser URL policy, and
+      the 14 automated headless checks (GET only) do not replace it.
+- [ ] Flat in game, then VR in headset, separately.
+- [x] Combined with vanilla dialogue witnesses: the results above and the witness loopback check below were
+      rerun on the combined pair. Independent exact-source and runtime-evidence reviews found no new privacy
+      blocker.
+- [ ] Hosted Actions: unavailable and not passed for this pair. The local Debian 12 workflow equivalent is not
+      the hosted Ubuntu image.
+
+## Vanilla dialogue witnesses
+
+- [x] Disposable loopback prompt check (fake provider, synthetic state): the line reaches the
+  granted witness's ordinary and `/talk` prompts once each, and never a non-witness, a same-name
+  actor or a save loaded from before the observation. A retry keeps one history row. Rerun on the
+  combined Everyone pair (3 tests, 772 assertions). `first_observed` is dialogue-only, not
+  physical-perception proof.
+- [x] Earlier witness-only slice, full existing suite on a private disposable database: 1310 tests,
+  0 failures, 1 skip; the skipped client-wiring test passed separately against the paired client.
+  The combined Everyone pair's full suite (1313 tests, 26641 assertions) had 0 skips; see above.
+- [ ] Model answers: ordinary and `/talk` answers from witnesses reflect the observed line, and
+  answers from non-witnesses do not.
+- [ ] Flat in game with the paired client; VR is not offered.
+
+See [VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md). Disposable checks only.
+
 ## Native conversation World Knowledge
 
 See [WORLDKNOWLEDGE-PARITY-V1.md](WORLDKNOWLEDGE-PARITY-V1.md). Disposable loopback and suite checks only.
@@ -583,3 +677,17 @@ chosen. The remaining history and publication decisions below need human directi
 - [ ] Flat addressed participants remain still while a reply or NPC exchange is pending; bystanders continue normal AI.
 - [ ] Temporary holds release at completion, cancellation, Stop, combat and before an action; explicit waits and save/load remain correct.
 - [ ] NPC-to-NPC reply and fresh saved relationship publication pass after the exact paired update is installed.
+
+## Ordinary dialogue delivery receipts
+
+The optional protocol v2 grant requires turn ownership. Ordinary NPC lines with pending
+or ready speech can be enrolled. Check the stored exact line and confirm that only
+an accepted heard receipt adds its history. Known text-only responses keep their
+existing history. If enrolled audio fails later, the line stays unheard without an
+explicit accepted presentation receipt. A caption timer supplies no receipt.
+
+Exercise cancellation both before and after receipt commit. An accepted heard row
+survives cancellation. When cancellation revokes a pending line first, a late receipt
+cannot promote it. Owned rechat waits for the exact enrolled parent to be accepted
+as heard before reserving the child. For Whisper and Close, verify hearers against
+the frozen origin capture.

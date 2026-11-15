@@ -32,10 +32,8 @@
 //      Example: "give me 1000 caps" => <give me 1000 caps>
 //
 // * Auto Chat (AUTOCHAT)
-//      Generates clean text following player instructions using Fallout lore language.
-//      Wraps input with **() to generate contextual text without stage directions.
-//      Example: "Speech about being the Sole Survivor" => **(Generate text employing Fallout lore language and drawing upon the context, following the next instruction:Speech about being the Sole Survivor)
-//      Example: "Hello" => **(Hello) 
+//      Explicit native selection only: the typed or transcribed intent becomes one validated generated player line
+//      (lib/synth_autochat.php), which the selected NPC then answers. Legacy input never uses this mode.
 //
 // * Event Injection (INJECTION_LOG)
 //      (Whatever is typed/said is injected into event log as an roleplay instruction)
@@ -220,16 +218,20 @@ function synthModeExtractRequestedMode(array $gameRequest, string $receivedData)
     return in_array($mode, $allowedModes, true) ? $mode : '';
 }
 
+// Legacy global mode write through the shared audience gate; it commits before any later service call.
+function synthModeWriteGlobal($db, string $mode): void
+{
+    require_once __DIR__.'/../lib/synth_control.php';
+    try {
+        synth_control_write_global_mode($db, $mode);
+    } catch (Throwable $error) {
+        Logger::error("Mode change failed: ".$error->getMessage());
+    }
+}
+
 function synthModeResetToStandard($db): void
 {
-    $db->upsertRow(
-        'conf_opts',
-        array(
-            'id' => 'synth_mode',
-            'value' => 'STANDARD'
-        ),
-        "id='synth_mode'"
-    );
+    synthModeWriteGlobal($db, 'STANDARD');
 }
 
 function synthModeNotify(string $message): void
@@ -282,6 +284,9 @@ $nativeControl = $GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control'] ?
 $nativeInput = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? null) === 2
     && in_array($GLOBALS['SYNTH_REQUEST_EVENT']['json']['type'] ?? '', ['input_text','input_audio'], true);
 if ($nativeInput) $EXECUTION_MODE = is_array($nativeControl) ? $nativeControl['mode'] : 'STANDARD';
+// AUTOCHAT is an explicit native per-turn selection; a global value written by a native control is never inherited
+// by legacy input, which would reach the unowned player_rewrite.php subprocess.
+elseif ($EXECUTION_MODE === 'AUTOCHAT') $EXECUTION_MODE = 'STANDARD';
 
 if (!in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"])) {
     $EXECUTION_MODE="STANDARD";
@@ -289,14 +294,7 @@ if (!in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]))
     $REQUESTED_EXECUTION_MODE = synthModeExtractRequestedMode($gameRequest, $receivedData ?? '');
     if ($REQUESTED_EXECUTION_MODE !== '') {
         $EXECUTION_MODE = $REQUESTED_EXECUTION_MODE;
-        if (!$nativeInput) $db->upsertRow(
-            'conf_opts',
-            array(
-                'id' => 'synth_mode',
-                'value' => $EXECUTION_MODE
-            ),
-            "id='synth_mode'"
-        );
+        if (!$nativeInput) synthModeWriteGlobal($db, $EXECUTION_MODE);
     }
 }
 
@@ -371,11 +369,9 @@ if ($EXECUTION_MODE=="STANDARD") {
     $GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
     
 } else if ($EXECUTION_MODE=="AUTOCHAT") {
-    
-    $cleaned_player_dialogue = synthModeExtractPlayerText($gameRequest, $receivedData ?? '');
-    $gameRequest[3]="**(".trim($cleaned_player_dialogue).")";
-    $GLOBALS["PLAYER_RESPEECH"] = true; // Route through player_rewrite.php for bio/speech style context
-    
+    // Native only (see above): the bound structured input is kept and lib/synth_autochat.php replaces its derived
+    // text in main_synth_pipeline.php. It never sets PLAYER_RESPEECH or a `**` wrapper.
+
 } else if ($EXECUTION_MODE=="INJECTION_LOG") {
     $cleaned_player_dialogue = synthModeExtractPlayerText($gameRequest, $receivedData ?? '');
     $gameRequest[3] = synthModeReadablePayloadWithTarget($gameRequest, $cleaned_player_dialogue);

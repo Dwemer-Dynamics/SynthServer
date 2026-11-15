@@ -911,7 +911,15 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
             Logger::warn("Invalid synth_mode requested: ".$vars[1]);
             $mode = "STANDARD";
         }
-        $vars[1] = $mode;
+        // The global mode shares the audience gate and reset with every other mode writer, never the generic upsert.
+        require_once __DIR__.'/../lib/synth_control.php';
+        try {
+            synth_control_write_global_mode($db, $mode);
+        } catch (Throwable $error) {
+            Logger::error("Mode change failed: ".$error->getMessage());
+        }
+        $MUST_END=true;
+        return;
     } else if ($vars[0]=="synth_profile_model") {
         $slot = isset($vars[1]) ? intval($vars[1]) : 1;
         $slot = max(1, min(4, $slot));

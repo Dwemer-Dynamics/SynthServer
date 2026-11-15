@@ -1,5 +1,77 @@
 # Synthserver developer handoff
 
+## Auto Chat candidate
+
+Explicit `AUTOCHAT` rewrites typed or server-transcribed intent into one generated player line,
+publishes it at once as player speech (player TTS when configured) and lets the selected NPC answer
+on the ordinary route. `/talk` refuses the mode and Everyone cannot carry it. Supported rewrite
+providers are default OpenRouter #2 and Quickstart `openaijson`; anything else fails closed. No
+new settings, tables or capabilities; the existing control-mode enum gains `AUTOCHAT`.
+See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
+
+## Doctrine settings read pilot
+
+`SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`
+session, with their original signatures and failure behavior. Writes, locks, schema and
+migrations are unchanged. Production dependencies come from the root `composer.lock`
+(PHP 8.2 floor), which the deploy script installs with the distro's Composer. Ownership, connection
+choice and limits: [DOCTRINE-SETTINGS-PILOT.md](DOCTRINE-SETTINGS-PILOT.md). Checks:
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#doctrine-settings-read-pilot). On upstream base
+`3181ed18` the full PHPUnit suite passed (1322 tests, 26848 assertions, no skips or failures).
+Native loopback (server `b38d2c57`, client `59faa806`, fake provider) passed 4 tests and 1291
+assertions, including Auto Chat. Clean and seeded upgrades (54/55 settings, byte-identical `synth`
+schema dumps), rollback, PostgreSQL 15.20/17.11 parity and a 65536-key read were verified.
+Hosted CI, deployment, game and live providers are untested; no flat or VR claim.
+
+## Everyone audience candidate
+
+Everyone is an explicit public audience for one Standard or Shout turn, negotiated as `dialogue.everyone`;
+Normal input and older clients are unchanged. The client chooses one captured responder; at first claim the
+server checks that it is an available non-player member of an observed captured audience and checks the
+acknowledged reset epoch, then makes one reply and keeps continuations inside the original captured group.
+Every global mode writer now shares one audience gate and resets incompatible audiences atomically. The
+dashboard home page's Audience fieldset saves the preference for one explicitly chosen session. The additive
+migration is `synth_protocol_schema` 20261113002. See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md) and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#everyone-audience). These automated checks passed on exact
+commit exports of the pair combined with vanilla dialogue witnesses (server `d288852`, client `ed4b155`):
+
+- The full suite passed on disposable PostgreSQL 17: 1313 tests, 26641 assertions, none failed or skipped.
+- A paired run drove a compiled-client driver over real HTTP, covering migration, held duplicates, receipt
+  boundaries and bounded continuations. The repository loopback check also passed, including the vanilla
+  witness case.
+- Quest checks passed: an ordinary Everyone report is quest-readable only by the frozen exact responder.
+- A private-history control found no leak: Whisper, Close and vanilla rows stay with their own hearers across
+  ordinary and native Everyone turns, within the inherited 12-row native budget.
+- The paired client's native Windows and portable Linux checks passed on the same pins.
+- Independent exact-source and runtime-evidence reviews found no new privacy or integration blockers.
+
+Still open:
+
+- Native `/talk` records `(Talking to everyone)` in Shout too; ordinary input uses `(Shouting to everyone)`.
+- Native-origin reports lack the required origin policy and are excluded as quest sources in Standard and
+  Shout, with or without Everyone. This inherited producer gap is separate from Everyone and unchanged.
+- Cancelled-source exclusion is proven only for the quest block, not the generic full prompt.
+- The legacy `setconf`, requested-mode and Director call sites have not run; only their shared writer was
+  tested.
+- Primary dashboard visual acceptance is blocked; automated headless checks do not replace it.
+- Hosted Actions are unavailable and have not passed for this pair; the local Debian 12 run is a workflow
+  equivalent, not the hosted Ubuntu image. Gameplay and deployment are unverified. Publication state is
+  tracked on the pull requests.
+- Flat and VR client DLLs were built and their packages checked, but there is no native gameplay, microphone,
+  headset, performance, deployment or publication evidence.
+
+## Vanilla dialogue witnesses candidate
+
+Admits flat `context.observed_dialogue` (policy `same_cell_speaker_radius_1000_v1`) into one
+identity-bound history row. Ordinary and `/talk` reads use the bound hearers. On the earlier
+witness-only slice, the full existing suite passed with one skip, and the skipped client-wiring
+test passed separately against the paired client; the combined Everyone pair's full suite above
+(1313 tests, 26641 assertions) had no skips. A loopback prompt check with a fake provider and synthetic state shows the line
+reaches only the granted witness; it was rerun on the combined Everyone pair. The witness grant is
+dialogue-only, not physical-perception proof. A source review found no wrong-grant defect. There is no
+model-answer review, migration or game run. VR is unavailable. See
+[VANILLA-DIALOGUE-WITNESSES.md](VANILLA-DIALOGUE-WITNESSES.md).
+
 ## Native conversation World Knowledge candidate
 
 Native `/talk` conversation turns previously sent no lore. The candidate adds deterministic,
@@ -471,7 +543,9 @@ The [README](../README.md#install) has the steps. Safeguards:
 - `tools/deploy-synthserver-wsl.ps1` refuses any target other than
   `/var/www/html/Synthserver`, then stops before any change unless the read-only
   `tools/check-php-runtime-security.sh` passes in the chosen distro (patched PHP CLI and Apache
-  PHP runtime; floors in the [README](../README.md#install)). Its `rsync --delete` excludes configuration, voices, caches,
+  PHP runtime; floors in the [README](../README.md#install)). It installs the locked production
+  dependencies in a private staging directory and syncs `vendor/` before the source; a stale lock,
+  failed install or unmet platform requirement stops it before any change. Its `rsync --delete` excludes `/vendor/`, configuration, voices, caches,
   uploads, logs and runtime state. It creates `conf/conf.php` from the sample only when
   `conf.php` is missing, protects it with mode `0640`, runs the database bootstrap, and installs
   the Apache site only after `apache2ctl configtest` passes.
@@ -493,7 +567,8 @@ protocol or database schema.
 - CI policy (2026-10-06): hosted `server.yml` runs the source-tree audit, the protocol
   manifest check and PHPUnit on disposable PostgreSQL. It builds no release package. The
   last hosted run before this note passed at `d171ec7`.
-- PHPUnit (`unittests/`, run `composer install` first) needs a **disposable** PostgreSQL with
+- PHPUnit (`unittests/`, run `composer install --no-dev` in the root and `composer install` in
+  `unittests/` first) needs a **disposable** PostgreSQL with
   pgvector and the `dwemer` role, as in `.github/workflows/server.yml`. Never run it against a
   database that holds real data.
 - `unittests/tests/AutoGreetingRuntimeTest.php` reads the client source through
@@ -690,6 +765,26 @@ They remain in Git history at `bcb0c06` and in a private archive. The ledger hel
 workstation-specific deployment receipts, hashes and backup paths. It was not a current
 specification. Documents that cite it for evidence or remaining gates now point here. Current
 open requirements are listed above and in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md).
+
+## Ordinary dialogue delivery receipts
+
+The optional protocol v2 grant requires turn ownership. Ordinary NPC lines with pending
+or ready speech can be enrolled. Check the stored exact line and confirm that only
+an accepted heard receipt adds its history. Known text-only responses keep their
+existing history. If enrolled audio fails later, the line stays unheard without an
+explicit accepted presentation receipt. A caption timer supplies no receipt.
+
+Exercise cancellation both before and after receipt commit. An accepted heard row
+survives cancellation. When cancellation revokes a pending line first, a late receipt
+cannot promote it. Owned rechat waits for the exact enrolled parent to be accepted
+as heard before reserving the child. For Whisper and Close, verify hearers against
+the frozen origin capture.
+
+For deferred relationship directives, the active origin and worker window still apply.
+Every enrolled line required by the saved response must be heard inside its evidence
+cutoff. An interrupted later line can keep the full response out of a relationship
+job even when an earlier line was heard. Verified physical gift facts have their
+own evidence.
 
 ## Historical receipts and placeholders
 

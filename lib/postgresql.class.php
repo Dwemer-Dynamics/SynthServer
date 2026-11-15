@@ -227,17 +227,91 @@ class sql
         return $this->withClaimedRequestLock($owner, fn($connection, array $event) => $this->insertNativeHistory($connection, $event, $data));
     }
 
-    private function insertNativeHistory($connection, array $event, array $data): bool
+    // history_events is unique only by eventlog row, so a stage keyed by a deterministic utterance id is checked under
+    // the same claimed-owner lock. Every row of this session and request carrying the utterance id is read, from either
+    // table and in any generation or context. None: the row is inserted once. Exactly one: it is reused only when its
+    // eventlog row and history_events row both carry this owner tuple and the snapshot's playthrough, its immutable
+    // stage fields equal the requested ones and its event_payload agrees with the eventlog row. Processing time
+    // (localts) and the SAPI tag are not compared, so a re-entered stage stays idempotent. Anything else, including a
+    // second row, is refused. Returns false when the existing row was reused.
+    // A stage is only a non-Whisper input root: insertNativeHistory gives it no scene and no hearer projection, so a
+    // reused row must carry the same visibility (scene_context_sequence NULL, no synth_dialogue_hearer_ids).
+    public function insertNativeHistoryOnce(array $data): bool
+    {
+        $utterance = $data['utterance_id'] ?? null;
+        if (!is_string($utterance) || $utterance === '' || !is_string($data['type'] ?? null) || !is_string($data['data'] ?? null)) {
+            throw new InvalidArgumentException('Native history stage requires an utterance id, type and text');
+        }
+        return $this->withNativeRequestLock(function ($connection, array $event) use ($data, $utterance): bool {
+            if (!in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
+                || ($event['payload']['control']['mode'] ?? '') === 'WHISPER') {
+                throw new LogicException('native_history_stage_owner_invalid');
+            }
+            $columns = 'e.rowid,e.type,e.data,e.people,e.location,e.party,e.ts,e.gamets,e.utterance_id,e.delivery_state,
+                e.synth_session_id,e.synth_request_id,e.synth_generation,e.synth_context_sequence,h.id AS history_id,
+                h.session_id,h.request_id,h.generation,h.context_sequence,h.playthrough_id,h.scene_context_sequence,
+                h.event_payload::text AS event_payload';
+            $result = @pg_query_params($connection,
+                "SELECT {$columns} FROM synth.eventlog e LEFT JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid
+                 WHERE e.synth_session_id=$1 AND e.synth_request_id=$2 AND e.utterance_id=$3
+                 UNION ALL
+                 SELECT {$columns} FROM synth_meta.history_events h LEFT JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+                 WHERE h.session_id=$1 AND h.request_id=$2 AND h.event_payload->>'utterance_id'=$3
+                    AND (e.rowid IS NULL OR e.synth_session_id IS DISTINCT FROM $1 OR e.synth_request_id IS DISTINCT FROM $2
+                        OR e.utterance_id IS DISTINCT FROM $3)",
+                [$event['session_id'], $event['request_id'], $utterance]);
+            if (!$result) throw new RuntimeException('Unable to read native history stage');
+            $rows = pg_fetch_all($result) ?: [];
+            if ($rows === []) return $this->insertNativeHistory($connection, $event, $data);
+            $snapshot = @pg_query_params($connection, 'SELECT playthrough_id FROM synth_meta.context_snapshots
+                WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
+                [$event['session_id'], $event['generation'], $event['context_sequence']]);
+            if (!$snapshot) throw new RuntimeException('Unable to read native history stage');
+            $playthrough = ($snapshotRow = pg_fetch_row($snapshot)) ? $snapshotRow[0] : null;
+            $row = $rows[0];
+            $value = static fn($field): ?string => $field === null ? null : strval($field);
+            $payload = is_string($row['event_payload']) ? json_decode($row['event_payload'], true, 64, JSON_BIGINT_AS_STRING) : null;
+            $owner = ['session_id' => $event['session_id'], 'request_id' => $event['request_id'],
+                'generation' => $event['generation'], 'context_sequence' => $event['context_sequence']];
+            $same = count($rows) === 1 && $row['rowid'] !== null && $row['history_id'] !== null && is_array($payload)
+                && is_string($playthrough) && $row['playthrough_id'] === $playthrough
+                && $row['scene_context_sequence'] === null && !array_key_exists('synth_dialogue_hearer_ids', $payload)
+                && $value($payload['rowid'] ?? null) === $row['rowid'];
+            foreach ($owner as $field => $expected) {
+                $same = $same && $row[$field] === strval($expected) && $row['synth_'.$field] === strval($expected)
+                    && $value($payload['synth_'.$field] ?? null) === strval($expected);
+            }
+            foreach (['type', 'data', 'people', 'location', 'party', 'ts', 'gamets', 'utterance_id', 'delivery_state'] as $field) {
+                $same = $same && $row[$field] === $value($data[$field] ?? null) && $value($payload[$field] ?? null) === $row[$field];
+            }
+            if (!$same) throw new LogicException('native_history_stage_conflict');
+            return false;
+        }, 2000);
+    }
+
+    // An ordinary delivery receipt's heard row, inside the receipt's own claimed transaction. The origin is the line's
+    // proven admitted event, so the row gets exactly the scene, Close and Whisper hearers its emission-time row had.
+    // $privateHearers are canonical identity IDs the caller proved from an inherited Whisper root (player, listener).
+    public function insertReceiptHistory($connection, array $origin, array $data, ?array $privateHearers = null, bool $close = false, ?int $noSceneSpeaker = null): void
+    {
+        if (pg_transaction_status($connection) !== PGSQL_TRANSACTION_INTRANS) throw new LogicException('Receipt history requires the receipt transaction');
+        if ($privateHearers !== null && ($privateHearers === [] || array_filter($privateHearers,
+            static fn($id): bool => !is_int($id) || $id < 1) !== [])) throw new LogicException('Receipt hearers invalid');
+        // The receipt row join already proved the origin unrevoked; its own failed execution keeps its frozen scene.
+        $this->insertNativeHistory($connection, $origin, $data, $privateHearers, true, $close, $noSceneSpeaker);
+    }
+
+    private function insertNativeHistory($connection, array $event, array $data, ?array $privateHearers = null, bool $ownFailed = false, bool $close = false, ?int $noSceneSpeaker = null): bool
     {
         $session = $event['session_id'];
         $contextResult = @pg_query_params($connection,
-            'SELECT playthrough_id,player_identity_id,target_identity_id FROM synth_meta.context_snapshots
+            'SELECT playthrough_id,player_identity_id,target_identity_id,context_payload FROM synth_meta.context_snapshots
              WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$session, $event['generation'], $event['context_sequence']]);
         $context = $contextResult ? pg_fetch_assoc($contextResult) : false;
         if (!$context) throw new RuntimeException('Native history context unavailable');
         require_once __DIR__.'/synth_rechat_routes.php';
-        $scene=synth_rechat_response_scene_locked($connection,$event);
+        $scene=synth_rechat_response_scene_locked($connection,$event,$ownFailed);
         $sceneSequence=$scene['scene_context_sequence'] ?? null;
         // Caller-provided extra columns must never override native ownership or allocate an old row ID.
         unset($data['rowid']);
@@ -254,10 +328,22 @@ class sql
         $hearers = isset($scene['close_hearers'])
             ? json_encode($this->closeHearerIdentityIds($connection, $event, intval($sceneSequence), $scene['close_hearers']),
                 JSON_THROW_ON_ERROR) : null;
+        if ($noSceneSpeaker !== null) {
+            $hearers = json_encode([intval($context['player_identity_id']), $noSceneSpeaker], JSON_THROW_ON_ERROR);
+        } elseif ($close && $hearers === null) {
+            // A direct Close reply, or an action rooted in it, may use only the original measured Close group.
+            $capture=json_decode($context['context_payload'],true,flags:JSON_THROW_ON_ERROR);
+            $projected=synth_rechat_close_audience($capture,$capture);
+            $keys=[$capture['target'] ?? []];
+            if ($projected!==null) $keys=array_merge($keys,$projected['audience']);
+            $keys=array_filter(array_map('synth_rechat_actor_key',$keys));
+            $hearers=json_encode($this->closeHearerIdentityIds($connection,$event,$event['context_sequence'],$keys),JSON_THROW_ON_ERROR);
+        }
         if (in_array($event['type'] ?? '', ['input_text','input_audio'], true)
             && ($event['payload']['control']['mode'] ?? '') === 'WHISPER')
             $hearers = json_encode(array_values(array_filter(array_map('intval',
                 [$context['player_identity_id'], $context['target_identity_id']]))), JSON_THROW_ON_ERROR);
+        if ($privateHearers !== null) $hearers = json_encode(array_values(array_unique($privateHearers)), JSON_THROW_ON_ERROR);
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
         // A projected Close row records exactly which snapshot identities could hear it; others keep raw scene reconstruction.
         $query = 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)

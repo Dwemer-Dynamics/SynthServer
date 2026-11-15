@@ -425,6 +425,90 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     ) ".synth_protocol_history_rows_cte(false,$responseRoles,$materializeHistory,readerFirstVisibility:$readerFirstVisibility);
 }
 
+// Reuse the same immutable receipt proof for saved history and delivery-dependent relationship admission.
+function synth_protocol_receipt_speech_join(string $history='h', string $scene='origin', string $record='original', string $alias='receipt_speech'): string
+{
+    foreach ([$history,$scene,$record,$alias] as $name)
+        if (preg_match('/^[a-z_][a-z0-9_]*$/D',$name)!==1) throw new InvalidArgumentException('Invalid receipt proof alias');
+    // A terminal receipt already committed this exact utterance and history together. Keep its canonical attribution
+    // after cancellation clears replay bytes; neither this proof nor a speaker name grants a new witness.
+    $join="LEFT JOIN LATERAL (
+        SELECT jsonb_build_object('role','npc','speaker_identity_id',matched.speaker_identity_id,
+            'line_id',matched.line_id,'speaker',matched.speaker,'listener_state',matched.listener_state,
+            'listener',matched.listener,'listener_identity_id',matched.listener_identity_id) AS proof
+        FROM (
+            SELECT u.line_id,u.speaker_identity_id,rr.speaker,rr.listener_state,rr.listener,listener.id AS listener_identity_id,
+                COUNT(*) OVER () AS candidates
+            FROM synth_meta.response_routes rr
+            JOIN synth_meta.dialogue_utterances u ON u.session_id=rr.session_id AND u.request_id=rr.request_id
+                AND u.line_id=rr.line_id AND u.generation=rr.generation AND u.context_sequence=rr.context_sequence
+            JOIN synth_meta.request_executions execution ON execution.session_id=u.session_id
+                AND execution.request_id=u.request_id AND execution.generation=u.generation AND execution.turn_id=u.turn_id
+            JOIN synth_meta.protocol_events ingress ON ingress.session_id=execution.session_id
+                AND ingress.request_id=execution.request_id AND ingress.generation=execution.generation
+                AND ingress.turn_id=execution.turn_id AND ingress.event_type=execution.event_type
+                AND ingress.event_sha256=execution.request_sha256
+            JOIN synth_meta.protocol_events receipt ON receipt.session_id=u.session_id AND receipt.request_id=u.receipt_request_id
+                AND receipt.generation=u.generation AND receipt.turn_id=u.turn_id
+                AND receipt.canonical_event->>'context_sequence'=u.context_sequence::text
+                AND receipt.event_type='speech_receipt'
+                AND receipt.canonical_event#>>'{payload,dialogue_request_id}'=u.request_id
+                AND receipt.canonical_event#>>'{payload,line_id}'=u.line_id
+                AND upper(receipt.canonical_event#>>'{payload,character,form_id}')=upper(rr.speaker->>'form_id')
+                AND lower(receipt.canonical_event#>>'{payload,character,origin_plugin}')=lower(rr.speaker->>'origin_plugin')
+                AND receipt.canonical_event#>>'{payload,character,playthrough_id}'=rr.speaker->>'playthrough_id'
+                AND ((u.state='spoken' AND receipt.canonical_event#>>'{payload,outcome}'='audio_completed')
+                    OR (u.state='presented' AND receipt.canonical_event#>>'{payload,outcome}'='text_presented'))
+            JOIN synth_meta.request_executions receipt_owner ON receipt_owner.session_id=receipt.session_id
+                AND receipt_owner.request_id=receipt.request_id AND receipt_owner.generation=receipt.generation
+                AND receipt_owner.turn_id=receipt.turn_id AND receipt_owner.event_type=receipt.event_type
+                AND receipt_owner.request_sha256=receipt.event_sha256
+            JOIN synth.actor_identities speaker ON speaker.id=u.speaker_identity_id AND speaker.game='fo4'
+                AND upper(speaker.full_form_id)=upper(rr.speaker->>'form_id')
+                AND lower(speaker.origin_plugin)=lower(rr.speaker->>'origin_plugin')
+                AND speaker.playthrough_id=rr.speaker->>'playthrough_id' AND speaker.playthrough_id=h.playthrough_id
+            LEFT JOIN synth.actor_identities listener ON rr.listener_state='addressed' AND listener.game='fo4'
+                AND upper(listener.full_form_id)=upper(rr.listener->>'form_id')
+                AND lower(listener.origin_plugin)=lower(rr.listener->>'origin_plugin')
+                AND listener.playthrough_id=rr.listener->>'playthrough_id' AND listener.playthrough_id=h.playthrough_id
+                AND (listener.id=origin.player_identity_id OR listener.id=origin.target_identity_id
+                    OR origin.audience_identity_ids @> jsonb_build_array(listener.id))
+            CROSS JOIN LATERAL (SELECT btrim((rr.speaker->>'display_name')||': '||u.text) AS text) expected
+            WHERE original.type='chat' AND original.delivery_state IN ('spoken','presented')
+                AND rr.session_id=h.session_id AND rr.request_id=h.request_id AND rr.generation=h.generation
+                AND rr.context_sequence=h.context_sequence AND COALESCE(rr.utterance_id,u.line_id)=original.utterance_id
+                AND u.state=original.delivery_state AND u.receipt_at IS NOT NULL
+                AND encode(sha256(convert_to(u.text,'UTF8')),'hex')=u.text_sha256
+                AND (rr.speaker->>'form_id') ~ '^0x[0-9A-Fa-f]{8}$'
+                AND upper(substring(rr.speaker->>'form_id' FROM 3 FOR 2))<>'FF'
+                AND u.character_id='chr:'||left(encode(sha256(convert_to('fo4|'||speaker.playthrough_id||'|'
+                    ||lower(btrim(speaker.origin_plugin))||'|'||CASE
+                        WHEN upper(substring(rr.speaker->>'form_id' FROM 3 FOR 2))='FE'
+                        THEN upper(right(rr.speaker->>'form_id',3)) ELSE upper(right(rr.speaker->>'form_id',6)) END,'UTF8')),'hex'),40)
+                AND speaker.id<>origin.player_identity_id
+                AND (speaker.id=origin.target_identity_id OR origin.audience_identity_ids @> jsonb_build_array(speaker.id))
+                AND ingress.canonical_event->>'context_sequence'=h.context_sequence::text
+                AND ingress.canonical_event->'capabilities' @> '[\"dialogue.turn_ownership\",\"dialogue.delivery_receipts\"]'::jsonb
+                AND ((ingress.event_type='input_text' AND ingress.canonical_event#>'{payload,intent}' IS NULL)
+                    OR ingress.event_type IN ('input_audio','action_result')
+                    OR (ingress.event_type='trigger' AND ingress.canonical_event#>>'{payload,kind}'='rechat'
+                        AND ingress.canonical_event->'capabilities' ? 'dialogue.rechat.ownership'))
+                AND (btrim(original.data)=expected.text OR (rr.listener_state='addressed' AND listener.id IS NOT NULL
+                    AND left(btrim(original.data),length(expected.text)+1)=expected.text||' '
+                    AND lower(substring(btrim(original.data) FROM length(expected.text)+2)) IN (
+                        '(talking to '||lower(rr.listener->>'display_name')||')',
+                        '(whispering to '||lower(rr.listener->>'display_name')||')',
+                        '(shouting to '||lower(rr.listener->>'display_name')||')',
+                        '(speaking privately to '||lower(rr.listener->>'display_name')||')',
+                        '(speaking loudly to '||lower(rr.listener->>'display_name')||')')))
+        ) matched WHERE matched.candidates=1
+    ) receipt_speech ON original.type='chat' AND original.delivery_state IN ('spoken','presented')
+        AND original.utterance_id IS NOT NULL";
+    $aliases=['h'=>$history,'origin'=>$scene,'original'=>$record,'receipt_speech'=>$alias];
+    return preg_replace_callback('/\b(h|origin|original|receipt_speech)(?=\.|\s+ON\b)/',
+        static fn(array $match): string => $aliases[$match[1]],$join);
+}
+
 // Dependency validation reuses the identical insertion-time ownership rules without widening ordinary history.
 function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false, bool $materializeHistory=false, bool $relationshipSourceHistory=false, bool $readerFirstVisibility=false, bool $limitRelationshipSources=false): string
 {
@@ -434,7 +518,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
     // Duplicate the graph-source consumer's exact predicates before correlated visibility checks.
     // The unrestricted history projection remains available for frozen recent-event validation.
     $sourceFilter=$relationshipSourceHistory ? " AND h.event_payload->>'type' IN ('inputtext','inputtext_s','chat','backgroundchat','narration')
-            AND h.event_payload->>'delivery_state' IN ('received','emitted')" : '';
+            AND h.event_payload->>'delivery_state' IN ('received','emitted','spoken','presented')" : '';
     // Prompt formatting alone needs role provenance; ordinary recall/relationship readers keep their existing query.
     $roleColumns=$responseRoles ? ',response_owner.role AS response_role,response_owner.actor_identity_id AS response_actor_identity_id' : '';
     $roleJoin=$responseRoles ? "LEFT JOIN LATERAL (
@@ -453,6 +537,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                 AND ingress.canonical_event->>'type'='trigger' AND ingress.canonical_event->'payload'->>'kind'='rechat'
                 AND ingress.canonical_event->'capabilities' @> jsonb_build_array('dialogue.turn_ownership','dialogue.rechat.ownership')
         ) response_owner ON TRUE" : '';
+    $receiptJoin=synth_protocol_receipt_speech_join();
     // Legacy dialogue adapters may stamp UTC seconds into gamets. Native game-age
     // readers use the immutable source/scene snapshot's game clock, never that fallback.
     // Match the context contract's positive, safe integer range. Zero is unavailable,
@@ -500,7 +585,8 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             original.localts,original.ts,original.rowid,original.people,original.location,original.party,
             original.utterance_id,original.delivery_state,
             h.id AS history_event_id,s.reader_identity_id,s.reader_player_id,ownership.speaker_identity_id,
-            origin.context_payload->'world'->>'location' AS source_location {$roleColumns}
+            receipt_speech.proof AS receipt_speech,
+            origin.context_payload->'world'->>'location' AS source_location,witness.basis AS witness_basis {$roleColumns}
         FROM $scopes s JOIN $historyEvents h
             ON h.session_id=s.session_id AND h.generation=s.generation AND h.playthrough_id=s.playthrough_id
             AND h.id<=s.cutoff {$sourceFilter}
@@ -511,6 +597,19 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             type text,data text,sess text,gamets bigint,localts bigint,ts bigint,rowid bigint,
             people text,location text,party text,utterance_id text,delivery_state text)
         {$roleJoin}
+        {$receiptJoin}
+        -- A first-observed witness row is visible only through its canonical insertion-time binding:
+        -- the speaker or a granted witness, never the player perspective, a later audience or a name.
+        CROSS JOIN LATERAL (
+            SELECT binding.basis,binding.speaker,binding.basis='first_observed' AND binding.speaker IS NOT NULL
+                AND s.reader_identity_id IS DISTINCT FROM s.reader_player_id
+                AND (s.reader_identity_id=binding.speaker
+                    OR (jsonb_typeof(h.event_payload#>'{synth_witness_observation,witness_identity_ids}')='array'
+                        AND h.event_payload#>'{synth_witness_observation,witness_identity_ids}' @> jsonb_build_array(s.reader_identity_id))) AS visible
+            FROM (SELECT h.event_payload#>>'{synth_witness_observation,basis}' AS basis,
+                CASE WHEN (h.event_payload#>>'{synth_witness_observation,speaker_identity_id}') ~ '^[1-9][0-9]{0,15}$'
+                    THEN (h.event_payload#>>'{synth_witness_observation,speaker_identity_id}')::bigint END AS speaker) binding
+        ) witness
         CROSS JOIN LATERAL (
             WITH actors AS (
                 SELECT id,lower(btrim(replace(name,'|',' '))) AS name FROM (
@@ -527,14 +626,20 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                         OR (jsonb_typeof(h.event_payload->'synth_dialogue_hearer_ids')='array'
                             AND h.event_payload->'synth_dialogue_hearer_ids' @> jsonb_build_array(id)))
             )
-            SELECT (
+            SELECT CASE WHEN h.event_payload ? 'synth_witness_observation' THEN witness.speaker
+                WHEN receipt_speech.proof IS NOT NULL THEN (receipt_speech.proof->>'speaker_identity_id')::bigint ELSE (
                 SELECT MIN(id) FROM actors
                 WHERE left(lower(original.data),length(name)+1)=name||':'
                 HAVING COUNT(DISTINCT id)=1
-            ) AS speaker_identity_id,
-            EXISTS (
+            ) END AS speaker_identity_id,
+            CASE WHEN h.event_payload ? 'synth_witness_observation' THEN COALESCE(witness.visible,false)
+                WHEN receipt_speech.proof IS NOT NULL THEN EXISTS (
+                    SELECT 1 FROM actors WHERE id=s.reader_identity_id
+                        AND (id=(receipt_speech.proof->>'speaker_identity_id')::bigint
+                            OR h.event_payload ? 'synth_dialogue_hearer_ids')
+                ) OR EXISTS ({$visibility}) ELSE EXISTS (
                 {$visibility}
-            ) AS visible
+            ) END AS visible
         ) ownership WHERE {$historyVisibility}
     ) ";
 }
@@ -624,6 +729,8 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         synthPersistPlayerEvent($db, $event);
         require_once __DIR__.'/actor_event.php';
         synthPersistActorEvents($db, $event);
+        require_once __DIR__.'/observed_dialogue.php';
+        synthPersistObservedDialogue($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE synth_meta.context_snapshots c
@@ -632,7 +739,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
                    AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
                    AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment')
+                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment','backgroundchat')
             ),0))
             WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
             [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
@@ -1418,11 +1525,20 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
     $hashSql = $db->escapeLiteral($hash);
     $canonicalSql = $db->escapeLiteral($canonical);
     $generation = intval($event['generation']);
+    // Mode writes, audience preferences and Everyone input order on the global audience gate before the session
+    // lock. Its raw connection is captured before BEGIN; nothing may reconnect inside the transaction.
+    require_once __DIR__.'/synth_control.php';
+    $audienceGate = synth_control_audience_gate($event);
+    $audienceConnection = $audienceGate === null ? null : $db->getCatalogueSqlConnection();
 
     if ($db->execQuery('BEGIN') === false) {
         synth_protocol_fail('database_unavailable', 503);
     }
     try {
+        if ($audienceConnection !== null) {
+            require_once __DIR__.'/synth_audience_control.php';
+            synth_audience_lock_gate($audienceConnection, $audienceGate);
+        }
         $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))");
         $existing = $db->fetchOne(
             "SELECT request_sha256, state, response_content_type, response_body, error_code, claimed_at
@@ -1473,7 +1589,15 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             $clientVersion = $db->escapeLiteral($event['client_version']);
             $runtimeVersion = $db->escapeLiteral($event['runtime_version']);
             $capabilities = $db->escapeLiteral(json_encode($event['capabilities'], JSON_UNESCAPED_SLASHES));
-            $db->execQuery(
+            // A new generation of a negotiated session returns to Normal and advances the audience epoch, so no
+            // earlier acknowledgement survives it. Without the migration Everyone is not acknowledged (fail closed).
+            $audienceReset = $event['type'] === 'init' && synth_control_everyone_supported($event)
+                && $db->fetchOne("SELECT 1 AS ready FROM pg_attribute WHERE attrelid='synth_meta.runtime_sessions'::regclass
+                    AND attname='audience_reset_epoch' AND NOT attisdropped");
+            $audienceSql = $audienceReset ? ", audience_intent='normal',
+                     audience_reset_epoch=synth_meta.runtime_sessions.audience_reset_epoch+1" : '';
+            $audienceReturning = $audienceReset ? ' RETURNING audience_intent, audience_reset_epoch' : '';
+            $upsert =
                 "INSERT INTO synth_meta.runtime_sessions
                     (session_id, playthrough_id, game, runtime_variant, client_version, runtime_version,
                      active_generation, capabilities, state)
@@ -1483,8 +1607,14 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                      game='fo4', runtime_variant=EXCLUDED.runtime_variant,
                      client_version=EXCLUDED.client_version, runtime_version=EXCLUDED.runtime_version,
                      active_generation=EXCLUDED.active_generation, capabilities=EXCLUDED.capabilities,
-                     state='active', active_turn_id=NULL, active_turn_sequence=0, updated_at=NOW()"
-            );
+                     state='active', active_turn_id=NULL, active_turn_sequence=0, updated_at=NOW(){$audienceSql}{$audienceReturning}";
+            if (!$audienceReset) $db->execQuery($upsert);
+            else {
+                $upserted = $db->fetchOne($upsert);
+                if (!is_array($upserted)) throw new RuntimeException('Unable to reset the session audience.');
+                $GLOBALS['SYNTH_AUDIENCE_INIT_ACK'] = ['intent' => strval($upserted['audience_intent']),
+                    'reset_epoch' => intval($upserted['audience_reset_epoch'])];
+            }
             if ($event['type'] === 'init' && is_array($event['payload']['plugins'] ?? null)) {
                 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php');
                 $persistedPlugins = synthReplaceLoadedGamePlugins($event['payload']['plugins']);
@@ -1534,6 +1664,18 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             if (is_array($event['payload']) && isset($event['payload']['capture_id'])) {
                 require_once __DIR__ . '/visual_context_request.php';
                 synth_visual_bound_capture($db, $event);
+            }
+            // First canonical claim of Everyone: the client's non-player responder must be a captured audience
+            // member with one available captured state, and the acknowledged epoch is compared under the gate,
+            // session lock and row lock that order every reset. The current preference is not re-read here.
+            // Replays returned above; admitted turns are never re-checked. There is no directed fallback.
+            if (synth_control_everyone_input($event)) {
+                require_once __DIR__.'/synth_rechat_routes.php';
+                $captured = synth_protocol_original_context($db, $event);
+                if (!is_array($captured['payload'] ?? null) || !synth_rechat_everyone_responder($captured['payload']))
+                    throw new DomainException('audience_target_not_captured');
+                synth_audience_assert_everyone($audienceConnection, $sessionId, $generation,
+                    intval($event['payload']['audience_reset_epoch']));
             }
             if (synth_protocol_owns_dialogue_turn($event)) {
                 if (in_array('dialogue.turn_cancel', $event['capabilities'], true)) {
@@ -1600,8 +1742,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         );
 
         if ($event['type'] === 'control') {
-            require_once __DIR__.'/synth_control.php';
-            synth_control_apply($db, $event);
+            synth_control_apply($db, $event, $audienceConnection);
         } elseif ($event['type'] === 'context') {
             synth_protocol_persist_context($db, $event, $sessionId);
         } elseif ($event['type'] === 'activate') {
@@ -2586,8 +2727,8 @@ function synth_protocol_current_context($db, array $event): ?array
     }
     if ($context!==null && !isset($context['scene_context_sequence']) && synth_protocol_owns_rechat($event)) {
         require_once __DIR__.'/synth_rechat_routes.php';
-        // Without a fresh scene no Close bystander is proven to still be within range.
-        if (synth_rechat_close_root($db,$event)) $context['payload']['audience']=[];
+        // Without a fresh scene no Close or Everyone bystander is proven to still hear.
+        if (synth_rechat_root_audience($db,$event)!==null) $context['payload']['audience']=[];
     }
     if ($context!==null && ($event['protocol_version'] ?? 1)===2
         && (($event['type'] ?? '')==='action_result'
@@ -2640,7 +2781,7 @@ function synth_protocol_prompt_snapshot($db): ?array
     $context = synth_protocol_current_context($db, $event);
     $payload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
     // Native source records are audit evidence, not witnessed prompt context. Read the owned history projection instead.
-    unset($payload['actor_events'],$payload['quest_events']);
+    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue']);
     if (!synth_protocol_quest_response_is_narrator($db,$event)) {
         unset($payload['active_quests'],$payload['active_quests_observation']);
     } else {

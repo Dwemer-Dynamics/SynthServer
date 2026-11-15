@@ -57,6 +57,10 @@ final class NativeDialogueTurnTest extends TestCase
         }
         $init=$this->fixture('valid/input-text-native-turn.json');
         $this->assertSame($init,synth_protocol_validate_event($init));
+        // Unmarked text with the ordinary receipt capability stays ordinary text; capability never selects /talk.
+        $ordinary=$this->fixture('valid/input-text-delivery-receipts.json');
+        $this->assertSame($ordinary,synth_protocol_validate_event($ordinary));
+        $this->assertNotSame('conversation',synth_api_v2_route($ordinary) ?? 'legacy');
         $invalid=[];
         foreach ([...glob(dirname(__DIR__,2).'/protocol/v2/fixtures/invalid/speech-receipt*.json'),
             ...glob(dirname(__DIR__,2).'/protocol/v2/fixtures/invalid/input-text-intent*.json')] as $file)
@@ -179,7 +183,9 @@ final class NativeDialogueTurnTest extends TestCase
             }
             public function conversationRows(array $event, string $targetName, int $limit): array
             {
-                return [['type'=>'chat','own'=>0,'data'=>'Piper Wright: Witnessed. (talking to Nate)'],
+                return [['type'=>'backgroundchat','own'=>0,'data'=>'Danny Sullivan: Gate. (Talking to Nate)'],
+                    ['type'=>'backgroundchat','own'=>0,'data'=>'Danny Sullivan: Overheard. (Talking to '.$targetName.')'],
+                    ['type'=>'chat','own'=>0,'data'=>'Piper Wright: Witnessed. (talking to Nate)'],
                     ['type'=>'chat','own'=>1,'data'=>$targetName.': Earlier. (talking to Nate)'],['type'=>'inputtext','data'=>'Nate: Hello. (Talking to '.$targetName.')'],
                     ['type'=>'inputtext','data'=>'Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000).' (Talking to Pipér (Wright))'],['type'=>'inputtext','data'=>'Nate: Unaddressed.']];
             }
@@ -203,13 +209,14 @@ final class NativeDialogueTurnTest extends TestCase
             }
         };
         $utterances=new class extends UtteranceRepository {
-            public array $rows=[];
+            public array $rows=[]; public ?Closure $heard=null;
             public function __construct() {}
             public function recordInput(TurnRequest $request, string $data): void { $this->rows[]=$data; }
             public function recordLine(TurnRequest $request, PlacedCharacter $character, string $lineId, string $text): void { $this->rows[]=[$lineId,$text]; }
             public function recordReceipt(TurnRequest $receipt, array $character, string $characterId, string $state, ?\Closure $heard): string
             {
                 $this->rows[]=[$state,$heard===null ? null : $heard('Stored line.')];
+                $this->heard=$heard;
                 return $state;
             }
         };
@@ -314,8 +321,10 @@ final class NativeDialogueTurnTest extends TestCase
         // Own-addressed input stays compact; input addressed elsewhere or without an addressee keeps attribution,
         // a talking-to suffix (even an unparseable name) leading so the bounded long line keeps both names.
         // Another NPC's witnessed delivered reply is attributed context, never this NPC's assistant turn.
+        // Observed vanilla lines stay verbatim even when their literal text ends with a talking-to suffix.
         $this->assertSame([['user','Nate: Unaddressed.'],['user',mb_substr('(Talking to Pipér (Wright)) Nate: Remember SPA-IN-NDEL. '.str_repeat('é',1000),0,1000)],
-            ['user','Hello.'],['assistant','Earlier.'],['user','(talking to Nate) Piper Wright: Witnessed.'],['user',trim($event['payload']['text'])]],
+            ['user','Hello.'],['assistant','Earlier.'],['user','(talking to Nate) Piper Wright: Witnessed.'],
+            ['user','Danny Sullivan: Overheard. (Talking to Jun)'],['user','Danny Sullivan: Gate. (Talking to Nate)'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
         // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.
@@ -344,7 +353,9 @@ final class NativeDialogueTurnTest extends TestCase
         $cases=['native_turn_not_negotiated'=>[[$unmarked,$context,$row,[]],
                 [array_replace($event,['capabilities'=>['dialogue.text','dialogue.turn_ownership']]),$context,$row,[]],
                 [array_replace($event,['type'=>'input_audio']),$context,$row,[]]],
-            'conversation_mode_unsupported'=>[[array_replace_recursive($event,['payload'=>['control'=>['mode'=>'NARRATOR','model_slot'=>1]]]),$context,$row,[]]],
+            'conversation_mode_unsupported'=>[[array_replace_recursive($event,['payload'=>['control'=>['mode'=>'NARRATOR','model_slot'=>1]]]),$context,$row,[]],
+                // /talk never runs Auto Chat; that mode stays on the ordinary pipeline's generated-player stage.
+                [array_replace_recursive($event,['payload'=>['control'=>['mode'=>'AUTOCHAT','model_slot'=>1]]]),$context,$row,[]]],
             'target_not_placed_reference'=>[[$event,array_replace($context,['target'=>['form_id'=>'0xFF000802']+$npc]),$row,[]]],
             'npc_not_registered'=>[[$event,$context,null,[]]],
             'llm_connector_unsupported'=>[[$event,$context,['driver'=>'player2json']+$row,[]]],
@@ -561,6 +572,14 @@ final class NativeDialogueTurnTest extends TestCase
             $target=$this->talkContext()['target']['display_name'];
             $this->assertSame([$state,$heard ? $target.': Stored line. (talking to Nate)' : null],$utterances->rows[0]);
         }
+        // An ordinary line is labelled only from its stored route and origin mode, never the receipt's current target.
+        [$manager,,$utterances]=$this->dialogue($this->talkContext(),$row);
+        $manager->receipt($receipt);
+        $heard=$utterances->heard;
+        foreach ([['Piper','Nate','WHISPER','Piper: Stored line. (whispering to Nate)'],['Piper','Nate','CLOSE','Piper: Stored line. (speaking privately to Nate)'],
+            ['Piper','Nate','SHOUT','Piper: Stored line. (shouting to Nate)'],['Piper','Nate','AUTOCHAT','Piper: Stored line. (talking to Nate)'],
+            ['Piper','','STANDARD','Piper: Stored line.']] as [$speaker,$listener,$mode,$expected])
+            $this->assertSame($expected,$heard('Stored line.',['speaker'=>$speaker,'listener'=>$listener,'mode'=>$mode]));
     }
 
     // A scripted request_executions/runtime_sessions double. $race runs as a competitor that committed just
@@ -738,10 +757,19 @@ final class NativeDialogueTurnTest extends TestCase
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertSame('init_action_inventory_accepted',$status['code']);
             $this->assertTrue($status['actor_stats'] ?? false);
+            $this->assertArrayNotHasKey('delivery_receipts',$status);
             $init['capabilities']=['dialogue.text','dialogue.native_turn'];
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertArrayNotHasKey('native_turn',$status);
+            // Ordinary delivery receipts are a separate grant and never imply the /talk route.
+            $receipts=$this->fixture('valid/init-delivery-receipts.json');
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$receipts];
+            $expected=json_decode(explode("\n",file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/response-init-delivery-receipts.ndjson'))[1],true)['payload'];
+            $this->assertSame($expected,json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload']);
+            $receipts['capabilities']=['dialogue.text','dialogue.delivery_receipts'];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$receipts];
+            $this->assertArrayNotHasKey('delivery_receipts',json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload']);
         } finally { $GLOBALS['SYNTH_REQUEST_EVENT']=$saved; }
     }
 
@@ -785,5 +813,68 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame([$seen(40,75),$unknown],$condition($snapshot($state($player,40,75),$state($sameName,10,10))));
         $this->assertSame([$seen(40,75),$unknown],$condition($snapshot($state($player,40,75),$state($npc,25,60),$state($npc,90,60))));
         $this->assertSame([$unknown,$seen(25,60)],$condition($snapshot($state(['playthrough_id'=>'save-2']+$player,40,75),$state($npc,25,60))));
+    }
+
+    // Everyone keeps the same single responder and replies; only the recorded addressee and situation say "everyone".
+    public function testEveryoneTalkIsRecordedAsPublicWithoutChangingItsResponder(): void
+    {
+        $normal=$this->fixture('valid/input-text-native-turn.json');
+        $public=$normal;
+        $public['capabilities']=array_merge($normal['capabilities'],['control.menu','dialogue.everyone']);
+        $public['payload']+=['control'=>['mode'=>'SHOUT','model_slot'=>1],'audience_intent'=>'everyone','audience_reset_epoch'=>0];
+        $this->assertSame($public,synth_protocol_validate_event($public));
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        foreach ([[$normal,false],[$public,true]] as [$event,$everyone]) {
+            [$manager,$output,$utterances,$llm]=$this->dialogue($this->talkContext(),$row,[],['Fine.']);
+            $manager->converse($event);
+            $this->assertSame([[$event['request_id'].':dialogue:1','Fine.','cache-'.$event['request_id'].':dialogue:1'],['complete']],$output->events);
+            $addressee=$everyone ? 'everyone' : $this->talkContext()['target']['display_name'];
+            $this->assertStringEndsWith(' (Talking to '.$addressee.')',$utterances->rows[0]);
+            $system=$llm->messages[0]['content'];
+            $situation=json_decode(substr($system,strrpos($system,"\nSituation: ")+12),true,flags:JSON_THROW_ON_ERROR);
+            $this->assertSame($everyone,$situation['addressed_everyone'] ?? false);
+        }
+    }
+
+    // Everyone needs a non-player responder that is a captured audience member with one available state, and a
+    // continuation keeps only original members present in the fresh audience, without Close's 200-unit bound.
+    public function testEveryoneHearersNeedCapturedAudienceMembershipAndAvailableState(): void
+    {
+        $payload=$this->fixture('valid/context.json')['payload'];
+        $preston=$payload['target'];
+        $state=static fn(array $actor,float $distance,array $extra=[]): array
+            =>array_merge($payload['actor_states'][0],['actor'=>$actor,'distance'=>$distance],$extra);
+        $this->assertTrue(synth_rechat_everyone_responder($payload));
+        foreach ([
+            'missing state'=>['actor_states'=>[]],
+            'ambiguous state'=>['actor_states'=>[$state($preston,125),$state($preston,125)]],
+            'dead'=>['actor_states'=>[$state($preston,125,['alive'=>false,'life_state'=>'dead'])]],
+            'unconscious'=>['actor_states'=>[$state($preston,125,['life_state'=>'unconscious'])]],
+            'unattested audience'=>['audience_observation'=>'unavailable'],
+            'player anchor'=>['target'=>$payload['player'],'audience'=>[$payload['player']]],
+            'target not in audience'=>['audience'=>[]],
+        ] as $case=>$change) $this->assertFalse(synth_rechat_everyone_responder(array_merge($payload,$change)),$case);
+        $untagged=$payload;
+        unset($untagged['audience_observation']);
+        $this->assertFalse(synth_rechat_everyone_responder($untagged));
+
+        $codsworth=['form_id'=>'0x0001CA7D','display_name'=>'Codsworth']+$preston;
+        $dogmeat=['form_id'=>'0x0001D162','display_name'=>'Dogmeat']+$preston;
+        $root=['target'=>$preston,'audience'=>[$preston,$codsworth]];
+        $fresh=['audience'=>[$preston,$codsworth,$dogmeat],
+            'actor_states'=>[$state($preston,500),$state($codsworth,900),$state($dogmeat,50)]]+$payload;
+        $key=static fn(array $actors): array=>array_map(static fn(array $actor)=>$actor['display_name'],$actors);
+        $everyone=synth_rechat_close_audience($root,$fresh,false);
+        $this->assertSame(['Preston Garvey','Codsworth'],$key($everyone['audience']));
+        $this->assertSame(['Preston Garvey','Codsworth'],$key(array_column($everyone['actor_states'],'actor')));
+        // The fresh target alone does not prove hearing, and an absent root member keeps no state.
+        $this->assertNull(synth_rechat_close_audience($root,['audience'=>[]]+$fresh,false));
+        $partial=synth_rechat_close_audience($root,['audience'=>[$preston]]+$fresh,false);
+        $this->assertSame(['Preston Garvey'],$key(array_column($partial['actor_states'],'actor')));
+        // Close keeps its exact 200-unit bound and ignores fresh audience membership for the target.
+        $this->assertNull(synth_rechat_close_audience($root,$fresh));
+        $close=synth_rechat_close_audience($root,['audience'=>[],'actor_states'=>[$state($preston,125),$state($codsworth,900)]]+$fresh);
+        $this->assertSame([],$close['audience']);
+        $this->assertSame(['Preston Garvey'],$key(array_column($close['actor_states'],'actor')));
     }
 }

@@ -3,6 +3,9 @@
 require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "player_tts_helpers.php");
 
 $cleaned_dialogue = synthExtractPlayerTtsDialogueLine($gameRequest[3] ?? '');
+// Auto Chat publishes its exact accepted line, never a re-extraction of the derived payload.
+$autoChatLine = synth_autochat_line();
+if ($autoChatLine !== null) $cleaned_dialogue = $autoChatLine['text'];
 
 if (!function_exists('emitPlayerTextOnlySpeechLine')) {
     function emitPlayerTextOnlySpeechLine($line)
@@ -144,10 +147,13 @@ try {
             $playerTtsStatus = "skipped";
             return;
         }
-        // The native input is already the player's speech; retain its transcript without revoicing it.
-        synth_emit_native_player_transcript($gameRequest);
-        $playerTtsStatus = "text_only";
-        return;
+        // The native input is already the player's speech; retain its transcript without revoicing it. Auto Chat's
+        // generated line is new player speech, so only it continues to the configured player TTS preference below.
+        if ($autoChatLine === null) {
+            synth_emit_native_player_transcript($gameRequest);
+            $playerTtsStatus = "text_only";
+            return;
+        }
     }
 
     $player = new Player();
@@ -249,7 +255,9 @@ try {
                 $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] = "__player_tts";
             }
 
-            if ($writeOutput) {
+            if ($writeOutput && $autoChatLine !== null) {
+                synth_autochat_emit_player_line(true);
+            } elseif ($writeOutput) {
                 $ownspeech = returnlines([$cleaned_dialogue], true);
             } else {
                 generatePlayerTtsCacheOnly($cleaned_dialogue);
@@ -273,7 +281,8 @@ try {
         }
     } elseif ($writeOutput) {
         Logger::info("[Player TTS] No player TTS connector configured; emitting text-only player line.");
-        emitPlayerTextOnlySpeechLine($cleaned_dialogue);
+        if ($autoChatLine !== null) synth_autochat_emit_player_line(false);
+        else emitPlayerTextOnlySpeechLine($cleaned_dialogue);
         $playerTtsStatus = "text_only";
     }
 

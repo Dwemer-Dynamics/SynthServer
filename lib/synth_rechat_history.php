@@ -3,6 +3,8 @@
 require_once __DIR__.'/synth_rechat_prepare.php';
 
 // Read one completed ancestor under the caller's native lock, never the global/latest eventlog.
+// Receipt-enrolled ancestry requires accepted delivery. last_npc names the final NPC line or is null when that
+// line is excluded. An earlier heard sibling cannot replace it.
 function synth_rechat_history_response($connection, array $owner, string $request, int $chainId): array
 {
     $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
@@ -27,6 +29,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     $lines=synth_rechat_completed_lines($body,$event);
     if ($lines===null) throw new LogicException('rechat_history_completion_invalid');
     $context=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
+    $originalTarget=$context['target'] ?? null;
     $scene=synth_rechat_response_scene_locked($connection,$event);
     if ($scene!==null) $context=$scene['payload'];
     $actors=[];
@@ -50,10 +53,21 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     if (!$result) throw new RuntimeException('rechat_history_routes_unavailable');
     $routes=[];
     foreach (pg_fetch_all($result) as $route) $routes[$route['line_id']]=$route;
-    $messages=[]; $lastNpc=null;
+    $result=@pg_query_params($connection,'SELECT line_id,state FROM synth_meta.dialogue_utterances
+        WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
+        [$owner['session_id'],$request,$owner['generation'],$owner['context_sequence']]);
+    if (!$result) throw new RuntimeException('rechat_history_utterances_unavailable');
+    $delivery=array_column(pg_fetch_all($result),'state','line_id');
+    $messages=[]; $lastNpc=null; $playerLines=[];
     foreach ($lines as $entry) {
         $line=$entry['line'];
         if ($line['type']!=='dialogue') continue;
+        $included=true;
+        if (($line['payload']['receipt_required'] ?? null)===true) {
+            $state=$delivery[$line['line_id']] ?? null;
+            if ($state===null) throw new LogicException('rechat_history_receipt_line_unenrolled');
+            $included=in_array($state,['spoken','presented'],true);
+        }
         $route=$routes[$line['line_id']] ?? null;
         $speaker=$line['payload']['speaker'] ?? [];
         if (!$route || !hash_equals($route['line_sha256'],hash('sha256',$entry['wire']))
@@ -63,10 +77,22 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         $key=synth_rechat_actor_key($speaker);
         $narrator=$key===null && ($speaker['kind'] ?? '')==='narrator' && ($speaker['id'] ?? '')==='narrator';
         if (!$narrator && ($key===null || !isset($actors[$key]))) throw new LogicException('rechat_history_speaker_unavailable');
-        if ($key!==null && $key===$playerKey) continue; // Original player input is separately proven, not a generated rewrite.
+        $text=$line['payload']['text'] ?? null;
+        if (!$included) {
+            if ($key!==null && $key===$playerKey) throw new LogicException('rechat_history_receipt_line_unexpected');
+            if (!$narrator) $lastNpc=null;
+            continue;
+        }
+        if ($key!==null && $key===$playerKey) {
+            // Ordinary roots prove their player input separately. Only an Auto Chat root reads its generated line,
+            // and only through synth_autochat_root_line.
+            if (is_string($text) && mb_check_encoding($text,'UTF-8') && mb_strlen($text,'UTF-8')<=4096)
+                $playerLines[]=['line_id'=>$line['line_id'],'text'=>$text,'route'=>$route];
+            else $playerLines[]=['line_id'=>$line['line_id'],'text'=>null,'route'=>['listener_state'=>'invalid','listener'=>null]];
+            continue;
+        }
         if ($selection!==null && ($selection['role']==='narrator' ? !$narrator
             : $key!==synth_rechat_actor_key($selection['identity'] ?? []))) throw new LogicException('rechat_history_speaker_not_selected');
-        $text=$line['payload']['text'] ?? null;
         if (!is_string($text) || !mb_check_encoding($text,'UTF-8') || mb_strlen($text,'UTF-8')>4096) {
             throw new LogicException('rechat_history_text_invalid');
         }
@@ -75,6 +101,7 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         if (!$narrator) $lastNpc=$message;
     }
     return ['event'=>$event,'messages'=>$messages,'last_npc'=>$lastNpc,'player'=>$context['player'] ?? null,
+        'target'=>$originalTarget,'player_lines'=>$playerLines,
         'hearers'=>array_keys($actors),
         'response_sha256'=>hash('sha256',$body),'bytes'=>strlen($body)];
 }
@@ -121,23 +148,34 @@ function synth_rechat_history($db, array $event): array
             $groups[]=$response; $bytes+=$response['bytes']; $node=$response['event']; $parentEvent ??= $node;
             if ($parent===$chain['root_request_id']) { $reachedRoot=true; break; }
         }
-        // A Close responder recalls only chain lines it was projected to hear; it always heard the root.
-        $reader=$selection['role']==='npc' && $parentEvent!==null && synth_rechat_close_root_locked($connection,$event,$parentEvent)
+        // A Close or Everyone responder recalls only chain lines it was projected to hear; it always heard the root.
+        $rootAudience=$parentEvent===null ? null : synth_rechat_root_audience_locked($connection,$event,$parentEvent);
+        $reader=$selection['role']==='npc' && $rootAudience!==null
             ? synth_rechat_actor_key($selection['identity'] ?? []) : null;
         $messages=[];
         foreach (array_reverse($groups) as $group) {
             if ($reader===null || in_array($reader,$group['hearers'],true)) $messages=array_merge($messages,$group['messages']);
         }
         if ($reachedRoot && in_array($node['type'],['input_text','input_audio'],true)) {
-            $result=@pg_query_params($connection,'SELECT input_text FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',
+            $result=@pg_query_params($connection,'SELECT input_text,execution_mode FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',
                 [$event['session_id'],$node['request_id']]);
             if (!$result) throw new RuntimeException('rechat_history_input_unavailable');
             $origin=pg_fetch_assoc($result);
-            if ($origin && $origin['input_text']!==null) {
+            require_once __DIR__.'/synth_autochat.php';
+            // The frozen policy and the canonical root must agree on Auto Chat; a mismatch is never resolved either way.
+            if (($origin && $origin['execution_mode']==='AUTOCHAT')!==synth_autochat_selected($node)) {
+                throw new LogicException('rechat_history_autochat_unproven');
+            }
+            if (synth_autochat_selected($node)) {
+                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],
+                    'text'=>synth_autochat_root_line($response,$node)]);
+            } elseif ($origin && $origin['input_text']!==null) {
                 require_once __DIR__.'/synth_dialogue_policy.php';
                 $input=synth_dialogue_origin_input($node,$node['type']==='input_audio' ? $origin['input_text'] : null);
                 if ($input!==$origin['input_text']) throw new LogicException('rechat_history_input_mismatch');
-                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],'text'=>$input]);
+                // The root's public intent is kept apart from its transport responder and from who could hear.
+                array_unshift($messages,['request_id'=>$node['request_id'],'role'=>'player','speaker'=>$response['player'],'text'=>$input]
+                    +(($node['payload']['audience_intent'] ?? null)==='everyone' ? ['addressed'=>'everyone'] : []));
             }
         }
         $truncated=!$reachedRoot; $size=0; $recent=[];

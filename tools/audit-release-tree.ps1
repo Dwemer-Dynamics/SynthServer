@@ -36,6 +36,7 @@ try {
     }
 
     $forbiddenTrackedPatterns = @(
+        '^vendor/',
         '^unittests/vendor/',
         '^connector/vendor/',
         '^uploads/',
@@ -89,6 +90,8 @@ try {
     }
 
     $requiredFiles = @(
+        'composer.json',
+        'composer.lock',
         'main.php',
         'main_synth_pipeline.php',
         'gamedata.php',

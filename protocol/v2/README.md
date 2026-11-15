@@ -1,5 +1,42 @@
 # SYNTH protocol v2
 
+## Explicit Everyone audience (2026-11-13)
+
+`dialogue.everyone` is v2-only and is granted only with `control.menu`. Only an
+init whose status carries `control_audience` grants it. Without that
+acknowledgement the client does not offer Everyone, shows it as unavailable and
+never falls back to a directed turn. A client that does not list the capability
+receives no new field.
+
+Status `control_audience` is exactly `{intent, reset_epoch}`: `intent` is
+`normal` or `everyone`, `reset_epoch` a non-negative integer. Init returns
+`normal` with the session's epoch; every init of an existing session advances it,
+and a new session starts at 0. A negotiated `control_state` carries the current
+value beside its unchanged `MODE|SLOT` detail. A missing value means unavailable,
+and the client then disables Everyone.
+
+`control` with `setting: "audience"` and `value` `normal` or `everyone` also
+requires `dialogue.everyone`. It edits the session preference only and never
+advances the epoch. Choosing `everyone` requires Standard or Shout mode. Everyone
+is not a mode; Normal keeps the existing automatic and directed behavior.
+
+An Everyone `input_text` or `input_audio` carries `audience_intent: "everyone"`
+together with the acknowledged `audience_reset_epoch`; neither appears alone, and
+there is no other intent value. Both require explicit `payload.control` with mode
+`STANDARD` or `SHOUT` and a bound context sequence whose target is a member of
+that context's captured audience. Normal input, triggers, action results and
+tools never carry these fields, and they are independent of `intent:
+"conversation"`. The target is the single responder the client chose
+deterministically; the server makes one initial reply and no per-hearer dispatch.
+
+Changing to any mode other than Standard or Shout resets every active session to
+Normal and advances its epoch in the same transaction. The server's first
+canonical claim refuses an Everyone input whose epoch is stale
+(`audience_epoch_stale`) or whose mode no longer allows it
+(`audience_mode_incompatible`). A replay of an admitted request returns its stored
+outcome unchanged. A pending dashboard change to Normal does not revoke an
+acknowledged Everyone before the game refreshes its control state.
+
 ## Addressed actor SPECIAL values (2026-11-13)
 
 `context.actor_stats` is optional for flat and VR. A v2 init that lists it is
@@ -60,6 +97,35 @@ presented lines enter conversation history; generated, interrupted and failed
 lines are never heard. The client sends `audio_completed` only after native audio
 finishes. The reading timer is not renderer evidence, so the client never sends
 `text_presented` in this slice. Receipts are not retried.
+
+## Ordinary NPC delivery receipts
+
+`dialogue.delivery_receipts` is optional, requires v2 and `dialogue.turn_ownership`
+and is independent of `dialogue.native_turn`. Only the init whose status carries
+`delivery_receipts: true` grants it; flat and VR may both ask. It never selects the
+`/talk` route: unmarked typed text, server-transcribed voice, action results and
+owned rechat keep their existing pipelines.
+
+For such an origin that carries the capability, the server may mark one emitted
+NPC `dialogue` line with `payload.receipt_required: true`. The marker is present
+only when the final routed line (its exact bytes and hash, speaker, listener and
+text) and a generated utterance for it were stored in one transaction. The line's
+speech `utterance_id` may differ from its `line_id`. Ordinary enrollment requires
+speech that is pending or ready when routed. Known text-only or failed speech
+keeps emission-time history. If enrolled speech fails later, the line remains
+unheard unless a valid presentation receipt commits. Narrator lines, generated player speech (`speech_role` player, including
+Auto Chat, whose accepted input stays `received`), the captured player, `/talk`
+lines, unregistered identities and dynamic `0xFF` references are never marked and
+keep the existing emission-time history. A marked line has no history until an
+accepted receipt: the client reports it with the existing `speech_receipt`, using
+either receipt contract's capability, and only `spoken` or `presented` adds one
+heard history row. Its text, speaker label, listener, mode, scene and hearers come
+from the stored line and its origin, never from the receipt or the live scene.
+Owned rechat may reserve a continuation of an enrolled parent only after that
+exact line has an accepted heard receipt. The client also waits for that receipt.
+An accepted receipt survives cancellation. Cancellation can revoke a pending
+line before its first receipt commits. The marker is rejected without a bound identified speaker or
+together with `native_turn`. Older clients and servers see no change.
 
 ## Player caps payment contract foundation (2026-09-08)
 

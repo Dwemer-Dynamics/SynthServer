@@ -16,19 +16,21 @@ function synth_rechat_scene_context($db, array $event): ?array
 }
 
 // Action replies inherit the scene of their proven emitted action, not a later capture or the root audience.
-function synth_rechat_response_scene_locked($connection, array $event): ?array
+// $ownFailed (delivery receipts only) admits this event's own failed, unrevoked execution; ancestors stay complete.
+function synth_rechat_response_scene_locked($connection, array $event, bool $ownFailed = false): ?array
 {
     if (!in_array('dialogue.rechat.scene',$event['capabilities'] ?? [],true)) return null;
     if (($event['type'] ?? '')==='action_result') {
         require_once __DIR__.'/synth_rechat_admission.php';
-        $event=synth_rechat_action_chain_origin($connection,$event,$event);
+        $event=synth_rechat_action_chain_origin($connection,$event,$event,false,$ownFailed);
+        $ownFailed=false;
     }
     if (!synth_protocol_owns_rechat($event)) return null;
-    return synth_rechat_scene_context_locked($connection,$event);
+    return synth_rechat_scene_context_locked($connection,$event,$ownFailed);
 }
 
 // Historical consumers already hold the live owner's lock; never impersonate an ancestor in request globals.
-function synth_rechat_scene_context_locked($connection, array $event): array
+function synth_rechat_scene_context_locked($connection, array $event, bool $ownFailed = false): array
 {
     if (!synth_protocol_owns_rechat($event) || !in_array('dialogue.rechat.scene',$event['capabilities'] ?? [],true)
         || !is_int($event['payload']['scene_context_sequence'] ?? null)
@@ -59,11 +61,12 @@ function synth_rechat_scene_context_locked($connection, array $event): array
             AND root.playthrough_id=fresh.playthrough_id AND root.snapshot_sequence=$8::bigint
         WHERE fresh.session_id=$1 AND fresh.generation=$2 AND fresh.snapshot_sequence=$3
             AND fresh.snapshot_sequence>previous.snapshot_sequence AND s.runtime_variant=$10
-            AND child.state IN ('claimed','streaming','complete')
+            AND (child.state IN ('claimed','streaming','complete') OR ($11::boolean AND child.state='failed'
+                AND COALESCE(child.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
             AND fresh.received_at BETWEEN child.claimed_at-interval '10 seconds' AND child.claimed_at",
         [$event['session_id'],$event['generation'],$event['payload']['scene_context_sequence'],$event['turn_id'],
          $event['request_id'],$canonical,$event['payload']['reply_to_request_id'],$event['context_sequence'],
-         hash('sha256',$canonical),$event['runtime_variant']]);
+         hash('sha256',$canonical),$event['runtime_variant'],$ownFailed ? 't' : 'f']);
     if (!$result) throw new RuntimeException('rechat_scene_query_failed');
     $row=pg_fetch_assoc($result);
     if (!$row) throw new LogicException('rechat_scene_unavailable');
@@ -118,8 +121,10 @@ function synth_rechat_scene_context_locked($connection, array $event): array
         throw new LogicException('rechat_scene_changed');
     if ($scene!==$previousScene) throw new SYNTHRechatSceneChanged('rechat_scene_changed');
     $hearers=null;
-    if (synth_rechat_close_root_locked($connection,$event,$parent)) {
-        $payload=synth_rechat_close_audience($root,$payload);
+    $rootAudience=synth_rechat_root_audience_locked($connection,$event,$parent);
+    if ($rootAudience!==null) {
+        // Everyone keeps the root group but not Close's 200-unit bound; the fresh capture's own range applies.
+        $payload=synth_rechat_close_audience($root,$payload,$rootAudience==='close');
         if ($payload===null) throw new SYNTHRechatSceneChanged('rechat_close_listener_departed');
         // Canonical keys of the projected hearers; history persists their snapshot-aligned identity IDs.
         $hearers=[];
@@ -133,15 +138,43 @@ function synth_rechat_scene_context_locked($connection, array $event): array
 // cannot prove them. The caller holds the live owner's lock and supplies its proven parent request.
 function synth_rechat_close_root_locked($connection, array $event, array $parent): bool
 {
+    return synth_rechat_root_audience_locked($connection,$event,$parent)==='close';
+}
+
+// The proven chain root's captured-group audience: 'close' (frozen Close mode), 'everyone' (the root's canonical
+// explicit public intent) or null for an ordinary root, whose continuations keep their existing fresh audience.
+function synth_rechat_root_audience_locked($connection, array $event, array $parent): ?string
+{
+    $row=synth_rechat_root_policy_locked($connection,$event,$parent);
+    if ($row['execution_mode']==='CLOSE') return 'close';
+    return $row['audience_intent']==='everyone' && in_array($row['execution_mode'],['STANDARD','SHOUT'],true) ? 'everyone' : null;
+}
+
+// An ordinary action reply or owned rechat has no policy of its own: it inherits the frozen policy of its
+// proven chain root, never its own payload, the current target or a live scene. Missing proof throws.
+// $ownFailed (delivery receipts only) admits the origin's own failed, unrevoked execution; ancestors stay complete.
+function synth_rechat_inherited_policy_locked($connection, array $origin, bool $ownFailed = false): array
+{
+    if (($origin['type'] ?? '')==='action_result')
+        return synth_rechat_root_policy_locked($connection,$origin,$origin,$ownFailed);
+    $proof=synth_rechat_completed_parent_evidence($connection,$origin,$ownFailed);
+    if ($proof===null) throw new LogicException('rechat_parent_unavailable');
+    return synth_rechat_root_policy_locked($connection,$origin,$proof['request']);
+}
+
+// The proven chain root's saved dialogue policy row (execution_mode, audience_intent) under the caller's lock.
+function synth_rechat_root_policy_locked($connection, array $event, array $parent, bool $ownFailed = false): array
+{
     require_once __DIR__.'/synth_rechat_admission.php';
-    $origin=synth_rechat_action_chain_origin($connection,$event,$parent);
+    $origin=synth_rechat_action_chain_origin($connection,$event,$parent,false,$ownFailed);
     $root=$origin['request_id'] ?? null;
     if (($origin['type'] ?? '')==='trigger' && ($origin['payload']['kind'] ?? '')==='rechat') {
         $chain=synth_rechat_find_chain($connection,$event,strval($root));
         if ($chain===null) throw new LogicException('rechat_parent_reservation_missing');
         $root=$chain['root_request_id'];
     }
-    $result=@pg_query_params($connection,"SELECT d.execution_mode FROM synth_meta.dialogue_origin_policies d
+    $result=@pg_query_params($connection,"SELECT d.execution_mode,p.canonical_event#>>'{payload,audience_intent}' AS audience_intent
+        FROM synth_meta.dialogue_origin_policies d
         JOIN synth_meta.protocol_events p USING(session_id,request_id)
         JOIN synth_meta.request_executions e USING(session_id,request_id)
         WHERE d.session_id=$1 AND d.request_id=$2 AND p.generation=$3 AND p.turn_id=$4
@@ -152,45 +185,57 @@ function synth_rechat_close_root_locked($connection, array $event, array $parent
     $row=pg_fetch_assoc($result);
     // Admission already requires the root's saved policy; its absence cannot fall back to a wider mode.
     if (!$row) throw new LogicException('rechat_root_policy_unavailable');
-    return $row['execution_mode']==='CLOSE';
+    return $row;
 }
 
 // Request-level form for prompt policy: only an owned continuation with a completed parent can inherit Close.
 function synth_rechat_close_root($db, array $event): bool
 {
-    if (!synth_protocol_owns_rechat($event)) return false;
+    return synth_rechat_root_audience($db,$event)==='close';
+}
+
+// Request-level root audience ('close', 'everyone' or null) under the live owner's lock.
+function synth_rechat_root_audience($db, array $event): ?string
+{
+    if (!synth_protocol_owns_rechat($event)) return null;
     return $db->withNativeRequestLock(static function($connection,array $owner) use($event) {
         if ($owner!==$event) throw new LogicException('rechat_root_owner_changed');
         // Without completed parent proof no continuation can be prepared, so there is nothing to inherit.
         $proof=synth_rechat_completed_parent_evidence($connection,$event);
-        return $proof!==null && synth_rechat_close_root_locked($connection,$event,$proof['request']);
+        return $proof===null ? null : synth_rechat_root_audience_locked($connection,$event,$proof['request']);
     },2000);
 }
 
 // One bounded Close hearing projection for candidates, prompts, routes and history: the root capture's
 // target/audience, narrowed to fresh available actors (same life/posture exclusions as candidates)
-// whose body-measured player distance is at most 200.
+// whose body-measured player distance is at most 200. An Everyone root ($closeRange false) uses the same
+// narrowing to members of the fresh capture's audience without the Close distance bound; the fresh target
+// alone is not proof that it still hears.
 // A fresh scene never adds a newcomer. Missing or ambiguous state is not hearing evidence.
 // Returns null when the previous speaker itself is no longer such a hearer.
-function synth_rechat_close_audience(array $root, array $fresh): ?array
+function synth_rechat_close_audience(array $root, array $fresh, bool $closeRange = true): ?array
 {
     require_once __DIR__.'/synth_rechat_selection.php';
-    $captured=[]; $states=[];
+    $captured=[]; $states=[]; $present=[];
     foreach (array_merge([$root['target'] ?? null],$root['audience'] ?? []) as $actor) {
         if (is_array($actor) && ($key=synth_rechat_actor_key($actor))!==null) $captured[$key]=true;
+    }
+    foreach (is_array($fresh['audience'] ?? null) ? $fresh['audience'] : [] as $actor) {
+        if (is_array($actor) && ($key=synth_rechat_actor_key($actor))!==null) $present[$key]=true;
     }
     foreach ($fresh['actor_states'] ?? [] as $state) {
         $key=is_array($state) ? synth_rechat_actor_key(is_array($state['actor'] ?? null) ? $state['actor'] : []) : null;
         if ($key!==null) $states[$key]=array_key_exists($key,$states) ? null : $state;
     }
     $playerKey=synth_rechat_actor_key(is_array($fresh['player'] ?? null) ? $fresh['player'] : []);
-    $hears=static function($actor) use($captured,$states,$playerKey): bool {
+    $hears=static function($actor) use($captured,$states,$present,$playerKey,$closeRange): bool {
         $key=is_array($actor) ? synth_rechat_actor_key($actor) : null;
         $state=$key===null ? null : ($states[$key] ?? null);
         $distance=$state['distance'] ?? null;
         return $key!==null && $key!==$playerKey && isset($captured[$key]) && is_array($state)
             && synth_rechat_state_available($state)
-            && (is_int($distance) || is_float($distance)) && is_finite((float)$distance) && $distance>=0 && $distance<=200;
+            && ($closeRange ? (is_int($distance) || is_float($distance)) && is_finite((float)$distance)
+                && $distance>=0 && $distance<=200 : isset($present[$key]));
     };
     if ($playerKey===null || !$hears($fresh['target'] ?? null)) return null;
     $fresh['audience']=array_values(array_filter(is_array($fresh['audience'] ?? null) ? $fresh['audience'] : [],$hears));
@@ -198,6 +243,15 @@ function synth_rechat_close_audience(array $root, array $fresh): ?array
         static fn($state): bool=>is_array($state) && is_array($state['actor'] ?? null)
             && (synth_rechat_actor_key($state['actor'])===$playerKey || $hears($state['actor']))));
     return $fresh;
+}
+
+// Everyone's first claim: the non-player responder must be a captured audience member with one available
+// captured state in an attested capture. The native adapter always reports audience quality; a legacy or
+// unavailable audience cannot prove a public hearer.
+function synth_rechat_everyone_responder(array $payload): bool
+{
+    return in_array($payload['audience_observation'] ?? null,['complete','partial'],true)
+        && synth_rechat_close_audience($payload,$payload,false)!==null;
 }
 
 // Canonical keys preserve case-sensitive save identity; labels never grant actor ownership.
@@ -298,6 +352,18 @@ function synth_rechat_listener_wire(array $event, array $line, array $route, str
     return json_encode($line,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n";
 }
 
+// Cheap pre-checks before a receipt enrolment is attempted: a v2 ordinary origin that negotiated delivery receipts,
+// an explicit NPC speech lane and a placed speaker other than the captured player. Narrator, generated player speech
+// (speech_role player) and /talk never qualify. enrollEmittedLine repeats every check against the stored rows.
+function synth_rechat_receipt_candidate(array $event, array $metadata, array $speaker, array $context): bool
+{
+    require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
+    if (($metadata['speech_role'] ?? null)!=='npc' || isset($speaker['kind'])
+        || !\Synth\Core\UtteranceRepository::ordinaryOrigin($event,\Synth\Core\UtteranceRepository::DELIVERY_RECEIPTS)) return false;
+    $key=synth_rechat_actor_key($speaker);
+    return $key!==null && $key!==synth_rechat_actor_key($context['player'] ?? []);
+}
+
 // Persist the final wire-line hash before emission; pending rows alone never prove delivered dialogue.
 // An explicit claimed owner (v2 API) takes the same lock without request globals; legacy callers pass none.
 function synth_rechat_record_emitted_route($db, array $event, string $wire, array $metadata, ?SYNTHClaimedRequest $claimed = null): string
@@ -369,21 +435,43 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
             $existing=pg_fetch_assoc($existing);
             if ($existing && $existing['line_id']!==$line['line_id']) throw new LogicException('dialogue_route_utterance_reused');
         }
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.response_routes
-            (session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
-            VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb,$10)
-            ON CONFLICT(session_id,request_id,line_id) DO UPDATE SET line_sha256=EXCLUDED.line_sha256
-            WHERE response_routes.line_sha256=EXCLUDED.line_sha256
-                AND response_routes.generation=EXCLUDED.generation AND response_routes.context_sequence=EXCLUDED.context_sequence
-                AND response_routes.speaker=EXCLUDED.speaker AND response_routes.listener_state=EXCLUDED.listener_state
-                AND response_routes.listener IS NOT DISTINCT FROM EXCLUDED.listener
-                AND response_routes.utterance_id IS NOT DISTINCT FROM EXCLUDED.utterance_id
-            RETURNING line_id",
-            [$event['session_id'],$event['request_id'],$line['line_id'],hash('sha256',$wire),$event['generation'],
-             $event['context_sequence'],json_encode($speaker,JSON_THROW_ON_ERROR),$route['availability'],
-             $route['listener']===null ? null : json_encode($route['listener'],JSON_THROW_ON_ERROR),$utterance]);
-        if (!$result) throw new RuntimeException('Unable to persist dialogue route');
-        if (!pg_fetch_assoc($result)) throw new LogicException('Conflicting dialogue route replay');
+        $persist=static function(string $wire) use($connection,$event,$line,$speaker,$route,$utterance): void {
+            $result=@pg_query_params($connection,"INSERT INTO synth_meta.response_routes
+                (session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
+                VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb,$10)
+                ON CONFLICT(session_id,request_id,line_id) DO UPDATE SET line_sha256=EXCLUDED.line_sha256
+                WHERE response_routes.line_sha256=EXCLUDED.line_sha256
+                    AND response_routes.generation=EXCLUDED.generation AND response_routes.context_sequence=EXCLUDED.context_sequence
+                    AND response_routes.speaker=EXCLUDED.speaker AND response_routes.listener_state=EXCLUDED.listener_state
+                    AND response_routes.listener IS NOT DISTINCT FROM EXCLUDED.listener
+                    AND response_routes.utterance_id IS NOT DISTINCT FROM EXCLUDED.utterance_id
+                RETURNING line_id",
+                [$event['session_id'],$event['request_id'],$line['line_id'],hash('sha256',$wire),$event['generation'],
+                 $event['context_sequence'],json_encode($speaker,JSON_THROW_ON_ERROR),$route['availability'],
+                 $route['listener']===null ? null : json_encode($route['listener'],JSON_THROW_ON_ERROR),$utterance]);
+            if (!$result) throw new RuntimeException('Unable to persist dialogue route');
+            if (!pg_fetch_assoc($result)) throw new LogicException('Conflicting dialogue route replay');
+        };
+        // Ordinary delivery receipts: an NPC line of an admitted ordinary origin carries receipt_required only when
+        // the marked final wire, its route and its generated utterance commit together in this transaction. Any
+        // enrolment refusal (an unregistered identity, a dynamic reference, unstorable text) rolls back to the
+        // savepoint and the line keeps its existing unmarked route and emission-time history.
+        if (in_array($line['payload']['speech']['status'] ?? null,['pending','ready'],true)
+            && synth_rechat_receipt_candidate($event,$metadata,$speaker,$context)) {
+            $marked=json_decode($wire,true,flags:JSON_THROW_ON_ERROR);
+            $marked['payload']['receipt_required']=true;
+            $marked=json_encode($marked,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)."\n";
+            if (@pg_query($connection,'SAVEPOINT synth_delivery_receipt')===false) throw new RuntimeException('Unable to open receipt enrolment');
+            $persist($marked);
+            if (\Synth\Core\UtteranceRepository::enrollEmittedLine($connection,$event,$marked,'npc',
+                \Synth\Core\UtteranceRepository::DELIVERY_RECEIPTS)) {
+                if (@pg_query($connection,'RELEASE SAVEPOINT synth_delivery_receipt')===false) throw new RuntimeException('Unable to close receipt enrolment');
+                return $marked;
+            }
+            if (@pg_query($connection,'ROLLBACK TO SAVEPOINT synth_delivery_receipt')===false
+                || @pg_query($connection,'RELEASE SAVEPOINT synth_delivery_receipt')===false) throw new RuntimeException('Unable to reset receipt enrolment');
+        }
+        $persist($wire);
         return $wire;
     };
     return $claimed!==null ? $db->withClaimedRequestLock($claimed,$record,2000) : $db->withNativeRequestLock($record,2000);
@@ -437,7 +525,8 @@ function synth_rechat_completed_parent($db, array $event): ?array
 }
 
 // Read-only evidence under a caller-held native owner lock; this does not admit a continuation.
-function synth_rechat_completed_parent_evidence($connection, array $event): ?array
+// $ownFailed (delivery receipts only) also accepts this child's own failed, unrevoked execution.
+function synth_rechat_completed_parent_evidence($connection, array $event, bool $ownFailed = false): ?array
 {
     if (($event['protocol_version'] ?? null)!==2 || ($event['type'] ?? '')!=='trigger'
         || ($event['payload']['kind'] ?? '')!=='rechat'
@@ -460,11 +549,13 @@ function synth_rechat_completed_parent_evidence($connection, array $event): ?arr
             AND p.event_sha256=e.request_sha256 AND p.event_type=e.event_type
             AND p.canonical_event->>'protocol_version'='2' AND p.canonical_event->>'context_sequence'=$3::text
             AND p.canonical_event->>'runtime_variant'=$6 AND s.runtime_variant=$6
-            AND child.state IN ('claimed','streaming','complete') AND child.generation=$4 AND child.turn_id=$5
+            AND (child.state IN ('claimed','streaming','complete') OR ($10::boolean AND child.state='failed'
+                AND COALESCE(child.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
+            AND child.generation=$4 AND child.turn_id=$5
             AND cp.canonical_event=$7::jsonb AND cp.event_sha256=$9 AND child.request_sha256=cp.event_sha256
             AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type",
         [$event['session_id'],$parent,strval($event['context_sequence']),$event['generation'],$event['turn_id'],
-         $event['runtime_variant'],$canonical,$event['request_id'],hash('sha256',$canonical)]);
+         $event['runtime_variant'],$canonical,$event['request_id'],hash('sha256',$canonical),$ownFailed ? 't' : 'f']);
     if (!$result) throw new RuntimeException('Unable to verify completed rechat parent');
     $row=pg_fetch_assoc($result);
     if (!$row) return null;

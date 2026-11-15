@@ -50,8 +50,10 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 ## Install
 
 1. **WSL environment.** You need a WSL 2 distribution with `sudo`, `rsync`, Apache 2, PHP 8
-   (CLI plus the Apache module, with the `curl`, `mbstring`, `pgsql` and `xml` extensions) and
-   PostgreSQL with `pgvector`. A DwemerDistro installation provides this environment.
+   (CLI plus the Apache module, with the `curl`, `mbstring`, `pgsql` and `xml` extensions),
+   Composer on the default `sudo` `PATH`, and PostgreSQL with `pgvector`. Check each one in your
+   distribution, including DwemerDistro, and install any that are missing with its package
+   manager first; the deploy script does not install them.
 2. **Database role.** Create the loopback-only role used by the sample configuration, if it
    does not exist:
 
@@ -77,7 +79,10 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    powershell -ExecutionPolicy Bypass -File .\tools\deploy-synthserver-wsl.ps1 -Distro <your-wsl-distro>
    ```
 
-   The script only deploys to `/var/www/html/Synthserver`. It preserves `conf/conf.php`,
+   The script only deploys to `/var/www/html/Synthserver`. It installs the production PHP
+   dependencies from the tracked `composer.lock` with the distribution's Composer, and syncs them
+   before the source (see [docs/DOCTRINE-SETTINGS-PILOT.md](docs/DOCTRINE-SETTINGS-PILOT.md)).
+   This step needs network access to the locked package sources. It preserves `conf/conf.php`,
    voices, uploads, caches and logs. It creates `conf/conf.php` from `conf/conf.sample.php` only
    when the file is missing. It installs the Apache site only after `apache2ctl configtest`
    passes. When `-Distro` is omitted, it uses the DwemerDistro default distribution name.
@@ -105,7 +110,9 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    `sudo apt-get install --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold $(dpkg-query -W -f='${binary:Package} ' 'phpX.Y*' libapache2-mod-phpX.Y)`.
    Stop if apt proposes removing packages; a full distribution upgrade is not needed. Restart
    Apache, PHP-FPM and PHP workers, then deploy again. A refused deployment changes no configuration, data or database. The deploy script
-   never installs packages.
+   never installs distribution (apt) packages; the only packages it installs are the locked
+   Composer dependencies, into a private staging directory. If Composer is missing it stops
+   before changing the deployment target.
 6. **Check.** Open `http://127.0.0.1:8087/Synthserver/health.php`, then
    `http://127.0.0.1:8087/Synthserver/ui/quickstart.php`.
 
@@ -122,7 +129,7 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1 -Port 8087 # match the 
 ```
 
 The launcher serves the checkout's parent folder with the PHP built-in server. It still needs
-the WSL database above. If you keep port 8085, set the client's `BaseUrl` to match.
+the WSL database above, and `composer install --no-dev` in the checkout root. If you keep port 8085, set the client's `BaseUrl` to match.
 
 ## Configuration
 
@@ -169,6 +176,7 @@ Unit-test dependencies are not committed. Run PHPUnit only against a **disposabl
 with pgvector and the `dwemer` role (see `.github/workflows/server.yml`):
 
 ```bash
+composer install --no-dev
 cd unittests
 composer install
 ./vendor/bin/phpunit

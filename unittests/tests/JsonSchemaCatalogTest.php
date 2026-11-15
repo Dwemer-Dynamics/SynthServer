@@ -116,7 +116,7 @@ final class JsonSchemaCatalogTest extends TestCase
         $halt['type'] = 'halt';
         $halt['payload'] = new stdClass();
         $this->assertSame($halt, synth_protocol_validate_event($halt));
-        foreach (['STANDARD','WHISPER','CLOSE','SHOUT','NARRATOR','DIRECTOR','INJECTION_LOG','INJECTION_CHAT','CHEATMODE'] as $mode) {
+        foreach (['STANDARD','WHISPER','CLOSE','SHOUT','NARRATOR','DIRECTOR','INJECTION_LOG','INJECTION_CHAT','CHEATMODE','AUTOCHAT'] as $mode) {
             $event = $base;
             $event['type'] = 'input_text';
             $event['context_sequence'] = 1;
@@ -131,19 +131,81 @@ final class JsonSchemaCatalogTest extends TestCase
                 else $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
             }
         }
-        foreach ([['mode','AUTOCHAT'],['model_slot','0'],['model_slot','5'],['status','extra'],['shell','command'],['mode',[]]] as [$key,$value])
+        $this->assertTrue(synth_control_valid_change('mode','AUTOCHAT'));
+        // Auto Chat is a mode, never a new shorthand or a lower-case alias.
+        foreach ([['mode','autochat'],['mode','AUTO_CHAT'],['mode','TALK'],['model_slot','0'],['model_slot','5'],['status','extra'],['shell','command'],['mode',[]]] as [$key,$value])
             $this->assertFalse(synth_control_valid_change($key,$value));
         foreach (['missing-capability','unknown-field','unknown-mode','v1'] as $case) {
             $event = $base;
             if ($case === 'missing-capability') $event['capabilities'] = [];
             if ($case === 'unknown-field') $event['payload']['extra'] = true;
-            if ($case === 'unknown-mode') $event['payload'] = ['setting'=>'mode','value'=>'AUTOCHAT'];
+            if ($case === 'unknown-mode') $event['payload'] = ['setting'=>'mode','value'=>'AUTO_CHAT'];
             if ($case === 'v1') { $event['schema']='synth.event.v1'; $event['protocol_version']=1; unset($event['context_sequence']); }
             $script = 'require '.var_export(dirname(__DIR__,2).'/lib/request.php',true).';synth_protocol_validate_event(json_decode('.var_export(json_encode($event),true).',true));echo "ACCEPTED";';
             $output = strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
             $this->assertStringNotContainsString('ACCEPTED',$output,$case);
         }
     }
+
+    // Everyone is a paired, negotiated public audience on ordinary input only; Normal and older clients are unchanged.
+    public function testEveryoneAudienceIsExplicitPairedAndNegotiated(): void
+    {
+        $root=dirname(__DIR__,2);
+        require_once $root.'/lib/request.php';
+        require_once $root.'/lib/synth_control.php';
+        $fixture=static fn(string $name): array=>json_decode(file_get_contents($root.'/protocol/v2/fixtures/'.$name),true,flags:JSON_THROW_ON_ERROR);
+        $text=$fixture('valid/input-text-everyone.json');
+        $control=$fixture('valid/control-audience.json');
+        $this->assertSame($text,synth_protocol_validate_event($text));
+        $this->assertSame($control,synth_protocol_validate_event($control));
+        $this->assertSame('everyone',synth_protocol_validate_event($fixture('valid/input-audio-everyone.json'))['payload']['audience_intent']);
+        $this->assertTrue(synth_control_everyone_input($text));
+        $this->assertTrue(synth_control_valid_change('audience','normal'));
+        $this->assertFalse(synth_control_valid_change('audience','redirected'));
+        // Mode writers exclusive, Everyone and audience preference shared, everything else takes no gate.
+        $status=$fixture('valid/control-status.json');
+        $mode=$status;$mode['payload']=['setting'=>'mode','value'=>'WHISPER'];
+        $autoChat=$status;$autoChat['payload']=['setting'=>'mode','value'=>'AUTOCHAT'];
+        // Selecting Auto Chat is a global mode write: it takes the exclusive gate that resets a stale Everyone.
+        $this->assertTrue(synth_control_audience_gate($autoChat));
+        $normal=$text;unset($normal['payload']['audience_intent'],$normal['payload']['audience_reset_epoch']);
+        $this->assertSame([true,false,false,null,null],array_map('synth_control_audience_gate',[$mode,$control,$text,$status,$normal]));
+        $this->assertFalse(synth_control_everyone_input($normal));
+        $cases=array_map(static fn($file)=>json_decode(file_get_contents($file),true),
+            array_merge(glob($root.'/protocol/v2/fixtures/invalid/input-text-everyone-*.json'),
+                glob($root.'/protocol/v2/fixtures/invalid/control-audience-*.json')));
+        $bad=$text;$bad['capabilities']=['dialogue.text','control.menu'];$cases[]=$bad;
+        $bad=$text;$bad['context_sequence']=0;$cases[]=$bad;
+        $bad=$text;$bad['payload']['audience_reset_epoch']=-1;$cases[]=$bad;
+        // Auto Chat answers only its selected target; it can never broadcast.
+        $bad=$text;$bad['payload']['control']['mode']='AUTOCHAT';$cases[]=$bad;
+        $bad=$text;$bad['schema']='synth.event.v1';$bad['protocol_version']=1;unset($bad['context_sequence'],$bad['payload']['control']);$cases[]=$bad;
+        foreach ($cases as $index=>$event) {
+            $script='require '.var_export($root.'/lib/request.php',true).';synth_protocol_validate_event(json_decode('.var_export(json_encode($event),true).',true));echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,'case '.$index);
+        }
+        // Only a negotiated init or control_state carries the closed object; malformed values are never emitted.
+        $audience=['intent'=>'everyone','reset_epoch'=>3];
+        $init=$fixture('valid/init-flat.json');
+        $saved=$GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        try {
+            $ack=static function (array $event, string $code, array $detail): array {
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
+                return json_decode(explode("\n",synth_protocol_encode_ack($code,$detail))[1],true)['payload'];
+            };
+            $expected=json_decode(explode("\n",file_get_contents($root.'/protocol/v2/fixtures/valid/response-control-audience.ndjson'))[1],true)['payload'];
+            $this->assertSame($expected,$ack($control,'control_state',['detail'=>'STANDARD|1','control_audience'=>$audience]));
+            $this->assertArrayNotHasKey('control_audience',$ack($status,'control_state',['detail'=>'STANDARD|1','control_audience'=>$audience]));
+            $this->assertArrayNotHasKey('control_audience',$ack($control,'control_state',['control_audience'=>['intent'=>'everyone','reset_epoch'=>-1]]));
+            $this->assertArrayNotHasKey('control_audience',$ack($init,'init_accepted',['control_audience'=>$audience]));
+            $init['capabilities']=array_merge($init['capabilities'],['control.menu','dialogue.everyone']);
+            $this->assertSame(['intent'=>'normal','reset_epoch'=>4],$ack($init,'init_accepted',['control_audience'=>['intent'=>'normal','reset_epoch'=>4]])['control_audience']);
+        } finally {
+            if ($saved===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT']=$saved;
+        }
+    }
+
     public function testTransferReceiptsRequireTwoIndependentBoundedObservations(): void
     {
         require_once dirname(__DIR__,2).'/lib/request.php';

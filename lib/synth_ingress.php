@@ -675,7 +675,8 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (!synth_control_valid_change($payload['setting'], $payload['value']))
             synth_protocol_fail('invalid_control', 422);
     } elseif ($type === 'input_text') {
-        synth_protocol_expect_exact_keys($payload, ['text'], $version === 2 ? ['control', 'intent'] : [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['text'],
+            $version === 2 ? ['control', 'intent', 'audience_intent', 'audience_reset_epoch'] : [], 'payload');
         if (!is_string($payload['text']) || trim($payload['text']) === '' || strlen($payload['text']) > 4096) {
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.text', 'issue' => 'invalid']]);
         }
@@ -683,14 +684,15 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (array_key_exists('intent', $payload) && $payload['intent'] !== 'conversation')
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.intent', 'issue' => 'unknown']]);
     } elseif ($type === 'input_audio') {
-        synth_protocol_expect_exact_keys($payload, ['media'], $version === 2 ? ['control'] : [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['media'],
+            $version === 2 ? ['control', 'audience_intent', 'audience_reset_epoch'] : [], 'payload');
         $payload['media'] = synth_protocol_validate_media($payload['media'] ?? null, 'payload.media');
     } elseif ($type === 'context') {
         synth_protocol_expect_exact_keys(
             $payload,
             ['playthrough_id', 'snapshot_sequence', 'player', 'audience', 'active_quests',
              'nearby_items', 'points_of_interest'],
-            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events']
+            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events', 'observed_dialogue']
                 : ['target', 'actor_states', 'world', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation'],
             'payload'
         );
@@ -782,6 +784,12 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         }
         if (array_key_exists('world', $payload)) {
             $payload['world'] = synth_protocol_validate_world_state($payload['world'], 'payload.world', $version);
+        }
+        // Bound after audience and world validation: the witnesses must be exactly this published scene.
+        if (array_key_exists('observed_dialogue',$payload)) {
+            require_once __DIR__.'/observed_dialogue.php';
+            try {$payload['observed_dialogue']=synthValidateObservedDialogue($payload['observed_dialogue'],$payload);}
+            catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
         }
         foreach (['nearby_items','points_of_interest'] as $collection) {
             $field=$collection.'_observation';
@@ -1066,7 +1074,11 @@ function synth_protocol_validate_event(array $event): array
     $conversationIntent=$event['type']==='input_text' && is_array($event['payload']) && array_key_exists('intent',$event['payload']);
     if ($conversationIntent && intval($event['context_sequence'] ?? 0)<1)
         synth_protocol_fail('invalid_payload',422,[['field'=>'context_sequence','issue'=>'conversation_intent_unbound']]);
-    if (($event['type']==='speech_receipt' || $conversationIntent || isset($seen['dialogue.native_turn']))
+    // A speech receipt is owned by either receipt contract: /talk (native_turn) or ordinary delivery receipts.
+    $deliveryReceipts=isset($seen['dialogue.delivery_receipts']);
+    if ($deliveryReceipts && ($event['protocol_version']!==2 || !isset($seen['dialogue.turn_ownership'])))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'delivery_receipts_capability_required']]);
+    if ((($event['type']==='speech_receipt' && !$deliveryReceipts) || $conversationIntent || isset($seen['dialogue.native_turn']))
         && ($event['protocol_version']!==2 || !isset($seen['dialogue.native_turn']) || !isset($seen['dialogue.turn_ownership'])))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'native_turn_capability_required']]);
     if (str_starts_with($event['type'],'narrator_') && !synth_private_narrator_supported($event))
@@ -1159,6 +1171,10 @@ function synth_protocol_validate_event(array $event): array
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.actor_events',$event['capabilities'],true)))
         synth_protocol_fail('invalid_actor_events',422,[['field'=>'capabilities','issue'=>'flat_actor_events_required']]);
+    if ($event['type']==='context' && array_key_exists('observed_dialogue',$event['payload'])
+        && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
+            || !in_array('context.observed_dialogue',$event['capabilities'],true)))
+        synth_protocol_fail('invalid_observed_dialogue',422,[['field'=>'capabilities','issue'=>'flat_observed_dialogue_required']]);
     if ($event['type']==='context' && array_key_exists('player_event',$event['payload'])
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.player_events',$event['capabilities'],true)))
@@ -1184,6 +1200,24 @@ function synth_protocol_validate_event(array $event): array
                 !is_int($control['model_slot']) || $control['model_slot'] < 1 || $control['model_slot'] > 4)
                 synth_protocol_fail('invalid_control', 422);
         }
+        if ($event['type'] === 'control' && $event['payload']['setting'] === 'audience'
+            && !in_array('dialogue.everyone', $event['capabilities'], true))
+            synth_protocol_fail('audience_capability_required', 422);
+    }
+    // Explicit public audience on ordinary input only: the paired acknowledged epoch, the negotiated capability,
+    // an explicit Standard/Shout selection and a bound context. An epoch alone or any other intent is refused.
+    if (in_array($event['type'], ['input_text', 'input_audio'], true) && is_array($event['payload'])
+        && (array_key_exists('audience_intent', $event['payload']) || array_key_exists('audience_reset_epoch', $event['payload']))) {
+        require_once __DIR__.'/synth_control.php';
+        $epoch = $event['payload']['audience_reset_epoch'] ?? null;
+        if (($event['payload']['audience_intent'] ?? null) !== 'everyone'
+            || !is_int($epoch) || $epoch < 0 || $epoch > 9007199254740991)
+            synth_protocol_fail('invalid_audience', 422, [['field' => 'payload.audience_intent', 'issue' => 'invalid']]);
+        if (!synth_control_everyone_supported($event))
+            synth_protocol_fail('audience_capability_required', 422);
+        if (!in_array($event['payload']['control']['mode'] ?? null, ['STANDARD', 'SHOUT'], true)
+            || intval($event['context_sequence'] ?? 0) < 1)
+            synth_protocol_fail('invalid_audience', 422, [['field' => 'payload.control.mode', 'issue' => 'standard_or_shout_with_context_required']]);
     }
     return $event;
 }
