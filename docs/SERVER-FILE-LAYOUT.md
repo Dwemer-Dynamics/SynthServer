@@ -14,6 +14,7 @@ layout migration or compatibility tree is needed.
 | Shared runtime helpers and core models | `lib/`, `lib/core/` |
 | Native dialogue composition root, v2 API, services, contracts/entities/repositories and drivers | `bootstrap.php`, `api/v2/`, `managers/`, `core/{contracts,entities,dbmanager/repositories}/`, `drivers/{llm,tts}/` |
 | Doctrine mappings and shared-session adapter | `core/dbmanager/` (`entities/`, `SharedSessionDriver.php`, `EntityManagerFactory.php`) |
+| Versioned schema migrations (one owner) | `core/dbmanager/` (`SchemaMigrations.php`, `migrations.php`, `migrations/`) |
 | Production PHP dependencies (installed, untracked `vendor/`) | `composer.json`, `composer.lock` |
 | LLM connectors and templates | `connector/` |
 | Dialogue processing | `processor/` |
@@ -22,7 +23,7 @@ layout migration or compatibility tree is needed.
 | Background services | `service/`, `service/processors/` |
 | Model action definitions | `functions/` |
 | Factory data and baseline SQL | `data/` |
-| Schema updates and core table definitions | `debug/db_updates.php`, `lib/core/database_schema/` |
+| Frozen legacy schema chain and core table definitions | `debug/db_updates.php`, `lib/core/database_schema/` |
 | Management pages, APIs and shared templates | `ui/`, `ui/api/`, `ui/core/`, `ui/tmpl/` |
 | Styles, scripts and images | `ui/css/`, `ui/js/`, `ui/images/` |
 

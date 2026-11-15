@@ -40,6 +40,8 @@ final class NamedGiftUpgradeTest extends DatabaseTestCase
             WHERE code_name = 'TakeItemFromPlayer'"));
         $customizedGift = $db->fetchAll($namedGift);
         self::assertNotFalse($db->execQuery($previousVersion));
+        // The first run recorded the schema baseline; only a pre-ledger install still gets the legacy upgrade.
+        self::assertNotFalse($db->execQuery('DELETE FROM synth_meta.doctrine_migration_versions'));
 
         require $root.'/debug/db_updates.php';
 

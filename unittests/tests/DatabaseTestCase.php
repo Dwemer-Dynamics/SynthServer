@@ -10,7 +10,7 @@ abstract class DatabaseTestCase extends TestCase
     protected static string $testDatabaseBkpName = "testdb_bkp";
     protected string $testNPCName = "Unit Test";
 
-    private static function connectToAdminDatabase()
+    protected static function connectToAdminDatabase()
     {
         $connection = pg_connect(
             "host=localhost dbname=postgres user=dwemer password=dwemer",
@@ -23,7 +23,7 @@ abstract class DatabaseTestCase extends TestCase
     }
 
     // Prevent DROP DATABASE from terminating a stale process-shared fixture handle.
-    private static function resetSharedTestConnection(): void
+    protected static function resetSharedTestConnection(): void
     {
         if (class_exists('sql') && method_exists('sql', 'resetConnection')) {
             sql::resetConnection();
@@ -102,16 +102,70 @@ abstract class DatabaseTestCase extends TestCase
 
     public static function createTestDB(): void
     {
+        self::recreateTestDatabaseFromDefaultSql();
+        self::resetSharedTestConnection();
+        $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
+        self::loadTestRuntime();
+        $db = new sql();
+        $GLOBALS["db"] = $db;
+        // A true pre-ledger legacy install: the frozen chain under the migration lock, with no migration recorded.
+        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."db_connection_settings.php");
+        require_once($path.DIRECTORY_SEPARATOR."core".DIRECTORY_SEPARATOR."dbmanager".DIRECTORY_SEPARATOR."SchemaMigrations.php");
+        $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(
+            \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('testdb')));
+        try {
+            $owner->applyLegacyChainWithoutLedger();
+        } finally {
+            $owner->close();
+        }
+
+        $db->close();
+        unset($db);
+        unset($GLOBALS["db"]);
+
+        self::snapshotTestDatabaseAsFixture();
+    }
+
+    // The test sql adapter and the sample configuration the tests run with.
+    protected static function loadTestRuntime(): void
+    {
+        $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
+        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."runtime_bootstrap.php");
+        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."phpunit.class.php");
+
+        // Mirror runtime bootstrap: load and import defaults before managed-setting seeds run.
+        require($path.DIRECTORY_SEPARATOR."conf".DIRECTORY_SEPARATOR."conf.sample.php");
+        synthRuntimeImportConfigVariables(get_defined_vars());
+    }
+
+    // Replaces the per-test fixture with a clone of testdb.
+    protected static function snapshotTestDatabaseAsFixture(): void
+    {
+        self::resetSharedTestConnection();
+        // Clone from an administrative connection. PostgreSQL cannot clone the
+        // database used by the current connection.
+        $mainConnection = self::connectToAdminDatabase();
+        $dropResult = pg_query($mainConnection, "DROP DATABASE IF EXISTS ".self::$testDatabaseBkpName." WITH (FORCE)");
+        if (!$dropResult) {
+            self::fail("Failed to drop test database: " . pg_last_error($mainConnection));
+        }
+        $createResult = pg_query($mainConnection, "CREATE DATABASE ".self::$testDatabaseBkpName." WITH TEMPLATE ".self::$testDatabaseName);
+        if (!$createResult) {
+            self::fail("Failed to create test database fixture: " . pg_last_error($mainConnection));
+        }
+        self::configureTestDatabase($mainConnection, self::$testDatabaseBkpName);
+        pg_close($mainConnection);
+    }
+
+    // A fresh install before any migration: an empty UTF-8 testdb with only data/database_default.sql imported.
+    protected static function recreateTestDatabaseFromDefaultSql(): void
+    {
         self::resetSharedTestConnection();
         // Connect to the main database
         $mainConnection = self::connectToAdminDatabase();
 
         // Drop the test database if it already exists
         $dropResult = pg_query($mainConnection, "DROP DATABASE IF EXISTS ".self::$testDatabaseName." WITH (FORCE)");
-        if (!$dropResult) {
-            self::fail("Failed to drop test database: " . pg_last_error($mainConnection));
-        }
-        $dropResult = pg_query($mainConnection, "DROP DATABASE IF EXISTS ".self::$testDatabaseBkpName." WITH (FORCE)");
         if (!$dropResult) {
             self::fail("Failed to drop test database: " . pg_last_error($mainConnection));
         }
@@ -159,30 +213,6 @@ abstract class DatabaseTestCase extends TestCase
             self::fail("Failed to import base SQL file: " . pg_last_error($testConnection));
         }
         pg_close($testConnection);
-
-        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."runtime_bootstrap.php");
-        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."phpunit.class.php");
-
-        // Mirror runtime bootstrap: load and import defaults before managed-setting seeds run.
-        require($path.DIRECTORY_SEPARATOR."conf".DIRECTORY_SEPARATOR."conf.sample.php");
-        synthRuntimeImportConfigVariables(get_defined_vars());
-        $db = new sql();
-        $GLOBALS["db"] = $db;
-        require($path.DIRECTORY_SEPARATOR."debug".DIRECTORY_SEPARATOR."db_updates.php");
-
-        $db->close();
-        unset($db);
-        unset($GLOBALS["db"]);
-
-        // Clone from an administrative connection. PostgreSQL cannot clone the
-        // database used by the current connection.
-        $mainConnection = self::connectToAdminDatabase();
-        $createResult = pg_query($mainConnection, "CREATE DATABASE ".self::$testDatabaseBkpName." WITH TEMPLATE ".self::$testDatabaseName);
-        if (!$createResult) {
-            self::fail("Failed to create test database fixture: " . pg_last_error($mainConnection));
-        }
-        self::configureTestDatabase($mainConnection, self::$testDatabaseBkpName);
-        pg_close($mainConnection);
     }
 
     public function copyTestDB(): void

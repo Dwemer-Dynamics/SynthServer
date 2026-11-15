@@ -8,6 +8,10 @@ $database = "synth"
 $owner = "dwemer"
 $password = "dwemer"
 $serverRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+# The schema migration owner needs the locked production dependencies. Refuse before touching the database.
+if (-not (Test-Path -LiteralPath (Join-Path $serverRoot "vendor\autoload.php") -PathType Leaf)) {
+    throw "Synthserver production dependencies are missing: run 'composer install --no-dev' in $serverRoot (it installs the tracked composer.lock), then rerun this script. No database was changed."
+}
 $baselineWin = Resolve-Path (Join-Path $serverRoot "data\database_default.sql")
 $bootstrapWin = Resolve-Path (Join-Path $serverRoot "tools\bootstrap-database.php")
 $baselineWslPath = $baselineWin.Path.Replace('\', '/')

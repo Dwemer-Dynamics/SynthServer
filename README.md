@@ -63,7 +63,8 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 
    `dwemer`/`dwemer` is a local development default. Keep PostgreSQL bound to loopback.
 3. **Checkout.** Clone this repository on Windows into a folder named `Synthserver`.
-4. **Database.** This step uses your default WSL distribution and needs passwordless `sudo`:
+4. **Database.** This step uses your default WSL distribution and needs passwordless `sudo` and the
+   production dependencies (`composer install --no-dev` in the checkout, from the tracked `composer.lock`):
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\tools\create-synth-db-wsl.ps1
@@ -71,8 +72,9 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 
    The script creates `synth` as a UTF-8 database if it is missing, enables the extensions,
    imports `data/database_default.sql` only when the baseline schema is absent, and runs the
-   idempotent migration chain (`tools/bootstrap-database.php` → `debug/db_updates.php`). It
-   **never drops data** unless you pass `-Reset`.
+   migrations (`tools/bootstrap-database.php`, see
+   [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md)). Without `vendor/` it fails before
+   touching the database. It **never drops data** unless you pass `-Reset`.
 5. **Deploy to Apache:**
 
    ```powershell

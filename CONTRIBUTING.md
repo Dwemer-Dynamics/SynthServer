@@ -28,8 +28,9 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
 
 - Keep each change focused. Link the paired SYNTH client PR for protocol changes, and mirror
   `protocol/` byte-for-byte.
-- Every schema change needs an idempotent migration that works for both fresh installs and
-  upgrades. Use a version above the latest one in `debug/db_updates.php`.
+- Every schema change is a Doctrine migration in `core/dbmanager/migrations/` that works for both
+  fresh installs and upgrades. `debug/db_updates.php` is the frozen legacy baseline; do not add
+  blocks to it. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md).
 - Never commit `conf/conf.php`, credentials, logs, caches, generated audio, voice samples,
   database dumps, `unittests/vendor/`, personal paths, or media without recorded provenance.
 - Prefer the existing PHPUnit suites. Add a new test file only when existing suites cannot
