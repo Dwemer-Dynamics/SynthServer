@@ -21,6 +21,34 @@ if ($LASTEXITCODE -ne 0) {
 & wsl.exe -d $Distro -- sudo install -d -m 0755 -o www-data -g www-data $Target
 if ($LASTEXITCODE -ne 0) { throw "Failed to create the Synthserver deployment directory." }
 
+# Production PHP dependencies come only from the tracked composer.lock, installed with the distro's own PHP and
+# Composer as an unprivileged user in a private staging directory (no plugins, no package scripts). They are
+# synchronized before the source, so an install or upgrade never serves new code against an older vendor tree.
+$vendorStage = (& wsl.exe -d $Distro -- sudo mktemp -d /tmp/synthserver-vendor.XXXXXXXX | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $vendorStage -notmatch '^/tmp/synthserver-vendor\.[A-Za-z0-9]{8}$') {
+    throw "Failed to create the dependency staging directory; nothing was deployed."
+}
+try {
+    & wsl.exe -d $Distro -- sudo install -m 0644 -o nobody -g nogroup `
+        "$sourceLinux/composer.json" "$sourceLinux/composer.lock" "$vendorStage/"
+    if ($LASTEXITCODE -ne 0) { throw "composer.json or composer.lock is missing from the checkout; nothing was deployed." }
+    & wsl.exe -d $Distro -- sudo chown nobody:nogroup $vendorStage
+    if ($LASTEXITCODE -ne 0) { throw "Failed to prepare the dependency staging directory; nothing was deployed." }
+    $composer = @('sudo', '-u', 'nobody', 'env', "COMPOSER_HOME=$vendorStage/.composer",
+        "COMPOSER_CACHE_DIR=$vendorStage/.cache", 'composer', "--working-dir=$vendorStage")
+    & wsl.exe -d $Distro -- @composer validate --no-check-publish --no-check-all
+    if ($LASTEXITCODE -ne 0) { throw "composer.lock does not match composer.json; nothing was deployed." }
+    & wsl.exe -d $Distro -- @composer install --no-dev --no-interaction --no-progress --prefer-dist `
+        --no-plugins --no-scripts --optimize-autoloader
+    if ($LASTEXITCODE -ne 0) { throw "Failed to install the locked production dependencies; nothing was deployed." }
+    & wsl.exe -d $Distro -- @composer check-platform-reqs --no-dev
+    if ($LASTEXITCODE -ne 0) { throw "This distro's PHP does not meet the locked dependency requirements; nothing was deployed." }
+    & wsl.exe -d $Distro -- sudo rsync -a --delete "$vendorStage/vendor/" "$Target/vendor/"
+    if ($LASTEXITCODE -ne 0) { throw "Failed to synchronize the production dependencies." }
+} finally {
+    & wsl.exe -d $Distro -- sudo rm -rf --one-file-system -- $vendorStage
+}
+
 # Exclusions protect destination state from --delete and keep local test jobs/worktree metadata out of runtime.
 & wsl.exe -d $Distro -- sudo rsync -a `
     --delete `
@@ -29,6 +57,7 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to create the Synthserver deployment di
     --exclude=.env `
     --exclude='.env.*' `
     --exclude=.phpunit.result.cache `
+    --exclude=/vendor/ `
     --exclude=connector/vendor/ `
     --exclude=unittests/vendor/ `
     --exclude=conf/conf.php `

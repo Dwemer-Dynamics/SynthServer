@@ -12,6 +12,31 @@ See [AUTO-CHAT.md](AUTO-CHAT.md#automated-checks).
   player line and the NPC reply.
 - [ ] Physical microphone input and heard player voice, flat and VR independently.
 
+## Doctrine settings read pilot
+
+- [x] Measured on Debian PHP 8.2.35 (`pgsql`, `pdo_pgsql`, `ctype`, `mbstring`), Debian
+      Composer 2.5.5 and PostgreSQL 17.11.
+- [x] Lock checked with that PHP and Composer: `validate` passes (exit 2 on a stale lock) and
+      `check-platform-reqs --lock --no-dev` passes.
+- [x] Actual install as `nobody` from the lock: 23 packages, zero dev packages.
+- [x] Parity with the legacy reads: quoted, empty, nonexistent and SQL `NULL` values; direct
+      writes visible within a transaction and gone after rollback.
+- [x] A backend terminated mid-request ends in the same `SQL: bad connection.` stop as a plain
+      legacy `execQuery()`. This is existing `re_connect()` behavior, not a regression.
+- [x] Full PHPUnit suite on disposable PostgreSQL, on upstream base `3181ed18`: 1322 tests,
+      26848 assertions, zero skips or failures, including `SettingsRepositoryTest`.
+- [x] Native loopback, server snapshot `b38d2c57` with client `59faa806`: 4 tests, 1291
+      assertions, including Auto Chat. Real native server `main.php`, the compiled client driver
+      and a fake provider.
+- [x] Migration: a clean bootstrap gives 54 settings and a legacy seeded upgrade gives 55, with
+      byte-identical `synth` schema dumps; a rollback to the legacy build reads the sentinel
+      setting.
+- [x] PostgreSQL 15.20 and 17.11 parity, and a cold 65536-key `values()` read that succeeds.
+- [ ] Hosted CI with the new root `composer install` step.
+- [ ] Deploy and upgrade of the WSL install from an earlier tree (vendor staging, Apache serving
+      `/talk` and the speech language read).
+- [ ] In-game play and live providers.
+
 ## Everyone audience
 
 See [EVERYONE-AUDIENCE.md](EVERYONE-AUDIENCE.md#evidence-boundary). These are off-game results on exact

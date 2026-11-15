@@ -9,6 +9,20 @@ providers are default OpenRouter #2 and Quickstart `openaijson`; anything else f
 new settings, tables or capabilities; the existing control-mode enum gains `AUTOCHAT`.
 See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
 
+## Doctrine settings read pilot
+
+`SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`
+session, with their original signatures and failure behavior. Writes, locks, schema and
+migrations are unchanged. Production dependencies come from the root `composer.lock`
+(PHP 8.2 floor), which the deploy script installs with the distro's Composer. Ownership, connection
+choice and limits: [DOCTRINE-SETTINGS-PILOT.md](DOCTRINE-SETTINGS-PILOT.md). Checks:
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#doctrine-settings-read-pilot). On upstream base
+`3181ed18` the full PHPUnit suite passed (1322 tests, 26848 assertions, no skips or failures).
+Native loopback (server `b38d2c57`, client `59faa806`, fake provider) passed 4 tests and 1291
+assertions, including Auto Chat. Clean and seeded upgrades (54/55 settings, byte-identical `synth`
+schema dumps), rollback, PostgreSQL 15.20/17.11 parity and a 65536-key read were verified.
+Hosted CI, deployment, game and live providers are untested; no flat or VR claim.
+
 ## Everyone audience candidate
 
 Everyone is an explicit public audience for one Standard or Shout turn, negotiated as `dialogue.everyone`;
@@ -524,7 +538,9 @@ The [README](../README.md#install) has the steps. Safeguards:
 - `tools/deploy-synthserver-wsl.ps1` refuses any target other than
   `/var/www/html/Synthserver`, then stops before any change unless the read-only
   `tools/check-php-runtime-security.sh` passes in the chosen distro (patched PHP CLI and Apache
-  PHP runtime; floors in the [README](../README.md#install)). Its `rsync --delete` excludes configuration, voices, caches,
+  PHP runtime; floors in the [README](../README.md#install)). It installs the locked production
+  dependencies in a private staging directory and syncs `vendor/` before the source; a stale lock,
+  failed install or unmet platform requirement stops it before any change. Its `rsync --delete` excludes `/vendor/`, configuration, voices, caches,
   uploads, logs and runtime state. It creates `conf/conf.php` from the sample only when
   `conf.php` is missing, protects it with mode `0640`, runs the database bootstrap, and installs
   the Apache site only after `apache2ctl configtest` passes.
@@ -546,7 +562,8 @@ protocol or database schema.
 - CI policy (2026-10-06): hosted `server.yml` runs the source-tree audit, the protocol
   manifest check and PHPUnit on disposable PostgreSQL. It builds no release package. The
   last hosted run before this note passed at `d171ec7`.
-- PHPUnit (`unittests/`, run `composer install` first) needs a **disposable** PostgreSQL with
+- PHPUnit (`unittests/`, run `composer install --no-dev` in the root and `composer install` in
+  `unittests/` first) needs a **disposable** PostgreSQL with
   pgvector and the `dwemer` role, as in `.github/workflows/server.yml`. Never run it against a
   database that holds real data.
 - `unittests/tests/AutoGreetingRuntimeTest.php` reads the client source through

@@ -13,6 +13,8 @@ layout migration or compatibility tree is needed.
 | Configuration samples and loader | `conf/` |
 | Shared runtime helpers and core models | `lib/`, `lib/core/` |
 | Native dialogue composition root, v2 API, services, contracts/entities/repositories and drivers | `bootstrap.php`, `api/v2/`, `managers/`, `core/{contracts,entities,dbmanager/repositories}/`, `drivers/{llm,tts}/` |
+| Doctrine mappings and shared-session adapter | `core/dbmanager/` (`entities/`, `SharedSessionDriver.php`, `EntityManagerFactory.php`) |
+| Production PHP dependencies (installed, untracked `vendor/`) | `composer.json`, `composer.lock` |
 | LLM connectors and templates | `connector/` |
 | Dialogue processing | `processor/` |
 | Prompt assembly and policies | `prompts/` |

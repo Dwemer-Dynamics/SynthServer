@@ -77,7 +77,10 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    powershell -ExecutionPolicy Bypass -File .\tools\deploy-synthserver-wsl.ps1 -Distro <your-wsl-distro>
    ```
 
-   The script only deploys to `/var/www/html/Synthserver`. It preserves `conf/conf.php`,
+   The script only deploys to `/var/www/html/Synthserver`. It installs the production PHP
+   dependencies from the tracked `composer.lock` with the distribution's Composer, and syncs them
+   before the source (see [docs/DOCTRINE-SETTINGS-PILOT.md](docs/DOCTRINE-SETTINGS-PILOT.md)).
+   This step needs network access to the locked package sources. It preserves `conf/conf.php`,
    voices, uploads, caches and logs. It creates `conf/conf.php` from `conf/conf.sample.php` only
    when the file is missing. It installs the Apache site only after `apache2ctl configtest`
    passes. When `-Distro` is omitted, it uses the DwemerDistro default distribution name.
@@ -122,7 +125,7 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1 -Port 8087 # match the 
 ```
 
 The launcher serves the checkout's parent folder with the PHP built-in server. It still needs
-the WSL database above. If you keep port 8085, set the client's `BaseUrl` to match.
+the WSL database above, and `composer install --no-dev` in the checkout root. If you keep port 8085, set the client's `BaseUrl` to match.
 
 ## Configuration
 
@@ -169,6 +172,7 @@ Unit-test dependencies are not committed. Run PHPUnit only against a **disposabl
 with pgvector and the `dwemer` role (see `.github/workflows/server.yml`):
 
 ```bash
+composer install --no-dev
 cd unittests
 composer install
 ./vendor/bin/phpunit

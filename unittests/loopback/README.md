@@ -165,8 +165,9 @@ that differs from the server `HEAD`.
   under `/usr/lib/postgresql/<version>` (for example `postgresql-16` and
   `postgresql-16-pgvector`). The runner uses the newest version that has pgvector. No PostgreSQL
   service has to run.
-- The locked PHPUnit vendor tree: `composer install` in `SERVER/unittests`. The runner refuses a
-  vendor tree that doesn't match `composer.lock`.
+- The locked production and PHPUnit vendor trees: `composer install --no-dev` in `SERVER` and
+  `composer install` in `SERVER/unittests`. The runner refuses a vendor tree that doesn't match
+  its `composer.lock`.
 - Checkouts that Linux git can read: a clone, or a worktree created by Linux git. A worktree
   created by Windows git records a Windows path that Linux git can't resolve.
 

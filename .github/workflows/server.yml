@@ -35,6 +35,11 @@ jobs:
         run: |
           sudo systemctl start postgresql
           sudo -u postgres psql --set ON_ERROR_STOP=1 --command "CREATE ROLE dwemer LOGIN PASSWORD 'dwemer' CREATEDB;"
+      - name: Install locked production dependencies
+        run: |
+          composer validate --no-check-publish --no-check-all
+          composer install --no-dev --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
+          composer check-platform-reqs --no-dev
       - name: Install focused test dependencies
         working-directory: unittests
         run: composer install --no-interaction --no-progress --prefer-dist
