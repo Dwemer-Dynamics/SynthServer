@@ -27,8 +27,9 @@ usage: sudo bash SERVER/$SELF_PATH CLIENT
 
 SERVER is this server checkout and CLIENT is a SYNTH client checkout; the HEAD commit of each is
 tested and both must be free of tracked changes. In a fresh server checkout, install the locked
-PHPUnit tree once as your normal user, then run as root on Linux or in WSL (wsl -u root):
+production and PHPUnit trees once as your normal user, then run as root on Linux or in WSL (wsl -u root):
 
+  composer install --no-dev --working-dir=SERVER
   composer install --working-dir=SERVER/unittests
   sudo bash SERVER/$SELF_PATH CLIENT
 
@@ -42,7 +43,7 @@ gitx() {
 }
 ro() { findmnt -no OPTIONS -T "$1" | tr ',' '\n' | grep -qx ro; }
 tree_sha256() {
-    (cd "$1" && find . -path ./unittests/vendor -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
+    (cd "$1" && find . \( -path ./vendor -o -path ./unittests/vendor \) -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-64)
 }
 
 host_step() {
@@ -103,19 +104,23 @@ isolated_step() {
         || die "client HEAD lacks src/ or tests/loopback_dialogue/"
     [ -f "$WORK/client/$DRIVER_PATH" ] || die "client HEAD lacks $DRIVER_PATH"
 
-    # 4. The locked PHPUnit vendor tree, bound read-only and checked against the exported composer.lock.
-    local vendor=$server/unittests/vendor
-    [ -f "$vendor/autoload.php" ] && [ -f "$vendor/composer/installed.json" ] \
-        || die "run 'composer install' in SERVER/unittests first"
-    mkdir "$WORK/src/unittests/vendor"
-    mount --bind "$vendor" "$WORK/src/unittests/vendor"; mount -o remount,bind,ro "$WORK/src/unittests/vendor"
-    php -r '
-        $packages=static function(array $list): array {$out=[];
-            foreach ($list as $p) $out[$p["name"]]=[$p["version"],$p["dist"]["reference"]??null];ksort($out);return $out;};
-        $lock=json_decode(file_get_contents($argv[1]),true);$installed=json_decode(file_get_contents($argv[2]),true);
-        exit($packages([...$lock["packages"],...$lock["packages-dev"]])===$packages($installed["packages"]??$installed)?0:1);' \
-        "$WORK/src/unittests/composer.lock" "$WORK/src/unittests/vendor/composer/installed.json" \
-        || die "SERVER/unittests/vendor does not match composer.lock; run 'composer install' there"
+    # 4. The locked production and PHPUnit vendor trees, bound read-only and checked against the exported locks.
+    local tree vendor install
+    for tree in . unittests; do
+        vendor=$server/$tree/vendor
+        install="composer install"; [ "$tree" = . ] && install="composer install --no-dev"
+        [ -f "$vendor/autoload.php" ] && [ -f "$vendor/composer/installed.json" ] \
+            || die "run '$install' in SERVER/$tree first"
+        mkdir "$WORK/src/$tree/vendor"
+        mount --bind "$vendor" "$WORK/src/$tree/vendor"; mount -o remount,bind,ro "$WORK/src/$tree/vendor"
+        php -r '
+            $packages=static function(array $list): array {$out=[];
+                foreach ($list as $p) $out[$p["name"]]=[$p["version"],$p["dist"]["reference"]??null];ksort($out);return $out;};
+            $lock=json_decode(file_get_contents($argv[1]),true);$installed=json_decode(file_get_contents($argv[2]),true);
+            exit($packages([...$lock["packages"],...$lock["packages-dev"]])===$packages($installed["packages"]??$installed)?0:1);' \
+            "$WORK/src/$tree/composer.lock" "$WORK/src/$tree/vendor/composer/installed.json" \
+            || die "SERVER/$tree/vendor does not match composer.lock; run '$install' there"
+    done
 
     # 5. Hide host state, then the read-only server tree with private writable runtime directories.
     mount -t tmpfs -o size=2g,mode=1777 tmpfs /tmp
@@ -137,7 +142,7 @@ isolated_step() {
         mount -t tmpfs -o size=256m,mode=0755 tmpfs "$root/$dir"; cp -a "$WORK/src/$dir/." "$root/$dir/"; chown -R nobody "$root/$dir"
     done
     mount --bind "$WORK/hosts/tts_worker.php" "$root/service/tts_worker.php"
-    ro "$root/main.php" && ro "$root/unittests/vendor/autoload.php" || die "server tree is not read-only"
+    ro "$root/main.php" && ro "$root/vendor/autoload.php" && ro "$root/unittests/vendor/autoload.php" || die "server tree is not read-only"
 
     # 6. Build the driver from the client export as an unprivileged user.
     chown nobody "$WORK/bin" "$WORK/home"

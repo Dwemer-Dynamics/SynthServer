@@ -25,6 +25,15 @@ MIT terms. Do not remove or alter that notice. See [docs/HANDOFF.md](docs/HANDOF
 | `data/fallout4_creature_bio_templates.sql` | Original SYNTH prose; FormIDs cross-checked against public references | See `data/fallout4_creature_bio_templates_attribution.md` |
 | `data/fallout4_content_*`, `fallout4_named_bios.csv`, `fallout4_common_descriptions.csv` | Named character and object summaries adapted from the credited Fallout Wiki contributors; brief factual corroboration identified per item | Adaptations CC BY-SA 4.0; Fandom originals CC BY-SA 3.0. See `data/fallout4_content_attribution.md` and per-row source/history links. No game assets are included. |
 
+## Composer production dependencies (installed, not committed)
+
+| Source | Component | License |
+|---|---|---|
+| `composer.json`, `composer.lock` | Doctrine ORM and DBAL with their locked Doctrine, PSR and Symfony dependencies (23 packages) | MIT, each package's `LICENSE` under `vendor/` |
+
+`vendor/` is installed from the lock at deploy time and is not tracked. Review the license list in
+`composer.lock` whenever the lock changes.
+
 ## Loaded from CDNs at runtime (not redistributed)
 
 Some UI pages make browser requests to third-party CDNs. Those requests leave the local machine.
