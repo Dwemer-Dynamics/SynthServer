@@ -34,7 +34,9 @@ jobs:
       - name: Create disposable test role
         run: |
           sudo systemctl start postgresql
-          sudo -u postgres psql --set ON_ERROR_STOP=1 --command "CREATE ROLE dwemer LOGIN PASSWORD 'dwemer' CREATEDB;"
+          # Disposable superuser on this ephemeral runner, matching the loopback harness role:
+          # DatabaseTestCase setup runs CREATE EXTENSION vector, which needs superuser.
+          sudo -u postgres psql --set ON_ERROR_STOP=1 --command "CREATE ROLE dwemer LOGIN SUPERUSER PASSWORD 'dwemer';"
       - name: Install locked production dependencies
         run: |
           composer validate --no-check-publish --no-check-all
