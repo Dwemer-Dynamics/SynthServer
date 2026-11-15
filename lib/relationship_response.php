@@ -178,13 +178,30 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             }
             $responsePayload=['schema'=>'synth.relationship.response.v3','request'=>$request,
                 'request_sha256'=>$context['event_sha256'],'input_events'=>$inputs,'entries'=>$entries,'evaluation_mode'=>$capture['evaluation_mode']];
+            // Keep the full immutable candidate, including stripped directives. Its exact stored wire freezes the
+            // delivery dependencies; a missing enrollment can never turn a marked line into legacy evidence later.
+            if (in_array('dialogue.delivery_receipts',$event['capabilities'] ?? [],true)) {
+                require_once __DIR__.'/synth_rechat_routes.php';
+                $lines=synth_rechat_completed_lines($body,$event);
+                if ($lines===null) return;
+                $delivery=[];
+                foreach ($lines as $line) if (($line['line']['payload']['receipt_required'] ?? null)===true)
+                    $delivery[]=$line['line']['line_id'];
+                if (count($delivery)>256) return;
+                if ($delivery!==[]) $responsePayload['delivery_lines']=$delivery;
+            }
             // Only the verified receipt is needed here. Appraisal preparation belongs to the worker.
             if ($capture['evaluation_mode']==='dedicated' && ($event['type'] ?? '')==='action_result'
                 && ($event['payload']['result']['schema'] ?? '')==='synth.action.transfer-result.v2'
-                && array_filter($entries,static fn(array $entry): bool => ($entry['routing']['availability'] ?? '')==='addressed'
-                    && synth_player_item_same_actor($entry['routing']['listener'] ?? [],$snapshot['player']))
-                && ($gift=synth_player_gift_for_event($db,$event))!==null) {
+                && ($gift=synth_player_gift_for_event($db,$event))!==null
+                && ((isset($responsePayload['delivery_lines'])
+                        && synth_player_item_same_actor($gift['recipient'] ?? [],$responder['identity'])
+                        && synth_player_item_same_actor($gift['donor'] ?? [],$snapshot['player']))
+                    || (!isset($responsePayload['delivery_lines'])
+                        && array_filter($entries,static fn(array $entry): bool => ($entry['routing']['availability'] ?? '')==='addressed'
+                            && synth_player_item_same_actor($entry['routing']['listener'] ?? [],$snapshot['player']))))) {
                 $responsePayload['verified_gift_action_id']=$gift['action_id'];
+                if (isset($responsePayload['delivery_lines'])) $responsePayload['verified_gift']=$gift;
             }
             $payload=json_encode($responsePayload,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if (strlen($payload)>131072) return;
@@ -243,10 +260,39 @@ function synth_relationship_complete_inline_response($db): void
 // The current-turn exception is for proposal admission only; saved readers retain their insertion cutoff.
 // Normal cancellation clears delivery replay bytes, not an already accepted historical speech receipt.
 // Retain completed player inputs and published gift appraisals within the saved cutoff.
+// Internal SQL expressions: current admission may see this owner's newly heard rows; saved readers never cross cutoff.
+function synth_relationship_delivery_sql(string $history, string $payload, string $cutoff, string $reader, string $current='FALSE'): string
+{
+    $proof=synth_protocol_receipt_speech_join('heard','heard_scene','heard_event','heard_proof');
+    return "(NOT ($payload ? 'delivery_lines') OR CASE WHEN jsonb_typeof($payload->'delivery_lines')='array' THEN
+        jsonb_array_length($payload->'delivery_lines') BETWEEN 1 AND 256 AND NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements($payload->'delivery_lines') dependency(value)
+            WHERE jsonb_typeof(dependency.value)<>'string' OR NOT EXISTS (
+                SELECT 1 FROM synth_meta.history_events heard
+                JOIN synth_meta.context_snapshots heard_scene ON heard_scene.session_id=heard.session_id
+                    AND heard_scene.generation=heard.generation
+                    AND heard_scene.snapshot_sequence=COALESCE(heard.scene_context_sequence,heard.context_sequence)
+                    AND heard_scene.playthrough_id=heard.playthrough_id
+                CROSS JOIN LATERAL jsonb_to_record(heard.event_payload) heard_event(type text,data text,utterance_id text,delivery_state text)
+                $proof
+                WHERE heard.session_id=$history.session_id AND heard.request_id=$history.request_id
+                    AND heard.generation=$history.generation AND heard.context_sequence=$history.context_sequence
+                    AND heard.playthrough_id=$history.playthrough_id AND (heard.id<=$cutoff OR $current)
+                    AND heard_proof.proof->>'line_id'=dependency.value#>>'{}'
+                    AND ($reader=heard_scene.player_identity_id OR $reader=heard_scene.target_identity_id
+                        OR heard_scene.audience_identity_ids @> jsonb_build_array($reader))
+                    AND (NOT (heard.event_payload ? 'synth_dialogue_hearer_ids')
+                        OR (jsonb_typeof(heard.event_payload->'synth_dialogue_hearer_ids')='array'
+                            AND heard.event_payload->'synth_dialogue_hearer_ids' @> jsonb_build_array($reader)))
+            )
+        ) ELSE FALSE END)";
+}
+
 function synth_relationship_response_evidence_cte($db, array $event, bool $admitCurrentResponse=false, bool $relationshipGraph=false): string
 {
     $scopes=$relationshipGraph ? 'relationship_graph_scopes' : 'native_history_scopes';
     $evidence=$relationshipGraph ? 'relationship_graph_responses' : 'relationship_response_evidence';
+    $candidates=$evidence.'_candidates';
     $current=$admitCurrentResponse ? '(h.session_id='.$db->escapeLiteral($event['session_id'])
         .' AND h.generation='.intval($event['generation']).' AND h.request_id='.$db->escapeLiteral($event['request_id'])
         .' AND h.context_sequence='.intval($event['context_sequence']).')' : 'FALSE';
@@ -258,8 +304,11 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
             WHERE scope.session_id=h.session_id AND scope.generation=h.generation
                 AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=input.actor_identity_id
                 AND (h.id<=scope.cutoff OR $current))
-    ), $evidence AS MATERIALIZED (
-        SELECT i.*,h.generation,h.context_sequence,h.playthrough_id FROM synth_meta.relationship_response_inputs i
+    ), $candidates AS MATERIALIZED (
+        SELECT i.*,h.generation,h.context_sequence,h.playthrough_id,
+            encode(sha256(convert_to(i.response_payload::text,'UTF8')),'hex') AS candidate_sha256,
+            ".synth_relationship_delivery_sql('h','i.response_payload','scope.cutoff','i.actor_identity_id',$current)." AS delivery_eligible
+        FROM synth_meta.relationship_response_inputs i
         JOIN {$evidence}_history h ON h.id=i.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
         JOIN $scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id
@@ -283,7 +332,12 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                             AND saved.context_sequence=h.context_sequence AND saved.playthrough_id=h.playthrough_id
                         WHERE gift.response_history_event_id=h.id AND gift.actor_identity_id=i.actor_identity_id
                             AND gift.session_id=h.session_id AND gift.request_id=h.request_id AND gift.generation=h.generation
-                            AND gift.context_sequence=h.context_sequence AND gift.input_payload->'response'=i.response_payload
+                            AND gift.context_sequence=h.context_sequence
+                            AND (gift.input_payload->'response'=i.response_payload OR (
+                                gift.input_payload->'gift_only'='true'::jsonb
+                                AND gift.input_payload->>'response_candidate_sha256'=encode(sha256(convert_to(i.response_payload::text,'UTF8')),'hex')
+                                AND gift.input_payload->'response'=(i.response_payload-'delivery_lines')||jsonb_build_object('entries','[]'::jsonb)
+                                AND gift.input_payload#>'{received_gift,fact}'=i.response_payload->'verified_gift'))
                             AND gift.input_payload->'owner'=i.response_payload->'request'
                             AND gift.input_payload#>>'{received_gift,fact,action_id}'=i.response_payload->>'verified_gift_action_id'
                             AND gift.input_payload#>>'{received_gift,fact,schema}' IN ('synth.player-gift.v1','synth.player-gift-batch.v1')
@@ -321,5 +375,15 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                             AND (raw.event_payload->>'delivery_state' IS NULL OR raw.event_payload->>'delivery_state'='received')
                     )
                 ) ELSE FALSE END
+    ), $evidence AS MATERIALIZED (
+        SELECT * FROM $candidates WHERE delivery_eligible
     ) ";
+}
+
+// A verified transfer can be appraised without its thank-you speech. Never backfill this frozen projection later.
+function synth_relationship_gift_response(array $candidate): array
+{
+    unset($candidate['delivery_lines']);
+    $candidate['entries']=[];
+    return $candidate;
 }

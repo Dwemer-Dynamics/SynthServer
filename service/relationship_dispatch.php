@@ -14,7 +14,8 @@ try {
 }
 // A failed evaluation lane must not prevent the independent lane from making progress.
 $failed=false;
-foreach ([static fn()=>synth_relationship_dispatch($GLOBALS['db'],null,true),
+foreach ([static fn()=>synth_relationship_dispatch_inline($GLOBALS['db']),
+    static fn()=>synth_relationship_dispatch($GLOBALS['db'],null,true),
     static fn()=>synth_relationship_dispatch_interaction($GLOBALS['db'])] as $dispatch) {
     try {
         if ($dispatch()!==null) echo "Native relationship dispatch completed.\n";

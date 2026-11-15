@@ -29,8 +29,36 @@ function synth_relationship_result_state_cte(): string
             AND owner.generation=i.generation AND owner.turn_id=i.turn_id
         JOIN synth_meta.protocol_events protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'
-        JOIN relationship_graph_responses response ON response.history_event_id=i.response_history_event_id AND response.actor_identity_id=i.actor_identity_id
-        WHERE i.input_payload->'response'=response.response_payload
+        JOIN relationship_graph_responses_candidates response ON response.history_event_id=i.response_history_event_id AND response.actor_identity_id=i.actor_identity_id
+        LEFT JOIN relationship_graph_responses speech_response ON speech_response.history_event_id=response.history_event_id
+            AND speech_response.actor_identity_id=response.actor_identity_id
+        WHERE ((NOT (i.input_payload ? 'gift_only') AND speech_response.history_event_id IS NOT NULL
+                AND i.input_payload->'response'=response.response_payload)
+            OR (i.input_payload->'gift_only'='true'::jsonb AND i.input_payload->>'schema'='synth.relationship.evaluation.v2'
+                AND jsonb_typeof(response.response_payload->'delivery_lines')='array'
+                AND i.input_payload->>'response_candidate_sha256'=response.candidate_sha256
+                AND i.input_payload->'response'=(response.response_payload-'delivery_lines')||jsonb_build_object('entries','[]'::jsonb)
+                AND i.input_payload#>'{received_gift,fact}'=response.response_payload->'verified_gift'
+                AND response.response_payload#>>'{verified_gift,meaning}'='gift'
+                AND upper(response.response_payload#>>'{verified_gift,donor,form_id}')=upper(c.context_payload#>>'{player,form_id}')
+                AND lower(response.response_payload#>>'{verified_gift,donor,origin_plugin}')=lower(c.context_payload#>>'{player,origin_plugin}')
+                AND response.response_payload#>>'{verified_gift,donor,playthrough_id}'=c.playthrough_id
+                AND upper(response.response_payload#>>'{verified_gift,recipient,form_id}')=upper(c.context_payload#>>'{target,form_id}')
+                AND lower(response.response_payload#>>'{verified_gift,recipient,origin_plugin}')=lower(c.context_payload#>>'{target,origin_plugin}')
+                AND response.response_payload#>>'{verified_gift,recipient,playthrough_id}'=c.playthrough_id
+                AND EXISTS(SELECT 1 FROM synth_meta.action_intents action
+                    JOIN synth_meta.action_terminal_results transfer ON transfer.action_id=action.action_id
+                        AND transfer.idempotency_key=action.idempotency_key AND transfer.status='succeeded'
+                        AND transfer.result=protocol.canonical_event#>'{payload,result}'
+                    WHERE owner.event_type='action_result' AND action.session_id=i.session_id AND action.generation=i.generation
+                        AND action.turn_id=i.turn_id AND action.state='complete' AND action.actor_identity_id=i.actor_identity_id
+                        AND action.target_identity_id=c.player_identity_id
+                        AND action.action_id=response.response_payload->>'verified_gift_action_id'
+                        AND action.action_id=i.input_payload#>>'{received_gift,fact,action_id}'
+                        AND (action.action_name,action.capability,response.response_payload#>>'{verified_gift,schema}') IN
+                            (('OpenInventory','action.open_inventory','synth.player-gift-batch.v1'),
+                             ('TakeItemFromPlayer','action.take_item_from_player','synth.player-gift.v1'))
+                        AND transfer.result->>'schema'='synth.action.transfer-result.v2')))
             AND (owner.state='complete' OR (owner.state='cancelled' AND owner.event_type='action_result'
                 AND i.input_payload#>>'{received_gift,fact,action_id}'=response.response_payload->>'verified_gift_action_id'))
             AND (i.input_payload->'context'=c.context_payload OR EXISTS (
@@ -73,7 +101,8 @@ function synth_relationship_result_state_cte(): string
                     AND i.input_payload#>>'{subjects,0,label}'='Player'
                     AND response.response_payload->>'schema'='synth.relationship.response.v3'
                     AND response.response_payload->>'evaluation_mode'='dedicated'
-                    AND i.input_payload->'player_lines'<> '[]'::jsonb
+                    AND ((i.input_payload->'gift_only'='true'::jsonb AND i.input_payload->'player_lines'='[]'::jsonb)
+                        OR (NOT (i.input_payload ? 'gift_only') AND i.input_payload->'player_lines'<> '[]'::jsonb
                     AND i.input_payload->'player_lines'=(SELECT jsonb_agg(jsonb_build_object('index',entry.ordinality-1,'entry',entry.value) ORDER BY entry.ordinality)
                         FROM jsonb_array_elements(CASE WHEN jsonb_typeof(response.response_payload->'entries')='array'
                             THEN response.response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)
@@ -83,7 +112,7 @@ function synth_relationship_result_state_cte(): string
                             AND entry.value#>>'{speaker,playthrough_id}'=c.context_payload#>>'{target,playthrough_id}'
                             AND upper(entry.value#>>'{routing,listener,form_id}')=upper(c.context_payload#>>'{player,form_id}')
                             AND lower(entry.value#>>'{routing,listener,origin_plugin}')=lower(c.context_payload#>>'{player,origin_plugin}')
-                            AND entry.value#>>'{routing,listener,playthrough_id}'=c.context_payload#>>'{player,playthrough_id}')
+                            AND entry.value#>>'{routing,listener,playthrough_id}'=c.context_payload#>>'{player,playthrough_id}')))
                     AND i.result_payload->>'schema'='synth.relationship.result.v2' AND jsonb_typeof(i.result_payload->'changes')='array'
                     AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.result_payload->'changes')='array'
                         THEN i.result_payload->'changes' ELSE '[]'::jsonb END) change
@@ -94,8 +123,9 @@ function synth_relationship_result_state_cte(): string
             AND (SELECT count(*) FROM synth_meta.relationship_evaluation_sources d WHERE d.evaluation_id=i.evaluation_id)
                 =jsonb_array_length(CASE WHEN jsonb_typeof(i.input_payload->'source_ids')='array' THEN i.input_payload->'source_ids' ELSE '[]'::jsonb END)
             AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_evaluation_sources d WHERE d.evaluation_id=i.evaluation_id AND (
-                NOT (i.input_payload->'source_ids' @> jsonb_build_array(d.history_event_id)) OR NOT EXISTS(
-                    SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.history_event_id AND s.actor_identity_id=i.actor_identity_id)))
+                NOT (i.input_payload->'source_ids' @> jsonb_build_array(d.history_event_id)) OR NOT (
+                    EXISTS(SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.history_event_id AND s.actor_identity_id=i.actor_identity_id)
+                    OR (i.input_payload->'gift_only'='true'::jsonb AND d.history_event_id=i.response_history_event_id))))
             AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.input_payload->'recent_events')='array'
                 THEN i.input_payload->'recent_events' ELSE '[]'::jsonb END) item WHERE NOT EXISTS(
                     SELECT 1 FROM relationship_graph_history raw WHERE to_jsonb(raw.history_event_id)=item->'history_event_id' AND raw.reader_identity_id=i.actor_identity_id
@@ -112,6 +142,9 @@ function synth_relationship_result_state_cte(): string
                             AND COALESCE(to_jsonb(prior.affinity),'null'::jsonb)=subject->'relationship'->'aff'
                             AND prior.relationship_type IS NOT DISTINCT FROM subject->'relationship'->>'type'
                             AND prior.details=(subject->'relationship')-'revision'-'aff'-'type'))
+    ), relationship_gift_fact_sources AS MATERIALIZED (
+        SELECT response_history_event_id AS history_event_id,actor_identity_id,history_event_id AS result_history_event_id
+        FROM relationship_result_candidates WHERE input_payload->'gift_only'='true'::jsonb
     ) ".synth_relationship_interaction_state_cte().synth_relationship_manual_state_cte().", all_relationship_candidates AS MATERIALIZED (
         SELECT * FROM relationship_candidates UNION ALL SELECT * FROM interaction_revision_candidates
         UNION ALL SELECT * FROM manual_relationship_candidates

@@ -1720,6 +1720,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         $hasNarrationBlocks = $splitNarration && $narrationParts && !empty($narrationParts['narrations']);
         $hasTextOnlyNarration = $textOnlyNarration && $narrationParts && !empty($narrationParts['narrations']);
         $shouldEmitNpcLine = false;
+        $currentUtteranceId = null;
 
         if ($responseTextUnmooded || $hasNarrationBlocks || $hasTextOnlyNarration) {
             $shouldEmitNpcLine = true;
@@ -2273,7 +2274,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 $addonlistener="";
             }
             $originalRequest[3]="{$outBuffer["actor"]}: $responseForContext $addonlistener";
-            logEvent($originalRequest);
+            $prechatRequest=$originalRequest;
 
             // Log chat here, because  function return comes back out of sync.
             $originalRequest[0]="chat";
@@ -2295,10 +2296,14 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             }
             $originalRequest[3]="{$outBuffer["actor"]}: $responseForContext $addonlistener";
             $originalRequest[5] = [
-                'utterance_id' => $GLOBALS["SCRIPTLINE_UTTERANCE_ID"] ?? synthGenerateUtteranceId(),
+                'utterance_id' => $currentUtteranceId ?? synthGenerateUtteranceId(),
                 'delivery_state' => 'emitted'
             ];
-            logEvent($originalRequest);
+            // An enrolled delivery-receipt line gets heard history only from its accepted receipt.
+            if ($currentUtteranceId === null || !synth_receipt_hold_history($currentUtteranceId, [$prechatRequest, $originalRequest])) {
+                logEvent($prechatRequest);
+                logEvent($originalRequest);
+            }
         }
 
     }
@@ -2793,7 +2798,7 @@ function getGametsLimitFor($actor) {
         $hours = $db->withNativeRequestLock(static function($connection,array $event) use ($db,$actor,$limit) {
             $query = synth_protocol_history_cte($db,$event,strval($actor))."SELECT (MAX(gamets)-MIN(gamets))*0.0000024 AS hours
                 FROM (SELECT gamets FROM native_history WHERE type='chat'
-                    AND COALESCE(delivery_state,'spoken') IN ('emitted','spoken')
+                    AND COALESCE(delivery_state,'spoken') IN ('emitted','spoken','presented')
                     ORDER BY gamets DESC,ts DESC,history_event_id DESC LIMIT {$limit}) recent_chat";
             $result = @pg_query($connection,$query);
             if (!$result) throw new RuntimeException('Unable to read native memory window');

@@ -45,6 +45,8 @@ function synth_relationship_run_persisted_job($db, int $jobId, ?callable $genera
 function synth_relationship_evaluation_prompt(array $input): array
 {
     $playerOnly=($input['schema'] ?? '')==='synth.relationship.evaluation.v2';
+    if (isset($input['gift_only']) && (!$playerOnly || $input['gift_only']!==true))
+        throw new InvalidArgumentException('Invalid factual gift mode');
     if (!in_array($input['schema'] ?? '',['synth.relationship.evaluation.v1','synth.relationship.evaluation.v2'],true) || !is_string($input['system_prompt'] ?? null)
         || trim($input['system_prompt'])==='' || strlen($input['system_prompt'])>16384
         || !is_array($input['context']['target'] ?? null) || !is_array($input['subjects'] ?? null)
@@ -55,11 +57,17 @@ function synth_relationship_evaluation_prompt(array $input): array
         'subjects'=>$input['subjects'],'recent_events'=>$input['recent_events'],'response'=>$input['response']];
     if ($playerOnly) {
         $lines=synth_relationship_player_lines($input['context'],$input['response']);
-        if (!$lines || !is_array($input['player_lines'] ?? null)
+        $giftOnly=($input['gift_only'] ?? null)===true;
+        if ($giftOnly && (!isset($input['received_gift']) || ($input['response']['entries'] ?? null)!==[]
+            || ($input['response']['input_events'] ?? null)!==[] || isset($input['response']['delivery_lines'])
+            || preg_match('/^[0-9a-f]{64}$/D',$input['response_candidate_sha256'] ?? '')!==1
+            || ($input['response']['verified_gift'] ?? null)!=($input['received_gift']['fact'] ?? null)))
+            throw new InvalidArgumentException('Invalid factual gift evidence');
+        if ((!$lines && !$giftOnly) || !is_array($input['player_lines'] ?? null)
             || synth_protocol_canonical_json($input['player_lines'])!==synth_protocol_canonical_json($lines) || count($input['subjects'])!==1
             || ($input['subjects'][0]['label'] ?? null)!=='Player' || $input['recent_events']!==[]
             || ($input['evaluation_policy'] ?? null)!=='synth.relationship.policy.v2') throw new InvalidArgumentException('Invalid player-only relationship prompt');
-        $evidence['response']=['schema'=>'synth.relationship.player.evidence.v1',
+        $evidence['response']=['schema'=>$giftOnly ? 'synth.relationship.gift.evidence.v1' : 'synth.relationship.player.evidence.v1',
             'entries'=>array_column($lines,'entry'),'input_events'=>$input['response']['input_events'] ?? []];
     }
     if (isset($input['received_gift'])) {

@@ -43,6 +43,10 @@ function synth_relationship_pair_evidence_cte(): string
             AND speech.event_payload->>'response_sha256'=receipt.response_sha256
             AND speech.event_payload->>'response_payload_sha256'=encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex')
             AND receipt.response_payload->>'schema'='synth.relationship.response.v3'
+            AND EXISTS(SELECT 1 FROM relationship_graph_scopes delivery_scope
+                WHERE delivery_scope.session_id=i.session_id AND delivery_scope.generation=i.generation
+                    AND delivery_scope.playthrough_id=i.playthrough_id AND delivery_scope.reader_identity_id=i.speaker_identity_id
+                    AND ".synth_relationship_delivery_sql('speech','receipt.response_payload','delivery_scope.cutoff','i.speaker_identity_id').")
             AND receipt.response_payload->'request'=i.owner_event
             AND receipt.response_payload->>'request_sha256'=(SELECT p.event_sha256 FROM synth_meta.protocol_events p
                 WHERE p.session_id=i.session_id AND p.request_id=i.request_id)
@@ -116,6 +120,10 @@ function synth_relationship_pair_evidence_cte(): string
             AND parent_receipt.response_payload->'request'=i.parent_event
             AND parent_receipt.response_payload->>'request_sha256'=i.parent_event_sha256
             AND parent_receipt.response_payload->>'schema' IN ('synth.relationship.response.v2','synth.relationship.response.v3')
+            AND EXISTS(SELECT 1 FROM relationship_graph_scopes delivery_scope
+                WHERE delivery_scope.session_id=i.session_id AND delivery_scope.generation=i.generation
+                    AND delivery_scope.playthrough_id=i.playthrough_id AND delivery_scope.reader_identity_id=i.speaker_identity_id
+                    AND ".synth_relationship_delivery_sql('parent_speech','parent_receipt.response_payload','delivery_scope.cutoff','i.speaker_identity_id').")
             AND EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(parent_receipt.response_payload->'entries')='array'
                 THEN parent_receipt.response_payload->'entries' ELSE '[]'::jsonb END) entry
                 WHERE upper(entry#>>'{speaker,form_id}')=upper(route.speaker->>'form_id')

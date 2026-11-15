@@ -568,9 +568,11 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $this->assertSame(1,$calls,'An unchanged ready result suppresses duplicate provider work');
         $this->assertSame($this->parent,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
     }
-    public static function giftReceiptKinds(): array {return ['direct'=>[false], 'menu'=>[true], 'rollover before dispatch'=>[true,'before'], 'rollover during provider'=>[true,'during'], 'cancel during provider'=>[true,'cancel'], 'rechat waits for gift publication'=>[true,'profile_lock']];}
+    public static function giftReceiptKinds(): array {return ['direct'=>[false], 'menu'=>[true], 'rollover before dispatch'=>[true,'before'], 'rollover during provider'=>[true,'during'], 'cancel during provider'=>[true,'cancel'], 'rechat waits for gift publication'=>[true,'profile_lock'],
+        'unheard thank-you'=>[false,'none',true], 'unheard menu rollover'=>[true,'before',true], 'unheard cancellation'=>[true,'cancel',true],
+        'unaddressed thank-you'=>[false,'none',true,false], 'hearing after appraisal freeze'=>[false,'late_voice',true]];}
     #[\PHPUnit\Framework\Attributes\DataProvider('giftReceiptKinds')]
-    public function testAcceptedPlayerGiftFreezesRecipientPerspectiveAndEvaluatesOnce(bool $menu,string $rollover='none'): void {
+    public function testAcceptedPlayerGiftFreezesRecipientPerspectiveAndEvaluatesOnce(bool $menu,string $rollover='none',bool $receipts=false,bool $addressed=true): void {
         $player=$this->context['player'];$npc=$this->context['target'];
         $item=['form_id'=>'0x00001234','origin_plugin'=>'Fallout4.esm','display_name'=>'Fixture pistol',
             'count'=>2,'form_type'=>43,'value'=>99,'weight'=>3,'equipped'=>false];
@@ -583,6 +585,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $parent['capabilities']=array_merge($parent['capabilities'],['action.give_item_to','action.transfer_inventory',
             'action.inventory_observation','action.take_item_from_player','action.player_item_inventory']);
         if ($menu) {$parent['payload']['text']='I have a gift for you';$parent['capabilities']=array_merge($parent['capabilities'],['action.open_inventory','action.gift_menu_inventory']);}
+        if ($receipts) $parent['capabilities'][]='dialogue.delivery_receipts';
         $this->request($parent);
         // The action-result continuation inherits the original gift input's saved policy.
         $policy=['private'=>false,'rounds'=>3,'probability'=>100,'mode'=>'conversational','allow_actions'=>true,
@@ -622,14 +625,36 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $details=json_decode($bound['result'],true,flags:JSON_THROW_ON_ERROR);
         $this->assertSame($gift,$details['verified_gift']);
         $this->response($receipt);
+        $replyText='This will help keep my family safe.'.($receipts ? ' UNHEARDGIFT.' : '');
+        if ($receipts) {
+            require_once dirname(__DIR__,2).'/core/entities/dialogue.php';
+            $wire=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
+            $marked=[];
+            foreach (explode("\n",trim(hex2bin($wire))) as $line) {
+                $value=json_decode($line,true);
+                if ($value['type']==='dialogue') {$value['payload']['receipt_required']=true;$value['payload']['text']=$replyText;}
+                $line=$this->json($value)."\n";$marked[]=$line;
+                if ($value['type']==='dialogue') $this->query("UPDATE synth_meta.response_routes SET line_sha256=$1,utterance_id='gift-thank-you'
+                    WHERE request_id='gift-result' AND line_id='fixture:dialogue'",[hash('sha256',$line)]);
+            }
+            $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id='gift-result'",[bin2hex(implode('',$marked))]);
+            $this->query("INSERT INTO synth_meta.dialogue_utterances(session_id,request_id,line_id,turn_id,generation,context_sequence,
+                speaker_identity_id,character_id,text,text_sha256,state,receipt_request_id,receipt_at)
+                VALUES($1,'gift-result','fixture:dialogue',$2,1,1,$3,$4,$5,$6,$7,$8,CASE WHEN $7='generated' THEN NULL ELSE NOW() END)",
+                [$receipt['session_id'],$receipt['turn_id'],$this->actorId,\Synth\Core\CharacterKey::of($npc),$replyText,hash('sha256',$replyText),
+                 $rollover==='late_voice' ? 'generated' : 'interrupted',$rollover==='late_voice' ? null : 'gift-voice-interrupted']);
+            if (!$addressed) $this->query("UPDATE synth_meta.response_routes SET listener_state='unavailable',listener=NULL WHERE request_id='gift-result'");
+        }
         synth_relationship_begin_response();
-        $line=synth_relationship_capture_line($npc['display_name'],'This will help keep my family safe.');
-        synth_relationship_capture_route($line,'Player','fixture:dialogue');synth_relationship_finish_response(true);
+        $line=synth_relationship_capture_line($npc['display_name'],$replyText);
+        synth_relationship_capture_route($line,$addressed ? 'Player' : 'Unknown recipient',$receipts ? 'gift-thank-you' : 'fixture:dialogue');synth_relationship_finish_response(true);
         $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
         synth_relationship_store_response($this->database,$receipt,hex2bin($body));
         $row=pg_fetch_assoc($this->query("SELECT response_payload->>'verified_gift_action_id' AS gift
             FROM synth_meta.relationship_response_inputs WHERE request_id='gift-result'"));
         $this->assertSame($gift['action_id'],$row['gift']);
+        if ($receipts) $this->assertSame([],$this->database->fetchAll(synth_relationship_visible_cte($this->database,$receipt,true,sourceHistoryIds:[])
+            ." SELECT history_event_id FROM relationship_response_evidence WHERE request_id='gift-result'"),'a gift fact never makes its unheard speech eligible');
         $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM synth_meta.relationship_evaluations
             WHERE request_id='gift-result'"))['n'],'Reply completion leaves appraisal preparation to the worker.');
 
@@ -646,9 +671,10 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             $this->request($init);
         }
         if ($rollover==='before') $this->admitRetainedNextTurn($receipt);
-        $calls=0;
-        $generate=function(array $frozen) use(&$calls,$gift,$receipt,$rollover): string {
+        $calls=0;$frozenSnapshot=null;
+        $generate=function(array $frozen) use(&$calls,&$frozenSnapshot,$gift,$receipt,$rollover,$receipts,$npc,$player,$replyText): string {
             ++$calls;
+            $frozenSnapshot=$frozen;
             $this->assertTrue($this->database->isTransactionIdle());
             $this->assertSame($receipt['request_id'],$frozen['owner']['request_id']);
             $this->assertEquals($gift,$frozen['received_gift']['fact']);
@@ -661,8 +687,26 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
                 $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
             } elseif ($rollover==='cancel') {
                 $this->cancelRetainedOwner($receipt,false);
+            } elseif ($rollover==='late_voice') {
+                // Advance this delivery fixture after the factual job is frozen, without mutating its candidate or job.
+                $this->database->withNativeRequestLock(function() use($receipt,$npc,$player,$replyText) {
+                    $voice=$receipt;$voice['request_id']='gift-voice-late';$voice['type']='speech_receipt';
+                    $voice['payload']=['dialogue_request_id'=>$receipt['request_id'],'line_id'=>'fixture:dialogue','character'=>$npc,'outcome'=>'audio_completed'];
+                    $this->request($voice);
+                    $this->query("UPDATE synth_meta.dialogue_utterances SET state='spoken',receipt_request_id='gift-voice-late',receipt_at=NOW()
+                        WHERE request_id='gift-result' AND state='generated'");
+                    $payload=['type'=>'chat','data'=>$npc['display_name'].': '.$replyText.' (talking to '.$player['display_name'].')',
+                        'people'=>'|Nora|Piper Wright|','delivery_state'=>'spoken','utterance_id'=>'gift-thank-you','gamets'=>1000,'ts'=>1000,'rowid'=>940001];
+                    $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
+                        VALUES($1,1,1,'gift-result','relationship-dispatch-save',$2::jsonb,940001)",[$receipt['session_id'],$this->json($payload)]);
+                });
             }
             $prompt=synth_relationship_evaluation_prompt($frozen);$this->assertStringContainsString('recipient_perspective',$prompt[1]['content']);
+            if ($receipts) {
+                $this->assertTrue($frozen['gift_only']);$this->assertSame([],$frozen['player_lines']);
+                $this->assertSame([],$frozen['response']['entries']);$this->assertArrayNotHasKey('delivery_lines',$frozen['response']);
+                $this->assertStringNotContainsString('UNHEARDGIFT',$prompt[1]['content']);
+            }
             return '{"changes":{"Player":{"delta":4,"reason":"Useful protection for my family."}}}';
         };
         if ($rollover==='cancel') {
@@ -682,6 +726,8 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $evaluation=(int)pg_fetch_assoc($this->query("SELECT id FROM synth_meta.relationship_evaluations WHERE request_id='gift-result'"))['id'];
         $job=pg_fetch_assoc($this->query('SELECT id,state FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1',[$evaluation]));
         $this->assertSame('ready',$job['state']);
+        if ($receipts) $this->assertEquals($frozenSnapshot,json_decode(pg_fetch_assoc($this->query(
+            'SELECT input_payload FROM synth_meta.relationship_evaluations WHERE id=$1',[$evaluation]))['input_payload'],true),'later hearing cannot backfill frozen gift speech');
         $saved=pg_fetch_assoc($this->query('SELECT v.affinity FROM synth_meta.relationship_revisions v
             JOIN synth_meta.relationship_results r ON r.history_event_id=v.result_history_event_id WHERE r.evaluation_id=$1',[$evaluation]));
         $this->assertSame('4',$saved['affinity']);
@@ -860,6 +906,125 @@ PHP;
             $this->query($restore);
             $read();
         }
+    }
+
+    // Rechat ancestry requires heard lines, and the relationship candidate stays immutable until delivery qualifies it.
+    public static function receiptEvaluationModes(): array { return ['inline'=>[false],'dedicated'=>[true]]; }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('receiptEvaluationModes')]
+    public function testReceiptEnrolledLinesReachRechatAncestryOnlyWhenHeard(bool $dedicated): void {
+        require_once dirname(__DIR__,2).'/lib/synth_rechat_history.php';
+        require_once dirname(__DIR__,2).'/core/entities/dialogue.php';
+        $GLOBALS['RELLLM_CONNECTOR']=$dedicated ? 5 : 0;
+        $root=$this->parent;$root['request_id']='relationship-receipt-root';
+        $root['capabilities'][]='dialogue.delivery_receipts';
+        $this->request($root);
+        $speaker=$this->context['target'];
+        $wire=fn(string $id,string $type,array $payload): string => $this->json(['schema'=>'synth.response.line.v2','protocol_version'=>2,
+            'game'=>'fo4','request_id'=>$root['request_id'],'turn_id'=>$root['turn_id'],'generation'=>1,'context_sequence'=>1,
+            'runtime_variant'=>'flat','line_id'=>$id,'type'=>$type,'payload'=>$payload])."\n";
+        $lines=[$wire('fixture:start','response_start',['server_version'=>'fixture']),
+            'fixture:first'=>$wire('fixture:first','dialogue',['speaker'=>$speaker,'text'=>'First line A.','receipt_required'=>true]),
+            'fixture:dialogue'=>$wire('fixture:dialogue','dialogue',['speaker'=>$speaker,'text'=>'Parent line B.','receipt_required'=>true]),
+            $wire('fixture:end','response_end',['status'=>'complete'])];
+        $body=implode('',$lines);
+        $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$root['request_id']]);
+        foreach (['fixture:first','fixture:dialogue'] as $id) {
+            $this->query("INSERT INTO synth_meta.response_routes(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
+                VALUES($1,$2,$3,$4,1,1,$5::jsonb,'addressed',$6::jsonb,$7)",[$root['session_id'],$root['request_id'],$id,hash('sha256',$lines[$id]),
+                    $this->json($speaker),$this->json($this->context['player']),'utt.'.str_replace(':','-',$id)]);
+            $text=json_decode($lines[$id],true)['payload']['text'];
+            $this->query("INSERT INTO synth_meta.dialogue_utterances(session_id,request_id,line_id,turn_id,generation,context_sequence,
+                    speaker_identity_id,character_id,text,text_sha256) VALUES($1,$2,$3,$4,1,1,$5,$6,$7,$8)",
+                [$root['session_id'],$root['request_id'],$id,$root['turn_id'],$this->actorId,\Synth\Core\CharacterKey::of($speaker),$text,hash('sha256',$text)]);
+        }
+        // A frozen candidate preserves the original entries, without admitting unheard speech as evidence.
+        $input=['type'=>'inputtext','data'=>'Nora: Thank you for helping me.','people'=>'|Nora|Piper Wright|',
+            'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910002];
+        $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            VALUES($1,1,1,$2,'relationship-dispatch-save',910002,$3::jsonb)",[$root['session_id'],$root['request_id'],$this->json($input)]);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$root];
+        synth_relationship_begin_response();
+        foreach (['fixture:first'=>'First line A.','fixture:dialogue'=>'Parent line B.'] as $id=>$text)
+            synth_relationship_capture_route(synth_relationship_capture_line($speaker['display_name'],
+                $text.(!$dedicated && $id==='fixture:first' ? ' #REL:Player=+5#' : '')),'Player','utt.'.str_replace(':','-',$id));
+        synth_relationship_finish_response(true);
+        synth_relationship_store_response($this->database,$root,$body);
+        $frozen=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$root['request_id']]));
+        $this->assertNotFalse($frozen);
+        $this->assertCount(2,json_decode($frozen['response_payload'],true)['entries']);
+        $this->assertSame(['fixture:first','fixture:dialogue'],json_decode($frozen['response_payload'],true)['delivery_lines']);
+        $this->assertCount(1,json_decode($frozen['response_payload'],true)['input_events']);
+        $responseId=(int)$frozen['history_event_id'];
+        $this->query('UPDATE synth_meta.context_snapshots SET history_event_id=$1 WHERE snapshot_sequence=1',[$responseId]);
+        $eligible=fn(bool $current): array => $this->database->fetchAll(synth_relationship_visible_cte($this->database,$root,$current,sourceHistoryIds:[])
+            .' SELECT history_event_id FROM relationship_response_evidence WHERE history_event_id='.$responseId);
+        $this->assertSame([],$eligible(true));
+
+        [$child,$chainId]=$this->continuation('npc',true,$root,null,false);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
+        $npc=fn(): array => array_values(array_column(array_filter(synth_rechat_history($this->database,$child)['messages'],
+            static fn(array $message): bool => $message['role']==='npc'),'text'));
+        $state=function(string $id,string $value) use($root,$speaker,$lines): void {
+            $receiptId='receipt:'.$id.':'.$value;
+            if (in_array($value,['spoken','presented'],true)) {
+                $receipt=$root;$receipt['request_id']=$receiptId;$receipt['type']='speech_receipt';
+                $receipt['payload']=['dialogue_request_id'=>$root['request_id'],'line_id'=>$id,'character'=>$speaker,
+                    'outcome'=>$value==='spoken' ? 'audio_completed' : 'text_presented'];
+                if (!pg_fetch_assoc($this->query('SELECT 1 FROM synth_meta.protocol_events WHERE request_id=$1',[$receiptId]))) {
+                    $this->request($receipt);
+                    $recordId=920000+($id==='fixture:first' ? 0 : 10)+($value==='spoken' ? 1 : 2);
+                    $payload=['type'=>'chat','data'=>$speaker['display_name'].': '.json_decode($lines[$id],true)['payload']['text'].' (talking to Nora)',
+                        'people'=>'|Nora|Piper Wright|','delivery_state'=>$value,'utterance_id'=>'utt.'.str_replace(':','-',$id),'gamets'=>1000,'ts'=>1000,'rowid'=>$recordId];
+                    $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
+                        VALUES($1,1,1,$2,'relationship-dispatch-save',$3::jsonb,$4)",[$root['session_id'],$root['request_id'],$this->json($payload),$recordId]);
+                }
+            }
+            $this->query("UPDATE synth_meta.dialogue_utterances SET state=$1,receipt_request_id=CASE WHEN $1='generated' THEN NULL ELSE $4 END,
+                receipt_at=CASE WHEN $1='generated' THEN NULL ELSE NOW() END WHERE request_id=$2 AND line_id=$3",[$value,$root['request_id'],$id,$receiptId]);
+        };
+        try { $npc(); $this->fail('a pending parent entered rechat history'); }
+        catch (LogicException $refused) { $this->assertSame('rechat_history_parent_mismatch',$refused->getMessage()); }
+        try { synth_rechat_reserve_continuation($this->database,$child,[]); $this->fail('a pending parent reserved a continuation'); }
+        catch (LogicException $refused) { $this->assertSame('rechat_parent_not_heard',$refused->getMessage()); }
+        $state('fixture:dialogue','spoken');
+        $this->assertSame(['Parent line B.'],$npc(),'an unheard sibling stays out once the parent line is heard');
+        $this->assertSame([],$eligible(true),'one heard sibling cannot admit the whole response');
+        $state('fixture:first','interrupted');
+        $this->assertSame(['Parent line B.'],$npc(),'an interrupted sibling never appears');
+        $state('fixture:first','spoken');$state('fixture:dialogue','presented');
+        $this->assertSame(['First line A.','Parent line B.'],$npc(),'heard (spoken or presented) lines each appear once');
+        $this->assertCount(1,$eligible(true));
+        $this->assertSame([],$eligible(false),'a saved cutoff containing the candidate cannot acquire later heard dependencies');
+        foreach (['interrupted','failed'] as $terminal) {
+            $state('fixture:dialogue',$terminal);
+            try { $npc(); $this->fail("a child of a $terminal parent line read ancestry or fell back to a heard sibling"); }
+            catch (LogicException $refused) { $this->assertSame('rechat_history_parent_mismatch',$refused->getMessage()); }
+            $this->assertSame([],$eligible(true));
+        }
+        $state('fixture:dialogue','spoken');
+        $this->assertSame($frozen['response_payload'],pg_fetch_assoc($this->query('SELECT response_payload FROM synth_meta.relationship_response_inputs WHERE history_event_id=$1',[$responseId]))['response_payload']);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$root];
+        if ($dedicated) {
+            $evaluation=synth_relationship_capture_evaluation($this->database,$responseId,'Synthetic delivered appraisal.',true);
+            $this->assertNotNull($evaluation);
+            $this->assertSame($evaluation,synth_relationship_capture_evaluation($this->database,$responseId,'Synthetic delivered appraisal.',true));
+        } else {
+            $this->assertNotNull(synth_relationship_dispatch_inline($this->database),'eligible frozen inline directives resume through the verified worker');
+            $this->query('UPDATE synth_meta.runtime_sessions SET relationship_dispatch_after=NULL');
+            $this->assertNull(synth_relationship_dispatch_inline($this->database),'an applied inline response is never reapplied');
+        }
+        $this->query('UPDATE synth_meta.context_snapshots SET history_event_id=(SELECT max(id) FROM synth_meta.history_events) WHERE snapshot_sequence=1');
+        $this->assertCount(1,$eligible(false));
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
+        // An older (non-prospective) ancestor contributes only heard lines.
+        $state('fixture:first','generated');$state('fixture:dialogue','spoken');
+        $older=$this->database->withNativeRequestLock(static fn($connection) =>
+            synth_rechat_history_response($connection,$child,$root['request_id'],$chainId));
+        $this->assertSame(['Parent line B.'],array_values(array_column($older['messages'],'text')));
+        $this->query('DELETE FROM synth_meta.dialogue_utterances WHERE request_id=$1 AND line_id=$2',[$root['request_id'],'fixture:first']);
+        try { $npc(); $this->fail('a marked line without its enrolment read as ancestry'); }
+        catch (LogicException $refused) { $this->assertSame('rechat_history_receipt_line_unenrolled',$refused->getMessage()); }
     }
 
     public function testCompletedInputCancellationCannotGenerateOrPublishResult(): void {
@@ -1740,11 +1905,63 @@ PHP;
         $this->query("UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb WHERE session_id='relationship-restored-session'",[$this->json($loaded)]);
         $this->assertNull($this->savedPair($this->actorId,$npc['actor_id'],1,$selector));$this->assertNull($this->savedPair($npc['actor_id'],$this->actorId,1,$selector));
     }
+    public static function heardReceiptStates(): array { return [['spoken','audio_completed'],['presented','text_presented']]; }
+
+    // Accepted receipt attribution survives revoked replay bytes; matching names cannot substitute for its actor key.
+    #[\PHPUnit\Framework\Attributes\DataProvider('heardReceiptStates')]
+    public function testHeardReceiptRetainsCanonicalSpeakerAfterReplayIsCleared(string $state,string $outcome): void
+    {
+        require_once dirname(__DIR__,2).'/core/entities/dialogue.php';
+        require_once dirname(__DIR__,2).'/core/dbmanager/repositories/SaveRepository.php';
+        require_once dirname(__DIR__,2).'/lib/synth_history_speech.php';
+        $speaker=$this->context['target'];$speaker['display_name']='The Narrator';
+        $other=$speaker;$other['form_id']='0x0000AAAA';$otherId=$this->identity($other);
+        foreach([1,2,3] as $sequence) {
+            $context=$this->context;$context['snapshot_sequence']=$sequence;$context['target']=$speaker;$context['audience']=[$speaker,$other];
+            $this->query('UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb,audience_identity_ids=$2::jsonb
+                WHERE session_id=$3 AND snapshot_sequence=$4',[$this->json($context),$this->json([$this->actorId,$otherId]),$this->parent['session_id'],$sequence]);
+        }
+        $source=$this->parent;$source['request_id']='heard-source';$source['capabilities'][]='dialogue.delivery_receipts';$this->request($source);
+        $receipt=$source;$receipt['request_id']='heard-receipt';$receipt['type']='speech_receipt';
+        $receipt['payload']=['dialogue_request_id'=>$source['request_id'],'line_id'=>'heard-source:dialogue:1','character'=>$speaker,'outcome'=>$outcome];
+        $this->request($receipt);
+        $wire=$this->json(['schema'=>'synth.response.line.v2','protocol_version'=>2,'game'=>'fo4','request_id'=>$source['request_id'],
+            'turn_id'=>$source['turn_id'],'generation'=>1,'context_sequence'=>1,'runtime_variant'=>'flat','line_id'=>'heard-source:dialogue:1',
+            'type'=>'dialogue','payload'=>['speaker'=>$speaker,'text'=>'Retained A.','receipt_required'=>true]])."\n";
+        $this->query("INSERT INTO synth_meta.response_routes(session_id,request_id,line_id,line_sha256,generation,context_sequence,
+            speaker,listener_state,listener,utterance_id) VALUES($1,$2,'heard-source:dialogue:1',$3,1,1,$4::jsonb,'addressed',$5::jsonb,'speech-tts-A')",
+            [$source['session_id'],$source['request_id'],hash('sha256',$wire),$this->json($speaker),$this->json($this->context['player'])]);
+        $this->query("INSERT INTO synth_meta.dialogue_utterances(session_id,request_id,line_id,turn_id,generation,context_sequence,
+            speaker_identity_id,character_id,text,text_sha256,state,receipt_request_id,receipt_at)
+            VALUES($1,$2,'heard-source:dialogue:1',$3,1,1,$4,$5,'Retained A.',$6,$7,'heard-receipt',NOW())",
+            [$source['session_id'],$source['request_id'],$source['turn_id'],$this->actorId,\Synth\Core\CharacterKey::of($speaker),hash('sha256','Retained A.'),$state]);
+        $payload=['type'=>'chat','data'=>'The Narrator: Retained A. (talking to Nora)','people'=>'|Nora|The Narrator|',
+            'delivery_state'=>$state,'utterance_id'=>'speech-tts-A','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>930001];
+        $history=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,
+            playthrough_id,eventlog_rowid,event_payload) VALUES($1,1,1,$2,'relationship-dispatch-save',930001,$3::jsonb) RETURNING id",
+            [$source['session_id'],$source['request_id'],$this->json($payload)]))['id'];
+        $this->query("UPDATE synth_meta.request_executions SET state='cancelled',error_code='turn_cancelled',response_body=NULL WHERE request_id='heard-source'");
+        $this->query("UPDATE synth_meta.context_snapshots SET history_event_id=$1 WHERE snapshot_sequence=3",[$history]);
+        $reader=$this->parent;$reader['request_id']='heard-reader';$reader['turn_id']='heard-reader-turn';$reader['context_sequence']=3;$this->request($reader);
+        $this->query('UPDATE synth_meta.runtime_sessions SET active_turn_id=$1,active_turn_sequence=3',[$reader['turn_id']]);
+        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$reader];
+        $rows=$this->database->fetchAll(synth_protocol_history_cte($this->database,$reader,'The Narrator')." SELECT * FROM native_history WHERE type='chat'");
+        $this->assertCount(1,$rows);$this->assertSame((string)$this->actorId,$rows[0]['speaker_identity_id']);
+        $proof=synth_history_speech_routes($this->database,$reader,'The Narrator',$rows)[$history];
+        $this->assertSame('npc',$proof['role']);$this->assertSame($this->actorId,$proof['speaker_identity_id']);
+        $talk=new \Synth\Core\SaveRepository($this->database);
+        $chat=static fn(array $rows): array => array_values(array_filter($rows,static fn(array $row): bool => $row['type']==='chat'));
+        $this->assertSame('1',$chat($talk->conversationRows($reader,'The Narrator',['spoken','presented'],20))[0]['own']);
+        $old=$reader;$old['context_sequence']=1;$this->assertSame([],$chat($talk->conversationRows($old,'The Narrator',['spoken','presented'],20)));
+        $this->query("UPDATE synth_meta.dialogue_utterances SET text_sha256=repeat('0',64) WHERE request_id='heard-source'");
+        $this->assertSame([],$chat($talk->conversationRows($reader,'The Narrator',['spoken','presented'],20)),'invalid text proof cannot borrow same-name attribution');
+    }
+
     public function testEarlyRelationshipSourceProjectionRetainsExactVisibilityAndSavedCutoffs(): void
     {
         $row=920000;
         foreach(['inputtext','inputtext_s','chat','backgroundchat','narration','world_context','infoaction'] as $type) {
-            foreach(['received','emitted','derived'] as $delivery) {
+            foreach(['received','emitted','spoken','presented','derived'] as $delivery) {
                 $payload=['type'=>$type,'data'=>'Piper Wright: Synthetic projection boundary.','people'=>'|Nora|Piper Wright|',
                     'delivery_state'=>$delivery,'gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>++$row];
                 $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
@@ -1758,7 +1975,7 @@ PHP;
             $cte=synth_relationship_visible_cte($this->database,$event);
             $columns='history_event_id,reader_identity_id,type,data,people,source_location';
             $ordinary=$this->database->fetchAll($cte." SELECT $columns FROM relationship_graph_history
-                WHERE type IN ('inputtext','inputtext_s','chat','backgroundchat','narration') AND delivery_state IN ('received','emitted')
+                WHERE type IN ('inputtext','inputtext_s','chat','backgroundchat','narration') AND delivery_state IN ('received','emitted','spoken','presented')
                 ORDER BY history_event_id,reader_identity_id");
             $early=$this->database->fetchAll($cte." SELECT $columns FROM relationship_graph_source_history ORDER BY history_event_id,reader_identity_id");
             $this->assertSame($ordinary,$early);

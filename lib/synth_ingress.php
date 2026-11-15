@@ -1074,7 +1074,11 @@ function synth_protocol_validate_event(array $event): array
     $conversationIntent=$event['type']==='input_text' && is_array($event['payload']) && array_key_exists('intent',$event['payload']);
     if ($conversationIntent && intval($event['context_sequence'] ?? 0)<1)
         synth_protocol_fail('invalid_payload',422,[['field'=>'context_sequence','issue'=>'conversation_intent_unbound']]);
-    if (($event['type']==='speech_receipt' || $conversationIntent || isset($seen['dialogue.native_turn']))
+    // A speech receipt is owned by either receipt contract: /talk (native_turn) or ordinary delivery receipts.
+    $deliveryReceipts=isset($seen['dialogue.delivery_receipts']);
+    if ($deliveryReceipts && ($event['protocol_version']!==2 || !isset($seen['dialogue.turn_ownership'])))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'delivery_receipts_capability_required']]);
+    if ((($event['type']==='speech_receipt' && !$deliveryReceipts) || $conversationIntent || isset($seen['dialogue.native_turn']))
         && ($event['protocol_version']!==2 || !isset($seen['dialogue.native_turn']) || !isset($seen['dialogue.turn_ownership'])))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'native_turn_capability_required']]);
     if (str_starts_with($event['type'],'narrator_') && !synth_private_narrator_supported($event))

@@ -13,10 +13,13 @@ function synth_rechat_roll_budget(int $rounds, int $probability): int
 }
 
 // Called under the native session lock: walk only completed, canonically owned, actually emitted actions.
-function synth_rechat_action_chain_origin($connection, array $event, array $origin, bool $singleStep = false): array
+// $ownFailed (delivery receipts only) also accepts the walked event's own failed, unrevoked execution at the first
+// edge, so a line it emitted before failing stays receiptable; every emitting ancestor must still be complete.
+function synth_rechat_action_chain_origin($connection, array $event, array $origin, bool $singleStep = false, bool $ownFailed = false): array
 {
     $visited=[];
     for ($depth=0;$depth<64;++$depth) {
+        $own=$ownFailed && $depth===0 && ($origin['request_id'] ?? null)===($event['request_id'] ?? null);
         if (($origin['type'] ?? '')!=='action_result') return $origin;
         $receipt=$origin['payload']['result'] ?? [];
         $action=$receipt['action_id'] ?? null; $key=$receipt['idempotency_key'] ?? null;
@@ -36,7 +39,9 @@ function synth_rechat_action_chain_origin($connection, array $event, array $orig
             JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id
                 AND accepted.request_id=receipt.request_id AND accepted.generation=receipt.generation
                 AND accepted.turn_id=receipt.turn_id AND accepted.event_type=receipt.event_type
-                AND accepted.request_sha256=receipt.event_sha256 AND accepted.state IN ('claimed','streaming','complete')
+                AND accepted.request_sha256=receipt.event_sha256 AND (accepted.state IN ('claimed','streaming','complete')
+                    OR ($11::boolean AND accepted.state='failed'
+                        AND COALESCE(accepted.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
             JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                 AND e.generation=i.generation AND e.turn_id=i.turn_id
             JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
@@ -50,7 +55,7 @@ function synth_rechat_action_chain_origin($connection, array $event, array $orig
                 AND s.runtime_variant=$7 AND e.state='complete'",
             [$action,$key,$event['session_id'],$event['generation'],$event['turn_id'],
              json_encode($receipt,JSON_THROW_ON_ERROR),$event['runtime_variant'],$origin['request_id'],
-             synth_protocol_canonical_json($origin),hash('sha256',synth_protocol_canonical_json($origin))]);
+             synth_protocol_canonical_json($origin),hash('sha256',synth_protocol_canonical_json($origin)),$own ? 't' : 'f']);
         if (!$result) throw new RuntimeException('rechat_action_ancestry_query_failed');
         $row=pg_fetch_assoc($result);
         if (!$row) throw new LogicException('rechat_action_ancestry_unavailable');
@@ -122,6 +127,15 @@ function synth_rechat_reserve_continuation($db, array $event, array $policy, ?st
             $proof=synth_rechat_completed_parent($db,$event);
             if ($proof===null) throw new LogicException('rechat_parent_unavailable');
             $parent=$event['payload']['reply_to_request_id'];
+            // Receipt-owned parents gate reservation itself. Even a child with only legacy lines can write history.
+            if (($proof['line']['payload']['receipt_required'] ?? null)===true) {
+                $heard=@pg_query_params($connection,"SELECT 1 FROM synth_meta.dialogue_utterances
+                    WHERE session_id=$1 AND request_id=$2 AND line_id=$3 AND generation=$4 AND context_sequence=$5
+                        AND turn_id=$6 AND state IN ('spoken','presented') AND receipt_at IS NOT NULL",
+                    [$event['session_id'],$parent,$proof['line']['line_id'],$event['generation'],$event['context_sequence'],$event['turn_id']]);
+                if (!$heard) throw new RuntimeException('rechat_parent_delivery_query_failed');
+                if (!pg_fetch_assoc($heard)) throw new LogicException('rechat_parent_not_heard');
+            }
             $result=@pg_query_params($connection,"SELECT d.*,c.mode,c.policy,c.budget,c.used_rounds
                 FROM synth_meta.rechat_continuations d JOIN synth_meta.rechat_chains c ON c.id=d.chain_id
                 WHERE d.session_id=$1 AND (d.request_id=$2 OR d.parent_request_id=$3)",

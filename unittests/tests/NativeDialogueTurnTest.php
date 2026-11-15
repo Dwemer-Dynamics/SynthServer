@@ -57,6 +57,10 @@ final class NativeDialogueTurnTest extends TestCase
         }
         $init=$this->fixture('valid/input-text-native-turn.json');
         $this->assertSame($init,synth_protocol_validate_event($init));
+        // Unmarked text with the ordinary receipt capability stays ordinary text; capability never selects /talk.
+        $ordinary=$this->fixture('valid/input-text-delivery-receipts.json');
+        $this->assertSame($ordinary,synth_protocol_validate_event($ordinary));
+        $this->assertNotSame('conversation',synth_api_v2_route($ordinary) ?? 'legacy');
         $invalid=[];
         foreach ([...glob(dirname(__DIR__,2).'/protocol/v2/fixtures/invalid/speech-receipt*.json'),
             ...glob(dirname(__DIR__,2).'/protocol/v2/fixtures/invalid/input-text-intent*.json')] as $file)
@@ -205,13 +209,14 @@ final class NativeDialogueTurnTest extends TestCase
             }
         };
         $utterances=new class extends UtteranceRepository {
-            public array $rows=[];
+            public array $rows=[]; public ?Closure $heard=null;
             public function __construct() {}
             public function recordInput(TurnRequest $request, string $data): void { $this->rows[]=$data; }
             public function recordLine(TurnRequest $request, PlacedCharacter $character, string $lineId, string $text): void { $this->rows[]=[$lineId,$text]; }
             public function recordReceipt(TurnRequest $receipt, array $character, string $characterId, string $state, ?\Closure $heard): string
             {
                 $this->rows[]=[$state,$heard===null ? null : $heard('Stored line.')];
+                $this->heard=$heard;
                 return $state;
             }
         };
@@ -567,6 +572,14 @@ final class NativeDialogueTurnTest extends TestCase
             $target=$this->talkContext()['target']['display_name'];
             $this->assertSame([$state,$heard ? $target.': Stored line. (talking to Nate)' : null],$utterances->rows[0]);
         }
+        // An ordinary line is labelled only from its stored route and origin mode, never the receipt's current target.
+        [$manager,,$utterances]=$this->dialogue($this->talkContext(),$row);
+        $manager->receipt($receipt);
+        $heard=$utterances->heard;
+        foreach ([['Piper','Nate','WHISPER','Piper: Stored line. (whispering to Nate)'],['Piper','Nate','CLOSE','Piper: Stored line. (speaking privately to Nate)'],
+            ['Piper','Nate','SHOUT','Piper: Stored line. (shouting to Nate)'],['Piper','Nate','AUTOCHAT','Piper: Stored line. (talking to Nate)'],
+            ['Piper','','STANDARD','Piper: Stored line.']] as [$speaker,$listener,$mode,$expected])
+            $this->assertSame($expected,$heard('Stored line.',['speaker'=>$speaker,'listener'=>$listener,'mode'=>$mode]));
     }
 
     // A scripted request_executions/runtime_sessions double. $race runs as a competitor that committed just
@@ -744,10 +757,19 @@ final class NativeDialogueTurnTest extends TestCase
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertSame('init_action_inventory_accepted',$status['code']);
             $this->assertTrue($status['actor_stats'] ?? false);
+            $this->assertArrayNotHasKey('delivery_receipts',$status);
             $init['capabilities']=['dialogue.text','dialogue.native_turn'];
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$init];
             $status=json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload'];
             $this->assertArrayNotHasKey('native_turn',$status);
+            // Ordinary delivery receipts are a separate grant and never imply the /talk route.
+            $receipts=$this->fixture('valid/init-delivery-receipts.json');
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$receipts];
+            $expected=json_decode(explode("\n",file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/response-init-delivery-receipts.ndjson'))[1],true)['payload'];
+            $this->assertSame($expected,json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload']);
+            $receipts['capabilities']=['dialogue.text','dialogue.delivery_receipts'];
+            $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$receipts];
+            $this->assertArrayNotHasKey('delivery_receipts',json_decode(explode("\n",synth_protocol_encode_ack('init_accepted'))[1],true)['payload']);
         } finally { $GLOBALS['SYNTH_REQUEST_EVENT']=$saved; }
     }
 

@@ -3,11 +3,20 @@
 require_once __DIR__.'/synth_relationship_worker.php';
 
 // The two evaluation lanes have independent cooldowns; the shared actor queue still bounds their combined work.
-function synth_relationship_reserve_dispatch($db, bool $interaction=false): ?array
+function synth_relationship_reserve_dispatch($db, bool $interaction=false, bool $deliveryInline=false): ?array
 {
     $after=$interaction ? 'interaction_dispatch_after' : 'relationship_dispatch_after';
     $control=$interaction ? '' : "AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control
         WHERE control.actor_identity_id=c.target_identity_id AND control.locked)";
+    $inlineScope=$deliveryInline ? "AND EXISTS(SELECT 1 FROM synth_meta.relationship_response_inputs response
+        WHERE response.session_id=e.session_id AND response.request_id=e.request_id
+            AND response.response_payload->>'evaluation_mode'='inline'
+            AND jsonb_typeof(response.response_payload->'delivery_lines')='array'
+            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_revision_sources applied
+                JOIN synth_meta.relationship_revisions revision ON revision.history_event_id=applied.relationship_history_event_id
+                JOIN synth_meta.history_events publication ON publication.id=revision.history_event_id
+                WHERE applied.source_history_event_id=response.history_event_id AND revision.actor_identity_id=response.actor_identity_id
+                    AND publication.session_id=e.session_id AND publication.generation=e.generation AND publication.request_id=e.request_id))" : '';
     if (!$db->isTransactionIdle()) throw new LogicException('Relationship dispatch requires an idle database connection');
     if ($db->execQuery('BEGIN ISOLATION LEVEL READ COMMITTED')===false) throw new RuntimeException('Unable to begin relationship dispatch');
     try {
@@ -26,6 +35,7 @@ function synth_relationship_reserve_dispatch($db, bool $interaction=false): ?arr
                     AND p.canonical_event->>'protocol_version'='2' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
                     AND p.canonical_event->>'context_sequence'=r.active_turn_sequence::text
                     AND p.canonical_event->'capabilities' ? 'dialogue.turn_ownership'
+                    $inlineScope
                     AND (e.event_type<>'activate' OR p.canonical_event->'payload'->>'source'='manual')
                     -- A terminal or non-NPC continuation cannot replace a usable completed dialogue owner.
                     AND (e.event_type<>'trigger' OR p.canonical_event->'payload'->>'kind' IS DISTINCT FROM 'rechat'
@@ -100,6 +110,18 @@ function synth_relationship_dispatch_gift($db, ?callable $generate): ?int
         return $evaluationId===null ? null : synth_relationship_enqueue_evaluation($db,$evaluationId);
     },'relationship') : intval($gift['job_id']);
     return $jobId===null ? null : synth_relationship_run_persisted_job($db,$jobId,$generate);
+}
+
+// Resume delivery-gated inline directives through the verified active-owner worker boundary.
+function synth_relationship_dispatch_inline($db): ?int
+{
+    if (!synthRelationshipSettingEnabled() || synthRelationshipUsesDedicatedConnector()) return null;
+    $origin=synth_relationship_reserve_dispatch($db,false,true);
+    if (!$origin) return null;
+    return synth_worker_with_origin($db,$origin,static function() use($db): ?int {
+        $published=synth_relationship_apply_inline_response($db);
+        return $published===[] ? null : max($published);
+    },'relationship');
 }
 
 // Reserve one active completed owner fairly, recover frozen work first, and release SQL locks before providers.

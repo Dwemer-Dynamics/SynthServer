@@ -761,6 +761,26 @@ workstation-specific deployment receipts, hashes and backup paths. It was not a 
 specification. Documents that cite it for evidence or remaining gates now point here. Current
 open requirements are listed above and in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md).
 
+## Ordinary dialogue delivery receipts
+
+The optional protocol v2 grant requires turn ownership. Ordinary NPC lines with pending
+or ready speech can be enrolled. Check the stored exact line and confirm that only
+an accepted heard receipt adds its history. Known text-only responses keep their
+existing history. If enrolled audio fails later, the line stays unheard without an
+explicit accepted presentation receipt. A caption timer supplies no receipt.
+
+Exercise cancellation both before and after receipt commit. An accepted heard row
+survives cancellation. When cancellation revokes a pending line first, a late receipt
+cannot promote it. Owned rechat waits for the exact enrolled parent to be accepted
+as heard before reserving the child. For Whisper and Close, verify hearers against
+the frozen origin capture.
+
+For deferred relationship directives, the active origin and worker window still apply.
+Every enrolled line required by the saved response must be heard inside its evidence
+cutoff. An interrupted later line can keep the full response out of a relationship
+job even when an earlier line was heard. Verified physical gift facts have their
+own evidence.
+
 ## Historical receipts and placeholders
 
 Feature docs keep dated deployment and validation receipts as historical evidence. Their dates,

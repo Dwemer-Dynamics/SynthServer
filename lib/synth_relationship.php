@@ -64,10 +64,12 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
         .synth_relationship_response_evidence_cte($db,$event,$admitCurrentResponse,true)
         .", relationship_response_evidence AS (
         SELECT * FROM relationship_graph_responses WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
+    ), relationship_response_candidates AS (
+        SELECT * FROM relationship_graph_responses_candidates WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
     ), relationship_graph_sources AS MATERIALIZED (
         SELECT DISTINCT history_event_id,reader_identity_id AS actor_identity_id FROM relationship_graph_source_history
         WHERE type IN ('inputtext','inputtext_s','chat','backgroundchat','narration')
-            AND delivery_state IN ('received','emitted')
+            AND delivery_state IN ('received','emitted','spoken','presented')
         UNION SELECT history_event_id,actor_identity_id FROM relationship_graph_responses
     ), relationship_visible_sources AS MATERIALIZED (
         SELECT history_event_id FROM relationship_graph_sources WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
@@ -98,8 +100,10 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
                 =jsonb_array_length(CASE WHEN jsonb_typeof(r.input_payload->'sources')='array' THEN r.input_payload->'sources' ELSE '[]'::jsonb END)
             AND NOT EXISTS (SELECT 1 FROM synth_meta.relationship_revision_sources d
                 WHERE d.relationship_history_event_id=r.history_event_id AND (
-                    NOT (r.input_payload->'sources' @> jsonb_build_array(d.source_history_event_id)) OR NOT EXISTS (
-                    SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.source_history_event_id AND s.actor_identity_id=r.actor_identity_id)))
+                    NOT (r.input_payload->'sources' @> jsonb_build_array(d.source_history_event_id)) OR NOT (
+                    EXISTS(SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.source_history_event_id AND s.actor_identity_id=r.actor_identity_id)
+                    OR EXISTS(SELECT 1 FROM relationship_gift_fact_sources fact WHERE fact.history_event_id=d.source_history_event_id
+                        AND fact.actor_identity_id=r.actor_identity_id AND fact.result_history_event_id=r.result_history_event_id))))
     ) ".synth_relationship_result_state_cte();
 }
 
@@ -193,7 +197,18 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         if ($headId!==null) throw new LogicException('Native relationship proposal is stale');
         $visible=@pg_query($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$sources)
             .'SELECT count(*) AS n FROM relationship_visible_sources WHERE history_event_id IN ('.implode(',',$sources).')');
-        if (!$visible || intval(pg_fetch_assoc($visible)['n'])!==count($sources)) throw new OutOfBoundsException('Native relationship evidence unavailable');
+        if (!$visible) throw new OutOfBoundsException('Native relationship evidence unavailable');
+        if (intval(pg_fetch_assoc($visible)['n'])!==count($sources)) {
+            // Only this already-persisted result may use a factual gift source before its thank-you is heard. Reuse
+            // full worker revalidation under the same owner/lease; never admit the raw candidate as speech evidence.
+            $fact=$evaluationResult===null ? false : @pg_query_params($connection,'SELECT evaluation_id FROM synth_meta.relationship_results
+                WHERE history_event_id=$1',[$evaluationResult]);
+            $fact=$fact ? pg_fetch_assoc($fact) : false;
+            $validated=$fact ? synth_relationship_evaluation_input($connection,$db,$event,intval($fact['evaluation_id'])) : null;
+            $inputFact=$validated ? json_decode($validated['input_payload'],true,flags:JSON_THROW_ON_ERROR) : null;
+            if (($inputFact['gift_only'] ?? null)!==true || ($inputFact['source_ids'] ?? null)!==$sources)
+                throw new OutOfBoundsException('Native relationship evidence unavailable');
+        }
         $affinity=max(-100,min(100,intval($state['aff'] ?? 0)+$delta));
         $newType=$type ?? $state['type'] ?? 'neutral';
         $storedDetails=$details ?? array_diff_key($state ?? [],array_flip(['revision','aff','type']));

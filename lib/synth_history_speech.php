@@ -20,21 +20,22 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
         $result=@pg_query($connection,$scope." SELECT h.id,h.session_id,h.request_id,h.generation,h.context_sequence,
                 h.playthrough_id,h.event_payload,p.canonical_event,p.event_sha256,p.event_type,e.turn_id,
                 c.context_payload,c.player_identity_id,c.target_identity_id,c.audience_identity_ids,
-                octet_length(e.response_body) AS response_bytes
+                octet_length(e.response_body) AS response_bytes,visible.receipt_speech
             FROM native_history visible JOIN synth_meta.history_events h ON h.id=visible.history_event_id
             JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
                 AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
             JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id
-                AND e.generation=h.generation AND e.state='complete'
+                AND e.generation=h.generation
             JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                 AND p.event_sha256=e.request_sha256
             WHERE h.id IN (".implode(',',$ids).") AND h.event_payload->>'type'='chat'
-                AND octet_length(e.response_body) BETWEEN 1 AND 2097152 ORDER BY h.id DESC LIMIT 256");
+                AND (visible.receipt_speech IS NOT NULL OR (e.state='complete'
+                    AND octet_length(e.response_body) BETWEEN 1 AND 2097152)) ORDER BY h.id DESC LIMIT 256");
         if (!$result) throw new RuntimeException('history_speech_source_query_failed');
         $proofs=[]; $responses=[]; $bytes=0;
         foreach (pg_fetch_all($result) as $source) {
-            if (hrtime(true)>$deadline) break; // Optional enrichment retains conservative formatting when its work budget expires.
+            if (hrtime(true)>$deadline && $source['receipt_speech']===null) continue;
             $request=json_decode($source['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
             if (!synth_protocol_owns_dialogue_turn($request)
                 || ($request['protocol_version'] ?? null)!==2 || ($request['session_id'] ?? '')!==$source['session_id']
@@ -43,6 +44,16 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
                 || ($request['context_sequence'] ?? null)!==intval($source['context_sequence'])
                 || ($request['type'] ?? '')!==$source['event_type']
                 || !hash_equals($source['event_sha256'],hash('sha256',synth_protocol_canonical_json($request)))) continue;
+            // The shared saved-history proof already checked the enrolled text, route and terminal receipt. Replay
+            // bytes and current origin liveness cannot revoke this attribution after its heard row was committed.
+            if ($source['receipt_speech']!==null) {
+                $proof=json_decode($source['receipt_speech'],true,flags:JSON_THROW_ON_ERROR);
+                $proof['narrator_named_npc_listener']=$proof['listener_identity_id']!==null
+                    && intval($proof['listener_identity_id'])!==intval($source['player_identity_id'])
+                    && strcasecmp(trim($proof['listener']['display_name'] ?? ''),'The Narrator')===0;
+                $proofs[intval($source['id'])]=$proof;
+                continue;
+            }
             $key=$source['session_id'].'|'.$source['request_id'];
             if (!array_key_exists($key,$responses)) {
                 if (count($responses)>=32 || $bytes+intval($source['response_bytes'])>8*1024*1024) continue;
