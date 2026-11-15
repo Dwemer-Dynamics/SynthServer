@@ -17,6 +17,7 @@ use Synth\Managers\ContextManager;
 use Synth\Managers\DialogueManager;
 use Synth\Managers\PrivateNarratorManager;
 use Synth\Managers\PromptManager;
+use Synth\Managers\ReceiptManager;
 use Synth\Managers\SaveState;
 use Synth\Managers\SessionManager;
 use Synth\Managers\SpeechManager;
@@ -27,6 +28,7 @@ require_once __DIR__.'/lib/settings.php';
 require_once __DIR__.'/lib/core/llm_connector.class.php';
 require_once __DIR__.'/managers/DialogueManager.php';
 require_once __DIR__.'/managers/PrivateNarratorManager.php';
+require_once __DIR__.'/managers/ReceiptManager.php';
 require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
 require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
 require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
@@ -71,6 +73,13 @@ final class Bootstrap
             new SpeechManager(new ProfileSpeechDriver($this->db, $this->root, $this->speechConfig(), $owner, $legacy)),
             new UtteranceRepository($this->db, $owner, UtteranceRepository::DELIVERY_RECEIPTS), $output,
             new WorldKnowledgeManager($this->db, $this->config, new SettingsRepository($this->db)));
+    }
+
+    /** Speech receipts: only the claimed snapshot binding and the owned receipt write; no turn services. */
+    public function receipts(\SYNTHClaimedRequest $owner): ReceiptManager
+    {
+        return new ReceiptManager(new SessionManager(new SaveState(new SaveRepository($this->db))),
+            new UtteranceRepository($this->db, $owner, UtteranceRepository::DELIVERY_RECEIPTS));
     }
 
     /** Private narrator requests: the same claimed owner, LLM driver family and legacy adapter scope. */

@@ -20,6 +20,7 @@ use Synth\Managers\CharacterManager;
 use Synth\Managers\ContextManager;
 use Synth\Managers\DialogueManager;
 use Synth\Managers\PromptManager;
+use Synth\Managers\ReceiptManager;
 use Synth\Managers\SaveState;
 use Synth\Managers\SessionManager;
 use Synth\Managers\SpeechManager;
@@ -251,7 +252,7 @@ final class NativeDialogueTurnTest extends TestCase
         };
         $manager=new DialogueManager(new SessionManager($saves),new CharacterManager($characters),new ContextManager($saves,$db,$owner),
             new PromptManager(),$llm,new SpeechManager($tts),$utterances,$output);
-        return [$manager,$output,$utterances,$llm,$characters];
+        return [$manager,$output,$utterances,$llm,$characters,new ReceiptManager(new SessionManager($saves),$utterances)];
     }
 
     private function talkContext(): array
@@ -631,21 +632,21 @@ final class NativeDialogueTurnTest extends TestCase
         $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson'];
         foreach ([[['character'=>['form_id'=>'0xFF000802']+$receipt['payload']['character']],$this->talkContext(),'receipt_invalid'],
             [[],null,'receipt_owner_mismatch']] as [$change,$context,$code]) {
-            [$manager,,$utterances]=$this->dialogue($context,$row);
-            try { $manager->receipt(array_replace_recursive($receipt,['payload'=>$change])); $this->fail($code); }
+            [,,$utterances,,,$receipts]=$this->dialogue($context,$row);
+            try { $receipts->receipt(array_replace_recursive($receipt,['payload'=>$change])); $this->fail($code); }
             catch (DomainException $error) { $this->assertSame($code,$error->getMessage()); }
             $this->assertSame([],$utterances->rows);
         }
         foreach (['audio_completed'=>['spoken',true],'text_presented'=>['presented',true],'interrupted'=>['interrupted',false],
             'failed'=>['failed',false]] as $outcome=>[$state,$heard]) {
-            [$manager,,$utterances]=$this->dialogue($this->talkContext(),$row);
-            $this->assertSame($state,$manager->receipt(array_replace_recursive($receipt,['payload'=>['outcome'=>$outcome]])));
+            [,,$utterances,,,$receipts]=$this->dialogue($this->talkContext(),$row);
+            $this->assertSame($state,$receipts->receipt(array_replace_recursive($receipt,['payload'=>['outcome'=>$outcome]])));
             $target=$this->talkContext()['target']['display_name'];
             $this->assertSame([$state,$heard ? $target.': Stored line. (talking to Nate)' : null],$utterances->rows[0]);
         }
         // An ordinary line is labelled only from its stored route and origin mode, never the receipt's current target.
-        [$manager,,$utterances]=$this->dialogue($this->talkContext(),$row);
-        $manager->receipt($receipt);
+        [,,$utterances,,,$receipts]=$this->dialogue($this->talkContext(),$row);
+        $receipts->receipt($receipt);
         $heard=$utterances->heard;
         foreach ([['Piper','Nate','WHISPER','Piper: Stored line. (whispering to Nate)'],['Piper','Nate','CLOSE','Piper: Stored line. (speaking privately to Nate)'],
             ['Piper','Nate','SHOUT','Piper: Stored line. (shouting to Nate)'],['Piper','Nate','AUTOCHAT','Piper: Stored line. (talking to Nate)'],
