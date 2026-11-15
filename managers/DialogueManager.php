@@ -58,8 +58,20 @@ final class DialogueManager
         $receipt = $this->sessions->receiptOwner($event);
         $speaker = strval($receipt->context['target']['display_name'] ?? $character['display_name'] ?? '');
         $player = $receipt->playerName();
+        // A /talk line keeps its fixed form. An ordinary line is labelled only from its own stored route: speaker,
+        // addressed listener and the origin's mode (the emission-time suffix wording), never the receipt's target.
         $heard = $this->sessions->heard($state)
-            ? static fn(string $text): string => $speaker.': '.$text.' (talking to '.$player.')' : null;
+            ? static function (string $text, ?array $ordinary = null) use ($speaker, $player): string {
+                if ($ordinary === null) return $speaker.': '.$text.' (talking to '.$player.')';
+                $listener = trim($ordinary['listener']);
+                $suffix = $listener === '' ? '' : ' '.match ($ordinary['mode']) {
+                    'WHISPER' => '(whispering to '.$listener.')',
+                    'CLOSE' => '(speaking privately to '.$listener.')',
+                    'SHOUT' => '(shouting to '.$listener.')',
+                    default => '(talking to '.$listener.')',
+                };
+                return ($ordinary['speaker'] === '' ? '' : $ordinary['speaker'].': ').$text.$suffix;
+            } : null;
         return $this->utterances->recordReceipt($receipt, $character, $characterId, $state, $heard);
     }
 

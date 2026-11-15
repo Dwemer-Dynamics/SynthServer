@@ -425,6 +425,90 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     ) ".synth_protocol_history_rows_cte(false,$responseRoles,$materializeHistory,readerFirstVisibility:$readerFirstVisibility);
 }
 
+// Reuse the same immutable receipt proof for saved history and delivery-dependent relationship admission.
+function synth_protocol_receipt_speech_join(string $history='h', string $scene='origin', string $record='original', string $alias='receipt_speech'): string
+{
+    foreach ([$history,$scene,$record,$alias] as $name)
+        if (preg_match('/^[a-z_][a-z0-9_]*$/D',$name)!==1) throw new InvalidArgumentException('Invalid receipt proof alias');
+    // A terminal receipt already committed this exact utterance and history together. Keep its canonical attribution
+    // after cancellation clears replay bytes; neither this proof nor a speaker name grants a new witness.
+    $join="LEFT JOIN LATERAL (
+        SELECT jsonb_build_object('role','npc','speaker_identity_id',matched.speaker_identity_id,
+            'line_id',matched.line_id,'speaker',matched.speaker,'listener_state',matched.listener_state,
+            'listener',matched.listener,'listener_identity_id',matched.listener_identity_id) AS proof
+        FROM (
+            SELECT u.line_id,u.speaker_identity_id,rr.speaker,rr.listener_state,rr.listener,listener.id AS listener_identity_id,
+                COUNT(*) OVER () AS candidates
+            FROM synth_meta.response_routes rr
+            JOIN synth_meta.dialogue_utterances u ON u.session_id=rr.session_id AND u.request_id=rr.request_id
+                AND u.line_id=rr.line_id AND u.generation=rr.generation AND u.context_sequence=rr.context_sequence
+            JOIN synth_meta.request_executions execution ON execution.session_id=u.session_id
+                AND execution.request_id=u.request_id AND execution.generation=u.generation AND execution.turn_id=u.turn_id
+            JOIN synth_meta.protocol_events ingress ON ingress.session_id=execution.session_id
+                AND ingress.request_id=execution.request_id AND ingress.generation=execution.generation
+                AND ingress.turn_id=execution.turn_id AND ingress.event_type=execution.event_type
+                AND ingress.event_sha256=execution.request_sha256
+            JOIN synth_meta.protocol_events receipt ON receipt.session_id=u.session_id AND receipt.request_id=u.receipt_request_id
+                AND receipt.generation=u.generation AND receipt.turn_id=u.turn_id
+                AND receipt.canonical_event->>'context_sequence'=u.context_sequence::text
+                AND receipt.event_type='speech_receipt'
+                AND receipt.canonical_event#>>'{payload,dialogue_request_id}'=u.request_id
+                AND receipt.canonical_event#>>'{payload,line_id}'=u.line_id
+                AND upper(receipt.canonical_event#>>'{payload,character,form_id}')=upper(rr.speaker->>'form_id')
+                AND lower(receipt.canonical_event#>>'{payload,character,origin_plugin}')=lower(rr.speaker->>'origin_plugin')
+                AND receipt.canonical_event#>>'{payload,character,playthrough_id}'=rr.speaker->>'playthrough_id'
+                AND ((u.state='spoken' AND receipt.canonical_event#>>'{payload,outcome}'='audio_completed')
+                    OR (u.state='presented' AND receipt.canonical_event#>>'{payload,outcome}'='text_presented'))
+            JOIN synth_meta.request_executions receipt_owner ON receipt_owner.session_id=receipt.session_id
+                AND receipt_owner.request_id=receipt.request_id AND receipt_owner.generation=receipt.generation
+                AND receipt_owner.turn_id=receipt.turn_id AND receipt_owner.event_type=receipt.event_type
+                AND receipt_owner.request_sha256=receipt.event_sha256
+            JOIN synth.actor_identities speaker ON speaker.id=u.speaker_identity_id AND speaker.game='fo4'
+                AND upper(speaker.full_form_id)=upper(rr.speaker->>'form_id')
+                AND lower(speaker.origin_plugin)=lower(rr.speaker->>'origin_plugin')
+                AND speaker.playthrough_id=rr.speaker->>'playthrough_id' AND speaker.playthrough_id=h.playthrough_id
+            LEFT JOIN synth.actor_identities listener ON rr.listener_state='addressed' AND listener.game='fo4'
+                AND upper(listener.full_form_id)=upper(rr.listener->>'form_id')
+                AND lower(listener.origin_plugin)=lower(rr.listener->>'origin_plugin')
+                AND listener.playthrough_id=rr.listener->>'playthrough_id' AND listener.playthrough_id=h.playthrough_id
+                AND (listener.id=origin.player_identity_id OR listener.id=origin.target_identity_id
+                    OR origin.audience_identity_ids @> jsonb_build_array(listener.id))
+            CROSS JOIN LATERAL (SELECT btrim((rr.speaker->>'display_name')||': '||u.text) AS text) expected
+            WHERE original.type='chat' AND original.delivery_state IN ('spoken','presented')
+                AND rr.session_id=h.session_id AND rr.request_id=h.request_id AND rr.generation=h.generation
+                AND rr.context_sequence=h.context_sequence AND COALESCE(rr.utterance_id,u.line_id)=original.utterance_id
+                AND u.state=original.delivery_state AND u.receipt_at IS NOT NULL
+                AND encode(sha256(convert_to(u.text,'UTF8')),'hex')=u.text_sha256
+                AND (rr.speaker->>'form_id') ~ '^0x[0-9A-Fa-f]{8}$'
+                AND upper(substring(rr.speaker->>'form_id' FROM 3 FOR 2))<>'FF'
+                AND u.character_id='chr:'||left(encode(sha256(convert_to('fo4|'||speaker.playthrough_id||'|'
+                    ||lower(btrim(speaker.origin_plugin))||'|'||CASE
+                        WHEN upper(substring(rr.speaker->>'form_id' FROM 3 FOR 2))='FE'
+                        THEN upper(right(rr.speaker->>'form_id',3)) ELSE upper(right(rr.speaker->>'form_id',6)) END,'UTF8')),'hex'),40)
+                AND speaker.id<>origin.player_identity_id
+                AND (speaker.id=origin.target_identity_id OR origin.audience_identity_ids @> jsonb_build_array(speaker.id))
+                AND ingress.canonical_event->>'context_sequence'=h.context_sequence::text
+                AND ingress.canonical_event->'capabilities' @> '[\"dialogue.turn_ownership\",\"dialogue.delivery_receipts\"]'::jsonb
+                AND ((ingress.event_type='input_text' AND ingress.canonical_event#>'{payload,intent}' IS NULL)
+                    OR ingress.event_type IN ('input_audio','action_result')
+                    OR (ingress.event_type='trigger' AND ingress.canonical_event#>>'{payload,kind}'='rechat'
+                        AND ingress.canonical_event->'capabilities' ? 'dialogue.rechat.ownership'))
+                AND (btrim(original.data)=expected.text OR (rr.listener_state='addressed' AND listener.id IS NOT NULL
+                    AND left(btrim(original.data),length(expected.text)+1)=expected.text||' '
+                    AND lower(substring(btrim(original.data) FROM length(expected.text)+2)) IN (
+                        '(talking to '||lower(rr.listener->>'display_name')||')',
+                        '(whispering to '||lower(rr.listener->>'display_name')||')',
+                        '(shouting to '||lower(rr.listener->>'display_name')||')',
+                        '(speaking privately to '||lower(rr.listener->>'display_name')||')',
+                        '(speaking loudly to '||lower(rr.listener->>'display_name')||')')))
+        ) matched WHERE matched.candidates=1
+    ) receipt_speech ON original.type='chat' AND original.delivery_state IN ('spoken','presented')
+        AND original.utterance_id IS NOT NULL";
+    $aliases=['h'=>$history,'origin'=>$scene,'original'=>$record,'receipt_speech'=>$alias];
+    return preg_replace_callback('/\b(h|origin|original|receipt_speech)(?=\.|\s+ON\b)/',
+        static fn(array $match): string => $aliases[$match[1]],$join);
+}
+
 // Dependency validation reuses the identical insertion-time ownership rules without widening ordinary history.
 function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $responseRoles=false, bool $materializeHistory=false, bool $relationshipSourceHistory=false, bool $readerFirstVisibility=false, bool $limitRelationshipSources=false): string
 {
@@ -434,7 +518,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
     // Duplicate the graph-source consumer's exact predicates before correlated visibility checks.
     // The unrestricted history projection remains available for frozen recent-event validation.
     $sourceFilter=$relationshipSourceHistory ? " AND h.event_payload->>'type' IN ('inputtext','inputtext_s','chat','backgroundchat','narration')
-            AND h.event_payload->>'delivery_state' IN ('received','emitted')" : '';
+            AND h.event_payload->>'delivery_state' IN ('received','emitted','spoken','presented')" : '';
     // Prompt formatting alone needs role provenance; ordinary recall/relationship readers keep their existing query.
     $roleColumns=$responseRoles ? ',response_owner.role AS response_role,response_owner.actor_identity_id AS response_actor_identity_id' : '';
     $roleJoin=$responseRoles ? "LEFT JOIN LATERAL (
@@ -453,6 +537,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                 AND ingress.canonical_event->>'type'='trigger' AND ingress.canonical_event->'payload'->>'kind'='rechat'
                 AND ingress.canonical_event->'capabilities' @> jsonb_build_array('dialogue.turn_ownership','dialogue.rechat.ownership')
         ) response_owner ON TRUE" : '';
+    $receiptJoin=synth_protocol_receipt_speech_join();
     // Legacy dialogue adapters may stamp UTC seconds into gamets. Native game-age
     // readers use the immutable source/scene snapshot's game clock, never that fallback.
     // Match the context contract's positive, safe integer range. Zero is unavailable,
@@ -500,6 +585,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             original.localts,original.ts,original.rowid,original.people,original.location,original.party,
             original.utterance_id,original.delivery_state,
             h.id AS history_event_id,s.reader_identity_id,s.reader_player_id,ownership.speaker_identity_id,
+            receipt_speech.proof AS receipt_speech,
             origin.context_payload->'world'->>'location' AS source_location,witness.basis AS witness_basis {$roleColumns}
         FROM $scopes s JOIN $historyEvents h
             ON h.session_id=s.session_id AND h.generation=s.generation AND h.playthrough_id=s.playthrough_id
@@ -511,6 +597,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             type text,data text,sess text,gamets bigint,localts bigint,ts bigint,rowid bigint,
             people text,location text,party text,utterance_id text,delivery_state text)
         {$roleJoin}
+        {$receiptJoin}
         -- A first-observed witness row is visible only through its canonical insertion-time binding:
         -- the speaker or a granted witness, never the player perspective, a later audience or a name.
         CROSS JOIN LATERAL (
@@ -539,12 +626,18 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
                         OR (jsonb_typeof(h.event_payload->'synth_dialogue_hearer_ids')='array'
                             AND h.event_payload->'synth_dialogue_hearer_ids' @> jsonb_build_array(id)))
             )
-            SELECT CASE WHEN h.event_payload ? 'synth_witness_observation' THEN witness.speaker ELSE (
+            SELECT CASE WHEN h.event_payload ? 'synth_witness_observation' THEN witness.speaker
+                WHEN receipt_speech.proof IS NOT NULL THEN (receipt_speech.proof->>'speaker_identity_id')::bigint ELSE (
                 SELECT MIN(id) FROM actors
                 WHERE left(lower(original.data),length(name)+1)=name||':'
                 HAVING COUNT(DISTINCT id)=1
             ) END AS speaker_identity_id,
-            CASE WHEN h.event_payload ? 'synth_witness_observation' THEN COALESCE(witness.visible,false) ELSE EXISTS (
+            CASE WHEN h.event_payload ? 'synth_witness_observation' THEN COALESCE(witness.visible,false)
+                WHEN receipt_speech.proof IS NOT NULL THEN EXISTS (
+                    SELECT 1 FROM actors WHERE id=s.reader_identity_id
+                        AND (id=(receipt_speech.proof->>'speaker_identity_id')::bigint
+                            OR h.event_payload ? 'synth_dialogue_hearer_ids')
+                ) OR EXISTS ({$visibility}) ELSE EXISTS (
                 {$visibility}
             ) END AS visible
         ) ownership WHERE {$historyVisibility}

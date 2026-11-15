@@ -3,6 +3,8 @@
 require_once __DIR__.'/synth_rechat_prepare.php';
 
 // Read one completed ancestor under the caller's native lock, never the global/latest eventlog.
+// Receipt-enrolled ancestry requires accepted delivery. last_npc names the final NPC line or is null when that
+// line is excluded. An earlier heard sibling cannot replace it.
 function synth_rechat_history_response($connection, array $owner, string $request, int $chainId): array
 {
     $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
@@ -51,10 +53,21 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     if (!$result) throw new RuntimeException('rechat_history_routes_unavailable');
     $routes=[];
     foreach (pg_fetch_all($result) as $route) $routes[$route['line_id']]=$route;
+    $result=@pg_query_params($connection,'SELECT line_id,state FROM synth_meta.dialogue_utterances
+        WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
+        [$owner['session_id'],$request,$owner['generation'],$owner['context_sequence']]);
+    if (!$result) throw new RuntimeException('rechat_history_utterances_unavailable');
+    $delivery=array_column(pg_fetch_all($result),'state','line_id');
     $messages=[]; $lastNpc=null; $playerLines=[];
     foreach ($lines as $entry) {
         $line=$entry['line'];
         if ($line['type']!=='dialogue') continue;
+        $included=true;
+        if (($line['payload']['receipt_required'] ?? null)===true) {
+            $state=$delivery[$line['line_id']] ?? null;
+            if ($state===null) throw new LogicException('rechat_history_receipt_line_unenrolled');
+            $included=in_array($state,['spoken','presented'],true);
+        }
         $route=$routes[$line['line_id']] ?? null;
         $speaker=$line['payload']['speaker'] ?? [];
         if (!$route || !hash_equals($route['line_sha256'],hash('sha256',$entry['wire']))
@@ -65,6 +78,11 @@ function synth_rechat_history_response($connection, array $owner, string $reques
         $narrator=$key===null && ($speaker['kind'] ?? '')==='narrator' && ($speaker['id'] ?? '')==='narrator';
         if (!$narrator && ($key===null || !isset($actors[$key]))) throw new LogicException('rechat_history_speaker_unavailable');
         $text=$line['payload']['text'] ?? null;
+        if (!$included) {
+            if ($key!==null && $key===$playerKey) throw new LogicException('rechat_history_receipt_line_unexpected');
+            if (!$narrator) $lastNpc=null;
+            continue;
+        }
         if ($key!==null && $key===$playerKey) {
             // Ordinary roots prove their player input separately. Only an Auto Chat root reads its generated line,
             // and only through synth_autochat_root_line.

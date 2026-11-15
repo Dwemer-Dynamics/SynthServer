@@ -781,3 +781,12 @@ history. Client defaults do not advertise this capability. Until those consumers
 and the explicit acknowledgement are implemented together, preparation rejects
 scene-bearing requests before database/profile/provider work. Existing parent-only
 rechat remains unchanged; schema acceptance is not runtime support.
+
+## Ordinary NPC delivery receipts
+
+Ordinary NPC delivery receipts use the optional `dialogue.delivery_receipts` capability with
+`dialogue.turn_ownership`. The init acknowledgement grants it independently of `/talk`. A v2
+dialogue line carries `receipt_required: true` when the server has stored its exact route and
+enrolled the placed NPC utterance. Its first accepted `audio_completed` or `text_presented` receipt
+inserts heard history at the receipt's save frontier. The stored route and original scene determine
+attribution and hearers. The v2 protocol README describes legacy fallback and continuation rules.

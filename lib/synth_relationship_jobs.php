@@ -33,15 +33,25 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         throw new InvalidArgumentException('Invalid native relationship evaluation input');
     }
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$responseId,$systemPrompt,$playerOnly) {
+        $gift=$playerOnly ? synth_player_gift_for_event($db,$event) : null;
+        $view=$gift!==null ? 'relationship_response_candidates' : 'relationship_response_evidence';
         $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])
-            .'SELECT * FROM relationship_response_evidence WHERE history_event_id=$1',[$responseId]);
+            .'SELECT * FROM '.$view.' WHERE history_event_id=$1',[$responseId]);
         if (!$result) throw new RuntimeException('Unable to resolve relationship evaluation response');
         $response=pg_fetch_assoc($result); if (!$response) return null;
         $context=synth_protocol_current_context($db,$event);
         if (!$context) return null;
         $responsePayload=json_decode($response['response_payload'],true,flags:JSON_THROW_ON_ERROR);
+        $giftOnly=$gift!==null && isset($responsePayload['delivery_lines']);
+        if ($giftOnly) {
+            if (!is_array($responsePayload['delivery_lines']) || !array_is_list($responsePayload['delivery_lines'])
+                || count($responsePayload['delivery_lines'])<1 || count($responsePayload['delivery_lines'])>256
+                || ($responsePayload['verified_gift'] ?? null)!=$gift
+                || ($responsePayload['verified_gift_action_id'] ?? null)!==$gift['action_id']) return null;
+            $responsePayload=synth_relationship_gift_response($responsePayload);
+        }
         $playerLines=$playerOnly ? synth_relationship_player_lines($context['payload'],$responsePayload) : [];
-        if ($playerOnly && !$playerLines) return null;
+        if ($playerOnly && !$playerLines && !$giftOnly) return null;
         if (!synth_relationship_write_allowed($connection,$event,intval($response['actor_identity_id']),$responseId)) return null;
         $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
             .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$responseId]);
@@ -86,7 +96,11 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             'response_id'=>$responseId,'response'=>$responsePayload,
             'recent_events'=>$recent,'source_ids'=>$sources];
         if ($playerOnly) $input['player_lines']=$playerLines;
-        $gift=synth_player_gift_for_event($db,$event);
+        if ($giftOnly) {
+            $input['gift_only']=true;
+            $input['response_candidate_sha256']=$response['candidate_sha256'];
+        }
+        $gift ??= synth_player_gift_for_event($db,$event);
         if ($gift!==null) {
             // One physical handoff may be delivered again under another receipt request ID.
             // Its dedicated evaluation is owned by the action, not by repeated thank-you speech.
@@ -128,16 +142,27 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
     if (synth_protocol_canonical_json($input['owner'])!==synth_protocol_canonical_json($event)) return null;
     $context=synth_protocol_current_context($db,$event);
     if (!$context || $context['payload']!=$input['context']) return null;
+    $giftOnly=($input['gift_only'] ?? null)===true;
+    if (isset($input['gift_only']) && !$giftOnly) return null;
+    if ($giftOnly && ($input['schema'] ?? null)!=='synth.relationship.evaluation.v2') return null;
+    $view=$giftOnly ? 'relationship_response_candidates' : 'relationship_response_evidence';
     $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])
-        .'SELECT response_payload FROM relationship_response_evidence WHERE history_event_id=$1 AND actor_identity_id=$2',
+        .'SELECT response_payload,candidate_sha256 FROM '.$view.' WHERE history_event_id=$1 AND actor_identity_id=$2',
         [$row['response_history_event_id'],$row['actor_identity_id']]);
     if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation response');
     $response=pg_fetch_assoc($result);
-    if (!$response || json_decode($response['response_payload'],true)!=$input['response']) return null;
+    if (!$response) return null;
+    $candidate=json_decode($response['response_payload'],true);
+    if ($giftOnly) {
+        if (!isset($candidate['delivery_lines'],$candidate['verified_gift'],$input['received_gift'])
+            || ($input['response_candidate_sha256'] ?? null)!==$response['candidate_sha256']
+            || $candidate['verified_gift']!=($input['received_gift']['fact'] ?? null)
+            || synth_relationship_gift_response($candidate)!=$input['response']) return null;
+    } elseif ($candidate!=$input['response']) return null;
     if (($input['schema'] ?? null)==='synth.relationship.evaluation.v2') {
         $pair=synth_relationship_pair($db,$event,'Player');
         $lines=synth_relationship_player_lines($context['payload'],$input['response']);
-        if (!$pair || !$lines || !is_array($input['player_lines'] ?? null)
+        if (!$pair || (!$lines && !$giftOnly) || !is_array($input['player_lines'] ?? null)
             || synth_protocol_canonical_json($input['player_lines'])!==synth_protocol_canonical_json($lines) || ($input['recent_events'] ?? null)!==[]
             || ($input['source_ids'] ?? null)!==[intval($row['response_history_event_id'])]
             || !is_array($input['subjects'] ?? null) || count($input['subjects'])!==1 || ($input['subjects'][0]['subject_id'] ?? null)!==$pair['subject_id']

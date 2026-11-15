@@ -580,7 +580,9 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->setSnapshotClock(1,$sourceClock);
         $ids=[$this->historyId];
         for ($index=2;$index<=5;++$index) {
-            $ids[]=$this->appendHistory(1,['data'=>'Nora: Owned Diamond City memory '.$index.'.',
+            $ids[]=$this->appendHistory(1,['type'=>$index===5 ? 'chat' : 'inputtext',
+                'delivery_state'=>$index===5 ? 'presented' : 'spoken',
+                'data'=>($index===5 ? 'Piper Wright' : 'Nora').': Owned Diamond City memory '.$index.'.',
                 'ts'=>1791859202+$index,'localts'=>1791859201+$index,'gamets'=>1791859200+$index]);
         }
         $this->setFrontier($ids[array_key_last($ids)]);
@@ -626,7 +628,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
 
     public function testGameClockCannotWidenSavedFrontierActorOrSaveVisibility(): void
     {
-        $later=$this->appendHistory(1,['data'=>'Nora: Later insertion must stay outside the saved frontier.']);
+        $later=$this->appendHistory(1,['type'=>'chat','delivery_state'=>'presented',
+            'data'=>'Piper Wright: Later insertion must stay outside the saved frontier.']);
         $this->assertSame([$this->historyId],array_map(static fn(array $row): int=>(int)$row['history_event_id'],$this->historyRows()));
         $this->assertGreaterThan($this->historyId,$later);
         $this->setFrontier($later);

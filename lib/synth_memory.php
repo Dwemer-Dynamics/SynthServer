@@ -511,7 +511,7 @@ function synth_memory_capture_batch($db, int $minimumEvents = 5, int $intervalTi
                 AND type IN ('inputtext','inputtext_s','chat','backgroundchat','narration',
                     'conversation_start','conversation_end','infoaction','funcret','death','combatend',
                     'combatbark','itemfound','itemtransfer')
-                AND COALESCE(delivery_state,'spoken') IN ('emitted','spoken')
+                AND COALESCE(delivery_state,'spoken') IN ('emitted','spoken','presented')
                 AND data NOT ILIKE '%#MEMORY:%'
         ), memory_boundaries AS (
             SELECT *,CASE WHEN scene_location='' OR
