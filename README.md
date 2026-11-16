@@ -70,10 +70,10 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    powershell -ExecutionPolicy Bypass -File .\tools\create-synth-db-wsl.ps1
    ```
 
-   The script creates `synth` as a UTF-8 database if it is missing, enables the extensions,
-   imports `data/database_default.sql` only when the baseline schema is absent, and runs the
-   migrations (`tools/bootstrap-database.php`, see
-   [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md)). Without `vendor/` it fails before
+   The script creates `synth` as a UTF-8 database if it is missing, enables the extensions and
+   runs the migrations (`tools/bootstrap-database.php`, see
+   [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md)). On an empty database the baseline
+   migration installs the complete schema and stock data in one transaction. Without `vendor/` it fails before
    touching the database. It **never drops data** unless you pass `-Reset`.
 5. **Deploy to Apache:**
 

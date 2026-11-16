@@ -32,7 +32,10 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
   fresh installs and upgrades. `debug/db_updates.php` is the frozen legacy baseline; do not add
   blocks to it. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md).
 - Never commit `conf/conf.php`, credentials, logs, caches, generated audio, voice samples,
-  database dumps, `unittests/vendor/`, personal paths, or media without recorded provenance.
+  database dumps, `unittests/vendor/`, personal paths, or media without recorded provenance. The one
+  database export is the curated, checksummed baseline install
+  `core/dbmanager/migrations/Version20261115000000.fresh.sql` (schema and stock data only; provenance in
+  [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md#fresh-install)).
 - Prefer the existing PHPUnit suites. Add a new test file only when existing suites cannot
   cover a high-risk change.
 

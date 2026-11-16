@@ -2,9 +2,10 @@
 require_once __DIR__.'/DatabaseTestCase.php';
 
 // The schema migration owner through the real tools/bootstrap-database.php and the debug/db_updates.php compatibility
-// entry, each run in a child process against the disposable testdb so no per-process cache hides a step: fresh install
-// and recognized legacy upgrade converge, reruns change nothing, drifted or partial schemas are never baselined or
-// repaired by the legacy chain, unknown records stop everything first, the baseline reverts without touching the
+// entry, each run in a child process against the disposable testdb so no per-process cache hides a step: an empty
+// database is installed by the baseline migration in one transaction and matches the legacy fresh install (default SQL,
+// then the chain), a failed or killed install leaves it empty, the legacy fresh install and recognized legacy upgrade
+// converge, reruns change nothing, drifted or partial schemas are never baselined or repaired by the legacy chain, unknown records stop everything first, the baseline reverts without touching the
 // legacy schema, and concurrent, direct, transactional or killed runs stay consistent.
 final class SchemaMigrationOwnerTest extends DatabaseTestCase
 {
@@ -42,7 +43,25 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertStringNotContainsString('[error]', $output, 'The legacy fixture chain logged an error.');
         self::loadTestRuntime();
         self::snapshotTestDatabaseAsFixture();
+
+        // The reference for the fresh path: this legacy fresh install after one real bootstrap (which also loads the
+        // narrator settings, seeding their missing keys), before setUp() adjusts test rows. setUp() replaces this copy.
+        $process = proc_open([PHP_BINARY, dirname(__DIR__, 2).'/tools/bootstrap-database.php'],
+            [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, null,
+            array_merge(getenv(), ['SYNTH_DB_HOST' => 'localhost', 'SYNTH_DB_PORT' => '5432', 'SYNTH_DB_NAME' => 'testdb',
+                'SYNTH_DB_USER' => 'dwemer', 'SYNTH_DB_PASSWORD' => 'dwemer']));
+        self::assertIsResource($process);
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        self::assertSame(0, proc_close($process), "The legacy fixture bootstrap failed: {$output}");
+        $pg = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        self::$legacyInstall = self::installFingerprint($pg);
+        self::$legacyWriters = count(self::installWriters($pg, false));
+        pg_close($pg);
     }
+
+    private static array $legacyInstall = [];
+    private static int $legacyWriters = 0;
 
     public function tearDown(): void
     {
@@ -58,8 +77,13 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
     private function rows(string $sql, array $params = []): array
     {
-        $result = pg_query_params($this->pg(), $sql, $params);
-        self::assertNotFalse($result, pg_last_error($this->pg()));
+        return self::rowsOn($this->pg(), $sql, $params);
+    }
+
+    private static function rowsOn(\PgSql\Connection $pg, string $sql, array $params = []): array
+    {
+        $result = pg_query_params($pg, $sql, $params);
+        self::assertNotFalse($result, pg_last_error($pg));
         return pg_fetch_all($result) ?: [];
     }
 
@@ -478,6 +502,255 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
         $this->assertBootstrapSucceeds();
         self::assertSame($legacySchema, $this->schemaFingerprint());
+    }
+
+    // A new, empty UTF-8 database: what the WSL provisioner hands the bootstrap, minus the extensions it pre-creates.
+    private function recreateEmptyDatabase(): void
+    {
+        if ($this->pg !== null) pg_close($this->pg);
+        $this->pg = null;
+        self::recreateEmptyTestDatabase();
+    }
+
+    private function assertDatabaseIsEmpty(): void
+    {
+        self::assertSame([], $this->rows("SELECT nspname FROM pg_namespace
+            WHERE nspname NOT LIKE 'pg\\_%' AND nspname NOT IN ('public', 'information_schema')"));
+        self::assertSame([['extname' => 'plpgsql']], $this->rows('SELECT extname FROM pg_extension ORDER BY 1'));
+        self::assertSame('0', $this->value("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public'"));
+    }
+
+    // What schemaFingerprint() leaves out, by object: every row of every application table except the version table
+    // (install-time timestamps excluded), sequence positions, view, function and trigger definitions, comments, and
+    // the extensions with their schemas. Equal on two databases means the same install, apart from when it ran.
+    private static function installFingerprint(\PgSql\Connection $pg): array
+    {
+        $fingerprint = [];
+        foreach (self::rowsOn($pg, "SELECT table_schema, table_name FROM information_schema.tables
+                WHERE table_schema IN ('synth', 'synth_meta') AND table_type = 'BASE TABLE'
+                  AND table_name <> 'doctrine_migration_versions' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
+            $columns = array_column(self::rowsOn($pg, "SELECT quote_ident(column_name) AS name FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2 AND data_type NOT LIKE 'timestamp%' ORDER BY ordinal_position",
+                [$schema, $table]), 'name');
+            $row = 'ROW('.implode(', ', $columns).')::text';
+            $relation = pg_escape_identifier($pg, $schema).'.'.pg_escape_identifier($pg, $table);
+            $fingerprint["rows {$schema}.{$table}"] = self::rowsOn($pg, "SELECT count(*) || ' ' || md5(coalesce(string_agg({$row}, E'\\n'
+                ORDER BY {$row}), '')) AS rows FROM {$relation}")[0]['rows'];
+        }
+        foreach (self::rowsOn($pg, <<<'SQL'
+                SELECT 'sequence ' || schemaname || '.' || sequencename AS name, coalesce(last_value::text, 'unused') AS definition
+                  FROM pg_sequences WHERE schemaname IN ('synth', 'synth_meta')
+                UNION ALL
+                SELECT 'view ' || c.oid::regclass, pg_get_viewdef(c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname IN ('synth', 'synth_meta') AND c.relkind IN ('v', 'm')
+                UNION ALL
+                SELECT 'function ' || p.oid::regprocedure, pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                 WHERE n.nspname IN ('synth', 'synth_meta') AND p.prokind IN ('f', 'p')
+                   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+                UNION ALL
+                SELECT 'trigger ' || t.tgrelid::regclass || ' ' || t.tgname, pg_get_triggerdef(t.oid) FROM pg_trigger t
+                  JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE NOT t.tgisinternal AND n.nspname IN ('synth', 'synth_meta')
+                UNION ALL
+                SELECT 'comment ' || n.nspname, obj_description(n.oid, 'pg_namespace') FROM pg_namespace n
+                 WHERE n.nspname IN ('synth', 'synth_meta', 'plugins')
+                UNION ALL
+                SELECT 'comment ' || c.oid::regclass || coalesce('.' || a.attname, ''),
+                       CASE WHEN a.attnum IS NULL THEN obj_description(c.oid, 'pg_class') ELSE col_description(c.oid, a.attnum) END
+                  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+                 WHERE n.nspname IN ('synth', 'synth_meta') AND c.relkind IN ('r', 'p', 'v', 'm')
+                   AND c.relname <> 'doctrine_migration_versions'
+                UNION ALL
+                SELECT 'extension ' || e.extname, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+                SQL) as ['name' => $name, 'definition' => $definition]) {
+            if ($definition !== null) $fingerprint[$name] = md5($definition);
+        }
+        ksort($fingerprint, SORT_STRING);
+        return $fingerprint;
+    }
+
+    // The writing transaction (xmin) of the stock rows, the synth and plugins schemas and the application relations,
+    // with the version record when $withLedger: one writer means one transaction created them all.
+    private static function installWriters(\PgSql\Connection $pg, bool $withLedger): array
+    {
+        $ledger = $withLedger ? 'UNION ALL SELECT xmin::text FROM synth_meta.doctrine_migration_versions' : '';
+        return array_column(self::rowsOn($pg, <<<SQL
+            SELECT writer, count(*) AS objects FROM (
+                SELECT xmin::text AS writer FROM synth.database_versioning
+                UNION ALL SELECT xmin::text FROM synth.prompts
+                UNION ALL SELECT xmin::text FROM synth.general_settings
+                UNION ALL SELECT xmin::text FROM synth.core_action
+                UNION ALL SELECT xmin::text FROM synth.core_profiles
+                UNION ALL SELECT xmin::text FROM synth.worldknowledge
+                UNION ALL SELECT xmin::text FROM pg_namespace WHERE nspname IN ('synth', 'plugins')
+                UNION ALL SELECT c.xmin::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname IN ('synth', 'synth_meta')
+                   AND c.relname NOT IN ('doctrine_migration_versions', 'doctrine_migration_versions_pkey')
+                {$ledger}
+            ) writers GROUP BY writer
+            SQL), 'objects', 'writer');
+    }
+
+    // An empty database: the baseline migration installs the frozen schema and stock seeds itself, with no legacy chain
+    // and no separate SQL import, in the same transaction as its version record. The result is the legacy fresh install
+    // (default SQL, then the chain) apart from install-time timestamps. Two bootstraps at once install it once, a rerun
+    // changes nothing, and reverting keeps the install, which the next run verifies and records again.
+    public function testEmptyDatabaseIsInstalledByTheBaselineMigrationInOneTransaction(): void
+    {
+        $legacySchema = $this->schemaFingerprint();
+        self::assertGreaterThan(1, self::$legacyWriters, 'The legacy chain writes in many transactions; the check must tell them apart.');
+
+        $this->recreateEmptyDatabase();
+        $this->assertDatabaseIsEmpty();
+        $first = $this->startBootstrap();
+        $second = $this->startBootstrap();
+        foreach ([$this->finish($first), $this->finish($second)] as $result) {
+            self::assertSame(0, $result['exit'], $result['output']);
+            self::assertStringContainsString('schema migrations recorded: 1 (latest '.self::BASELINE.')', $result['output']);
+        }
+        $recorded = $this->recorded();
+        self::assertSame([self::BASELINE], array_keys($recorded));
+        self::assertSame($legacySchema, $this->schemaFingerprint(), 'A fresh install must match the legacy fresh install.');
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+        self::assertCount(1, self::installWriters($this->pg(), true), 'Schema, seeds and version record must commit together.');
+        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+
+        $this->assertBootstrapSucceeds();
+        self::assertSame($recorded, $this->recorded(), 'A rerun must not record the baseline again.');
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+
+        $owner = $this->owner();
+        try {
+            self::assertSame([], $owner->revertTo('first'));
+        } finally {
+            $owner->close();
+        }
+        self::assertSame([], $this->recorded());
+        self::assertSame($legacySchema, $this->schemaFingerprint(), 'Reverting must keep the installed schema.');
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+        $this->assertBootstrapSucceeds();
+        self::assertSame($legacySchema, $this->schemaFingerprint());
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+    }
+
+    // The WSL provisioner creates both extensions in public before the bootstrap, as postgres. That database still counts
+    // as empty, and the install uses the existing extensions: it differs from the reference only in where pg_trgm lives.
+    public function testFreshInstallUsesExtensionsTheProvisionerCreatedInPublic(): void
+    {
+        $this->recreateEmptyDatabase();
+        $this->rows('CREATE EXTENSION vector WITH SCHEMA public');
+        $this->rows('CREATE EXTENSION pg_trgm WITH SCHEMA public');
+        $this->assertBootstrapSucceeds();
+        $install = self::installFingerprint($this->pg());
+        self::assertSame(md5('public'), $install['extension pg_trgm']);
+        self::assertSame(['extension pg_trgm' => md5('synth')], array_diff_assoc(self::$legacyInstall, $install));
+        self::assertSame(['extension pg_trgm' => md5('public')], array_diff_assoc($install, self::$legacyInstall));
+        self::assertCount(4, $this->rows("SELECT indexname FROM pg_indexes WHERE schemaname = 'synth' AND indexdef LIKE '%gin_trgm_ops%'"));
+    }
+
+    // A failure anywhere in the plan (here a later migration after the baseline) rolls the whole install back, including
+    // the synth_meta schema, the version table and the extensions the run created, so a retry starts from an empty
+    // database again.
+    public function testFailedFreshInstallLeavesTheDatabaseEmptyAndARetryInstallsIt(): void
+    {
+        $legacySchema = $this->schemaFingerprint();
+        $this->recreateEmptyDatabase();
+        $failed = $this->finish($this->startLaterMigration(true));
+        self::assertSame(3, $failed['exit'], $failed['output']);
+        self::assertStringContainsString('duplicate key', $failed['output']);
+        $this->assertDatabaseIsEmpty();
+
+        $this->assertBootstrapSucceeds();
+        self::assertSame($legacySchema, $this->schemaFingerprint());
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+    }
+
+    // A bootstrap killed inside its migration transaction (seen from another session once that transaction has written)
+    // leaves nothing behind once its orphaned backend ends, and a rerun installs normally.
+    public function testFreshInstallKilledInsideItsTransactionLeavesTheDatabaseEmpty(): void
+    {
+        $this->recreateEmptyDatabase();
+        $run = $this->startBootstrap();
+        $writing = "SELECT count(*) FROM pg_stat_activity WHERE datname = 'testdb'
+            AND application_name = 'synth-schema-migrations' AND backend_xid IS NOT NULL";
+        $deadline = microtime(true) + 120;
+        while ($this->value($writing) === '0') {
+            self::assertTrue(proc_get_status($run[0])['running'], 'The bootstrap ended before its transaction was seen.');
+            self::assertLessThan($deadline, microtime(true), 'The migration transaction never started.');
+            usleep(20000);
+        }
+        proc_terminate($run[0], 9);
+        $this->finish($run);
+        $deadline = microtime(true) + 120;
+        while ($this->value("SELECT count(*) FROM pg_stat_activity WHERE datname = 'testdb'
+                AND application_name = 'synth-schema-migrations'") !== '0') {
+            self::assertLessThan($deadline, microtime(true), 'The orphaned migration backend did not end.');
+            usleep(100000);
+        }
+        self::assertSame([], $this->recorded());
+        $this->assertDatabaseIsEmpty();
+
+        $this->assertBootstrapSucceeds();
+        self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+    }
+
+    // Only a database with nothing in it is installed fresh. Extensions and the version table (which the owner creates
+    // first, in the same transaction) do not count; any other schema or object keeps the legacy path, which never
+    // replaces what is there. The generated statements are intact and one per chunk.
+    public function testOnlyADatabaseWithNothingInItIsInstalledFresh(): void
+    {
+        require_once dirname(__DIR__, 2).'/vendor/autoload.php';
+        require_once dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261115000000.php';
+        $connect = static fn (): \Doctrine\DBAL\Connection => \Doctrine\DBAL\DriverManager::getConnection(['driver' => 'pgsql',
+            'host' => 'localhost', 'port' => 5432, 'dbname' => 'testdb', 'user' => 'dwemer', 'password' => 'dwemer']);
+        $connection = $connect();
+        try {
+            self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), 'A legacy install is not empty.');
+        } finally {
+            $connection->close();
+        }
+
+        $this->recreateEmptyDatabase();
+        $connection = $connect();
+        try {
+            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            $connection->beginTransaction();
+            foreach (['CREATE EXTENSION vector', 'CREATE EXTENSION pg_trgm', 'CREATE SCHEMA synth_meta',
+                         'CREATE TABLE synth_meta.doctrine_migration_versions (version varchar(191) PRIMARY KEY, executed_at timestamp(0), execution_time integer)']
+                     as $sql) {
+                $connection->executeStatement($sql);
+            }
+            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            foreach ([
+                'table' => 'CREATE TABLE public.stray (id integer)',
+                'view' => 'CREATE VIEW public.stray AS SELECT 1 AS id',
+                'sequence' => 'CREATE SEQUENCE public.stray',
+                'function' => 'CREATE FUNCTION public.stray() RETURNS integer LANGUAGE sql AS $$SELECT 1$$',
+                'type' => "CREATE TYPE public.stray AS ENUM ('stray')",
+                'synth schema' => 'CREATE SCHEMA synth',
+                'plugins schema' => 'CREATE SCHEMA plugins',
+                'other schema' => 'CREATE SCHEMA stray',
+                'other synth_meta table' => 'CREATE TABLE synth_meta.stray (id integer)',
+            ] as $case => $sql) {
+                $connection->executeStatement('SAVEPOINT stray');
+                $connection->executeStatement($sql);
+                self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), $case);
+                $connection->executeStatement('ROLLBACK TO SAVEPOINT stray');
+            }
+            $connection->rollBack();
+        } finally {
+            $connection->close();
+        }
+        $this->assertDatabaseIsEmpty();
+
+        $statements = \Synth\Migrations\Version20261115000000::freshInstallStatements();
+        self::assertCount(783, $statements);
+        foreach ($statements as $statement) {
+            self::assertStringEndsWith(';', rtrim($statement));
+            self::assertStringNotContainsString('-- end-statement', $statement);
+        }
     }
 
     // Everything the legacy snapshot helpers could touch: both application schemas, the ledgers, the profile rows,

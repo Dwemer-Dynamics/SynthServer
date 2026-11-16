@@ -157,8 +157,8 @@ abstract class DatabaseTestCase extends TestCase
         pg_close($mainConnection);
     }
 
-    // A fresh install before any migration: an empty UTF-8 testdb with only data/database_default.sql imported.
-    protected static function recreateTestDatabaseFromDefaultSql(): void
+    // A new, empty UTF-8 testdb: no schema besides public, no extension, no object.
+    protected static function recreateEmptyTestDatabase(): void
     {
         self::resetSharedTestConnection();
         // Connect to the main database
@@ -181,6 +181,13 @@ abstract class DatabaseTestCase extends TestCase
         self::configureTestDatabase($mainConnection, self::$testDatabaseName);
 
         pg_close($mainConnection);
+    }
+
+    // A pre-ledger legacy install before the legacy chain: an empty UTF-8 testdb with only data/database_default.sql
+    // imported. (An empty database is installed by the baseline migration instead; see recreateEmptyTestDatabase.)
+    protected static function recreateTestDatabaseFromDefaultSql(): void
+    {
+        self::recreateEmptyTestDatabase();
 
         // Connect to the new test database
         $connString = "host=localhost dbname=".self::$testDatabaseName." user=dwemer password=dwemer";

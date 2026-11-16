@@ -8,11 +8,16 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
+use Doctrine\Migrations\Exception\AbortMigration;
 
-// Recognizes the frozen legacy bootstrap baseline: the schema data/database_default.sql plus debug/db_updates.php
-// produce at 42c7e0e. It changes no schema and no row. up() only verifies, inside the all-or-nothing migration
-// transaction, so a failed, partial or drifted install aborts before Doctrine records this version. Later schema
-// changes are new migrations here, never new debug/db_updates.php blocks.
+// The frozen legacy bootstrap baseline: the schema data/database_default.sql plus debug/db_updates.php produce at
+// 42c7e0e. On an existing install it only recognizes that baseline and changes no schema and no row. On an empty
+// database it installs it: up() adds the statements of Version20261115000000.fresh.sql (generated data, see
+// docs/SCHEMA-MIGRATIONS.md), so the complete schema and stock seeds are created in the owner's all-or-nothing
+// transaction without the legacy chain or a separate data/database_default.sql import. Either way postUp() verifies
+// inside that transaction, after the statements and before Doctrine records this version, so a failed, partial or
+// drifted install aborts and records nothing. Later schema changes are new migrations here, never new
+// debug/db_updates.php blocks.
 //
 // The structure check compares against Version20261115000000.structure.txt, generated from a disposable PostgreSQL 15
 // inventory of that commit: every baseline table and view by name, every column (type, nullability, default,
@@ -51,6 +56,11 @@ final class Version20261115000000 extends AbstractMigration
         'social_tasks_schema' => 20261102001, 'private_narrator_schema' => 20261113001,
     ];
 
+    // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
+    private const FRESH_INSTALL_FILE = 'Version20261115000000.fresh.sql';
+    private const FRESH_INSTALL_SHA256 = '4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7';
+    private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
+
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
     private const FROZEN_PROMPT_KEYS = ['synth_system_prompt', 'synth_response_rules', 'synth_world_prompt',
         'synth_scene_prompt', 'synth_memory_prompt'];
@@ -80,15 +90,82 @@ final class Version20261115000000 extends AbstractMigration
         return 'Recognize the verified frozen debug/db_updates.php baseline';
     }
 
+    // An empty database gets the frozen baseline, one statement at a time (DBAL's pgsql driver reads only the first
+    // result of a multi-statement query, so a later failing statement would go unnoticed). Anything else is verified
+    // as it stands; the migration owner has already run the legacy chain on a pre-ledger install that needed it.
     public function up(Schema $schema): void
+    {
+        if (!self::isEmptyDatabase($this->connection)) return;
+        try {
+            $statements = self::freshInstallStatements();
+        } catch (\RuntimeException $error) {
+            throw new AbortMigration($error->getMessage());
+        }
+        foreach ($statements as $statement) $this->addSql($statement);
+    }
+
+    // After up()'s statements and before Doctrine records the version, in the same transaction.
+    public function postUp(Schema $schema): void
     {
         $problems = self::problems($this->connection);
         $this->abortIf($problems !== [], 'Legacy baseline verification failed: '.implode('; ', $problems));
     }
 
-    // Recognition only: reverting removes this record and leaves every legacy object and row in place.
+    // Reverting removes this record and leaves every object and row in place, whether the baseline was recognized or
+    // installed; the next run then finds a non-empty database and verifies it again.
     public function down(Schema $schema): void
     {
+    }
+
+    /**
+     * True when the database holds nothing a SYNTH install or anything else created: no schema besides public and
+     * synth_meta, and no relation, function or standalone type in either that is not an extension member, apart from
+     * the Doctrine version table (the owner creates synth_meta and that table first, in the same transaction). Only
+     * such a database is installed fresh; every other one keeps the legacy path, so nothing existing is replaced.
+     */
+    public static function isEmptyDatabase(Connection $connection): bool
+    {
+        $state = $connection->fetchAssociative(<<<'SQL'
+            WITH ledger AS (SELECT to_regclass('synth_meta.doctrine_migration_versions') AS oid),
+            member AS (SELECT classid, objid FROM pg_depend WHERE deptype = 'e')
+            SELECT (SELECT count(*) FROM pg_namespace n
+                     WHERE n.nspname NOT IN ('public', 'synth_meta', 'information_schema') AND n.nspname NOT LIKE 'pg\_%') AS schemas,
+                   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, ledger
+                     WHERE n.nspname IN ('public', 'synth_meta') AND c.oid IS DISTINCT FROM ledger.oid
+                       AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indexrelid = c.oid AND i.indrelid = ledger.oid)
+                       AND NOT EXISTS (SELECT 1 FROM member m WHERE m.classid = 'pg_class'::regclass AND m.objid = c.oid)) AS relations,
+                   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                     WHERE n.nspname IN ('public', 'synth_meta')
+                       AND NOT EXISTS (SELECT 1 FROM member m WHERE m.classid = 'pg_proc'::regclass AND m.objid = p.oid)) AS functions,
+                   (SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                     WHERE n.nspname IN ('public', 'synth_meta') AND t.typrelid = 0 AND t.typcategory <> 'A'
+                       AND NOT EXISTS (SELECT 1 FROM member m WHERE m.classid = 'pg_type'::regclass AND m.objid = t.oid)) AS types
+            SQL) ?: [];
+        foreach (['schemas', 'relations', 'functions', 'types'] as $key) {
+            if ((int) ($state[$key] ?? 1) !== 0) return false;
+        }
+        return true;
+    }
+
+    /**
+     * The fresh-install statements, in order. Refused unless the file matches its recorded SHA-256 (after CRLF to LF,
+     * which a checkout may apply; the generated file holds no CR) and ends with a statement end.
+     *
+     * @return list<string>
+     */
+    public static function freshInstallStatements(): array
+    {
+        $sql = @file_get_contents(__DIR__.'/'.self::FRESH_INSTALL_FILE);
+        if ($sql === false) throw new \RuntimeException('The fresh-install baseline schema is unreadable');
+        $sql = str_replace("\r\n", "\n", $sql);
+        if (!hash_equals(self::FRESH_INSTALL_SHA256, hash('sha256', $sql))) {
+            throw new \RuntimeException('The fresh-install baseline schema does not match its recorded checksum');
+        }
+        $statements = explode(self::FRESH_INSTALL_STATEMENT_END, $sql);
+        if (array_pop($statements) !== '' || $statements === []) {
+            throw new \RuntimeException('The fresh-install baseline schema does not end with a statement end');
+        }
+        return $statements;
     }
 
     /**
