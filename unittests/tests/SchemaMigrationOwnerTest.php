@@ -530,4 +530,167 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertBootstrapSucceeds();
         self::assertSame($before, $this->snapshotState());
     }
+
+    // An in-process owner on testdb. With $later, the later fixture migration (startLaterMigration's class, empty
+    // here) is declared and registered, so a ledger holding it counts as known.
+    private function owner(bool $later = false): \Synth\Core\Doctrine\SchemaMigrations
+    {
+        require_once dirname(__DIR__, 2).'/core/dbmanager/SchemaMigrations.php';
+        $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(['host' => 'localhost', 'port' => '5432',
+            'dbname' => 'testdb', 'username' => 'dwemer', 'password' => 'dwemer'], 1, $later ? [self::LATER] : []);
+        if ($later && !class_exists(self::LATER, false)) {
+            eval('namespace Synth\Migrations; final class Version29990101000001 extends \Doctrine\Migrations\AbstractMigration
+                { public function up(\Doctrine\DBAL\Schema\Schema $schema): void {} }');
+        }
+        return $owner;
+    }
+
+    // Whether the owner's lock is free, seen from another session (taken and dropped again when it is).
+    private function migrationLockIsFree(): bool
+    {
+        $probe = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        try {
+            $free = pg_fetch_result(pg_query($probe, "SELECT pg_try_advisory_lock(hashtextextended('synth-schema-migrations', 0))"), 0, 0) === 't';
+            if ($free) pg_query($probe, "SELECT pg_advisory_unlock(hashtextextended('synth-schema-migrations', 0))");
+            return $free;
+        } finally {
+            pg_close($probe);
+        }
+    }
+
+    // $call($work) is refused with $message, $work never runs, the lock is free and nothing changed.
+    private function assertSnapshotRefused(callable $call, string $message): void
+    {
+        $before = $this->snapshotState();
+        $ran = false;
+        try {
+            $call(function () use (&$ran): void { $ran = true; });
+            self::fail("Snapshot entry must be refused: {$message}");
+        } catch (\RuntimeException $error) {
+            self::assertStringContainsString($message, $error->getMessage());
+        }
+        self::assertFalse($ran, 'Guarded snapshot work must not run after a refusal.');
+        self::assertTrue($this->migrationLockIsFree());
+        self::assertSame($before, $this->snapshotState());
+    }
+
+    private function markers(): array
+    {
+        return array_column($this->rows('SELECT gamets FROM synth_profile_kept.eventlog ORDER BY 1'), 'gamets');
+    }
+
+    // The compatibility guard only: capture takes the synth source and exposes the exact ledger; restore reads its
+    // target under the lock in the owner's transaction and refuses anything but the exact live metadata before its
+    // work; the owner commits or rolls back. No snapshot is written or restored, and the legacy pause stays.
+    public function testSnapshotGuardMatchesTheExactLedgerInsideOneLockedTransaction(): void
+    {
+        require_once dirname(__DIR__, 2).'/lib/playthrough_snapshot.php';
+        $this->rows('CREATE SCHEMA synth_profile_kept');
+        $this->rows('CREATE TABLE synth_profile_kept.eventlog (gamets bigint)');
+        $this->rows('INSERT INTO synth_profile_kept.eventlog VALUES (7)');
+        $metadata = static fn (array $versions): array =>
+            ['format' => 'synth-schema-snapshot.v1', 'schema' => 'synth', 'migration_versions' => $versions];
+        $owner = $this->owner(true);
+        $capture = static fn (string $source = 'synth'): \Closure =>
+            static fn (callable $work): mixed => $owner->captureSnapshot($source, $work);
+        $restore = static fn (callable $readTarget): \Closure =>
+            static fn (callable $work): mixed => $owner->restoreSnapshot($readTarget, $work);
+        $unread = static fn (): never => self::fail('The target must not be read before the live ledger is checked.');
+        try {
+            // Missing ledger: no version table yet, then an empty one. The target is never read.
+            self::assertSame([], $this->recorded());
+            $this->assertSnapshotRefused($capture(), 'database records no schema migrations');
+            $this->assertBootstrapSucceeds();
+            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions');
+            $this->assertSnapshotRefused($capture(), 'database records no schema migrations');
+            $this->assertSnapshotRefused($restore($unread), 'database records no schema migrations');
+            $this->assertBootstrapSucceeds();
+            $state = $this->snapshotState();
+            foreach (['public', 'synth_profile_kept', 'synth_meta', 'SYNTH', ''] as $source) {
+                $this->assertSnapshotRefused($capture($source), 'captured only from the synth schema');
+            }
+
+            $captured = $owner->captureSnapshot('synth', function (array $metadata, \Doctrine\DBAL\Connection $c): array {
+                self::assertFalse($this->migrationLockIsFree(), 'Capture work must run under the lock.');
+                self::assertTrue($c->isTransactionActive(), 'Capture work must run in the owner transaction.');
+                return $metadata;
+            });
+            self::assertSame($metadata([self::BASELINE]), $captured);
+            $target = ['id' => 7, 'metadata' => $captured];
+            self::assertSame($target, $owner->restoreSnapshot(function (\Doctrine\DBAL\Connection $c) use ($target): array {
+                self::assertFalse($this->migrationLockIsFree(), 'The target must be read under the lock.');
+                self::assertTrue($c->isTransactionActive(), 'The target must be read in the owner transaction.');
+                return $target;
+            }, static fn (array $checked): array => $checked));
+            self::assertTrue($this->migrationLockIsFree());
+
+            // A two-version ledger: only its exact canonical metadata restores. [LATER] alone shares its newest member.
+            $this->rows('INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ($1)', [self::LATER]);
+            $both = $owner->captureSnapshot('synth', static fn (array $metadata): array => $metadata);
+            self::assertSame($metadata([self::BASELINE, self::LATER]), $both);
+            // Key order of the metadata object is irrelevant: reordered keys and a JSONB round trip both restore.
+            $jsonb = json_decode($this->value('SELECT $1::jsonb::text', [json_encode($both)]), true, 512, JSON_THROW_ON_ERROR);
+            foreach (['reordered keys' => array_reverse($both, true), 'jsonb round trip' => $jsonb] as $stored) {
+                $checked = ['id' => 7, 'metadata' => $stored];
+                self::assertSame($checked, $owner->restoreSnapshot(static fn (): array => $checked,
+                    static fn (array $target): array => $target));
+            }
+            self::assertSame(['migration_versions', 'schema', 'format'], array_keys(array_reverse($both, true)));
+            foreach ([
+                'not an array' => json_encode(['metadata' => $both]),
+                'no metadata' => ['id' => 7],
+                'null metadata' => ['metadata' => null],
+                'same newest version' => ['metadata' => $metadata([self::LATER])],
+                'older set' => ['metadata' => $captured],
+                'superset' => ['metadata' => $metadata([self::BASELINE, 'Synth\\Migrations\\Version20200101000000', self::LATER])],
+                'unsorted' => ['metadata' => $metadata([self::LATER, self::BASELINE])],
+                'repeated' => ['metadata' => $metadata([self::BASELINE, self::LATER, self::LATER])],
+                'other format' => ['metadata' => array_merge($both, ['format' => 'synth-schema-snapshot.v2'])],
+                'other schema' => ['metadata' => array_merge($both, ['schema' => 'public'])],
+                'extra key' => ['metadata' => array_merge($both, ['note' => 'x'])],
+                'missing key' => ['metadata' => array_diff_key($both, ['schema' => true])],
+                'reordered, unsorted list' => ['metadata' => array_reverse($metadata([self::LATER, self::BASELINE]), true)],
+                'reordered, list keys reordered' => ['metadata' => array_reverse(array_merge($both,
+                    ['migration_versions' => array_reverse($both['migration_versions'], true)]), true)],
+                'list instead of object' => ['metadata' => array_values($both)],
+            ] as $stored) {
+                $this->assertSnapshotRefused($restore(static fn (): mixed => $stored), 'does not match the schema migrations');
+            }
+
+            // The owner commits returned work and rolls back thrown work, releasing the lock either way.
+            $owner->captureSnapshot('synth', static fn (array $m, \Doctrine\DBAL\Connection $c): int =>
+                $c->executeStatement('INSERT INTO synth_profile_kept.eventlog VALUES (8)'));
+            self::assertSame(['7', '8'], $this->markers());
+            $this->rows('DELETE FROM synth_profile_kept.eventlog WHERE gamets = 8');
+            $failing = static function (mixed $unused, \Doctrine\DBAL\Connection $c): never {
+                $c->executeStatement('INSERT INTO synth_profile_kept.eventlog VALUES (9)');
+                throw new \RuntimeException('snapshot work failed');
+            };
+            foreach ([$capture(), $restore(static fn (): array => ['metadata' => $both])] as $call) {
+                try {
+                    $call($failing);
+                    self::fail('Failing snapshot work must throw.');
+                } catch (\RuntimeException $error) {
+                    self::assertSame('snapshot work failed', $error->getMessage());
+                }
+                self::assertTrue($this->migrationLockIsFree());
+                self::assertSame(['7'], $this->markers());
+            }
+            $this->assertSnapshotRefused(static fn (callable $work): mixed =>
+                $owner->captureSnapshot('synth', static function () use ($owner, $work): void { $owner->revertTo('first'); $work(); }),
+                'cannot be nested');
+
+            // Unknown live ledger: refused before the target is read or work runs, like every other entry.
+            $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
+            $this->assertSnapshotRefused($capture(), 'does not contain: Synth\\Migrations\\Version29990101000000');
+            $this->assertSnapshotRefused($restore($unread), 'does not contain: Synth\\Migrations\\Version29990101000000');
+            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version <> $1', [self::BASELINE]);
+        } finally {
+            $owner->close();
+        }
+        self::assertSame($state, $this->snapshotState());
+        self::assertSame(['success' => false, 'error' => PTS_SNAPSHOTS_UNAVAILABLE],
+            pts_clone_schema($this->pg(), 'synth', 'synth_profile_new'));
+        self::assertSame(0, timeline_break_create_snapshot('Timeline Break (test)', 'forged'));
+    }
 }

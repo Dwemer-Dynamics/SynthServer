@@ -22,6 +22,10 @@ final class SchemaMigrations
     public const METADATA_TABLE = 'synth_meta.doctrine_migration_versions';
     private const LOCK_NAME = 'synth-schema-migrations';
     private const LEGACY_LOCK_NAME = 'synth-schema-migrations-legacy';
+    // Snapshot compatibility metadata. The only supported source is the synth application schema; a new metadata
+    // layout needs a new format value, never a reinterpretation of this one.
+    public const SNAPSHOT_FORMAT = 'synth-schema-snapshot.v1';
+    public const SNAPSHOT_SCHEMA = 'synth';
 
     // Set only while this class itself includes debug/db_updates.php; any other include of that file delegates here.
     private static bool $runningLegacyBody = false;
@@ -150,6 +154,58 @@ final class SchemaMigrations
         });
     }
 
+    /**
+     * Snapshot compatibility guard for a future capture of $source, which must be the synth schema. Under the owner's
+     * lock and in one owner transaction it reads the live ledger once (refused when missing, empty or holding a
+     * version this tree does not contain) and calls $capture with the metadata the snapshot must store beside it and
+     * this owner's connection. Nothing is written here: storing the metadata and copying the schema belong to the
+     * future capture, which has no dedicated column yet.
+     *
+     * Trusted callback contract (here and in restoreSnapshot): callbacks run on this owner's connection inside the
+     * owner's DBAL transaction, while its session advisory lock is held. The owner commits when the last callback
+     * returns and before it unlocks, and rolls back when one throws. Callbacks must not begin, commit or roll back
+     * transactions, close or reconfigure the connection, release the lock, change the migration ledger, or call
+     * another owner entry (nesting is refused).
+     *
+     * @template T
+     * @param callable(array{format:string,schema:string,migration_versions:list<string>}, Connection):T $capture
+     * @return T
+     */
+    public function captureSnapshot(string $source, callable $capture): mixed
+    {
+        if ($source !== self::SNAPSHOT_SCHEMA) {
+            throw new \RuntimeException('Snapshots are captured only from the synth schema');
+        }
+        return $this->underSnapshotTransaction(fn (): mixed => $capture($this->snapshotMetadata(), $this->connection));
+    }
+
+    /**
+     * Snapshot compatibility guard for a future restore. Under the owner's lock and in one owner transaction it reads
+     * the live ledger once (refused like captureSnapshot), then calls $readTarget, which must only read the target
+     * snapshot's rows, lock them (SELECT ... FOR UPDATE) and return them as an array whose 'metadata' is what capture
+     * stored. Unless that metadata equals capture's metadata for the live ledger, the restore is refused and $restore
+     * never runs; otherwise $restore receives that same checked target. The metadata is compared as an object: the
+     * order of its top-level keys is ignored (a JSONB round trip may reorder them), but the field set, the scalar
+     * types and values and the ordered version list must match exactly. Both follow captureSnapshot's callback
+     * contract.
+     *
+     * @template T
+     * @param callable(Connection):array{metadata:mixed} $readTarget
+     * @param callable(array{metadata:mixed}, Connection):T $restore
+     * @return T
+     */
+    public function restoreSnapshot(callable $readTarget, callable $restore): mixed
+    {
+        return $this->underSnapshotTransaction(function () use ($readTarget, $restore): mixed {
+            $expected = $this->snapshotMetadata();
+            $target = $readTarget($this->connection);
+            if (!is_array($target) || self::canonicalObject($target['metadata'] ?? null) !== self::canonicalObject($expected)) {
+                throw new \RuntimeException('The snapshot does not match the schema migrations of this database and is not restored');
+            }
+            return $restore($target, $this->connection);
+        });
+    }
+
     /** @return list<string> */
     public function recordedVersions(): array
     {
@@ -175,16 +231,19 @@ final class SchemaMigrations
     }
 
     // A record this source tree does not know means the code is older than the database. Refuse before the legacy
-    // chain or any migration can touch it.
-    private function refuseUnknownRecords(DependencyFactory $factory): void
+    // chain or any migration can touch it. Returns the recorded versions it checked.
+    /** @return list<string> */
+    private function refuseUnknownRecords(DependencyFactory $factory): array
     {
         $known = array_map(static fn ($m): string => (string) $m->getVersion(),
             $factory->getMigrationRepository()->getMigrations()->getItems());
-        $unknown = array_values(array_diff($this->recordedVersions(), $known));
+        $recorded = $this->recordedVersions();
+        $unknown = array_values(array_diff($recorded, $known));
         if ($unknown !== []) {
             throw new \RuntimeException('The database records schema migrations this Synthserver version does not contain: '
                 .implode(', ', $unknown));
         }
+        return $recorded;
     }
 
     /** @return list<string> */
@@ -260,9 +319,43 @@ final class SchemaMigrations
         ) === 1;
     }
 
+    // The canonical metadata for the live ledger: present, nonempty and fully known to this tree, its versions in byte
+    // order (the database's ORDER BY follows its collation, which can differ between installs).
+    /** @return array{format:string,schema:string,migration_versions:list<string>} */
+    private function snapshotMetadata(): array
+    {
+        $versions = $this->refuseUnknownRecords($this->factory());
+        if ($versions === []) {
+            throw new \RuntimeException('This database records no schema migrations; snapshots need the migration ledger');
+        }
+        sort($versions, SORT_STRING);
+        return ['format' => self::SNAPSHOT_FORMAT, 'schema' => self::SNAPSHOT_SCHEMA, 'migration_versions' => $versions];
+    }
+
+    // Snapshot metadata as an object: only its top-level keys are put in byte order. Values, including the ordered
+    // version list, are left untouched, so the strict comparison still checks every type, value and list position.
+    private static function canonicalObject(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            ksort($value, SORT_STRING);
+        }
+        return $value;
+    }
+
+    // The owner lock around one DBAL transaction: committed before the lock is released, rolled back on a throw.
+    /** @template T @param \Closure():T $work @return T */
+    private function underSnapshotTransaction(\Closure $work): mixed
+    {
+        return $this->underLock(fn (): mixed => $this->connection->transactional($work));
+    }
+
     /** @template T @param callable():T $work @return T */
     private function underLock(callable $work): mixed
     {
+        // Nesting would re-enter the session lock and release it with the inner entry, before the outer one ends.
+        if ($this->locked) {
+            throw new \RuntimeException('SYNTH schema migration entries cannot be nested');
+        }
         $this->acquireLock();
         try {
             return $work();

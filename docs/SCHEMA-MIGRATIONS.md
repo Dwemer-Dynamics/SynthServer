@@ -68,6 +68,38 @@ The bootstrap then rechecks the runtime gate and fails unless the baseline is re
 message only, without a stack trace. `revertTo('first')` (API only, no CLI yet) removes the baseline record
 under the same lock. The legacy schema and its rows stay, and the next run verifies and records again.
 
+## Snapshot compatibility guard
+
+`SchemaMigrations::captureSnapshot()` and `restoreSnapshot()` are the entries a future snapshot capture and restore
+must run through. Nothing calls them yet: they write nothing, copy no schema, add no column, endpoint or UI, and
+the legacy snapshot pause (see Limits) stays fully in force.
+
+- Both take the owner's existing session lock (`synth-schema-migrations`) and run on the owner's own connection,
+  in one DBAL transaction opened by the owner. The owner commits when the callbacks return, before it unlocks,
+  and rolls back when one throws. No second lock is added and the legacy session is not used. Nested owner
+  entries are refused.
+- Both read the live ledger once, before any callback, and refuse a missing ledger (no version table, or no
+  record) and a record this tree does not contain.
+- `captureSnapshot($source, $capture)` refuses any source but `synth`. It passes the callback the metadata the
+  snapshot must store and the owner's connection: `format` (`synth-schema-snapshot.v1`), `schema` (`synth`) and
+  `migration_versions`, every recorded version sorted bytewise.
+- `restoreSnapshot($readTarget, $restore)` calls `$readTarget` inside the lock and transaction. It returns the
+  concrete target as an array whose `metadata` is what capture stored. Unless that metadata equals the live
+  capture metadata, the restore is refused and `$restore` never runs. Otherwise `$restore` receives that same
+  checked target. The metadata is compared as an object: the order of its top-level keys is ignored, because a
+  JSONB round trip may reorder them. Everything else is exact: the same three fields and no others, string
+  `format` and `schema` values, and `migration_versions` as the same ordered list of the same strings. A
+  different version set is refused even when it shares the newest version. Stored values are never named in
+  the error.
+- Trusted callback contract: `$readTarget` only reads and locks (`SELECT ... FOR UPDATE`) the target's rows.
+  No callback begins, commits or rolls back a transaction, closes or reconfigures the connection, releases
+  the lock, changes the migration ledger or calls another owner entry.
+
+Future integration needs separate review and approval: a reviewed place to persist the metadata with each
+snapshot (a dedicated column or table is a schema migration, and it must not be stored in an unrelated column).
+It also needs the actual capture and restore, run inside these callbacks. Then the manager UI
+and Timeline Break wiring can be re-enabled.
+
 ## What the baseline verifies
 
 - UTF8 encoding and the `vector` and `pg_trgm` extensions.
@@ -123,9 +155,11 @@ reaches the baseline by a path producing different constraint or index names is 
     Legacy rollback pruning therefore continues without an automatic snapshot; native scoped save and
     checkpoint loading remains separate.
   - Existing snapshot schemas and profile rows are kept as they are and are not marked compatible.
-- Re-enabling snapshots needs a reviewed design first: snapshots record the latest migration version, and
-  restore refuses a version that does not match the ledger. This is separate from ordinary native co-save
-  loading, which selects a playthrough without swapping schemas.
+- Re-enabling snapshots needs a reviewed design first: snapshots record their migration versions, and restore
+  refuses a set that does not match the ledger. The [compatibility guard](#snapshot-compatibility-guard) is the
+  owner-side check for this. Metadata persistence, the capture and restore themselves, and the UI and runtime
+  wiring are still missing. This is separate from ordinary native co-save loading, which selects a playthrough
+  without swapping schemas.
 - An install already switched by the old UI is treated by the owner as an invalid baseline, and every
   bootstrap and dashboard run is refused; it is not repaired silently. Deleting the ledger row or
   `revertTo('first')` is not a recovery: it cannot restore lost data. Recovery needs a verified backup or a
