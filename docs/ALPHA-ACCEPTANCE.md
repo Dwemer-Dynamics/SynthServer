@@ -45,11 +45,24 @@ See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md).
 - [ ] The same under PHP 8.2 and hosted CI with the new lock.
 - [ ] Upgrade of a real installed database copy (not the fixture) through the deploy script.
 - [ ] Deploy and in-game play: none claimed.
-- [ ] Before the first schema-changing migration: snapshots record the latest migration version, restore
-      refuses a mismatch with the `synth_meta` ledger, and the legacy UI playthrough switch (drops and
-      restores `public`, truncates `synth.database_versioning`, now refused by the owner) is replaced or
-      gated. Recovery of an affected install uses a verified backup or reviewed repair, approved
-      separately; deleting the ledger or `revertTo` is not recovery.
+- [x] Legacy playthrough snapshots gated (automated check only): the manager page is read-only and refuses
+      every non-GET/HEAD request before loading anything; the clone/drop/recreate helpers and the Timeline
+      Break autosnapshot refuse without touching the database; readiness only reads. Legacy rollback pruning
+      therefore proceeds without an automatic snapshot. On disposable PostgreSQL 17.11 with pgvector 0.8.7
+      and PHP 8.4.27: `SchemaCloneIdentityTest` (3 tests, 42 assertions, no risky), `SchemaMigrationOwnerTest`
+      (20 tests, 637 assertions), a disposable HTTP check (1 test, 291 assertions) that GET on an empty and a
+      populated install and forged create/switch/delete/unknown requests leave schemas, profiles, data, both
+      ledgers and `vector` columns unchanged, then the full `tests` directory (1371 tests, 27883 assertions,
+      0 failures, 0 risky, 5 deprecations). The server runs used a snapshot identical at runtime to the final
+      source, which adds only one tooltip CSS declaration and these docs. The HTTP check was then rerun on the
+      final source, and its captured pages were rendered at 1440x1000 and 390x844 with 0 failures (keyboard
+      focus and Escape, no horizontal overflow, injected names rendered as text). Those were captured pages
+      with fixture stats and external assets blocked, not the deployed UI. Real install, deploy, gameplay and
+      hosted CI (Actions disabled) are not verified.
+- [ ] Before snapshots are re-enabled: snapshots record the latest migration version and restore refuses a
+      mismatch with the `synth_meta` ledger. Recovery of an install already switched by the old UI uses a
+      verified backup or reviewed repair, approved separately; deleting the ledger or `revertTo` is not
+      recovery.
 
 ## Doctrine settings read pilot
 

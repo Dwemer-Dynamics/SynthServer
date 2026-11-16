@@ -1,13 +1,16 @@
 <?php
 
 /**
- * Playthrough Schema Management Library
- * 
- * Fast schema-based playthrough system using PostgreSQL schema cloning.
- * Replaces slow pg_dump/restore with instant in-database operations.
+ * Legacy playthrough snapshot schemas: read-only readiness, listing and inspection helpers.
  */
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'logger.php');
+
+// Snapshot create, restore and delete are paused. Snapshots copy the configured application schema but
+// not its migration version, and the old restore dropped `public` and cleared synth.database_versioning.
+// These helpers keep their return shapes but never change the database. Existing snapshot schemas and
+// profile rows are left as they are. Installing the clone functions belongs to the schema owner.
+const PTS_SNAPSHOTS_UNAVAILABLE = 'Playthrough snapshots are unavailable.';
 
 function pts_clone_function_is_current($definition): bool {
     return is_string($definition)
@@ -15,49 +18,24 @@ function pts_clone_function_is_current($definition): bool {
         && stripos($definition, 'sync_schema_sequences(dest_schema)') !== false;
 }
 
+/**
+ * Report whether the installed clone function is current. Read-only: it never installs functions.
+ */
 function pts_ensure_functions($conn): bool {
-    $checkQuery = "
+    $checkResult = @pg_query($conn, "
         SELECT pg_get_functiondef(p.oid) AS function_definition
           FROM pg_proc p
           JOIN pg_namespace n ON n.oid = p.pronamespace
          WHERE n.nspname = 'synth_meta'
            AND p.proname = 'clone_schema'
          LIMIT 1
-    ";
-    $checkResult = @pg_query($conn, $checkQuery);
+    ");
     $checkRow = $checkResult ? pg_fetch_assoc($checkResult) : false;
-    if ($checkRow && pts_clone_function_is_current($checkRow['function_definition'] ?? null)) {
-        return true;
-    }
-
-    if ($checkRow) {
-        Logger::info("Schema clone functions are outdated; refreshing definitions");
-    }
-
-    $sqlFile = __DIR__ . DIRECTORY_SEPARATOR . 'schema_clone_function.sql';
-    $sql = @file_get_contents($sqlFile);
-    if ($sql === false || trim($sql) === '') {
-        Logger::error("Schema clone function SQL is unavailable");
-        return false;
-    }
-
-    if (@pg_query($conn, $sql) === false) {
-        Logger::error("Could not install schema clone functions: " . pg_last_error($conn));
-        return false;
-    }
-
-    $verifyResult = @pg_query($conn, $checkQuery);
-    $verifyRow = $verifyResult ? pg_fetch_assoc($verifyResult) : false;
-    if (!$verifyRow || !pts_clone_function_is_current($verifyRow['function_definition'] ?? null)) {
-        Logger::error("Schema clone functions were not installed successfully");
-        return false;
-    }
-
-    return true;
+    return $checkRow && pts_clone_function_is_current($checkRow['function_definition'] ?? null);
 }
 
 /**
- * Verify the versioned playthrough metadata migration is available.
+ * Verify the versioned playthrough metadata migration is available. Read-only: no DDL.
  */
 function pts_metadata_schema_ready($conn): bool {
     $tableResult = @pg_query($conn, "
@@ -67,10 +45,6 @@ function pts_metadata_schema_ready($conn): bool {
     ");
     $tableRow = $tableResult ? pg_fetch_assoc($tableResult) : false;
     if (!$tableRow || empty($tableRow['profiles_relation']) || empty($tableRow['settings_relation'])) {
-        return false;
-    }
-
-    if (!pts_ensure_functions($conn)) {
         return false;
     }
 
@@ -132,78 +106,19 @@ function pts_schema_exists($conn, string $schemaName): bool {
 }
 
 /**
- * Clone a schema (source) to another schema (destination).
+ * Clone a schema. Paused: always refuses without touching the database.
  * Returns ['success' => bool, 'error' => string]
  */
 function pts_clone_schema($conn, string $sourceSchema, string $destSchema): array {
-    // Validate schema names
-    if (empty($sourceSchema) || empty($destSchema)) {
-        return ['success' => false, 'error' => 'Invalid schema names'];
-    }
-    
-    if (!pts_schema_exists($conn, $sourceSchema)) {
-        return ['success' => false, 'error' => "Source schema '{$sourceSchema}' does not exist"];
-    }
-    
-    // Drop destination if it exists (functions are in synth_meta schema)
-    $dropResult = @pg_query(
-        $conn,
-        "SELECT synth_meta.drop_schema_safe('" . pg_escape_string($conn, $destSchema) . "'::text)"
-    );
-    
-    if (!$dropResult) {
-        Logger::warn("Could not drop existing schema {$destSchema}: " . pg_last_error($conn));
-    }
-    
-    // Clone the schema (functions are in synth_meta schema)
-    $result = @pg_query(
-        $conn,
-        "SELECT synth_meta.clone_schema('" . pg_escape_string($conn, $sourceSchema) . "'::text, '" . pg_escape_string($conn, $destSchema) . "'::text)"
-    );
-    
-    if (!$result) {
-        $error = pg_last_error($conn);
-        Logger::error("Schema clone failed: {$error}");
-        return ['success' => false, 'error' => $error];
-    }
-    
-    Logger::info("Successfully cloned schema {$sourceSchema} to {$destSchema}");
-    return ['success' => true, 'error' => ''];
+    return ['success' => false, 'error' => PTS_SNAPSHOTS_UNAVAILABLE];
 }
 
 /**
- * Drop a schema safely (with protection for system schemas).
+ * Drop a profile schema. Paused: always refuses without touching the database.
  * Returns ['success' => bool, 'error' => string]
  */
 function pts_drop_schema($conn, string $schemaName): array {
-    if (empty($schemaName)) {
-        return ['success' => false, 'error' => 'Invalid schema name'];
-    }
-    
-    // Additional PHP-level protection
-    $protected = ['public', 'pg_catalog', 'information_schema', 'pg_toast', 'synth_meta'];
-    if (in_array(strtolower($schemaName), $protected)) {
-        return ['success' => false, 'error' => 'Cannot drop protected schema'];
-    }
-    
-    $result = @pg_query(
-        $conn,
-        "SELECT synth_meta.drop_schema_safe('" . pg_escape_string($conn, $schemaName) . "'::text)"
-    );
-    
-    if (!$result) {
-        $error = pg_last_error($conn);
-        Logger::error("Schema drop failed: {$error}");
-        return ['success' => false, 'error' => $error];
-    }
-    
-    $row = pg_fetch_assoc($result);
-    if ($row && isset($row['drop_schema_safe']) && $row['drop_schema_safe'] === 't') {
-        Logger::info("Successfully dropped schema {$schemaName}");
-        return ['success' => true, 'error' => ''];
-    }
-    
-    return ['success' => false, 'error' => 'Drop operation returned false'];
+    return ['success' => false, 'error' => PTS_SNAPSHOTS_UNAVAILABLE];
 }
 
 /**
@@ -234,27 +149,10 @@ function pts_get_schema_size($conn, string $schemaName): int {
 }
 
 /**
- * Recreate the public schema cleanly with required extensions.
- * This is used before cloning a profile schema back to synth.
+ * Recreate the public schema. Paused: always refuses without touching the database.
  */
 function pts_recreate_public_schema($conn): bool {
-    $queries = [
-        "DROP SCHEMA IF EXISTS public CASCADE",
-        "CREATE SCHEMA public",
-        // Extensions are database-level, not schema-level, so just ensure they exist
-        "CREATE EXTENSION IF NOT EXISTS vector",
-        "CREATE EXTENSION IF NOT EXISTS pg_trgm"
-    ];
-    
-    foreach ($queries as $query) {
-        $result = @pg_query($conn, $query);
-        if (!$result) {
-            Logger::error("Failed to execute: {$query} - " . pg_last_error($conn));
-            return false;
-        }
-    }
-    
-    return true;
+    return false;
 }
 
 /**

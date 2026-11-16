@@ -24,6 +24,11 @@ defaults, protocol, save and identity behavior are unchanged; no new schema obje
 table. See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md); checks are in
 [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#schema-migration-owner).
 
+Legacy playthrough snapshots are paused (candidate): the Playthrough Manager only lists existing profiles,
+and snapshot create, switch, delete and the Timeline Break autosnapshot change nothing. Existing snapshots
+are kept and not marked compatible. Re-enabling needs versioned snapshots and a ledger-checked restore
+first ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#limits)).
+
 ## Doctrine settings read pilot
 
 `SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`

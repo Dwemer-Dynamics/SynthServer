@@ -109,16 +109,27 @@ reaches the baseline by a path producing different constraint or index names is 
   the owner's refusals.
 - The shared in-process test fixture still lacks `synth.synthnpcs` for every class after the first (the
   pre-existing per-process flag above; base behavior, unchanged here).
-- Before the first schema-changing migration, snapshots must record the latest migration version and a
-  restore must refuse when that version does not match the ledger. This is separate from ordinary native
-  co-save loading, which selects a playthrough without swapping schemas.
-- The legacy UI playthrough profile switch (`ui/playthrough_manager.php`) drops and restores `public`
-  (`lib/playthrough_schema.php`, existing destructive behavior that also drops `vector` columns) and then
-  truncates `synth.database_versioning`. Once the baseline is recorded, the owner treats the result as an
-  invalid baseline and refuses every bootstrap and dashboard run; it does not repair it silently. Deleting
-  the ledger row or `revertTo('first')` is not a recovery: it cannot restore lost data. Recovery needs a
-  verified backup or a reviewed structural repair, approved separately, and must preserve the existing
-  install.
+- Legacy playthrough snapshots are paused. The old UI cloned `public` instead of the `synth` application schema,
+  and its switch dropped `public` (with every `vector` column) and truncated `synth.database_versioning`.
+  The Timeline Break autosnapshot copied `synth` without a migration version. Now:
+  - `ui/playthrough_manager.php` only lists and inspects profiles. It refuses every request other than GET or
+    HEAD (405) before loading configuration or the database, and GET no longer captures a `default` profile.
+  - In `lib/playthrough_schema.php`, `pts_clone_schema`, `pts_drop_schema` and `pts_recreate_public_schema`
+    refuse without using the connection (same array/bool returns). `pts_metadata_schema_ready` and
+    `pts_ensure_functions` only read; neither installs the clone functions (`debug/db_updates.php` still
+    does, unchanged).
+  - `timeline_break_create_snapshot` returns 0, its existing "no snapshot" result, before any connection,
+    lock or clone. Native save identity, checkpoints and rollback pruning are unchanged.
+    Legacy rollback pruning therefore continues without an automatic snapshot; native scoped save and
+    checkpoint loading remains separate.
+  - Existing snapshot schemas and profile rows are kept as they are and are not marked compatible.
+- Re-enabling snapshots needs a reviewed design first: snapshots record the latest migration version, and
+  restore refuses a version that does not match the ledger. This is separate from ordinary native co-save
+  loading, which selects a playthrough without swapping schemas.
+- An install already switched by the old UI is treated by the owner as an invalid baseline, and every
+  bootstrap and dashboard run is refused; it is not repaired silently. Deleting the ledger row or
+  `revertTo('first')` is not a recovery: it cannot restore lost data. Recovery needs a verified backup or a
+  reviewed structural repair, approved separately, and must preserve the existing install.
 - Once the baseline is recorded, a missing managed setting is refused rather than silently reseeded by the
   legacy chain.
 - Checks: [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#schema-migration-owner).

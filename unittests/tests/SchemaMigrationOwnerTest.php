@@ -479,4 +479,55 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertBootstrapSucceeds();
         self::assertSame($legacySchema, $this->schemaFingerprint());
     }
+
+    // Everything the legacy snapshot helpers could touch: both application schemas, the ledgers, the profile rows,
+    // every non-system schema with its relations, and every vector column in the database.
+    private function snapshotState(): array
+    {
+        return [$this->schemaFingerprint(), $this->dataChecksum(), $this->recorded(),
+            $this->rows('SELECT * FROM synth_meta.playthrough_profiles ORDER BY id'),
+            $this->rows("SELECT n.nspname, c.relname, c.relkind FROM pg_namespace n LEFT JOIN pg_class c ON c.relnamespace = n.oid
+                WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema' ORDER BY 1, 2"),
+            $this->rows("SELECT table_schema, table_name, column_name FROM information_schema.columns WHERE udt_name = 'vector' ORDER BY 1, 2, 3"),
+            $this->rows('SELECT * FROM synth_profile_kept.eventlog')];
+    }
+
+    // Snapshot create, restore and delete are paused: the shared helpers and the Timeline Break autosnapshot refuse
+    // without touching the database, even on a writable session, and readiness is read-only. An existing snapshot
+    // schema and its unversioned profile row stay exactly as they were, and the owner keeps bootstrapping.
+    public function testLegacyPlaythroughSnapshotHelpersCannotMutateAndExistingSnapshotsAreKept(): void
+    {
+        require_once dirname(__DIR__, 2).'/lib/playthrough_snapshot.php';
+        $this->populateLegacyInstall();
+        $this->assertBootstrapSucceeds();
+        $this->rows('CREATE SCHEMA synth_profile_kept');
+        $this->rows('CREATE TABLE synth_profile_kept.eventlog (gamets bigint)');
+        $this->rows('INSERT INTO synth_profile_kept.eventlog VALUES (7)');
+        $this->rows("INSERT INTO synth_meta.playthrough_profiles (name, size_bytes, notes, is_active, schema_name, storage_type, last_gamets)
+            VALUES ('kept', 0, 'existing', true, 'synth_profile_kept', 'schema', 7)");
+        $before = $this->snapshotState();
+
+        $readOnly = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        try {
+            self::assertNotFalse(pg_query($readOnly, 'SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY'));
+            self::assertTrue(pts_metadata_schema_ready($readOnly), pg_last_error($readOnly));
+            self::assertTrue(pts_ensure_functions($readOnly));
+        } finally {
+            pg_close($readOnly);
+        }
+
+        $refused = ['success' => false, 'error' => PTS_SNAPSHOTS_UNAVAILABLE];
+        foreach ([['synth', 'synth_profile_new'], ['public', 'synth_profile_kept'], ['synth_profile_kept', 'public'],
+                     ['synth_profile_kept', 'synth']] as [$source, $destination]) {
+            self::assertSame($refused, pts_clone_schema($this->pg(), $source, $destination));
+        }
+        self::assertSame($refused, pts_drop_schema($this->pg(), 'synth_profile_kept'));
+        self::assertFalse(pts_recreate_public_schema($this->pg()));
+        self::assertSame(0, timeline_break_create_snapshot('Timeline Break (test)', 'forged'));
+        self::assertSame(0, timeline_break_snapshot_if_needed(100000000, 1000));
+        self::assertSame($before, $this->snapshotState());
+
+        $this->assertBootstrapSucceeds();
+        self::assertSame($before, $this->snapshotState());
+    }
 }
