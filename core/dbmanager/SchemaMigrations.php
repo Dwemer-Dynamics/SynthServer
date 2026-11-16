@@ -93,7 +93,9 @@ final class SchemaMigrations
 
     /**
      * Brings the database to the latest migration and returns the recorded versions. Records this tree does not
-     * contain are refused before anything changes. Before the baseline is recorded, an install whose legacy versions
+     * contain are refused before anything changes. An empty database (LegacyBaseline::isEmptyDatabase) gets no legacy
+     * chain: the baseline migration installs its frozen schema and seeds in the same transaction as every later
+     * migration and the version records. Before the baseline is recorded, any other install whose legacy versions
      * are older than the frozen set gets the legacy chain first; one that already claims them is verified as it
      * stands. The baseline migration verifies and is recorded only if the result is complete. With the baseline as
      * the latest record the schema is re-verified against the baseline's frozen contract (never the current runtime's
@@ -111,6 +113,8 @@ final class SchemaMigrations
             return $this->withLegacyLock($legacy, function () use ($legacy, $factory): array {
                 $recorded = $this->recordedVersions();
                 if ($recorded === []) {
+                    // An empty database is installed by the baseline migration itself, inside the transaction below.
+                    if (LegacyBaseline::isEmptyDatabase($this->connection)) return $this->migrateTo($factory, 'latest', true);
                     if (!LegacyBaseline::legacyVersionsClaimCurrent($this->connection)) $this->runLegacyBody($legacy);
                 } elseif ($recorded === [LegacyBaseline::class]) {
                     $problems = LegacyBaseline::problems($this->connection);
@@ -246,16 +250,23 @@ final class SchemaMigrations
         return $recorded;
     }
 
+    // One owner transaction around the version table and the plan: with $createMetadataSchema (an empty database) the
+    // synth_meta schema the version table lives in, then the table, every migration and its record commit together or
+    // not at all. Doctrine's all-or-nothing and per-migration transactions nest inside it as savepoints, and a failure
+    // anywhere rolls the database back to where it started, so a rerun finds the same state.
     /** @return list<string> */
-    private function migrateTo(DependencyFactory $factory, string $target): array
+    private function migrateTo(DependencyFactory $factory, string $target, bool $createMetadataSchema = false): array
     {
-        $factory->getMetadataStorage()->ensureInitialized();
-        $version = in_array($target, ['latest', 'first'], true)
-            ? $factory->getVersionAliasResolver()->resolveVersionAlias($target)
-            : new Version($target);
-        $plan = $factory->getMigrationPlanCalculator()->getPlanUntilVersion($version);
-        // All-or-nothing: the plan and its version records commit together or not at all.
-        $factory->getMigrator()->migrate($plan, (new MigratorConfiguration())->setAllOrNothing(true));
+        $this->connection->transactional(function () use ($factory, $target, $createMetadataSchema): void {
+            if ($createMetadataSchema) $this->connection->executeStatement('CREATE SCHEMA IF NOT EXISTS synth_meta');
+            $factory->getMetadataStorage()->ensureInitialized();
+            $version = in_array($target, ['latest', 'first'], true)
+                ? $factory->getVersionAliasResolver()->resolveVersionAlias($target)
+                : new Version($target);
+            $plan = $factory->getMigrationPlanCalculator()->getPlanUntilVersion($version);
+            // All-or-nothing: the plan and its version records commit together or not at all.
+            $factory->getMigrator()->migrate($plan, (new MigratorConfiguration())->setAllOrNothing(true));
+        });
         return $this->recordedVersions();
     }
 

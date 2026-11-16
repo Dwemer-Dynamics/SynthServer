@@ -562,8 +562,9 @@ controls are held as separate development work. The JSON/CSV authoring files and
 The [README](../README.md#install) has the steps. Safeguards:
 
 - `tools/create-synth-db-wsl.ps1` creates the database only if it is missing. It requires
-  UTF-8, enables the extensions, imports `data/database_default.sql` only when the baseline
-  schema is absent, then runs the bootstrap ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md)). Without
+  UTF-8, enables the extensions, then runs the bootstrap. On an empty database the baseline
+  migration installs the schema and stock data in one transaction, without the legacy chain or a
+  SQL import ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#fresh-install)). Without
   the production `vendor/` it fails before touching the database. It drops data
   **only** when the explicit `-Reset` switch is passed. The default never resets.
 - `tools/deploy-synthserver-wsl.ps1` refuses any target other than

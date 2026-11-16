@@ -2,7 +2,8 @@
 
 Doctrine Migrations owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`.
 `debug/db_updates.php` is frozen as the legacy bootstrap baseline. The first migration recognizes that
-baseline after verifying it; it changes no schema and no row. Later schema changes are new classes in
+baseline on an existing install after verifying it, changing no schema and no row. On an empty database it
+installs that baseline itself ([Fresh install](#fresh-install)). Later schema changes are new classes in
 `core/dbmanager/migrations/` (namespace `Synth\Migrations`), never new `db_updates.php` blocks. This
 foundation adds no migration beyond the baseline. It does not redesign actor identity, application writes,
 transactions or ORM use.
@@ -17,8 +18,10 @@ transactions or ORM use.
   copy. A snapshot therefore does not carry its own migration version: restoring an older schema would
   keep a newer ledger, and Doctrine would skip migrations that copy never received. This baseline-only
   change alters no application schema, so no such gap exists yet (see Limits).
-- `core/dbmanager/migrations/Version20261115000000.php`: the frozen baseline and its verification.
-  `Version20261115000000.structure.txt` is generated data: the structure manifest of the baseline.
+- `core/dbmanager/migrations/Version20261115000000.php`: the frozen baseline, its fresh install and its
+  verification. `Version20261115000000.structure.txt` is generated data: the structure manifest of the
+  baseline. `Version20261115000000.fresh.sql` is generated data too: the statements that install the baseline
+  on an empty database.
 - `lib/runtime_bootstrap.php` (`synthRuntimeApplySchemaMigrations`): the entry used by
   `tools/bootstrap-database.php` and by `debug/db_updates.php`.
 - `composer.json` / `composer.lock`: adds `doctrine/migrations` 3.9.8 and `symfony/stopwatch` v7.4.8; every
@@ -53,20 +56,88 @@ All of them reach `SchemaMigrations::migrate()` under the same lock:
    before the legacy chain or any migration runs.
 5. It takes `synth-schema-migrations-legacy` on the legacy session for the steps below. A run killed
    mid-statement leaves an orphaned backend that keeps this lock until its statement ends, so a rerun waits.
-   - No record yet: if `database_versioning` is below any of the 47 frozen version floors, the legacy chain runs
-     first. If the floors are already met, the
+   - No record yet, empty database ([Fresh install](#fresh-install)): no legacy chain; step 6 installs it.
+   - No record yet, anything else: if `database_versioning` is below any of the 47 frozen version floors, the
+     legacy chain runs first. If the floors are already met, the
      install is verified as it stands, and damage is refused rather than half-repaired by version-gated steps.
    - Baseline is the latest record: the baseline is re-verified against its frozen contract, never the current
      runtime gate (which may already expect a pending migration's work). Damage is refused, never repaired by
      the chain.
    - Later migrations recorded: they own the schema; the baseline checks no longer apply.
-6. It creates the version table if missing and migrates to the latest version in one all-or-nothing
-   transaction. The baseline migration verifies inside that transaction, and the version is recorded only
-   if verification passes.
+6. In one owner transaction it creates the version table if missing (on an empty database, the `synth_meta`
+   schema first) and migrates to the latest version all-or-nothing. Doctrine's all-or-nothing and
+   per-migration transactions nest inside it as savepoints. The baseline migration verifies in `postUp()`,
+   after its statements and before its record, and the version is recorded only if verification passes. Any
+   failure rolls everything back, the version table included, so a rerun starts from the same state.
 
 The bootstrap then rechecks the runtime gate and fails unless the baseline is recorded. Errors print their
 message only, without a stack trace. `revertTo('first')` (API only, no CLI yet) removes the baseline record
-under the same lock. The legacy schema and its rows stay, and the next run verifies and records again.
+under the same lock. The schema and its rows stay, whether recognized or freshly installed, and the next run
+verifies and records again.
+
+## Fresh install
+
+An empty database is installed by the baseline migration, not by the legacy chain and not by importing
+`data/database_default.sql`. Normal bootstrap (`tools/bootstrap-database.php`, every `debug/db_updates.php`
+caller) and `tools/create-synth-db-wsl.ps1` take this path; the provisioner no longer imports any SQL itself.
+
+- Empty means (`Version20261115000000::isEmptyDatabase()`): no schema besides `public` and `synth_meta`, and in
+  those two no relation, function or standalone type that is not an extension member, apart from the Doctrine
+  version table. Extensions may exist. Any other database, including one holding only an unrelated table in
+  `public`, keeps the legacy path above. Nothing is reset or dropped automatically.
+- `up()` re-checks emptiness inside the transaction and adds the statements of
+  `Version20261115000000.fresh.sql` one by one. DBAL's `pgsql` driver reads only the first result of a
+  multi-statement query, so a batch would hide a later failure. The file must match the SHA-256 recorded in
+  the class (after CRLF to LF; the file holds no CR) or the migration aborts before any statement.
+- The statements set `SET LOCAL` session values, create `vector` in `public`, the `synth`, `synth_meta` and
+  `plugins` schemas, `pg_trgm` in `synth` (where the legacy chain puts it; a provisioner that already created
+  it in `public` keeps that), then every table, view, function, sequence position, index, constraint and
+  comment, and the stock rows. Seed timestamps are the install time (`CURRENT_TIMESTAMP`), as with the chain.
+- The bootstrap then runs as before: it records nothing else, rechecks the gate and loads the settings (the
+  narrator loader still seeds its missing keys there, on both paths).
+
+### Provenance and regeneration
+
+`Version20261115000000.fresh.sql` was exported from the legacy fresh install of unstable `0f4fadc`
+(`data/database_default.sql`, then the frozen chain via `applyLegacyChainWithoutLedger()` in a fresh child
+process with `conf/conf.sample.php`) on a disposable PostgreSQL 17.11 with pgvector 0.8.7, in a private
+namespace. The export was `pg_dump --schema=synth --schema=synth_meta --schema=plugins --no-owner
+--no-privileges --no-tablespaces --no-security-labels --no-publications --no-subscriptions --inserts
+--rows-per-insert=100` (no version table existed). Curation, each
+step counted: the `\restrict`/`\unrestrict` lines and pg_dump's 12 session settings dropped and replaced by
+`SET LOCAL` equivalents, the two extensions added, `CREATE SCHEMA synth_meta` made `IF NOT EXISTS` (the owner
+creates it first for the version table), `synth.gin_trgm_ops` unqualified in 4 indexes, and the 478 seed
+timestamps written by the export run replaced by `CURRENT_TIMESTAMP`. The statements were split with a SQL
+lexer (strings, quoted identifiers, dollar quotes, comments), 783 in all. No credentials or runtime rows
+are in it: the API badge rows carry empty keys and every runtime table is empty.
+
+The file is frozen with the baseline. The chain is frozen too, so it is never regenerated for new schema;
+new objects are new migrations. A replacement (for example a review fix) must come from the same procedure on
+a disposable database, update the class's SHA-256, and pass `SchemaMigrationOwnerTest`, which compares the
+result with a legacy fresh install built in the same run.
+
+### Checks
+
+`SchemaMigrationOwnerTest` (disposable PostgreSQL only) builds the legacy fresh install, bootstraps it once as
+the reference, then on a new empty database:
+
+- two concurrent bootstraps install once, record only the baseline and match the reference in the
+  structure fingerprint and in every row (timestamps aside), sequence position, view, function and trigger
+  definition, comment and extension schema; the stock rows, schemas, relations and the version record share
+  one writing transaction; a rerun changes nothing; `revertTo('first')` keeps the install and the next run
+  verifies and records it again;
+- extensions pre-created in `public` (as the provisioner does) are used, the only difference being where
+  `pg_trgm` lives;
+- a failing later migration in the same plan leaves the database empty (no schema, version table or
+  extension), and a retry installs it;
+- a bootstrap killed inside its migration transaction leaves the database empty once its backend ends, and a
+  rerun installs it;
+- `isEmptyDatabase()` accepts extensions and the version table alone and refuses a table, view, sequence,
+  function or type in `public`, a `synth`, `plugins` or other schema, or another `synth_meta` table; the
+  generated file splits into 783 terminated statements.
+
+Run it inside a disposable environment, from `unittests/`:
+`php vendor/phpunit/phpunit/phpunit -c phpunit.xml tests/SchemaMigrationOwnerTest.php`.
 
 ## Snapshot compatibility guard
 
@@ -135,6 +206,16 @@ reaches the baseline by a path producing different constraint or index names is 
 ## Limits
 
 - `health.php` still reports the runtime gate only; it does not report a missing baseline record.
+- A fresh install seeds the stock values of `conf/conf.sample.php`. The legacy chain also copied an existing
+  `conf/conf.php`'s legacy values into new managed settings and narrator rows; the fresh path does not, so such
+  values are set in the UI after installing. Existing databases are unaffected.
+- A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
+  a SYNTH install; such a database is usually refused by verification and is never reset.
+- `ui/cmd/install-db.php` (an explicit reset command) and the shared `DatabaseTestCase` fixture still import
+  `data/database_default.sql` and run the chain, which stay as legacy-upgrade sources. The fixture therefore
+  does not exercise the fresh path; `SchemaMigrationOwnerTest` does.
+- The fresh path was proven on disposable PostgreSQL 17.11 only, not on an installed database, through the WSL
+  provisioner, or in hosted CI.
 - Every entry needs the root `vendor/`. `tools/create-synth-db-wsl.ps1` fails before touching the database
   and asks for `composer install --no-dev` when the checkout has none.
 - UI callers that wrapped the old `require_once` in `try`/`catch` still swallow failures, which now include

@@ -6,17 +6,13 @@ $ErrorActionPreference = "Stop"
 
 $database = "synth"
 $owner = "dwemer"
-$password = "dwemer"
 $serverRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 # The schema migration owner needs the locked production dependencies. Refuse before touching the database.
 if (-not (Test-Path -LiteralPath (Join-Path $serverRoot "vendor\autoload.php") -PathType Leaf)) {
     throw "Synthserver production dependencies are missing: run 'composer install --no-dev' in $serverRoot (it installs the tracked composer.lock), then rerun this script. No database was changed."
 }
-$baselineWin = Resolve-Path (Join-Path $serverRoot "data\database_default.sql")
 $bootstrapWin = Resolve-Path (Join-Path $serverRoot "tools\bootstrap-database.php")
-$baselineWslPath = $baselineWin.Path.Replace('\', '/')
 $bootstrapWslPath = $bootstrapWin.Path.Replace('\', '/')
-$baselineLinux = (& wsl.exe -- wslpath -a -u -- $baselineWslPath).Trim()
 $bootstrapLinux = (& wsl.exe -- wslpath -a -u -- $bootstrapWslPath).Trim()
 
 Write-Host "Ensuring WSL PostgreSQL database '$database' exists with owner '$owner'."
@@ -55,21 +51,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to prepare PostgreSQL database '$database'."
 }
 
-$eventlogExists = & wsl.exe -- env "PGPASSWORD=$password" psql -h 127.0.0.1 -U $owner -d $database -Atqc "SELECT to_regclass('synth.eventlog') IS NOT NULL;"
-$eventlogExists = if ($null -eq $eventlogExists) { "" } else { ([string]$eventlogExists).Trim() }
-if ($eventlogExists -ne "t") {
-    Write-Host "Importing SYNTH baseline schema into '$database'."
-    & wsl.exe -- env "PGPASSWORD=$password" psql -h 127.0.0.1 -U $owner -d $database -v ON_ERROR_STOP=1 -f $baselineLinux
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to import baseline schema into '$database'."
-    }
-    & wsl.exe -- env "PGPASSWORD=$password" psql -h 127.0.0.1 -U $owner -d $database -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE synth.worldknowledge RESTART IDENTITY;"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to clear legacy WorldKnowledge rows from '$database'."
-    }
-}
-
-Write-Host "Running SYNTH database updates."
+# No separate schema import: on an empty database the schema migration owner installs the complete baseline schema
+# and stock seeds in one transaction. An existing database is upgraded or verified as before, never reset here.
+Write-Host "Running SYNTH schema migrations."
 & wsl.exe -- php $bootstrapLinux
 if ($LASTEXITCODE -ne 0) {
     throw "SYNTH database updates failed."
