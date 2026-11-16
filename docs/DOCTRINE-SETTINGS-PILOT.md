@@ -1,8 +1,9 @@
 # Doctrine settings read pilot
 
 `Synth\Core\SettingsRepository::value()` and `values()` read `synth.general_settings` through
-Doctrine ORM. This pilot covers reads only. Writes, locks, schema and migrations keep their
-current owners.
+Doctrine ORM. This pilot covers reads only. Writes and locks keep their current owners. Schema
+migrations belong to a separate owner with its own transaction-capable connection
+([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md)); this adapter is unchanged by it.
 
 ## Source
 

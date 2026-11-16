@@ -299,25 +299,37 @@ if (!function_exists('synthRuntimeImportConfigVariables')) {
     }
 }
 
+if (!function_exists('synthRuntimeApplySchemaMigrations')) {
+    // Schema changes for the legacy runtime session's database, through the one migration owner and its lock. Used by
+    // tools/bootstrap-database.php and by every caller of the debug/db_updates.php compatibility entry.
+    function synthRuntimeApplySchemaMigrations(string $enginePath): void
+    {
+        $db = $GLOBALS["db"] ?? null;
+        if (!is_object($db)) {
+            throw new \RuntimeException("SYNTH schema migrations need the legacy runtime session.");
+        }
+        require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
+        require_once($enginePath . "core" . DIRECTORY_SEPARATOR . "dbmanager" . DIRECTORY_SEPARATOR . "SchemaMigrations.php");
+        $migrations = \Synth\Core\Doctrine\SchemaMigrations::connect(
+            \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('synth')));
+        try {
+            $migrations->migrate();
+        } finally {
+            $migrations->close();
+        }
+    }
+}
+
 if (!function_exists('synthRuntimeEnsureDbUpdates')) {
+    // Only tools/bootstrap-database.php asks for updates during bootstrap.
     function synthRuntimeEnsureDbUpdates(string $enginePath): void
     {
         static $ran = false;
         if ($ran) {
             return;
         }
-        if (!synthRuntimeNeedsDbUpdates()) {
-            $ran = true;
-            return;
-        }
 
-        $updatesPath = $enginePath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php";
-        $db=$GLOBALS["db"] ?? null;
-        if (!file_exists($updatesPath)) {
-            throw new \RuntimeException("SYNTH database update file is missing: {$updatesPath}");
-        }
-
-        require($updatesPath);
+        synthRuntimeApplySchemaMigrations($enginePath);
         if (synthRuntimeNeedsDbUpdates()) {
             throw new \RuntimeException("SYNTH database bootstrap completed with pending schema updates.");
         }

@@ -12,6 +12,45 @@ See [AUTO-CHAT.md](AUTO-CHAT.md#automated-checks).
   player line and the NPC reply.
 - [ ] Physical microphone input and heard player voice, flat and VR independently.
 
+## Schema migration owner
+
+See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md).
+
+- [x] `php -l` on the changed PHP files; `git diff --check`.
+- [x] Database-free wiring probe against Doctrine Migrations 3.9.8 and DBAL 4.5.0: configuration,
+      `synth_meta` version table, all-or-nothing, and discovery of the transactional baseline class.
+- [x] `composer.lock` adds only `doctrine/migrations` 3.9.8 and `symfony/stopwatch` v7.4.8; every other
+      locked package and reference is unchanged.
+- [ ] `composer validate`, `install --no-dev` and `check-platform-reqs --no-dev` under the PHP 8.2.35
+      platform pin (hosted CI).
+- [x] `SchemaMigrationOwnerTest` (18 tests) on disposable PostgreSQL 15.19 with pgvector 0.7.0 and PHP
+      8.4.27. It covers populated legacy recognition with unchanged schema and rows, rerun, and
+      fresh-install convergence. Ten structural drift cases are refused without legacy repair, and extra
+      objects are allowed. Damage after the recorded baseline is refused and left unrepaired. A partial
+      schema is refused, then recognized once repaired. It also covers baseline revert, unknown-record
+      refusal before legacy work on both entries, the direct `db_updates.php` lock wait and its
+      open-transaction refusal, lock wait and bounded wait, two concurrent fresh bootstraps, and a killed
+      fresh bootstrap followed by a rerun. `NamedGiftUpgradeTest`, `FalloutDlcContentPackTest`,
+      `SettingsRepositoryTest`, `FalloutPronunciationDatabaseTest` and `RequestStreamingTest` pass in the
+      same run.
+- [x] Primary: `SchemaMigrationOwnerTest` (19 tests, 560 assertions) and `NamedGiftUpgradeTest` on disposable
+      PostgreSQL 17.11 with pgvector 0.8.7 and PHP 8.4.27, then the full `tests` directory in the same run
+      (run `final-pg17-r3`: 1368 tests, 27765 assertions, 0 failures, 0 risky, 5 deprecations;
+      `NamedGiftUpgradeTest` 1 test, 17 assertions; source unchanged since) with the paired client source mounted
+      read-only. The PostgreSQL 15 runs above remain compatibility evidence. The added case shows a later
+      transactional migration runs after the baseline while the runtime gate it satisfies is still unmet,
+      and that its failure rolls back its DDL and leaves no version record.
+- [x] Release-tree audit of the tracked files passes; the six new untracked files were scanned separately.
+- [x] `composer validate` and `check-platform-reqs --no-dev` pass against the locked vendor (PHP 8.4.27).
+- [ ] The same under PHP 8.2 and hosted CI with the new lock.
+- [ ] Upgrade of a real installed database copy (not the fixture) through the deploy script.
+- [ ] Deploy and in-game play: none claimed.
+- [ ] Before the first schema-changing migration: snapshots record the latest migration version, restore
+      refuses a mismatch with the `synth_meta` ledger, and the legacy UI playthrough switch (drops and
+      restores `public`, truncates `synth.database_versioning`, now refused by the owner) is replaced or
+      gated. Recovery of an affected install uses a verified backup or reviewed repair, approved
+      separately; deleting the ledger or `revertTo` is not recovery.
+
 ## Doctrine settings read pilot
 
 - [x] Measured on Debian PHP 8.2.35 (`pgsql`, `pdo_pgsql`, `ctype`, `mbstring`), Debian

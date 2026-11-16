@@ -9,6 +9,21 @@ providers are default OpenRouter #2 and Quickstart `openaijson`; anything else f
 new settings, tables or capabilities; the existing control-mode enum gains `AUTOCHAT`.
 See [AUTO-CHAT.md](AUTO-CHAT.md); open gates are in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#auto-chat).
 
+## Schema migration owner candidate
+
+Doctrine Migrations now owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`, on
+its own transaction-capable connection; the shared-session read adapter is unchanged. The bootstrap and
+the `debug/db_updates.php` compatibility entry both go through it under one session advisory lock. It
+refuses unknown migration records and open legacy transactions first. It runs the frozen chain only for a
+pre-ledger install below the frozen version floors, then records baseline `Version20261115000000` in the
+same transaction that verifies it. Verification covers a frozen copy of the baseline's gate contract
+(47 version floors and mandatory seeds, never the live runtime gate) and a generated structure
+manifest of the baseline's tables, columns, constraints and indexes. View and function bodies are not
+compared. New schema work is a migration, never a `db_updates.php` block. Existing rows,
+defaults, protocol, save and identity behavior are unchanged; no new schema object except the version
+table. See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md); checks are in
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#schema-migration-owner).
+
 ## Doctrine settings read pilot
 
 `SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`
@@ -543,8 +558,9 @@ The [README](../README.md#install) has the steps. Safeguards:
 
 - `tools/create-synth-db-wsl.ps1` creates the database only if it is missing. It requires
   UTF-8, enables the extensions, imports `data/database_default.sql` only when the baseline
-  schema is absent, then runs the idempotent migration chain. It drops data **only** when the
-  explicit `-Reset` switch is passed. The default never resets.
+  schema is absent, then runs the bootstrap ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md)). Without
+  the production `vendor/` it fails before touching the database. It drops data
+  **only** when the explicit `-Reset` switch is passed. The default never resets.
 - `tools/deploy-synthserver-wsl.ps1` refuses any target other than
   `/var/www/html/Synthserver`, then stops before any change unless the read-only
   `tools/check-php-runtime-security.sh` passes in the chosen distro (patched PHP CLI and Apache

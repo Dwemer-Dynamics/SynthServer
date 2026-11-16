@@ -5,14 +5,20 @@ $root = dirname(__DIR__);
 require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";
 require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "synth_runtime.php";
 
-synthRuntimeBootstrap($root, [
-    'run_db_updates' => true,
-    'load_general_settings' => true,
-    'load_stt_connector' => true,
-    'load_tts_connector' => false,
-    'load_player_name' => true,
-    'load_narrator' => true,
-]);
+try {
+    synthRuntimeBootstrap($root, [
+        'run_db_updates' => true,
+        'load_general_settings' => true,
+        'load_stt_connector' => true,
+        'load_tts_connector' => false,
+        'load_player_name' => true,
+        'load_narrator' => true,
+    ]);
+} catch (\Throwable $error) {
+    // Message only: a default CLI trace can print call arguments.
+    fwrite(STDERR, "SYNTH database bootstrap failed: " . $error->getMessage() . "\n");
+    exit(1);
+}
 
 $db = $GLOBALS["db"] ?? null;
 if (!$db) {
@@ -77,9 +83,18 @@ foreach ($seedMinimums as $seedName => $minimum) {
 
 $versionCount = intval($versionRows[0]["count"] ?? 0);
 
+// The owner records the frozen legacy baseline before any later migration; a bootstrap without it is incomplete.
+$migrationRows = $db->fetchAll("SELECT version FROM synth_meta.doctrine_migration_versions ORDER BY version");
+$migrationVersions = array_map(static fn(array $row): string => strval($row['version'] ?? ''), is_array($migrationRows) ? $migrationRows : []);
+if (!in_array('Synth\\Migrations\\Version20261115000000', $migrationVersions, true)) {
+    fwrite(STDERR, "SYNTH database bootstrap failed: the legacy schema baseline is not recorded.\n");
+    exit(1);
+}
+
 echo "SYNTH database bootstrap complete.\n";
 echo "database_versioning rows: {$versionCount}\n";
 echo "schema verification: complete\n";
+echo "schema migrations recorded: " . count($migrationVersions) . " (latest " . end($migrationVersions) . ")\n";
 foreach ($seedCounts as $seedName => $seedCount) {
     echo "{$seedName} rows: {$seedCount}\n";
 }

@@ -5,6 +5,15 @@ require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib/settings.php");
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib/synth_runtime.php");
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib/tts_pronunciation.php");
 
+// Public compatibility entry. Requiring this file applies schema changes through the migration owner, under its lock;
+// the frozen legacy chain below runs only when the owner itself includes the file.
+require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."core/dbmanager/SchemaMigrations.php");
+if (!\Synth\Core\Doctrine\SchemaMigrations::isRunningLegacyBody()) {
+    require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib/runtime_bootstrap.php");
+    synthRuntimeApplySchemaMigrations(dirname(__DIR__).DIRECTORY_SEPARATOR);
+    return;
+}
+
 $checkVersion = function($tablename) {
     global $db;
     $query = "
