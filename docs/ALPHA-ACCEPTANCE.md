@@ -595,6 +595,20 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       and runtime data survive normal startup; failures show an actionable message.
 - [ ] Clean machine: following the README on a fresh WSL install gives `health.php` with
       a healthy database, schema and background processor on `127.0.0.1:8087`.
+- [x] `health.php` from the exact source on a disposable PostgreSQL 17.11 (pgvector 0.8.7, PHP 8.4.27)
+      on port 55432 set through configuration, with a synthetic custom config loaded once (marker): 200
+      when current, including while both advisory locks are held (~0.27 s); 503 with the matching
+      `schema_migrations` for an empty database and a true pre-ledger install (`missing`), an unknown
+      record (`unknown`), a missing `vendor/`, an unreachable server and `SQL_ASCII`; `pending` only
+      as an owner-run synthetic fixture. Fresh install and an idempotent rerun pass; no health
+      request writes the log or database. `tools/bootstrap-database.php` exits 1 when unreachable.
+- [x] Quickstart refusal: an HTTP fixture gives GET 503 and a refused POST with no writes. In a
+      browser, the healthy screen showed, then with an injected unknown ledger record a real Save
+      and Continue displayed the refusal. The GET recovery page was checked visually at 1280 and
+      390 px with no narrow overflow. A browser check with the database unreachable was not run.
+- [x] Focused PHP tests: 35 tests, 5,001 assertions, no failures, errors or skips; the release
+      audit covers 548 PHP files.
+- [ ] Hosted CI on the PostgreSQL 17 PGDG cluster (Actions are disabled).
 - [ ] Re-running the database and deploy scripts is idempotent. Configuration, voices,
       uploads and the database stay intact without `-Reset`.
 - [ ] Upgrading from an earlier SYNTH install applies only the pending migrations. Existing

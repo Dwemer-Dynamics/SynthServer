@@ -12,8 +12,11 @@ class sql
     private $connString = "";
     private $debug_level = 3; // 0 = quiet .. 3=use timer .. 5 = verbose
 
-    /** @param ?array $settings explicit SYNTH_DB_* configuration in place of runtime globals (environment still wins) */
-    public function __construct(private ?array $settings = null)
+    /**
+     * @param ?array $settings explicit SYNTH_DB_* configuration in place of runtime globals (environment still wins).
+     * Sensitive: extract_caller() logs call arguments, and this one holds the database password.
+     */
+    public function __construct(#[\SensitiveParameter] private ?array $settings = null)
     {
         if (!function_exists('pg_connect')) {
             throw new \RuntimeException("PHP PostgreSQL extension is not loaded; pg_connect() is unavailable.");
@@ -49,8 +52,9 @@ class sql
         }
     }
 
-    // Legacy (runtime-global) callers keep the historical exit. An explicit configuration (the v2 composition
-    // root) gets an exception, so its caller answers with the sanitized failure response instead of plaintext.
+    // Legacy (runtime-global) callers keep the historical exit, on the first connect and on a reconnect. An explicit
+    // configuration (the v2 composition root, synthRuntimeConnectDatabase) gets an exception, so its caller answers
+    // with the sanitized failure response instead of plaintext.
     private function connectionFailed(string $message): never
     {
         if ($this->settings !== null) throw new \RuntimeException($message);
@@ -79,14 +83,19 @@ class sql
         $user = $this->readConnectionSetting('SYNTH_DB_USER', 'SYNTH_DB_USER', 'dwemer');
         $password = $this->readConnectionSetting('SYNTH_DB_PASSWORD', 'SYNTH_DB_PASSWORD', 'dwemer');
         $connectTimeout = $this->readConnectionSetting('SYNTH_DB_CONNECT_TIMEOUT', 'SYNTH_DB_CONNECT_TIMEOUT', '90');
+        // No configured SYNTH_DB_PORT leaves the port to libpq (PGPORT, then 5432).
+        $port = $this->readConnectionSetting('SYNTH_DB_PORT', 'SYNTH_DB_PORT', '');
 
-        return implode(' ', [
-            'host=' . $this->escapeConnectionValue($host),
+        $parts = ['host=' . $this->escapeConnectionValue($host)];
+        if ($port !== '') {
+            $parts[] = 'port=' . $this->escapeConnectionValue($port);
+        }
+        return implode(' ', array_merge($parts, [
             'dbname=' . $this->escapeConnectionValue($dbname),
             'user=' . $this->escapeConnectionValue($user),
             'password=' . $this->escapeConnectionValue($password),
             'connect_timeout=' . $this->escapeConnectionValue($connectTimeout),
-        ]);
+        ]));
     }
 
     private function escapeConnectionValue(string $value): string
@@ -115,17 +124,17 @@ class sql
         }
 
         if (!$b_ok) { //reconnect
-            self::$link = pg_connect($this->connString);
+            self::$link = @pg_connect($this->connString);
 
-            if (!isset(self::$link)) {
+            if (!self::$link) {
                 Logger::error("SQL: connection retry failed! " . $this->extract_caller() );
-                die("SQL: Error in connection.");
+                $this->connectionFailed("SQL: Error in connection.");
             }
 
             $stat = pg_connection_status(self::$link);
             if ((!isset($stat)) || ($stat !== PGSQL_CONNECTION_OK)) {
                 Logger::error("SQL: connection retry FAILED with code={$stat}. " . $this->extract_caller() );
-                die("SQL: bad connection.");
+                $this->connectionFailed("SQL: bad connection.");
             }
 
             $this->applySearchPath();
