@@ -1,4 +1,6 @@
 <?php
+// Refuse cross-origin setup writes and MiniMe probes before anything else runs.
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
 header("Pragma: no-cache"); // HTTP 1.0
@@ -271,6 +273,13 @@ function synthQuickstartGetGeneralLlmConnectorSummary($db): array {
 
 if (isset($_GET['minime_probe']) && strval($_GET['minime_probe']) === '1') {
     header('Content-Type: application/json; charset=utf-8');
+    // The probe reaches out to another service: GET only (the origin guard judges that GET as unsafe), never HEAD.
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        http_response_code(405);
+        header('Allow: GET');
+        echo json_encode(['ok' => false, 'message' => 'Use GET for the MiniMe probe.'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
     $rawUrl = trim(strval($_GET['url'] ?? synthQuickstartMiniMeDefaultUrl()));
     $result = [
         'ok' => false,

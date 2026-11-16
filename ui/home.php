@@ -1,5 +1,13 @@
 <?php
 
+// Origin guard first; without PHP's PostgreSQL extension Home shows the setup guidance before any session,
+// configuration, log or database work (the bare index.php landing redirects here).
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+if (!function_exists('pg_connect')) {
+    require_once(__DIR__ . DIRECTORY_SEPARATOR . "synth_setup.php");
+    exit;
+}
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -12,15 +20,16 @@ $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "background_processor.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "fallout_stats.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "eventlog_helper.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_diary_browser.php");
 
+// Viewing Home is read-only: no log rotation on GET/HEAD and no worker start (main.php owns the worker).
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
     'load_stt_connector' => false,
+    'rotate_logs' => !in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true),
 ]);
 
 $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
@@ -36,10 +45,6 @@ if ($webRoot === '/') {
 $webRoot = rtrim($webRoot, '/');
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "profile_loader.php");
-
-if (count($_GET) === 0 && function_exists('synthEnsureBackgroundProcessorRunning')) {
-    synthEnsureBackgroundProcessorRunning(true);
-}
 
 $TITLE = "SYNTH Home";
 $db = (isset($GLOBALS["db"]) && is_object($GLOBALS["db"])) ? $GLOBALS["db"] : new sql();

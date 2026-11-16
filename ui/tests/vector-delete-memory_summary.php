@@ -1,5 +1,10 @@
 <?php
 
+// Deletes every memory summary: only a confirmed same-origin POST carrying the dashboard form token, refused
+// before bootstrap otherwise.
+require_once(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+synthManagementRequirePostToken("Use Delete All Memory Summaries on the Memories page and confirm it.");
+
 require_once(__DIR__.DIRECTORY_SEPARATOR."../profile_loader.php");
 
 $TITLE = "Delete Memory Summaries";

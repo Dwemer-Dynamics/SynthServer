@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+
 $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 $scriptPath = (string)($_SERVER['SCRIPT_NAME'] ?? '');
 $uiPos = strpos($scriptPath, '/ui/');

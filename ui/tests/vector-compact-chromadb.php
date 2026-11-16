@@ -1,5 +1,10 @@
 <?php
 
+// Summarises memories through the configured AI connector: a confirmed same-origin POST with the dashboard form
+// token, never a link or a cross-site request.
+require_once(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+synthManagementRequirePostToken("Use Sync & Create Memory Summaries on the Memories page and confirm it.");
+
 require_once(__DIR__.DIRECTORY_SEPARATOR."../profile_loader.php");
 
 $TITLE = "Compact Memories";

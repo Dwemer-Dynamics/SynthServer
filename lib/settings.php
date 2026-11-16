@@ -1303,7 +1303,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
 }
 
 if (!function_exists('synthLoadNarratorSettingsIntoGlobals')) {
-    function synthLoadNarratorSettingsIntoGlobals(): void
+    function synthLoadNarratorSettingsIntoGlobals(bool $seedMissing = true): void
     {
         if (!class_exists('Narrator')) {
             require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
@@ -1311,7 +1311,7 @@ if (!function_exists('synthLoadNarratorSettingsIntoGlobals')) {
 
         try {
             $narrator = new Narrator();
-            $narrator->loadIntoGlobals();
+            $narrator->loadIntoGlobals($seedMissing);
         } catch (\Throwable $e) {
         }
     }

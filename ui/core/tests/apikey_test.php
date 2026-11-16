@@ -1,5 +1,8 @@
 <?php
 
+// Sends the posted key to a provider: refuse cross-origin callers first.
+require_once dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
+
 header('Content-Type: text/html; charset=utf-8');
 
 $provider = $_GET['provider'] ?? $_POST['provider'] ?? '';
