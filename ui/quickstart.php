@@ -110,6 +110,40 @@ function synthQuickstartProbeUrl(string $rawUrl): array {
     return $result;
 }
 
+// GET with the database unreachable or not ready: a short HTTP 503 page with fixed guidance and no driver message.
+// It uses the page's stylesheets but not tmpl/head.html, whose navbar opens its own legacy connection.
+function synthQuickstartRenderUnavailable(string $webRoot): void {
+    if (ob_get_level() > 0) {
+        @ob_clean();
+    }
+    http_response_code(503);
+    header('Content-Type: text/html; charset=utf-8');
+    $root = htmlspecialchars($webRoot, ENT_QUOTES, 'UTF-8');
+    echo '<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SYNTH - Quickstart</title>
+<link rel="stylesheet" href="' . $root . '/ui/lib/ui/bootstrap/bootstrap.min.css">
+<link rel="stylesheet" href="' . $root . '/ui/css/synth-theme.css">
+<link rel="stylesheet" href="' . $root . '/ui/css/main.css">
+</head>
+<body>
+<main class="container py-4"><div>
+<section class="qs-section">
+<h1>Quickstart Menu</h1>
+<div class="alert alert-danger" role="alert">
+<p>Quickstart cannot open because the SYNTH database is not reachable or not ready. Nothing was changed.</p>
+<p>Open <a href="../health.php">health.php</a>, follow its <code>error</code>, then reload this page.</p>
+</div>
+</section>
+</div></main>
+</body>
+</html>
+';
+}
+
 function synthQuickstartEnsureActiveSttConnectorId(STTConnector $connector): int {
     $activeId = synthGetGeneralSettingInt('GLOBAL_STT_CONNECTOR_ID', 0);
     if ($activeId > 0) {
@@ -311,12 +345,39 @@ if (isset($_GET['minime_probe']) && strval($_GET['minime_probe']) === '1') {
 
 // Inline quicksave handlers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
-    try { require_once($rootPath . "lib" .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php"); } catch (Throwable $_e) {}
-    try { if (!isset($GLOBALS['db']) || !$GLOBALS['db']) { $GLOBALS['db'] = new sql(); } } catch (Throwable $_e) {}
-    // Ensure database schema/tables exist before handling any quicksave actions
-    try { require_once($rootPath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php"); } catch (Throwable $_e) {}
-    try { require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "llm_randomizer.php"); } catch (Throwable $_e) {}
     header('Content-Type: application/json');
+    // Connect, check the encoding, apply pending schema migrations and confirm the runtime gate before any quicksave
+    // write. A failure stops here with a fixed message: driver and migration errors can carry connection details.
+    // Output from this step stays in its own buffer.
+    $qsBufferLevel = ob_get_level();
+    ob_start();
+    try {
+        require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
+        synthRuntimeConnectDatabase($rootPath);
+        if (!synthRuntimeDatabaseEncodingIsSupported()) {
+            throw new RuntimeException("SYNTH database encoding is not supported.");
+        }
+        require_once($rootPath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php");
+        if (synthRuntimeNeedsDbUpdates()) {
+            throw new RuntimeException("SYNTH database is not ready.");
+        }
+        require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "llm_randomizer.php");
+        $qsReady = true;
+    } catch (Throwable $_e) {
+        $qsReady = false;
+    }
+    while (ob_get_level() > $qsBufferLevel) {
+        if (!@ob_end_clean()) { break; }
+    }
+    if (!$qsReady) {
+        http_response_code(503);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'No settings were saved: the SYNTH database is unreachable, does not use UTF8, or its schema '
+                . 'migrations could not be applied. Open health.php and follow its error, then retry.',
+        ]);
+        exit;
+    }
 
     $action = (string)($_POST['qs_action'] ?? '');
 
@@ -443,13 +504,39 @@ $webRoot = rtrim($webRoot, '/');
 $TITLE = "SYNTH - Quickstart";
 
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
-synthRuntimeBootstrapIfNeeded($rootPath, [
-    'load_general_settings' => true,
-    'load_stt_connector' => true,
-    'load_tts_connector' => true,
-    'load_player_name' => true,
-    'load_narrator' => true,
-]);
+// One bootstrap reads conf.php once and connects through the exception path (never the legacy plaintext exit). The
+// page renders only when the database uses UTF8, the runtime gate passes and the migration ledger is current; then
+// the existing settings loads run. No migrations, no provider calls and no narrator load: its seeding is unused here.
+// Any failure, including missing vendor dependencies, gets the same fixed 503 page.
+Logger::suspendFileWrites();
+$quickstartDatabaseReady = false;
+try {
+    synthRuntimeBootstrap($rootPath, [
+        'throw_db_connection_errors' => true,
+        'load_general_settings' => false,
+        'load_stt_connector' => false,
+    ]);
+    if (!is_file($rootPath . "vendor" . DIRECTORY_SEPARATOR . "autoload.php")) {
+        throw new RuntimeException("vendor");
+    }
+    $quickstartDatabaseReady = synthRuntimeDatabaseEncodingIsSupported() && !synthRuntimeNeedsDbUpdates()
+        && strval(synthRuntimeSchemaMigrationStatus($rootPath)['state'] ?? '') === 'current';
+    if ($quickstartDatabaseReady) {
+        synthRuntimeApplyBootstrapOptions($rootPath, [
+            'load_general_settings' => true,
+            'load_stt_connector' => true,
+            'load_tts_connector' => true,
+            'load_player_name' => true,
+            'load_narrator' => false,
+        ]);
+    }
+} catch (Throwable $_e) {
+    $quickstartDatabaseReady = false;
+}
+if (!$quickstartDatabaseReady) {
+    synthQuickstartRenderUnavailable($webRoot);
+    exit;
+}
 
 include(__DIR__.DIRECTORY_SEPARATOR."tmpl/head.html");
 
@@ -469,8 +556,10 @@ $currentConf = conf_loader_load();
 $currentConfTitles = conf_loader_load_titles();
 
 $quickstartSttConnector = new STTConnector();
-$quickstartActiveSttId = synthQuickstartEnsureActiveSttConnectorId($quickstartSttConnector);
-$quickstartActiveSttRow = $quickstartActiveSttId > 0 ? $quickstartSttConnector->getById($quickstartActiveSttId) : [];
+// Read-only: without a valid GLOBAL_STT_CONNECTOR_ID the configured STTFUNCTION is shown, and Save records it.
+$quickstartActiveSttId = synthGetGeneralSettingInt('GLOBAL_STT_CONNECTOR_ID', 0);
+$quickstartActiveSttRow = $quickstartActiveSttId > 0 ? $quickstartSttConnector->getById($quickstartActiveSttId) : null;
+$quickstartActiveSttRow = is_array($quickstartActiveSttRow) ? $quickstartActiveSttRow : [];
 $quickstartActiveSttDriver = $quickstartSttConnector->normalizeDriverValue($quickstartActiveSttRow['driver'] ?? ($GLOBALS["STTFUNCTION"] ?? ''));
 $quickstartTtsConnector = new TTSConnector();
 $quickstartActiveTtsRow = synthResolvePreferredTtsConnectorRow();

@@ -6,7 +6,17 @@ require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "runtim
 require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "synth_runtime.php";
 
 try {
+    // One bootstrap reads conf.php once and connects through the exception path: the legacy constructor's plaintext
+    // exit would end this command with status 0 when PostgreSQL is unreachable. UTF8 is checked before migrations.
     synthRuntimeBootstrap($root, [
+        'throw_db_connection_errors' => true,
+        'load_general_settings' => false,
+        'load_stt_connector' => false,
+    ]);
+    if (!synthRuntimeDatabaseEncodingIsSupported()) {
+        throw new \RuntimeException(synthRuntimeDatabaseEncodingError());
+    }
+    synthRuntimeApplyBootstrapOptions($root, [
         'run_db_updates' => true,
         'load_general_settings' => true,
         'load_stt_connector' => true,

@@ -10,6 +10,8 @@ class Logger {
     private static $ROTATED_THIS_REQUEST = [];
     private static $FAILED_LOG_TARGETS = [];
     private static $HANDLING_PHP_ERROR = false;
+    // suspendFileWrites(): no SYNTH log file is written or rotated for the rest of this request.
+    private static $FILE_WRITES_SUSPENDED = false;
     private static $KNOWN_LOGS = [
         'synth.log',
         'debugStream.log',
@@ -52,6 +54,12 @@ class Logger {
     // Unset custom log file path
     public static function unsetCustomLog() {
         self::$CUSTOM_LOG = null;
+    }
+
+    // For read-only requests (health.php): no SYNTH log file is created, appended or rotated for the rest of the
+    // request. Warnings and errors still reach the PHP/web server error log.
+    public static function suspendFileWrites(): void {
+        self::$FILE_WRITES_SUSPENDED = true;
     }
 
     public static function setRequestId($requestId): void {
@@ -171,11 +179,11 @@ class Logger {
         $requestId = self::getRequestId();
         $requestPrefix = $requestId !== "" ? "[rid={$requestId}] " : "";
         $logEntry = "{$timestamp}[{$level}] {$requestPrefix}{$message}\n{$s_trace}";
-        
 
-        $logFile = self::resolveLogFile($logFile);
 
-        self::appendToLog($logFile, $logEntry);
+        if (!self::$FILE_WRITES_SUSPENDED) {
+            self::appendToLog(self::resolveLogFile($logFile), $logEntry);
+        }
 
         // also write to apache error log
         if (in_array(strtolower($level), ["warn", "error"])) {
@@ -354,7 +362,7 @@ class Logger {
         }
 
         // obey the minimum log level for the SYNTH log (but still write uncaught errors to the apache log)
-        if (self::shouldLog($level)) {
+        if (self::shouldLog($level) && !self::$FILE_WRITES_SUSPENDED) {
             $timestamp = self::$_timestampFormat ? "[".date(self::$_timestampFormat)."] " : "";
             $logEntry = "{$timestamp}[{$level}] %s in %s on line %d\n";
             $formattedMessage = sprintf($logEntry, $errstr, $errfile, $errline);
@@ -382,7 +390,7 @@ class Logger {
 
     public static function rotateLogIfTooLarge(string $logFile, ?int $maxSize = null): void {
         $maxSize = $maxSize ?? self::$MAX_LOG_SIZE;
-        if (isset(self::$ROTATED_THIS_REQUEST[$logFile])) {
+        if (self::$FILE_WRITES_SUSPENDED || isset(self::$ROTATED_THIS_REQUEST[$logFile])) {
             return;
         }
         self::$ROTATED_THIS_REQUEST[$logFile] = true;

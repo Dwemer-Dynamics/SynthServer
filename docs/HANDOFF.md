@@ -29,6 +29,21 @@ and snapshot create, switch, delete and the Timeline Break autosnapshot change n
 are kept and not marked compatible. Re-enabling needs versioned snapshots and a ledger-checked restore
 first ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#limits)).
 
+## Setup readiness candidate
+
+`health.php` is a read-only readiness check. It connects through `synthRuntimeConnectDatabase`, which throws
+instead of the legacy plaintext exit, and adds `schema_migrations` (`current`, `missing`, `pending`, `unknown`
+or `unavailable`) from the owner's lock-free `SchemaMigrations::status()`. It answers 200 only when the
+database, UTF8 encoding, runtime gate and ledger are ready, otherwise 503 with one fixed, actionable error;
+it never migrates or loads settings, writes no SYNTH log file, and the background processor stays advisory.
+Quickstart GET answers a 503 page linking to `health.php` unless the database, UTF8 encoding, runtime gate,
+current ledger and vendor dependencies are ready; its saves answer a database or migration failure with a fixed
+JSON 503 before any settings save. `tools/bootstrap-database.php` reads `conf.php` once, checks UTF8 before
+migrating and exits nonzero when PostgreSQL is unreachable. The legacy `sql` class honors `SYNTH_DB_PORT` (environment, then
+configuration, then libpq's `PGPORT` or 5432), and its explicit-settings path does not log the password. CI
+creates an explicit PostgreSQL 17 (PGDG) cluster on 5432 and checks its major and role. See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#readiness) and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#install-and-upgrade).
+
 ## Doctrine settings read pilot
 
 `SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`
@@ -527,7 +542,7 @@ Its five optional override fields are blank. It is a custom-template import, not
 factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
 
 - Windows hosts Fallout 4 and the SYNTH client. A WSL Linux distribution runs Apache with PHP
-  (cli and Apache module; `curl`, `mbstring`, `pgsql` and `xml` extensions) and PostgreSQL
+  (cli and Apache module; `curl`, `mbstring`, `pgsql` and `xml` extensions) and PostgreSQL 17
   with `pgvector` and `pg_trgm`.
 - Apache serves `/var/www/html/Synthserver` on **`127.0.0.1:8087`** with
   `Require local` (`tools/apache/synthserver.conf`). This matches the client default
@@ -536,7 +551,8 @@ factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
   `dwemer`/`dwemer` (`conf/conf.sample.php`, `lib/db_connection_settings.php`). These are
   loopback-only development defaults. Never expose PostgreSQL or Apache beyond loopback.
 - The background processor (`service/start.sh`, `service/manager.php`) runs memory,
-  relationship and TTS workers. `health.php` reports the database, schema and processor state.
+  relationship and TTS workers. `health.php` reports the database, schema, migration ledger and
+  (advisory) processor state.
   It can be supervised or started directly with `service/start.sh`. The SYNTH UI and legacy game
   traffic through `main.php` also start it on demand. Explicit v2 dialogue (`/talk` and speech
   receipts) is dispatched before that step and never loads or probes the processor helper; its

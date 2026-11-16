@@ -23,16 +23,17 @@ if (!function_exists('synthRuntimeDatabaseEncoding')) {
 }
 
 if (!function_exists('synthRuntimeDatabaseEncodingIsSupported')) {
-    function synthRuntimeDatabaseEncodingIsSupported(): bool
+    // $encoding: a value already read with synthRuntimeDatabaseEncoding(), so a caller asks the database once.
+    function synthRuntimeDatabaseEncodingIsSupported(?string $encoding = null): bool
     {
-        return synthRuntimeDatabaseEncoding() === 'UTF8';
+        return ($encoding ?? synthRuntimeDatabaseEncoding()) === 'UTF8';
     }
 }
 
 if (!function_exists('synthRuntimeDatabaseEncodingError')) {
-    function synthRuntimeDatabaseEncodingError(): string
+    function synthRuntimeDatabaseEncodingError(?string $encoding = null): string
     {
-        $encoding = synthRuntimeDatabaseEncoding();
+        $encoding = $encoding ?? synthRuntimeDatabaseEncoding();
         $label = $encoding !== '' ? $encoding : 'unknown encoding';
         return "SYNTH database uses {$label}; UTF8 is required for NPC metadata. "
             . 'Run sudo bash /var/www/html/Synthserver/tools/migrate-synth-db-utf8-wsl.sh.';
@@ -299,21 +300,98 @@ if (!function_exists('synthRuntimeImportConfigVariables')) {
     }
 }
 
-if (!function_exists('synthRuntimeApplySchemaMigrations')) {
-    // Schema changes for the legacy runtime session's database, through the one migration owner and its lock. Used by
-    // tools/bootstrap-database.php and by every caller of the debug/db_updates.php compatibility entry.
-    function synthRuntimeApplySchemaMigrations(string $enginePath): void
+if (!function_exists('synthRuntimeReadConfiguration')) {
+    // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case
+    // configuration names are kept, and anything the files print is discarded so it cannot corrupt a JSON answer.
+    function synthRuntimeReadConfiguration(string $enginePath): array
     {
+        $confDir = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . "conf" . DIRECTORY_SEPARATOR;
+        $files = array_values(array_filter([$confDir . "conf.sample.php", $confDir . "conf.php"], 'is_file'));
+        ob_start();
+        try {
+            $config = (static function (array $__files): array {
+                foreach ($__files as $__file) {
+                    require $__file;
+                }
+                unset($__files, $__file);
+                return get_defined_vars();
+            })($files);
+        } finally {
+            ob_end_clean();
+        }
+        return array_filter($config, static fn($name): bool => is_string($name) && preg_match('/^[A-Z0-9_]+$/', $name) === 1,
+            ARRAY_FILTER_USE_KEY);
+    }
+}
+
+if (!function_exists('synthRuntimeConnectDatabase')) {
+    // The legacy runtime session for readiness and setup entries (health.php, Quickstart saves): configured from
+    // conf.sample.php and conf.php with the environment still winning, and an exception instead of the legacy
+    // plaintext exit when PostgreSQL cannot be reached. The SYNTH_DB_* values also become runtime globals, so the
+    // migration owner (synthDbConnectionSettings) connects as the same user. No log rotation, no settings loads.
+    // $connectTimeoutCap (seconds) lowers this one connection's configured SYNTH_DB_CONNECT_TIMEOUT (default 90);
+    // the runtime global keeps the configured value and an environment SYNTH_DB_CONNECT_TIMEOUT still wins.
+    function synthRuntimeConnectDatabase(string $enginePath, ?int $connectTimeoutCap = null): object
+    {
+        $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $config = synthRuntimeReadConfiguration($enginePath);
+        if (($config["DBDRIVER"] ?? '') !== 'postgresql') {
+            throw new \RuntimeException("PostgreSQL is not configured.");
+        }
+        $settings = array_filter($config, static fn(string $name): bool => str_starts_with($name, 'SYNTH_DB_'),
+            ARRAY_FILTER_USE_KEY);
+        foreach ($settings as $name => $value) {
+            $GLOBALS[$name] = $value;
+        }
+        if ($connectTimeoutCap !== null) {
+            $configured = intval($settings['SYNTH_DB_CONNECT_TIMEOUT'] ?? 90);
+            $settings['SYNTH_DB_CONNECT_TIMEOUT'] = strval($configured > 0 ? min($configured, $connectTimeoutCap) : $connectTimeoutCap);
+        }
+        $GLOBALS["DBDRIVER"] = 'postgresql';
+        require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "postgresql.class.php");
+        $GLOBALS["db"] = new sql($settings);
+        return $GLOBALS["db"];
+    }
+}
+
+if (!function_exists('synthRuntimeSchemaMigrationOwner')) {
+    // The one migration owner, connected to the legacy runtime session's database.
+    function synthRuntimeSchemaMigrationOwner(string $enginePath): \Synth\Core\Doctrine\SchemaMigrations
+    {
+        $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $db = $GLOBALS["db"] ?? null;
         if (!is_object($db)) {
             throw new \RuntimeException("SYNTH schema migrations need the legacy runtime session.");
         }
         require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
         require_once($enginePath . "core" . DIRECTORY_SEPARATOR . "dbmanager" . DIRECTORY_SEPARATOR . "SchemaMigrations.php");
-        $migrations = \Synth\Core\Doctrine\SchemaMigrations::connect(
+        return \Synth\Core\Doctrine\SchemaMigrations::connect(
             \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('synth')));
+    }
+}
+
+if (!function_exists('synthRuntimeApplySchemaMigrations')) {
+    // Schema changes for the legacy runtime session's database, through the one migration owner and its lock. Used by
+    // tools/bootstrap-database.php and by every caller of the debug/db_updates.php compatibility entry.
+    function synthRuntimeApplySchemaMigrations(string $enginePath): void
+    {
+        $migrations = synthRuntimeSchemaMigrationOwner($enginePath);
         try {
             $migrations->migrate();
+        } finally {
+            $migrations->close();
+        }
+    }
+}
+
+if (!function_exists('synthRuntimeSchemaMigrationStatus')) {
+    // Read-only ledger readiness for the legacy runtime session's database (SchemaMigrations::status()): no lock,
+    // no version table creation and no migration.
+    function synthRuntimeSchemaMigrationStatus(string $enginePath): array
+    {
+        $migrations = synthRuntimeSchemaMigrationOwner($enginePath);
+        try {
+            return $migrations->status();
         } finally {
             $migrations->close();
         }
@@ -407,7 +485,20 @@ if (!function_exists('synthRuntimeBootstrap')) {
                 $needsDbConnection = true;
             }
         }
-        if ($needsDbConnection) {
+        if ($needsDbConnection && !empty($options['throw_db_connection_errors'])) {
+            // Opt-in for setup entries: conf.php was read once above; connect with only its SYNTH_DB_* values so an
+            // unreachable PostgreSQL throws instead of the legacy constructor's plaintext exit.
+            if ($GLOBALS["DBDRIVER"] !== 'postgresql') {
+                throw new \RuntimeException("PostgreSQL is not configured.");
+            }
+            $settings = [];
+            foreach ($GLOBALS as $name => $value) {
+                if (is_string($name) && str_starts_with($name, 'SYNTH_DB_')) {
+                    $settings[$name] = $value;
+                }
+            }
+            $GLOBALS["db"] = new sql($settings);
+        } elseif ($needsDbConnection) {
             $GLOBALS["db"] = new sql();
         }
 
