@@ -321,20 +321,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
     $action = (string)($_POST['qs_action'] ?? '');
 
     if ($action === 'api_badge_quicksave') {
-        $openrouter = isset($_POST['openrouter_api_key']) ? (string)$_POST['openrouter_api_key'] : '';
-        $deepgram = isset($_POST['deepgram_api_key']) ? (string)$_POST['deepgram_api_key'] : '';
-        $save = function($labelLower, $apiKey) {
-            if ($labelLower === '' || $apiKey === null) return;
-            $db = $GLOBALS['db'];
-            $row = $db->fetchOne("SELECT id FROM core_api_badge WHERE lower(label)='" . $db->escape($labelLower) . "' LIMIT 1");
-            if (isset($row['id']) && $row['id'] !== '' && $row['id'] !== null) {
-                $db->updateRow('core_api_badge', [ 'api_key' => (string)$apiKey ], "id=".intval($row['id']));
-            } else {
-                $db->insert('core_api_badge', [ 'label' => (string)$labelLower, 'api_key' => (string)$apiKey ]);
+        // Quickstart only sets keys: a blank field keeps the saved key. Clearing one is the confirmed Clear
+        // action on the API Keys page. Rows keep the preset label the API Keys page uses for the provider.
+        $presetLabels = [ 'openrouter' => 'OpenRouter', 'deepgram' => 'Deepgram' ];
+        $keys = [];
+        foreach ($presetLabels as $slug => $label) {
+            $raw = $_POST[$slug . '_api_key'] ?? '';
+            $apiKey = is_string($raw) ? trim($raw) : null;
+            if ($apiKey === null || strlen($apiKey) > 4096 || !preg_match('//u', $apiKey) || preg_match('/[\x00-\x1F\x7F]/', $apiKey)) {
+                echo json_encode([ 'ok' => false, 'error' => $label . ' API key must be one line of text without control characters.' ]);
+                exit;
             }
-        };
-        if ($openrouter !== '') { $save('openrouter', $openrouter); }
-        if ($deepgram !== '') { $save('deepgram', $deepgram); }
+            if ($apiKey !== '') $keys[$slug] = $apiKey;
+        }
+        $db = $GLOBALS['db'];
+        foreach ($keys as $slug => $apiKey) {
+            $result = $db->execQuery('SELECT id FROM core_api_badge WHERE lower(label) = $1 ORDER BY id LIMIT 1', [ $slug ]);
+            $row = $result ? pg_fetch_assoc($result) : false;
+            if (is_array($row) && intval($row['id'] ?? 0) > 0) {
+                $saved = $db->updateRow('core_api_badge', [ 'api_key' => $apiKey ], 'id=' . intval($row['id']));
+            } else {
+                $saved = $result && $db->insert('core_api_badge', [ 'label' => $presetLabels[$slug], 'api_key' => $apiKey ]);
+            }
+            if (!$saved) {
+                echo json_encode([ 'ok' => false, 'error' => 'Could not save the ' . $presetLabels[$slug] . ' API key.' ]);
+                exit;
+            }
+        }
         echo json_encode([ 'ok' => true ]);
         exit;
     }
@@ -505,8 +518,10 @@ echo '<section class="qs-section qs-header-card">
       </section>';
 
 // API Keys section (OpenRouter only here; Deepgram rendered under STT)
-try { $openrouterRow = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='openrouter' LIMIT 1"); } catch (Throwable $_e) { $openrouterRow = []; }
-$openrouterKey = isset($openrouterRow["api_key"]) ? $openrouterRow["api_key"] : "";
+// Only whether a key is saved reaches the page; the field is always blank and blank keeps the saved key.
+try { $openrouterRow = $db->fetchOne("SELECT 1 AS configured FROM core_api_badge WHERE lower(label)='openrouter' AND coalesce(api_key,'') <> '' LIMIT 1"); } catch (Throwable $_e) { $openrouterRow = []; }
+$openrouterConfigured = !empty($openrouterRow['configured']);
+$quickstartSavedKeyPlaceholder = 'Key saved - leave blank to keep';
 $player2ForceAllLlm = false;
 try { $player2ForceAllLlm = LLMRandomizer::isPlayer2ForceEnabled(); } catch (Throwable $_e) { $player2ForceAllLlm = false; }
 $player2ForceChecked = $player2ForceAllLlm ? " checked" : "";
@@ -530,12 +545,12 @@ echo '<section class="qs-section" id="qs_openrouter_section"' . ($player2ForceAl
         <div class="form-group qs-field">
             <label for="qs_openrouter_api_key">OpenRouter API Key</label>
             <div class="input-group">
-                <input type="password" class="form-control" id="qs_openrouter_api_key" value="' . htmlspecialchars($openrouterKey) . '" style="filter: blur(3px);">
+                <input type="password" class="form-control" id="qs_openrouter_api_key" value="" placeholder="' . ($openrouterConfigured ? $quickstartSavedKeyPlaceholder : 'Paste API key') . '" autocomplete="off" style="filter: blur(3px);">
                 <div class="input-group-append">
                     <button class="btn-primary" type="button" onclick="document.getElementById(\'qs_openrouter_api_key\').style.filter=\'blur(0px)\'; document.getElementById(\'qs_openrouter_api_key\').setAttribute(\'type\', \'text\');">Unhide</button>
                 </div>
             </div>
-            <small class="form-text">Paste your OpenRouter API key. <a href="https://openrouter.ai/keys" target="_blank">Create key</a></small>
+            <small class="form-text">Paste your OpenRouter API key. <a href="https://openrouter.ai/keys" target="_blank">Create key</a>' . ($openrouterConfigured ? ' A saved key is kept; to remove it, use Clear on the <a href="core/api_badge.php">API Keys</a> page.' : '') . '</small>
         </div>
       </section>';
 
@@ -690,17 +705,17 @@ foreach ($quickstartConf as $pname => $parms) {
         echo "</select>";
 
         if ($pname == "STTFUNCTION") {
-            try { $deepgramRow = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='deepgram' LIMIT 1"); } catch (Throwable $_e) { $deepgramRow = []; }
-            $deepgramKey = isset($deepgramRow["api_key"]) ? $deepgramRow["api_key"] : "";
+            try { $deepgramRow = $db->fetchOne("SELECT 1 AS configured FROM core_api_badge WHERE lower(label)='deepgram' AND coalesce(api_key,'') <> '' LIMIT 1"); } catch (Throwable $_e) { $deepgramRow = []; }
+            $deepgramConfigured = !empty($deepgramRow['configured']);
             $showDG = ($parms["currentValue"] === "deepgram") ? "" : " style=\"display:none\"";
             echo "<div class='form-group' id='dg_api_wrap'".$showDG.">";
             echo "<label for='qs_deepgram_api_key'>Deepgram API Key</label>";
             echo "<div class='input-group'>";
-            echo "<input type='password' class='form-control' id='qs_deepgram_api_key' value='" . htmlspecialchars($deepgramKey) . "' style='filter: blur(3px);'>";
+            echo "<input type='password' class='form-control' id='qs_deepgram_api_key' value='' placeholder='" . ($deepgramConfigured ? $quickstartSavedKeyPlaceholder : 'Paste API key') . "' autocomplete='off' style='filter: blur(3px);'>";
             echo "<div class='input-group-append'>";
             echo "<button class='btn-primary' type='button' onclick=\"document.getElementById('qs_deepgram_api_key').style.filter='blur(0px)'; document.getElementById('qs_deepgram_api_key').setAttribute('type','text');\">Unhide</button>";
             echo "</div></div>";
-            echo "<small class='form-text'>Paste your Deepgram API key. <a href='https://console.deepgram.com/' target='_blank'>Create key</a></small>";
+            echo "<small class='form-text'>Paste your Deepgram API key. <a href='https://console.deepgram.com/' target='_blank'>Create key</a>" . ($deepgramConfigured ? " A saved key is kept; to remove it, use Clear on the <a href='core/api_badge.php'>API Keys</a> page." : "") . "</small>";
             echo "</div>";
             echo "<script>(function(){try{var s=document.getElementById('STTFUNCTION'); if(!s) return; var w=document.getElementById('dg_api_wrap'); var f=function(){ if(!w) return; w.style.display = (s.value==='deepgram') ? '' : 'none'; }; s.addEventListener('change', f); f();}catch(_e){}})();</script>";
         }
@@ -1243,8 +1258,9 @@ async function saveQuickstartAndDB(){
     const orKey = document.getElementById("qs_openrouter_api_key");
     const dgKey = document.getElementById("qs_deepgram_api_key");
     fd.append("qs_action", "api_badge_quicksave");
-    fd.append("openrouter_api_key", orKey ? orKey.value : "");
-    fd.append("deepgram_api_key", dgKey ? dgKey.value : "");
+    // Blank fields keep the saved keys.
+    fd.append("openrouter_api_key", orKey ? orKey.value.trim() : "");
+    fd.append("deepgram_api_key", dgKey ? dgKey.value.trim() : "");
     await postQuickstart(fd, "API key setup");
 
     // 2) Save profile metadata flags

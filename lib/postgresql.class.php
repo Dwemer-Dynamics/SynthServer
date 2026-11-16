@@ -166,33 +166,24 @@ class sql
         self::$link = null;
     }
 
+    // Caller frames only: arguments are never captured, because they can carry bound credentials or row values.
     private function extract_caller() { // format back trace output
         $s_res = "";
         if ($this->debug_level > 0) {
-            $arr_bkt = debug_backtrace();
-            if (isset($arr_bkt) && (count($arr_bkt)> 0)) {
+            $arr_bkt = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5);
+            if (count($arr_bkt) > 0) {
                 $s_res .= " stack: ";
                 for ($i = 1; $i <= 4; $i++) {
                     $s_file = $arr_bkt[$i]['file'] ?? '';
-                    $s_line = $arr_bkt[$i]['line'] ?? '';
+                    $s_line = strval($arr_bkt[$i]['line'] ?? '');
                     $s_func = $arr_bkt[$i]['function'] ?? '';
                     $s_class = $arr_bkt[$i]['class'] ?? '';
-                    if (isset($arr_bkt[$i]['args']) && (count($arr_bkt[$i]['args']) > 0)) {
-                        $s_arg = json_encode($arr_bkt[$i]['args'],JSON_UNESCAPED_SLASHES); //"array[".count($arr_bkt[$i]['args'][0])."]";
-                    } else $s_arg = '';
-                    $sx = $s_file.$s_line.$s_func;
-                    if (strlen($sx) > 0) {
-                        if ($s_line > '')
+                    if (strlen($s_file.$s_line.$s_func) > 0) {
+                        if ($s_line !== '')
                             $s_line = "[$s_line]";
-                        if ($s_func > '')
-                            $s_func = "s_func";
-                        if ($s_class > '')
+                        if ($s_class !== '')
                             $s_class = "$s_class::";
-                        if ($s_arg > '')
-                            $s_arg = "($s_arg)";
-                        else
-                            $s_arg = "()";
-                        $s_res .= "#{$i} {$s_file} {$s_line} {$s_class}{$s_func}{$s_arg}. ";
+                        $s_res .= "#{$i} {$s_file} {$s_line} {$s_class}{$s_func}(). ";
                     }
                 }
             }

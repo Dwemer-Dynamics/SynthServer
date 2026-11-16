@@ -3,6 +3,21 @@
 $enginePath = __DIR__.DIRECTORY_SEPARATOR."../../";
 
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."runtime_bootstrap.php");
+
+// Clear is the only request that empties a saved key. It must carry this session's API Keys token, checked
+// here before bootstrap opens the database. A rejected Clear reads only an existing session and mints no token.
+if (($_SERVER["REQUEST_METHOD"] ?? '') === "POST" && isset($_POST["clear_key"])) {
+ if (session_status() === PHP_SESSION_NONE && isset($_COOKIE[session_name()])) @session_start();
+ $clearCsrf = session_status() === PHP_SESSION_ACTIVE ? ($_SESSION['synth_api_key_csrf'] ?? null) : null;
+ if (!is_string($clearCsrf) || !preg_match('/^[a-f0-9]{64}$/D', $clearCsrf)
+  || !is_string($_POST['csrf_token'] ?? null) || !hash_equals($clearCsrf, $_POST['csrf_token'])) {
+  http_response_code(403);
+  header('Cache-Control: no-store');
+  echo 'Reload the API Keys page, then try again.';
+  exit;
+ }
+}
+
 synthRuntimeBootstrap($enginePath, [
  'load_general_settings' => true,
  'load_player_name' => true,
@@ -202,6 +217,17 @@ include(__DIR__.DIRECTORY_SEPARATOR."../tmpl/head.html");
  margin-bottom: 6px;
  }
 
+ .provider-card.has-key {
+ box-shadow: 0 0 0 1px rgba(45,106,79,0.35) inset, 0 1px 4px rgba(0, 0, 0, 0.1);
+ border-color:#2d6a4f;
+ }
+ .key-state { font-size:11px; color:#8fd1ae; border:1px solid rgba(45,106,79,0.6); border-radius:4px; padding:1px 6px; }
+ .key-state[hidden], .btn-clear-key[hidden] { display:none; }
+ @media (max-width: 600px) {
+ .provider-card .provider-body, .custom-card .provider-body { flex-wrap:wrap; }
+ .provider-card .provider-body input, .custom-card .provider-body input { flex:1 1 100%; min-width:0; }
+ }
+
  @media (max-width: 900px) {
  .provider-grid { grid-template-columns: 1fr; }
  #custom-keys { grid-template-columns: 1fr; }
@@ -261,65 +287,115 @@ $reservedLabelsLower = array_values(array_unique(array_merge(
  array_map('strtolower', array_values($presetMap))
 )));
 
-// Seed presets if missing (one-time check per label)
-$existing = $apiBadge->getAll();
-$existingLabelsLower = array_map(function($row){ return strtolower($row['label'] ?? ''); }, $existing);
-foreach ($presetMap as $key => $pretty) {
- $lowerPretty = strtolower($pretty);
- if (!in_array($lowerPretty, $existingLabelsLower)) {
- $apiBadge->create([ 'label' => $pretty, 'api_key' => '' ]);
- $existingLabelsLower[] = $lowerPretty; // Prevent duplicate creation in same request
- }
+// This page seeds no preset rows when viewed: a missing preset row is created by label when Save Keys stores
+// its key.
+
+// One session token shared by this page and its key Test page. Clear (checked above) and Test refuse a request
+// without it.
+if (session_status() === PHP_SESSION_NONE) @session_start();
+$apiKeyCsrf = $_SESSION['synth_api_key_csrf'] ?? null;
+if (!is_string($apiKeyCsrf) || !preg_match('/^[a-f0-9]{64}$/D', $apiKeyCsrf)) {
+ $apiKeyCsrf = bin2hex(random_bytes(32));
+ if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['synth_api_key_csrf'] = $apiKeyCsrf;
 }
 
-// Handle Save All (batch update)
+// Keys are write-only from the browser: a blank field keeps the saved key and only the confirmed Clear
+// action empties one. Control characters are refused so a key can never split a provider request header.
+// Returns '' for blank, the trimmed key, or null when the submitted value is not a usable key.
+function synthApiBadgeSubmittedKey($raw): ?string {
+ if (!is_string($raw)) return null;
+ $key = trim($raw);
+ if ($key === '') return '';
+ if (strlen($key) > 4096 || !preg_match('//u', $key) || preg_match('/[\x00-\x1F\x7F]/', $key)) return null;
+ return $key;
+}
+
+// A row id is a positive PostgreSQL integer (core_api_badge.id is INT, max 2147483647). Returns 0 otherwise.
+function synthApiBadgeRowId($raw): int {
+ if (!is_string($raw) || !preg_match('/^[1-9][0-9]{0,9}$/D', $raw)) return 0;
+ $id = intval($raw);
+ return $id <= 2147483647 ? $id : 0;
+}
+
+function synthApiBadgeIsPresetRow($row, array $reservedLabelsLower): bool {
+ return in_array(strtolower(strval($row['label'] ?? '')), $reservedLabelsLower, true);
+}
+
+// Handle Save All (batch update). Every submitted key is checked before anything is written, so a malformed
+// value changes nothing; each write is then checked and a failure is reported instead of a silent success.
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
- // 1) Presets
+ $writes = [];
+ // 1) Presets: identified by their fixed label, never by a posted id or label.
  if (isset($_POST['presets']) && is_array($_POST['presets'])) {
  foreach ($presetMap as $slug => $pretty) {
  $posted = $_POST['presets'][$slug] ?? null;
- if (!$posted) continue;
- $id = isset($posted['id']) ? intval($posted['id']) : null;
- $apiKey = trim($posted['api_key'] ?? '');
- if ($id) {
- $apiBadge->update($id, [ 'label' => $pretty, 'api_key' => $apiKey ]);
- } else {
- $apiBadge->create([ 'label' => $pretty, 'api_key' => $apiKey ]);
- }
+ if (!is_array($posted)) continue;
+ $apiKey = synthApiBadgeSubmittedKey($posted['api_key'] ?? '');
+ if ($apiKey === null) { header("Location: api_badge.php?err=invalid_key"); exit; }
+ if ($apiKey !== '') $writes[] = [ 'preset', $pretty, [ 'api_key' => $apiKey ] ];
  }
  }
 
  // 2) Custom keys
  if (isset($_POST['custom']) && is_array($_POST['custom'])) {
  // Align arrays: ids[], labels[], api_keys[]
- $ids = $_POST['custom']['id'] ?? [];
- $labels = $_POST['custom']['label'] ?? [];
- $keys = $_POST['custom']['api_key'] ?? [];
+ $ids = is_array($_POST['custom']['id'] ?? null) ? $_POST['custom']['id'] : [];
+ $labels = is_array($_POST['custom']['label'] ?? null) ? $_POST['custom']['label'] : [];
+ $keys = is_array($_POST['custom']['api_key'] ?? null) ? $_POST['custom']['api_key'] : [];
  $count = max(count($ids), count($labels), count($keys));
  for ($i = 0; $i < $count; $i++) {
- $cid = isset($ids[$i]) && $ids[$i] !== '' ? intval($ids[$i]) : null;
- $clabel = trim($labels[$i] ?? '');
- $ckey = trim($keys[$i] ?? '');
- if ($clabel === '' && $ckey === '') continue; // skip empty rows
+ // A blank id is a new row; any other id must name a row, so a bad one never creates an extra row.
+ $rawId = $ids[$i] ?? '';
+ $cid = $rawId === '' ? null : synthApiBadgeRowId($rawId);
+ if ($cid === 0) { header("Location: api_badge.php?err=not_found"); exit; }
+ $clabel = is_string($labels[$i] ?? null) ? trim($labels[$i]) : '';
+ $ckey = synthApiBadgeSubmittedKey($keys[$i] ?? '');
+ if ($ckey === null) { header("Location: api_badge.php?err=invalid_key"); exit; }
  // Prevent using preset labels for customs
- if (array_key_exists(strtolower($clabel), $presetMap)) continue;
+ if (in_array(strtolower($clabel), $reservedLabelsLower, true)) continue;
+ $payload = [];
+ if ($clabel !== '') $payload['label'] = $clabel;
+ if ($ckey !== '') $payload['api_key'] = $ckey;
+ if (!$payload) continue; // skip empty rows; a blank key keeps the saved key
  if ($cid) {
- $apiBadge->update($cid, [ 'label' => $clabel, 'api_key' => $ckey ]);
+ $writes[] = [ 'custom', $cid, $payload ];
  } else {
- $apiBadge->create([ 'label' => $clabel, 'api_key' => $ckey ]);
+ $writes[] = [ 'new', null, [ 'label' => $clabel !== '' ? $clabel : 'Custom Key', 'api_key' => $ckey ] ];
  }
  }
  }
 
- header("Location: api_badge.php");
+ $saveFailed = false;
+ foreach ($writes as [$kind, $target, $payload]) {
+ if ($kind === 'preset') {
+ $presetRow = $apiBadge->getByLabel($target);
+ $saved = !empty($presetRow['id'])
+ ? $apiBadge->update($presetRow['id'], $payload)
+ : $apiBadge->create([ 'label' => $target ] + $payload) > 0;
+ } else if ($kind === 'custom') {
+ $current = $apiBadge->getById($target);
+ if (empty($current['id']) || synthApiBadgeIsPresetRow($current, $reservedLabelsLower)) continue;
+ $saved = $apiBadge->update($target, $payload);
+ } else {
+ $saved = $apiBadge->create($payload) > 0;
+ }
+ if (!$saved) $saveFailed = true;
+ }
+
+ header("Location: api_badge.php" . ($saveFailed ? "?err=save_failed" : ""));
  exit;
 }
 
 // Handle Create
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create"])) {
- $incomingLabel = trim($_POST['label'] ?? '');
+ $incomingLabel = is_string($_POST['label'] ?? null) ? trim($_POST['label']) : '';
  if (in_array(strtolower($incomingLabel), $reservedLabelsLower, true)) {
  header("Location: api_badge.php?err=reserved_label");
+ exit;
+ }
+ $incomingKey = synthApiBadgeSubmittedKey($_POST['api_key'] ?? '');
+ if ($incomingKey === null) {
+ header("Location: api_badge.php?err=invalid_key");
  exit;
  }
  // Assign custom IDs starting from 100 to leave room for preset IDs
@@ -330,34 +406,60 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create"])) {
  if ($rid > $maxId) { $maxId = $rid; }
  }
  $newId = max(100, $maxId + 1);
- $apiBadge->create([
+ $createdId = $apiBadge->create([
  'id' => $newId,
  'label' => $incomingLabel !== '' ? $incomingLabel : 'Custom Key',
- 'api_key' => trim($_POST['api_key'] ?? '')
+ 'api_key' => $incomingKey
  ]);
+ header("Location: api_badge.php?" . ($createdId > 0 ? "ok=saved" : "err=save_failed"));
+ exit;
+}
+
+// Handle Update (autosave and per-card Save). Only an existing row's own label/key are written: a preset
+// keeps its label, a custom row cannot take a preset label, and a blank key keeps the saved key.
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
+ $uid = synthApiBadgeRowId($_POST['id'] ?? null);
+ $current = $uid > 0 ? $apiBadge->getById($uid) : null;
+ if (empty($current['id'])) {
+ header("Location: api_badge.php?err=not_found");
+ exit;
+ }
+ $payload = [];
+ if (!synthApiBadgeIsPresetRow($current, $reservedLabelsLower) && is_string($_POST['label'] ?? null)) {
+ $newLabel = trim($_POST['label']);
+ if (in_array(strtolower($newLabel), $reservedLabelsLower, true)) {
+ header("Location: api_badge.php?err=reserved_label");
+ exit;
+ }
+ if ($newLabel !== '') $payload['label'] = $newLabel;
+ }
+ if (array_key_exists('api_key', $_POST)) {
+ $newKey = synthApiBadgeSubmittedKey($_POST['api_key']);
+ if ($newKey === null) {
+ header("Location: api_badge.php?err=invalid_key");
+ exit;
+ }
+ if ($newKey !== '') $payload['api_key'] = $newKey;
+ }
+ if ($payload && !$apiBadge->update($uid, $payload)) {
+ header("Location: api_badge.php?err=save_failed");
+ exit;
+ }
  header("Location: api_badge.php?ok=saved");
  exit;
 }
 
-// Handle Update
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
- $uid = isset($_POST['id']) ? intval($_POST['id']) : 0;
- $current = $uid ? $apiBadge->getById($uid) : null;
- $currentIsPreset = false;
- if (is_array($current)) {
- $currentIsPreset = in_array(strtolower($current['label'] ?? ''), $reservedLabelsLower, true);
- }
- $newLabel = isset($_POST['label']) ? trim($_POST['label']) : null;
- if ($newLabel !== null) {
- $newIsReserved = in_array(strtolower($newLabel), $reservedLabelsLower, true);
- // Block turning a custom row into a reserved preset label
- if (!$currentIsPreset && $newIsReserved) {
- header("Location: api_badge.php?err=reserved_label");
+// Handle Clear: the only path that empties a saved key. The page asks the operator to confirm first; the
+// session token was checked at the top of this file.
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["clear_key"])) {
+ $cid = synthApiBadgeRowId($_POST['id'] ?? null);
+ $current = $cid > 0 && ($_POST['clear_key'] ?? '') === 'confirmed' ? $apiBadge->getById($cid) : null;
+ if (empty($current['id'])) {
+ header("Location: api_badge.php?err=not_found");
  exit;
  }
- }
- $apiBadge->update($uid, $_POST);
- header("Location: api_badge.php?ok=saved");
+ $cleared = $apiBadge->update($cid, [ 'api_key' => '' ]);
+ header("Location: api_badge.php?" . ($cleared ? "ok=cleared" : "err=save_failed"));
  exit;
 }
 
@@ -372,8 +474,14 @@ if (isset($_GET["delete"])) {
  exit;
 }
 
-// Fetch Data
-$data = $apiBadge->getAll();
+// Fetch Data. Render only whether a key is saved; the stored value never reaches the page.
+$data = array_map(function($row) {
+ return [
+ 'id' => $row['id'] ?? '',
+ 'label' => $row['label'] ?? '',
+ 'configured' => trim(strval($row['api_key'] ?? '')) !== '',
+ ];
+}, $apiBadge->getAll() ?: []);
 $editItem = null;
 
 if (isset($_GET["edit"])) {
@@ -389,12 +497,13 @@ foreach ($data as $row) {
 // Split presets and customs
 $presetRows = [];
 foreach ($presetMap as $slug => $pretty) {
- $presetRows[$slug] = $byLabel[strtolower($pretty)] ?? [ 'id' => '', 'label' => $pretty, 'api_key' => '' ];
+ $presetRows[$slug] = $byLabel[strtolower($pretty)] ?? [ 'id' => '', 'label' => $pretty, 'configured' => false ];
 }
+$savedKeyPlaceholder = 'Key saved - leave blank to keep, paste to replace';
 $customRows = array_filter($data, function($row) use ($presetMap) {
  return !array_key_exists(strtolower($row['label'] ?? ''), $presetMap);
 });
-?><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Preset Keys (Saves Automatically)</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div><div class="provider-grid"><?php foreach ($presetRows as $slug => $row): ?><div class="provider-card"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128273;</div><div><?= htmlspecialchars($presetMap[$slug]) ?></div></div><div class="provider-links"><?php if (!empty($providerLinks[$slug])): ?><a href="<?= htmlspecialchars($providerLinks[$slug]) ?>" target="_blank" rel="noopener">Create Key</a><?php endif; ?></div></div><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($row['id']) ?>"><div class="provider-body"><input type="password" name="presets[<?= htmlspecialchars($slug) ?>][api_key]" value="<?= htmlspecialchars($row['api_key']) ?>" placeholder="Paste API key" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($row['id']) ?>">Test</button><?php endif; ?></div><?php if (!empty($providerSubtext[$slug])): ?><div class="provider-subtext"><div class="desc">This key can be used for: <?= htmlspecialchars(implode(', ', $providerSubtext[$slug])) ?></div></div><?php endif; ?></div><?php endforeach; ?></div></div><div class="content-section full-width-section"><h2>Custom Keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = trim($row['api_key'] ?? '') !== ''; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="<?= htmlspecialchars($row['api_key']) ?>" placeholder="Paste API key" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div></div></form><script>
+?><input type="hidden" name="csrf_token" id="api_key_csrf" value="<?= htmlspecialchars($apiKeyCsrf) ?>"><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Preset Keys (Saved When You Leave a Field)</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div><div class="provider-grid"><?php foreach ($presetRows as $slug => $row): ?><div class="provider-card<?= $row['configured'] ? ' has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128273;</div><div><?= htmlspecialchars($presetMap[$slug]) ?></div><span class="key-state"<?= $row['configured'] ? '' : ' hidden' ?>>Key saved</span></div><div class="provider-links"><?php if (!empty($providerLinks[$slug])): ?><a href="<?= htmlspecialchars($providerLinks[$slug]) ?>" target="_blank" rel="noopener">Create Key</a><?php endif; ?></div></div><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($row['id']) ?>"><div class="provider-body"><input type="password" name="presets[<?= htmlspecialchars($slug) ?>][api_key]" value="" placeholder="<?= $row['configured'] ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $row['configured'] ? '' : ' hidden' ?>>Clear</button><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($row['id']) ?>">Test</button><?php endif; ?></div><?php if (!empty($providerSubtext[$slug])): ?><div class="provider-subtext"><div class="desc">This key can be used for: <?= htmlspecialchars(implode(', ', $providerSubtext[$slug])) ?></div></div><?php endif; ?></div><?php endforeach; ?></div></div><div class="content-section full-width-section"><h2>Custom Keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = $row['configured']; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $hasKey ? '' : ' hidden' ?>>Clear</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div></div></form><script>
 function toggleVisibility(btn){
  const input = btn.parentElement.querySelector('input');
  if(!input) return;
@@ -411,46 +520,82 @@ function addCustomKey(){
  const wrapper = document.createElement('div');
  wrapper.className = 'custom-card';
  wrapper.innerHTML = `
- <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="">Save</button><button type="button" class="button btn-delete" data-delete-id="">Delete</button></div></div><input type="hidden" name="custom[id][]" value=""><label>Label</label><input type="text" name="custom[label][]" value="" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id=""><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="Paste API key" data-autosave="custom" data-field="api_key" data-id=""><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div>
+ <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="">Save</button><button type="button" class="button btn-delete" data-delete-id="">Delete</button></div></div><input type="hidden" name="custom[id][]" value=""><label>Label</label><input type="text" name="custom[label][]" value="" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id=""><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="Paste API key" autocomplete="off" data-autosave="custom" data-field="api_key" data-id=""><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div>
  `;
  container.appendChild(wrapper);
 }
 </script><script>
-// Autosave for presets and custom keys
+// Autosave for presets and custom keys. A field saves once when it loses focus (change), not on every
+// keystroke, and requests for one field run in order, so a partial key can never land after the full one.
+// A blank key field keeps the saved key; only the confirmed Clear button removes it.
 (function(){
  const RESERVED_LABELS = <?php echo json_encode($reservedLabelsLower); ?>;
- async function postUpdate(payload){
- try { await fetch('api_badge.php', { method:'POST', body: payload }); } catch(_e){}
+ const SAVED_PLACEHOLDER = <?php echo json_encode($savedKeyPlaceholder); ?>;
+ const pending = new WeakMap();
+ const inFlight = new Set();
+ function queuePost(owner, payload){
+ const prior = pending.get(owner) || Promise.resolve(true);
+ const next = prior.then(async function(){
+ try {
+ const res = await fetch('api_badge.php', { method:'POST', body: payload, credentials:'same-origin' });
+ return res.ok && !/[?&]err=/.test(res.url || '');
+ } catch(_e){ return false; }
+ });
+ pending.set(owner, next);
+ inFlight.add(next);
+ next.finally(function(){ inFlight.delete(next); });
+ return next;
  }
- document.addEventListener('input', function(e){
+ // Save Keys posts the whole form. It first waits for field saves already sent (leaving a field to click the
+ // button sends one), so an earlier field save can never land after the full save.
+ const saveAllButton = document.querySelector('button[name="save_all"]');
+ const pageForm = saveAllButton ? saveAllButton.form : null;
+ if (pageForm) pageForm.addEventListener('submit', function(e){
+ if (!inFlight.size) return;
+ e.preventDefault();
+ if (saveAllButton) saveAllButton.disabled = true;
+ Promise.allSettled(Array.from(inFlight)).then(function(){
+ if (!pageForm.querySelector('input[type="hidden"][name="save_all"]')) {
+ const marker = document.createElement('input'); marker.type = 'hidden'; marker.name = 'save_all'; marker.value = '1'; pageForm.appendChild(marker);
+ }
+ pageForm.submit();
+ });
+ });
+ function csrfToken(){ const el = document.getElementById('api_key_csrf'); return el ? el.value : ''; }
+ function settle(owner){ return owner ? (pending.get(owner) || Promise.resolve(true)) : Promise.resolve(true); }
+ function keyInputOf(card){ return card ? card.querySelector('input[data-autosave="preset"], input[data-field="api_key"]') : null; }
+ function markSaved(card){
+ if (!card) return;
+ card.classList.add('has-key');
+ const state = card.querySelector('.key-state'); if (state) state.hidden = false;
+ const clear = card.querySelector('.btn-clear-key'); if (clear && clear.getAttribute('data-clear-id')) clear.hidden = false;
+ const input = keyInputOf(card); if (input) input.placeholder = SAVED_PLACEHOLDER;
+ }
+ document.addEventListener('change', function(e){
  const t = e.target;
  if (!t || !t.getAttribute) return;
  const mode = t.getAttribute('data-autosave');
  if (!mode) return;
- const formData = new FormData();
- if (mode === 'preset'){
- // We need an id to update the preset row
+ // Existing rows only; new custom rows require explicit Save.
  const id = t.getAttribute('data-id') || '';
  if (!id) return;
+ const field = mode === 'preset' ? 'api_key' : (t.getAttribute('data-field') || '');
+ if (field !== 'api_key' && field !== 'label') return;
+ const value = (t.value || '').trim();
+ if (value === '') return; // blank keeps the saved value
+ const formData = new FormData();
  formData.append('update','1');
  formData.append('id', id);
- formData.append('label', t.getAttribute('data-provider') || '');
- formData.append('api_key', t.value || '');
- } else if (mode === 'custom'){
- const id = t.getAttribute('data-id') || '';
- const field = t.getAttribute('data-field') || '';
- if (!field) return;
- if (id){
- formData.append('update','1');
- formData.append('id', id);
- formData.append(field, t.value || '');
- } else {
- // Do not auto-create new rows; require explicit Save
- return;
+ formData.append(field, value);
+ queuePost(t, formData).then(function(ok){
+ if (!ok) { alert(field === 'api_key' ? 'The API key was not saved. Check it and try again.' : 'The label was not saved.'); return; }
+ // Drop the key from the page once it is stored, unless the operator has typed something new.
+ if (field === 'api_key' && (t.value || '').trim() === value) {
+ t.value = '';
+ markSaved(t.closest('.provider-card, .custom-card'));
  }
- }
- postUpdate(formData);
- }, { passive:true });
+ });
+ });
  // Per-card Save handler
  document.addEventListener('click', async function(e){
  const btn = e.target && e.target.closest && e.target.closest('.btn-save');
@@ -480,10 +625,29 @@ function addCustomKey(){
  fd.append('label', labelVal || 'Custom Key');
  fd.append('api_key', keyVal);
  }
- try { await fetch('api_badge.php', { method:'POST', body: fd }); } catch(_e){}
- // Reload to reflect persisted id/state
+ await settle(labelInput);
+ const saved = await queuePost(keyInput || btn, fd);
+ // Keep the typed values when the save failed; reload to reflect the persisted id/state otherwise.
+ if (!saved) { alert('The API key was not saved. Check the values and try again.'); return; }
  try { window.location.reload(); } catch(_){}
  }, { passive:true });
+ // Clear handler: the only way to remove a saved key. It waits for any save of the same field first.
+ document.addEventListener('click', async function(e){
+ const btn = e.target && e.target.closest && e.target.closest('.btn-clear-key');
+ if (!btn) return;
+ const id = btn.getAttribute('data-clear-id') || '';
+ if (!id) return;
+ if (!confirm('Clear this saved API key? Anything that uses it stops working until a new key is saved.')) return;
+ const input = keyInputOf(btn.closest('.provider-card, .custom-card'));
+ if (input) input.value = '';
+ const fd = new FormData();
+ fd.append('clear_key', 'confirmed');
+ fd.append('id', id);
+ fd.append('csrf_token', csrfToken());
+ const ok = await queuePost(input || btn, fd);
+ if (!ok) { alert('The API key was not cleared. Reload the page and try again.'); return; }
+ try { window.location.reload(); } catch(_){}
+ });
  // Delete handler (existing rows: server delete; new rows: remove card)
  document.addEventListener('click', function(e){
  const btn = e.target && e.target.closest && e.target.closest('.btn-delete');
@@ -531,6 +695,8 @@ function addCustomKey(){
  form.style.display = 'none';
  const inProv = document.createElement('input'); inProv.type='hidden'; inProv.name='provider'; form.appendChild(inProv);
  const inKey = document.createElement('input'); inKey.type='hidden'; inKey.name='api_key'; form.appendChild(inKey);
+ const inBadge = document.createElement('input'); inBadge.type='hidden'; inBadge.name='badge_id'; form.appendChild(inBadge);
+ const inCsrf = document.createElement('input'); inCsrf.type='hidden'; inCsrf.name='csrf_token'; form.appendChild(inCsrf);
  document.body.appendChild(form);
  return form;
  }
@@ -539,13 +705,19 @@ function addCustomKey(){
  const provider = btn.getAttribute('data-test-provider');
  const row = btn.closest('.provider-card');
  const input = row ? row.querySelector('input[name^="presets"][name$="[api_key]"]') : null;
+ // A typed key is tested as entered; a blank field tests the saved key, which the server looks up.
  const apiKey = input ? input.value.trim() : '';
- if (!apiKey){ alert('Please enter an API key first.'); return; }
+ const configured = !!(row && row.classList.contains('has-key'));
+ if (!apiKey && !configured){ alert('Enter an API key or save one first.'); return; }
  openModal('about:blank');
  const form = ensurePostForm();
  form.querySelector('input[name="provider"]').value = provider;
  form.querySelector('input[name="api_key"]').value = apiKey;
+ form.querySelector('input[name="badge_id"]').value = apiKey ? '' : (btn.getAttribute('data-badge-id') || '');
+ const tokenField = document.getElementById('api_key_csrf');
+ form.querySelector('input[name="csrf_token"]').value = tokenField ? tokenField.value : '';
  try { form.submit(); } catch(_e){}
+ form.querySelector('input[name="api_key"]').value = '';
  });
  });
 })();
@@ -556,6 +728,12 @@ function addCustomKey(){
  const sp = new URLSearchParams(window.location.search);
  if (sp.get('err') === 'reserved_label') {
  alert('That label is reserved for a preset provider. Please choose another.');
+ } else if (sp.get('err') === 'invalid_key') {
+ alert('An API key was not saved: it must be one line of text without control characters, up to 4096 characters.');
+ } else if (sp.get('err') === 'save_failed') {
+ alert('Some changes were not saved. A label may already be in use; check the entries and try again.');
+ } else if (sp.get('err') === 'not_found') {
+ alert('That API key entry no longer exists. Reload the page and try again.');
  } else if (sp.get('ok') === 'saved') {
  // no-op to avoid noisy alerts; keep silent success
  }
