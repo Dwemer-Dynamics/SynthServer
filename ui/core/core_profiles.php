@@ -2,6 +2,10 @@
 
 $enginePath = __DIR__.DIRECTORY_SEPARATOR."../../";
 
+// Profile create, clone, delete and default reassignment: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$profileAction = synthManagementActionGate(['create_blank', 'clone', 'delete']);
+
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
@@ -603,8 +607,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
 }
 
 // Handle Delete
-if (isset($_GET["delete"])) {
-    $deleteId = intval($_GET["delete"]);
+if ($profileAction && isset($_POST["delete"])) {
+    $deleteId = intval($_POST["delete"]);
     $profileToDelete = $profiles->readOne($deleteId);
 
     if (!$profileToDelete) {
@@ -616,8 +620,8 @@ if (isset($_GET["delete"])) {
     $isDefaultNarrator = $profileToDelete['default_narrator'] == '1';
 
     // If a replacement was selected, promote it first then delete
-    if (isset($_GET["replace_with"]) && is_numeric($_GET["replace_with"])) {
-        $replaceId = intval($_GET["replace_with"]);
+    if (isset($_POST["replace_with"]) && is_numeric($_POST["replace_with"])) {
+        $replaceId = intval($_POST["replace_with"]);
         if ($replaceId <= 0 || $replaceId === $deleteId || !$profiles->readOne($replaceId)) {
             header("Location: core_profiles.php?error=" . urlencode("Invalid replacement profile selected."));
             exit;
@@ -865,8 +869,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inline_update_profile
 }
 
 // Add a new action for cloning a connector
-if (isset($_GET["clone"])) {
-    $newId = $profiles->clone($_GET["clone"]);
+if ($profileAction && isset($_POST["clone"])) {
+    $newId = $profiles->clone($_POST["clone"]);
     if ($newId) {
         header("Location: core_profiles.php?edit=".urlencode((string)$newId));
     } else {
@@ -1283,7 +1287,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_import_rule"])
 }
 
 // Create a blank profile and open it for editing
-if (isset($_GET["create_blank"])) {
+if ($profileAction && isset($_POST["create_blank"])) {
     try {
         $defaultMeta = json_encode(CoreProfile::defaultMetadata(), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $row = $GLOBALS["db"]->fetchOne("INSERT INTO core_profiles (label, metadata) VALUES ('New Profile', '".pg_escape_string($defaultMeta)."') RETURNING id");
@@ -1334,7 +1338,8 @@ $ttsById = $byId($ttsRows);
 <div class="llm-layout">
     <div class="llm-left">
         <div class="sidebar-action-grid">
-            <form method="get" action="core_profiles.php">
+            <form method="post" action="core_profiles.php">
+                <?php echo synthManagementCsrfField(), synthManagementPostScript(); ?>
                 <input type="hidden" name="create_blank" value="1">
                 <button type="submit" class="btn-save">New</button>
             </form>
@@ -1426,7 +1431,8 @@ $ttsById = $byId($ttsRows);
                                     <button type="submit" class="btn-primary">Export</button>
                                 </form>
                                 <button type="button" class="btn-danger" onclick="handleProfileDelete(${r.id}, ${String(r.default_npc)==='1'}, ${String(r.default_narrator)==='1'}, '${deleteLabel}')">Delete</button>
-                                <form method="get" action="core_profiles.php" style="display:inline">
+                                <form method="post" action="core_profiles.php" style="display:inline">
+                                    <?php echo synthManagementCsrfField(); ?>
                                     <input type="hidden" name="clone" value="${r.id}">
                                     <button type="submit" class="btn-primary">Clone</button>
                                 </form>
@@ -1489,7 +1495,7 @@ $ttsById = $byId($ttsRows);
                 document.getElementById('replace-confirm-btn').onclick = function() {
                     const replaceWith = select.value;
                     if (!replaceWith) return;
-                    window.location.href = 'core_profiles.php?delete=' + id + '&replace_with=' + replaceWith;
+                    synthManagementPost('core_profiles.php', { delete: id, replace_with: replaceWith });
                 };
 
                 modal.style.display = 'flex';
@@ -1497,7 +1503,7 @@ $ttsById = $byId($ttsRows);
             }
 
             if (confirm('Delete profile "' + label + '"? NPCs using this profile will be unassigned.')) {
-                window.location.href = 'core_profiles.php?delete=' + id;
+                synthManagementPost('core_profiles.php', { delete: id });
             }
         }
 

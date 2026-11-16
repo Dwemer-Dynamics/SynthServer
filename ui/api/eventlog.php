@@ -7,14 +7,6 @@ define('BASE_PATH', dirname(dirname(__DIR__)));
 define('CONFIG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'conf');
 define('LIB_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'lib');
 
-$configFilepath = CONFIG_PATH . DIRECTORY_SEPARATOR;
-
-if (!file_exists($configFilepath."conf.php")) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration file not found']);
-    exit;
-}
-
 // Load profiles through the centralized profile loader
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."profile_loader.php");
 

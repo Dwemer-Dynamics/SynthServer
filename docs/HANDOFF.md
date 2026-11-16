@@ -925,3 +925,34 @@ holder, and the GPLv3 does not narrow those MIT terms. Keep `MIT-LICENSE` and th
 CC BY-SA 4.0 and OFL notices. History and publication decisions remain open. See
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and the
 [publication gates](ALPHA-ACCEPTANCE.md#publication-gates).
+
+## Dashboard request safety candidate
+
+`lib/management_request_guard.php` refuses cross-origin browser requests to web scripts under `ui/` before
+configuration or database work. It is the first include of `lib/runtime_bootstrap.php` and
+`ui/profile_loader.php`. Quickstart, the API key test, URL check, package API, log/cache/diary/stats views and
+pages that act before bootstrap require it directly. Browser evidence (`Sec-Fetch-Site`, `Origin`, else
+`Referer`) must show the same scheme, Host and port, or a typed URL. `same-site` (another local port),
+`Origin: null` and unknown values are refused. A request with none of these headers is a native or operator
+client and passes, except an unsafe request with a browser User-Agent; the Quickstart MiniMe GET probe counts as
+unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control. Web
+requests to `debug/` and `tools/` scripts are refused. The root `.htaccess` and the pmstt and diary-audio
+endpoints no longer send `Access-Control-Allow-Origin: *`.
+
+Converted GET actions are confirmed POSTs carrying one session token (`synthManagementActionGate`,
+`synthManagementPost`). They cover the index event, memory and log deletes; Events/Memories delete-last,
+delete-all, memory delete and hidden event types; AI Response and Request Log clear; vector memory delete-all and
+compact (compact calls the AI connector); profile create, clone, delete and default reassignment; LLM and TTS
+connector create, clone and delete; NPC delete; and API key delete (transport only). Old links answer 400 and
+token failures answer 403, both before bootstrap. Array values for action keys answer 400. `ui/cmd/install-db.php` has no web route.
+
+`ui/index.php` GET only reads or redirects. The bare URL redirects to Home before session or configuration work;
+Home shows the setup page first when PHP's PostgreSQL extension is missing.
+`conf/conf.php` is an optional override of the tracked sample and environment, so the index and Events/Memories
+no longer bounce to Quickstart without it. The direct-require standalone pages load the sample first. Home and
+profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD (missing optional
+narrator rows are read as defaults, not inserted); other callers keep rotation and seeding. Home no longer
+starts the background processor (`main.php` does). STT, ITT and TTS connector views no longer apply schema
+migrations; Quickstart's explicit save still does. Snapshot restore stays paused. Provider key fields, their
+rendering and key-test provider resolution belong to the separate credential draft. Open checks are in
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#dashboard-request-safety).

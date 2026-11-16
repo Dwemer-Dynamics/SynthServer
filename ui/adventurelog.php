@@ -1,4 +1,5 @@
 <?php
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 session_start();
 
 date_default_timezone_set('UTC');
@@ -8,7 +9,11 @@ ini_set('display_errors', '1');
 
 // Include game timestamp utilities
 $rootPath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
-require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
+// conf/conf.php is an optional operator override of the tracked sample (and the environment for the database).
+require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . "conf.sample.php");
+if (is_file($rootPath . "conf" . DIRECTORY_SEPARATOR . "conf.php")) {
+    require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
+}
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib/utils_game_timestamp.php");
 require_once(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."logger.php");

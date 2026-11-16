@@ -1,5 +1,7 @@
 <?php
 
+// First, so a refused cross-origin management request stops before configuration or database work.
+require_once(__DIR__ . DIRECTORY_SEPARATOR . "management_request_guard.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "settings.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "synth_runtime.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "logger.php");
@@ -447,7 +449,8 @@ if (!function_exists('synthRuntimeApplyBootstrapOptions')) {
             synthLoadPlayerNameIntoGlobals();
         }
         if ($loadNarrator) {
-            synthLoadNarratorSettingsIntoGlobals();
+            // seed_narrator (default true): false reads narrator settings without inserting missing optional rows.
+            synthLoadNarratorSettingsIntoGlobals($options['seed_narrator'] ?? true);
         }
     }
 }
@@ -458,7 +461,10 @@ if (!function_exists('synthRuntimeBootstrap')) {
         $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $GLOBALS["ENGINE_PATH"] = $enginePath;
         Logger::bootstrapRequestId("rt");
-        Logger::rotateKnownLogs($enginePath);
+        // rotate_logs (default true): read-only dashboard views pass false so viewing a page never renames logs.
+        if ($options['rotate_logs'] ?? true) {
+            Logger::rotateKnownLogs($enginePath);
+        }
 
         $confPath = $enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php";
         $confSamplePath = $enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.sample.php";
@@ -518,7 +524,9 @@ if (!function_exists('synthRuntimeBootstrapIfNeeded')) {
 
         $GLOBALS["ENGINE_PATH"] = $enginePath;
         Logger::bootstrapRequestId("rt");
-        Logger::rotateKnownLogs($enginePath);
+        if ($options['rotate_logs'] ?? true) {
+            Logger::rotateKnownLogs($enginePath);
+        }
         synthRuntimeApplyBootstrapOptions($enginePath, $options);
     }
 }

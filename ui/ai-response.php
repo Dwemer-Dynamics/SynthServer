@@ -2,6 +2,11 @@
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 
+// Clearing the log is a confirmed same-origin POST with the dashboard form token; the old GET link is refused.
+// Both are decided before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$cleanLogRequested = synthManagementActionGate(['cleanlog']);
+
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
@@ -728,9 +733,10 @@ $page = isset($_GET["page"]) ? intval($_GET["page"]) : 1;
 $page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
-if (isset($_GET["cleanlog"]) && $_GET["cleanlog"]) {
+$aiResponseCsrfToken = synthManagementCsrfToken();
+if ($cleanLogRequested) {
     synthAiResponseSafeDeleteLog($db);
-    header("Location: ai-response.php");
+    header("Location: ai-response.php", true, 303);
     exit;
 }
 
@@ -1201,7 +1207,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . "tmpl" . DIRECTORY_SEPARATOR . "head.htm
                     <a class="btn-base btn-primary" href="<?php echo synthAiResponseH(synthAiResponseBuildUrl($page + 1, $limit)); ?>">Next</a>
                 <?php endif; ?>
                 <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap;">
-                    <button onclick="if(confirm('This will clear all the entries in the Response Log. ARE YOU SURE?')) window.location.href='ai-response.php?cleanlog=true'" class="btn-base btn-danger" style="padding: 8px 12px; font-size: 0.9em;">Clean Response Log</button>
+                    <form method="post" action="ai-response.php" style="display: contents;"><input type="hidden" name="csrf_token" value="<?php echo synthAiResponseH($aiResponseCsrfToken); ?>"><button type="submit" name="cleanlog" value="1" onclick="return confirm('This will clear all the entries in the Response Log. ARE YOU SURE?')" class="btn-base btn-danger" style="padding: 8px 12px; font-size: 0.9em;">Clean Response Log</button></form>
                     <button onclick="window.open('<?php echo synthAiResponseH(synthAiResponseBuildUrl($page, $limit, ['export' => 1])); ?>', '_blank')" class="btn-base btn-primary" style="padding: 8px 12px; font-size: 0.9em;">Export Response Log</button>
                 </div>
             </div>

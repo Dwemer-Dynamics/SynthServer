@@ -2,6 +2,10 @@
 
 $enginePath = __DIR__.DIRECTORY_SEPARATOR."../../";
 
+// Custom key delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$apiBadgeAction = synthManagementActionGate(['delete']);
+
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
  'load_general_settings' => true,
@@ -362,11 +366,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
 }
 
 // Handle Delete
-if (isset($_GET["delete"])) {
- $item = $apiBadge->getById($_GET["delete"]);
+if ($apiBadgeAction && isset($_POST["delete"])) {
+ $item = $apiBadge->getById($_POST["delete"]);
  $labelLower = strtolower($item["label"] ?? '');
  if (!array_key_exists($labelLower, $presetMap)) {
- $apiBadge->delete($_GET["delete"]);
+ $apiBadge->delete($_POST["delete"]);
  }
  header("Location: api_badge.php");
  exit;
@@ -380,6 +384,7 @@ if (isset($_GET["edit"])) {
  $editItem = $apiBadge->getById($_GET["edit"]);
 }
 ?><?php
+echo synthManagementPostScript();
 // Build lookup by lower(label)
 $byLabel = [];
 foreach ($data as $row) {
@@ -495,13 +500,7 @@ function addCustomKey(){
  if (card && card.parentNode) card.parentNode.removeChild(card);
  return;
  }
- try {
- const url = new URL('api_badge.php', window.location.href);
- url.searchParams.set('delete', id);
- window.location.href = url.toString();
- } catch(_e){
- window.location.href = 'api_badge.php?delete=' + encodeURIComponent(id);
- }
+ synthManagementPost('api_badge.php', { delete: id });
  }, { passive:true });
 })();
 

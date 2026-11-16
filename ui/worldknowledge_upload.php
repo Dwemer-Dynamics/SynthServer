@@ -24,7 +24,9 @@ ini_set('display_errors', '1');
 $rootPath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 $enginePath = dirname($rootPath) . DIRECTORY_SEPARATOR;
 $configFilepath = $rootPath . "conf" . DIRECTORY_SEPARATOR;
-require_once($configFilepath . "conf.php");
+if (is_file($configFilepath . "conf.php")) {
+    require_once($configFilepath . "conf.php");
+}
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "worldknowledge_topic.php");
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "worldknowledge_catalog.php");

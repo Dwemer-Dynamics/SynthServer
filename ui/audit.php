@@ -27,19 +27,29 @@ if (!$adminConn) {
 }
 
 // --- Determine filter type and dates ---
-$filter_type = isset($_GET['filter']) ? $_GET['filter'] : 'today';
-$selected_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
-$selected_week = isset($_GET['week']) ? $_GET['week'] : date('Y-\WW');
+// Query values are reflected into the page and the SQL filter: accept only the exact date/week input formats.
+$filter_type = is_string($_GET['filter'] ?? null) ? $_GET['filter'] : 'today';
+$selected_date = is_string($_GET['date'] ?? null) ? $_GET['date'] : date('Y-m-d');
+$selected_week = is_string($_GET['week'] ?? null) ? $_GET['week'] : date('Y-\WW');
+if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/D', $selected_date, $dateParts) !== 1
+    || !checkdate((int) $dateParts[2], (int) $dateParts[3], (int) $dateParts[1])) {
+ $selected_date = date('Y-m-d');
+ if ($filter_type === 'date') { $filter_type = 'today'; }
+}
+if (preg_match('/^\d{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/D', $selected_week) !== 1) {
+ $selected_week = date('Y-\WW');
+ if ($filter_type === 'week') { $filter_type = 'today'; }
+}
 
 $where_clause = '';
 
 if ($filter_type === 'date' && !empty($selected_date)) {
  // Filter by specific date
- $where_clause = "WHERE DATE(created_at) = '" . pg_escape_string($selected_date) . "'";
+ $where_clause = "WHERE DATE(created_at) = '" . pg_escape_string($adminConn, $selected_date) . "'";
  $period_label = "Date: " . $selected_date;
 } elseif ($filter_type === 'week' && !empty($selected_week)) {
  // Filter by week (ISO week)
- $where_clause = "WHERE TO_CHAR(created_at, 'YYYY-\"W\"WW') = '" . pg_escape_string($selected_week) . "'";
+ $where_clause = "WHERE TO_CHAR(created_at, 'YYYY-\"W\"WW') = '" . pg_escape_string($adminConn, $selected_week) . "'";
  $period_label = "Week: " . $selected_week;
 } else {
  // Default: today
@@ -80,7 +90,7 @@ $isEmbed = (isset($_GET['embed']) && $_GET['embed'] == '1');
 
 ob_start();
 include(__DIR__.DIRECTORY_SEPARATOR."tmpl".DIRECTORY_SEPARATOR."head.html");
-?><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><link rel="stylesheet" href="<?php echo $webRoot; ?>/ui/css/main.css"><style>
+?><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><link rel="stylesheet" href="<?php echo htmlspecialchars($webRoot, ENT_QUOTES); ?>/ui/css/main.css"><style>
  main {
  padding-top: 20px;
  padding-bottom: 40px;
@@ -210,13 +220,13 @@ include(__DIR__.DIRECTORY_SEPARATOR."tmpl".DIRECTORY_SEPARATOR."head.html");
  flex-direction: column;
  }
  }
-</style><main><div class="page-header"><h1> Cost Distribution by Request Type</h1><h3><?php echo $period_label; ?></h3><h3>Total Cost: $<?php echo number_format($total_sum, 2); ?></h3></div><div class="filters"><form method="GET" action="" id="filterForm"><label><input type="radio" name="filter" value="today" <?php echo $filter_type === 'today' ? 'checked' : ''; ?>>
+</style><main><div class="page-header"><h1> Cost Distribution by Request Type</h1><h3><?php echo htmlspecialchars($period_label, ENT_QUOTES); ?></h3><h3>Total Cost: $<?php echo number_format($total_sum, 2); ?></h3></div><div class="filters"><form method="GET" action="" id="filterForm"><label><input type="radio" name="filter" value="today" <?php echo $filter_type === 'today' ? 'checked' : ''; ?>>
  Today
  </label><label>
  Filter by Date:
- <input type="date" name="date" value="<?php echo $selected_date; ?>" id="dateInput"><button type="button" onclick="setFilterToDate()">Apply Date</button></label><label>
+ <input type="date" name="date" value="<?php echo htmlspecialchars($selected_date, ENT_QUOTES); ?>" id="dateInput"><button type="button" onclick="setFilterToDate()">Apply Date</button></label><label>
  Filter by Week:
- <input type="week" name="week" value="<?php echo $selected_week; ?>" id="weekInput"><button type="button" onclick="setFilterToWeek()">Apply Week</button></label></form></div><div class="chart-section"><div class="chart-container"><canvas id="costChart"></canvas></div></div><script>
+ <input type="week" name="week" value="<?php echo htmlspecialchars($selected_week, ENT_QUOTES); ?>" id="weekInput"><button type="button" onclick="setFilterToWeek()">Apply Week</button></label></form></div><div class="chart-section"><div class="chart-container"><canvas id="costChart"></canvas></div></div><script>
  function setFilterToDate() {
  const dateInput = document.getElementById('dateInput').value;
  if (dateInput) {
@@ -240,7 +250,7 @@ include(__DIR__.DIRECTORY_SEPARATOR."tmpl".DIRECTORY_SEPARATOR."head.html");
  });
  });
 
- const labels = <?php echo json_encode($labels); ?>;
+ const labels = <?php echo json_encode($labels, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
  const dataValues = <?php echo json_encode($values, JSON_NUMERIC_CHECK); ?>;
  const labelWithCost = labels.map((label, i) => `${label} ($${dataValues[i].toFixed(2)})`);
 

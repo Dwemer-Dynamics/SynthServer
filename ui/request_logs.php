@@ -2,6 +2,11 @@
 
 $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 
+// Clearing the log is a confirmed same-origin POST with the dashboard form token; the old GET link is refused.
+// Both are decided before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$cleanLogRequested = synthManagementActionGate(['cleanlog']);
+
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
@@ -271,9 +276,9 @@ $page = isset($_GET["page"]) ? intval($_GET["page"]) : 1;
 $page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
-if (isset($_GET["cleanlog"]) && $_GET["cleanlog"] === "1") {
+if ($cleanLogRequested) {
     safeExec($db, "DELETE FROM audit_request");
-    header("Location: " . requestLogsUrl(1, $limit, $isEmbedded));
+    header("Location: " . requestLogsUrl(1, $limit, $isEmbedded), true, 303);
     exit;
 }
 
@@ -617,7 +622,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . "tmpl" . DIRECTORY_SEPARATOR . "head.htm
             <?php endif; ?>
             <a class="btn-base btn-secondary" href="<?= h(requestLogsUrl(1, 100, $isEmbedded)) ?>">Limit 100</a>
             <a class="btn-base btn-secondary" href="<?= h(requestLogsUrl(1, 200, $isEmbedded)) ?>">Limit 200</a>
-            <a class="btn-base btn-danger" href="<?= h(requestLogsUrl(1, $limit, $isEmbedded)) ?>&cleanlog=1" onclick="return confirm('Delete all request log rows?');">Clear Log</a>
+            <form method="post" action="<?= h(requestLogsUrl(1, $limit, $isEmbedded)) ?>" style="display: contents;"><input type="hidden" name="csrf_token" value="<?= h(synthManagementCsrfToken()) ?>"><button type="submit" name="cleanlog" value="1" class="btn-base btn-danger" onclick="return confirm('Delete all request log rows?');">Clear Log</button></form>
         </div>
 
         <p class="meta-line">

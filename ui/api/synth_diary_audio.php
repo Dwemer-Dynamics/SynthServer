@@ -5,7 +5,6 @@ error_reporting(E_ERROR);
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
-header('Access-Control-Allow-Origin: *');
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $enginePath;

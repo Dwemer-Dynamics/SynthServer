@@ -1,5 +1,15 @@
 <?php
 
+// Destructive database rebuild. Operator command line only: a web request is refused before configuration,
+// credentials or the database are loaded.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo "Database reinstall is not available from the web dashboard.\n";
+    exit;
+}
+
 $enginePath =__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR;
 
 require_once($enginePath."conf".DIRECTORY_SEPARATOR."conf.php");

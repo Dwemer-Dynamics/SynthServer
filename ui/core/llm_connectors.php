@@ -1,6 +1,10 @@
 <?php
 $enginePath = __DIR__ . "/../../";
 
+// Connector create, clone and delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$llmAction = synthManagementActionGate(['create_blank', 'clone', 'delete']);
+
 require_once($enginePath . "lib/runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
  'load_general_settings' => true,
@@ -1215,7 +1219,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import"])) {
 // (moved) export handler is now at top before any output
 
 // Create a blank LLM connector and open it for editing
-if (isset($_GET["create_blank"])) {
+if ($llmAction && isset($_POST["create_blank"])) {
  $newId = $llm->create([
  "label" => "New Connector",
  "metadata" => json_encode([
@@ -1270,8 +1274,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && (isset($_POST["save"]) || isset($_P
 }
 
 // Handle Delete
-if (isset($_GET["delete"])) {
- $id = intval($_GET["delete"]);
+if ($llmAction && isset($_POST["delete"])) {
+ $id = intval($_POST["delete"]);
  // Prevent deletion if any profile references this connector
  try {
  $cntRow = $GLOBALS["db"]->fetchOne(
@@ -1294,8 +1298,8 @@ if (isset($_GET["delete"])) {
 }
 
 // Add a new action for cloning a connector
-if (isset($_GET["clone"])) {
- $llm->clone($_GET["clone"]);
+if ($llmAction && isset($_POST["clone"])) {
+ $llm->clone($_POST["clone"]);
  header("Location: llm_connectors.php");
  exit;
 }
@@ -1306,7 +1310,7 @@ $editItem = null;
 if (isset($_GET["edit"])) {
  $editItem = $llm->getById($_GET["edit"]);
 }
-?><div class="page-header synth-page-head"><h1 class="api-title synth-page-head-title">LLM Connectors</h1><p class="page-subtitle synth-page-head-note">Configure Language Model connectors for AI dialogue generation</p></div><div id="toast" class="toast-notification" style="position:static; margin: 8px auto 12px; display:block; opacity:0; transform:none; max-width:960px; width: calc(100% - 20px);"><span class="message"></span></div><div class="llm-layout"><div class="llm-left position-sticky"><div class="sidebar-action-grid"><form method="get" action="llm_connectors.php"><input type="hidden" name="create_blank" value="1"><button type="submit" class="btn-save">New</button></form><form method="post" action="llm_connectors.php" enctype="multipart/form-data" id="llm_import_form"><input type="hidden" name="import" value="1"><input type="file" name="import_file[]" id="llm_import_file" accept=".csv" multiple style="display:none"><button type="button" class="btn-primary" id="llm_import_btn">Import</button></form></div><div id="llm_list" class="conn-list"></div><script>
+?><div class="page-header synth-page-head"><h1 class="api-title synth-page-head-title">LLM Connectors</h1><p class="page-subtitle synth-page-head-note">Configure Language Model connectors for AI dialogue generation</p></div><div id="toast" class="toast-notification" style="position:static; margin: 8px auto 12px; display:block; opacity:0; transform:none; max-width:960px; width: calc(100% - 20px);"><span class="message"></span></div><div class="llm-layout"><div class="llm-left position-sticky"><div class="sidebar-action-grid"><form method="post" action="llm_connectors.php"><?php echo synthManagementCsrfField(); ?><input type="hidden" name="create_blank" value="1"><button type="submit" class="btn-save">New</button></form><form method="post" action="llm_connectors.php" enctype="multipart/form-data" id="llm_import_form"><input type="hidden" name="import" value="1"><input type="file" name="import_file[]" id="llm_import_file" accept=".csv" multiple style="display:none"><button type="button" class="btn-primary" id="llm_import_btn">Import</button></form></div><div id="llm_list" class="conn-list"></div><script>
  (function(){
  const RAW = <?= json_encode($data ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
  const ACTIVE_ID = <?= json_encode($_GET['edit'] ?? '') ?>;
@@ -1323,7 +1327,7 @@ if (isset($_GET["edit"])) {
  rows.forEach(r=>{
  const active = String(r.id)===String(ACTIVE_ID) ? ' active' : '';
  html += `
- <div class="conn-li${active}" data-id="${String(r.id)}"><div class="head"><div class="title">${escapeHtml(r.label||('Connector #'+r.id))}</div><div class="badge">${escapeHtml(r.driver||'')}</div></div><div class="sub">${escapeHtml(r.model||'')}</div><div class="actions"><form method="get" action="llm_connectors.php" onsubmit="return confirm('Are you sure you want to delete this connector?');" style="display:inline"><input type="hidden" name="delete" value="${String(r.id)}"><button type="submit" class="btn-danger">Delete</button></form><form method="get" action="llm_connectors.php" style="display:inline"><input type="hidden" name="clone" value="${String(r.id)}"><button type="submit" class="btn-primary">Clone</button></form></div></div>`;
+ <div class="conn-li${active}" data-id="${String(r.id)}"><div class="head"><div class="title">${escapeHtml(r.label||('Connector #'+r.id))}</div><div class="badge">${escapeHtml(r.driver||'')}</div></div><div class="sub">${escapeHtml(r.model||'')}</div><div class="actions"><form method="post" action="llm_connectors.php" onsubmit="return confirm('Are you sure you want to delete this connector?');" style="display:inline"><?php echo synthManagementCsrfField(); ?><input type="hidden" name="delete" value="${String(r.id)}"><button type="submit" class="btn-danger">Delete</button></form><form method="post" action="llm_connectors.php" style="display:inline"><?php echo synthManagementCsrfField(); ?><input type="hidden" name="clone" value="${String(r.id)}"><button type="submit" class="btn-primary">Clone</button></form></div></div>`;
  });
  list.innerHTML = html || '<div class="conn-li"><em>No connectors match filters.</em></div>';
  // Make rows clickable to open editor, but ignore clicks on action links

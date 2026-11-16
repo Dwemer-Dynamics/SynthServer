@@ -18,28 +18,10 @@ function synthAudienceRespond(array $payload, int $status = 200): void
     exit;
 }
 
-// The root .htaccess sends Access-Control-Allow-Origin: *, so refuse cross-origin browser requests before any
-// session, CSRF token or database access. This is CSRF/read-leak defence, not authentication: requests without
-// Origin or Sec-Fetch-Site (direct operator HTTP clients) keep the existing dashboard network trust.
-$fetchSite = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? null;
-$origin = $_SERVER['HTTP_ORIGIN'] ?? null;
-$allowed = $fetchSite === null || in_array($fetchSite, ['same-origin', 'none'], true);
-if ($allowed && $origin !== null) {
-    // Exact scheme, host and port match against this request; Host only, no forwarded headers.
-    $https = $_SERVER['HTTPS'] ?? '';
-    $scheme = is_string($https) && $https !== '' && strtolower($https) !== 'off' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? null;
-    $authority = '(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::([0-9]{1,5}))?';
-    $port = static fn(array $m, int $i): int => ($m[$i] ?? '') !== '' ? (int) $m[$i] : ($scheme === 'https' ? 443 : 80);
-    $allowed = is_string($origin) && is_string($host)
-        && preg_match("~^(https?)://$authority$~iD", $origin, $o) === 1
-        && preg_match("~^$authority$~iD", $host, $h) === 1
-        && strtolower($o[1]) === $scheme && strtolower($o[2]) === strtolower($h[1])
-        && ($originPort = $port($o, 3)) === $port($h, 2) && $originPort >= 1 && $originPort <= 65535;
-}
-if (!$allowed) {
-    synthAudienceRespond(['ok' => false, 'error' => 'Cross-origin requests are not allowed.'], 403);
-}
+// Refuse cross-origin browser requests before any session, CSRF token or database access (shared management
+// guard). This is CSRF/read-leak defence, not authentication: requests without browser origin evidence (direct
+// operator HTTP clients) keep the existing dashboard network trust. A refusal is a 403 {ok:false,error} JSON reply.
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

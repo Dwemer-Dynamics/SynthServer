@@ -1,7 +1,23 @@
 <?php
+// Dashboard index. GET only reads tables or redirects; schema updates, worker start, log and backup maintenance
+// belong to their own owners, and conf/conf.php is optional (the runtime reads the tracked sample, the environment
+// and an operator override when present) and is never copied, backed up or emptied here.
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 error_reporting(E_ERROR);
-session_start();
-$isEmptyIndexGet = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && empty($_GET);
+
+// The bare landing URL goes straight to Home, before any session, configuration or database work.
+if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true) && empty($_GET)) {
+ header("Location: home.php");
+ exit;
+}
+
+// Former destructive GET links are refused and the confirmed POST controls below must carry the session token,
+// both before bootstrap. Reinstall has no web route at all (ui/cmd/install-db.php is command-line only).
+synthManagementActionGate(['clean', 'reset', 'cleanlog', 'delete_last', 'delete_memory', 'reinstall'], ['index_action'], ['rowid']);
+
+if (session_status() === PHP_SESSION_NONE) {
+ session_start();
+}
 
 if (!function_exists('pg_connect')) {
  require_once(__DIR__ . DIRECTORY_SEPARATOR . "synth_setup.php");
@@ -19,13 +35,6 @@ define('BASE_PATH', dirname(__DIR__));
 define('CONFIG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'conf');
 define('LIB_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'lib');
 define('LOG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'log');
-
-$configFilepath = CONFIG_PATH . DIRECTORY_SEPARATOR;
-
-if (!file_exists($configFilepath."conf.php")) {
- @copy($configFilepath."conf.sample.php", $configFilepath."conf.php"); // Defaults
- die(header("Location: quickstart.php"));
-}
 
 // Load profiles through the centralized profile loader
 require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
@@ -131,74 +140,43 @@ require_once(LIB_PATH .DIRECTORY_SEPARATOR."background_processor.php");
 
 $db = new sql();
 
-/* Check for database updates only in index.php with no parms*/
-if (sizeof($_GET)==0) {
- require_once(__DIR__."/../debug/db_updates.php");
-
- // Ensure helper daemon is running (self-heals when it is down).
- if (function_exists('synthEnsureBackgroundProcessorRunning')) {
- synthEnsureBackgroundProcessorRunning(true);
- }
-
- // manage SYNTH log files
- $s_path = LOG_PATH . DIRECTORY_SEPARATOR ;
- $s_files = glob($s_path . '*.txt');
- foreach ($s_files as $file) {
- if (is_file($file)) {
- unlink($file);
- }
- }
- $s_files = glob($s_path . '*.log');
- foreach ($s_files as $file) {
- if (is_file($file)) {
- Logger::deleteLogIfTooLarge($file);
- }
- }
- if (function_exists('deferredLogTrimInit')) {
- deferredLogTrimInit();
- }
-
- // Initialize automatic backup system now that database is ready
- if (function_exists('deferredAutomaticBackupInit')) {
- deferredAutomaticBackupInit();
- }
-
- // Empty conf.php file. Configuration is now stored in the database.
- // Check if conf.php file exists and has more than 16 Bytes, if so, copy to conf.php.backup with timestamp, then empty the file.
- if (file_exists($configFilepath."conf.php")) {
- // Check if file exists and has more than 16 Bytes, if so, copy to conf.php.backup with timestamp, then empty the file.
- $fileSize = filesize($configFilepath."conf.php");
- if ($fileSize > 16) {
- $timestamp = date("Ymd_His");
- if (copy($configFilepath."conf.php", $configFilepath."conf.php.backup.$timestamp")) {
- Logger::info("Backed up existing conf.php to conf.php.backup.$timestamp");
- file_put_contents($configFilepath."conf.php", "");
+/* Destructive log actions: confirmed same-origin POSTs whose token synthManagementActionGate() checked above. */
+$indexAction = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? strval($_POST['index_action'] ?? '') : '';
+if ($indexAction !== '') {
+ $deleteCount = intval($_POST['delete_last'] ?? 0);
+ if ($indexAction === 'reset_events') {
+  $db->delete("eventlog", "true");
+  $redirect = "index.php?table=eventlog";
+ } elseif ($indexAction === 'delete_last' && in_array($deleteCount, [20, 50, 100], true)) {
+  // Count comes from the allowlist above.
+  $db->query("
+ DELETE FROM eventlog
+ WHERE rowid IN (
+ SELECT rowid
+ FROM eventlog
+ WHERE type NOT IN ('prechat','rechat','request','nearby_actors')
+ ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
+ LIMIT $deleteCount
+ )
+ ");
+  $redirect = "index.php?table=eventlog";
+ } elseif ($indexAction === 'delete_memory' && intval($_POST['rowid'] ?? 0) > 0) {
+  $db->delete('memory_summary', "rowid = " . intval($_POST['rowid']));
+  $redirect = "index.php?table=memory_summary&deleted=1";
+ } elseif ($indexAction === 'clean_log') {
+  $db->delete("log", "true");
+  $redirect = "index.php?table=log";
  } else {
- Logger::error("Failed to back up conf.php to conf.php.backup.$timestamp");
+  while (@ob_end_clean());
+  http_response_code(400);
+  header('Content-Type: text/plain; charset=utf-8');
+  exit("Unknown dashboard action.\n");
  }
-
- }
- }
-
- if ($isEmptyIndexGet) {
-  header("Location: home.php");
-  exit;
- }
+ while (@ob_end_clean());
+ header("Location: $redirect", true, 303);
+ exit;
 }
-/* END of check database for updates */
-
-/* Actions */
-if (isset($_GET["clean"])) {
- $db->delete("responselog", "sent=1");
-}
-if (isset($_GET["reset"])) {
- $db->delete("eventlog", "true");
- header("Location: index.php");
-}
-
-if (isset($_GET["cleanlog"])) {
- $db->delete("log", "true");
-}
+$indexCsrfField = "<input type='hidden' name='csrf_token' value='" . htmlspecialchars(synthManagementCsrfToken(), ENT_QUOTES) . "'>";
 
 if (isset($_GET["export"]) && ($_GET["export"] == "log")) {
  while (@ob_end_clean());
@@ -248,12 +226,6 @@ if (isset($_GET["export"]) && ($_GET["export"] == "diary")) {
  echo "'" . implode("'\t'", ($rowCleaned)) . "'\n";
  }
  die();
-}
-
-if (isset($_GET["reinstall"])) {
- require_once("cmd/install-db.php");
- header("Location: index.php?table=response");
- exit;
 }
 
 if (isset($_POST["command"])) {
@@ -310,28 +282,7 @@ if (isset($_POST["animation"])) {
  require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 
 
- // 1) Handle the "Delete Last X" logic
- if (isset($_GET['delete_last'])) {
- // Sanitize the input to allow only 20, 50, or 100.
- $delCount = (int)$_GET['delete_last'];
- if (in_array($delCount, [20, 50, 100])) {
- // Delete the last X entries based on your defined ordering
- $db->query("
- DELETE FROM eventlog
- WHERE rowid IN (
- SELECT rowid
- FROM eventlog
- WHERE type NOT IN ('prechat','rechat','request','nearby_actors')
- ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
- LIMIT $delCount
- )
- ");
-
- // Redirect to refresh the page
- header("Location: ?table=eventlog");
- exit;
- }
- }
+ // 1) "Delete Last X" and "Delete ALL" are handled as POST actions near the top of this page.
 
  // 2) Continue with regular fetch/display logic
  $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 100;
@@ -465,24 +416,17 @@ if (isset($_POST["animation"])) {
  echo "</div>";
 
  // 4) Display the "Delete Last X" buttons and "Delete All Events" button
- echo "<div style='margin: 10px 0;'>";
- echo "<button
- onclick=\"if(confirm('Are you sure you want to delete the last 20 events?')) window.location.href='?table=eventlog&delete_last=20'\"
+ echo "<form method='post' action='index.php?table=eventlog' style='margin: 10px 0;'>$indexCsrfField";
+ foreach ([20, 50, 100] as $deleteOption) {
+ echo "<button type='submit' name='index_action' value='delete_last'
+ onclick=\"if(confirm('Are you sure you want to delete the last $deleteOption events?')) { this.form.delete_last.value='$deleteOption'; return true; } return false;\"
  class='btn-base btn-danger'>
- Delete Latest 20
+ Delete Latest $deleteOption
  </button> ";
- echo "<button
- onclick=\"if(confirm('Are you sure you want to delete the last 50 events?')) window.location.href='?table=eventlog&delete_last=50'\"
- class='btn-base btn-danger'>
- Delete Latest 50
- </button> ";
- echo "<button
- onclick=\"if(confirm('Are you sure you want to delete the last 100 events?')) window.location.href='?table=eventlog&delete_last=100'\"
- class='btn-base btn-danger'>
- Delete Latest 100
- </button> ";
- echo "<button
- onclick=\"deleteAllEventsConfirm()\"
+ }
+ echo "<input type='hidden' name='delete_last' value=''>";
+ echo "<button type='submit' name='index_action' value='reset_events'
+ onclick=\"return deleteAllEventsConfirm()\"
  class='btn-base btn-danger' style='margin-left: 20px; background-color: #dc2626; font-weight: bold;'>
  Delete ALL Events
  </button>";
@@ -492,13 +436,14 @@ if (isset($_POST["animation"])) {
  function deleteAllEventsConfirm() {
  var userInput = prompt('THIS WILL DELETE ALL EVENTS IN THE EVENT LOG!\\n\\nEvents are used for AI context. This action cannot be undone.\\n\\nTo confirm this dangerous operation, please type exactly: Delete');
  if (userInput === 'Delete') {
- window.location.href = '?reset=true&table=event';
+ return true;
  } else if (userInput !== null) {
  alert('Operation cancelled. You must type exactly \"Delete\" to confirm.');
  }
+ return false;
  }
  </script>";
- echo "</div>";
+ echo "</form>";
 
  // 5) Print the table using the modified headers
  print_array_as_table($mappedResults);
@@ -696,7 +641,7 @@ if (isset($_POST["animation"])) {
 
  // Add Clean and Export buttons
  echo "<div class='response-log-actions' style='margin: 15px 0;'>";
- echo "<button onclick=\"if(confirm('This will clear all the entries in the Response Log. ARE YOU SURE?')) window.location.href='?cleanlog=true'\" class='btn-base btn-danger' style='margin-right: 10px;'>Clean Response Log</button>";
+ echo "<form method='post' action='index.php?table=log' style='display: inline;'>$indexCsrfField<button type='submit' name='index_action' value='clean_log' onclick=\"return confirm('This will clear all the entries in the Response Log. ARE YOU SURE?')\" class='btn-base btn-danger' style='margin-right: 10px;'>Clean Response Log</button></form>";
  echo "<button onclick=\"window.open('?export=log', '_blank')\" class='btn-base btn-primary'>Export Response Log</button>";
  echo "</div>";
 
@@ -897,13 +842,7 @@ if (isset($_POST["animation"])) {
  exit;
  }
 
- // Handle delete
- if (isset($_GET['delete_memory']) && !empty($_GET['delete_memory'])) {
- $rowid = intval($_GET['delete_memory']);
- $db->delete('memory_summary', "rowid = " . $rowid);
- header("Location: ?table=memory_summary&deleted=1");
- exit;
- }
+ // Single-summary delete is a POST action near the top of this page.
 
  // Show success/delete messages
  if (isset($_GET['updated'])) {
@@ -923,7 +862,7 @@ if (isset($_POST["animation"])) {
  $processedResults = [];
  foreach ($results as $row) {
  // Create the display HTML
- $displayHtml = "<div id='display-{$row['rowid']}'><div class='summary-section'><span class='summary-content'>" . nl2br(htmlspecialchars($row['summary'])) . "</span></div><div class='summary-section'><span class='summary-label'>People:</span><span class='summary-content'>" . htmlspecialchars($row['companions']) . "</span></div><div class='subcategory-section'><span class='summary-label subcategory-label'>Tags:</span><span class='summary-content subcategory-content'>" . htmlspecialchars($row['tags']) . "</span></div><div class='subcategory-section'><span class='summary-label subcategory-label'>Embedding:</span><span class='summary-content subcategory-content'>" . htmlspecialchars($row['native_vec'] ?? '') . "</span></div><div class='button-group' style='margin-top: 10px;'><button class='btn-base action-button edit' onclick='toggleEdit({$row['rowid']})'>Edit</button><button class='btn-base btn-danger' onclick=\"if(confirm('Are you sure you want to delete this memory summary?')) window.location.href='?table=memory_summary&delete_memory={$row['rowid']}'\">Delete</button></div><div class='mt-2'><span class='summary-label'>Packed Memory Content:</span></div><div class='memory-cell'><textarea readonly class='memory-content'>" . htmlspecialchars($row['packed_message']) . "</textarea></div></div>";
+ $displayHtml = "<div id='display-{$row['rowid']}'><div class='summary-section'><span class='summary-content'>" . nl2br(htmlspecialchars($row['summary'])) . "</span></div><div class='summary-section'><span class='summary-label'>People:</span><span class='summary-content'>" . htmlspecialchars($row['companions']) . "</span></div><div class='subcategory-section'><span class='summary-label subcategory-label'>Tags:</span><span class='summary-content subcategory-content'>" . htmlspecialchars($row['tags']) . "</span></div><div class='subcategory-section'><span class='summary-label subcategory-label'>Embedding:</span><span class='summary-content subcategory-content'>" . htmlspecialchars($row['native_vec'] ?? '') . "</span></div><div class='button-group' style='margin-top: 10px;'><button class='btn-base action-button edit' onclick='toggleEdit({$row['rowid']})'>Edit</button><form method='post' action='index.php?table=memory_summary' style='display: inline;'>$indexCsrfField<input type='hidden' name='rowid' value='" . intval($row['rowid']) . "'><button type='submit' name='index_action' value='delete_memory' class='btn-base btn-danger' onclick=\"return confirm('Are you sure you want to delete this memory summary?')\">Delete</button></form></div><div class='mt-2'><span class='summary-label'>Packed Memory Content:</span></div><div class='memory-cell'><textarea readonly class='memory-content'>" . htmlspecialchars($row['packed_message']) . "</textarea></div></div>";
 
  // Create the edit form HTML
  $displayHtml .= "<form id='edit-form-{$row['rowid']}' class='edit-form' method='post' action='?table=memory_summary'><input type='hidden' name='rowid' value='{$row['rowid']}'><input type='hidden' name='save_memory_edit' value='1'><label>Summary:</label><textarea name='summary' class='edit-textarea form-control'>" . htmlspecialchars($row['summary']) . "</textarea><label>Tags:</label><input type='text' name='tags' class='edit-input form-control' value='" . htmlspecialchars($row['tags']) . "'><label>People:</label><input type='text' name='companions' class='edit-input form-control' value='" . htmlspecialchars($row['companions']) . "'><div class='button-group' style='margin-top: 10px;'><button type='submit' class='btn-base action-button add-new'>Save</button><button type='button' class='btn-base btn-cancel' onclick='cancelEdit({$row['rowid']})'>Cancel</button></div></form>";
@@ -951,17 +890,18 @@ if (isset($_POST["animation"])) {
  echo "</div>";
 
  // Add JavaScript functions for confirmations
- echo "<script>
+ $memoryToolsRoot = json_encode($webRoot . '/ui/tests/', JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+ echo synthManagementPostScript() . "<script>
  function syncMemoriesConfirm() {
  if (confirm('Will use tokens from your current AI connector. May take a few minutes to process. DO NOT REFRESH THE WEBPAGE!')) {
- window.location.href = '" . $webRoot . "/ui/tests/vector-compact-chromadb.php';
+ synthManagementPost($memoryToolsRoot + 'vector-compact-chromadb.php', {});
  }
  }
 
  function deleteAllMemoriesConfirm() {
  var userInput = prompt('THIS WILL DELETE ALL SUMMARIZED MEMORIES!\\n\\nThis action cannot be undone and will remove all AI memory summaries.\\n\\nTo confirm this dangerous operation, please type exactly: Delete');
  if (userInput === 'Delete') {
- window.location.href = '" . $webRoot . "/ui/tests/vector-delete-memory_summary.php';
+ synthManagementPost($memoryToolsRoot + 'vector-delete-memory_summary.php', {});
  } else if (userInput !== null) {
  alert('Operation cancelled. You must type exactly \"Delete\" to confirm.');
  }

@@ -242,7 +242,7 @@ before migrating and exits nonzero when PostgreSQL is unreachable.
   values are set in the UI after installing. Existing databases are unaffected.
 - A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
   a SYNTH install; such a database is usually refused by verification and is never reset.
-- `ui/cmd/install-db.php` (an explicit reset command) and the shared `DatabaseTestCase` fixture still import
+- `ui/cmd/install-db.php` (an explicit reset command, command line only; web requests are refused) and the shared `DatabaseTestCase` fixture still import
   `data/database_default.sql` and run the chain, which stay as legacy-upgrade sources. The fixture therefore
   does not exercise the fresh path; `SchemaMigrationOwnerTest` does.
 - The fresh path was proven on disposable PostgreSQL 17.11 only, not on an installed database, through the WSL

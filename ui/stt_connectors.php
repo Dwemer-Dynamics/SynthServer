@@ -12,11 +12,6 @@ synthRuntimeBootstrap($enginePath, [
  'load_stt_connector' => false,
 ]);
 
-try {
- require_once($enginePath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php");
-} catch (Throwable $_e) {
-}
-
 $connector = new STTConnector();
 $isEmbed = isset($_GET['embed']) && strval($_GET['embed']) === '1';
 

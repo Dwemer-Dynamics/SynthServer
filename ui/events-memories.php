@@ -1,6 +1,14 @@
 <?php
 error_reporting(E_ERROR);
-session_start();
+// Event and memory edits are confirmed same-origin POSTs with the dashboard form token. Former GET links are
+// refused, and a POST without the token is refused, both before configuration or database work.
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$eventsAction = synthManagementActionGate(['clean', 'reset', 'cleanlog', 'delete_last', 'delete_memory',
+ 'hide_event_type', 'show_event_type', 'clear_hidden_event_types'], ['events_action'], ['value'])
+ ? strval($_POST['events_action']) : '';
+if (session_status() === PHP_SESSION_NONE) {
+ session_start();
+}
 
 // Get the relative web path from document root to our application
 $scriptPath = $_SERVER['SCRIPT_NAME'];
@@ -13,12 +21,7 @@ define('BASE_PATH', dirname(__DIR__));
 define('CONFIG_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'conf');
 define('LIB_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'lib');
 
-$configFilepath = CONFIG_PATH . DIRECTORY_SEPARATOR;
-
-if (!file_exists($configFilepath."conf.php")) {
- @copy($configFilepath."conf.sample.php", $configFilepath."conf.php"); // Defaults
- die(header("Location: quickstart.php"));
-}
+// conf/conf.php is an optional operator override; the profile loader reads the tracked sample and environment.
 
 // Load profiles through the centralized profile loader
 require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
@@ -349,60 +352,6 @@ $eventLogPage = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;
 $eventLogAutoRefresh = isset($_GET["autorefresh"]) && $_GET["autorefresh"];
 $eventLogHiddenTypes = synthGetPersistedEventLogHiddenTypes($db);
 
-if (isset($_GET['hide_event_type'])) {
- $typeToHide = trim((string)$_GET['hide_event_type']);
- if ($typeToHide !== '') {
- $eventLogHiddenTypes[] = $typeToHide;
- synthSavePersistedEventLogHiddenTypes($db, $eventLogHiddenTypes);
- }
-
- $redirectParams = [
- 'tab' => 'eventlog',
- 'page' => 1,
- 'limit' => $eventLogLimit,
- ];
- if ($eventLogAutoRefresh) {
- $redirectParams['autorefresh'] = 'true';
- }
- header("Location: events-memories.php?" . http_build_query($redirectParams));
- exit;
-}
-
-if (isset($_GET['show_event_type'])) {
- $typeToShow = trim((string)$_GET['show_event_type']);
- $eventLogHiddenTypes = array_values(array_filter($eventLogHiddenTypes, function($type) use ($typeToShow) {
- return $type !== $typeToShow;
- }));
- synthSavePersistedEventLogHiddenTypes($db, $eventLogHiddenTypes);
-
- $redirectParams = [
- 'tab' => 'eventlog',
- 'page' => 1,
- 'limit' => $eventLogLimit,
- ];
- if ($eventLogAutoRefresh) {
- $redirectParams['autorefresh'] = 'true';
- }
- header("Location: events-memories.php?" . http_build_query($redirectParams));
- exit;
-}
-
-if (isset($_GET['clear_hidden_event_types']) && $_GET['clear_hidden_event_types']) {
- synthSavePersistedEventLogHiddenTypes($db, []);
- $eventLogHiddenTypes = [];
-
- $redirectParams = [
- 'tab' => 'eventlog',
- 'page' => 1,
- 'limit' => $eventLogLimit,
- ];
- if ($eventLogAutoRefresh) {
- $redirectParams['autorefresh'] = 'true';
- }
- header("Location: events-memories.php?" . http_build_query($redirectParams));
- exit;
-}
-
 $eventLogHiddenTypes = synthNormalizeEventLogTypeList($eventLogHiddenTypes);
 $eventLogVisibleWhereClause = synthBuildVisibleEventLogWhereClause($db, '', $eventLogHiddenTypes);
 
@@ -425,30 +374,34 @@ $eventLogCurrentPageParams = $eventLogBaseParams;
 $eventLogCurrentPageParams['page'] = $eventLogPage;
 $eventLogCurrentPageUrl = 'events-memories.php?' . http_build_query($eventLogCurrentPageParams);
 
-// Handle actions
-if (isset($_GET["clean"]) && $_GET["clean"]) {
- $db->delete("responselog", "sent=1");
-}
-if (isset($_GET["reset"]) && $_GET["reset"]) {
- $db->delete("eventlog", "true");
- header("Location: events-memories.php?tab=eventlog");
-}
-if (isset($_GET["cleanlog"]) && $_GET["cleanlog"]) {
- $db->delete("log", "true");
- header("Location: events-memories.php?tab=responselog");
-}
-
-// Handle delete_last for event log
-if (isset($_GET['delete_last'])) {
- $delCount = (int)$_GET['delete_last'];
- if (in_array($delCount, [20, 50, 100])) {
- $deleteResult = synthDeleteLatestVisibleEventLogRows($db, $delCount, '', $eventLogHiddenTypes);
- $deletedCount = intval($deleteResult['deleted_count'] ?? 0);
- $redirectParams = $eventLogCurrentPageParams;
- $redirectParams['deleted'] = $deletedCount;
- header("Location: events-memories.php?" . http_build_query($redirectParams));
- exit;
+// Confirmed POST actions (token checked at the top of this page).
+if ($eventsAction !== '') {
+ $eventsValue = trim(strval($_POST['value'] ?? ''));
+ $redirectParams = ['tab' => 'eventlog', 'page' => 1, 'limit' => $eventLogLimit];
+ if ($eventLogAutoRefresh) {
+ $redirectParams['autorefresh'] = 'true';
  }
+ if ($eventsAction === 'hide_event_type' && $eventsValue !== '') {
+ synthSavePersistedEventLogHiddenTypes($db, array_merge($eventLogHiddenTypes, [$eventsValue]));
+ } elseif ($eventsAction === 'show_event_type') {
+ synthSavePersistedEventLogHiddenTypes($db, array_values(array_filter($eventLogHiddenTypes,
+ static fn($type) => $type !== $eventsValue)));
+ } elseif ($eventsAction === 'clear_hidden_event_types') {
+ synthSavePersistedEventLogHiddenTypes($db, []);
+ } elseif ($eventsAction === 'delete_last' && in_array(intval($eventsValue), [20, 50, 100], true)) {
+ $deleteResult = synthDeleteLatestVisibleEventLogRows($db, intval($eventsValue), '', $eventLogHiddenTypes);
+ $redirectParams = $eventLogCurrentPageParams;
+ $redirectParams['deleted'] = intval($deleteResult['deleted_count'] ?? 0);
+ } elseif ($eventsAction === 'reset_events') {
+ $db->delete("eventlog", "true");
+ } elseif ($eventsAction === 'delete_memory' && intval($eventsValue) > 0) {
+ $db->delete('memory_summary', "rowid = " . intval($eventsValue));
+ $redirectParams = ['tab' => 'memory', 'deleted' => 1];
+ } else {
+ synthManagementRefuse(400, 'Unknown or incomplete Events and Memories action.');
+ }
+ header("Location: events-memories.php?" . http_build_query($redirectParams), true, 303);
+ exit;
 }
 
 // Handle bulk delete of selected events
@@ -529,14 +482,6 @@ if (isset($_POST['save_memory_edit'])) {
  }
 
  header("Location: events-memories.php?tab=memory&updated=1");
- exit;
-}
-
-// Handle memory summary delete
-if (isset($_GET['delete_memory']) && !empty($_GET['delete_memory'])) {
- $rowid = intval($_GET['delete_memory']);
- $db->delete('memory_summary', "rowid = " . $rowid);
- header("Location: events-memories.php?tab=memory&deleted=1");
  exit;
 }
 
@@ -827,7 +772,7 @@ function getTimeColor($time) {
  function deleteAllEventsConfirm() {
  var userInput = prompt('THIS WILL DELETE ALL EVENTS IN THE EVENT LOG!\\n\\nEvents are used for AI context. This action cannot be undone.\\n\\nTo confirm this dangerous operation, please type exactly: Delete');
  if (userInput === 'Delete') {
- window.location.href = " . json_encode($eventLogUrlBuilder(['page' => 1, 'reset' => 'true'])) . ";
+ postEventLogAction('reset_events', '');
  } else if (userInput !== null) {
  alert('Operation cancelled. You must type exactly \"Delete\" to confirm.');
  }
@@ -858,26 +803,6 @@ function getTimeColor($time) {
  const autoRefreshValue = overrides.autorefresh !== undefined ? overrides.autorefresh : isLiveModeEventLog;
  if (autoRefreshValue) {
  params.set('autorefresh', 'true');
- }
-
- if (overrides.deleteLast !== undefined) {
- params.set('delete_last', String(overrides.deleteLast));
- }
-
- if (overrides.reset) {
- params.set('reset', 'true');
- }
-
- if (overrides.hideEventType) {
- params.set('hide_event_type', overrides.hideEventType);
- }
-
- if (overrides.showEventType) {
- params.set('show_event_type', overrides.showEventType);
- }
-
- if (overrides.clearHiddenEventTypes) {
- params.set('clear_hidden_event_types', '1');
  }
 
  return 'events-memories.php?' + params.toString();
@@ -1164,14 +1089,14 @@ function getTimeColor($time) {
  ?><tr><td><?php echo $rowId; ?></td><td><?php echo htmlspecialchars($scope); ?></td><td><?php echo htmlspecialchars($displayPeople); ?></td><td><?php echo htmlspecialchars($falloutTime); ?></td><td><div id="display-<?php echo $rowId; ?>"><div class="summary-section"><span class="summary-content"><?php echo nl2br(htmlspecialchars($displaySummary)); ?></span></div><details class="memory-details"><summary>Details</summary><div class="subcategory-section"><span class="summary-label subcategory-label">Tags:</span><span class="summary-content subcategory-content"><?php echo htmlspecialchars($row['tags'] ?? ''); ?></span></div><div class="subcategory-section"><span class="summary-label subcategory-label">Embedding:</span><span class="summary-content subcategory-content"><?php echo htmlspecialchars($row['native_vec'] ?? ''); ?></span></div><div class="subcategory-section"><span class="summary-label subcategory-label">Packed Memory Content:</span><textarea readonly class="memory-content"><?php echo htmlspecialchars($displayPackedMessage); ?></textarea></div></details><div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" class="btn-base action-button edit" onclick="toggleEdit(<?php echo $rowId; ?>)">Edit</button><button type="button" class="btn-base btn-danger" onclick="deleteMemoryRow(<?php echo $rowId; ?>)">Delete</button></div></div><form id="edit-form-<?php echo $rowId; ?>" class="edit-form" method="post" action="events-memories.php?tab=memory"><input type="hidden" name="rowid" value="<?php echo $rowId; ?>"><input type="hidden" name="save_memory_edit" value="1"><label>Summary:</label><textarea name="summary" class="edit-textarea form-control"><?php echo htmlspecialchars($row['summary'] ?? ''); ?></textarea><label>Tags:</label><input type="text" name="tags" class="edit-input form-control" value="<?php echo htmlspecialchars($row['tags'] ?? ''); ?>"><label>People:</label><input type="text" name="companions" class="edit-input form-control" value="<?php echo htmlspecialchars($row['companions'] ?? ''); ?>"><div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;"><button type="submit" class="btn-base action-button add-new">Save</button><button type="button" class="btn-base btn-cancel" onclick="cancelEdit(<?php echo $rowId; ?>)">Cancel</button></div></form></td></tr><?php endforeach; ?><?php else: ?><tr><td colspan="5" style="text-align: center; color: #6c757d; padding: 20px;">No memory summaries found.</td></tr><?php endif; ?></tbody></table></div><script>
  function syncMemoriesConfirm() {
  if (confirm('Will use tokens from your current AI connector. This now syncs global memories and per-NPC individual memory banks for enabled NPCs. May take a few minutes to process. DO NOT REFRESH THE WEBPAGE!')) {
- window.location.href = '<?php echo $webRoot; ?>/ui/tests/vector-compact-chromadb.php';
+ synthManagementPost(<?php echo json_encode($webRoot . '/ui/tests/vector-compact-chromadb.php', JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, {});
  }
  }
 
  function deleteAllMemoriesConfirm() {
  var userInput = prompt('THIS WILL DELETE ALL SUMMARIZED MEMORIES!\n\nThis action cannot be undone and will remove all AI memory summaries.\n\nTo confirm this dangerous operation, please type exactly: Delete');
  if (userInput === 'Delete') {
- window.location.href = '<?php echo $webRoot; ?>/ui/tests/vector-delete-memory_summary.php';
+ synthManagementPost(<?php echo json_encode($webRoot . '/ui/tests/vector-delete-memory_summary.php', JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>, {});
  } else if (userInput !== null) {
  alert('Operation cancelled. You must type exactly "Delete" to confirm.');
  }
@@ -1199,7 +1124,7 @@ function getTimeColor($time) {
 
  function deleteMemoryRow(rowid) {
  if (confirm('Are you sure you want to delete this memory summary?')) {
- window.location.href = 'events-memories.php?tab=memory&delete_memory=' + String(rowid);
+ synthManagementPost('events-memories.php?tab=memory', {events_action: 'delete_memory', value: String(rowid)});
  }
  }
  </script></div><!-- Active Quests Tab --><div id="quests-tab" class="tab-content <?php echo $activeTab === 'quests' ? 'active' : ''; ?>"><?php
@@ -1238,7 +1163,7 @@ function getTimeColor($time) {
 <div id="adventure-tab" class="tab-content embed-tab <?php echo $activeTab === 'adventure' ? 'active' : ''; ?>"><iframe class="embed-frame" title="Adventure Log" <?php echo $activeTab === 'adventure' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/adventurelog.php?embed=1"></iframe></div>
 <div id="diaries-tab" class="tab-content embed-tab <?php echo $activeTab === 'diaries' ? 'active' : ''; ?>"><iframe class="embed-frame" title="SYNTH Diaries" <?php echo $activeTab === 'diaries' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/diaries.php?embed=1"></iframe></div>
 <div id="pipvision-tab" class="tab-content embed-tab <?php echo $activeTab === 'pipvision' ? 'active' : ''; ?>"><iframe class="embed-frame" title="PipVision Gallery" <?php echo $activeTab === 'pipvision' ? 'src' : 'data-src'; ?>="<?php echo $webRoot; ?>/ui/pipvision_gallery.php?embed=1"></iframe></div>
-</div></main><script>
+</div></main><?php echo synthManagementPostScript(); ?><script>
 // Modal functionality
 document.addEventListener("DOMContentLoaded", function() {
  var modal = document.getElementById("contentModal");
@@ -1369,25 +1294,18 @@ function updateSelectedCount() {
  }
 }
 
+// Event log actions are confirmed POSTs to the current event log page; the server redirects back afterwards.
+function postEventLogAction(action, value) {
+ const url = typeof window.buildEventLogPageUrl === 'function'
+ ? window.buildEventLogPageUrl({ autorefresh: window.location.search.includes('autorefresh=true') })
+ : 'events-memories.php?tab=eventlog';
+ synthManagementPost(url, { events_action: action, value: String(value) });
+}
+
 function applyEventLogTypeFilter(eventType) {
- if (!eventType) {
- return;
+ if (eventType) {
+ postEventLogAction('hide_event_type', eventType);
  }
-
- if (typeof window.buildEventLogPageUrl === 'function') {
- window.location.href = window.buildEventLogPageUrl({
- page: 1,
- hideEventType: eventType,
- autorefresh: window.location.search.includes('autorefresh=true')
- });
- return;
- }
-
- const fallbackUrl = new URL(window.location.href);
- fallbackUrl.searchParams.set('tab', 'eventlog');
- fallbackUrl.searchParams.set('page', '1');
- fallbackUrl.searchParams.set('hide_event_type', eventType);
- window.location.href = fallbackUrl.toString();
 }
 
 function handleDeletePresetAction() {
@@ -1414,59 +1332,20 @@ function handleDeletePresetAction() {
  }
 
  if (confirm(`Are you sure you want to delete the last ${deleteCount} events?`)) {
- if (typeof window.buildEventLogPageUrl === 'function') {
- window.location.href = window.buildEventLogPageUrl({
- deleteLast: deleteCount,
- autorefresh: window.location.search.includes('autorefresh=true')
- });
- return;
- }
-
- const fallbackUrl = new URL(window.location.href);
- fallbackUrl.searchParams.set('tab', 'eventlog');
- fallbackUrl.searchParams.set('delete_last', String(deleteCount));
- window.location.href = fallbackUrl.toString();
+ postEventLogAction('delete_last', deleteCount);
  } else if (select) {
  select.value = '';
  }
 }
 
 function removeHiddenEventType(eventType) {
- if (!eventType) {
- return;
+ if (eventType) {
+ postEventLogAction('show_event_type', eventType);
  }
-
- if (typeof window.buildEventLogPageUrl === 'function') {
- window.location.href = window.buildEventLogPageUrl({
- page: 1,
- showEventType: eventType,
- autorefresh: window.location.search.includes('autorefresh=true')
- });
- return;
- }
-
- const fallbackUrl = new URL(window.location.href);
- fallbackUrl.searchParams.set('tab', 'eventlog');
- fallbackUrl.searchParams.set('page', '1');
- fallbackUrl.searchParams.set('show_event_type', eventType);
- window.location.href = fallbackUrl.toString();
 }
 
 function clearHiddenEventTypes() {
- if (typeof window.buildEventLogPageUrl === 'function') {
- window.location.href = window.buildEventLogPageUrl({
- page: 1,
- clearHiddenEventTypes: true,
- autorefresh: window.location.search.includes('autorefresh=true')
- });
- return;
- }
-
- const fallbackUrl = new URL(window.location.href);
- fallbackUrl.searchParams.set('tab', 'eventlog');
- fallbackUrl.searchParams.set('page', '1');
- fallbackUrl.searchParams.set('clear_hidden_event_types', '1');
- window.location.href = fallbackUrl.toString();
+ postEventLogAction('clear_hidden_event_types', '');
 }
 
 function deleteSelectedEvents() {
