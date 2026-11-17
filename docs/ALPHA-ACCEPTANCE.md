@@ -212,6 +212,7 @@ See [PROTOCOL.md](PROTOCOL.md#actor-condition-radiation-addictions-effects-limbs
 - [ ] Reviewed installation upgrade and paired client negotiation (no deployment is part of this change).
 - [ ] Flat and VR game acceptance independently: saved revisions/selection/transcript, cancellation and next-NPC privacy.
 - [ ] Live configured model, speech recognition and voice-provider acceptance. Disposable tone fixtures prove no voice quality.
+- [ ] Talking objects ([design](TALKING-OBJECTS.md)): terminal, radio and held-item binding, `0xFF` reference persistence, inventory-item identity probe and flat/VR targeting, after storage lands. Blocked on the schema redesign narrator step.
 
 ## Optional companion combat comments
 

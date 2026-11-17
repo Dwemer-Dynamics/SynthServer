@@ -18,9 +18,10 @@ try {
     # Audit the proposed working tree, excluding tracked paths deliberately removed by this change.
     $tracked = @($trackedIndex | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
 
-    # Keep the shared Herika feature layout; do not grow a second implementation tree.
+    # Target layout is docs/SERVER-FILE-LAYOUT.md (chevo-aligned): config/ and workers/ are allowed roots;
+    # these roots stay unused so there is one implementation tree.
     $legacyLayoutPaths = @($tracked | Where-Object {
-        $_ -match '^(?:public|src|config|resources|database|workers)/'
+        $_ -match '^(?:public|src|resources|database)/'
     })
     if ($legacyLayoutPaths.Count -gt 0) {
         Fail "noncanonical server layout: $($legacyLayoutPaths -join ', '); see docs/SERVER-FILE-LAYOUT.md"
