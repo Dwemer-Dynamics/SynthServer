@@ -463,8 +463,8 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $observedDialogue=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.observed_dialogue',$event['capabilities'] ?? [],true);
     // Reading context (notes, books, holotapes, terminals) is flat-only; computed before the status chain below.
-    $readingEvents=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
-        && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.reading_events',$event['capabilities'] ?? [],true);
+    require_once __DIR__.'/../managers/BookManager/ReadingEvent.php';
+    $readingEvents=$status==='init_accepted' && \Synth\Managers\BookManager\ReadingEvent::isOffered($event);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);

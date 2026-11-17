@@ -731,8 +731,8 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         synthPersistActorEvents($db, $event);
         require_once __DIR__.'/observed_dialogue.php';
         synthPersistObservedDialogue($db, $event);
-        require_once __DIR__.'/reading_event.php';
-        synthPersistReadingEvent($db, $event);
+        require_once __DIR__.'/../managers/BookManager/ReadingHistory.php';
+        \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE synth_meta.context_snapshots c

@@ -3,7 +3,9 @@
 use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__, 2).'/lib/request.php';
-require_once dirname(__DIR__, 2).'/lib/reading_event.php';
+require_once dirname(__DIR__, 2).'/managers/BookManager/ReadingEvent.php';
+
+use Synth\Managers\BookManager\ReadingEvent;
 
 // Trust boundary of context.reading_event: closed shape, flat-only capability, bounded copied text.
 final class ReadingEventTest extends TestCase
@@ -39,23 +41,23 @@ final class ReadingEventTest extends TestCase
     public function testValidatorRejectsMalformedReadings(): void
     {
         $valid=$this->fixture('context-reading-event')['payload']['reading_event'];
-        $this->assertSame($valid,synthValidateReadingEvent($valid));
+        $this->assertSame($valid,ReadingEvent::validate($valid));
         $bad=[['kind'=>'scroll'],['event_id'=>'reading:0'],['event_id'=>'reading:9007199254740992'],['title'=>''],['title'=>"a\nb"],
             ['title'=>str_repeat('t',129)],['text'=>''],['text'=>str_repeat('x',4001)],['text'=>"a\x01b"],['text'=>"\xC3\x28"],
             ['text_truncated'=>1],['age_ms'=>-1],['age_ms'=>'5'],['source'=>['form_id'=>'0x00000000','origin_plugin'=>'Fallout4.esm']],
             ['source'=>['form_id'=>'0x0001F2A3','origin_plugin'=>'../Fallout4.esm']],['source'=>['form_id'=>'0x0001F2A3']],
             ['extra'=>true]];
         foreach ($bad as $change) {
-            try {synthValidateReadingEvent(array_replace($valid,$change));$this->fail('Accepted '.json_encode($change));}
+            try {ReadingEvent::validate(array_replace($valid,$change));$this->fail('Accepted '.json_encode($change));}
             catch (DomainException $error) {$this->assertSame('invalid_reading_event',$error->getMessage());}
         }
         $noText=$valid;unset($noText['text']);
-        $this->assertSame($noText,synthValidateReadingEvent($noText));
-        try {synthValidateReadingEvent(array_replace($noText,['text_truncated'=>true]));$this->fail('Truncated flag without text');}
+        $this->assertSame($noText,ReadingEvent::validate($noText));
+        try {ReadingEvent::validate(array_replace($noText,['text_truncated'=>true]));$this->fail('Truncated flag without text');}
         catch (DomainException $error) {$this->assertSame('invalid_reading_event',$error->getMessage());}
         // The exact byte limit is inclusive and counted in characters, not bytes.
         $edge=array_replace($valid,['text'=>str_repeat("\u{00E9}",4000)]);
-        $this->assertSame($edge,synthValidateReadingEvent($edge));
+        $this->assertSame($edge,ReadingEvent::validate($edge));
     }
 
     public function testStatusAcknowledgementIsFlatOnlyAndCapabilityGated(): void

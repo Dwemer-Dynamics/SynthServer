@@ -792,8 +792,8 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
         }
         if (array_key_exists('reading_event',$payload)) {
-            require_once __DIR__.'/reading_event.php';
-            try {$payload['reading_event']=synthValidateReadingEvent($payload['reading_event']);}
+            require_once __DIR__.'/../managers/BookManager/ReadingEvent.php';
+            try {$payload['reading_event']=\Synth\Managers\BookManager\ReadingEvent::validate($payload['reading_event']);}
             catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
         }
         foreach (['nearby_items','points_of_interest'] as $collection) {

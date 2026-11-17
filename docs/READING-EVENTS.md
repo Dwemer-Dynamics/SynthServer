@@ -6,7 +6,7 @@ context. The server admits it, writes one history row and lets nearby NPCs refer
 side is described in the SYNTH repository's `docs/READING-EVENTS.md`; the schema is
 `protocol/v2/schemas/reading-event.schema.json` (mirrored byte for byte).
 
-Source: `lib/reading_event.php`; hooks in `lib/synth_ingress.php` (closed payload key, validation,
+Source: `managers/BookManager/` (`ReadingEvent`, `ReadingHistory`); thin hooks in `lib/synth_ingress.php` (closed payload key, validation,
 capability gate), `lib/synth_protocol_state.php` (persist inside context admission, history types)
 and `lib/response.php` (`status.reading_events` grant).
 
