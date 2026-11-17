@@ -96,7 +96,7 @@ final class DialogueManager
             // A line whose speech cannot be queued is still delivered: no `speech` block means text only.
             $speech = $this->speech->speak($turn->character, $turn->speech, $lineId, $text);
             if ($speech === null && !$voiceNoted) {
-                \Logger::warn('[native-turn] Speech could not be queued; the reply is delivered as text only.');
+                \Logger::warn('[native-turn] Speech could not be queued (' . ($this->speech->lastFailure() ?? 'unknown') . '); the reply is delivered as text only.');
                 $voiceNoted = true;
             }
             $this->output->assertActive();

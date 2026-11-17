@@ -48,7 +48,7 @@ final class WaveSilence
                 }
                 $sawData = true;
                 $zero = $tag === 1 && $bits === 8 ? "\x80" : "\0";
-                if (strspn(substr($bytes, $start, $size), $zero) !== $size) {
+                if (strspn($bytes, $zero, $start, $size) !== $size) {
                     return false;
                 }
             }
