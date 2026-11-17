@@ -49,9 +49,11 @@ final class PlayerRewriteDriver implements LlmDriver
      * @param \Closure(array):array $config url, model, api_key and sampling options of the caller-selected connector, plus
      *     an optional transient 'http_timeout' (the caller's existing HTTP_TIMEOUT; default 30) used only for openrouterjson
      * @param ?\Closure(string, resource):object $open test transport with SynthProviderStream's status/failed/readLine/contents/close
+     * @param ?float $deadlineSeconds optional hard total-time cap for this caller only: it overrides the row's timeout and
+     *     openrouterjson's 30 s floor on both transports. Null (every ordinary caller) keeps the existing timeouts.
      */
     public function __construct(private \Closure $assertActive, private \Closure $config,
-        private int $maxBytes = 2 * 1024 * 1024, private ?\Closure $open = null) {}
+        private int $maxBytes = 2 * 1024 * 1024, private ?\Closure $open = null, private ?float $deadlineSeconds = null) {}
 
     public function supports(array $connector): bool
     {
@@ -152,6 +154,8 @@ final class PlayerRewriteDriver implements LlmDriver
         } else {
             $content = self::requestBody($config, $messages, $transport['stream']);
         }
+        // cURL treats the context timeout as the total transfer time, so this is a real deadline, not a per-read one.
+        if ($this->deadlineSeconds !== null) $transport['timeout'] = max(0.1, min(floatval($transport['timeout'] ?? INF), $this->deadlineSeconds));
         $http = ['method' => 'POST', 'header' => $headers, 'timeout' => $transport['timeout'], 'content' => $content];
         if (!$transport['follow_location']) $http['follow_location'] = 0;
         $context = stream_context_create(['http' => $http]);

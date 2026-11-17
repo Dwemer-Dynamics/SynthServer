@@ -160,6 +160,9 @@ if (!function_exists('synthGetManagedGeneralSettingIds')) {
             'CORE_CONNECTOR_DECISION',
             'JEV_ACTION_TIMEOUT_MS',
             'JEV_ACTION_MIN_CONFIDENCE',
+            'TWO_STEP_ACTIONS_ENABLED',
+            'CORE_CONNECTOR_TWO_STEP',
+            'TWO_STEP_ACTION_TIMEOUT_MS',
             'CORE_CONNECTOR_PROFILES',
             'CORE_CONNECTOR_DIRECTOR',
             'RELLLM_CONNECTOR',
@@ -245,6 +248,9 @@ if (!function_exists('synthPrettySettingLabel')) {
             'CORE_CONNECTOR_DECISION' => 'Jev Decision Connector',
             'JEV_ACTION_TIMEOUT_MS' => 'Jev Time Budget (ms)',
             'JEV_ACTION_MIN_CONFIDENCE' => 'Jev Minimum Confidence',
+            'TWO_STEP_ACTIONS_ENABLED' => 'Two-Step Actions',
+            'CORE_CONNECTOR_TWO_STEP' => 'Two-Step Action Connector',
+            'TWO_STEP_ACTION_TIMEOUT_MS' => 'Two-Step Time Budget (ms)',
             'SCENE_CLASSIFIER_ENABLED' => 'Scene Classifier',
             'CONDITION_CONTEXT_ENABLED' => 'Condition Awareness',
             'CORE_CONNECTOR_PROFILES' => 'Dynamic Profile',
@@ -309,7 +315,7 @@ if (!function_exists('synthGetOverrideableGeneralSettingCategory')) {
             return 'Prompt';
         }
 
-        if (strpos($flatId, 'JEV_ACTION') === 0) return 'Global Connectors';
+        if (strpos($flatId, 'JEV_ACTION') === 0 || strpos($flatId, 'TWO_STEP_ACTION') === 0 || $flatId === 'CORE_CONNECTOR_TWO_STEP') return 'Global Connectors';
 
         if (strpos($flatId, 'RECHAT') === 0) {
             return 'Rechat';
