@@ -18,6 +18,11 @@ VR, v1 or un-negotiated readings; unknown keys or kinds; titles over 128 or text
 control characters other than newline in text; invalid UTF-8; a truncation flag without text; the same
 event ID with different content (conflict).
 
+## Who can recall it
+
+The row's people are the player and the capture's target and audience (the scene), so the ordinary history
+visibility lets those NPCs refer to it. Nobody outside that scene sees it.
+
 ## Storage
 
 No table of its own. `ReadingHistory` holds the only SQL (the lookup of an earlier row with the same

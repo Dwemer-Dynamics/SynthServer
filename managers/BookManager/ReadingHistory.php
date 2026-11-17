@@ -48,8 +48,22 @@ final class ReadingHistory
             'snapshot_sequence' => $payload['snapshot_sequence']];
         $gamets = (int) ($payload['world']['game_time_ticks'] ?? 0);
         \synth_protocol_persist_observation_history($db, $event, 'reading_event', ReadingEvent::describe($reading, $name),
-            '|' . $name . '|', (string) ($payload['world']['location'] ?? ''), $metadata,
+            self::people($payload, $name), (string) ($payload['world']['location'] ?? ''), $metadata,
             $gamets > 0 ? $gamets : (int) $payload['snapshot_sequence']);
+    }
+
+    // The player plus everyone in this capture's scene, as |A|B|: the people who may later recall the reading.
+    private static function people(array $payload, string $playerName): string
+    {
+        $names = [$playerName];
+        $others = array_merge(isset($payload['target']) ? [$payload['target']] : [], $payload['audience'] ?? []);
+        foreach ($others as $actor) {
+            $name = str_replace('|', ' ', trim((string) ($actor['display_name'] ?? '')));
+            if ($name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+        }
+        return '|' . implode('|', $names) . '|';
     }
 
     // Looks for the same event ID in this session; same content is a retry, different content a conflict.
