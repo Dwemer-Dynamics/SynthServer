@@ -6238,7 +6238,7 @@ function call_llm_internal() {
                     $actions=$postFilterFunc($actions);
             }
             // Optional (off by default): a second bounded call may pick one negotiated action for an action-free reply.
-            if (function_exists('synth_two_step_filter_actions')) $actions=synth_two_step_filter_actions($actions,$totalProcessedData);
+            if (class_exists('Synth\Managers\ActionsManager\TwoStepActions', false)) $actions=Synth\Managers\ActionsManager\TwoStepActions::filterActions($actions,$totalProcessedData);
         }
 
         if (is_array($actions)) {
