@@ -422,6 +422,23 @@ verification both sides, hostile co-save tests, fake-client E2E. **In-game behav
 talking, a real load-order change on a real save, flat and VR) cannot be tested here and must be recorded
 separately as acceptance evidence** (`docs/ALPHA-ACCEPTANCE.md`).
 
+## 8.1 Code placement (target structure)
+
+New code goes in the chevo-shaped homes; legacy directories (`lib/`, `processor/`, `connector/`, `ui/` SQL, `main.php`)
+are frozen and get only thin call-through hooks. Nothing is moved.
+
+| Concern | Home | Namespace |
+|---|---|---|
+| Runtime-actor registration, activation policy, rename and re-adoption | `managers/NpcRegistration/` (with `README.md`, the contract of section 5) | `Synth\Managers\NpcRegistration` |
+| Manifest sync, typed references, resolution statuses, deferred resolution | `managers/ReferenceResolver/` (with `README.md`, sections 3 and 4) | `Synth\Managers\ReferenceResolver` |
+| `core_npc_runtime_actor`, `core_plugin_manifest_revision`, `core_npc_actor` mappings and system classes | `core/entities/base`, `core/entities/system` | `Synth\Core\Entities\...` |
+| DAOs | `core/dbmanager/dao` | `Synth\Core\DbManager\Dao` |
+| Route handlers for `runtime_actor.*` and `session.plugin_manifest` | `api/` | |
+
+The only edits in shared legacy files are the one identity-parsing accessor in `DialogueManager`/`dispatch.php`
+(section 5.1) and the eligibility gate (phase E). Until Composer PSR-4 autoload merges, new files are loaded with
+explicit `require_once`. New classes follow chevo style: file header comment, every method commented, `camelCase`.
+
 ## 9. Verify before build
 
 1. That a Fallout 4 runtime form ID can be re-used by a later object, and when (Skyrim behaviour is the only
