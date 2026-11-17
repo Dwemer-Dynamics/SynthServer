@@ -954,5 +954,28 @@ profile-loader page views pass `rotate_logs => false` and `seed_narrator => fals
 narrator rows are read as defaults, not inserted); other callers keep rotation and seeding. Home no longer
 starts the background processor (`main.php` does). STT, ITT and TTS connector views no longer apply schema
 migrations; Quickstart's explicit save still does. Snapshot restore stays paused. Provider key fields, their
-rendering and key-test provider resolution belong to the separate credential draft. Open checks are in
+rendering and key-test provider resolution are described under
+[write-only credential forms](#write-only-credential-forms-candidate). Open checks are in
 [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#dashboard-request-safety).
+
+## Write-only credential forms candidate
+
+The API Keys page (`ui/core/api_badge.php`) and Quickstart never render a saved key into an input value or a
+browser script; they show only whether a key is saved. A blank field keeps the saved key. Only an explicit,
+confirmed Clear, carrying the page's session token, empties one key. The API Keys page trims submitted keys and
+refuses one longer than 4096 bytes, not UTF-8 or carrying control characters. The key test
+(`ui/core/tests/apikey_test.php`) is a token-checked POST to the two server-known OpenRouter and OpenAI endpoints. Without a typed key it reads the
+saved key server-side by badge id, and it never echoes a provider response body. SQL caller traces in
+`lib/postgresql.class.php` record frames only, never arguments.
+
+`core_api_badge.label` is unique only in exact case, so `OpenRouter` and `openrouter` can both exist. A provider
+card, Quickstart and `getByLabel()` all use the lowest-id case-insensitive match. Other case-variant rows stay
+listed under the provider with their actual label and id, and their Save, Test and Clear act on that row. Bulk
+Save Keys refuses a form whose displayed provider row has changed (`err=stale`) before writing anything. A missing
+preset row is created only by Save Keys, never by viewing the page. No rows are deleted, relabelled or migrated.
+
+Known limits: a custom key created through the create action gets `max(100, highest id + 1)` computed in PHP,
+not a database-assigned id, so two concurrent creates can collide. Custom-key Delete accepts only an exact positive
+row id of an existing custom row; a malformed, missing or preset id answers `err=not_found` and deletes nothing,
+and a failed delete (for example a row a connector still references) answers `err=save_failed`. Open checks are in
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#write-only-credential-forms).
