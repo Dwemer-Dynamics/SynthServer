@@ -757,7 +757,7 @@ Client hook activation and automatic AI reactions are not enabled by this contra
 
 Flat sessions that register context.reading_events receive status.reading_events and may send one
 optional context.reading_event: the bounded title and text of something the player read. The server
-stores one history row; nothing is summarized, truncation is flagged, and VR is rejected. See
+stores one history row for the target NPC only; paper notes are never sent; nothing is summarized, truncation is flagged, and VR is rejected. See
 docs/READING-EVENTS.md and schemas/reading-event.schema.json.
 
 Quest-aware NPC prompts project only that responder's save-visible, directly addressed

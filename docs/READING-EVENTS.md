@@ -12,6 +12,12 @@ and `lib/response.php` (`status.reading_events` grant).
 
 ## Behavior
 
+- **Target only.** The row is recorded so only the context's `target` (the addressed NPC) can recall it:
+  its people token is the target's name alone. A non-target NPC in the audience, the player-side reader and
+  every other NPC's diary inputs never see it. A reading without a target is refused (nothing stored).
+- **Paper notes are not captured.** The `note` kind does not exist in the schema or the allowlist; notes stay
+  private under the readable-notes design (shared only on explicit request). Books, magazines, terminal
+  entries and holotape titles only.
 - The grant: an init that is v2, flat and lists `context.reading_events` receives
   `status.reading_events: true`. VR and older clients never do, and a `reading_event` from either is
   rejected before it touches storage (HTTP 422).
@@ -23,11 +29,13 @@ and `lib/response.php` (`status.reading_events` grant).
   as quest and player events. There is no new table, column or migration. The context snapshot does
   not keep the text; the history row is the only copy.
 - Idempotency: the same `event_id` in the same session, generation and playthrough with the same
-  content is a no-op; different content is a conflict (HTTP 409) that rolls the admission back.
+  content is a no-op; different content is a conflict (HTTP 409) that rolls the admission back. The lookup
+  reaches back 256 contexts only, so its cost does not grow with history; a retry always reuses its capture
+  well inside that window. A unique key belongs to the persistence redesign (#63).
 - Prompt: the row reads `<Player> read the <kind> "<title>". It reads: "<text>"` (or says that only the
-  title is known) and appears in history for readers who are in the capture's audience, like other
-  observations. The text is quoted game content and is never executed or treated as an instruction.
-  Nothing marks that any NPC read it themselves.
+  title is known). The text is untrusted game content: quotes become typographic quotes, line breaks become
+  ` / `, and Unicode line separators, bidi and zero-width controls are removed, so it cannot break the
+  quoted framing or pose as another speaker's line. It is never executed or treated as an instruction.
 
 ## Not stored
 
