@@ -97,7 +97,7 @@ Status: **live**, **legacy-live** (HerikaServer-era table still driving the pipe
 | SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
 |---|---|---|---|---|---|---|
 | `synth.core_api_badge` | local custom-key table owned by #62 (custom keys only) + shared `api_keys`, both behind the `ApiBadge` facade | `~`, owned by #62 | The local table holds **only** SYNTH-only custom keys; shared keys are never copied into it. Its columns are #62's to define; this design depends on it, not on its shape. | 4/0 | cfg | live |
-| `synth.core_llm_connector` | `core_llm_connector` | `=` | Identical 22 columns; chevo's single `api_badge_id integer` becomes the pair `shared_key_id uuid NULL` / `custom_key_id integer NULL` ([section 7](#7-api-keys)); sampler columns, `metadata jsonb` unchanged. `int` flags (`enforce_json`, `json_schema`, `prefill_json`, `reasoning_model`) stay integers as in chevo. | 19/5 | cfg | live |
+| `synth.core_llm_connector` | `core_llm_connector` | `=` | Identical 22 columns; `api_badge_id` is renamed `local_api_key_id integer NULL` and `api_key_id uuid NULL` is added, with a CHECK that at most one is set ([section 7](#7-api-keys)); sampler columns, `metadata jsonb` unchanged. `int` flags (`enforce_json`, `json_schema`, `prefill_json`, `reasoning_model`) stay integers as in chevo. | 19/5 | cfg | live |
 | `synth.core_tts_connector` | `core_tts_connector` | `=` | `voice_field` present in both; key-binding pair as above. | 6/1 | cfg | live |
 | `synth.core_stt_connector` | `core_stt_connector` | `=` | Key-binding pair as above. | 3/1 | cfg | live |
 | `synth.core_itt_connector` | `core_itt_connector` | `=` | Key-binding pair as above. | 3/0 | cfg | live |
@@ -262,49 +262,55 @@ Functions kept: `synth.convert_gamets2*` (6, used by 9 files) become `public` he
 
 ## 7. API keys
 
-**Key storage is owned by PR #62** (`codex/shared-api-keys`), which this design neither replaces nor re-implements. Read at head `648d1a2`, which still binds through a local `core_api_badge.shared_key_id` column; #62 is being reworked, and this
-section records what SYNTH needs from it.
+**Frozen contract (Q16, settled with the #62 session).** Key storage is owned by PR #62 (`codex/shared-api-keys`); this section is the contract SYNTH's schema and step 1 build on. It supersedes the earlier two-column
+proposal (`shared_key_id` / `custom_key_id`).
 
 ### Two stores, one list
 
-| Store | What it holds | Id | Owner |
+| Store | What it holds | Id | Reference |
 |---|---|---|---|
-| **shared** (default) | Global provider keys in the `dwemer` database's `api_keys` table (`SharedApiKeyStore`, its four byte-identical shared migrations and ledger `dwemer_shared_migration_versions`). | `uuid` (`key_id`) | #62 |
-| **custom** | SYNTH-only keys the user creates explicitly: providers the shared table cannot hold (Player2, local services, custom endpoints, region-specific Azure). A small local `core_api_badge`-style table in SYNTH's own database. | `integer` | #62 |
+| **shared** (default) | Global provider keys in the shared `dwemer` database's `api_keys` table (#62's `SharedApiKeyStore` and its four byte-identical shared migrations). Another database, no ORM mapping, own DBAL connection. | `uuid` | `shared:<uuid>` |
+| **local** | SYNTH-only custom keys the user creates explicitly (Player2, local services, custom endpoints, region-specific Azure). The table **`core_api_badge`** stays in SYNTH's database: `id integer` PK, `label` **UNIQUE**, `api_key text`. | `integer` | `local:<int>` |
 
-- The `ApiBadge` facade (system entity in `core/entities/system`, `ApiBadgeDAO` in `core/dbmanager/dao`, chevo names) **lists both stores as one list**, and **every entry records its store** (`shared` or `custom`) plus label, provider and `configured`.
-  The facade's opaque key reference is the store plus the id (for example `shared:<uuid>`, `custom:<int>`), so an id can never be read as the other store's.
-- **Default is shared.** New keys are created shared unless the user explicitly chooses a SYNTH-only custom key. A custom key is **used only when a connector is explicitly bound to it**; nothing switches between stores silently: not on save,
-  not when a key is missing, not when the shared store is unreachable (that reads as "no key" for a shared-bound connector and never falls back to a custom key).
-- Custom keys are never copied into the shared store and shared keys are never mirrored into the local table.
-- The shared store has no ORM mapping (another database, reached over its own DBAL connection `CHIM_SHARED_DB_*`, never the legacy session or SYNTH's EntityManager). Whether the local custom table is ORM-mapped is #62's decision; if it is,
-  it follows chevo's three layers like any `core_*` table.
+`core_api_badge` therefore keeps its chevo-compatible shape and is created by the baseline as today, but holds **only** local keys; shared keys are never copied into it and local keys never into the shared store.
+Nothing switches between stores silently.
+
+### Classes (frozen names)
+
+| Class | Path | Role |
+|---|---|---|
+| `Synth\Core\Contracts\ApiKeyRef` | `core/contracts/ApiKeyRef.php` | Value object for a key reference: `shared:<uuid>` or `local:<int>`. An id can never be read as the other store's. |
+| `ApiBadge` | `core/entities/system/ApiBadge.php` | **Read view** of one key from either store (store, id, label, provider, `configured`); never carries the secret to callers that only list. |
+| `ApiBadgeDao` | `core/dbmanager/dao/ApiBadgeDao.php` | The facade over both stores: `listAll()`, `find(ApiKeyRef)`, `findByLabel()`, `defaultForProvider()`, `secret()`, `create()`, `update()`, `delete()` returning `deleted` / `in_use` / `missing` / `unavailable`, and `storeStatus()`. |
+| `ConnectorReferences` | `core/dbmanager/dao/ConnectorReferences.php` | `usedBy(ApiKeyRef)` and `forSharedKey(uuid)`: which connectors use a key, for strict Delete. |
+
+Naming note: the DAO is `ApiBadgeDao` (not chevo's `ApiBadgeDAO`) and the contract class lives in a new `core/contracts` directory; these are #62's names and are kept. The facade is not a registered `Database::DAOS` entry for the shared store
+(no EntityManager behind it); whether the local table also gets an `AbstractApiBadge` mapping is #62's call and does not change the contract.
 
 ### Connector binding (the schema consequence)
 
-A connector binds to exactly one store unambiguously, with two nullable columns instead of chevo's single `api_badge_id`:
+Each of `core_llm_connector`, `core_tts_connector`, `core_stt_connector` and `core_itt_connector` gets two nullable key columns and one check:
 
 ```
-core_llm_connector, core_tts_connector, core_stt_connector, core_itt_connector
-  shared_key_id  uuid    NULL    -- shared api_keys.key_id; no FK (another database)
-  custom_key_id  integer NULL    -- REFERENCES core_api_badge(id) ON DELETE RESTRICT (local custom table)
-  CHECK (num_nonnulls(shared_key_id, custom_key_id) <= 1)   -- at most one store; both NULL = no key
+api_key_id        uuid    NULL   -- shared key (api_keys.key_id); no FK (another database)
+local_api_key_id  integer NULL   -- REFERENCES core_api_badge(id) ON DELETE RESTRICT; this is today's api_badge_id, renamed
+CHECK (num_nonnulls(api_key_id, local_api_key_id) <= 1)       -- at most one of the two
 ```
 
-- The pair puts the store in the data, so the schema cannot represent a connector bound to both, and an integer is never confused with a uuid. The `ON DELETE RESTRICT` foreign key to the local table is real; the shared side has none.
-- chevo diverges here: its connectors have one `api_badge_id integer`, so ported editor, `ConnectorReadiness` and `ConnectorReferences` code splits on the pair, and the edit API's `references` entry names both columns.
-- Moving a connector from one store to the other is an explicit user edit that sets one column and clears the other in one write; the facade never does it by itself.
-- Strict Delete: a custom key is protected by the foreign key (409 from the facade); a shared key is protected by the facade, which asks `ConnectorReferences` for connectors using that `shared_key_id`.
+- **Both NULL means "use the provider's global default"** (`ApiBadgeDao::defaultForProvider()`), not "no key". A local key is used only when `local_api_key_id` is set, which only an explicit user edit does.
+- The existing `api_badge_id` is **renamed** `local_api_key_id` (same integer values, same FK); chevo's single `api_badge_id integer` therefore diverges, so entities, editors, `ConnectorReadiness` and the edit API's `references` entry name both columns.
+- Moving a connector between stores is an explicit edit that sets one column and clears the other in one write; the facade never does it.
+- **Strict Delete:** `ApiBadgeDao::delete()` returns `in_use` while `ConnectorReferences::usedBy()` finds a connector (a local key is also protected by `ON DELETE RESTRICT`; a shared key only by this check), `missing` for an unknown id, and `unavailable` when the shared store cannot be reached.
+  An unreachable shared store reads as "no key" for shared-bound connectors and never falls back to a local key.
 
 ### Behaviour kept from #53/#54
 
-Implemented on `ApiBadge` for both stores: **write-only keys** (never returned; only `configured`), **blank preserves**, **Clear** is explicit, **server-side Test**, **strict Delete**. The edit API, when added, exposes
-`'api-badge' => ['write_only' => ['api_key']]` as in chevo. The shared migrations stay outside the SYNTH baseline's manifest (they keep `shared-schema-manifest.json`); the local custom table lives in SYNTH's database, so it is in the baseline and the schema-check.
+Implemented through the facade for both stores: **write-only keys** (never returned; only `configured`), **blank preserves**, **Clear** is explicit, **server-side Test**, **strict Delete**. The edit API, when added, exposes
+`'api-badge' => ['write_only' => ['api_key']]` as in chevo. The shared migrations stay outside SYNTH's baseline manifest (they keep `shared-schema-manifest.json`); `core_api_badge` is in SYNTH's database, so it is in the baseline and the schema-check.
 
 ### Dependency and ordering
 
-#62's rework must land (or be rebased into this branch) **before rollout step 1**, delivering the two-store facade, the local custom-key table and the per-key store marker. If #62 names the table or fields differently, step 1 follows its final head;
-this design needs only: a local custom-key table with an `integer` id, a shared `uuid` id, a per-key store marker, and the two-column binding above.
+Step 1 starts only on the command centre's go, after #62's rework lands. Step 1 then adopts the contract above as frozen; any rename in #62 beyond it needs a design update first.
 
 ---
 
@@ -368,7 +374,7 @@ the same commit. Every commit installs on an empty disposable PG17, passes `sche
 | Step | Scope | Prod files (est.) | Notes / risk |
 |---|---|---|---|
 | 0 | Scaffolding: `Database::boot()`, `Database::DAOS`, `Types/PreciseDateTimeType`, `core/entities/{base,system}` and `core/dbmanager/dao` layout (chevo conventions), new baseline id as byte-equivalent old DDL, schema-check retargeted ([section 8](#8-schema-check)), `DatabaseTestCase` builds the fresh baseline instead of `database_default.sql` plus the chain. No table renamed. | ~18 | Proves boot, fresh install and drift. Must keep `SharedSessionDriver` working with the ORM. |
-| 1 | **Depends on #62's reworked two-store key facade and local custom-key table landing first.** Connectors, profiles, settings: `core_*_connector` (`shared_key_id`/`custom_key_id` binding pair), `core_profiles` (+`itt_connector_id`), `core_config_setting`, `core_config_preset`, `core_prompt`; remove `SettingsRepository`, `GeneralSetting` (`ApiBadgeRepository` goes with #62's facade); #53/#54 behaviour retained. | ~80 (`conf_opts` ~34, `core_profiles` 28, `core_llm_connector` 19, `core_player` 14) | Largest UI fan-out; moves the UI SQL for these tables into `ApiBadge`, `ConfigSetting`, connector system classes. |
+| 1 | **Starts only on the command centre's go, after #62's rework lands; the key facade contract is frozen ([section 7](#7-api-keys)).** Connectors, profiles, settings: `core_*_connector` (`api_badge_id` renamed `local_api_key_id`, `api_key_id uuid` added, at-most-one CHECK; both NULL = provider default), `core_api_badge` kept as the local key table behind `ApiBadgeDao`, `ApiKeyRef`, `ApiBadge`, `ConnectorReferences`; `core_profiles` (+`itt_connector_id`), `core_config_setting`, `core_config_preset`, `core_prompt`; remove `SettingsRepository`, `GeneralSetting` (`ApiBadgeRepository` goes with #62's facade); #53/#54 behaviour retained. | ~80 (`conf_opts` ~34, `core_profiles` 28, `core_llm_connector` 19, `core_player` 14) | Largest UI fan-out; moves the UI SQL for these tables into the system classes and the facade. |
 | 2 | Characters and plugins: `core_npc`, `core_npc_actor`, `core_npc_history`, `core_npc_profile_rule`, `core_npc_biography_*`, `core_plugins`, `core_character_generation*`. | ~65 (`actor_identities` 38, `npc_master` 38) | Identity model decision (question 3) lands here. |
 | 3 | Catalogs: items, oghma/worldknowledge, locations + state, factions, quests, actions, catalog versions, media, visual. | ~60 | Installers `fallout_catalogue_sql.php`, `fallout_content_pack.php`. |
 | 4 | Context, queue, logs: `core_context_event` (merging `eventlog`, `history_events`, `speech`, `actions_issued`), `core_message_queue`, `core_llm_request_log`, `core_dialogue_request`. Commits 4a events, 4b queue/log, 4c requests. | ~110 (`eventlog` ~40, `history_events` 31, `request_executions` 45, `speech` ~34) | Highest risk: merges two event ledgers; native dialogue tests, loopback. `save_rollback.php`, `legacy_row_management.php`. |
@@ -393,7 +399,7 @@ Scratch under `D:\build\synth-schema-redesign`.
 5. **Volume of classes.** About 235 new classes under chevo's documentation rules (every file and method commented) is large; the DAO/system split is mechanical but must be reviewed in batches.
 6. **ORM-generated DDL.** The Doctrine schema tool omits checks, cascades, generated and vector columns; never use it to create or diff (chevo rule). Tests use real migrations.
 7. **Divergence from chevo.** `core/dbmanager` is a copy, not a shared package, so chevo changes must be ported by hand; unresolved in question 11.
-8. **Key facade dependency.** Step 1 cannot start until #62's rework exposes the two-store `ApiBadge` facade and the local custom-key table; the `shared_key_id`/`custom_key_id` pair diverges from chevo's single `api_badge_id integer`, so editors and `ConnectorReadiness` ported from chevo must split on it. Resolving a key from the wrong store would be a credential mix-up, so the harnesses test both bindings and the no-fallback rule.
+8. **Key facade dependency.** Step 1 waits for #62's rework and the command centre's go. The contract is frozen, but the two-column binding diverges from chevo's single `api_badge_id integer`, so editors and `ConnectorReadiness` ported from chevo must split on it; resolving a key from the wrong store would be a credential mix-up, so the harnesses test both bindings, the both-NULL provider default and the no-fallback rule.
 9. **Test fixture.** 111 test files, about 30 with per-table assertions; each step edits only its domain's.
 
 ---
@@ -420,6 +426,6 @@ Answers from the owner (recorded for the approved design at `9bcdbdf`):
 13. **Approved to drop** `moods_issued` and `audit_memory`.
 14. **Baseline id `Version20261117000000` is approved** (and used by step 0).
 15. **The edit API and UI conversion go in a later, separate PR;** each step still moves its UI SQL into system-entity methods.
-16. **#62 facade contract:** the command centre settles it with the #62 session; step 1 waits for it.
+16. **#62 facade contract: settled and frozen** (section 7): `ApiKeyRef` (`shared:<uuid>` / `local:<int>`), `ApiBadge`, `ApiBadgeDao`, `ConnectorReferences`, connector columns `api_key_id` / `local_api_key_id`.
 
 Out of scope and unchanged by this design: the installed database, deployments, services, the game, legacy snapshots (stay paused), PR #41, ChimServer, HerikaServer, Stobe, Dialectic and chevo.
