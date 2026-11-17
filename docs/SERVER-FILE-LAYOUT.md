@@ -69,10 +69,10 @@ autoloader follows PSR-4: its file path below the mapped root equals its namespa
 
 | Prefix | Directory |
 | --- | --- |
-| `Synth\Api\` | `api/` |
+| `Synth\Api\`, `Synth\Api\V2\` | `api/`, `api/v2/` (a new `api/v<N>/` needs its own mapping) |
 | `Synth\Core\Contracts\` | `core/contracts/` |
-| `Synth\Core\Entities\` | `core/entities/` |
-| `Synth\Core\DbManager\` | `core/dbmanager/` |
+| `Synth\Core\Entities\` (`Base\`, `System\`) | `core/entities/` (`base/`, `system/`: lowercase dirs, explicit mappings) |
+| `Synth\Core\DbManager\` (`Dao\`) | `core/dbmanager/` (`dao/`) |
 | `Synth\Migrations\` | `core/dbmanager/migrations/` |
 | `Synth\Managers\` | `managers/` |
 | `Synth\Drivers\Llm\`, `Tts\`, `Stt\`, `Itt\` | `drivers/llm/`, `drivers/tts/`, `drivers/stt/`, `drivers/itt/` |
@@ -111,7 +111,7 @@ See the table in [AGENTS.md](../AGENTS.md#layering-and-placement) (mirrored in
 `managers/<Name>/` folder with a `README.md`, reads and writes data only through
 `core/entities/system`, calls providers only through `drivers/`, exposes HTTP through `api/`, and runs
 background work as a `workers/<Name>/` class started from `bin/`. Code style:
-[CODING-STANDARDS.md](coding-standards.md). Chevo status per area: [CHEVO-PARITY.md](CHEVO-PARITY.md).
+[CODING-STANDARDS.md](CODING-STANDARDS.md). Chevo status per area: [CHEVO-PARITY.md](CHEVO-PARITY.md).
 
 ## Tests
 
