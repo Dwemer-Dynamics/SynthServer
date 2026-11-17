@@ -2,13 +2,15 @@
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../lib/health_checks.php';
+require_once __DIR__ . '/../../managers/HealthCheck/HealthCheckManager.php';
+
+use Synth\Managers\HealthCheck\HealthCheckManager;
 
 final class HealthChecksTest extends TestCase
 {
     public function testLiveAnswersWithoutConfiguration(): void
     {
-        [$code, $body] = synthHealthLive('SYNTH Server', '1.2.3');
+        [$code, $body] = HealthCheckManager::live('SYNTH Server', '1.2.3');
         self::assertSame(200, $code);
         self::assertSame('ok', $body['status']);
         self::assertSame('live', $body['check']);
@@ -16,7 +18,7 @@ final class HealthChecksTest extends TestCase
 
     public function testLlmTargetsCountConfiguredConnectorsAndDeduplicateEndpoints(): void
     {
-        $targets = synthHealthLlmTargets([
+        $targets = HealthCheckManager::llmTargets([
             ['url' => 'http://127.0.0.1:1234/v1/chat/completions', 'model' => 'a', 'api_badge_id' => 7],
             ['url' => 'HTTP://127.0.0.1:1234/other', 'model' => 'b'],
             ['url' => 'https://api.example.test/v1', 'model' => 'c'],
@@ -36,7 +38,7 @@ final class HealthChecksTest extends TestCase
         for ($i = 0; $i < 12; $i++) {
             $rows[] = ['url' => "http://host$i.example.test/v1", 'model' => 'm'];
         }
-        self::assertCount(SYNTH_HEALTH_LLM_MAX_ENDPOINTS, synthHealthLlmTargets($rows)['endpoints']);
+        self::assertCount(5, HealthCheckManager::llmTargets($rows)['endpoints']);
     }
 
     public function testProbeCountsOnlyAcceptingEndpoints(): void
@@ -48,23 +50,23 @@ final class HealthChecksTest extends TestCase
         $closedPort = (int)substr(strrchr(stream_socket_get_name($closed, false), ':'), 1);
         fclose($closed);
 
-        self::assertSame(1, synthHealthProbeEndpoints([['127.0.0.1', $open], ['127.0.0.1', $closedPort]], 2.0));
-        self::assertSame(0, synthHealthProbeEndpoints([['127.0.0.1', $closedPort]], 2.0));
-        self::assertSame(0, synthHealthProbeEndpoints([], 2.0));
+        self::assertSame(1, HealthCheckManager::probeEndpoints([['127.0.0.1', $open], ['127.0.0.1', $closedPort]], 2.0));
+        self::assertSame(0, HealthCheckManager::probeEndpoints([['127.0.0.1', $closedPort]], 2.0));
+        self::assertSame(0, HealthCheckManager::probeEndpoints([], 2.0));
         fclose($server);
     }
 
     public function testWorstStatusRanksErrorAboveWarningAboveOk(): void
     {
-        self::assertSame('ok', synthHealthWorstStatus([['status' => 'ok']]));
-        self::assertSame('warning', synthHealthWorstStatus([['status' => 'ok'], ['status' => 'warning']]));
-        self::assertSame('error', synthHealthWorstStatus([['status' => 'warning'], ['status' => 'error']]));
-        self::assertSame('error', synthHealthWorstStatus([[]]));
+        self::assertSame('ok', HealthCheckManager::worstStatus([['status' => 'ok']]));
+        self::assertSame('warning', HealthCheckManager::worstStatus([['status' => 'ok'], ['status' => 'warning']]));
+        self::assertSame('error', HealthCheckManager::worstStatus([['status' => 'warning'], ['status' => 'error']]));
+        self::assertSame('error', HealthCheckManager::worstStatus([[]]));
     }
 
     public function testAllWithoutDatabaseSkipsTheRestWithoutTouchingProviders(): void
     {
-        [$code, $body] = synthHealthAll(null, 'SYNTH cannot connect to PostgreSQL.');
+        [$code, $body] = HealthCheckManager::all(null, 'SYNTH cannot connect to PostgreSQL.');
         self::assertSame(503, $code);
         self::assertSame('error', $body['status']);
         self::assertTrue($body['checks']['llm']['skipped']);

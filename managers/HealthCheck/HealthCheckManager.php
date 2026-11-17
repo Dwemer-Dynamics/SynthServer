@@ -1,33 +1,39 @@
 <?php
 
+/**
+ * Granular, read-only health checks behind health.php?check=NAME: liveness, database, API keys, NPCs and the LLM
+ * provider. Every check answers a small array and never throws to the caller: a failure becomes a fixed, sanitized
+ * message (driver text can carry connection details). Nothing here writes, migrates, takes a lock, loads settings or
+ * sends a provider request; the LLM check only opens a bare TCP connection to each configured endpoint host, so no
+ * key, prompt or token is ever sent. See docs/HEALTH-CHECKS.md.
+ */
 declare(strict_types=1);
 
-// Granular, read-only health checks behind health.php?check=NAME. Every check answers a small JSON-able array and
-// never throws to the caller: a failure becomes a fixed, sanitized message (driver text can carry connection
-// details). Nothing here writes, migrates, takes a lock, loads settings or sends a provider request. The LLM check
-// only opens a bare TCP connection to each configured endpoint host, so no key, prompt or token is ever sent.
+namespace Synth\Managers\HealthCheck;
 
-if (!function_exists('synthHealthCheckNames')) {
+final class HealthCheckManager
+{
+    // Wall-clock budget for all LLM endpoint probes together, in seconds.
+    private const PROBE_SECONDS = 2.0;
+
+    // Most distinct endpoints probed per request, so a large connector list cannot stretch the check.
+    private const MAX_ENDPOINTS = 5;
+
     /** Checks health.php serves through ?check=. "live" needs no configuration; "all" runs the other four. */
-    function synthHealthCheckNames(): array
+    public static function checkNames(): array
     {
         return ['live', 'db', 'api-keys', 'npcs', 'llm', 'all'];
     }
 
-    /** Wall-clock budget for all LLM endpoint probes together, in seconds. */
-    define('SYNTH_HEALTH_LLM_PROBE_SECONDS', 2.0);
-    /** Most distinct endpoints probed per request, so a large connector list cannot stretch the check. */
-    define('SYNTH_HEALTH_LLM_MAX_ENDPOINTS', 5);
-
     /** @return array{0:int,1:array} HTTP status and JSON body of the cheapest possible liveness answer. */
-    function synthHealthLive(string $service, string $version): array
+    public static function live(string $service, string $version): array
     {
         return [200, ['check' => 'live', 'status' => 'ok', 'service' => $service, 'version' => $version,
             'timestamp' => gmdate('c')]];
     }
 
-    /** @return array{0:int,1:array} */
-    function synthHealthDatabase(?object $db, ?string $failure = null): array
+    /** Database check: connects, runs SELECT 1 and verifies the encoding. @return array{0:int,1:array} */
+    public static function database(?object $db, ?string $failure = null): array
     {
         $body = ['check' => 'db', 'status' => 'error', 'database' => false, 'database_encoding_supported' => false];
         if ($db === null || $failure !== null) {
@@ -35,9 +41,9 @@ if (!function_exists('synthHealthCheckNames')) {
         }
         try {
             $body['database'] = (bool)$db->query('SELECT 1');
-            $encoding = synthRuntimeDatabaseEncoding();
-            $body['database_encoding_supported'] = synthRuntimeDatabaseEncodingIsSupported($encoding);
-        } catch (Throwable) {
+            $encoding = \synthRuntimeDatabaseEncoding();
+            $body['database_encoding_supported'] = \synthRuntimeDatabaseEncodingIsSupported($encoding);
+        } catch (\Throwable) {
             $body['database'] = false;
         }
         if (!$body['database']) {
@@ -51,11 +57,11 @@ if (!function_exists('synthHealthCheckNames')) {
     }
 
     /** Rows of core_api_badge holding a non-empty key, counted through the existing facade; never the keys. */
-    function synthHealthApiKeyCount(): int
+    public static function apiKeyCount(): int
     {
-        require_once dirname(__DIR__) . '/lib/core/api_badge.class.php';
+        require_once dirname(__DIR__, 2) . '/lib/core/api_badge.class.php';
         $count = 0;
-        foreach ((new ApiBadge())->getAll() as $row) {
+        foreach ((new \ApiBadge())->getAll() as $row) {
             if (is_array($row) && trim(strval($row['api_key'] ?? '')) !== '') {
                 $count++;
             }
@@ -64,12 +70,12 @@ if (!function_exists('synthHealthCheckNames')) {
     }
 
     /** @return array{0:int,1:array} A count of zero is a warning, not an outage: local providers need no key. */
-    function synthHealthApiKeys(): array
+    public static function apiKeys(): array
     {
         $body = ['check' => 'api-keys', 'status' => 'error', 'api_keys_configured' => null];
         try {
-            $count = synthHealthApiKeyCount();
-        } catch (Throwable) {
+            $count = self::apiKeyCount();
+        } catch (\Throwable) {
             return [503, $body + ['error' => 'SYNTH could not read its API key store; see the web server error log.']];
         }
         $body['api_keys_configured'] = $count;
@@ -78,13 +84,13 @@ if (!function_exists('synthHealthCheckNames')) {
     }
 
     /** @return array{0:int,1:array} Characters (NPC profiles) the server can already answer for. */
-    function synthHealthNpcs(object $db): array
+    public static function npcs(object $db): array
     {
         $body = ['check' => 'npcs', 'status' => 'error', 'npcs_available' => null];
         try {
-            require_once dirname(__DIR__) . '/core/dbmanager/repositories/CharacterRepository.php';
+            require_once dirname(__DIR__, 2) . '/core/dbmanager/repositories/CharacterRepository.php';
             $count = (new \Synth\Core\CharacterRepository($db))->availableCount();
-        } catch (Throwable) {
+        } catch (\Throwable) {
             return [503, $body + ['error' => 'SYNTH could not read its characters; see the web server error log.']];
         }
         $body['npcs_available'] = $count;
@@ -97,7 +103,7 @@ if (!function_exists('synthHealthCheckNames')) {
      * Pure: takes stored rows, returns counts and endpoints, and never returns a key or a full URL.
      * @return array{configured:int,endpoints:list<array{0:string,1:int}>}
      */
-    function synthHealthLlmTargets(array $connectors): array
+    public static function llmTargets(array $connectors): array
     {
         $configured = 0;
         $endpoints = [];
@@ -115,14 +121,14 @@ if (!function_exists('synthHealthCheckNames')) {
             $endpoints[strtolower($host) . ':' . $port] = [$host, $port];
         }
         return ['configured' => $configured,
-            'endpoints' => array_slice(array_values($endpoints), 0, SYNTH_HEALTH_LLM_MAX_ENDPOINTS)];
+            'endpoints' => array_slice(array_values($endpoints), 0, self::MAX_ENDPOINTS)];
     }
 
     /**
      * Bare TCP connect to every endpoint at once, bounded by one shared deadline. Returns how many accepted.
      * @param list<array{0:string,1:int}> $endpoints
      */
-    function synthHealthProbeEndpoints(array $endpoints, float $seconds = SYNTH_HEALTH_LLM_PROBE_SECONDS): int
+    public static function probeEndpoints(array $endpoints, float $seconds = self::PROBE_SECONDS): int
     {
         $pending = [];
         $reachable = 0;
@@ -157,19 +163,19 @@ if (!function_exists('synthHealthCheckNames')) {
         return $reachable;
     }
 
-    /** @return array{0:int,1:array} */
-    function synthHealthLlm(?callable $probe = null): array
+    /** LLM check: configured connectors and a bounded TCP connect to their endpoints. @return array{0:int,1:array} */
+    public static function llm(?callable $probe = null): array
     {
         $body = ['check' => 'llm', 'status' => 'error', 'llm' => 'unavailable', 'llm_connectors_configured' => null,
             'llm_endpoints_checked' => 0, 'llm_endpoints_reachable' => 0];
         try {
-            require_once dirname(__DIR__) . '/lib/core/llm_connector.class.php';
-            $targets = synthHealthLlmTargets((new LLMConnector())->readAll());
+            require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
+            $targets = self::llmTargets((new \LLMConnector())->readAll());
             $body['llm_connectors_configured'] = $targets['configured'];
             $body['llm_endpoints_checked'] = count($targets['endpoints']);
             $body['llm_endpoints_reachable'] = $targets['endpoints'] === []
-                ? 0 : ($probe ?? 'synthHealthProbeEndpoints')($targets['endpoints']);
-        } catch (Throwable) {
+                ? 0 : ($probe ?? [self::class, 'probeEndpoints'])($targets['endpoints']);
+        } catch (\Throwable) {
             return [503, $body + ['error' => 'SYNTH could not read its LLM connectors; see the web server error log.']];
         }
         if ($body['llm_connectors_configured'] === 0) {
@@ -186,7 +192,7 @@ if (!function_exists('synthHealthCheckNames')) {
     }
 
     /** Worst state of several check bodies: error > warning > ok. */
-    function synthHealthWorstStatus(array $bodies): string
+    public static function worstStatus(array $bodies): string
     {
         $worst = 'ok';
         foreach ($bodies as $body) {
@@ -206,22 +212,22 @@ if (!function_exists('synthHealthCheckNames')) {
      * the failure and the others are reported as skipped, so the status page still has something to show.
      * @return array{0:int,1:array}
      */
-    function synthHealthAll(?object $db, ?string $failure): array
+    public static function all(?object $db, ?string $failure): array
     {
         $checks = [];
-        [, $checks['db']] = synthHealthDatabase($db, $db === null ? ($failure ?? 'SYNTH cannot connect to PostgreSQL.') : null);
+        [, $checks['db']] = self::database($db, $db === null ? ($failure ?? 'SYNTH cannot connect to PostgreSQL.') : null);
         $skipped = static fn(string $name): array => ['check' => $name, 'status' => 'error', 'skipped' => true,
             'error' => 'Skipped because the database check failed.'];
         if ($checks['db']['status'] === 'ok') {
-            [, $checks['api-keys']] = synthHealthApiKeys();
-            [, $checks['npcs']] = synthHealthNpcs($db);
-            [, $checks['llm']] = synthHealthLlm();
+            [, $checks['api-keys']] = self::apiKeys();
+            [, $checks['npcs']] = self::npcs($db);
+            [, $checks['llm']] = self::llm();
         } else {
             foreach (['api-keys', 'npcs', 'llm'] as $name) {
                 $checks[$name] = $skipped($name);
             }
         }
-        $status = synthHealthWorstStatus($checks);
+        $status = self::worstStatus($checks);
         return [$status === 'error' ? 503 : 200, ['check' => 'all', 'status' => $status, 'checks' => $checks,
             'timestamp' => gmdate('c')]];
     }
