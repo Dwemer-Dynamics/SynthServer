@@ -338,7 +338,7 @@ if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEAT
     $GLOBALS["MEMORY_STATEMENT"]="";
 
 
-if ($GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
+if (!empty($GLOBALS["FUNCTIONS_ARE_ENABLED"])) {
     $TEMPLATE_ACTION="call a function to control {$promptCharacterName} or";
     $TEMPLATE_ACTION="(Check #ACTIONS section. If {$GLOBALS["PLAYER_NAME"]}'s input asks, orders, permits, or clearly implies a concrete in-game action, choose the matching action instead of Talk. Questions that current observations already answer use Talk for an in-character description; known visible gear does not require Inspect or CheckInventory. Otherwise use Talk when no listed action fits.)";
 } else {

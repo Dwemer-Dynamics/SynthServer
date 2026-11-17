@@ -481,6 +481,8 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
   action amounts, provider fallback, contention and fresh request ownership.
 - [x] Current-binary stub proves tool/context isolation; synthetic live checks
   exercise Codex, forced OpenRouter fallback and SYNTH driver parsing.
+- [x] Native `/talk` ignores the selected model slot (primary connector only); Home, runtime status and one
+  `[talk]` log line per slot change now say so. Routing is unchanged; disposable-stack evidence only.
 - [ ] Comparative in-game model-slot, latency, character quality, cancellation,
   fallback and sustained-load evidence. Backend/provider proof does not satisfy
   this gate. See [CODEX-LOCAL-PROVIDER.md](CODEX-LOCAL-PROVIDER.md).
@@ -652,8 +654,15 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       custom/locked profiles retain their edits. Check tatos, caps, common chems and
       radroach pronunciation with the selected voice provider.
 
-- [ ] Quickstart saves the LLM connector, TTS and STT. Missing optional keys fail cleanly,
-      without PHP warnings.
+- [x] Quickstart saves the LLM connector, TTS and STT. Missing optional keys fail cleanly,
+      without PHP warnings. Disposable PostgreSQL 17.11 and PHP 8.4 with `error_reporting=-1`, mock
+      provider only, a keyless LLM connector and no TTS, STT or ITT connector: every dashboard and
+      connector page, a legacy game turn, `/talk`, the Quickstart saves (blank API keys, TTS `none`
+      and a keyless TTS and STT choice) and the service manager tasks. The run logged 6 warnings
+      and deprecations from web requests and 25 from the CLI before the fix, and 0 and 0 after.
+      `/talk` without a usable TTS connector ends with `native_turn_ineligible` /
+      `tts_profile_unsupported` and one `[native-turn]` warn line per request. Not covered: live
+      providers, a real recall service, and a native turn that completes with speech.
 - [ ] The STT diagnostic shows a clear message when no local sample is present and
       transcribes a locally supplied WAV.
 - [ ] Theme: headings and monospace text render with the system fallback fonts.
@@ -787,6 +796,14 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       - Bare index GET and HEAD: `302` to Home. Configuration, logs, schema and the session store are unchanged.
       - Home GET and HEAD, and profile-loader pages: no log rotation (oversized sentinel logs kept), no
         worker start, and a deleted optional narrator row stays absent.
+      - The remaining bootstrapping pages (Config Hub, Control Panel, profiles, API badge, LLM/TTS/STT/ITT
+        connectors, Narrator, NPC master and report, Player, Global Settings, AI Response, Request and
+        Relationship logs, Response Queue, Server Plugins, Function Editor, Diaries, PipVision, World
+        Knowledge audit; GET and HEAD): with three oversized known logs, the four optional narrator rows
+        deleted and a malformed NPC JSON row present, a `pg_dump` digest of `synth` and `synth_meta`, the
+        table write counters and the log inodes are unchanged, except the first view of the TTS and STT
+        connector pages, which writes one default connector row. A POST save still seeds the narrator rows
+        and rotates the logs, and the NPC repair still persists on POST and in the CLI.
       - Without PHP's PostgreSQL extension (CLI `php -n`), Home renders the setup guidance.
       - Events/Memories, the index tables, the diary book, the adventure log and the event API: these render
         without the override.
@@ -809,11 +826,13 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       included helpers. The private narrator page keeps its own token.
 - [ ] GET writes were converted only on the pages named in the handoff. Other `ui/` scripts were not audited
       for GET writes. Existing POST forms without a token rely on the origin check.
-- [ ] Other bootstrapping pages (for example AI Response, Request Logs and the connector pages) keep the default
-      log rotation on GET.
+- [ ] Not covered: the `ui/tests/*` pages, and an append to an already oversized `synth.log` still rotates it.
+      The first view of the TTS and STT connector pages still writes a default connector row.
 - [ ] Fresh empty database: the index now lands on Home rather than Quickstart. Not checked against an
       uninitialised database.
-- [ ] DNS rebinding: Host is not allowlisted, so a rebound name passes the origin match.
+- [ ] DNS rebinding: `ui/` refuses a Host that is not loopback, an IP literal, this machine's name or listed in
+      `SYNTH_ALLOWED_HOSTS` (HANDOFF, Dashboard request safety). Disposable HTTP evidence only; native endpoints
+      are not covered and no real LAN or rebinding browser check has run.
 - [ ] Deploy, installed Apache/PHP-FPM, and in-game plugin package flows: none claimed.
 
 ## Write-only credential forms

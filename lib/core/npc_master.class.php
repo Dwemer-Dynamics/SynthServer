@@ -1287,8 +1287,12 @@ class NpcMaster
             $npcName = trim(strval($row['npc_name'] ?? ''));
             $repaired = false;
 
-            // Game reads can normalize malformed JSON, but only management reads may persist a repair.
-            if (!isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])
+            // Game reads and dashboard GET/HEAD page loads normalize malformed JSON in memory only;
+            // only a management write request may persist the repair.
+            $readOnlyWebRequest = PHP_SAPI !== 'cli'
+                && in_array(strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')), ['GET', 'HEAD'], true);
+            if (!$readOnlyWebRequest
+                && !isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])
                 && $npcId > 0 && in_array($fieldName, ['extended_data', 'metadata'], true)) {
                 $encoded = $this->encodeJsonObjectForPersistence($recovered, $fieldName);
                 $repaired = $this->db->updateRow(

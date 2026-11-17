@@ -324,7 +324,7 @@ function synthInventoryMetadataLabels(array $item): array
 
 function synthFormatInventoryPromptLines(
     array $inventory,
-    callable $getItemDescription = null,
+    ?callable $getItemDescription = null,
     array &$describedBaseids = [],
     bool $descriptionsOnly = false
 ): array {
@@ -383,7 +383,7 @@ function synthFormatInventoryPromptLines(
 
 function synthBuildInventoryPromptContext(
     array $inventory,
-    callable $getItemDescription = null,
+    ?callable $getItemDescription = null,
     array &$describedBaseids = [],
     bool $descriptionsOnly = false
 ): string {
@@ -1852,7 +1852,7 @@ function synthFormatEquipmentCondition($condition): string
     return 'condition ' . (int)round($value);
 }
 
-function synthBuildEquipmentLinesFromMetadata(array $metadata, callable $getItemDescription = null): array
+function synthBuildEquipmentLinesFromMetadata(array $metadata, ?callable $getItemDescription = null): array
 {
     $equipment = [];
     if (isset($metadata['equipment_structured']) && is_array($metadata['equipment_structured'])) {
@@ -1917,7 +1917,7 @@ function synthBuildEquipmentLinesFromMetadata(array $metadata, callable $getItem
     return $lines;
 }
 
-function synthBuildEquipmentBlockFromMetadata(array $metadata, callable $getItemDescription = null, string $actorName = ''): string
+function synthBuildEquipmentBlockFromMetadata(array $metadata, ?callable $getItemDescription = null, string $actorName = ''): string
 {
     $lines = synthBuildEquipmentLinesFromMetadata($metadata, $getItemDescription);
     if (empty($lines)) {

@@ -38,7 +38,7 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
         $output->claimed($owner);
         $output->assertActive();
         if ($route === 'narrator') { $app->privateNarrator($output, $owner, $legacy)->handle($event); return; }
-        if ($route === 'conversation') { $app->dialogue($output, $owner, $legacy)->converse($event); return; }
+        if ($route === 'conversation') { require_once dirname(__DIR__, 2).'/lib/synth_control.php'; synth_control_note_talk_slot($app->db, $event); $app->dialogue($output, $owner, $legacy)->converse($event); return; }
         try { $state = $app->receipts($owner)->receipt($event); }
         catch (DomainException $error) {
             $output->terminal(in_array($error->getMessage(), ['receipt_conflict', 'receipt_owner_mismatch'], true)

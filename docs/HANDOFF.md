@@ -906,8 +906,12 @@ Head fields, which the runtime applies before `extended_data`. Explicit Off and 
 `''` (and `[]` for NPCs) are skipped. Global-only settings are marked on the global page and cannot
 be overridden. The unmarked ordinary dialogue pipeline applies profile and NPC overrides from its
 next request. Native marked `/talk` uses only the profile's primary LLM and TTS connector; it ignores
-metadata overrides and the other model slots. The existing fallback to the default NPC profile is
-unchanged. Evidence is HTTP with a fake provider in a disposable database; there is no deployment,
+metadata overrides and the other model slots. This is now visible: Home shows a "Native /talk Model" row
+(Standard, fixed), `processor/runtime_status.php` adds `native_talk_model_slot` (1) and
+`native_talk_ignores_model_slot` (true), and the server logs one `[talk]` info line when the slot a `/talk`
+request carries changes to a non-Standard value (last seen slot kept in `conf_opts.synth_talk_slot_seen`; no
+per-turn line, no schema change). Routing is unchanged and the client receives no new notice.
+The existing fallback to the default NPC profile is unchanged. Evidence is HTTP with a fake provider in a disposable database; there is no deployment,
 game, flat or VR claim.
 
 ## Observed equipment and save identity
@@ -944,7 +948,19 @@ pages that act before bootstrap require it directly. Browser evidence (`Sec-Fetc
 `Referer`) must show the same scheme, Host and port, or a typed URL. `same-site` (another local port),
 `Origin: null` and unknown values are refused. A request with none of these headers is a native or operator
 client and passes, except an unsafe request with a browser User-Agent; the Quickstart MiniMe GET probe counts as
-unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control. Web
+unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control.
+A Host-header allowlist blocks DNS rebinding, where a hostile name resolves to loopback and so matches its own Origin.
+Every `ui/` request (GET included, before the origin checks) must carry a Host that is `localhost`, `*.localhost`, an
+IPv4 or bracketed IPv6 literal, this machine's own host name, or a name listed in `SYNTH_ALLOWED_HOSTS`; anything else
+gets a generic `403` and one `management_host_refused` line in the PHP error log (Host, method and path only). IP
+literals are allowed because a browser sends one only when the page was opened by that address, so a rebound name can
+never present as one; this keeps the WSL IP, PC IP and LAN IP working without configuration. A LAN or DNS name for the
+dashboard must be listed: set the environment variable `SYNTH_ALLOWED_HOSTS` (the process environment of PHP, so for
+Apache/FPM set it in the service environment), else `$SYNTH_ALLOWED_HOSTS="synth.lan other.lan";` in `conf/conf.php`,
+as comma, semicolon or space separated plain host names (ports ignored, no wildcards, invalid entries dropped). The
+environment wins over `conf.php`. Native game and plugin endpoints (`main.php`, `health.php`, `api/` and the other
+scripts outside `ui/`) are outside this guard and unaffected. Bad Host names do not change the Apache `Require local`
+rule, which still limits the client address. Web
 requests to `debug/` and `tools/` scripts are refused. The root `.htaccess` and the pmstt and diary-audio
 endpoints no longer send `Access-Control-Allow-Origin: *`.
 
@@ -959,8 +975,13 @@ token failures answer 403, both before bootstrap. Array values for action keys a
 Home shows the setup page first when PHP's PostgreSQL extension is missing.
 `conf/conf.php` is an optional override of the tracked sample and environment, so the index and Events/Memories
 no longer bounce to Quickstart without it. The direct-require standalone pages load the sample first. Home and
-profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD (missing optional
-narrator rows are read as defaults, not inserted); other callers keep rotation and seeding. Home no longer
+profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD, and
+`synthRuntimeBootstrap` now defaults both to false for any web GET/HEAD (explicit caller options still win; CLI,
+POST and `main.php`'s own game-path rotation are unchanged). A dashboard page view therefore neither renames
+logs nor inserts missing optional narrator rows (they are read as defaults), and a malformed NPC `extended_data`
+or `metadata` value is recovered in memory without being written back; POST saves and the CLI still persist
+the repair. Not covered: an append to an already oversized log still rotates it, and the first view of the
+TTS and STT connector pages can still write a default connector row. Home no longer
 starts the background processor (`main.php` does). STT, ITT and TTS connector views no longer apply schema
 migrations; Quickstart's explicit save still does. Snapshot restore stays paused. Provider key fields, their
 rendering and key-test provider resolution are described under
