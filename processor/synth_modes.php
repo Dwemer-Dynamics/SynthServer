@@ -45,7 +45,7 @@
 
 if (!isset($db)) $db = new sql();
 
-function synthRunServiceManager(array $args, array &$output = null, int &$returnCode = null): void
+function synthRunServiceManager(array $args, ?array &$output = null, ?int &$returnCode = null): void
 {
     $managerPath = realpath(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "service" . DIRECTORY_SEPARATOR . "manager.php");
     if ($managerPath === false) {
