@@ -428,6 +428,45 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertStringNotContainsString('Skills',$prompt($legacy,[['actor'=>$target,'actor_stats'=>$stats(1)]]));
     }
 
+    // The condition line comes only from this turn's exact rows, shows captured effects only for a client that
+    // negotiated the capability, keeps low health and power armor for an older client, and the setting turns it off.
+    public function testConditionLineProjectsCapturedEffectsWithOptOutAndOldClients(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $context=$this->talkContext();$target=$context['target'];$player=$context['player'];
+        $entry=static fn(string $id,string $name,string ...$kind)=>['form_id'=>$id,'origin_plugin'=>'Fallout4.esm','name'=>$name]+($kind ? ['kind'=>$kind[0]] : []);
+        $condition=['observation'=>'observed','radiation_percent'=>62.5,'addictions'=>[$entry('0x00057A4C','Jet Addiction')],
+            'effects'=>[$entry('0x00057A4B','Psycho','chem'),$entry('0x00057A4F','Psycho','chem'),$entry('0x0010E8A2','Rad-X','effect')],
+            'crippled_limbs'=>['left_leg'],'truncated'=>false];
+        $states=[['actor'=>$player,'health_percent'=>12,'health_percent_available'=>true,'in_power_armor'=>true,'actor_condition'=>$condition],
+            ['actor'=>$target,'health_percent'=>90,'health_percent_available'=>true,'in_power_armor'=>false]];
+        $prompt=function(array $event,array $states) use ($context,$row): string {
+            [$manager,,,$llm]=$this->dialogue(['actor_states'=>$states]+$context,$row,[],['Fine.']);
+            $manager->converse($event);
+            return $llm->messages[0]['content'];
+        };
+        $event['capabilities'][]='context.actor_condition';
+        $system=$prompt($event,$states);
+        foreach (['Condition at this moment','Nate: low health (12%); in power armor; heavy radiation (63%); addicted: Jet Addiction; on chems: Psycho; effects: Rad-X; crippled: left leg'] as $needle)
+            $this->assertStringContainsString($needle,$system);
+        $this->assertSame(1,substr_count($system,'Psycho'));
+        // An older client sent no key: only the long-standing fields speak.
+        $old=$this->fixture('valid/input-text-native-turn.json');
+        unset($states[0]['actor_condition']);
+        $system=$prompt($old,$states);
+        $this->assertStringContainsString('Nate: low health (12%); in power armor.',$system);
+        $this->assertStringNotContainsString('radiation',$system);
+        // A different actor's row, an unavailable observation or a healthy actor adds no condition line.
+        $this->assertStringNotContainsString('Condition at this moment',$prompt($event,[['actor'=>['form_id'=>'0x00010001']+$player,'actor_condition'=>$condition]]));
+        // The opt-out removes the line without touching the rest of the situation.
+        $GLOBALS['CONDITION_CONTEXT_ENABLED']=false;
+        try { $states[0]['actor_condition']=$condition;$system=$prompt($event,$states); }
+        finally { unset($GLOBALS['CONDITION_CONTEXT_ENABLED']); }
+        $this->assertStringNotContainsString('Condition at this moment',$system);
+        $this->assertStringContainsString('"player":"Nate"',$system);
+    }
+
     public function testActorStatsAdmissionRequiresCapabilityAndExactBoundedShape(): void
     {
         $root=dirname(__DIR__,2);

@@ -191,6 +191,16 @@ See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md). Disposable loopback an
   provider call at both 7950230 and this candidate; native turns succeed.
 - [ ] Flat in game, then VR independently: an informed NPC recalls the report on a native turn; another does not.
 
+## Actor condition
+
+See [PROTOCOL.md](PROTOCOL.md#actor-condition-radiation-addictions-effects-limbs). Off-game evidence only.
+
+- [ ] Flat in game: with radiation, a chem, an addiction and a crippled limb on the player, compare the
+  captured values with the Pip-Boy and the next provider request's condition line; confirm the radiation
+  ratio, limb rule and addiction recognition; then confirm an NPC in power armor or at low health.
+- [ ] VR in headset, separately: the capability is negotiated, the active-effect list is not read yet and
+  the line must not claim there are none.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.

@@ -65,7 +65,7 @@ final class DialogueManager
         $character = $turn->character;
         // Read prior history before this turn's own input row is inserted.
         try {
-            $situation = $this->context->situation($request);
+            $situation = $this->context->situation($request, $character);
             $history = $this->context->history($request, $character);
             // One locked quest read serves both the prompt block and World Knowledge participant access.
             $quest = $this->context->questKnowledge($request, $character);

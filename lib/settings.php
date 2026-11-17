@@ -171,6 +171,7 @@ if (!function_exists('synthGetManagedGeneralSettingIds')) {
             'RELATIONSHIP_SYSTEM_ENABLED',
             'SCENE_CLASSIFIER_ENABLED',
             'POWER_AWARENESS_ENABLED',
+            'CONDITION_CONTEXT_ENABLED',
             'WORLDKNOWLEDGE_CUSTOM',
             'WORLDKNOWLEDGE_INFINIUM',
             'WORLDKNOWLEDGE_AMOUNT',
@@ -251,6 +252,7 @@ if (!function_exists('synthPrettySettingLabel')) {
             'CORE_CONNECTOR_TWO_STEP' => 'Two-Step Action Connector',
             'TWO_STEP_ACTION_TIMEOUT_MS' => 'Two-Step Time Budget (ms)',
             'SCENE_CLASSIFIER_ENABLED' => 'Scene Classifier',
+            'CONDITION_CONTEXT_ENABLED' => 'Condition Awareness',
             'CORE_CONNECTOR_PROFILES' => 'Dynamic Profile',
             'CORE_CONNECTOR_DIRECTOR' => 'Director Mode',
             'CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM' => 'World Knowledge Fallback Connector',
@@ -336,6 +338,7 @@ if (!function_exists('synthGetOverrideableGeneralSettingCategory')) {
                 'INVENTORY_ITEMS_DESCRIPTIONS_ONLY',
                 'HIDE_AMBIENT_COMBAT',
                 'POWER_AWARENESS_ENABLED',
+                'CONDITION_CONTEXT_ENABLED',
                 'SCENE_CLASSIFIER_ENABLED',
                 'RELATIONSHIP_SYSTEM_ENABLED',
             ], true)
