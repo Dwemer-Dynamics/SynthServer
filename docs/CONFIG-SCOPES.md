@@ -281,7 +281,7 @@ Pages never name tables or build SQL for settings.
 
 The three editors already share `ui/core/tmpl/override_editor.php`. Phase B keeps that template, replaces its `$settingsCatalog` and `$inherited` inputs with
 `definitions()` and `explain()`, and moves its key-name rules out of the page. API: a thin JSON route
-(`GET /api/v1/config`, `GET/PATCH /api/v1/config/{key}`, `GET /api/v1/config/explain?key=&character_id=`) is the contract the pages call (the
+(`GET /api/v1/config`, `GET/PATCH /api/v1/config/{key}`, `GET /api/v1/config/explain?key=&character_id=`), under `api/v1/config/` (`Synth\Api\*`), with shared interfaces/value types in `core/contracts/` and new tests in `tests/` (`Synth\Tests\*`; `unittests/` stays for existing suites) is the contract the pages call (the
 edit-API plan of SCHEMA-REDESIGN.md section 10); Phase B step 1 ships the PHP class and the pages call it in-process first.
 
 Rules at this boundary: the key is looked up in the registry, the value is validated, the scope is checked against the endpoint
