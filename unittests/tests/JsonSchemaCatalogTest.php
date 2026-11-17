@@ -2242,7 +2242,8 @@ PHP;
         $this->assertSame(2,$review['valid']);
         $this->assertLessThanOrEqual(1024,strlen(\Synth\Managers\LocationManager\LocationCatalog::detail($review)));
         $this->assertFalse(json_decode(\Synth\Managers\LocationManager\LocationCatalog::detail($review),true)['stored']);
-        // The init grant needs the capability, and either lane may hold it.
+        // The init flag is withheld until the catalog is stored, whatever the lane or the capability.
+        $this->assertFalse(\Synth\Managers\LocationManager\LocationCatalog::STORES);
         $saved=$GLOBALS['SYNTH_REQUEST_EVENT']??null;
         try {
             foreach (['flat','vr'] as $lane) foreach ([false,true] as $granted) {
@@ -2250,7 +2251,7 @@ PHP;
                     'request_id'=>'locations-init','turn_id'=>'locations-turn','capabilities'=>$granted?['world.location_catalog']:[]]];
                 $lines=explode("
 ",trim(synth_protocol_encode_ack('init_accepted')));
-                $this->assertSame($granted,json_decode($lines[1],true)['payload']['location_catalog']??false,$lane);
+                $this->assertFalse(json_decode($lines[1],true)['payload']['location_catalog']??false,$lane.($granted?' granted':''));
             }
         } finally {
             if ($saved===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT']=$saved;
@@ -2262,6 +2263,18 @@ PHP;
             $script='require '.var_export($root.'/lib/request.php',true).'; synth_protocol_validate_event(json_decode(file_get_contents('.var_export($file,true).'),true)); echo "ACCEPTED";';
             $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
             $this->assertStringNotContainsString('ACCEPTED',$output,basename($file));
+            $this->assertMatchesRegularExpression('/"ok":false.*"code":"(invalid_payload|invalid_context_binding|invalid_envelope)"/',$output,basename($file));
         }
+        // Plugin suffixes match without regard to case, as in every other plugin check.
+        $upper=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/location-catalog-upsert-uppercase-plugin.json'),true,flags:JSON_THROW_ON_ERROR);
+        $this->assertSame($upper,synth_protocol_validate_event($upper));
+        $control=$event;$control['payload']['locations'][0]['name']="BadName";
+        $controlFile=tempnam(sys_get_temp_dir(),'locctl');
+        file_put_contents($controlFile,json_encode($control,JSON_THROW_ON_ERROR));
+        try {
+            $script='require '.var_export($root.'/lib/request.php',true).'; synth_protocol_validate_event(json_decode(file_get_contents('.var_export($controlFile,true).'),true)); echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+        } finally { @unlink($controlFile); }
+        $this->assertStringContainsString('invalid_text',$output);
     }
 }

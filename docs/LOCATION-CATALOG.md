@@ -105,7 +105,8 @@ Contract files (mirrored byte-for-byte in the SYNTH client): `protocol/v2/schema
 - **Event** `location_catalog`, protocol v2 only, **unbound** (`context_sequence` is 0) because it describes the game, not a
   scene. It carries the normal envelope (session, request, turn, generation, runtime variant, capabilities).
 - **Capability** `world.location_catalog`. The init acknowledgement carries `location_catalog: true` only when the init listed
-  it; an older server never receives the event, and an older client never sees the flag. Flat and VR use the same fields. The
+  it **and the server stores the catalog** (`LocationCatalog::STORES`, false until storage lands, so no client is told to export
+  into a server that would drop the data); an older server never receives the event, and an older client never sees the flag. Flat and VR use the same fields. The
   client advertises it only for a runtime lane whose adapter can read the data (flat first).
 - **Payload** `mode`, `playthrough_id`, `locations`, and for a batch `export_id`, `sequence`, `final`.
   - `batch`: 1 to 50 locations; `export_id`, `sequence` and `final` required. The client sends the next batch after the

@@ -460,7 +460,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
-    $locationCatalog=$status==='init_accepted' && ($event['type'] ?? '')==='init' && \Synth\Managers\LocationManager\LocationCatalog::isSupported($event);
+    $locationCatalog=$status==='init_accepted' && ($event['type'] ?? '')==='init' && \Synth\Managers\LocationManager\LocationCatalog::isAcknowledged($event);
     // First-observed vanilla dialogue is flat-only; VR and older clients never receive the acknowledgement.
     $observedDialogue=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.observed_dialogue',$event['capabilities'] ?? [],true);
