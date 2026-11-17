@@ -67,7 +67,7 @@ $pageError = '';
 $npcName = '';
 
 $npc = new NpcMaster();
-$npcData=$npc->getById($_GET["npcid"]);
+$npcData=$npc->getById($_GET["npcid"] ?? 0);
 if ($npcData) {
  $npcName = $npcData["npc_name"] ?? '';
  $query=

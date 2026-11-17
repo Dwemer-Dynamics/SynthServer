@@ -576,17 +576,30 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         return $fingerprint;
     }
 
+    // Ids of the general settings the frozen baseline seeds itself. A managed setting added after the baseline was cut
+    // is inserted by the bootstrap's separate seed step, so it is not part of the baseline's one transaction.
+    private static function baselineSettingIds(): array
+    {
+        $sql = file_get_contents(dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261115000000.fresh.sql');
+        self::assertSame(1, preg_match('/INSERT INTO synth\.general_settings VALUES\n(.*?)\n-- end-statement/s', $sql, $block));
+        preg_match_all('/^\t\(\'([A-Z0-9_@]+)\', /m', $block[1], $ids);
+        self::assertGreaterThan(40, count($ids[1]), 'The baseline general settings block was not parsed.');
+        return $ids[1];
+    }
+
     // The writing transaction (xmin) of the stock rows, the synth and plugins schemas and the application relations,
     // with the version record when $withLedger: one writer means one transaction created them all.
     private static function installWriters(\PgSql\Connection $pg, bool $withLedger): array
     {
         // Only the baseline's record and objects: the later migration (it alters the four connector tables) is its own savepoint.
         $ledger = $withLedger ? "UNION ALL SELECT xmin::text FROM synth_meta.doctrine_migration_versions WHERE version LIKE '%Version20261115000000'" : '';
+        $baselineIds = '{'.implode(',', array_map(static fn(string $id): string => '"'.$id.'"', self::baselineSettingIds())).'}';
+        $baselineIds = pg_escape_literal($pg, $baselineIds);
         return array_column(self::rowsOn($pg, <<<SQL
             SELECT writer, count(*) AS objects FROM (
                 SELECT xmin::text AS writer FROM synth.database_versioning
                 UNION ALL SELECT xmin::text FROM synth.prompts
-                UNION ALL SELECT xmin::text FROM synth.general_settings
+                UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM synth.core_action
                 UNION ALL SELECT xmin::text FROM synth.core_profiles
                 UNION ALL SELECT xmin::text FROM synth.worldknowledge
@@ -639,6 +652,27 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertBootstrapSucceeds();
         self::assertSame($legacySchema, $this->schemaFingerprint());
         self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
+    }
+
+    // Regression guard: a managed setting added to synthGetManagedGeneralSettingIds() after the frozen baseline was cut
+    // (the two-step action settings were the first) must still be present, at its schema default, after a fresh install
+    // and a rerun, or the readiness gate leaves the install pending.
+    public function testFreshInstallHasEveryManagedGeneralSetting(): void
+    {
+        $this->recreateEmptyDatabase();
+        $this->assertBootstrapSucceeds();
+        $managed = array_values(array_unique(synthGetManagedGeneralSettingIds()));
+        $present = array_column($this->rows('SELECT id FROM synth.general_settings'), 'id');
+        self::assertSame([], array_values(array_diff($managed, $present)), 'Managed settings missing after a fresh install.');
+        foreach (['TWO_STEP_ACTIONS_ENABLED' => 'false', 'CORE_CONNECTOR_TWO_STEP' => '0', 'TWO_STEP_ACTION_TIMEOUT_MS' => '4000'] as $id => $default) {
+            self::assertSame($default, $this->value('SELECT value FROM synth.general_settings WHERE id = $1', [$id]), $id);
+        }
+        $before = $this->rows('SELECT id, value, description FROM synth.general_settings ORDER BY id');
+        $this->rows("UPDATE synth.general_settings SET value = '5000' WHERE id = 'TWO_STEP_ACTION_TIMEOUT_MS'");
+        $this->assertBootstrapSucceeds();
+        self::assertSame('5000', $this->value("SELECT value FROM synth.general_settings WHERE id = 'TWO_STEP_ACTION_TIMEOUT_MS'"),
+            'A rerun must not overwrite a stored setting.');
+        self::assertCount(count($before), $this->rows('SELECT id FROM synth.general_settings'));
     }
 
     // The WSL provisioner creates both extensions in public before the bootstrap, as postgres. That database still counts
