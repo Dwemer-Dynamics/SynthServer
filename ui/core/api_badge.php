@@ -507,14 +507,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["clear_key"])) {
  exit;
 }
 
-// Handle Delete
+// Handle Delete. Only an existing custom row, named by its exact id, is deleted. A malformed id is never coerced
+// to another row, and preset rows (any letter case) are never deleted from this page.
 if ($apiBadgeAction && isset($_POST["delete"])) {
- $item = $apiBadge->getById($_POST["delete"]);
- $labelLower = strtolower($item["label"] ?? '');
- if (!array_key_exists($labelLower, $presetMap)) {
- $apiBadge->delete($_POST["delete"]);
+ $did = synthApiBadgeRowId(strval($_POST["delete"]));
+ $item = $did > 0 ? $apiBadge->getById($did) : null;
+ if (empty($item['id']) || synthApiBadgeIsPresetRow($item, $reservedLabelsLower)) {
+ header("Location: api_badge.php?err=not_found");
+ exit;
  }
- header("Location: api_badge.php");
+ $deleted = $apiBadge->delete($did);
+ header("Location: api_badge.php" . ($deleted ? "" : "?err=save_failed"));
  exit;
 }
 
