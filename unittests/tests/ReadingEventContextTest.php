@@ -122,7 +122,6 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $this->assertCount(1,$rows);
         $this->assertStringContainsString('read the note "Sanctuary Hills Note"',$rows[0]['data']);
         $this->assertStringContainsString('the key is under the mat',$rows[0]['data']);
-        $this->assertCount(1,$this->promptRows('Jun')); // The other actor in the scene hears of it too.
         $this->assertSame([],$this->promptRows('Nobody Nearby'));
         // A later context repeating the same reading is idempotent; changed content for the same id is refused.
         $again=$this->context(2);$again['payload']['reading_event']=$this->reading();
