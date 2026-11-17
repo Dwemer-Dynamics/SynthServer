@@ -1,8 +1,9 @@
 # Location catalog
 
 **Status: design (DRAFT). The wire contract and the server's accept-and-log path are implemented; storage and prompt use are not.**
-Nothing here is verified in game. The client export is the paired SYNTH change; it has not been built against the game
-libraries or run in either runtime lane.
+Nothing here is verified in game. The paired SYNTH change has the protocol, codec, negotiation and the engine-free export
+logic, tested without the game; the game reader and the export trigger are **not written** (see that repository's
+`docs/LOCATION-CATALOG.md`), and the capability is not advertised yet, so no server receives this event from a real client.
 
 Today the server knows only the player's own place: [LOCATION-ANCESTRY.md](LOCATION-ANCESTRY.md) carries the current
 `BGSLocation` and its parent chain inside a context. It knows nothing about any other place, so an NPC asked "where is
@@ -243,8 +244,9 @@ replaces it, and falls back to it when the catalog has nothing.
 ## 6. Phases
 
 1. **This document** (DRAFT SynthServer PR).
-2. **Client export and protocol, server validation without storage** (paired DRAFT SYNTH PR, same protocol bytes). Server accepts,
-   reviews and logs; the answer says `stored: false`.
+2. **Client protocol and export logic, server validation without storage** (paired DRAFT SYNTH PR, same protocol bytes). Server
+   accepts, reviews and logs; the answer says `stored: false`. The client's game reader (the **(confirm)** items of section 2)
+   is a separate step that needs the pinned engine headers and a real export.
 3. **Stop.** Storage waits for step 3 of #63 and a go message; then the addendum above is implemented on `codex/schema-redesign`
    and the prompt use follows storage.
 
