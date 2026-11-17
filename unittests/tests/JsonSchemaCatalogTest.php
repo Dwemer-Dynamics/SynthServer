@@ -1269,6 +1269,43 @@ final class JsonSchemaCatalogTest extends TestCase
         synth_visual_validate_request($request);
     }
 
+    // Digital silence is a valid container but not usable speech: it never reaches the cache or a client.
+    public function testSilentSpeechWaveIsNotUsableAudio(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/speech_cache.php';
+        $wave = static fn(int $tag, int $bits, string $data): string => pack('a4Va4a4VvvVVvva4V', 'RIFF', 36 + strlen($data), 'WAVE',
+            'fmt ', 16, $tag, 1, 8000, 8000 * intdiv($bits, 8), intdiv($bits, 8), $bits, 'data', strlen($data)).$data;
+        $silent = [$wave(1, 16, str_repeat("\0", 4000)), $wave(1, 24, str_repeat("\0", 3000)), $wave(3, 32, str_repeat("\0", 4000)),
+            $wave(1, 8, str_repeat("€", 4000))];
+        $audible = [$wave(1, 16, str_repeat("\0", 3998)."\x01\0"), $wave(1, 16, "\0\0\0€"), $wave(1, 8, str_repeat("€", 3999).""),
+            $wave(1, 8, str_repeat("\0", 4000)), $wave(3, 32, "\0\0\0\0\0\0€?")];
+        foreach ($silent as $index => $bytes) {
+            $this->assertTrue(synth_media_is_wave($bytes), "container $index");
+            $this->assertTrue(synth_media_wave_is_silent($bytes), "silent $index");
+            $this->assertFalse(synth_speech_bytes_usable($bytes), "usable $index");
+        }
+        foreach ($audible as $index => $bytes) {
+            $this->assertFalse(synth_media_wave_is_silent($bytes), "audible $index");
+            $this->assertTrue(synth_speech_bytes_usable($bytes), "usable audible $index");
+        }
+        // Malformed input is never "silent"; it is simply unusable.
+        $this->assertFalse(synth_media_wave_is_silent('RIFF'));
+        $this->assertFalse(synth_speech_bytes_usable(''));
+        $path = tempnam(sys_get_temp_dir(), 'synth-silent-');
+        $claimed = $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null;
+        try {
+            $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = false;
+            file_put_contents($path, $silent[0]);
+            $this->assertFalse(synth_speech_cache_valid($path));
+            file_put_contents($path, $audible[0]);
+            $this->assertTrue(synth_speech_cache_valid($path));
+        } finally {
+            unlink($path);
+            if ($claimed === null) unset($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
+            else $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = $claimed;
+        }
+    }
+
     public function testNativeMediaBytesMustMatchTheirDeclaredContainer(): void
     {
         $wave = pack(
@@ -1286,7 +1323,7 @@ final class JsonSchemaCatalogTest extends TestCase
             16,
             'data',
             4
-        ).pack('vv', 0, 0);
+        ).pack('vv', 0, 3);
 
         $this->assertTrue(synth_media_is_wave($wave));
         synth_media_validate_bytes($wave, 'audio/wav');

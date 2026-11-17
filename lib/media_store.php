@@ -67,6 +67,39 @@ function synth_media_is_wave(string $bytes): bool
     return $dataBytes % intval($format['block_align']) === 0;
 }
 
+// True when a structurally valid RIFF/WAVE carries only digital silence: every PCM sample at the zero level
+// (0x80 for unsigned 8-bit, otherwise all-zero bytes; float zero is all-zero bytes). Any other sample passes.
+function synth_media_wave_is_silent(string $bytes): bool
+{
+    if (!synth_media_is_wave($bytes)) {
+        return false;
+    }
+    $riffEnd = intval(unpack('Vsize', substr($bytes, 4, 4))['size']) + 8;
+    $bits = 0;
+    $tag = 0;
+    $silent = true;
+    $sawData = false;
+    for ($offset = 12; $offset + 8 <= $riffEnd;) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkSize = intval(unpack('Vsize', substr($bytes, $offset + 4, 4))['size']);
+        $start = $offset + 8;
+        if ($chunk === 'fmt ' && $chunkSize >= 16) {
+            $format = unpack('vtag/vchannels/Vsample_rate/Vbyte_rate/vblock_align/vbits', substr($bytes, $start, 16));
+            $tag = intval($format['tag']);
+            $bits = intval($format['bits']);
+        } elseif ($chunk === 'data') {
+            $sawData = true;
+            $data = substr($bytes, $start, $chunkSize);
+            $zero = $tag === 1 && $bits === 8 ? "\x80" : "\0";
+            if (strspn($data, $zero) !== strlen($data)) {
+                $silent = false;
+            }
+        }
+        $offset = $start + $chunkSize + ($chunkSize & 1);
+    }
+    return $sawData && $silent;
+}
+
 // Confirms that the declared native content type matches the bounded media bytes.
 function synth_media_validate_bytes(string $bytes, string $contentType): void
 {

@@ -29,7 +29,7 @@ final class DialogueManager
     public const MAX_LINE_CHARS = 1000;
     // Specific terminal details; anything else is reported as provider_failed.
     private const FAILURES = ['provider_unsupported', 'provider_stream_incomplete', 'provider_stream_malformed',
-        'provider_output_oversized', 'provider_output_too_many_lines', 'provider_line_oversized', 'speech_unavailable'];
+        'provider_output_oversized', 'provider_output_too_many_lines', 'provider_line_oversized'];
 
     public function __construct(private SessionManager $sessions, private CharacterManager $characters,
         private ContextManager $context, private PromptManager $prompts, private LlmDriver $llm,
@@ -42,9 +42,7 @@ final class DialogueManager
         catch (TurnRejected $rejected) {
             $reason = $rejected->getMessage();
             // One line per rejected request: admission runs once and a replay returns the stored response.
-            \Logger::warn('[native-turn] Conversation turn rejected: ' . $reason . ($reason === 'tts_profile_unsupported'
-                ? '. The speaking profile needs a TTS connector (xtts-fastapi, chatterbox, pockettts, cartesia or inworld) with its provider key.'
-                : ''));
+            \Logger::warn('[native-turn] Conversation turn rejected: ' . $reason);
             $this->output->reject($reason);
             return;
         }
@@ -57,9 +55,8 @@ final class DialogueManager
         $request = $this->sessions->admit($event);
         $character = $this->characters->resolve($request);
         if (!$this->llm->supports($character->connector)) throw new TurnRejected('llm_connector_unsupported');
-        $speech = $this->speech->settings($character);
-        if ($speech === null) throw new TurnRejected('tts_profile_unsupported');
-        return new AdmittedTurn($request, $character, $speech);
+        // Voice is optional: a profile without a portable TTS connector is admitted and answers as text.
+        return new AdmittedTurn($request, $character, $this->speech->settings($character));
     }
 
     public function run(AdmittedTurn $turn): void
@@ -83,19 +80,29 @@ final class DialogueManager
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()
             .' (Talking to '.(\synth_control_everyone_input($request->event) ? 'everyone' : $character->displayName()).')');
-        $buffer = ''; $count = 0; $total = 0;
+        $buffer = ''; $count = 0; $total = 0; $voiceNoted = false;
+        if ($turn->speech === null) {
+            \Logger::info('[native-turn] The speaking profile has no TTS connector; the reply is delivered as text only.');
+            $voiceNoted = true;
+        }
         // Over-limit output stops provider consumption and ends the turn as an error; nothing is truncated.
-        $emit = function (string $text) use ($turn, &$count): void {
+        $emit = function (string $text) use ($turn, &$count, &$voiceNoted): void {
             $this->output->assertActive();
             if ($count >= self::MAX_LINES) throw new \LengthException('provider_output_too_many_lines');
             if (mb_strlen($text) > self::MAX_LINE_CHARS) throw new \LengthException('provider_line_oversized');
             $suffix = $this->output->allocateLine();
             $lineId = $turn->request->lineId($suffix);
             $this->utterances->recordLine($turn->request, $turn->character, $lineId, $text);
+            // A line whose speech cannot be queued is still delivered: no `speech` block means text only.
             $speech = $this->speech->speak($turn->character, $turn->speech, $lineId, $text);
+            if ($speech === null && !$voiceNoted) {
+                \Logger::warn('[native-turn] Speech could not be queued; the reply is delivered as text only.');
+                $voiceNoted = true;
+            }
             $this->output->assertActive();
-            $this->output->dialogue($suffix, $lineId, ['speaker' => $turn->character->identity, 'native_turn' => true,
-                'text' => $text, 'speech' => $speech]);
+            $payload = ['speaker' => $turn->character->identity, 'native_turn' => true, 'text' => $text];
+            if ($speech !== null) $payload['speech'] = $speech;
+            $this->output->dialogue($suffix, $lineId, $payload);
             $count++;
         };
         try {

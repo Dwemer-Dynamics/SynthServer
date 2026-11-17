@@ -173,7 +173,7 @@ final class NativeDialogueTurnTest extends TestCase
     }
 
     // Dialogue services over injected repository, driver and output fakes (no database or provider).
-    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool $speech=true,
+    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool|string $speech=true,
         array|Throwable|null $saved=null, ?object $db=null, ?SYNTHClaimedRequest $owner=null, ?string $metadata=null): array
     {
         $saves=new class($context) extends SaveState {
@@ -230,7 +230,7 @@ final class NativeDialogueTurnTest extends TestCase
             private int $line=0;
             public function assertActive(): void {}
             public function allocateLine(): string { return 'dialogue:'.++$this->line; }
-            public function dialogue(string $suffix, string $lineId, array $payload): void { $this->events[]=[$lineId,$payload['text'],$payload['speech']['cache_key']]; }
+            public function dialogue(string $suffix, string $lineId, array $payload): void { $this->events[]=[$lineId,$payload['text'],$payload['speech']['cache_key'] ?? null]; }
             public function complete(): void { $this->events[]=['complete']; }
             public function fail(string $code, string $detail): void { $this->events[]=['fail',$code,$detail]; }
             public function reject(string $reason): void { $this->events[]=['reject',$reason]; }
@@ -242,11 +242,12 @@ final class NativeDialogueTurnTest extends TestCase
             public function stream(array $connector, array $messages, callable $onText): void { $this->messages=$messages; foreach ($this->chunks as $chunk) $onText($chunk); }
         };
         $tts=new class($speech) implements SpeechDriver {
-            public function __construct(private bool $speech) {}
-            public function settings(array $npcRow, array $profile): ?array { return ['TTSFUNCTION'=>'xtts-fastapi']; }
+            public function __construct(private bool|string $speech) {}
+            // 'none' is a profile without a portable TTS connector.
+            public function settings(array $npcRow, array $profile): ?array { return $this->speech==='none' ? null : ['TTSFUNCTION'=>'xtts-fastapi']; }
             public function queue(array $speaker, string $lineId, string $text, array $settings): string
             {
-                if (!$this->speech) throw new RuntimeException('tts down');
+                if ($this->speech===false) throw new RuntimeException('tts down');
                 return 'cache-'.$lineId;
             }
         };
@@ -332,9 +333,9 @@ final class NativeDialogueTurnTest extends TestCase
             ['user','Danny Sullivan: Overheard. (Talking to Jun)'],['user','Danny Sullivan: Gate. (Talking to Nate)'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
-        // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.
+        // Over-limit and empty output end with a terminal error; nothing is truncated.
         foreach ([[array_map(static fn($i)=>"Line $i. ",range(1,13)),true,12,'provider_output_too_many_lines'],
-            [['Short. '.str_repeat('a',1001)],true,1,'provider_line_oversized'],[['Hello.'],false,0,'speech_unavailable'],
+            [['Short. '.str_repeat('a',1001)],true,1,'provider_line_oversized'],
             [[str_repeat('Hi. ',4097)],true,0,'provider_output_oversized']] as [$chunks,$speech,$lines,$detail]) {
             [$manager,$output]=$this->dialogue($this->talkContext(),$row,[],$chunks,$speech);
             $manager->converse($event);
@@ -344,6 +345,22 @@ final class NativeDialogueTurnTest extends TestCase
         [$manager,$output]=$this->dialogue($this->talkContext(),$row,[],['  ']);
         $manager->converse($event);
         $this->assertSame([['fail','provider_empty','provider_empty']],$output->events);
+    }
+
+    // Voice is optional: no portable TTS connector, or a TTS queue failure, still delivers every line as text
+    // (no speech block), and the turn completes. Working TTS is covered by the voiced test above.
+    public function testTurnWithoutWorkingVoiceDeliversTextOnly(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $id=$event['request_id'];
+        foreach (['none','failing'] as $mode) {
+            [$manager,$output,$utterances]=$this->dialogue($this->talkContext(),$row,[],['Holding, barely. Thanks','.'],$mode==='none' ? 'none' : false);
+            $manager->converse($event);
+            $this->assertSame([[$id.':dialogue:1','Holding, barely.',null],[$id.':dialogue:2','Thanks.',null],['complete']],$output->events,$mode);
+            // The same server records back the later text_presented receipt.
+            $this->assertSame([[$id.':dialogue:1','Holding, barely.'],[$id.':dialogue:2','Thanks.']],array_slice($utterances->rows,1),$mode);
+        }
     }
 
     public function testExplicitConversationIntentAdmissionReportsUsefulReasonsAndNeverUsesNames(): void
