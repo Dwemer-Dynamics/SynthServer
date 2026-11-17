@@ -45,6 +45,15 @@ class CharacterRepository
         return synth_profile_visible($this->db, $event, $identityId, strict: true);
     }
 
+    /** How many NPC profiles exist, for the read-only health check; throws when the table cannot be read. */
+    public function availableCount(): int
+    {
+        $result = $this->db->execQuery('SELECT COUNT(*) AS total FROM synth.core_npc_master', []);
+        $row = $result ? pg_fetch_assoc($result) : false;
+        if (!is_array($row)) throw new \RuntimeException('Unable to count NPC profiles');
+        return intval($row['total'] ?? 0);
+    }
+
     private function one(string $sql, array $params): ?array
     {
         $result = $this->db->execQuery($sql, $params);

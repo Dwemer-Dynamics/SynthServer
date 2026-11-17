@@ -33,6 +33,7 @@ $SYNTH_SPEECHSTYLE="Speaks clearly and directly with concise, evocative phrasing
 $DIARY_COOLDOWN=120; //Cooldown period in seconds between diary entries to prevent spam. If a diary hotkey is pressed within this time period, the request will be ignored.
 $DYNAMIC_PROFILE=false; //Dynamic profile updates using a timer system.
 // NOTE: AUTO_DIARY and AUTO_DIARY_WAIT have been moved to profile-level settings. Configure them in your profile settings UI instead of here.
+$CONDITION_CONTEXT_ENABLED=true; //Add one short line about radiation, addictions, active chems/effects, crippled limbs, low health and power armor to the prompt.
 $POWER_AWARENESS_ENABLED=false; //Enable Power Awareness system. NPCs will be aware of relative power levels and react appropriately to threats.
 $MINIME_T5=false; //Assists smaller weight LLMs with action and memory functions.
 $WORLDKNOWLEDGE=""; //Active NPC or narrator profile knowledge tags are applied per request.

@@ -31,6 +31,6 @@ interface SpeechDriver
 {
     /** Null when the profile has no portable configured speech. */
     public function settings(array $npcRow, array $profile): ?array;
-    /** Queues one line and returns its cache key; throws when the line cannot be voiced. */
+    /** Queues one line and returns its cache key; throws when the line cannot be voiced (the line is then text only). */
     public function queue(array $speaker, string $lineId, string $text, array $settings): string;
 }

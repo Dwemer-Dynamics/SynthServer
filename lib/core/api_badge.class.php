@@ -25,6 +25,11 @@ class ApiBadge {
         return $this->repository->byLabel(strval($label));
     }
 
+    // Count of rows with a non-empty key, without reading any key (read-only health check)
+    public function countWithKeys() {
+        return $this->repository->countWithKeys();
+    }
+
     // Read all
     public function getAll() {
         return $this->repository->all();
