@@ -38,7 +38,8 @@ function stt($filePath)
     if ($apiKey === '') {
         try {
             if (isset($GLOBALS["db"]) && $GLOBALS["db"]) {
-                $row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='gemini' LIMIT 1");
+                require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+                $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('gemini');
                 if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
             }
         } catch (Throwable $_e) {
@@ -48,7 +49,8 @@ function stt($filePath)
     if ($apiKey === '') {
         try {
             if (isset($GLOBALS["db"]) && $GLOBALS["db"]) {
-                $row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='google' LIMIT 1");
+                require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+                $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('google');
                 if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
             }
         } catch (Throwable $_e) {

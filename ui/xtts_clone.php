@@ -1575,7 +1575,8 @@ function isProviderConfigured($provider) {
     }
     $db = $GLOBALS["db"];
     $providerLower = strtolower($provider);
-    $row = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='{$providerLower}' LIMIT 1");
+    require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+    $row = (new \Synth\Core\ApiBadgeRepository($db))->keyByLowerLabel($providerLower);
     return (is_array($row) && !empty($row['api_key']));
 }
 
@@ -1587,7 +1588,8 @@ function getCartesiaConfigurationStatus(): array
     $hasApiCredential = false;
     $apiBadgeId = intval($row['api_badge_id'] ?? 0);
     if ($apiBadgeId > 0 && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
-        $badgeRow = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE id = {$apiBadgeId} LIMIT 1");
+        require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+        $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);
     }
     if (!$hasApiCredential) {
@@ -1637,7 +1639,8 @@ function getInworldConfigurationStatus(): array
     $hasApiCredential = false;
     $apiBadgeId = intval($row['api_badge_id'] ?? 0);
     if ($apiBadgeId > 0 && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
-        $badgeRow = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE id = {$apiBadgeId} LIMIT 1");
+        require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+        $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);
     }
     if (!$hasApiCredential) {

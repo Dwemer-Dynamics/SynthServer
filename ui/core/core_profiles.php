@@ -1318,7 +1318,7 @@ if (isset($_GET["edit"])) {
 // Preload connector details for left list and editors
 $llmRows = $GLOBALS["db"]->fetchAll("SELECT c.*, b.label AS api_badge_label FROM core_llm_connector c LEFT JOIN core_api_badge b ON b.id=c.api_badge_id ORDER BY LOWER(COALESCE(NULLIF(c.label,''), c.model)) ASC");
 $ttsRows = $GLOBALS["db"]->fetchAll("SELECT t.*, b.label AS api_badge_label FROM core_tts_connector t LEFT JOIN core_api_badge b ON b.id=t.api_badge_id ORDER BY t.id ASC");
-$apiBadgeRows = $GLOBALS["db"]->fetchAll("SELECT id, label FROM core_api_badge ORDER BY id ASC");
+$apiBadgeRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('id');
 
 $byId = function($rows){
     $out = [];

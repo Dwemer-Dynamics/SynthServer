@@ -154,7 +154,8 @@ function getCartesiaActiveConfig(): array {
     if ($apiKey === '' && is_array($row) && $apiBadgeId > 0) {
         $db = ensureCartesiaDb();
         if ($db) {
-            $badgeRow = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE id = {$apiBadgeId} LIMIT 1");
+            require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+            $badgeRow = (new \Synth\Core\ApiBadgeRepository($db))->keyById($apiBadgeId);
             if (is_array($badgeRow) && !empty($badgeRow['api_key'])) {
                 $apiKey = trim(strval($badgeRow['api_key']));
             }

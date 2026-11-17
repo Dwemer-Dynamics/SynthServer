@@ -558,7 +558,7 @@ if ($playerConnectorId !== '') {
  $usageMap[$playerConnectorId] += 1;
 }
 
-$apiRows = $GLOBALS["db"]->fetchAll("SELECT id, label, api_key FROM core_api_badge ORDER BY LOWER(label) ASC");
+$apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('lower_label');
 $editId = intval($_GET['edit'] ?? 0);
 $editItem = $editId > 0 ? $ttsConnector->getById($editId) : false;
 $currentDriver = $ttsConnector->normalizeDriverValue($editItem['driver'] ?? '');

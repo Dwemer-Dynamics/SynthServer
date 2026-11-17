@@ -256,7 +256,7 @@ $currentMetadata = array_replace(
     $connector->getDefaultMetadataForDriver($currentDriver),
     $connector->decodeMetadata($editingRow['metadata'] ?? '{}')
 );
-$apiRows = $GLOBALS['db']->fetchAll('SELECT id, label, api_key FROM synth.core_api_badge ORDER BY LOWER(label) ASC');
+$apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS['db']))->labelsWithKeys('lower_label');
 
 if (!$isEmbed) {
     require_once(__DIR__ . DIRECTORY_SEPARATOR . 'profile_loader.php');
