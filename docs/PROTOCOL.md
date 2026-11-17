@@ -805,6 +805,17 @@ and the explicit acknowledgement are implemented together, preparation rejects
 scene-bearing requests before database/profile/provider work. Existing parent-only
 rechat remains unchanged; schema acceptance is not runtime support.
 
+## Voice is optional
+
+A native `/talk` turn is never rejected or failed because of voice. A profile without a portable
+TTS connector, a line whose speech cannot be queued, speech that later reports `failed`, and
+synthesized audio that is digital silence (every PCM sample at zero level; the server refuses to
+publish it) are all delivered as text: the `dialogue` line has no `speech` block (or a `failed`
+status) and the client shows the subtitle for its reading window. The client then sends
+`text_presented`, which the server stores as `presented` and enters into conversation history;
+a line never shown, replaced or cancelled stays unheard. `tts_profile_unsupported` is no longer
+reported. Details are in `protocol/v2/README.md`.
+
 ## Ordinary NPC delivery receipts
 
 Ordinary NPC delivery receipts use the optional `dialogue.delivery_receipts` capability with

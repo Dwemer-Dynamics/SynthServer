@@ -3,6 +3,15 @@
 require_once __DIR__.'/synth_protocol_state.php';
 require_once __DIR__.'/media_store.php';
 
+// Usable synthesized speech: a valid WAV that is not digital silence. Silent output is treated as no audio,
+// so the line stays text only instead of playing nothing.
+function synth_speech_bytes_usable(string $bytes): bool
+{
+    try { synth_media_validate_bytes($bytes,'audio/wav'); }
+    catch (SynthMediaException) { return false; }
+    return !synth_media_wave_is_silent($bytes);
+}
+
 // A cache hit must be usable audio, not a truncated/error body that permanently prevents synthesis.
 function synth_speech_cache_valid(string $path): bool
 {
@@ -14,8 +23,7 @@ function synth_speech_cache_valid(string $path): bool
     // Bound the read even if another process grows/replaces the file after the size check.
     $bytes=@file_get_contents($path,false,null,0,SYNTH_MEDIA_MAX_BYTES+1);
     if (!is_string($bytes) || strlen($bytes)!==$size) return false;
-    try { synth_media_validate_bytes($bytes,'audio/wav'); }
-    catch (SynthMediaException) { return false; }
+    if (!synth_speech_bytes_usable($bytes)) return false;
     synth_protocol_assert_request_active();
     return true;
 }
@@ -29,8 +37,7 @@ function synth_publish_speech_cache(string $bytes, string $target): bool
         throw new InvalidArgumentException('Invalid speech publication request');
     }
     if ($bytes==='' || strlen($bytes)>SYNTH_MEDIA_MAX_BYTES) return false;
-    try { synth_media_validate_bytes($bytes,'audio/wav'); }
-    catch (SynthMediaException) { return false; }
+    if (!synth_speech_bytes_usable($bytes)) return false;
     synth_protocol_assert_request_active();
     $private=dirname($directory).'/data/tmp/npc_tts_jobs';
     if (!is_dir($private) && !@mkdir($private,0775,true) && !is_dir($private)) return false;
@@ -117,8 +124,7 @@ function synth_transcode_speech_cache(string $bytes, string $target, string $fil
         if ($state['exitcode']!==0) return false;
         $audio=file_get_contents($output);
         if (!is_string($audio)) return false;
-        try { synth_media_validate_bytes($audio,'audio/wav'); }
-        catch (SynthMediaException) { return false; }
+        if (!synth_speech_bytes_usable($audio)) return false;
         return synth_commit_speech_cache_file($output,$target);
     } finally {
         if (is_resource($process)) {

@@ -671,9 +671,13 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       connector page, a legacy game turn, `/talk`, the Quickstart saves (blank API keys, TTS `none`
       and a keyless TTS and STT choice) and the service manager tasks. The run logged 6 warnings
       and deprecations from web requests and 25 from the CLI before the fix, and 0 and 0 after.
-      `/talk` without a usable TTS connector ends with `native_turn_ineligible` /
-      `tts_profile_unsupported` and one `[native-turn]` warn line per request. Not covered: live
-      providers, a real recall service, and a native turn that completes with speech.
+      Before the voice-optional change `/talk` without a usable TTS connector ended with
+      `native_turn_ineligible` / `tts_profile_unsupported`; it now completes as text (see the
+      voice-optional item below). Not covered: live providers and a real recall service.
+- [x] Voice optional on `/talk`: a profile with no TTS connector, a TTS provider that fails, and a
+      provider that returns silent audio each deliver every line as text with a correct
+      `text_presented` receipt, history and no PHP warnings; working TTS is unchanged. Disposable
+      PostgreSQL 17, mock providers only. In game: unverified (see the client acceptance list).
 - [ ] The STT diagnostic shows a clear message when no local sample is present and
       transcribes a locally supplied WAV.
 - [ ] Theme: headings and monospace text render with the system fallback fonts.

@@ -239,8 +239,10 @@ over `Synth\Drivers\Tts\ProfileSpeechDriver`, `Synth\Drivers\Llm\OpenAiCompatibl
 root. Legacy `lib/` and the existing schema update chain are unchanged by this layout.
 Eligibility, identity and receipt rules are in `protocol/v2/README.md`. Limits: plain
 `openaijson` connectors only; TTS uses the NPC profile's own TTS connector and resolved voice,
-with no server-wide fallback; a missing or non-portable profile TTS makes the turn ineligible
-with a reason. Schema `synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances`
+with no server-wide fallback. Voice is optional: a missing or non-portable profile TTS, a speech
+queue failure, failed or timed-out synthesis, or silent (all-zero PCM) synthesized audio all deliver
+the line as text only (no `speech` block, or a `failed` speech status); the turn still completes and
+a later `text_presented` receipt records the line as heard. Schema `synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances`
 and `synth_meta.json_object_has_unique_keys(text)`, which replaces the PostgreSQL 16-only
 `IS JSON OBJECT WITH UNIQUE KEYS` predicate in the wait-proof checks. Before this,
 every native history read failed on PostgreSQL 15. A scratch HTTP-plus-PostgreSQL 15
