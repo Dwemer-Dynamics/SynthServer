@@ -235,6 +235,75 @@ before migrating and exits nonzero when PostgreSQL is unreachable.
   before it runs, and the bootstrap's gate recheck after it. A failed migration rolls back with its version
   record.
 
+## Schema conventions
+
+Decisions recorded for the schema work that aligns SYNTH with the CHIM 4 server prototype's schema process
+(a per-migration manifest, a read-only drift check, and domain-scoped DBAL stores). They bind **new work only**.
+The baseline, its manifest and every existing table stay as they are.
+
+| Id | Decision |
+|---|---|
+| D1 | Conventions apply to new work only. Existing `core_*` and other legacy names stay; nothing is renamed. |
+| D2 | New tables are named `synth_meta.<domain>_<noun>` (for example `synth_meta.snapshot_versions`). |
+| D3 | The manifest has one entry per migration (`migrations/schema-manifest.json`), never a combined entry. |
+| D4 | The ORM pilot (`GeneralSetting`, see [DOCTRINE-SETTINGS-PILOT.md](DOCTRINE-SETTINGS-PILOT.md)) is frozen. No new ORM entities; new persistence code uses DBAL repositories. |
+| D5 | No shared `api_keys` table yet. Credential rows and IDs stay where they are. |
+| D6 | The first future schema migration adds snapshot version metadata (see the paused snapshots under [Limits](#limits)). |
+
+Plan order: conventions docs, read-only tooling (the [drift check](#drift-check)), DBAL repositories, a review gate,
+then the first migration. The first migration is on hold. No schema-changing migration, snapshot re-enablement or
+change to an installed database is part of the steps before it.
+
+### Open questions for review
+
+1. What "CHIM 4.0 planning format" means exactly, and which parts of it SYNTH should follow. This note only
+   assumes the observable ChimServer pieces: a format-numbered manifest with per-migration hashes, a read-only
+   `schema-check` and per-domain DBAL stores.
+2. Which PostgreSQL major the manifest should target. The baseline structure was generated on PostgreSQL 15; SYNTH
+   is validated on 17 (CI and the alpha checks). The drift check reports the server major and does not refuse
+   another one. ChimServer keeps one manifest per reviewed major; SYNTH has one.
+3. Acceptance of D2 (`synth_meta.<domain>_<noun>`). Until it is accepted, no new table should be created.
+
+## Drift check
+
+`php tools/schema-check.php` compares a live database with the frozen manifest and reports drift. It is the
+read-only counterpart of the baseline's own verification and is meant for review, support and CI, not for the
+install path (which keeps `SchemaMigrations`).
+
+- **Read-only by construction.** It never calls `SchemaMigrations`, never takes the migration advisory lock, never
+  creates the version table and never runs a migration. The inspection is one `READ ONLY` transaction
+  (`BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY`, `SET LOCAL`, `SELECT`, `SHOW`) that always ends in
+  `ROLLBACK`. The manifest is validated before any connection is made.
+- **Manifest.** `core/dbmanager/migrations/schema-manifest.json` (format 1) has one entry per migration: the
+  SHA-256 of the class and of each generated companion file beside it (`.structure.txt`, `.fresh.sql`), computed
+  over LF bytes so a CRLF checkout is not a change. An entry with a `structure` file also states its entry count.
+  The existing baseline files are unchanged; the manifest only freezes their hashes. A migration without an entry,
+  an entry without a migration, a changed file or a changed count makes the manifest stale, and the check stops.
+  A later migration adds its own entry (and, if it adds objects to verify, its own `<Version>.structure.txt`).
+  `php tools/schema-check.php --hashes` prints the entries the tree implies, for review; refresh an entry only from
+  a reviewed migration, never to silence drift.
+- **What it compares.** The structure lines of every entry (tables and views, columns, `vector` column types,
+  primary key, foreign key, check and unique constraints, indexes in `synth` and `synth_meta`) as exact strings,
+  rendered under `search_path` `synth, synth_meta, public`, and the version ledger by name. A manifest line the
+  live schema lacks is `missing`; a line whose object exists with another definition is `changed`. Objects the
+  manifest does not list are allowed and only counted (`unmanifested_tables`). The ledger is `current`, `pending`
+  (a known migration is not recorded), `unknown` (a record this tree does not contain) or `missing`; anything
+  but `current` is drift.
+- **Output.** JSON on stdout: the status, the server major, object kinds and names with `missing` or `changed`
+  (at most 200), the ledger state and the stated limits. It never prints SQL, definitions, rows, credentials or a
+  driver message; failures use fixed messages on stderr.
+- **Exit codes.** `0` match, `1` drift, `2` the inspection could not run (configuration, connection, permissions,
+  missing `vendor/`), `3` the manifest is stale or the usage is wrong. `--offline` validates only the manifest
+  against the tree (no database, no `vendor/`) and exits `0` or `3`.
+- **Connection.** `SYNTH_DB_*` from the environment, then `conf/conf.php`, as the runtime reads them. Point it at a
+  disposable database for tests. A match proves only what [Drift check limits](#drift-check-limits) lists.
+
+### Drift check limits
+
+It does not compare view or function bodies, triggers, sequence state, ownership, privileges, extensions or any row.
+Equivalent SQL that PostgreSQL deparses differently reports drift. It repairs and generates nothing, and it does
+not replace the baseline's own verification.
+
 ## Limits
 
 - A fresh install seeds the stock values of `conf/conf.sample.php`. The legacy chain also copied an existing

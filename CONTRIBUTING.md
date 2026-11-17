@@ -30,7 +30,10 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
   `protocol/` byte-for-byte.
 - Every schema change is a Doctrine migration in `core/dbmanager/migrations/` that works for both
   fresh installs and upgrades. `debug/db_updates.php` is the frozen legacy baseline; do not add
-  blocks to it. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md).
+  blocks to it. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md). Add the migration's entry to
+  `core/dbmanager/migrations/schema-manifest.json` (one per migration) and follow the
+  [schema conventions](docs/SCHEMA-MIGRATIONS.md#schema-conventions); `php tools/schema-check.php --offline`
+  must pass.
 - Never commit `conf/conf.php`, credentials, logs, caches, generated audio, voice samples,
   database dumps, `unittests/vendor/`, personal paths, or media without recorded provenance. The one
   database export is the curated, checksummed baseline install

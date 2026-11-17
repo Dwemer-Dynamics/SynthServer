@@ -63,6 +63,18 @@ See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md).
       mismatch with the `synth_meta` ledger. Recovery of an install already switched by the old UI uses a
       verified backup or reviewed repair, approved separately; deleting the ledger or `revertTo` is not
       recovery.
+- [x] Schema drift check (`php tools/schema-check.php`, read-only) on disposable PostgreSQL 17.11 with pgvector
+      0.8.7 and PHP 8.4.27, in a private network namespace: a fresh Doctrine-baseline install matches (0
+      differences, ledger current); an extra table and column are allowed and counted; an unknown ledger record
+      is drift; a hand-made drift (changed column default, renamed column, dropped index, dropped table) is
+      reported by object name and status only (exit 1); a wrong password, an unreachable server, a stale
+      manifest, a missing manifest and bad usage exit 2 or 3 with fixed messages and no secret. Each tool run
+      sent 11 statements (BEGIN READ ONLY, SET LOCAL, SHOW, SELECT, ROLLBACK), none a write or an advisory lock,
+      and a `pg_dump` digest of `synth` and `synth_meta` was identical before and after both the clean and the
+      drifted run. The full `tests` directory passes on the same source (1380 tests, 32388 assertions, 0
+      failures, 0 risky, 5 deprecations). Not tested: an installed database, a PostgreSQL 15 server, hosted CI.
+- [ ] Open for review: the meaning of "CHIM 4.0 planning format", the PostgreSQL major the manifest targets, and
+      acceptance of the D2 table naming ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#open-questions-for-review)).
 
 ## Doctrine settings read pilot
 
