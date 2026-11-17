@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__).'/managers/Narrator/NarratorObjectIdentity.php';
+
 // Private narrator save hook for the shared context claim. A context publication records the lane's applied private
 // narrator state by opaque ID only; a lane's first publication restores it from the exact loaded_context anchor
 // that publication names, never from the newest global state. The SCTX co-save and its anchor stay unchanged.
@@ -34,7 +36,7 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
             $action === 'transcript' ? ['cursor', 'definition_id'] : [], 'payload');
         if (!in_array($action, ['state', 'select', 'cancel', 'transcript', 'bind_object'], true)
             || (($needsDefinition || array_key_exists('definition_id', $payload)) && !synth_private_narrator_valid_definition_id($payload['definition_id']))) $invalid('narrator_command_invalid');
-        if ($action === 'bind_object') $payload['object'] = synth_private_narrator_validate_object($payload['object']);
+        if ($action === 'bind_object') $payload['object'] = \Synth\Managers\Narrator\NarratorObjectIdentity::validate($payload['object']);
         if (array_key_exists('cursor', $payload) && (!is_string($payload['cursor']) || preg_match('/^[0-9a-f]{64}$/D', $payload['cursor']) !== 1))
             $invalid('narrator_cursor_invalid');
     } elseif ($type === 'narrator_turn') {
@@ -45,7 +47,7 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
         if (array_key_exists('object', $payload)) {
             // Object turns are typed or push-to-talk only; scene commentary belongs to the selected narrator.
             if ($kind === 'scene') $invalid('narrator_object_invalid');
-            $payload['object'] = synth_private_narrator_validate_object($payload['object']);
+            $payload['object'] = \Synth\Managers\Narrator\NarratorObjectIdentity::validate($payload['object']);
         }
         if (array_key_exists('object_name', $payload) && (!array_key_exists('object', $payload) || !is_string($payload['object_name'])
             || trim($payload['object_name']) === '' || mb_strlen($payload['object_name']) > 64 || str_contains($payload['object_name'], "\0")
@@ -67,22 +69,6 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
             || !in_array($payload['outcome'], ['audio_completed', 'interrupted', 'failed'], true)) $invalid('narrator_receipt_invalid');
     }
     return $payload;
-}
-
-// One talking-object identity (docs/TALKING-OBJECTS.md): a plugin reference by local ID, or a runtime (FF) reference
-// with a null plugin; the base always comes from a plugin. Every field is exact, upper-case and load-order free.
-function synth_private_narrator_validate_object($value): array
-{
-    $invalid = static fn() => synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.object', 'issue' => 'narrator_object_invalid']]);
-    if (!is_array($value) || array_is_list($value)) $invalid();
-    synth_protocol_expect_exact_keys($value, ['ref_plugin', 'ref_id', 'base_plugin', 'base_id'], [], 'payload.object');
-    $plugin = static fn($name) => is_string($name) && strlen($name) <= 255
-        && preg_match('/^[^\/\\\\\x00-\x1F\x7F]+\.(esm|esp|esl)$/D', $name) === 1;
-    $runtime = $value['ref_plugin'] === null;
-    if (!is_string($value['ref_id']) || !is_string($value['base_id']) || (!$runtime && !$plugin($value['ref_plugin'])) || !$plugin($value['base_plugin'])
-        || preg_match($runtime ? '/^0xFF[0-9A-F]{6}$/D' : '/^0x00(?!000000)[0-9A-F]{6}$/D', $value['ref_id']) !== 1
-        || preg_match('/^0x00(?!000000)[0-9A-F]{6}$/D', $value['base_id']) !== 1) $invalid();
-    return $value;
 }
 
 // An install whose migration has not run yet keeps publishing contexts and never grants the capability.
