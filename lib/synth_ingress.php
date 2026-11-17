@@ -1086,6 +1086,8 @@ function synth_protocol_validate_event(array $event): array
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'native_turn_capability_required']]);
     if (str_starts_with($event['type'],'narrator_') && !synth_private_narrator_supported($event))
         synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'private_narrator_capability_required']]);
+    if (\Synth\Managers\Narrator\NarratorObjectIdentity::grantMissing($event))
+        synth_protocol_fail('invalid_payload',422,[['field'=>'capabilities','issue'=>'narrator_object_capability_required']]);
     $ownedRechat=in_array('dialogue.rechat.ownership',$event['capabilities'],true);
     $sceneRechat=in_array('dialogue.rechat.scene',$event['capabilities'],true);
     if ($event['type']==='context' && array_key_exists('scene',$event['payload']['world'] ?? []) && !$sceneRechat) {
