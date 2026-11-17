@@ -54,6 +54,8 @@ instead of the legacy plaintext exit, and adds `schema_migrations` (`current`, `
 or `unavailable`) from the owner's lock-free `SchemaMigrations::status()`. It answers 200 only when the
 database, UTF8 encoding, runtime gate and ledger are ready, otherwise 503 with one fixed, actionable error;
 it never migrates or loads settings, writes no SYNTH log file, and the background processor stays advisory.
+Granular read-only checks (`?check=live|db|api-keys|npcs|llm|all`), the Health tab's checks table and the client's
+connection notice are described in [HEALTH-CHECKS.md](HEALTH-CHECKS.md).
 Quickstart GET answers a 503 page linking to `health.php` unless the database, UTF8 encoding, runtime gate,
 current ledger and vendor dependencies are ready; its saves answer a database or migration failure with a fixed
 JSON 503 before any settings save. `tools/bootstrap-database.php` reads `conf.php` once, checks UTF8 before

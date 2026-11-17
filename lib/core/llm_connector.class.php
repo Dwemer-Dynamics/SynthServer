@@ -145,6 +145,12 @@ class LLMConnector
         return $this->normalizeConnectorRecords($GLOBALS["db"]->fetchAll($query));
     }
 
+    // Url and model only (never a key or metadata) of every connector that names both: one query for the health check.
+    public function endpointRows()
+    {
+        return $GLOBALS["db"]->fetchAll("SELECT url, model FROM {$this->table} WHERE btrim(COALESCE(url, '')) <> '' AND btrim(COALESCE(model, '')) <> ''");
+    }
+
     public function readOne($id)
     {
         $id = intval($id);
