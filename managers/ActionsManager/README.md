@@ -1,7 +1,6 @@
 # ActionsManager
 
-Model-named actions that the game applies. Today it holds `CompanionOrders`; the two-step resolver joins it
-(SynthServer #68).
+Model-named actions that the game applies. It holds `CompanionOrders` and the optional `TwoStepActions` resolver.
 
 ## CompanionOrders
 
