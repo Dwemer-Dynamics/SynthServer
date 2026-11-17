@@ -57,6 +57,38 @@ These instructions apply to the entire repository.
   GNU GPL v3.0 (root `LICENSE`). Keep `MIT-LICENSE` and every third-party notice.
 - CI audits the tracked source tree and runs tests. It builds no release package.
 
+## Layering and placement
+
+The target layout follows chevo (the CHIM 4.0 server). The full map is
+[docs/SERVER-FILE-LAYOUT.md](docs/SERVER-FILE-LAYOUT.md); status per area is
+[docs/CHEVO-PARITY.md](docs/CHEVO-PARITY.md); style is [docs/CODING-STANDARDS.md](docs/CODING-STANDARDS.md).
+This supersedes the old rule against `config/` and `workers/` roots.
+
+- Calls go downward only: `api/` `bin/` `ui/` -> `managers/` and `workers/` -> `drivers/` and
+  `core/entities/system` -> `core/dbmanager`.
+- Only `core/dbmanager` touches PostgreSQL. New code uses `core/entities/system` classes, never the
+  DAOs in `core/dbmanager/dao` or the `Abstract*` classes in `core/entities/base`. Add the missing
+  method to the system class instead of reaching past it.
+- **Legacy directories are frozen for new features: thin call-through hooks only.** That covers
+  `lib/`, `processor/`, `connector/`, `tts/`, `stt/`, `itt/`, `service/` and `main.php`. Bug fixes and
+  a few-line hook that calls new code are allowed; new logic, classes, SQL, providers and workers are not.
+- Do not move or rename existing files in an ordinary PR. Domains move one at a time in dedicated PRs.
+- New PHP uses `declare(strict_types=1)`, the `Synth\` namespaces and PSR-4 paths (see the layout doc).
+
+| New code | Goes in | Namespace |
+| --- | --- | --- |
+| Feature logic, policy, lifecycle | `managers/<Name>/` plus its `README.md` | `Synth\Managers\<Name>\*` |
+| HTTP endpoint | `api/v<N>/<area>/`, calling a manager | `Synth\Api\*` |
+| Table, column, migration | `core/dbmanager/migrations/` (Doctrine) | `Synth\Migrations\*` |
+| Entity or query | `core/entities/system` (system class), mapping in `core/entities/base`, DAO in `core/dbmanager/dao` | `Synth\Core\Entities\*`, `Synth\Core\DbManager\*` |
+| Interface or value type shared across layers | `core/contracts/` | `Synth\Core\Contracts\*` |
+| LLM, TTS, STT or ITT provider | `drivers/<kind>/Drivers/` behind the kind's Interface and Wrapper | `Synth\Drivers\<Kind>\*` |
+| Background job | `workers/<Name>/`, started from `bin/` | `Synth\Workers\<Name>\*` |
+| CLI or long-running process | `bin/` (thin script) | none |
+| Configuration sample | `config/` | none |
+| Extension | `extensions/<id>/` (reserved; wait for the ExtensionManager) | `Synth\Extensions\<Id>\*` |
+| New automated test | `tests/` (`unittests/` stays for existing suites) | `Synth\Tests\*` |
+
 ## Working method
 
 - Keep changes small enough to review and make migrations reversible where feasible.

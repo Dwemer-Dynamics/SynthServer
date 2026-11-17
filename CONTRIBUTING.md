@@ -42,6 +42,22 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
 - Prefer the existing PHPUnit suites. Add a new test file only when existing suites cannot
   cover a high-risk change.
 
+## Layering and placement
+
+Read the [target file layout](docs/SERVER-FILE-LAYOUT.md); the placement table is in
+[AGENTS.md](AGENTS.md#layering-and-placement). The rules, in short:
+
+- New features go in the chevo-style directories: `managers/<Name>/` (with a `README.md`),
+  `drivers/<kind>/`, `workers/<Name>/` with `bin/`, `api/`, and `core/{entities,dbmanager,contracts}`.
+- Legacy directories (`lib/`, `processor/`, `connector/`, `tts/`, `stt/`, `itt/`, `service/`, `main.php`)
+  are frozen for new features: bug fixes and thin call-through hooks only.
+- Only `core/dbmanager` touches the database; other code uses `core/entities/system` classes.
+- Calls go downward only (entry points, then managers and workers, then drivers and entities, then
+  `core/dbmanager`).
+- Do not move or rename existing files in an ordinary PR.
+- Follow [docs/CODING-STANDARDS.md](docs/CODING-STANDARDS.md) for new PHP. Existing `snake_case`
+  legacy code is exempt and is not reformatted.
+
 ## Code and comments
 
 These apply to new and changed code. Do not reformat or re-comment untouched code.

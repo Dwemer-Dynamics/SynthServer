@@ -47,6 +47,10 @@ final class PrivateNarratorManager
 
     private function command(array $payload): void
     {
+        // Talking objects (docs/TALKING-OBJECTS.md) have no storage yet; they are validated at ingress and refused here.
+        if ($payload['action'] === 'bind_object' || ($payload['action'] === 'transcript' && array_key_exists('definition_id', $payload))) {
+            throw new NarratorRejected('narrator_object_unavailable');
+        }
         $stateId = match ($payload['action']) {
             'select' => $this->narrators->select($payload['definition_id']),
             'cancel' => $this->narrators->cancelLane(),
@@ -59,6 +63,7 @@ final class PrivateNarratorManager
     private function turn(array $event): void
     {
         $payload = $event['payload'];
+        if (array_key_exists('object', $payload)) throw new NarratorRejected('narrator_object_unavailable');
         $lane = $this->lane();
         $state = $this->narrators->state($lane['state_id']);
         if (intval($lane['state_id'] ?? 0) !== $payload['state_id']) throw new NarratorRejected('narrator_state_changed');
