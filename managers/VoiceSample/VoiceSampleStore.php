@@ -28,14 +28,15 @@ final class VoiceSampleStore
     /**
      * Reads only the RIFF/WAVE header of a sample.
      *
-     * Returns null when the file is missing, linked, oversized or not a readable WAV, so callers never trust a stub.
+     * Returns null when the file is missing, linked or not a readable WAV, so callers never trust a stub. Listing
+     * passes $capped = true and skips files over MAX_SAMPLE_BYTES; imports pass false, because a long decode is legitimate.
      *
      * @return array{format:int,channels:int,rate:int,bits:int,data_offset:int,data_bytes:int,duration_seconds:float}|null
      */
-    public static function wavInfo(string $path): ?array
+    public static function wavInfo(string $path, bool $capped = true): ?array
     {
         $size = @filesize($path);
-        if (!is_file($path) || is_link($path) || $size === false || $size <= 44 || $size > self::MAX_SAMPLE_BYTES) {
+        if (!is_file($path) || is_link($path) || $size === false || $size <= 44 || ($capped && $size > self::MAX_SAMPLE_BYTES)) {
             return null;
         }
         $handle = @fopen($path, 'rb');
@@ -53,11 +54,12 @@ final class VoiceSampleStore
      * Tells whether every sample of the WAV's data chunk is digital silence.
      *
      * All zero bytes (0x80 for 8-bit PCM) count as silent; any nonzero sample, however quiet, is audible. Returns
-     * null when the file cannot be read as a WAV, which is neither silent nor audible.
+     * null when the file cannot be read as a WAV, which is neither silent nor audible. The data is streamed in 64 KiB
+     * reads with no size cap, so a long import is checked in full.
      */
     public static function isSilentWav(string $path): ?bool
     {
-        $info = self::wavInfo($path);
+        $info = self::wavInfo($path, false);
         if ($info === null || $info['data_bytes'] < 1 || !in_array($info['format'], [1, 3, 0xFFFE], true)
             || $info['channels'] < 1 || $info['bits'] < 8) {
             return null;
@@ -116,11 +118,12 @@ final class VoiceSampleStore
     /**
      * Lists the stored samples, sorted by voice id: metadata only, no file paths, provider settings or secrets.
      *
-     * $onlyVoice limits the list to one voice id.
+     * $onlyVoice limits the list to one voice id. The SHA-256 hashes every file, so it is added only when $withHash is
+     * true; callers ask for it for one voice, never for the whole folder on a page load.
      *
      * @return list<array<string,mixed>>
      */
-    public static function listSamples(string $voiceDir, ?string $onlyVoice = null): array
+    public static function listSamples(string $voiceDir, ?string $onlyVoice = null, bool $withHash = false): array
     {
         $names = is_dir($voiceDir) ? @scandir($voiceDir) : false;
         if (!is_array($names)) {
@@ -139,7 +142,7 @@ final class VoiceSampleStore
             if (is_link($wav) || !is_file($wav)) {
                 continue;
             }
-            $samples[] = self::describe($voice, $wav, $voiceDir . DIRECTORY_SEPARATOR . $voice . '.json');
+            $samples[] = self::describe($voice, $wav, $voiceDir . DIRECTORY_SEPARATOR . $voice . '.json', $withHash);
         }
         return $samples;
     }
@@ -161,10 +164,9 @@ final class VoiceSampleStore
      *
      * @return array<string,mixed>
      */
-    private static function describe(string $voice, string $wav, string $sidecar): array
+    private static function describe(string $voice, string $wav, string $sidecar, bool $withHash): array
     {
         $bytes = @filesize($wav);
-        $sha = $bytes !== false && $bytes <= self::MAX_SAMPLE_BYTES ? @hash_file('sha256', $wav) : false;
         $info = self::wavInfo($wav);
         $details = [];
         if (is_file($sidecar) && !is_link($sidecar) && filesize($sidecar) <= 65536) {
@@ -177,10 +179,9 @@ final class VoiceSampleStore
             ? $details['selection'] : null;
         $referenceText = self::cleanReferenceText($details['reference_text'] ?? '');
 
-        return [
+        $entry = [
             'voice_id' => $voice,
             'bytes' => $bytes === false ? 0 : $bytes,
-            'sha256' => is_string($sha) ? $sha : null,
             'duration_seconds' => $info['duration_seconds'] ?? null,
             'sample_rate' => $info['rate'] ?? null,
             'playable' => $info !== null && $info['data_bytes'] > 0,
@@ -190,6 +191,11 @@ final class VoiceSampleStore
             'has_reference_text' => $referenceText !== '',
             'reference_text' => $referenceText,
         ];
+        if ($withHash) {
+            $sha = $bytes !== false && $bytes <= self::MAX_SAMPLE_BYTES ? @hash_file('sha256', $wav) : false;
+            $entry['sha256'] = is_string($sha) ? $sha : null;
+        }
+        return $entry;
     }
 
     /**

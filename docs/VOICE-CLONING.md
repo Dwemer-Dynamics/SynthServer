@@ -28,19 +28,27 @@ Local extraction/upload/generation probes do not prove in-game playback or voice
 
 ## Silent samples
 
-An import is refused with a 400 `Voice sample is silent` when the decoded WAV holds only zero samples, and
+An import is refused with a 400 `Voice sample is silent` when the decoded WAV holds only zero samples (the whole
+decode is streamed, however long), and
 `vsx.php` stores nothing: an existing sample of that voice is left as it was. Any nonzero sample, however quiet,
 passes (loudness normalisation runs before the check). A decode that yields no readable PCM WAV is refused the
 same way. TTS Studio's own WAV upload applies the same check and reports the file by name.
 
 ## Stored sample list
 
-`GET /api/v1/voice/samples.php` is a read-only dashboard route (the Host allowlist and same-origin guard apply).
+`POST /api/v1/voice/samples.php` is a read-only management route: the Host allowlist, same-origin guard and the
+dashboard session token apply, as for every management route. It is POST rather than GET because the answer includes
+sample transcripts, so a cross-site page must not be able to read it; it writes nothing. Body (JSON, at most 4096
+bytes): `{"csrf_token": "...", "voice_id": "<id>"?, "npc_id": N?, "include_hash": true?}`; `voice_id` and `npc_id` are
+alternatives, and the token may instead be sent as `X-CSRF-Token`.
+
 It answers `{"ok":true,"voice_samples":[...],"count":N}` with, per sample in `data/voices`: `voice_id`, `bytes`,
-`sha256`, `duration_seconds`, `sample_rate`, `playable`, `stored_at`, `source` (the game file recorded by the
-import, when known), `selection`, `has_reference_text` and `reference_text`. It returns no file paths, provider
-settings or keys, and it writes nothing. `?voice_id=<id>` limits the list to one voice; `?npc_id=<n>` resolves
-that NPC's saved voice and adds `npc: {id, name, voice_id, has_sample}`. Bad ids answer 400, an unknown NPC 404.
+`duration_seconds`, `sample_rate`, `playable`, `stored_at`, `source` (the game file recorded by the import, when
+known), `selection`, `has_reference_text` and `reference_text`. It returns no file paths, provider settings or keys.
+The SHA-256 is not in the default list, because it reads every file: ask for it with `include_hash` together with
+`voice_id` or `npc_id` (one voice). `npc_id` resolves that NPC's saved voice and adds
+`npc: {id, name, voice_id, has_sample}`. Bad input answers 400, a wrong or missing token 403, an unknown NPC 404, a
+body over 4096 bytes 413.
 
 ## Voice preview
 

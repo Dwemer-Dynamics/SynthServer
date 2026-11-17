@@ -23,6 +23,11 @@ final class VoicePreviewManager
     private const MAX_AUDIO_BYTES = 8388608;
     private const SOCKET_TIMEOUT_SECONDS = '20';
 
+    // Files this preview may have created; a shutdown function removes them when a fatal error skips `finally`.
+    /** @var list<string> */
+    private array $pendingFiles = [];
+    private bool $shutdownRegistered = false;
+
     public function __construct(private readonly string $enginePath)
     {
     }
@@ -86,6 +91,7 @@ final class VoicePreviewManager
     {
         $text = $this->cleanText($text);
         $lock = $this->takeLock();
+        $this->registerShutdownCleanup();
         $audioPath = '';
         try {
             @set_time_limit(45);
@@ -98,8 +104,8 @@ final class VoicePreviewManager
         } catch (VoicePreviewException $failure) {
             throw $failure;
         } catch (Throwable $error) {
-            // Details go to the server log without the request text or settings; the client gets fixed text.
-            \Logger::error('[SYNTH voice preview] ' . get_class($error) . ': ' . substr($error->getMessage(), 0, 200));
+            // Provider exception messages can carry endpoint URLs, so only the class name is logged; the client gets fixed text.
+            \Logger::error('[SYNTH voice preview] ' . get_class($error));
             throw new VoicePreviewException(502, 'provider_failed', 'The voice preview failed. Check the connector in TTS Connectors.');
         } finally {
             $this->removeFiles($audioPath);
@@ -200,11 +206,22 @@ final class VoicePreviewManager
         // The random seed names the one soundcache file this preview may create, read back and delete.
         $seed = 'voice-preview|' . bin2hex(random_bytes(16));
         $path = $directory . DIRECTORY_SEPARATOR . md5(trim($seed)) . '.wav';
+        $this->pendingFiles[] = $path;
         ob_start();
         try {
-            callConfiguredTts($text, 'default', $seed);
+            $returned = callConfiguredTts($text, 'default', $seed);
         } finally {
             ob_end_clean();
+        }
+        // Every shipped driver writes soundcache/<md5(seed)>.wav and returns that path. Should one answer with another
+        // file inside soundcache, that file is cleaned up too and is the one read back.
+        if (is_string($returned) && $returned !== '') {
+            $candidate = realpath($this->enginePath . ltrim(str_replace('\\', '/', $returned), '/')) ?: realpath($returned);
+            $root = realpath($directory);
+            if ($candidate !== false && $root !== false && dirname($candidate) === $root && $candidate !== realpath($path)) {
+                $this->pendingFiles[] = $candidate;
+                return $candidate;
+            }
         }
         return $path;
     }
@@ -225,18 +242,34 @@ final class VoicePreviewManager
     }
 
     /**
-     * Deletes the audio and the driver's request log (.txt, or .err on failure) named by the same hash.
+     * Deletes the audio and the driver's request log (.txt, or .err on failure) named by the same hash, for every
+     * file this preview created.
      */
     private function removeFiles(string $audioPath): void
     {
-        if ($audioPath === '') {
-            return;
-        }
-        foreach ([$audioPath, substr($audioPath, 0, -4) . '.txt', substr($audioPath, 0, -4) . '.err'] as $file) {
-            if (is_file($file)) {
-                @unlink($file);
+        $paths = array_unique(array_filter(array_merge([$audioPath], $this->pendingFiles)));
+        foreach ($paths as $path) {
+            foreach ([$path, substr($path, 0, -4) . '.txt', substr($path, 0, -4) . '.err'] as $file) {
+                if (is_file($file)) {
+                    @unlink($file);
+                }
             }
         }
+        $this->pendingFiles = [];
+    }
+
+    /**
+     * Registers cleanup that also runs after a fatal error such as the execution time limit, which skips `finally`.
+     */
+    private function registerShutdownCleanup(): void
+    {
+        if ($this->shutdownRegistered) {
+            return;
+        }
+        $this->shutdownRegistered = true;
+        register_shutdown_function(function (): void {
+            $this->removeFiles('');
+        });
     }
 
     /**
