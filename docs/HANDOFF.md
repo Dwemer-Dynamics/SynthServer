@@ -944,7 +944,19 @@ pages that act before bootstrap require it directly. Browser evidence (`Sec-Fetc
 `Referer`) must show the same scheme, Host and port, or a typed URL. `same-site` (another local port),
 `Origin: null` and unknown values are refused. A request with none of these headers is a native or operator
 client and passes, except an unsafe request with a browser User-Agent; the Quickstart MiniMe GET probe counts as
-unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control. Web
+unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control.
+A Host-header allowlist blocks DNS rebinding, where a hostile name resolves to loopback and so matches its own Origin.
+Every `ui/` request (GET included, before the origin checks) must carry a Host that is `localhost`, `*.localhost`, an
+IPv4 or bracketed IPv6 literal, this machine's own host name, or a name listed in `SYNTH_ALLOWED_HOSTS`; anything else
+gets a generic `403` and one `management_host_refused` line in the PHP error log (Host, method and path only). IP
+literals are allowed because a browser sends one only when the page was opened by that address, so a rebound name can
+never present as one; this keeps the WSL IP, PC IP and LAN IP working without configuration. A LAN or DNS name for the
+dashboard must be listed: set the environment variable `SYNTH_ALLOWED_HOSTS` (the process environment of PHP, so for
+Apache/FPM set it in the service environment), else `$SYNTH_ALLOWED_HOSTS="synth.lan other.lan";` in `conf/conf.php`,
+as comma, semicolon or space separated plain host names (ports ignored, no wildcards, invalid entries dropped). The
+environment wins over `conf.php`. Native game and plugin endpoints (`main.php`, `health.php`, `api/` and the other
+scripts outside `ui/`) are outside this guard and unaffected. Bad Host names do not change the Apache `Require local`
+rule, which still limits the client address. Web
 requests to `debug/` and `tools/` scripts are refused. The root `.htaccess` and the pmstt and diary-audio
 endpoints no longer send `Access-Control-Allow-Origin: *`.
 
