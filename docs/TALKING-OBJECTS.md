@@ -63,8 +63,9 @@ Look-at plus command (hotkey follows the same path):
 Targeting is engine-free and uses the copied snapshot: the single eligible candidate in `nearby_items` /
 `points_of_interest` with `looking_at` or `held`, within 300 units, with no second candidate within 40 units of its
 distance (ambiguity refuses; it never guesses). Addressing is checked again for every turn on the exact identity: the
-object must still be in the snapshot, same cell, within 350 units. Leaving range, a cell change, a load, a halt or a
-new address ends it and tells the player. Looking away does not.
+object must still be in the snapshot, same cell, within 350 units. Leaving range, a cell change (the object is no
+longer in the snapshot), a load (a new runtime generation) or `/narrator npcs`/`talk` ends it and tells the player. Looking
+away does not. A dialogue Stop does not end it.
 
 ## 3. Persona and voice
 
