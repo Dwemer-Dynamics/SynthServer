@@ -424,7 +424,7 @@ final class JsonSchemaCatalogTest extends TestCase
                 'actor'=>['properties'=>['form_id'=>['not'=>['pattern'=>'^0x0{6}14$']]]]]]]],$waitRules);
         $this->assertSame(['strength','perception','endurance','charisma','intelligence','agility','luck'],
             $v2['properties']['actor_stats']['properties']['special']['required']);
-        unset($v2['properties']['actor_stats'],$v2['$defs']['special_value']);
+        unset($v2['properties']['actor_stats'],$v2['properties']['actor_condition'],$v2['$defs']['special_value'],$v2['$defs']['condition_entry'],$v2['$defs']['condition_effect']);
         if (($v2['$defs'] ?? null)===[]) unset($v2['$defs']);
         unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held'],$v2['properties']['wait_held']);
         $v2['allOf']=array_values(array_filter($v2['allOf'], static fn(array $rule): bool =>

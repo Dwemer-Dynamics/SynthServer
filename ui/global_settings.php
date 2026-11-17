@@ -80,6 +80,7 @@ $gsSections = [
  [ 'name' => 'INVENTORY_ITEMS_DESCRIPTIONS_ONLY', 'type' => 'boolean' ],
  [ 'name' => 'HIDE_AMBIENT_COMBAT', 'type' => 'boolean' ],
  [ 'name' => 'POWER_AWARENESS_ENABLED', 'type' => 'boolean' ],
+ [ 'name' => 'CONDITION_CONTEXT_ENABLED', 'type' => 'boolean' ],
  [ 'name' => 'PROMPT_TIMESTAMP', 'type' => 'boolean' ],
  ],
  'Filters & Blacklists' => [
@@ -212,6 +213,7 @@ function icon_for_field(string $flatName): string
  'INVENTORY_ITEMS_DESCRIPTIONS_ONLY' => '&#127890;',
  'HIDE_AMBIENT_COMBAT' => '&#128330;&#65039;',
  'POWER_AWARENESS_ENABLED' => '&#9876;&#65039;',
+ 'CONDITION_CONTEXT_ENABLED' => '&#129657;',
  'PROMPT_TIMESTAMP' => '&#128336;',
  'COMPACT_NPC_CONTEXT_HISTORY' => '&#128476;&#65039;',
  'SHORT_TERM_MEMORY_IN_COMPACT_CHAT' => '&#128450;&#65039;',
