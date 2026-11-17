@@ -803,3 +803,25 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       uninitialised database.
 - [ ] DNS rebinding: Host is not allowlisted, so a rebound name passes the origin match.
 - [ ] Deploy, installed Apache/PHP-FPM, and in-game plugin package flows: none claimed.
+
+## Write-only credential forms
+
+See [HANDOFF.md](HANDOFF.md#write-only-credential-forms-candidate).
+
+- [x] `php -l` on the changed PHP files; `git diff --check`.
+- [x] HTTP probe on a disposable PostgreSQL 17.11 with pgvector in a private network namespace, a fresh Doctrine
+      install and a loopback mock provider, with synthetic keys only: 84 credential checks (no saved key in page
+      HTML, scripts or redirects; blank keeps, Clear empties only its row; token, method and malformed-key
+      refusals; saved-key Test resolved server-side) and 77 case-variant and stale-form checks (lowest-id card,
+      distinct variant rows, stale bulk forms refused before writing, first save of a missing preset). No
+      synthetic key appeared in application, PHP or request logs.
+- [x] The 159 dashboard request-safety HTTP checks through real Apache and `DashboardContentCatalogTest`
+      (7 tests, 328 assertions) on the merged tree.
+- [x] Release-tree audit: 549 PHP files linted, 374 JSON files validated.
+- [x] Disposable browser inspection at desktop width and 390 px: saved-key inputs empty; a saved case-variant
+      Test returned HTTP 200 from the mock provider.
+- [ ] A 5 px horizontal overflow remains on the API Keys page at 390 px.
+- [ ] Browser keyboard, Save, Clear and confirm/cancel workflows. The evidence above is HTTP plus page inspection.
+- [ ] Custom-key Delete accepts a malformed id: the integer cast can name another custom row.
+- [ ] Custom-key create computes its id in PHP (`max(100, highest id + 1)`); concurrent creates are unchecked.
+- [ ] Real provider keys, the installed runtime, hosted CI (Actions disabled), deploy and in-game use: none claimed.
