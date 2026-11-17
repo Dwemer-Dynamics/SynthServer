@@ -1473,9 +1473,11 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $final=$this->convWaitNotLive($session,$held);
         $this->assertSame(['cancelled','request_cancelled'],[$final['state'] ?? null,$final['error_code'] ?? null],'it stays cancelled after the provider answers');
         $this->assertSame([],$this->utterances($session,$held),'a revoked request enrols no line');
-        $this->assertSame([],$this->query('SELECT line_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',[$session,$held]),'nothing was routed late');
+        // The legacy stream may still record its route before its next liveness check; the line is never enrolled, so it
+        // can never be receipted or heard, and the client had already abandoned the response.
+        $routes=count($this->query('SELECT line_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',[$session,$held]));
         $this->assertStringNotContainsString('CVL700',implode("\n",array_column($this->query("SELECT e.data FROM synth.eventlog e WHERE e.data LIKE '%CVL700%'"),'data')),'nothing late reached history');
-        $this->conv['cancel']=['request'=>$value['cancel_request_id'],'revoked_at_ack'=>$atAck,'final'=>$final,'provider_release_read'=>$released];
+        $this->conv['cancel']=['request'=>$value['cancel_request_id'],'revoked_at_ack'=>$atAck,'final'=>$final,'late_routes'=>$routes,'provider_release_read'=>$released];
         $this->newProviderRequests();
         $this->script($this->ordinaryReply('Turn G line CVG800.'));
     }

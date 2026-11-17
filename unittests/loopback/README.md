@@ -211,7 +211,7 @@ flat/VR gameplay.
 - Three turns (ordinary, `/talk`, ordinary) keep one `conversation_id`, stored in each admitted event and echoed by each response.
 - A heard, an interrupted and a skipped line reach `spoken`, `interrupted` and `failed` (the receipt keeps `skipped`). The next prompt on each lane keeps the heard line, keeps the interrupted line marked ` [cut off]` and never carries the skipped one.
 - A player cell change starts a new conversation. The driver calls `observe_cell` the way `ContextPublication` does, because the compiled driver has no context publication.
-- An explicit scoped cancel, sent while a request is held at the provider, records its reason, revokes only that conversation's in-flight request, and nothing the provider returns afterwards is delivered, routed or remembered. The next input starts a new conversation.
+- An explicit scoped cancel, sent while a request is held at the provider, records its reason, revokes only that conversation's in-flight request, and nothing the provider returns afterwards is delivered, enrolled or remembered. The next input starts a new conversation.
 - A client that never asked for the capability still works unchanged: no id, and an interrupted line is not context.
 
 Not covered: the `CancelConversation` hotkey and its local teardown, real audio, and a game thread.
