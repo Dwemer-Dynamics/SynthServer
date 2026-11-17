@@ -212,8 +212,8 @@ final class HealthCheckManager
                 $probe ??= [self::class, 'probeEndpoints'];
                 $reachable = self::whenNoProbeRunning(static fn() => $probe($targets['endpoints']));
                 if ($reachable === null) {
-                    return [200, $body + ['llm' => 'busy', 'status' => 'warning',
-                        'error' => 'Another health check is probing the LLM endpoints; try again shortly.']];
+                    return [200, ['llm' => 'busy', 'status' => 'warning',
+                        'error' => 'Another health check is probing the LLM endpoints; try again shortly.'] + $body];
                 }
                 $body['llm_endpoints_reachable'] = intval($reachable);
             }
