@@ -19,10 +19,10 @@ try {
     require_once $root . '/lib/postgresql.class.php';
     $GLOBALS['db'] = new sql();
     require_once $root . '/tts/tts-inworld.php';
-    $row = $GLOBALS['db']->fetchOne("SELECT t.metadata,t.api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
+    $row = $GLOBALS['db']->fetchOne("SELECT t.metadata,t.api_key_id,t.local_api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
     if (!$row) throw new RuntimeException('Inworld connector not found');
     require_once $root . '/lib/core/api_badge.class.php';
-    $row['api_key'] = (new ApiBadge())->getById(strval($row['api_key_id'] ?? ''))['api_key'] ?? '';
+    $row['api_key'] = ApiBadge::keyForConnector($row, 'Inworld');
     if ($row['api_key'] === '') throw new RuntimeException('The Inworld connector has no saved key in the shared key store');
     $GLOBALS['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'] = $connector;
     $GLOBALS['TTS']['INWORLD'] = json_decode($row['metadata'], true, flags: JSON_THROW_ON_ERROR);

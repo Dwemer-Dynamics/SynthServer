@@ -1586,7 +1586,7 @@ function getCartesiaConfigurationStatus(): array
     $hasConnector = is_array($row);
 
     $hasApiCredential = false;
-    $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null);
+    $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
     if ($apiBadgeId !== null && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
         $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);
@@ -1637,7 +1637,7 @@ function getInworldConfigurationStatus(): array
     $hasConnector = is_array($row);
 
     $hasApiCredential = false;
-    $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null);
+    $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
     if ($apiBadgeId !== null && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
         $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);

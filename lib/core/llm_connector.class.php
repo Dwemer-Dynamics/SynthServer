@@ -73,7 +73,8 @@ class LLMConnector
             $data["url"] = $normalizedUrl;
         }
 
-        return $data;
+        // Rows read from the database show the key as one reference; data headed for it becomes the two typed columns.
+        return $forWrite ? \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data) : \Synth\Core\Contracts\ApiKeyRef::decorateRow($data);
     }
 
     private function normalizeConnectorRecords(array $rows): array
@@ -87,24 +88,17 @@ class LLMConnector
         return $rows;
     }
 
-    // The key bound to the connector. A connector with no key of its own (a seeded one) uses its service's saved key: the
-    // oldest key labelled like the service, the same default the TTS and STT connectors bind to.
+    // The key a connector uses: the key it names (a missing or deleted one is no key, never another), else the global key of its
+    // service (openrouter, openai, google, groq, nanogpt). A SYNTH-only key is used only when the connector names it.
     private function getApiKeyForBadge($apiBadgeId, ?array $connector = null): string
     {
-        $apiBadge = new ApiBadge();
-        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($apiBadgeId);
-        if ($apiBadgeId === null) {
-            $service = strtolower(trim(strval($connector['service'] ?? '')));
-            $label = ['openrouter' => 'openrouter', 'openai' => 'openai', 'google' => 'google', 'groq' => 'groq', 'nanogpt' => 'nano-gpt'][$service] ?? '';
-            $apiKeyData = $label !== '' ? $apiBadge->getByLabel($label) : null;
-            return is_array($apiKeyData) ? (string)($apiKeyData["api_key"] ?? "") : "";
+        $row = is_array($connector) ? $connector : [];
+        if ($apiBadgeId !== null) {
+            $row['api_key_id'] = $apiBadgeId;
         }
-        $apiKeyData = $apiBadge->getById($apiBadgeId);
-        if (!is_array($apiKeyData)) {
-            return "";
-        }
-
-        return (string)($apiKeyData["api_key"] ?? "");
+        $service = strtolower(trim(strval($row['service'] ?? '')));
+        $label = ['openrouter' => 'OpenRouter', 'openai' => 'OpenAI', 'google' => 'Google', 'groq' => 'Groq', 'nanogpt' => 'Nano-GPT'][$service] ?? '';
+        return ApiBadge::keyForConnector($row, $label);
     }
     public function create($data)
     {
@@ -121,6 +115,7 @@ class LLMConnector
             "enforce_json",
             "prefill_json",
             "api_key_id",
+            "local_api_key_id",
             "json_schema",
             "temperature",
             "presence_penalty",
@@ -133,9 +128,6 @@ class LLMConnector
         ];
 
         $data = $this->normalizeConnectorRecord($data, true);
-        if (array_key_exists('api_key_id', $data)) {
-            $data['api_key_id'] = \Synth\Core\SharedApiKeyStore::normalizeId($data['api_key_id']);
-        }
 
         foreach ($data as $k => $v) {
             if (($v === "" || $v === null) && $v !== "0" && $v !== false && $v !== 0) {
@@ -186,6 +178,7 @@ class LLMConnector
             "enforce_json",
             "prefill_json",
             "api_key_id",
+            "local_api_key_id",
             "json_schema",
             "temperature",
             "presence_penalty",
@@ -198,9 +191,6 @@ class LLMConnector
         ];
 
         $data = $this->normalizeConnectorRecord($data, true);
-        if (array_key_exists('api_key_id', $data)) {
-            $data['api_key_id'] = \Synth\Core\SharedApiKeyStore::normalizeId($data['api_key_id']);
-        }
 
         foreach ($data as $k => $v) {
             if (($v === "" || $v === null) && $v !== "0" && $v !== false && $v !== 0) {

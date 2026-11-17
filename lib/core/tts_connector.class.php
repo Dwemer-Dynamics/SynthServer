@@ -1,6 +1,7 @@
 <?php
 
 require_once dirname(__DIR__, 2) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'api_badge.class.php';
 
 class TTSConnector
 {
@@ -187,7 +188,7 @@ class TTSConnector
     public function create($data)
     {
         $fields = [
-            "driver", "label", "metadata", "api_key_id", "url", "voice_field",
+            "driver", "label", "metadata", "api_key_id", "local_api_key_id", "url", "voice_field",
         ];
 
         $driver = $data['driver'] ?? '';
@@ -212,6 +213,7 @@ class TTSConnector
             }
         }
 
+        $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
         $columns = [];
         $values = [];
@@ -231,14 +233,15 @@ class TTSConnector
     public function readAll()
     {
         $query = "SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC";
-        return $GLOBALS["db"]->fetchAll($query);
+        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $GLOBALS["db"]->fetchAll($query));
     }
 
     public function readOne($id)
     {
         $id = intval($id);
         $query = "SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1";
-        return $GLOBALS["db"]->fetchOne($query);
+        $row = $GLOBALS["db"]->fetchOne($query);
+        return is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row;
     }
 
     public function getById($id)
@@ -251,7 +254,7 @@ class TTSConnector
         $id = intval($id);
         $where = "id = {$id}";
         $fields = [
-            "driver", "label", "metadata", "api_key_id", "url", "voice_field",
+            "driver", "label", "metadata", "api_key_id", "local_api_key_id", "url", "voice_field",
         ];
         $existing = $this->readOne($id);
         $driver = $data['driver'] ?? ($existing['driver'] ?? '');
@@ -280,6 +283,7 @@ class TTSConnector
             }
         }
 
+        $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
         $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
         return $id;
@@ -496,21 +500,11 @@ class TTSConnector
         return $providerKey !== '' && $this->getApiBadgeLabelForProvider($providerKey) !== '';
     }
 
+    // A connector that names no key uses the global key of its provider when it is used; nothing is bound or stored for it, so this
+    // is always null (a page shows "default (global)" for it).
     public function getDefaultApiBadgeIdForDriver($driver): ?string
     {
-        $providerKey = $this->getProviderKeyFromDriver($driver);
-        $badgeLabel = $this->getApiBadgeLabelForProvider($providerKey);
-        if ($badgeLabel === '') {
-            return null;
-        }
-
-        if (!class_exists('ApiBadge')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php");
-        }
-
-        $apiBadge = new ApiBadge();
-        $badge = $apiBadge->getByLabel($badgeLabel);
-        return $badge ? \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) : null;
+        return null;
     }
 
     public function driverSupportsEditableUrl($driver): bool
@@ -726,17 +720,9 @@ class TTSConnector
             }
         }
 
-        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($currentTTSData['api_key_id'] ?? null);
-        if ($apiBadgeId !== null) {
-            if (!class_exists('ApiBadge')) {
-                require_once(__DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php");
-            }
-            $apiBadge = new ApiBadge();
-            $apiKeyData = $apiBadge->getById($apiBadgeId);
-            $apiKey = trim(strval($apiKeyData['api_key'] ?? ''));
-            if ($apiKey !== '') {
-                $metadata['API_KEY'] = $apiKey;
-            }
+        $apiKey = trim(ApiBadge::keyForConnector($currentTTSData, $this->getApiBadgeLabelForProvider($providerKey)));
+        if ($apiKey !== '') {
+            $metadata['API_KEY'] = $apiKey;
         }
 
         $settings['TTS'][$providerKey] = [];
@@ -871,37 +857,22 @@ class TTSConnector
         return self::$apiBadgeLabelMap[$providerKey] ?? '';
     }
 
+    // A key typed into the connector form: saved as the provider's global key when there is none yet (then dropped from the
+    // metadata). The connector stores no reference; it uses the provider's global key by default.
     private function resolveApiBadgeIdForMetadata(string $providerKey, array &$metadata): ?string
     {
         $badgeLabel = $this->getApiBadgeLabelForProvider($providerKey);
-        if ($badgeLabel === '') {
+        $apiKey = trim(strval($metadata['API_KEY'] ?? ''));
+        if ($badgeLabel === '' || $apiKey === '') {
             return null;
         }
-
         if (!class_exists('ApiBadge')) {
             require_once(__DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php");
         }
-
-        $apiKey = trim(strval($metadata['API_KEY'] ?? ''));
         $apiBadge = new ApiBadge();
-        $badge = $apiBadge->getByLabel($badgeLabel);
-
-        if (!$badge && $apiKey !== '') {
-            $apiBadge->create([
-                'label' => $badgeLabel,
-                'api_key' => $apiKey,
-            ]);
-            $badge = $apiBadge->getByLabel($badgeLabel);
-        } elseif ($badge && trim(strval($badge['api_key'] ?? '')) === '' && $apiKey !== '') {
-            $apiBadge->update(strval($badge['id'] ?? ''), ['api_key' => $apiKey]);
-            $badge = $apiBadge->getById(strval($badge['id'] ?? ''));
-        }
-
-        if ($badge && \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) !== null) {
+        if ($apiBadge->getByLabel($badgeLabel) || $apiBadge->create(['label' => $badgeLabel, 'api_key' => $apiKey]) !== '') {
             unset($metadata['API_KEY']);
-            return \Synth\Core\SharedApiKeyStore::normalizeId($badge['id']);
         }
-
         return null;
     }
 
@@ -928,19 +899,10 @@ class TTSConnector
         return $this->normalizeUrlForDriver($driver, $url, $metadata);
     }
 
+    // The key a connector names, as a reference, or null (use the provider's global key).
     private function normalizeApiBadgeIdForDriver($driver, $apiBadgeId): ?string
     {
-        $driver = $this->normalizeDriver($driver);
-        if (!$this->driverUsesApiBadge($driver)) {
-            return null;
-        }
-
-        $currentId = \Synth\Core\SharedApiKeyStore::normalizeId($apiBadgeId);
-        if ($currentId !== null) {
-            return $currentId;
-        }
-
-        return $this->getDefaultApiBadgeIdForDriver($driver);
+        return $this->driverUsesApiBadge($this->normalizeDriver($driver)) ? \Synth\Core\Contracts\ApiKeyRef::normalize($apiBadgeId) : null;
     }
 
     private function findMatchingConnector(array $payload)
@@ -953,7 +915,7 @@ class TTSConnector
             if (trim(strval($row['url'] ?? '')) !== trim(strval($payload['url'] ?? ''))) {
                 continue;
             }
-            if (($rowKeyId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? '') !== (\Synth\Core\SharedApiKeyStore::normalizeId($payload['api_key_id'] ?? null) ?? '')) {
+            if (($rowKeyId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null) ?? '') !== (\Synth\Core\Contracts\ApiKeyRef::normalize($payload['api_key_id'] ?? null) ?? '')) {
                 continue;
             }
             if (trim(strval($row['voice_field'] ?? '')) !== trim(strval($payload['voice_field'] ?? ''))) {
@@ -993,7 +955,7 @@ class TTSConnector
         $normalizedUrl = $this->normalizeUrlForDriver($driver, $row['url'] ?? null, $sanitizedMetadata);
         $currentUrl = array_key_exists('url', $row) ? $row['url'] : null;
         if ($this->canonicalJson($metadata) === $this->canonicalJson($sanitizedMetadata)
-            && (\Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? '') === ($normalizedApiBadgeId ?? '')
+            && (\Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null) ?? '') === ($normalizedApiBadgeId ?? '')
             && trim(strval($currentUrl ?? '')) === trim(strval($normalizedUrl ?? ''))) {
             return $row;
         }

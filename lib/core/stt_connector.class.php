@@ -42,7 +42,7 @@ class STTConnector
 
     public function create($data)
     {
-        $fields = ["driver", "label", "metadata", "api_key_id", "url"];
+        $fields = ["driver", "label", "metadata", "api_key_id", "local_api_key_id", "url"];
         $driver = $data['driver'] ?? '';
         if (array_key_exists('metadata', $data)) {
             $metadata = $this->decodeMetadata($data['metadata']);
@@ -57,12 +57,14 @@ class STTConnector
             }
         }
 
+        $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
-        $query = "INSERT INTO {$this->table} (driver, label, metadata, api_key_id, url) VALUES (" .
+        $query = "INSERT INTO {$this->table} (driver, label, metadata, local_api_key_id, api_key_id, url) VALUES (" .
             $GLOBALS["db"]->escapeLiteral(strval($filtered['driver'] ?? '')) . ", " .
             $GLOBALS["db"]->escapeLiteral(strval($filtered['label'] ?? '')) . ", " .
             ($filtered['metadata'] === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['metadata']))) . ", " .
-            (\Synth\Core\SharedApiKeyStore::normalizeId($filtered['api_key_id']) === null ? "NULL" : "'" . \Synth\Core\SharedApiKeyStore::normalizeId($filtered['api_key_id']) . "'::uuid") . ", " .
+            (($filtered['local_api_key_id'] ?? null) === null ? "NULL" : intval($filtered['local_api_key_id'])) . ", " .
+            (($filtered['api_key_id'] ?? null) === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['api_key_id'])) . "::uuid") . ", " .
             ($filtered['url'] === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['url']))) .
             ") RETURNING id";
         $row = $GLOBALS["db"]->fetchOne($query);
@@ -71,13 +73,14 @@ class STTConnector
 
     public function readAll()
     {
-        return $GLOBALS["db"]->fetchAll("SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC");
+        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $GLOBALS["db"]->fetchAll("SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC"));
     }
 
     public function readOne($id)
     {
         $id = intval($id);
-        return $GLOBALS["db"]->fetchOne("SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1");
+        $row = $GLOBALS["db"]->fetchOne("SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1");
+        return is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row;
     }
 
     public function getById($id)
@@ -108,7 +111,8 @@ class STTConnector
             }
         }
 
-        $filtered = array_intersect_key($data, array_flip(["driver", "label", "metadata", "api_key_id", "url"]));
+        $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
+        $filtered = array_intersect_key($data, array_flip(["driver", "label", "metadata", "api_key_id", "local_api_key_id", "url"]));
         $GLOBALS["db"]->updateRow($this->table, $filtered, "id = {$id}");
         return $id;
     }
@@ -206,17 +210,11 @@ class STTConnector
         return $providerKey !== '' && isset(self::$apiBadgeLabelMap[$providerKey]);
     }
 
+    // A connector that names no key uses the global key of its provider when it is used; nothing is bound or stored for it, so this
+    // is always null (a page shows "default (global)" for it).
     public function getDefaultApiBadgeIdForDriver($driver): ?string
     {
-        $providerKey = $this->getProviderKeyFromDriver($driver);
-        $badgeLabel = self::$apiBadgeLabelMap[$providerKey] ?? '';
-        if ($badgeLabel === '') {
-            return null;
-        }
-
-        $apiBadge = new ApiBadge();
-        $badge = $apiBadge->getByLabel($badgeLabel);
-        return $badge ? \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) : null;
+        return null;
     }
 
     public function driverSupportsEditableUrl($driver): bool
@@ -350,14 +348,9 @@ class STTConnector
             $metadata['URL'] = $metadata['URL'] ?? $resolvedUrl;
         }
 
-        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($currentConnectorData['api_key_id'] ?? null);
-        if ($apiBadgeId !== null) {
-            $apiBadge = new ApiBadge();
-            $apiKeyData = $apiBadge->getById($apiBadgeId);
-            $apiKey = trim(strval($apiKeyData['api_key'] ?? ''));
-            if ($apiKey !== '') {
-                $metadata['API_KEY'] = $apiKey;
-            }
+        $apiKey = trim(ApiBadge::keyForConnector($currentConnectorData, self::$apiBadgeLabelMap[$this->getProviderKeyFromDriver($driver)] ?? ''));
+        if ($apiKey !== '') {
+            $metadata['API_KEY'] = $apiKey;
         }
 
         if ($providerKey !== '') {
@@ -450,7 +443,7 @@ class STTConnector
             if (trim(strval($row['url'] ?? '')) !== trim(strval($payload['url'] ?? ''))) {
                 continue;
             }
-            if ((\Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? '') !== (\Synth\Core\SharedApiKeyStore::normalizeId($payload['api_key_id'] ?? null) ?? '')) {
+            if ((\Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null) ?? '') !== (\Synth\Core\Contracts\ApiKeyRef::normalize($payload['api_key_id'] ?? null) ?? '')) {
                 continue;
             }
 
@@ -463,41 +456,27 @@ class STTConnector
         return null;
     }
 
+    // The key a connector names (a reference), or null to use the provider's global key. A key typed into the form is saved as the
+    // provider's global key when there is none yet, then dropped from the metadata.
     private function resolveApiBadgeIdForMetadata($driver, array &$metadata, $existingApiBadgeId = null): ?string
     {
         $driver = $this->normalizeDriver($driver);
         if (!$this->driverUsesApiBadge($driver)) {
             return null;
         }
-
-        $currentId = \Synth\Core\SharedApiKeyStore::normalizeId($existingApiBadgeId);
-        if ($currentId !== null) {
-            return $currentId;
+        $explicit = \Synth\Core\Contracts\ApiKeyRef::normalize($existingApiBadgeId);
+        if ($explicit !== null) {
+            return $explicit;
         }
-
-        $providerKey = $this->getProviderKeyFromDriver($driver);
-        $badgeLabel = self::$apiBadgeLabelMap[$providerKey] ?? '';
+        $badgeLabel = self::$apiBadgeLabelMap[$this->getProviderKeyFromDriver($driver)] ?? '';
         $apiKey = trim(strval($metadata['API_KEY'] ?? ''));
-        $apiBadge = new ApiBadge();
-        $badge = $badgeLabel !== '' ? $apiBadge->getByLabel($badgeLabel) : null;
-
-        if (!$badge && $apiKey !== '' && $badgeLabel !== '') {
-            $apiBadge->create([
-                'label' => $badgeLabel,
-                'api_key' => $apiKey,
-            ]);
-            $badge = $apiBadge->getByLabel($badgeLabel);
-        } elseif ($badge && trim(strval($badge['api_key'] ?? '')) === '' && $apiKey !== '') {
-            $apiBadge->update(strval($badge['id'] ?? ''), ['api_key' => $apiKey]);
-            $badge = $apiBadge->getById(strval($badge['id'] ?? ''));
+        if ($badgeLabel !== '' && $apiKey !== '') {
+            $apiBadge = new ApiBadge();
+            if ($apiBadge->getByLabel($badgeLabel) || $apiBadge->create(['label' => $badgeLabel, 'api_key' => $apiKey]) !== '') {
+                unset($metadata['API_KEY']);
+            }
         }
-
-        if ($badge && \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) !== null) {
-            unset($metadata['API_KEY']);
-            return \Synth\Core\SharedApiKeyStore::normalizeId($badge['id']);
-        }
-
-        return $this->getDefaultApiBadgeIdForDriver($driver);
+        return null;
     }
 
     private function normalizeUrlForDriver($driver, $url, array $metadata = []): ?string

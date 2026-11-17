@@ -73,22 +73,36 @@ function profileConnectorTestsConnectorLabel(array $row, string $fallback): stri
     return $fallback;
 }
 
-function profileConnectorTestsApiBadgeStatus($apiBadgeId): array
+// The provider label whose global key a connector uses when it names no key of its own.
+function profileConnectorTestsDefaultKeyLabel(array $connector): string
 {
-    $id = \Synth\Core\SharedApiKeyStore::normalizeId($apiBadgeId);
-    if ($id === null) {
-        return [
-            'status' => 'missing',
-            'message' => 'No API key badge selected',
-        ];
-    }
+    $names = ['openrouter' => 'OpenRouter', 'openai' => 'OpenAI', 'google' => 'Google', 'groq' => 'Groq', 'nanogpt' => 'Nano-GPT', 'elevenlabs' => 'ElevenLabs',
+        'eleven_labs' => 'ElevenLabs', 'cartesia' => 'Cartesia', 'inworld' => 'Inworld', 'azure' => 'Azure', 'deepgram' => 'Deepgram'];
+    $service = strtolower(profileConnectorTestsString($connector['service'] ?? ''));
+    $driver = strtolower(profileConnectorTestsString($connector['driver'] ?? ''));
+    return $names[$service] ?? $names[preg_replace('/(json|_openai)$/', '', $driver)] ?? '';
+}
 
+function profileConnectorTestsApiBadgeStatus($apiBadgeId, string $defaultLabel = ''): array
+{
+    $id = \Synth\Core\Contracts\ApiKeyRef::normalize($apiBadgeId);
     $apiBadge = new ApiBadge();
-    $row = $apiBadge->getById($id);
-    if (!is_array($row)) {
+    if ($id === null) {
+        // No key chosen: the connector uses the global key of its provider, never a SYNTH-only one.
+        $row = $defaultLabel !== '' ? $apiBadge->getByLabel($defaultLabel) : null;
+        if (!is_array($row) || $row === []) {
+            return [
+                'status' => 'missing',
+                'message' => $defaultLabel !== '' ? "No key chosen and no global {$defaultLabel} key is saved" : 'No API key selected',
+            ];
+        }
+    } else {
+        $row = $apiBadge->getById($id);
+    }
+    if (!is_array($row) || $row === []) {
         return [
             'status' => 'missing',
-            'message' => "The selected API key was not found in the shared key store",
+            'message' => "The selected API key was not found (it may have been deleted, or the shared key store is unavailable)",
         ];
     }
 
@@ -459,7 +473,7 @@ function profileConnectorTestsTestLlm(int $connectorId): array
     }
 
     if (profileConnectorTestsLlmRequiresApiKey($connector)) {
-        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null);
+        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null, profileConnectorTestsDefaultKeyLabel($connector));
         $details['api_badge'] = $badge['label'] ?? '';
         if ($badge['status'] !== 'ok') {
             return profileConnectorTestsProblemResult('llm', $connectorId, 'fail', $badge['message'], $details);
@@ -555,7 +569,7 @@ function profileConnectorTestsTestTts(int $connectorId): array
     }
 
     if ($tts->driverUsesApiBadge($driver)) {
-        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null);
+        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null, profileConnectorTestsDefaultKeyLabel($connector));
         $details['api_badge'] = $badge['label'] ?? '';
         if ($badge['status'] !== 'ok') {
             return profileConnectorTestsProblemResult('tts', $connectorId, 'fail', $badge['message'], $details);

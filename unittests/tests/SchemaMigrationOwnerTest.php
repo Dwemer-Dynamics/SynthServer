@@ -243,9 +243,6 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
               UNION ALL
               SELECT format('ext %s', extname) FROM pg_extension
             ) entries WHERE line NOT LIKE '%doctrine_migration_versions%'
-               -- the first migration after the baseline owns these (checked by tools/schema-check.php): it removes core_api_badge and
-               -- replaces the connectors' api_badge_id with api_key_id, so the fingerprint leaves them out
-               AND line NOT LIKE '%core_api_badge%' AND line NOT LIKE '%api_badge_id%' AND line NOT LIKE '%api_key_id%'
             SQL);
     }
 

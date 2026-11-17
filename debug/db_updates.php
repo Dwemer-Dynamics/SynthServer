@@ -117,6 +117,10 @@ try {
         $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/general_settings.sql"));
         $db->execQuery("SET search_path TO synth, synth_meta, public");
     }
+    if ($checkTableExists("core_api_badge") == -1) {
+        $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/core_api_badge.sql"));
+        $db->execQuery("SET search_path TO synth, synth_meta, public");
+    }
     if ($checkTableExists("core_stt_connector") == -1) {
         $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/core_stt_connector.sql"));
         $db->execQuery("SET search_path TO synth, synth_meta, public");
@@ -134,6 +138,11 @@ try {
         $db->execQuery("SET search_path TO synth, synth_meta, public");
     }
     if ($checkTableExists("core_llm_connector") == -1) {
+        // ensure api_badge for FK first
+        if ($checkTableExists("core_api_badge") == -1) {
+            $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/core_api_badge.sql"));
+            $db->execQuery("SET search_path TO synth, synth_meta, public");
+        }
         $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/core_llm_connector.sql"));
         $db->execQuery("SET search_path TO synth, synth_meta, public");
     }
@@ -1002,7 +1011,11 @@ if ($checkVersion("db_maintenance")<20251208001) {
 
 //----------------------------------------------------
 
-// core_api_badge no longer exists: API keys live in the shared dwemer store (docs/SCHEMA-MIGRATIONS.md).
+if ($checkTableExists("core_api_badge") == -1) {
+    $db->execQuery(file_get_contents(__DIR__."/../lib/core/database_schema/core_api_badge.sql"));
+    $db->execQuery("SET search_path TO synth, synth_meta, public");
+} else
+    Logger::info(__FILE__." core_api_badge exists");
 
 // Add unique constraint on core_api_badge.label to prevent duplicates
 if ($checkTableExists("core_api_badge") > 0 && $checkVersion("core_api_badge") < 20251127001) {
@@ -1084,7 +1097,7 @@ if ($checkVersion("core_llm_connector") < 20260423001) {
         );
 
         if (!$existingSceneClassifier || !isset($existingSceneClassifier["id"])) {
-            $openRouterBadge = false; // keys are in the shared store now; a connector is bound to a key from the Quickstart or API Keys page
+            $openRouterBadge = $db->fetchOne("SELECT id FROM synth.core_api_badge WHERE LOWER(label) = 'openrouter' LIMIT 1");
             $openRouterBadgeId = intval($openRouterBadge["id"] ?? 0);
 
             $insertPayload = [
@@ -1102,7 +1115,7 @@ if ($checkVersion("core_llm_connector") < 20260423001) {
                 "service" => "openrouter"
             ];
             if ($openRouterBadgeId > 0) {
-                $insertPayload["api_key_id"] = $openRouterBadgeId;
+                $insertPayload["local_api_key_id"] = $openRouterBadgeId;
             }
 
             $db->insert("core_llm_connector", $insertPayload);
@@ -1131,7 +1144,7 @@ if ($checkVersion("core_llm_connector") < 20260423002) {
              LIMIT 1"
         );
 
-        $openRouterBadge = false; // keys are in the shared store now; a connector is bound to a key from the Quickstart or API Keys page
+        $openRouterBadge = $db->fetchOne("SELECT id FROM synth.core_api_badge WHERE LOWER(label) = 'openrouter' LIMIT 1");
         $openRouterBadgeId = intval($openRouterBadge["id"] ?? 0);
 
         $sceneClassifierPayload = [
@@ -1149,7 +1162,7 @@ if ($checkVersion("core_llm_connector") < 20260423002) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_key_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -1179,7 +1192,7 @@ if ($checkVersion("core_llm_connector") < 20260423003) {
             "SELECT id FROM synth.core_llm_connector WHERE " . implode(" OR ", $conditions) . " ORDER BY id ASC LIMIT 1"
         );
 
-        $openRouterBadge = false; // keys are in the shared store now; a connector is bound to a key from the Quickstart or API Keys page
+        $openRouterBadge = $db->fetchOne("SELECT id FROM synth.core_api_badge WHERE LOWER(label) = 'openrouter' LIMIT 1");
         $openRouterBadgeId = intval($openRouterBadge["id"] ?? 0);
 
         $sceneClassifierPayload = [
@@ -1197,7 +1210,7 @@ if ($checkVersion("core_llm_connector") < 20260423003) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_key_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -1459,6 +1472,7 @@ if ($checkVersion("core_profiles") < 20260629002) {
 // Final repair pass: ensure critical core tables exist even if versions were bumped earlier
 try {
     $coreTables = [
+        ["name"=>"core_api_badge",   "file"=>__DIR__."/../lib/core/database_schema/core_api_badge.sql"],
         ["name"=>"core_llm_connector","file"=>__DIR__."/../lib/core/database_schema/core_llm_connector.sql"],
         ["name"=>"core_tts_connector","file"=>__DIR__."/../lib/core/database_schema/core_tts_connector.sql"],
         ["name"=>"core_stt_connector","file"=>__DIR__."/../lib/core/database_schema/core_stt_connector.sql"],
@@ -3281,11 +3295,31 @@ if ($checkVersion("core_stt_connector") < 20260502002) {
     }
 
     try {
+        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS local_api_key_id integer;");
         $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS api_key_id uuid;");
         $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS url text;");
     } catch (Exception $e) {
         $b_ok = false;
         Logger::error("Error altering 'core_stt_connector' table: " . $e->getMessage());
+    }
+
+    try {
+        $fkExists = $db->fetchAll("
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'stt_connector_api_badge_id_fkey'
+            LIMIT 1
+        ");
+        if (!$fkExists) {
+            $db->execQuery("
+                ALTER TABLE synth.core_stt_connector
+                ADD CONSTRAINT stt_connector_api_badge_id_fkey
+                FOREIGN KEY (local_api_key_id) REFERENCES synth.core_api_badge(id)
+            ");
+        }
+    } catch (Exception $e) {
+        $b_ok = false;
+        Logger::error("Error ensuring 'core_stt_connector' FK: " . $e->getMessage());
     }
 
     if ($b_ok) {
@@ -3777,7 +3811,7 @@ if ($checkVersion("core_tts_connector_omnivoice") < 20260708001) {
     $b_ok = true;
     try {
         $db->execQuery("
-            INSERT INTO synth.core_tts_connector (driver, label, metadata, api_key_id, url, voice_field)
+            INSERT INTO synth.core_tts_connector (driver, label, metadata, local_api_key_id, url, voice_field)
             SELECT
                 'omnivoice',
                 'OmniVoice Default',
@@ -4938,7 +4972,7 @@ if ($checkVersion('itt_connector_defaults') < 20260731002) {
                 'driver' => 'openrouter',
                 'label' => 'Global ITT Connector',
                 'metadata' => $ittConnector->getDefaultMetadataForDriver('openrouter'),
-                'api_key_id' => null,
+                'api_key_ref' => null,
                 'url' => $ittConnector->getDefaultUrlForDriver('openrouter'),
             ]);
             if ($activeId < 1) {

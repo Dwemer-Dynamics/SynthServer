@@ -7,22 +7,22 @@
             "files": {
                 "Version20261115000000.fresh.sql": "4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7",
                 "Version20261115000000.php": "d1d826b4ad85d6f9bb764297055251987417269477b057505e95a4fdbfa9b9bc",
-                "Version20261115000000.structure.txt": "7b49e956287253253ec258f0ca3176aef84b60838ca4bc346419d89e36b5dbcb"
+                "Version20261115000000.structure.txt": "3f2030b04b9791d9d5862e5320d50aa306db517bcaf3b242ee0a52392f77984f"
             },
             "structure": {
                 "file": "Version20261115000000.structure.txt",
-                "entries": 2045
+                "entries": 2054
             }
         },
         "Version20261116100000": {
             "class": "Synth\\Migrations\\Version20261116100000",
             "files": {
-                "Version20261116100000.php": "6d1721f6c5f722e549adcb30ffcf5a25c7f5b8b33bc242d3f32251f7806d176f",
-                "Version20261116100000.structure.txt": "0594bfdc64cc0b576b7980caf26031480f34e9ff2124529f3daadf375ecddecd"
+                "Version20261116100000.php": "9dc7dba8c925bdaa3004b028406ea2a4a25eb8caa7ac771f2cac3a896999d14b",
+                "Version20261116100000.structure.txt": "fb37206d0a0c74facdc6f216f4514e8c6a082bd084317d84ad6baa61dc759639"
             },
             "structure": {
                 "file": "Version20261116100000.structure.txt",
-                "entries": 4
+                "entries": 16
             }
         }
     }

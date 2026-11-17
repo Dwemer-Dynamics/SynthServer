@@ -242,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 
  $apiBadgeId = null;
  if ($connector->driverUsesApiBadge($driver)) {
- $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
+ $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
  }
 
  $url = null;
@@ -360,7 +360,7 @@ h1.api-title { margin: 0 0 20px 0; font-family: 'Gothic821', serif; word-spacing
  $noKey[] = $apiRow;
  }
  }
- ?><select id="api_key_id" name="api_key_id"><option value="">-- None --</option><?php foreach ($withKey as $apiRow): ?><?php
+ ?><select id="api_key_id" name="api_key_id"><option value="">-- Default: the global key for this provider --</option><?php foreach ($withKey as $apiRow): ?><?php
  $apiRowId = intval($apiRow['id'] ?? 0);
  $selected = strval($selectedApi) === strval($apiRowId) ? 'selected' : '';
  $labelText = ' ' . strval($apiRow['label'] ?? ('Key #' . $apiRowId));

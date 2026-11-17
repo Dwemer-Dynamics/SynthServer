@@ -357,7 +357,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  </div><div id="url_row"><label for='url'>URL</label><br><div style="display:flex; gap:8px; align-items:center;"><input type="text" name="url" value="<?= htmlspecialchars($editItem["url"] ?? "") ?>" style="flex:1 1 auto;"><button type="button" id="btn_wsl_ip" class="btn-primary" title="Use WSL IP" style="display:none;" data-ip="<?= htmlspecialchars($WSL_IP) ?>">WSL IP</button><button type="button" id="btn_host_ip" class="btn-primary" title="Use HOST IP" style="display:none;" data-ip="<?= htmlspecialchars($HOST_IP) ?>">PC IP</button></div></div><div id="model_row"><label for='model'>Model</label><br><input type="text" name="model" value="<?= htmlspecialchars($editItem["model"] ?? "") ?>"><br></div><div id="provider_row"><label for='provider'>Provider</label><br><input type="text" name="provider" placeholder="(Optional) leave empty to use recommended provider" value="<?= htmlspecialchars($editItem["provider"] ?? "") ?>"><br></div><div id="driver_row" style="display:none;"><label for='driver'>Driver</label><br><input type="text" id="driver_input" name="driver" value="<?= htmlspecialchars($editItem["driver"] ?? "") ?>" style="display:none"><br><select id="driver_select" style="display:none"><option value="openrouterjson">OpenRouter JSON</option><option value="openaijson">OpenAI JSON</option><option value="google_openaijson">Google OpenAI JSON</option><option value="groqjson">Groq JSON</option><option value="player2json">Player2 JSON</option></select></div><div id="api_key_row"><?php
  echo "<label for='api_key_id'>API Key</label><br>";
  echo "<select id='api_key_id' name='api_key_id'>";
- echo "<option value=''>-- Select API Key --</option>";
+ echo "<option value=''>-- Default: the global key for this provider --</option>";
  foreach ($withKey as $r){
  $id = htmlspecialchars($r['id']);
  $labRaw = ($r['label'] ?? ('Key #'.$r['id']));
@@ -1121,7 +1121,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import"])) {
  $payload['model'] = $getString('model');
  $payload['provider'] = $getString('provider');
  $payload['driver'] = $getString('driver');
- $payload['api_key_id'] = \Synth\Core\SharedApiKeyStore::normalizeId($getString('api_key_id'));
+ $payload['api_key_id'] = \Synth\Core\Contracts\ApiKeyRef::normalize($getString('api_key_id'));
  $payload['max_tokens'] = $getInt('max_tokens');
  $payload['temperature'] = $getFloat('temperature');
  $payload['presence_penalty'] = $getFloat('presence_penalty');
@@ -1518,7 +1518,7 @@ if (typeof window.consolidation !== 'function') {
  foreach ($apiRows as $r){ if (!$isEmptyKey($r['api_key'] ?? '')) $withKey[]=$r; else $noKey[]=$r; }
  echo "<label for='api_key_id'>API Key</label><br>";
  echo "<select id='api_key_id' name='api_key_id'>";
- echo "<option value=''>-- Select API Key --</option>";
+ echo "<option value=''>-- Default: the global key for this provider --</option>";
  foreach ($withKey as $r){
  $id = htmlspecialchars($r['id']);
  $labRaw = ($r['label'] ?? ('Key #'.$r['id']));

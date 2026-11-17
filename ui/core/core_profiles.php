@@ -794,7 +794,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inline_update_connect
             } else if (in_array($k, ['temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','min_p','top_a'], true)) {
                 $data[$k] = ($v === '' ? null : floatval($v));
             } else if ($k === 'api_key_id') {
-                $data[$k] = \Synth\Core\SharedApiKeyStore::normalizeId($v);
+                $data[$k] = \Synth\Core\Contracts\ApiKeyRef::normalize($v);
             } else if ($k === 'extra_parameters_yaml') {
                 // Parse YAML and store as metadata.extra_parameters
                 require_once __DIR__ . '/../../connector/parse_simple_yaml.php';
@@ -1313,6 +1313,8 @@ $ttsRows = $GLOBALS["db"]->fetchAll("SELECT t.* FROM core_tts_connector t ORDER 
 $apiBadgeRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('id');
 // Key labels come from the shared key store; a connector whose key is missing there shows none.
 $apiBadgeLabels = array_column($apiBadgeRows, 'label', 'id');
+foreach ($llmRows as $i => $r) $llmRows[$i] = \Synth\Core\Contracts\ApiKeyRef::decorateRow($r);
+foreach ($ttsRows as $i => $r) $ttsRows[$i] = \Synth\Core\Contracts\ApiKeyRef::decorateRow($r);
 foreach ($llmRows as $i => $r) $llmRows[$i]['api_badge_label'] = $apiBadgeLabels[$r['api_key_id'] ?? ''] ?? null;
 foreach ($ttsRows as $i => $r) $ttsRows[$i]['api_badge_label'] = $apiBadgeLabels[$r['api_key_id'] ?? ''] ?? null;
 

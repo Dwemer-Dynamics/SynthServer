@@ -47,7 +47,7 @@ $testProblem = '';
 if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  $provider = '';
  $testProblem = 'Unsupported provider.';
-} else if ($apiKey === '' && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $badgeId) === 1) {
+} else if ($apiKey === '' && (preg_match('/^shared:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $badgeId) === 1 || preg_match('/^local:[1-9][0-9]{0,9}$/D', $badgeId) === 1)) {
  $savedLabel = '';
  try {
  $enginePath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;

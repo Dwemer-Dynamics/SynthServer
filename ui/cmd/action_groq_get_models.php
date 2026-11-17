@@ -21,7 +21,7 @@ if ($method === 'POST') {
 
     // Read JSON data from the request
     $jsonDataInput = json_decode(file_get_contents("php://input"), true);
-    $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($jsonDataInput['api_key_id'] ?? null);
+    $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($jsonDataInput['api_key_id'] ?? null);
 
     if ($apiBadgeId === null) {
         echo json_encode(['error' => 'API badge ID required']);

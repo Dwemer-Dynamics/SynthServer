@@ -671,6 +671,9 @@ column|synth|core_action|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
 column|synth|core_action|return_message|text|text|NO|''::text|
 column|synth|core_action|script_proxy_program|jsonb|jsonb|YES||
 column|synth|core_action|updated_at|timestamp without time zone|timestamp|YES|now()|
+column|synth|core_api_badge|api_key|text|text|NO||
+column|synth|core_api_badge|id|integer|int4|NO|nextval('api_badge_id_seq'::regclass)|
+column|synth|core_api_badge|label|text|text|NO||
 column|synth|core_itt_connector|driver|text|text|NO||
 column|synth|core_itt_connector|id|integer|int4|NO|nextval('core_itt_connector_id_seq'::regclass)|
 column|synth|core_itt_connector|label|text|text|NO||
@@ -1627,6 +1630,8 @@ constraint|synth|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE 
 constraint|synth|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
 constraint|synth|core_action|core_action_pkey|p|t|PRIMARY KEY (id)
+constraint|synth|core_api_badge|core_api_badge_label_unique|u|t|UNIQUE (label)
+constraint|synth|core_api_badge|my_table_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_itt_connector|core_itt_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_llm_connector|llm_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_narrator|core_narrator_pkey|p|t|PRIMARY KEY (id)
@@ -1856,6 +1861,9 @@ index|synth|core_action|idx_core_action_available_to_npc|CREATE INDEX idx_core_a
 index|synth|core_action|idx_core_action_code_name_lower|CREATE INDEX idx_core_action_code_name_lower ON synth.core_action USING btree (lower((code_name)::text))
 index|synth|core_action|idx_core_action_game_function|CREATE INDEX idx_core_action_game_function ON synth.core_action USING btree (game_function)
 index|synth|core_action|idx_core_action_is_activated|CREATE INDEX idx_core_action_is_activated ON synth.core_action USING btree (is_activated)
+index|synth|core_api_badge|core_api_badge_label_unique|CREATE UNIQUE INDEX core_api_badge_label_unique ON synth.core_api_badge USING btree (label)
+index|synth|core_api_badge|idx_core_api_badge_label_lower|CREATE INDEX idx_core_api_badge_label_lower ON synth.core_api_badge USING btree (lower(label))
+index|synth|core_api_badge|my_table_pkey|CREATE UNIQUE INDEX my_table_pkey ON synth.core_api_badge USING btree (id)
 index|synth|core_itt_connector|core_itt_connector_label_idx|CREATE INDEX core_itt_connector_label_idx ON synth.core_itt_connector USING btree (lower(label))
 index|synth|core_itt_connector|core_itt_connector_pkey|CREATE UNIQUE INDEX core_itt_connector_pkey ON synth.core_itt_connector USING btree (id)
 index|synth|core_llm_connector|llm_connector_pkey|CREATE UNIQUE INDEX llm_connector_pkey ON synth.core_llm_connector USING btree (id)
@@ -2000,6 +2008,7 @@ table|synth|combined_descriptions|VIEW
 table|synth|conf_opts|BASE TABLE
 table|synth|core_action_custom|BASE TABLE
 table|synth|core_action|BASE TABLE
+table|synth|core_api_badge|BASE TABLE
 table|synth|core_itt_connector|BASE TABLE
 table|synth|core_llm_connector|BASE TABLE
 table|synth|core_narrator|BASE TABLE

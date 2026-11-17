@@ -29,7 +29,7 @@ CREATE TABLE synth.core_tts_connector (
     driver text,
     label text,
     metadata jsonb,
-    api_key_id uuid,
+    local_api_key_id integer,
     url text,
     voice_field text
 );
@@ -90,6 +90,25 @@ ALTER TABLE ONLY synth.core_tts_connector
 
 
 --
+-- Name: core_tts_connector tts_connector_api_badge_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dwemer
+--
+
+ALTER TABLE ONLY synth.core_tts_connector
+    ADD CONSTRAINT tts_connector_api_badge_id_fkey FOREIGN KEY (local_api_key_id) REFERENCES synth.core_api_badge(id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
+--
+-- The shared key column comes last, as in the migration that adds it; a connector uses at most one key store: a shared key (api_key_id) or a SYNTH-only key (local_api_key_id).
+--
+
+ALTER TABLE ONLY synth.core_tts_connector
+    ADD COLUMN IF NOT EXISTS api_key_id uuid;
+
+DO $do$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'core_tts_connector_one_key_store') THEN
+    ALTER TABLE ONLY synth.core_tts_connector
+    ADD CONSTRAINT core_tts_connector_one_key_store CHECK (api_key_id IS NULL OR local_api_key_id IS NULL);
+END IF; END $do$;

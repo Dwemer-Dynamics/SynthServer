@@ -429,7 +429,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import'])) {
  'driver' => $driver,
  'label' => $ttsConnector->uniqueLabel(trim(strval($dataMap['label'] ?? '')) !== '' ? trim(strval($dataMap['label'])) : 'Imported TTS Connector'),
  'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_key_id' => \Synth\Core\SharedApiKeyStore::normalizeId($dataMap['api_key_id'] ?? null),
+ 'api_key_id' => \Synth\Core\Contracts\ApiKeyRef::normalize($dataMap['api_key_id'] ?? null),
  'url' => trim(strval($dataMap['url'] ?? '')) !== '' ? trim(strval($dataMap['url'])) : null,
  'voice_field' => trim(strval($dataMap['voice_field'] ?? '')) !== '' ? trim(strval($dataMap['voice_field'])) : $ttsConnector->getVoiceFieldForDriver($driver),
  ];
@@ -512,7 +512,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
  ? $ttsConnector->getDefaultApiBadgeIdForDriver($driver)
  : null;
  if ($ttsConnector->driverUsesApiBadge($driver)) {
- $postedApiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($_POST['api_key_id'] ?? null);
+ $postedApiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($_POST['api_key_id'] ?? null);
  if ($postedApiBadgeId !== null) {
  $apiBadgeId = $postedApiBadgeId;
  }
@@ -640,7 +640,7 @@ main { padding: <?php echo $isEmbed ? '10px 5px 5px' : '30px 5px 5px'; ?>; }
  $noKey[] = $apiRow;
  }
  }
- ?><select id="api_key_id" name="api_key_id"><option value="">-- None --</option><?php foreach ($withKey as $apiRow): ?><?php
+ ?><select id="api_key_id" name="api_key_id"><option value="">-- Default: the global key for this provider --</option><?php foreach ($withKey as $apiRow): ?><?php
  $apiRowId = intval($apiRow['id'] ?? 0);
  $selected = strval($selectedApi) === strval($apiRowId) ? 'selected' : '';
  $labelText = ' ' . strval($apiRow['label'] ?? ('Key #' . $apiRowId));

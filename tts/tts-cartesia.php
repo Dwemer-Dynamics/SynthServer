@@ -150,16 +150,11 @@ function getCartesiaActiveConfig(): array {
         $row = resolveCartesiaConnectorRow();
     }
 
-    $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null);
-    if ($apiKey === '' && is_array($row) && $apiBadgeId !== null) {
-        $db = ensureCartesiaDb();
-        if ($db) {
-            require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $badgeRow = (new \Synth\Core\ApiBadgeRepository($db))->keyById($apiBadgeId);
-            if (is_array($badgeRow) && !empty($badgeRow['api_key'])) {
-                $apiKey = trim(strval($badgeRow['api_key']));
-            }
-        }
+    $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
+    if ($apiKey === '' && is_array($row) && ensureCartesiaDb()) {
+        // The key the connector names, else the global Cartesia key.
+        require_once __DIR__ . '/../lib/core/api_badge.class.php';
+        $apiKey = trim(ApiBadge::keyForConnector($row, 'Cartesia'));
     }
 
     return [

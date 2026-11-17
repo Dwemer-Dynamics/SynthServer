@@ -153,12 +153,10 @@ function callLLMFast($contextData, $customParms = []) {
     // Build the request
     $url = $connectorData["url"];
     $model = $connectorData["model"];
-    $apiKeyId = \Synth\Core\SharedApiKeyStore::normalizeId($connectorData["api_key_id"] ?? null);
 
-    // Get API key
-    $apiBadge = new ApiBadge();
-    $apiKeyData = $apiKeyId !== null ? $apiBadge->getById($apiKeyId) : null;
-    $apiKey = strval($apiKeyData["api_key"] ?? '');
+    // The key the connector names, else the global key of its service.
+    $serviceLabel = ['openrouter' => 'OpenRouter', 'openai' => 'OpenAI', 'google' => 'Google', 'groq' => 'Groq', 'nanogpt' => 'Nano-GPT'][strtolower(trim(strval($connectorData['service'] ?? '')))] ?? '';
+    $apiKey = ApiBadge::keyForConnector($connectorData, $serviceLabel);
 
     // Prepare request data
     $data = [

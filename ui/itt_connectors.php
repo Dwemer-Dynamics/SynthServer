@@ -209,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 
     $apiBadgeId = null;
     if ($connector->driverUsesApiBadge($driver)) {
-        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
+        $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
     }
 
     $url = null;
@@ -408,7 +408,7 @@ h1.api-title { margin: 0 0 8px; font-size: 2.2em; color: var(--synth-accent); te
                                 }
                                 ?>
                                 <select id="api_key_id" name="api_key_id">
-                                    <option value="">-- None --</option>
+                                    <option value="">-- Default: the global key for this provider --</option>
                                     <?php foreach ($withKey as $apiRow): ?>
                                         <?php $apiRowId = intval($apiRow['id'] ?? 0); ?>
                                         <option value="<?php echo ih($apiRowId); ?>" data-empty="0" <?php echo strval($selectedApi) === strval($apiRowId) ? 'selected' : ''; ?>><?php echo ih('Configured: ' . strval($apiRow['label'] ?? ('Key #' . $apiRowId))); ?></option>
