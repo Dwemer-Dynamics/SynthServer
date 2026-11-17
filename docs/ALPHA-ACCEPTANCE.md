@@ -327,6 +327,21 @@ See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay 
   exact observed Player-to-NPC transfer without opening the generic gift screen.
 
 
+## Confirmed NPC trade
+
+Contract and boundaries: [CONFIRMED-TRADE.md](CONFIRMED-TRADE.md). Server checks use a disposable PostgreSQL and synthetic
+receipts only; nothing below has been seen in the game or with a live model.
+
+- [ ] A paired flat client/server: a model-chosen `Barter` for an item the NPC really carries produces one box with the NPC,
+  item, price and the player's caps; an item the NPC does not carry, a price above the ceiling or one the player cannot
+  pay produces no box and no claim of a sale in the NPC's line.
+- [ ] Yes moves one item and the price once and the NPC's follow-up acknowledges a completed sale; both inventories and the
+  stored paired receipt agree.
+- [ ] Cancel, a stale answer (cell change, load, spent caps) and an expired box move nothing; the NPC accepts the refusal
+  or lapse without re-offering and never claims the sale happened.
+- [ ] A late Yes after Cancel or after the deadline is refused and does not change the stored result.
+- [ ] VR and a client without `action.trade_confirmation` never receive the `Barter` tool.
+
 ## Player-pack follow-up wording
 
 - [x] Install the reviewed one-file backend wording correction; installed hash and server health verified.

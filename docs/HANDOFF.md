@@ -1,5 +1,14 @@
 # Synthserver developer handoff
 
+## Confirmed NPC trade candidate
+
+The model's `Barter` action is now a validated one-unit sale offer (exact stack from the NPC's complete observed inventory,
+a sane whole-caps price the player can pay). It rides the ordinary action-intent path as a `barter` action, the client confirms
+with Yes/Cancel, and every outcome returns as the existing paired transfer receipt, verified against the original snapshot and
+told to the NPC as a known outcome only. Flat only, behind the `action.trade_confirmation` acknowledgement; no storage added.
+See [CONFIRMED-TRADE.md](CONFIRMED-TRADE.md) and [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#confirmed-npc-trade). Paired with
+the SYNTH client `trade` module; game acceptance is open.
+
 ## Auto Chat candidate
 
 Explicit `AUTOCHAT` rewrites typed or server-transcribed intent into one generated player line,

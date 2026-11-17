@@ -110,9 +110,10 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                 'GiveCapsTo','give_caps_to'=>'action.give_caps_to',
                 'TakeCapsFromPlayer','take_caps_from_player'=>'action.take_caps_from_player',
                 'TakeItemFromPlayer','take_item_from_player'=>'action.take_item_from_player',
-                'OpenInventory','open_inventory'=>'action.open_inventory', default=>null,
+                'OpenInventory','open_inventory'=>'action.open_inventory',
+                'Barter','barter'=>'action.barter', default=>null,
             };
-            $transfer=in_array($mutation,['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory'],true);
+            $transfer=in_array($mutation,['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory','action.barter'],true);
             $paired=($terminal['schema'] ?? '')==='synth.action.transfer-result.v2';
             if (($paired && !$transfer) || (($terminal['schema'] ?? '')==='synth.action.result.v2' && ($mutation===null || $transfer)))
                 throw new DomainException('action_inventory_ancestry_invalid');
@@ -129,6 +130,11 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                     || !synth_protocol_supports_player_caps($current))) throw new DomainException('action_inventory_ancestry_capability');
                 if ($mutation==='action.take_item_from_player' && (!synth_protocol_supports_player_items($parent)
                     || !synth_protocol_supports_player_items($current))) throw new DomainException('action_inventory_ancestry_capability');
+                if ($mutation==='action.barter') {
+                    require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+                    if (!\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !\Synth\Managers\ActionsManager\TradeOffer::supported($current) || !$paired)
+                        throw new DomainException('action_inventory_ancestry_capability');
+                }
                 if ($mutation==='action.open_inventory' && (!synth_protocol_supports_gift_menu($parent)
                     || !synth_protocol_supports_gift_menu($current) || !$paired)) throw new DomainException('action_inventory_ancestry_capability');
                 $owners=['inventory'=>[$row['full_form_id'],$row['origin_plugin'],$row['playthrough_id']]];

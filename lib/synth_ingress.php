@@ -1050,6 +1050,9 @@ function synth_protocol_validate_event(array $event): array
     if (isset($seen['action.gift_menu_inventory']) && ($version!==2 || $event['runtime_variant']!=='flat'
         || !isset($seen['action.open_inventory'],$seen['action.transfer_inventory'],$seen['action.give_item_to'],
             $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_gift_menu_capability',422);
+    if (isset($seen['action.trade_confirmation']) && ($version!==2 || $event['runtime_variant']!=='flat'
+        || !isset($seen['action.barter'],$seen['action.player_caps_inventory'],$seen['action.give_item_to'],$seen['action.transfer_inventory'],
+            $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_trade_capability',422);
     if ((isset($seen['social.tasks.v1']) || in_array($event['type'],['social_task_request','social_task_progress'],true)) && !synth_social_supported($event))
         synth_protocol_fail('invalid_social_capability',422);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
