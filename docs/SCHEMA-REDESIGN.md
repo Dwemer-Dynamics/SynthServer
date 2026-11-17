@@ -17,7 +17,7 @@ Inputs, all read-only:
 - chevo `origin/unstable` `8ebe86e`: `README.md`, `PLAN.md`, `AGENT.md`, `.github/copilot-instructions.md`, `coding-standards.txt`,
   `core/dbmanager/PLAN.MD`, `core/dbmanager/CORE-ENTITY-ALIGNMENT.md`, `api/v1/editing/README.md`, all 51 mapped entities in
   `core/entities/base`, `Database.php`, `Editor/EntityCatalog.php`, and the 51 incremental migrations in `core/dbmanager/migrations`.
-- PR #62 (shared `dwemer` key store, `codex/shared-api-keys`, last read head `648d1a2`) is **dropped** by this design ([section 7](#7-api-keys)).
+- PR #62 (shared `dwemer` key store, `codex/shared-api-keys`, head still `648d1a2` when last read) **stays and owns key storage**; this design only binds connectors to it ([section 7](#7-api-keys)).
 
 Inventory method: `git grep` on `origin/unstable` over tracked files, excluding `vendor/`, `unittests/`,
 `core/dbmanager/migrations/` and the frozen `debug/db_updates.php`. A "caller file" names the table in SQL position
@@ -51,7 +51,7 @@ From `PLAN.md` §6 and `core/dbmanager/PLAN.MD`:
   mapping; the UI and an MCP server use it ([section 10](#10-ui-and-the-edit-api)).
 - **Conventions** (`coding-standards.txt`): file and method comments, `declare(strict_types=1)`, PSR-12, no `function_exists()` checks.
 
-SYNTH already ancestrally shares chevo's names: `core_api_badge`, `core_llm_connector`, `core_tts_connector`, `core_stt_connector`,
+SYNTH already ancestrally shares chevo's names: `core_llm_connector`, `core_tts_connector`, `core_stt_connector`,
 `core_itt_connector`, `core_profiles`, `core_npc_master`, `core_action` are CHIM-lineage tables. So most of this redesign is
 **aligning SYNTH to chevo's current shape of the same concept**, and designing SYNTH-only tables in the same style.
 
@@ -64,7 +64,7 @@ SYNTH already ancestrally shares chevo's names: `core_api_badge`, `core_llm_conn
 | C1 | Doctrine ORM with chevo's three layers and DAO registry (`Database::boot()`, `Database::DAOS`) under `core/dbmanager`, `core/entities/base`, `core/entities/system`. Namespaces `Synth\Core\Entities\Base`, `Synth\Core\Entities\System`, `Synth\Core\DbManager\Dao`. Supersedes D4 (ORM pilot frozen) and the earlier DBAL-store plan. | Owner decision; PLAN.md §6. |
 | C2 | All tables live in `public` and are named `core_*`, using **chevo's name wherever chevo has the concept**. SYNTH-only tables are also `core_<singular_noun>` because they use the same mapped pattern. The `synth` and `synth_meta` schemas, the empty `plugins` schema and every `synth.`/`synth_meta.` qualifier disappear. | chevo naming rule: `core_` marks the pattern. |
 | C3 | One new baseline `Version20261117000000` (`Synth\Migrations`) replaces `Version20261115000000`; its class, `.structure.txt` and `.fresh.sql` are regenerated from a disposable PostgreSQL 17. Later changes are incremental migrations in chevo's style. | No upgrade path (owner). |
-| C4 | API keys follow chevo: one global `core_api_badge` + `ApiBadge` entity + `ApiBadgeDAO`; connectors reference it by `api_badge_id`. PR #62 and the shared `dwemer` store are dropped. | Owner decision ([section 7](#7-api-keys)). |
+| C4 | API keys stay in the shared global `dwemer` `api_keys` store owned by PR #62. SYNTH has **no local key table**. #62 exposes it behind a chevo-style `ApiBadge` system entity and `ApiBadgeDAO` facade; connector tables bind to that facade's key ids through `api_badge_id`. | Owner decision (keys stay shared) ([section 7](#7-api-keys)). |
 | C5 | SYNTH's read-only drift check stays and is retargeted to `public.core_*` ([section 8](#8-schema-check)). | chevo has none; SYNTH's is kept. |
 | C6 | Snapshots stay **paused**; their metadata is designed ([section 9](#9-snapshots)). | Hard hold. |
 | C7 | The generic edit API and moving UI SQL behind it is a **later phase** ([section 10](#10-ui-and-the-edit-api)); every domain step still moves UI SQL into system-entity methods. | Size. |
@@ -96,11 +96,11 @@ Status: **live**, **legacy-live** (HerikaServer-era table still driving the pipe
 
 | SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
 |---|---|---|---|---|---|---|
-| `synth.core_api_badge` | `core_api_badge` (`ApiBadge`, `ApiBadgeDAO`) | `=` | `id integer, label text, api_key text`. #62's `shared_key_id` is not added. | 4/0 | cfg | live |
-| `synth.core_llm_connector` | `core_llm_connector` | `=` | Identical 22 columns (`api_badge_id`, sampler columns, `metadata jsonb`). `int` flags (`enforce_json`, `json_schema`, `prefill_json`, `reasoning_model`) stay integers as in chevo. | 19/5 | cfg | live |
-| `synth.core_tts_connector` | `core_tts_connector` | `=` | `voice_field` present in both. | 6/1 | cfg | live |
-| `synth.core_stt_connector` | `core_stt_connector` | `=` | | 3/1 | cfg | live |
-| `synth.core_itt_connector` | `core_itt_connector` | `=` | | 3/0 | cfg | live |
+| `synth.core_api_badge` | **none locally**; `ApiBadge` facade over shared `api_keys` (#62) | drop (local) | No `core_api_badge` table is created. Key id, label, secret and revision live in the shared store. | 4/0 | cfg | replaced |
+| `synth.core_llm_connector` | `core_llm_connector` | `=` | Identical 22 columns; `api_badge_id` becomes `uuid NULL` (a facade key id, no FK) instead of chevo's `integer`; sampler columns, `metadata jsonb` unchanged. `int` flags (`enforce_json`, `json_schema`, `prefill_json`, `reasoning_model`) stay integers as in chevo. | 19/5 | cfg | live |
+| `synth.core_tts_connector` | `core_tts_connector` | `=` | `voice_field` present in both; `api_badge_id uuid NULL` as above. | 6/1 | cfg | live |
+| `synth.core_stt_connector` | `core_stt_connector` | `=` | `api_badge_id uuid NULL`. | 3/1 | cfg | live |
+| `synth.core_itt_connector` | `core_itt_connector` | `=` | `api_badge_id uuid NULL`. | 3/0 | cfg | live |
 | `synth.core_profiles` | `core_profiles` | `~` | chevo adds `itt_connector_id`; SYNTH has the rest (six `llm_*_id`, `tts_connector_id`, `diary_connector_id`, `slot`, `prompt`, `metadata`). Add `itt_connector_id`. | 28/8 | cfg | live |
 | `synth.general_settings`, `synth.conf_opts`, `synth_meta.settings`, `synth.core_player`, `synth.core_narrator` | `core_config_setting` (`ConfigSetting`) | merge | chevo: `config_key text PK, config_value json, updated_at`, dotted lower-case keys (`player.tts`, `memory.window.*`) with a registry in `ConfigManager`. Five SYNTH key/value tables become one. Player/narrator definition values become `player.*` / `narrator.*` keys. | 5+34+4+14+7 / ~25 | cfg | live |
 | `synth.core_tts_pronunciation` | `core_config_setting` keys `tts.pronunciation.rules` / `.defaults` | merge | chevo stores pronunciation as settings, not a table. | 2/1 | cfg | live |
@@ -193,7 +193,7 @@ Status: **live**, **legacy-live** (HerikaServer-era table still driving the pipe
 
 ### 3.9 Totals
 
-121 relations (115 tables, 6 views) become **about 102 tables and no views**, counted from the tables above: settings and connectors 9, characters 10, catalogs 19,
+121 relations (115 tables, 6 views) become **about 101 tables and no views**, counted from the tables above: settings and connectors 8, characters 10, catalogs 19,
 timeline/dialogue/queue/logs 14, memory/middle term/diaries 20, relationships and narrator 18, rechat/actions/social 8, playthroughs/snapshots 4.
 Where chevo has the concept (`=` or `~`) the table takes chevo's name; the rest are SYNTH-only `core_*` tables. Four tables are dropped outright and about 20 are merged away.
 The exact figures are fixed by the Phase 2 baseline and then carried by the schema-check manifest.
@@ -210,10 +210,10 @@ session so a DAO can run inside a legacy-owned transaction), `entities/GeneralSe
 |---|---|
 | `EntityManagerFactory`, `SharedSessionDriver` | Kept until the last legacy `$db->` call is gone (step 8), then removed; `Database::boot()` wraps them. |
 | `entities/GeneralSetting`, `repositories/SettingsRepository` | Become `AbstractConfigSetting`, `ConfigSetting`, `ConfigSettingDAO`. |
-| `repositories/ApiBadgeRepository` | Become `AbstractApiBadge`, `ApiBadge`, `ApiBadgeDAO` ([section 7](#7-api-keys)). |
+| `repositories/ApiBadgeRepository` | Superseded by #62's `ApiBadge` facade (system entity + `ApiBadgeDAO` over `SharedApiKeyStore`); no `AbstractApiBadge` mapping, because the table is in another database ([section 7](#7-api-keys)). |
 | `repositories/CharacterRepository`, `UtteranceRepository`, `PrivateNarratorRepository`, `SaveRepository` | Replaced by `NpcDAO`/`NpcActorDAO`, the context-event, dialogue-request and queue DAOs, the narrator DAOs, and `PlaythroughDAO`. |
 
-Approximate class counts (about 102 tables): 100 mapped `Abstract*`, 75 system classes, 60 DAOs. Tables with atomic claims, leases or append-only
+Approximate class counts (about 101 tables): 100 mapped `Abstract*`, 75 system classes, 60 DAOs. Tables with atomic claims, leases or append-only
 semantics (`core_worker_job`, `core_request_execution`-style claims, protocol and narrator tables) get `readOnly: true` mappings and keep every write in
 DBAL inside the DAO, exactly as chevo does for `core_relationship_*`. Top-level code (API, `lib`, UI, drivers, `service/`) switches to the system
 classes; the 194 files that use `$db->`/`$GLOBALS['db']->` are converted domain by domain. `lib/postgresql.class.php` stays only as the legacy session owner
@@ -238,7 +238,7 @@ Evidence is `git grep` on `origin/unstable` outside `debug/db_updates.php`, the 
 | `synth.database_versioning` (47 version floors) | Floors were upgrade gates for the legacy chain. | `core_catalog_version` for content only. |
 | schema `plugins` | Created empty; no table or function lives in it. | none. |
 | functions `clone_schema`, `drop_schema_safe`, `get_schema_size`, `sync_schema_sequences` | Only `lib/playthrough_schema.php` and `lib/runtime_bootstrap.php`; already refused while snapshots are paused. | [section 9](#9-snapshots). |
-| `synth.core_api_badge` columns from #62 | Not added: #62 dropped. | none. |
+| `synth.core_api_badge` (local table) | Keys live in the shared `dwemer` store (#62); no local key table. | `ApiBadge` facade. |
 
 Functions kept: `synth.convert_gamets2*` (6, used by 9 files) become `public` helpers; `json_object_has_unique_keys` is kept for the protocol `CHECK`s.
 
@@ -262,23 +262,34 @@ Functions kept: `synth.convert_gamets2*` (6, used by 9 files) become `public` he
 
 ## 7. API keys
 
-PR #62 (shared `dwemer` store, `SharedApiKeyStore`, `core_api_badge.shared_key_id`, the four copied shared migrations and their manifest) is **dropped**.
-SYNTH uses chevo's model unchanged:
+**Key storage is owned by PR #62** (`codex/shared-api-keys`, `SharedApiKeyStore`, the shared `dwemer` database's `api_keys` table and its four byte-identical shared migrations). This design does not design,
+copy or replace it, and **creates no local key table**. Read at head `648d1a2`, which still binds through a local `core_api_badge.shared_key_id` column; the owner's decision is that #62 is being reworked to
+drop that table and expose the store behind a chevo-style facade. This document depends on that rework and records what it needs from it.
 
-- One global table `core_api_badge (id integer PK, label text, api_key text)`: identical to today's SYNTH table. No column is added.
-- `ApiBadge` (system entity, `core/entities/system`), `AbstractApiBadge` (mapping) and `ApiBadgeDAO` (`find`, `findByLabel`, `findAll`, `count`).
-  `ApiBadgeRepository` is removed; `ConnectorReferences` (chevo's DAO helper) lists which connectors reference a badge.
-- Connectors point at keys with `api_badge_id integer` on `core_llm_connector`, `core_tts_connector`, `core_stt_connector`, `core_itt_connector`; ids and
-  connector rows are untouched by a key edit.
-- Edit-API exposure follows chevo's `EntityCatalog`: `'api-badge' => ['class' => AbstractApiBadge::class, 'writable' => true, 'write_only' => ['api_key']]`,
-  and the `_setup` and `readiness` endpoints report `configured` presence flags only, never key values.
-- The #53/#54 UI behaviour is kept, now implemented on the system entity rather than the repository:
-  **write-only keys** (the key is never returned; only a `configured` flag), **blank preserves** the stored key on save, **Clear** is an explicit action,
-  **server-side Test** runs a provider check from `ApiBadge` (outside the DAO), and **strict Delete** refuses while any connector row references the badge
-  (409, as chevo's editor returns for referenced records).
-- Credential harnesses are rerun on the new path ([section 11](#11-rollout-order)).
+What SYNTH assumes #62 delivers, using chevo's names so callers do not change:
 
-Because the table already matches, this is the one domain with **no schema change** relative to today.
+- `ApiBadge` (system entity in `core/entities/system`) and `ApiBadgeDAO` (in `core/dbmanager/dao`) as a facade over `SharedApiKeyStore`: `find(id)`, `findByLabel`, `findAll`, `count`, create, update, delete, and
+  a secret read for providers. It has **no `AbstractApiBadge` mapping**: the rows are in another database, reached over their own DBAL connection (`CHIM_SHARED_DB_*`), never the shared legacy session or SYNTH's EntityManager.
+- A key id is the shared `api_keys.key_id` (`uuid`). When the shared environment is unset the facade reports "no shared store" and connectors work with no key (local STT/TTS), as #62 already does.
+- `core/dbmanager/dao/ConnectorReferences` (chevo's helper) is how the facade asks SYNTH which connectors use a key.
+
+How connector tables bind (the only schema consequence):
+
+```
+core_llm_connector, core_tts_connector, core_stt_connector, core_itt_connector
+  api_badge_id  uuid NULL     -- facade key id (shared api_keys.key_id); no FK (another database); NULL = no key
+```
+
+The column keeps chevo's name `api_badge_id` so entity, DAO and edit-API code (`'references' => ['api_badge_id' => 'api-badge']`) match chevo; only its type differs from chevo's `integer`. Several connectors may share one key. No connector
+id is rewritten by a key edit. Because there is no FK, integrity is enforced by the facade: **strict Delete** (below) refuses while `ConnectorReferences` finds a connector using the key, and a connector save checks the id with `ApiBadge::find`.
+SYNTH keeps no copy of any secret, so the legacy `api_key` mirror column of the branch's current head is not carried into the baseline.
+
+Behaviour kept from #53/#54, implemented on `ApiBadge` (not on a DAO): **write-only keys** (a key is never returned; only a `configured` flag), **blank preserves** the stored key, **Clear** is explicit,
+**server-side Test** runs the provider check, **strict Delete** refuses while referenced (409, like chevo's editor). The edit API, when added, exposes `'api-badge' => ['write_only' => ['api_key']]` as in chevo.
+The shared migrations stay outside the SYNTH baseline and its schema-check (the shared database has its own ledger `dwemer_shared_migration_versions` and manifest `shared-schema-manifest.json` in #62).
+
+**Dependency and ordering:** #62's rework must land (or be rebased into this branch) **before rollout step 1** so the connector columns bind to its facade. If #62 changes the facade's method names or id type, step 1 follows
+that final head; the connector design above needs only "a nullable uuid column holding the facade's key id".
 
 ---
 
@@ -342,7 +353,7 @@ the same commit. Every commit installs on an empty disposable PG17, passes `sche
 | Step | Scope | Prod files (est.) | Notes / risk |
 |---|---|---|---|
 | 0 | Scaffolding: `Database::boot()`, `Database::DAOS`, `Types/PreciseDateTimeType`, `core/entities/{base,system}` and `core/dbmanager/dao` layout (chevo conventions), new baseline id as byte-equivalent old DDL, schema-check retargeted ([section 8](#8-schema-check)), `DatabaseTestCase` builds the fresh baseline instead of `database_default.sql` plus the chain. No table renamed. | ~18 | Proves boot, fresh install and drift. Must keep `SharedSessionDriver` working with the ORM. |
-| 1 | API keys, connectors, profiles, settings: `core_api_badge`, `core_*_connector`, `core_profiles` (+`itt_connector_id`), `core_config_setting`, `core_config_preset`, `core_prompt`; remove `ApiBadgeRepository`, `SettingsRepository`, `GeneralSetting`, close #62; #53/#54 behaviour retained. | ~80 (`conf_opts` ~34, `core_profiles` 28, `core_llm_connector` 19, `core_player` 14) | Largest UI fan-out; moves the UI SQL for these tables into `ApiBadge`, `ConfigSetting`, connector system classes. |
+| 1 | **Depends on #62's reworked key facade landing first.** Connectors, profiles, settings: `core_*_connector` (`api_badge_id uuid` bound to the `ApiBadge` facade), `core_profiles` (+`itt_connector_id`), `core_config_setting`, `core_config_preset`, `core_prompt`; remove `SettingsRepository`, `GeneralSetting` (`ApiBadgeRepository` goes with #62's facade); #53/#54 behaviour retained. | ~80 (`conf_opts` ~34, `core_profiles` 28, `core_llm_connector` 19, `core_player` 14) | Largest UI fan-out; moves the UI SQL for these tables into `ApiBadge`, `ConfigSetting`, connector system classes. |
 | 2 | Characters and plugins: `core_npc`, `core_npc_actor`, `core_npc_history`, `core_npc_profile_rule`, `core_npc_biography_*`, `core_plugins`, `core_character_generation*`. | ~65 (`actor_identities` 38, `npc_master` 38) | Identity model decision (question 3) lands here. |
 | 3 | Catalogs: items, oghma/worldknowledge, locations + state, factions, quests, actions, catalog versions, media, visual. | ~60 | Installers `fallout_catalogue_sql.php`, `fallout_content_pack.php`. |
 | 4 | Context, queue, logs: `core_context_event` (merging `eventlog`, `history_events`, `speech`, `actions_issued`), `core_message_queue`, `core_llm_request_log`, `core_dialogue_request`. Commits 4a events, 4b queue/log, 4c requests. | ~110 (`eventlog` ~40, `history_events` 31, `request_executions` 45, `speech` ~34) | Highest risk: merges two event ledgers; native dialogue tests, loopback. `save_rollback.php`, `legacy_row_management.php`. |
@@ -352,7 +363,7 @@ the same commit. Every commit installs on an empty disposable PG17, passes `sche
 | 8 | Playthroughs/snapshots ([section 9](#9-snapshots)); delete the last legacy block, `lib/core/database_schema/*.sql`, the frozen `debug/db_updates.php` chain, `data/database_default.sql`, `SharedSessionDriver`; update `README.md`, `CONTRIBUTING.md`, `docs/SCHEMA-MIGRATIONS.md`, `docs/HANDOFF.md`; final search proving no old name remains. | ~30 | **Deletes whole files: needs the owner's approval (AGENTS.md).** |
 | later | Edit API and UI conversion ([section 10](#10-ui-and-the-edit-api)). | ~10 new + ~45 pages | Separate PR. |
 
-Total about **550 prod-file edits across roughly 140 distinct files** plus about 60 test files, and about 235 new entity, system and DAO classes (about 100 + 75 + 60). Every step ends with:
+Total about **550 prod-file edits across roughly 140 distinct files** plus about 60 test files, and about 230 new entity, system and DAO classes (about 100 + 75 + 60). Every step ends with:
 `php -l` on changed files, the PHPUnit suite on isolated PG17, `schema-check` match on a fresh install, the dashboard HTTP probe, the credential harnesses (step 1 onward) and a name search for the removed names.
 Scratch under `D:\build\synth-schema-redesign`.
 
@@ -367,7 +378,8 @@ Scratch under `D:\build\synth-schema-redesign`.
 5. **Volume of classes.** About 235 new classes under chevo's documentation rules (every file and method commented) is large; the DAO/system split is mechanical but must be reviewed in batches.
 6. **ORM-generated DDL.** The Doctrine schema tool omits checks, cascades, generated and vector columns; never use it to create or diff (chevo rule). Tests use real migrations.
 7. **Divergence from chevo.** `core/dbmanager` is a copy, not a shared package, so chevo changes must be ported by hand; unresolved in question 11.
-8. **Test fixture.** 111 test files, about 30 with per-table assertions; each step edits only its domain's.
+8. **Key facade dependency.** Step 1 cannot start until #62's rework exposes the `ApiBadge` facade; `api_badge_id uuid` also diverges from chevo's `integer`, so connector editors and `ConnectorReadiness` ported from chevo need the type change.
+9. **Test fixture.** 111 test files, about 30 with per-table assertions; each step edits only its domain's.
 
 ---
 
@@ -390,8 +402,9 @@ For the owner:
 10. **Snapshots:** keep a row-scoped snapshot design, or adopt chevo's save-point model and retire snapshots?
 11. **Retire the legacy `memory`, `memory_summary`, `diarylog` path now** (about 50 caller files)? This is a behaviour change, not a rename.
 12. **Approval to delete files** in step 8 (`debug/db_updates.php`, `lib/core/database_schema/*.sql`, `data/database_default.sql`, `SharedSessionDriver`). AGENTS.md forbids it without approval.
-13. **Confirm dropping** `moods_issued` and `audit_memory`, and **closing #62**, #61 stays as is.
+13. **Confirm dropping** `moods_issued` and `audit_memory`.
 14. **Baseline id `Version20261117000000`** acceptable?
 15. **Edit API timing:** is a later separate PR for `/api/v1/edit` and UI conversion acceptable, with each step moving UI SQL into system classes meanwhile?
+16. **#62 facade contract (for the #62 session):** confirm the key id type (`uuid`), the `ApiBadge`/`ApiBadgeDAO` method names and who runs `ConnectorReferences`, so step 1 can bind to a stable head.
 
 Out of scope and unchanged by this design: the installed database, deployments, services, the game, legacy snapshots (stay paused), PR #41, ChimServer, HerikaServer, Stobe, Dialectic and chevo.
