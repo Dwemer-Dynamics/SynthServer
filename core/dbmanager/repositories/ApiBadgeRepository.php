@@ -125,12 +125,12 @@ class ApiBadgeRepository
     }
 
     /** Sets the label and/or the key of a key. A blank global key is refused; a SYNTH-only key may be emptied (its Clear). */
-    public function update(string $id, array $data): bool
+    public function update(string $id, array $data, ?int $expectedRevision = null): bool
     {
         $ref = ApiKeyRef::parse($id);
         $data = array_intersect_key($data, array_flip(['label', 'api_key']));
         if ($ref === null || $data === []) return false;
-        return $this->dao->update($ref, array_key_exists('label', $data) ? strval($data['label']) : null, array_key_exists('api_key', $data) ? strval($data['api_key']) : null);
+        return $this->dao->update($ref, array_key_exists('label', $data) ? strval($data['label']) : null, array_key_exists('api_key', $data) ? strval($data['api_key']) : null, $expectedRevision);
     }
 
     /** True when the key was deleted. A key a SYNTH connector uses is refused. */
@@ -139,11 +139,11 @@ class ApiBadgeRepository
         return $this->deleteOutcome($id) === 'deleted';
     }
 
-    /** 'deleted', 'in_use', 'missing', 'revoked' or 'unavailable'. */
-    public function deleteOutcome(string $id): string
+    /** 'deleted', 'in_use', 'conflict', 'missing', 'revoked' or 'unavailable'. */
+    public function deleteOutcome(string $id, ?int $expectedRevision = null): string
     {
         $ref = ApiKeyRef::parse($id);
-        return $ref === null ? 'missing' : $this->dao->delete($ref);
+        return $ref === null ? 'missing' : $this->dao->delete($ref, $expectedRevision);
     }
 
     /** Quickstart's write: the key goes to the provider's global key, or a new global key named $label when there is none. */

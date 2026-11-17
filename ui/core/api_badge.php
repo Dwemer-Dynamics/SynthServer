@@ -321,6 +321,11 @@ function synthApiBadgeRowId($raw): string {
  return is_string($raw) && \Synth\Core\Contracts\ApiKeyRef::normalize($raw) === $raw ? $raw : '';
 }
 
+// The revision a form was rendered with (ChimServer's expected-revision rule): a positive integer, or null when none was posted.
+function synthApiBadgeRevision($raw): ?int {
+ return is_string($raw) && preg_match('/^[1-9][0-9]{0,17}$/D', $raw) ? intval($raw) : null;
+}
+
 function synthApiBadgeIsLocalId(string $id): bool {
  return str_starts_with($id, 'local:');
 }
@@ -353,7 +358,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  if ($postedId !== '' && $shownId === '') { header("Location: api_badge.php?err=stale"); exit; }
  $currentRow = $apiBadge->getByLabel($pretty);
  if (strval($currentRow['id'] ?? '') !== $shownId) { header("Location: api_badge.php?err=stale"); exit; }
- $writes[] = [ 'preset', [ $pretty, $shownId ], [ 'api_key' => $apiKey ] ];
+ $writes[] = [ 'preset', [ $pretty, $shownId ], [ 'api_key' => $apiKey, '__rev' => synthApiBadgeRevision($posted['revision'] ?? null) ] ];
  }
  }
 
@@ -374,7 +379,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  header("Location: api_badge.php?err=not_found");
  exit;
  }
- $writes[] = [ 'variant', $vid, [ 'api_key' => $apiKey ] ];
+ $writes[] = [ 'variant', $vid, [ 'api_key' => $apiKey, '__rev' => synthApiBadgeRevision($posted['revision'] ?? null) ] ];
  }
  }
 
@@ -401,6 +406,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  if ($ckey !== '') $payload['api_key'] = $ckey;
  if (!$payload) continue; // skip empty rows; a blank key keeps the saved key
  if ($cid) {
+ $payload['__rev'] = synthApiBadgeRevision(is_array($_POST['custom']['revision'] ?? null) ? ($_POST['custom']['revision'][$i] ?? null) : null);
  $writes[] = [ 'custom', $cid, $payload ];
  } else {
  $writes[] = [ 'new', null, [ 'label' => $clabel !== '' ? $clabel : 'Custom Key', 'api_key' => $ckey, 'origin' => is_string($origins[$i] ?? null) ? trim($origins[$i]) : '' ] ];
@@ -409,7 +415,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  }
 
  $saveFailed = false;
+ $conflict = false;
  foreach ($writes as [$kind, $target, $payload]) {
+ $rev = $payload['__rev'] ?? null;
+ unset($payload['__rev']);
  if ($kind === 'preset') {
  // Re-checked at write time: the provider's row must still be the one validated above.
  [ $pretty, $shownId ] = $target;
@@ -418,22 +427,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  $saved = false;
  } else {
  $saved = $shownId !== ''
- ? $apiBadge->update($shownId, $payload)
+ ? $apiBadge->update($shownId, $payload, $rev)
  : $apiBadge->create([ 'label' => $pretty ] + $payload) !== '';
  }
  } else if ($kind === 'custom') {
  $current = $apiBadge->getById($target);
  if (empty($current['id']) || synthApiBadgeIsPresetRow($current, $reservedLabelsLower)) continue;
- $saved = $apiBadge->update($target, $payload);
+ $saved = $apiBadge->update($target, $payload, $rev);
  } else if ($kind === 'variant') {
- $saved = $apiBadge->update($target, $payload);
+ $saved = $apiBadge->update($target, $payload, $rev);
  } else {
  $saved = $apiBadge->create($payload) !== '';
  }
- if (!$saved) $saveFailed = true;
+ if (!$saved) { $saveFailed = true; if ($apiBadge->getLastError() === 'conflict') $conflict = true; }
  }
 
- header("Location: api_badge.php" . ($saveFailed ? "?err=save_failed" : ""));
+ header("Location: api_badge.php" . ($conflict ? "?err=conflict" : ($saveFailed ? "?err=save_failed" : "")));
  exit;
 }
 
@@ -496,8 +505,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
  }
  if ($newKey !== '') $payload['api_key'] = $newKey;
  }
- if ($payload && !$apiBadge->update($uid, $payload)) {
- header("Location: api_badge.php?err=save_failed");
+ if ($payload && !$apiBadge->update($uid, $payload, synthApiBadgeRevision($_POST['revision'] ?? null))) {
+ header("Location: api_badge.php?err=" . ($apiBadge->getLastError() === 'conflict' ? 'conflict' : 'save_failed'));
  exit;
  }
  header("Location: api_badge.php?ok=saved");
@@ -519,22 +528,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["clear_key"])) {
  header("Location: api_badge.php?" . ($apiBadge->update($cid, [ 'api_key' => '' ]) ? "ok=cleared" : "err=save_failed"));
  exit;
  }
- $outcome = $apiBadge->deleteOutcome($cid);
- header("Location: api_badge.php?" . ($outcome === 'deleted' ? "ok=cleared" : ($outcome === 'in_use' ? "err=in_use" : "err=save_failed")));
+ // A global key is shared with other mods: it is never cleared from here, only deleted (Delete says so).
+ header("Location: api_badge.php?err=use_delete");
  exit;
 }
 
-// Handle Delete. Only an existing custom row, named by its exact id, is deleted. A malformed id is never coerced
-// to another row, and preset rows (any letter case) are never deleted from this page.
+// Handle Delete. Only an existing key, named by its exact reference, is deleted (a global key for every mod). A malformed
+// id is never coerced to another row.
 if ($apiBadgeAction && isset($_POST["delete"])) {
  $did = synthApiBadgeRowId(strval($_POST["delete"]));
  $item = $did !== '' ? $apiBadge->getById($did) : null;
- if (empty($item['id']) || (!synthApiBadgeIsLocalId($did) && synthApiBadgeIsPresetRow($item, $reservedLabelsLower))) {
+ if (empty($item['id'])) {
  header("Location: api_badge.php?err=not_found");
  exit;
  }
- $outcome = $apiBadge->deleteOutcome($did);
- header("Location: api_badge.php" . ($outcome === 'deleted' ? "" : ($outcome === 'in_use' ? "?err=in_use" : "?err=save_failed")));
+ $outcome = $apiBadge->deleteOutcome($did, synthApiBadgeRevision($_POST['revision'] ?? null));
+ header("Location: api_badge.php" . ($outcome === 'deleted' ? "" : ($outcome === 'in_use' ? "?err=in_use" : ($outcome === 'conflict' ? "?err=conflict" : "?err=save_failed"))));
  exit;
 }
 
@@ -545,6 +554,7 @@ $toCard = function($row) {
  'id' => $row['id'] ?? '',
  'label' => $row['label'] ?? '',
  'configured' => trim(strval($row['api_key'] ?? '')) !== '',
+ 'revision' => intval($row['revision'] ?? 0),
  ];
 };
 // Global keys (shared with other Dwemer mods) and SYNTH-only keys are two groups; the stored value never reaches the page.
@@ -580,7 +590,7 @@ $savedKeyPlaceholder = 'Key saved - leave blank to keep, paste to replace';
 $customRows = array_filter($data, function($row) use ($presetMap) {
  return !array_key_exists(strtolower($row['label'] ?? ''), $presetMap);
 });
-?><input type="hidden" name="csrf_token" id="api_key_csrf" value="<?= htmlspecialchars($apiKeyCsrf) ?>"><?php if ($keyStoreMessage !== ''): ?><div class="key-store-notice" role="alert" style="margin:0 0 12px;padding:10px 12px;border:1px solid #b36b00;border-radius:8px;color:#ffcf8a;"><?= htmlspecialchars($keyStoreMessage) ?></div><?php endif; ?><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Global keys (shared with other Dwemer mods)</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div>
+?><input type="hidden" name="csrf_token" id="api_key_csrf" value="<?= htmlspecialchars($apiKeyCsrf) ?>"><?php if ($keyStoreMessage === '' && !\Synth\Core\DbManager\Dao\ApiBadgeDao::distroRegistered()): ?><div class="distro-notice" role="alert" style="margin:0 0 12px;padding:10px 12px;border:1px solid #b36b00;border-radius:8px;color:#ffcf8a;">CHIM cannot see which global keys SYNTH uses yet: DwemerDistro's registration of SYNTH is not active. Deleting a key in CHIM does not check SYNTH's connectors, so a key SYNTH uses can still be removed there. SYNTH itself refuses to delete a key a connector uses.</div><?php endif; ?><?php if ($keyStoreMessage !== ''): ?><div class="key-store-notice" role="alert" style="margin:0 0 12px;padding:10px 12px;border:1px solid #b36b00;border-radius:8px;color:#ffcf8a;"><?= htmlspecialchars($keyStoreMessage) ?></div><?php endif; ?><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Global keys (shared with other Dwemer mods)</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div>
 <p class="section-note">Global keys are used by default, and a key added in CHIM appears here. Editing, clearing or deleting a global key changes it for every mod that uses it; a key a connector uses cannot be removed. Existing entries save when you leave the field. New presets need Save Keys.</p>
 <div class="provider-grid">
 <?php foreach ($presetRows as $slug => $presetRow):
@@ -596,8 +606,8 @@ $customRows = array_filter($data, function($row) use ($presetMap) {
   <div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128273;</div><div><?= htmlspecialchars($entryName) ?></div><span class="key-state"<?= $row['configured'] ? '' : ' hidden' ?>>Key saved</span></div>
   <div class="provider-links"><?php if (!$isVariant && !empty($providerLinks[$slug])): ?><a href="<?= htmlspecialchars($providerLinks[$slug]) ?>" target="_blank" rel="noopener">Create Key</a><?php endif; ?></div>
  </div>
- <?php if (!$isVariant): ?><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($rowId) ?>"><?php endif; ?>
- <div class="provider-body"><input type="password" name="<?= htmlspecialchars($fieldName) ?>" value="" placeholder="<?= $row['configured'] ? $savedKeyPlaceholder : ($rowId === '' ? 'Paste API key, then press Save Keys' : 'Paste API key') ?>" autocomplete="off" aria-label="<?= htmlspecialchars($entryName) ?> API key" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($rowId) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($rowId) ?>"<?= $row['configured'] ? '' : ' hidden' ?>>Clear</button><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($rowId) ?>">Test</button><?php endif; ?></div>
+ <?php if (!$isVariant): ?><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($rowId) ?>"><?php if ($rowId !== ''): ?><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][revision]" value="<?= intval($row['revision'] ?? 0) ?>"><?php endif; ?><?php else: ?><input type="hidden" name="preset_variants[<?= htmlspecialchars($rowId) ?>][revision]" value="<?= intval($row['revision'] ?? 0) ?>"><?php endif; ?>
+ <div class="provider-body"><input type="password" name="<?= htmlspecialchars($fieldName) ?>" value="" placeholder="<?= $row['configured'] ? $savedKeyPlaceholder : ($rowId === '' ? 'Paste API key, then press Save Keys' : 'Paste API key') ?>" autocomplete="off" aria-label="<?= htmlspecialchars($entryName) ?> API key" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($rowId) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><?php if ($rowId !== ''): ?><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($rowId) ?>" title="Deletes this global key for every mod that uses it">Delete</button><?php endif; ?><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($rowId) ?>">Test</button><?php endif; ?></div>
  <div class="provider-subtext">
   <?php if ($rowId === ''): ?><div class="desc">Not saved yet: paste a key and press Save Keys. After that this field saves when you leave it.</div><?php endif; ?>
   <?php if ($isVariant): ?><div class="desc">This entry has its own key.<?php if (in_array($slug, ['openrouter','deepgram'], true)): ?> Quickstart uses ID <?= htmlspecialchars(strval($presetRow['id'])) ?>.<?php endif; ?></div><?php elseif (!empty($providerSubtext[$slug])): ?><div class="desc">This key can be used for: <?= htmlspecialchars(implode(', ', $providerSubtext[$slug])) ?></div><?php endif; ?>
@@ -605,7 +615,7 @@ $customRows = array_filter($data, function($row) use ($presetMap) {
 </div>
 <?php endforeach; endforeach; ?>
 </div></div>
-<div class="content-section full-width-section"><h2>Global custom keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = $row['configured']; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $hasKey ? '' : ' hidden' ?>>Clear</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div><div class="content-section full-width-section" id="local-keys-section"><h2>SYNTH only</h2><p class="section-note">These keys live only in SYNTH and can be for any provider. A connector uses one only when you pick it in the connector's API key list; otherwise it uses the global key.</p><div id="local-keys" style="margin-bottom:10px;"><?php foreach ($localRows as $row): ?><?php $hasKey = $row['configured']; $lp = strtolower($row['label']); ?><div class="custom-card local-card <?= $hasKey ? 'has-key' : '' ?>" data-local-id="<?= htmlspecialchars($row['id']) ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128274;</div><div>SYNTH-only key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-local-save>Save</button><?php if (in_array($lp, ['openrouter','openai'], true)): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($lp) ?>" data-badge-id="<?= htmlspecialchars($row['id']) ?>">Test</button><?php endif; ?><button type="button" class="button btn-clear-key" data-local-clear<?= $hasKey ? '' : ' hidden' ?>>Clear</button><button type="button" class="button btn-delete" data-local-delete>Delete</button></div></div><label>Label</label><input type="text" value="<?= htmlspecialchars($row['label']) ?>" data-local-field="label" autocomplete="off"><label>API Key</label><div class="provider-body"><input type="password" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-local-field="api_key"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" id="add-local-key">Add SYNTH-only key</button></div><script>
+<div class="content-section full-width-section"><h2>Global custom keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = $row['configured']; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div><input type="hidden" name="custom[revision][]" value="<?= intval($row['revision'] ?? 0) ?>"></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div><div class="content-section full-width-section" id="local-keys-section"><h2>SYNTH only</h2><p class="section-note">These keys live only in SYNTH and can be for any provider. A connector uses one only when you pick it in the connector's API key list; otherwise it uses the global key.</p><div id="local-keys" style="margin-bottom:10px;"><?php foreach ($localRows as $row): ?><?php $hasKey = $row['configured']; $lp = strtolower($row['label']); ?><div class="custom-card local-card <?= $hasKey ? 'has-key' : '' ?>" data-local-id="<?= htmlspecialchars($row['id']) ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128274;</div><div>SYNTH-only key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-local-save>Save</button><?php if (in_array($lp, ['openrouter','openai'], true)): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($lp) ?>" data-badge-id="<?= htmlspecialchars($row['id']) ?>">Test</button><?php endif; ?><button type="button" class="button btn-clear-key" data-local-clear<?= $hasKey ? '' : ' hidden' ?>>Clear</button><button type="button" class="button btn-delete" data-local-delete>Delete</button></div></div><label>Label</label><input type="text" value="<?= htmlspecialchars($row['label']) ?>" data-local-field="label" autocomplete="off"><label>API Key</label><div class="provider-body"><input type="password" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-local-field="api_key"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" id="add-local-key">Add SYNTH-only key</button></div><script>
 (function(){
  // SYNTH-only cards post on their own (their inputs are outside the global Save Keys form): Save, Clear and Delete.
  function token(){ var el = document.getElementById('api_key_csrf'); return el ? el.value : ''; }
@@ -653,7 +663,7 @@ function addCustomKey(){
  const wrapper = document.createElement('div');
  wrapper.className = 'custom-card';
  wrapper.innerHTML = `
- <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="">Save</button><button type="button" class="button btn-delete" data-delete-id="">Delete</button></div></div><input type="hidden" name="custom[id][]" value=""><label>Label</label><input type="text" name="custom[label][]" value="" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id=""><label>Endpoint origin (https, or http to this PC)</label><input type="text" name="custom[origin][]" value="" placeholder="https://api.example.com" autocomplete="off" data-field="origin"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="Paste API key" autocomplete="off" data-autosave="custom" data-field="api_key" data-id=""><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div>
+ <div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="">Save</button><button type="button" class="button btn-delete" data-delete-id="">Delete</button></div></div><input type="hidden" name="custom[id][]" value=""><input type="hidden" name="custom[revision][]" value=""><label>Label</label><input type="text" name="custom[label][]" value="" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id=""><label>Endpoint origin (https, or http to this PC)</label><input type="text" name="custom[origin][]" value="" placeholder="https://api.example.com" autocomplete="off" data-field="origin"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="Paste API key" autocomplete="off" data-autosave="custom" data-field="api_key" data-id=""><button type="button" class="button" onclick="toggleVisibility(this)">Show</button></div>
  `;
  container.appendChild(wrapper);
 }
@@ -663,6 +673,7 @@ function addCustomKey(){
 // A blank key field keeps the saved key; only the confirmed Clear button removes it.
 (function(){
  const RESERVED_LABELS = <?php echo json_encode($reservedLabelsLower); ?>;
+ const REVISIONS = <?php echo json_encode((object) array_column($data, 'revision', 'id')); ?>;
  const SAVED_PLACEHOLDER = <?php echo json_encode($savedKeyPlaceholder); ?>;
  const pending = new WeakMap();
  const inFlight = new Set();
@@ -719,6 +730,7 @@ function addCustomKey(){
  const formData = new FormData();
  formData.append('update','1');
  formData.append('id', id);
+ if (REVISIONS[id]) formData.append('revision', REVISIONS[id]);
  formData.append(field, value);
  queuePost(t, formData).then(function(ok){
  if (!ok) { alert(field === 'api_key' ? 'The API key was not saved. Check it and try again.' : 'The label was not saved.'); return; }
@@ -752,6 +764,7 @@ function addCustomKey(){
  if (id){
  fd.append('update','1');
  fd.append('id', id);
+ if (REVISIONS[id]) fd.append('revision', REVISIONS[id]);
  fd.append('label', labelVal);
  fd.append('api_key', keyVal);
  } else {
@@ -790,12 +803,12 @@ function addCustomKey(){
  if (!btn) return;
  const id = btn.getAttribute('data-delete-id') || '';
  const card = btn.closest('.custom-card');
- if (!confirm('Delete this custom API key?')) return;
+ if (!confirm(id.indexOf('shared:') === 0 ? 'Delete this global key? It is deleted for every Dwemer mod that uses it, and cannot be undone. A key a connector uses cannot be deleted.' : 'Delete this custom API key?')) return;
  if (!id){
  if (card && card.parentNode) card.parentNode.removeChild(card);
  return;
  }
- synthManagementPost('api_badge.php', { delete: id });
+ synthManagementPost('api_badge.php', REVISIONS[id] ? { delete: id, revision: String(REVISIONS[id]) } : { delete: id });
  }, { passive:true });
 })();
 
@@ -862,6 +875,10 @@ function addCustomKey(){
  alert('An API key was not saved: it must be one line of text without control characters, up to 4096 characters.');
  } else if (sp.get('err') === 'save_failed') {
  alert('Some changes were not saved. Keys are stored in the shared dwemer database and must be one line of printable characters without spaces; a custom key also needs an endpoint origin. Check the entries and the message at the top of this page, then try again.');
+ } else if (sp.get('err') === 'conflict') {
+ alert('This key was changed elsewhere (another mod or another tab), so nothing was saved. Reload the page and try again.');
+ } else if (sp.get('err') === 'use_delete') {
+ alert('A global key is shared with other mods and is not cleared from here. Delete it instead (it is deleted for every mod).');
  } else if (sp.get('err') === 'in_use') {
  alert('That key is still used by a connector. Pick another key for the connector, or paste a new key over this one, before removing it.');
  } else if (sp.get('err') === 'stale') {

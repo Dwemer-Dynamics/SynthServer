@@ -37,7 +37,12 @@ if ($method === 'POST') {
         exit;
     }
 
-    $apiKey = $badgeRow['api_key'];
+    // The one resolver: a global key is released only for the Groq API's origin.
+    $apiKey = (new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS['db']))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($apiBadgeId), 'https://api.groq.com/openai/v1/models', 'Groq');
+    if ($apiKey === '') {
+        echo json_encode(['error' => 'API key not found']);
+        exit;
+    }
 
     // Set the request headers
     $headers = [

@@ -18,17 +18,38 @@ class ApiBadge {
     }
 
     /**
-     * The secret a connector row uses. A connector that names a key (api_key_id or local_api_key_id) uses exactly that key: a
-     * missing or deleted key is "no key" ('') and never falls back to another store or key. A connector that names none uses the
-     * global key of its provider ($providerLabel, e.g. "OpenRouter"): the oldest shared key labelled so. Never a SYNTH-only key.
+     * The ONE resolver for the secret a connector sends. A connector that names a key (api_key_id or local_api_key_id) uses exactly
+     * that key: a missing or deleted key is "no key" ('') and never falls back to another store or key. A connector that names none
+     * uses the global key of its provider ($providerLabel, e.g. "OpenRouter"): the oldest shared key of that provider, never a
+     * SYNTH-only key. A global key is pinned to one origin: when $endpoint (the URL the request goes to; '' = the provider's own
+     * API) is another origin the key is refused ('' and one fixed log line), as ChimServer's resolveSecret does. A SYNTH-only key
+     * has no pinned origin.
      */
-    public static function keyForConnector(array $row, string $providerLabel = ''): string {
+    public static function keyForConnector(array $row, string $providerLabel = '', string $endpoint = ''): string {
         $ref = \Synth\Core\Contracts\ApiKeyRef::fromAny($row);
-        $badge = new self();
-        if ($ref !== null) {
-            return strval($badge->getById($ref->toString())['api_key'] ?? '');
+        $dao = new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS["db"]);
+        if ($ref === null) {
+            $default = $providerLabel === '' ? null : $dao->defaultForProvider($providerLabel);
+            if ($default === null) {
+                return '';
+            }
+            $ref = $default->ref();
         }
-        return $providerLabel === '' ? '' : strval($badge->getByLabel($providerLabel)['api_key'] ?? '');
+        return $dao->secretForEndpoint($ref, $endpoint, $providerLabel);
+    }
+
+    /**
+     * Runs one connector write that stores a reference to the shared key $sharedUuid (null: none, or a SYNTH-only key) while that key
+     * is share-locked, so a concurrent delete cannot strand the reference. A missing, revoked or unreachable key refuses: returns
+     * $refused and writes nothing. The write must be one autocommitted statement.
+     */
+    public static function lockedWrite($sharedUuid, callable $write, $refused) {
+        $ref = is_string($sharedUuid) ? \Synth\Core\Contracts\ApiKeyRef::shared($sharedUuid) : null;
+        if ($ref === null) {
+            return $write();
+        }
+        $bound = (new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS["db"]))->bindUnderLock($ref, $write);
+        return $bound['outcome'] === 'locked' ? $bound['result'] : $refused;
     }
 
     // Create: label, api_key, optionally store ('shared' default, or 'local'), provider and origin. Returns the new key's reference, or ''.
@@ -52,8 +73,9 @@ class ApiBadge {
     }
 
     // Update label and/or key by reference
-    public function update($id, $data) {
-        return $this->repository->update(strval($id), $data);
+    // $expectedRevision: a global key that changed since then is refused and getLastError() is 'conflict'
+    public function update($id, $data, $expectedRevision = null) {
+        return $this->repository->update(strval($id), $data, $expectedRevision);
     }
 
     // Delete by reference (a global key keeps a tombstone; refused while a connector uses the key)
@@ -62,8 +84,8 @@ class ApiBadge {
     }
 
     // 'deleted', 'in_use', 'missing', 'revoked' or 'unavailable'
-    public function deleteOutcome($id) {
-        return $this->repository->deleteOutcome(strval($id));
+    public function deleteOutcome($id, $expectedRevision = null) {
+        return $this->repository->deleteOutcome(strval($id), $expectedRevision);
     }
 
     public function getLastError() {

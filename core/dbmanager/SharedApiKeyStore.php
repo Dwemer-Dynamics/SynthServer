@@ -57,6 +57,9 @@ final class SharedApiKeyStore
     private ?Connection $connection = null;
     private bool $checked = false;
     private ?string $reason = null;
+    private int $checkedAt = 0;
+    /** A failed readiness check is retried after this many seconds, so a store that comes up later is picked up without a restart. */
+    private const RETRY_SECONDS = 5;
 
     private function __construct(private readonly array $settings) {}
 
@@ -128,6 +131,14 @@ final class SharedApiKeyStore
         return $scheme.'://'.$host.':'.$port;
     }
 
+    /** The canonical origin ("scheme://host:port") of an endpoint URL, or null: https, or http to loopback. */
+    public static function originOfUrl(mixed $url): ?string
+    {
+        if (!is_string($url) || ($parts = parse_url(trim($url))) === false || !isset($parts['scheme'], $parts['host'])) return null;
+        $host = strtolower($parts['host']);
+        return self::canonicalOrigin(strtolower($parts['scheme']) . '://' . (str_contains($host, ':') ? '[' . trim($host, '[]') . ']' : $host) . (isset($parts['port']) ? ':' . $parts['port'] : ''));
+    }
+
     /** True when the shared database answers and holds the api_keys table with the columns SYNTH uses. Never throws. */
     public function ready(): bool
     {
@@ -140,8 +151,10 @@ final class SharedApiKeyStore
      */
     public function unavailableReason(): ?string
     {
-        if ($this->checked) return $this->reason;
+        if ($this->checked && ($this->reason === null || time() - $this->checkedAt < self::RETRY_SECONDS)) return $this->reason;
         $this->checked = true;
+        $this->checkedAt = time();
+        $this->connection = $this->reason === null ? $this->connection : null;
         try {
             $found = $this->db()->fetchOne("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'
                 AND table_name = 'api_keys' AND column_name IN ('key_id','provider','label','origin','status','secret','revision','created_at')");
@@ -211,18 +224,20 @@ final class SharedApiKeyStore
 
     /**
      * Edits an active key's label and/or secret (a new secret also clears any legacy sealed value), revision + 1, under the row
-     * lock. Provider and origin never change. Returns 'updated', 'missing' or 'revoked'.
+     * lock. Provider and origin never change. With $expectedRevision the key must still be at that revision, else 'conflict'
+     * (ChimServer's optimistic concurrency). Returns 'updated', 'conflict', 'missing' or 'revoked'.
      */
-    public function update(string $id, ?string $label, #[\SensitiveParameter] ?string $secret): string
+    public function update(string $id, ?string $label, #[\SensitiveParameter] ?string $secret, ?int $expectedRevision = null): string
     {
         if (!self::idValid($id) || ($label !== null && !self::labelValid($label)) || ($secret !== null && !self::secretValid($secret))) {
             throw new SharedApiKeyException('shared key value refused');
         }
         try {
-            return $this->db()->transactional(function (Connection $db) use ($id, $label, $secret): string {
-                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
-                if ($status === false) return 'missing';
-                if ($status !== 'active') return 'revoked';
+            return $this->db()->transactional(function (Connection $db) use ($id, $label, $secret, $expectedRevision): string {
+                $current = $db->fetchAssociative('SELECT status, revision FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
+                if ($current === false) return 'missing';
+                if ($current['status'] !== 'active') return 'revoked';
+                if ($expectedRevision !== null && (int) $current['revision'] !== $expectedRevision) return 'conflict';
                 $db->executeStatement('UPDATE public.api_keys SET label = COALESCE(?, label), secret = COALESCE(?::text, secret),
                     nonce = CASE WHEN ?::text IS NULL THEN nonce END, ciphertext = CASE WHEN ?::text IS NULL THEN ciphertext END,
                     revision = revision + 1, updated_at = clock_timestamp() WHERE key_id = ?::uuid', [$label, $secret, $secret, $secret, $id]);
@@ -235,17 +250,18 @@ final class SharedApiKeyStore
 
     /**
      * Deletes an active key by wiping its secret and keeping a tombstone (revision + 1), after $inUse() returns exactly false
-     * while the row is locked FOR UPDATE. $inUse must only read SYNTH's own database and must not use this store. Returns
-     * 'deleted', 'in_use', 'missing' or 'revoked'.
+     * while the row is locked FOR UPDATE. $inUse must only read SYNTH's own database and must not use this store. With
+     * $expectedRevision a changed key is 'conflict'. Returns 'deleted', 'in_use', 'conflict', 'missing' or 'revoked'.
      */
-    public function tombstone(string $id, callable $inUse): string
+    public function tombstone(string $id, callable $inUse, ?int $expectedRevision = null): string
     {
         if (!self::idValid($id)) return 'missing';
         try {
-            return $this->db()->transactional(function (Connection $db) use ($id, $inUse): string {
-                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
-                if ($status === false) return 'missing';
-                if ($status !== 'active') return 'revoked';
+            return $this->db()->transactional(function (Connection $db) use ($id, $inUse, $expectedRevision): string {
+                $current = $db->fetchAssociative('SELECT status, revision FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
+                if ($current === false) return 'missing';
+                if ($current['status'] !== 'active') return 'revoked';
+                if ($expectedRevision !== null && (int) $current['revision'] !== $expectedRevision) return 'conflict';
                 $used = $inUse();
                 if ($used !== false) return 'in_use';
                 $db->executeStatement("UPDATE public.api_keys SET status = 'deleted', secret = NULL, nonce = NULL, ciphertext = NULL,

@@ -58,7 +58,10 @@ if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  if ($savedRow !== []) {
  // The stored label must equal the provider label apart from letter case; a padded label is a custom entry.
  $savedLabel = strval($savedRow['label'] ?? '');
- if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) $apiKey = trim(strval($savedRow['api_key'] ?? ''));
+ if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) {
+ // The one resolver: a global key is released only for its own provider's origin (this test calls that provider's API).
+ $apiKey = trim((new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS['db']))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($badgeId), '', $apiKeyTestLabels[$provider]));
+ }
  }
  } catch (Throwable $_e) {
  $testProblem = 'Could not read the saved key.';

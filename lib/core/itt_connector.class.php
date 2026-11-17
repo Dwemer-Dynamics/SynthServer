@@ -52,7 +52,7 @@ class ITTConnector
     public function create(array $data): int
     {
         $normalized = $this->normalize($data);
-        $row = $GLOBALS['db']->fetchOne(
+        $row = ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->fetchOne(
             "INSERT INTO {$this->table} (driver, label, metadata, local_api_key_id, api_key_id, url) VALUES (" .
             $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
@@ -61,7 +61,7 @@ class ITTConnector
             ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             ') RETURNING id'
-        );
+        ), null);
         return intval($row['id'] ?? 0);
     }
 
@@ -73,7 +73,7 @@ class ITTConnector
         }
 
         $normalized = $this->normalize($data);
-        return $GLOBALS['db']->execQuery(
+        return ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->execQuery(
             "UPDATE {$this->table} SET " .
             'driver=' . $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             'label=' . $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
@@ -82,7 +82,7 @@ class ITTConnector
             'api_key_id=' . ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             'url=' . ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             " WHERE id={$id}"
-        ) !== false;
+        ) !== false, false);
     }
 
     public function delete($id): bool
@@ -263,7 +263,7 @@ class ITTConnector
             $metadata['URL'] = $url;
         }
 
-        $apiKey = trim(ApiBadge::keyForConnector($row, self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)] ?? ''));
+        $apiKey = trim(ApiBadge::keyForConnector($row, self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)] ?? '', strval($row['url'] ?? '')));
         if ($apiKey !== '') {
             $metadata['API_KEY'] = $apiKey;
         }

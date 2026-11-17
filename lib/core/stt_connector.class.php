@@ -67,7 +67,7 @@ class STTConnector
             (($filtered['api_key_id'] ?? null) === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['api_key_id'])) . "::uuid") . ", " .
             ($filtered['url'] === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['url']))) .
             ") RETURNING id";
-        $row = $GLOBALS["db"]->fetchOne($query);
+        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->fetchOne($query), null);
         return isset($row['id']) ? intval($row['id']) : 0;
     }
 
@@ -113,8 +113,8 @@ class STTConnector
 
         $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip(["driver", "label", "metadata", "api_key_id", "local_api_key_id", "url"]));
-        $GLOBALS["db"]->updateRow($this->table, $filtered, "id = {$id}");
-        return $id;
+        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, "id = {$id}"), 'refused');
+        return $written === 'refused' ? 0 : $id;
     }
 
     public function delete($id)
@@ -348,7 +348,7 @@ class STTConnector
             $metadata['URL'] = $metadata['URL'] ?? $resolvedUrl;
         }
 
-        $apiKey = trim(ApiBadge::keyForConnector($currentConnectorData, self::$apiBadgeLabelMap[$this->getProviderKeyFromDriver($driver)] ?? ''));
+        $apiKey = trim(ApiBadge::keyForConnector($currentConnectorData, self::$apiBadgeLabelMap[$this->getProviderKeyFromDriver($driver)] ?? '', strval($currentConnectorData['url'] ?? '')));
         if ($apiKey !== '') {
             $metadata['API_KEY'] = $apiKey;
         }

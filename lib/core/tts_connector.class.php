@@ -226,7 +226,7 @@ class TTSConnector
             }
         }
         $query = "INSERT INTO {$this->table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $values) . ") RETURNING id";
-        $row = $GLOBALS["db"]->fetchOne($query);
+        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->fetchOne($query), null);
         return isset($row['id']) ? intval($row['id']) : 0;
     }
 
@@ -285,8 +285,8 @@ class TTSConnector
 
         $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
-        $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
-        return $id;
+        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, $where), 'refused');
+        return $written === 'refused' ? 0 : $id;
     }
 
     public function delete($id)
@@ -720,7 +720,7 @@ class TTSConnector
             }
         }
 
-        $apiKey = trim(ApiBadge::keyForConnector($currentTTSData, $this->getApiBadgeLabelForProvider($providerKey)));
+        $apiKey = trim(ApiBadge::keyForConnector($currentTTSData, $this->getApiBadgeLabelForProvider($providerKey), strval($currentTTSData['url'] ?? '')));
         if ($apiKey !== '') {
             $metadata['API_KEY'] = $apiKey;
         }

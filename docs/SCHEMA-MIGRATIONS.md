@@ -267,6 +267,8 @@ then the first migration, which is the shared API key cutover (D5, draft pull re
 
 **Status: draft, not merged.** This is the first schema-changing migration. It was proven on disposable PostgreSQL 17 only.
 
+**DwemerDistro registration of SYNTH is NOT active.** The canonical bridge only knows the legacy products and SOULKILLER, so CHIM cannot see which global keys SYNTH uses and can still delete one SYNTH's connectors name. SYNTH refuses to delete such a key itself, and the API Keys page warns about this until Distro's registry lists SYNTH (`ApiBadgeDao::distroRegistered()`; `php tools/shared-api-keys.php status`). The paired change is below.
+
 API keys are **global by default** and SYNTH can also keep **SYNTH-only** keys. Global keys live in the `api_keys` table of the
 shared PostgreSQL database `dwemer`, the store the CHIM 4 server uses and other Dwemer mods share. SYNTH-only keys live in
 `synth.core_api_badge` (`id`, `label`, `api_key`, `UNIQUE (label)`, the shape of chevo's table) and are meant for providers the
@@ -284,11 +286,22 @@ No existing install is migrated to the shared store: there is no import and no m
 - **One store per reference, no silent fallback.** A connector names a key in exactly one store, or none. A named key that is
   missing, deleted or unreadable is "no key"; it never turns into the other store's key or another key. With none named and no
   global key for the provider, there is no key (never a SYNTH-only key).
-- **Edits are global.** Editing, clearing or deleting a global key from SYNTH changes it for every mod. The API Keys page says so.
-  A key a connector uses cannot be deleted, in either store, and CHIM refuses to delete a shared key SYNTH uses (below).
+- **Edits are global.** Editing or deleting a global key from SYNTH changes it for every mod. The API Keys page says so. A key a
+  connector uses cannot be deleted from SYNTH, in either store. CHIM refuses to delete a shared key SYNTH uses only once the paired
+  Distro change ships (below).
+- **Origin pinning at use.** A global key is bound to one origin. `ApiBadge::keyForConnector` is the one resolver every connector,
+  worker and Test path uses; it releases a global key only when the endpoint it is about to call has that origin (host and port),
+  else it returns no key and logs one fixed line, as ChimServer's `resolveSecret` does. A SYNTH-only key has no pinned origin.
+  Azure, Replicate and DeepL global keys (whose endpoint varies) record a placeholder origin and are not pinned.
+- **Provider-matched defaults.** The default key of a provider is the oldest shared key whose provider is the one the label names;
+  a custom key that only carries the label is never the default.
+- **Optimistic concurrency.** Global edits and deletes take the revision the form was rendered with; a key changed elsewhere is
+  refused (`conflict`) and the page says it changed elsewhere.
+- **Bind lock.** Saving a connector that names a shared key runs under `FOR SHARE` on that key and refuses a missing or revoked key.
 - **#53/#54 apply to both groups:** keys are write-only, a blank field preserves the key, Clear is explicit (confirmed, with the
   session token), the saved-key Test resolves server-side by exact reference, ids are strict, Delete takes one exact id with the
-  management token. Clear removes a global key from the shared store (tombstone) and only empties a SYNTH-only key.
+  management token. A global key is not cleared from SYNTH (that would remove it for every mod): its card offers Delete, with a
+  warning that it deletes for every mod, and Clear is refused. Clear on a SYNTH-only key empties it (the entry and label stay).
 - **Shared store absent** (no `CHIM_SHARED_DB_*`, unreachable, or no `api_keys` table): only SYNTH-only keys work. Global keys read
   as none and every global write is refused, with no warning and no log line. `ApiBadgeRepository::unavailableReason()` /
   `unavailableMessage()` give one fixed sentence (it says that only SYNTH-only keys work and what to set or run); the API Keys page
@@ -325,10 +338,10 @@ or `null`; `local_api_key_id` is not exposed) and accept it the same way on `cre
 |---|---|---|
 | `Synth\Core\Contracts\ApiKeyRef` | `core/contracts/ApiKeyRef.php` | `parse($v): ?self`, `shared(string $uuid): ?self`, `local(int $id): ?self`, `fromRow(array $row): ?self` (typed columns), `fromAny(array $row): ?self`, `normalize($v): ?string`, `toColumns(?self): array` (`['api_key_id' => ?string, 'local_api_key_id' => ?int]`), `decorateRow(array): array`, `columnsFromData(array): array`, `toString()`, `store()`, `id()`, `isShared()` |
 | `Synth\Core\Entities\System\ApiBadge` | `core/entities/system/ApiBadge.php` | read view, never the secret: `ref()`, `label()`, `store()`, `provider()`, `origin()`, `revision()`, `hasKey()`, `toArray()` |
-| `Synth\Core\DbManager\Dao\ApiBadgeDao` | `core/dbmanager/dao/ApiBadgeDao.php` | `listAll(): list<ApiBadge>` (global first), `find(ApiKeyRef): ?ApiBadge`, `findByLabel(string, ?string $store = null): ?ApiBadge`, `defaultForProvider(string $label): ?ApiBadge` (oldest global key), `secret(ApiKeyRef): string`, `create(string $store, string $label, string $secret, array $options = []): ?ApiKeyRef`, `update(ApiKeyRef, ?string $label, ?string $secret): bool`, `delete(ApiKeyRef): string` (`deleted`, `in_use`, `missing`, `revoked`, `unavailable`), `storeStatus(): array`, `listWithSecrets(): array`, `lastError(): string`; static `unavailableReason()`, `unavailableMessage()`, `useSharedStore()` |
+| `Synth\Core\DbManager\Dao\ApiBadgeDao` | `core/dbmanager/dao/ApiBadgeDao.php` | `listAll(): list<ApiBadge>` (global first), `find(ApiKeyRef): ?ApiBadge`, `findByLabel(string, ?string $store = null): ?ApiBadge`, `defaultForProvider(string $label): ?ApiBadge` (oldest global key whose provider is the label's provider), `secret(ApiKeyRef): string`, `secretForEndpoint(ApiKeyRef, string $endpoint, string $providerLabel = ''): string` (the origin-pinned resolver), `bindUnderLock(ApiKeyRef, callable $write): array` (`locked`, `missing`, `revoked`, `unavailable`), `create(string $store, string $label, string $secret, array $options = []): ?ApiKeyRef`, `update(ApiKeyRef, ?string $label, ?string $secret, ?int $expectedRevision = null): bool` (a changed global key: false and `lastError()` is `conflict`), `delete(ApiKeyRef, ?int $expectedRevision = null): string` (`deleted`, `in_use`, `conflict`, `missing`, `revoked`, `unavailable`), `storeStatus(): array`, `listWithSecrets(): array`, `lastError(): string`; static `unavailableReason()`, `unavailableMessage()`, `distroRegistered()`, `useSharedStore()` |
 | `Synth\Core\DbManager\Dao\ConnectorReferences` | `core/dbmanager/dao/ConnectorReferences.php` | `usedBy(ApiKeyRef): array`, `forSharedKey(string $uuid): array`, `isUsed(ApiKeyRef): bool` |
 | `Synth\Core\SharedApiKeyStore` | `core/dbmanager/SharedApiKeyStore.php` | the shared-store gateway (ChimServer's `ApiKeyStore` rules) |
-| `Synth\Core\ApiBadgeRepository`, `ApiBadge` | `core/dbmanager/repositories/ApiBadgeRepository.php`, `lib/core/api_badge.class.php` | thin array-returning call-throughs for the existing callers; `ApiBadge::keyForConnector(array $row, string $providerLabel = ''): string` implements the "named key, else the provider's global key" rule |
+| `Synth\Core\ApiBadgeRepository`, `ApiBadge` | `core/dbmanager/repositories/ApiBadgeRepository.php`, `lib/core/api_badge.class.php` | thin array-returning call-throughs for the existing callers; `ApiBadge::keyForConnector(array $row, string $providerLabel = '', string $endpoint = ''): string` is the one resolver (named key, else the provider's global key, released only for the key's origin); `ApiBadge::lockedWrite($sharedUuid, callable, $refused)` runs a connector write under the bind lock; `update`/`deleteOutcome` take the expected revision |
 
 Create takes `$store` `'shared'` or `'local'`. A global key's provider defaults to the one its label names (`openrouter`, `openai`,
 `inworld`, `deepgram`, `google`/`gemini`, `elevenlabs`, `cartesia`, `nano-gpt`, `groq`, `atlascloud`, `replicate`, `azure`, `deepl`;
@@ -411,7 +424,7 @@ cannot be empty; a SYNTH-only key can be anything on one line, can be empty (its
    (the migration creates the view as the SYNTH database owner), checks that `public.synth_key_references` has columns `id`,
    `kind`, `label`, `shared_key_id`, and then registers `{"id": "synth", "database": "<SYNTH database>", "tables": ["synth_key_references"]}`
    in `/etc/dwemer/shared-key-consumers.json` with the other products (same atomic write). The installer part is **not tested**.
-3. `CHIM_SHARED_DB_*` must reach SYNTH's web server and workers (open question 1).
+3. `CHIM_SHARED_DB_*` must reach SYNTH's web server and background workers. Proposed: the Distro service definitions that start SYNTH's Apache/PHP and its workers read the root-owned `/etc/dwemer/shared-keys.env` (the file the bridge already reads for the metadata role) and export only the five `CHIM_SHARED_DB_HOST`/`_PORT`/`_NAME`/`_USER`/`_PASSWORD` values, for the shared runtime role (never the migration owner). This is described, not written or tested.
 
 ### Operator order
 
@@ -431,17 +444,15 @@ names, so a SYNTH-named copy would record a second, parallel history. Whichever 
 
 - **Player2** needs no key (its connector sends its fixed game key when it has none). A Quickstart local-model key is a SYNTH-only key.
 - **Profile import** does not create keys: a connector whose key is not saved here has no key until one is chosen.
-- **Binding lock:** SYNTH does not yet hold `FOR SHARE` while binding a connector to a shared key (ChimServer's bind protocol); the
-  store provides `withShareLock()`.
+- **Local-model setup** runs inside its own transaction, so a connector it saves is not under the bind lock; it only ever binds SYNTH-only keys.
 
 ### Open questions
 
 1. **Environment delivery.** Where do `CHIM_SHARED_DB_*` reach SYNTH's Apache/PHP and workers on a Distro install?
-2. **Origin enforcement.** SYNTH does not check the endpoint against a global key's stored origin the way ChimServer's `resolveSecret` does.
-3. **Bind lock.** Wrap connector saves in `withShareLock()`.
-4. **Sealed legacy keys** in the shared store read as no key until replaced (SYNTH has no installation key).
-5. **Azure, Replicate and DeepL** global keys use placeholder origins; should they take an entered endpoint like custom keys?
-6. **Installer.** The Distro installer change in item 2 above is described, not written or tested.
+2. **Distro registration.** Not active until the paired Distro change (and the delivery of `CHIM_SHARED_DB_*` to SYNTH's web server and workers) ships.
+3. **Sealed legacy keys** in the shared store read as no key until replaced (SYNTH has no installation key).
+4. **Azure, Replicate and DeepL** global keys use placeholder origins and are not pinned; should they take an entered endpoint like custom keys?
+5. **Installer.** The Distro installer change in item 2 above is described, not written or tested.
 
 ## Drift check
 

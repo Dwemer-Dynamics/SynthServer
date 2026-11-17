@@ -98,7 +98,7 @@ class LLMConnector
         }
         $service = strtolower(trim(strval($row['service'] ?? '')));
         $label = ['openrouter' => 'OpenRouter', 'openai' => 'OpenAI', 'google' => 'Google', 'groq' => 'Groq', 'nanogpt' => 'Nano-GPT'][$service] ?? '';
-        return ApiBadge::keyForConnector($row, $label);
+        return ApiBadge::keyForConnector($row, $label, strval($row['url'] ?? ''));
     }
     public function create($data)
     {
@@ -136,7 +136,7 @@ class LLMConnector
         }
 
         $filtered = array_intersect_key($data, array_flip($fields));
-        return $GLOBALS["db"]->insertReturningId($this->table, $filtered);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->insertReturningId($this->table, $filtered), 0);
     }
 
     public function readAll()
@@ -201,7 +201,7 @@ class LLMConnector
         $id = intval($id);
         $where = "id = {$id}";
         $filtered = array_intersect_key($data, array_flip($fields));
-        return $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, $where), false);
     }
 
     public function delete($id)

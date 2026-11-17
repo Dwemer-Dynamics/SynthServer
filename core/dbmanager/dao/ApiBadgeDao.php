@@ -110,7 +110,13 @@ final class ApiBadgeDao
     /** The global key of a provider label: the oldest shared key labelled so (any case). Never a SYNTH-only key. */
     public function defaultForProvider(string $label): ?ApiBadge
     {
-        return $this->findByLabel($label, ApiKeyRef::SHARED);
+        // Only a key of the provider the label names: a custom key that merely carries the label is never the default.
+        $provider = SharedApiKeyStore::providerForLabel($label);
+        if ($provider === null) return null;
+        foreach ($this->rows(ApiKeyRef::SHARED, false) as $row) {
+            if (strtolower($row['label']) === strtolower($label) && $row['provider'] === $provider) return $this->entity($row);
+        }
+        return null;
     }
 
     /** The saved secret of $ref, or '' (none saved, unknown key, revoked key, or no shared store). Server-side use only. */
@@ -144,17 +150,21 @@ final class ApiBadgeDao
 
     /**
      * Sets the label and/or the secret of $ref. A global key is edited in place for every mod (revision + 1) and its secret
-     * cannot be emptied; a SYNTH-only key may be emptied (that is its explicit Clear). True when the key was changed.
+     * cannot be emptied; a SYNTH-only key may be emptied (that is its explicit Clear). With $expectedRevision a global key that
+     * changed elsewhere is refused and lastError() is 'conflict'. True when the key was changed.
      */
-    public function update(ApiKeyRef $ref, ?string $label, ?string $secret): bool
+    public function update(ApiKeyRef $ref, ?string $label, ?string $secret, ?int $expectedRevision = null): bool
     {
         $this->error = '';
         $label = $label === null ? null : trim($label);
         if ($ref->isShared()) {
             $shared = $this->usable();
-            if ($shared === null || ($secret === '' )) return false;
-            return $this->guard(fn() => $shared->update($ref->id(), $label, $secret) === 'updated', false);
+            if ($shared === null || $secret === '') return false;
+            $outcome = $this->guard(fn() => $shared->update($ref->id(), $label, $secret, $expectedRevision), 'unavailable');
+            $this->error = $outcome === 'updated' ? '' : $outcome;
+            return $outcome === 'updated';
         }
+        if ($label !== null && $this->labelTaken($label, (int) $ref->id())) { $this->error = 'duplicate_label'; return false; }
         $sets = []; $params = [];
         if ($label !== null) { $sets[] = 'label = ?'; $params[] = $label; }
         if ($secret !== null) { $sets[] = 'api_key = ?'; $params[] = $secret; }
@@ -164,11 +174,11 @@ final class ApiBadgeDao
     }
 
     /**
-     * Deletes $ref: 'deleted', 'in_use' (a SYNTH connector still uses it), 'missing', 'revoked' (a global key already deleted) or
+     * Deletes $ref: 'deleted', 'in_use' (a SYNTH connector still uses it), 'conflict' (a global key changed since $expectedRevision), 'missing', 'revoked' (a global key already deleted) or
      * 'unavailable' (no shared store). A global delete wipes the secret and keeps a tombstone, for every mod; a SYNTH-only one
      * removes the row.
      */
-    public function delete(ApiKeyRef $ref): string
+    public function delete(ApiKeyRef $ref, ?int $expectedRevision = null): string
     {
         if (!$ref->isShared()) {
             if ($this->row($ref) === null) return $this->error = 'missing';
@@ -177,7 +187,74 @@ final class ApiBadgeDao
         }
         $shared = $this->usable();
         if ($shared === null) return $this->error = 'unavailable';
-        return $this->error = $this->guard(fn() => $shared->tombstone($ref->id(), fn() => $this->references()->isUsed($ref)), 'unavailable');
+        return $this->error = $this->guard(fn() => $shared->tombstone($ref->id(), fn() => $this->references()->isUsed($ref), $expectedRevision), 'unavailable');
+    }
+
+    /**
+     * The secret of $ref for a request to $endpoint (a URL), or '' when it must not be sent there. A global key is pinned to one
+     * origin (ChimServer's resolveSecret rule): the endpoint's origin must equal it, else this logs one fixed message and returns
+     * ''. An empty $endpoint means the provider's own API ($providerLabel's fixed origin). Azure, Replicate and DeepL keys have a
+     * placeholder origin (their endpoint varies) and are not pinned. A SYNTH-only key has no pinned origin and is returned as is.
+     */
+    public function secretForEndpoint(ApiKeyRef $ref, string $endpoint, string $providerLabel = ''): string
+    {
+        $row = $this->row($ref);
+        if ($row === null) return '';
+        if (!$ref->isShared() || in_array($row['provider'], ['azure', 'replicate', 'deepl'], true)) return $row['secret'];
+        $target = trim($endpoint) === '' ? (SharedApiKeyStore::ORIGINS[SharedApiKeyStore::providerForLabel($providerLabel) ?? $row['provider']] ?? null)
+            : SharedApiKeyStore::originOfUrl($endpoint);
+        if ($target === null || $target !== $row['origin']) {
+            self::note('API key not sent: the endpoint origin does not match the key\'s origin');
+            return '';
+        }
+        return $row['secret'];
+    }
+
+    /**
+     * Runs $write (one autocommitted SYNTH statement that stores a connector's reference to $ref) while the shared key is share-locked
+     * (ChimServer's bind protocol), so a concurrent delete either waits and then sees the reference or wins and nothing is written.
+     * A SYNTH-only key needs no lock. Returns ['outcome' => 'locked'|'missing'|'revoked'|'unavailable', 'result' => $write's result].
+     */
+    public function bindUnderLock(ApiKeyRef $ref, callable $write): array
+    {
+        if (!$ref->isShared()) {
+            return $this->row($ref) === null ? ['outcome' => 'missing', 'result' => null] : ['outcome' => 'locked', 'result' => $write()];
+        }
+        $shared = $this->usable();
+        if ($shared === null) return ['outcome' => 'unavailable', 'result' => null];
+        return $this->guard(fn() => $shared->withShareLock($ref->id(), $write), ['outcome' => 'unavailable', 'result' => null]);
+    }
+
+    /** True when DwemerDistro's shared-key registry lists SYNTH, so CHIM checks SYNTH connectors before deleting a shared key. */
+    public static function distroRegistered(): bool
+    {
+        $file = '/etc/dwemer/shared-key-consumers.json';
+        $text = is_readable($file) ? @file_get_contents($file, false, null, 0, 16384) : false;
+        $registry = is_string($text) ? json_decode($text, true) : null;
+        foreach (is_array($registry['products'] ?? null) ? $registry['products'] : [] as $product) {
+            if (is_array($product) && ($product['id'] ?? '') === 'synth') return true;
+        }
+        return false;
+    }
+
+    /** True when a SYNTH-only key already has this label (exact case), other than the key $exceptId. */
+    private function labelTaken(string $label, int $exceptId): bool
+    {
+        try {
+            return $this->connection()->executeQuery('SELECT 1 FROM core_api_badge WHERE label = ? AND id <> ? LIMIT 1', [$label, $exceptId])->fetchOne() !== false;
+        } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
+            return true;
+        }
+    }
+
+    /** One fixed line in the server log; never a key, a value or a database message. */
+    private static function note(string $message): void
+    {
+        if (class_exists('Logger', false)) {
+            \Logger::warn($message);
+        } else {
+            error_log($message);
+        }
     }
 
     /** The last refusal code of this instance, never a message from a database. */
@@ -232,6 +309,7 @@ final class ApiBadgeDao
                         'revision' => '0', 'secret' => (string) $key['api_key']];
                 }
             } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
+                self::note('SYNTH-only API key list could not be read');
             }
         }
         return $out;
@@ -266,9 +344,9 @@ final class ApiBadgeDao
     private function createLocal(string $label, string $secret): ?ApiKeyRef
     {
         if ($label === '' || strlen($secret) > 4096 || preg_match('/[\x00-\x1F\x7F]/', $label.$secret) === 1) { $this->error = 'refused'; return null; }
+        if ($this->labelTaken($label, 0)) { $this->error = 'duplicate_label'; return null; }
         try {
-            // A duplicate label is an expected refusal: silence the legacy session's PHP warning (it logs the statement itself, with the label, never the key).
-            $id = @$this->connection()->executeQuery('INSERT INTO core_api_badge (label, api_key) VALUES (?, ?) RETURNING id', [$label, $secret])->fetchOne();
+            $id = $this->connection()->executeQuery('INSERT INTO core_api_badge (label, api_key) VALUES (?, ?) RETURNING id', [$label, $secret])->fetchOne();
         } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
             $this->error = 'duplicate_label';
             return null;
@@ -280,7 +358,7 @@ final class ApiBadgeDao
     private function run(string $sql, array $params): bool
     {
         try {
-            @$this->connection()->executeStatement($sql, $params);
+            $this->connection()->executeStatement($sql, $params);
             return true;
         } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
             $this->error = 'refused';
