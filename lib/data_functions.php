@@ -6237,6 +6237,8 @@ function call_llm_internal() {
                 foreach ($GLOBALS["action_post_process_fnct_ex"] as $postFilterFunc)
                     $actions=$postFilterFunc($actions);
             }
+            // Optional (off by default): a second bounded call may pick one negotiated action for an action-free reply.
+            if (class_exists('Synth\Managers\ActionsManager\TwoStepActions', false)) $actions=Synth\Managers\ActionsManager\TwoStepActions::filterActions($actions,$totalProcessedData);
         }
 
         if (is_array($actions)) {
