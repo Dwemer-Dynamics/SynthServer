@@ -463,6 +463,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $actorStats=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && in_array('context.actor_stats',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
+    $actorCondition=$status==='init_accepted' && ($event['type'] ?? '')==='init'
+        && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
+        && in_array('context.actor_condition',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
     $privateNarrator=false;
     if ($status==='init_accepted' && ($event['type'] ?? '')==='init') {
         require_once __DIR__.'/synth_private_narrator.php';
@@ -524,6 +527,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
+    if ($actorCondition) $statusPayload['actor_condition'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
