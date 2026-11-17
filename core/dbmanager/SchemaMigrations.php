@@ -77,8 +77,9 @@ final class SchemaMigrations
     }
 
     /**
-     * $settings with host, port and database taken from the legacy session's own connection. The legacy class ignores
-     * SYNTH_DB_PORT (and the test adapter every setting), so this is the database the legacy chain and gate act on.
+     * $settings with host, port and database taken from the legacy session's own connection. The legacy class can
+     * leave the port to libpq and the test adapter ignores every setting, so this is the database the legacy chain
+     * and gate act on.
      */
     public static function settingsForLegacySession(object $legacy, #[\SensitiveParameter] array $settings): array
     {
@@ -210,6 +211,27 @@ final class SchemaMigrations
         });
     }
 
+    /**
+     * Read-only readiness of the migration ledger against this tree, for health checks. It takes no lock, creates
+     * nothing (no ensureInitialized()) and runs no migration. 'missing': no version table or no record; 'unknown': a
+     * record this tree does not contain (checked first); 'pending': a known migration is not recorded yet.
+     *
+     * @return array{state:'current'|'missing'|'pending'|'unknown',known:int,recorded:int,pending:int,unknown:int}
+     */
+    public function status(): array
+    {
+        $known = $this->knownVersions($this->factory());
+        $recorded = $this->recordedVersions();
+        $unknown = array_diff($recorded, $known);
+        $pending = array_diff($known, $recorded);
+        $state = 'current';
+        if ($unknown !== []) $state = 'unknown';
+        elseif ($recorded === []) $state = 'missing';
+        elseif ($pending !== []) $state = 'pending';
+        return ['state' => $state, 'known' => count($known), 'recorded' => count($recorded),
+            'pending' => count($pending), 'unknown' => count($unknown)];
+    }
+
     /** @return list<string> */
     public function recordedVersions(): array
     {
@@ -239,8 +261,7 @@ final class SchemaMigrations
     /** @return list<string> */
     private function refuseUnknownRecords(DependencyFactory $factory): array
     {
-        $known = array_map(static fn ($m): string => (string) $m->getVersion(),
-            $factory->getMigrationRepository()->getMigrations()->getItems());
+        $known = $this->knownVersions($factory);
         $recorded = $this->recordedVersions();
         $unknown = array_values(array_diff($recorded, $known));
         if ($unknown !== []) {
@@ -248,6 +269,13 @@ final class SchemaMigrations
                 .implode(', ', $unknown));
         }
         return $recorded;
+    }
+
+    /** @return list<string> */
+    private function knownVersions(DependencyFactory $factory): array
+    {
+        return array_map(static fn ($m): string => (string) $m->getVersion(),
+            $factory->getMigrationRepository()->getMigrations()->getItems());
     }
 
     // One owner transaction around the version table and the plan: with $createMetadataSchema (an empty database) the

@@ -198,13 +198,14 @@ class Narrator
     }
 
     /**
-     * Load all narrator settings into GLOBALS with proper type conversion
+     * Load all narrator settings into GLOBALS with proper type conversion. $seedMissing false (read-only dashboard
+     * views) leaves missing optional rows absent and uses the same defaults in GLOBALS.
      */
-    public function loadIntoGlobals(): void
+    public function loadIntoGlobals(bool $seedMissing = true): void
     {
         $allSettings = $this->getAll();
 
-        if (!isset($allSettings['inline_narration_mode'])) {
+        if ($seedMissing && !isset($allSettings['inline_narration_mode'])) {
             $currentGlobalMode = strtolower(trim((string)($GLOBALS['INLINE_NARRATION_MODE'] ?? '')));
             $inlineNarrationMode = in_array($currentGlobalMode, ['disabled', 'narrator', 'npc', 'text_only'], true)
                 ? $currentGlobalMode
@@ -215,21 +216,21 @@ class Narrator
             }
         }
 
-        if (!isset($allSettings['remove_asterisks_from_npc_output'])) {
+        if ($seedMissing && !isset($allSettings['remove_asterisks_from_npc_output'])) {
             $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_NPC_OUTPUT', $GLOBALS) || !empty($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? '1' : '0';
             if ($this->set('remove_asterisks_from_npc_output', $serialized)) {
                 $allSettings['remove_asterisks_from_npc_output'] = $serialized;
             }
         }
 
-        if (!isset($allSettings['remove_asterisks_from_player_input'])) {
+        if ($seedMissing && !isset($allSettings['remove_asterisks_from_player_input'])) {
             $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_PLAYER_INPUT', $GLOBALS) || !empty($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? '1' : '0';
             if ($this->set('remove_asterisks_from_player_input', $serialized)) {
                 $allSettings['remove_asterisks_from_player_input'] = $serialized;
             }
         }
 
-        if (!isset($allSettings['remove_player_autochat_asterisks'])) {
+        if ($seedMissing && !isset($allSettings['remove_player_autochat_asterisks'])) {
             $serialized = !array_key_exists('REMOVE_PLAYER_AUTOCHAT_ASTERISKS', $GLOBALS) || !empty($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? '1' : '0';
             if ($this->set('remove_player_autochat_asterisks', $serialized)) {
                 $allSettings['remove_player_autochat_asterisks'] = $serialized;

@@ -2,6 +2,10 @@
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
 
+// Connector create, clone and delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+$ttsAction = synthManagementActionGate(['create_blank', 'clone', 'delete']);
+
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
  'load_general_settings' => true,
@@ -22,11 +26,6 @@ if ($webRoot === '/') {
 }
 $webRoot = rtrim($webRoot, '/');
 $isEmbed = isset($_GET['embed']) && strval($_GET['embed']) === '1';
-
-try {
- require_once($enginePath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php");
-} catch (Throwable $_e) {
-}
 
 $ttsConnector = new TTSConnector();
 
@@ -454,7 +453,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import'])) {
  exit;
 }
 
-if (isset($_GET['create_blank'])) {
+if ($ttsAction && isset($_POST['create_blank'])) {
  $options = ttsVisibleDriverOptions($ttsConnector);
  $newDriver = ttsPreferredNewDriver($ttsConnector, $options);
 
@@ -471,14 +470,14 @@ if (isset($_GET['create_blank'])) {
  exit;
 }
 
-if (isset($_GET['clone'])) {
- $newId = $ttsConnector->clone(intval($_GET['clone']));
+if ($ttsAction && isset($_POST['clone'])) {
+ $newId = $ttsConnector->clone(intval($_POST['clone']));
  header('Location: ' . ttsPageUrl($newId > 0 ? ['edit' => $newId] : []));
  exit;
 }
 
-if (isset($_GET['delete'])) {
- $deleteId = intval($_GET['delete']);
+if ($ttsAction && isset($_POST['delete'])) {
+ $deleteId = intval($_POST['delete']);
  $inUseProfiles = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_profiles WHERE tts_connector_id = {$deleteId}");
  $inUsePlayer = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_player WHERE id = 'tts_connector_id' AND value = '" . $GLOBALS["db"]->escape(strval($deleteId)) . "'");
  $totalUse = intval($inUseProfiles['c'] ?? 0) + intval($inUsePlayer['c'] ?? 0);
@@ -623,14 +622,14 @@ main { padding: <?php echo $isEmbed ? '10px 5px 5px' : '30px 5px 5px'; ?>; }
  .list-wrap { max-height: 420px; }
  .editor-grid, .inline-two { grid-template-columns: 1fr; }
 }
-</style><main><div class="page-shell"><div class="page-header synth-page-head"><h1 class="api-title synth-page-head-title">TTS Connectors</h1><p class="page-subtitle synth-page-head-note">Text-to-Speech Setup Options.</p></div><?php if (!empty($_GET['notice'])): ?><div class="notice"><?php echo h($_GET['notice']); ?></div><?php endif; ?><div class="layout"><div class="left-col"><div class="btn-row sidebar-action-grid"><a class="btn-save" href="<?php echo h(ttsPageUrl(['create_blank' => 1])); ?>">New</a><form method="post" action="<?php echo h(ttsPageUrl()); ?>" enctype="multipart/form-data" id="tts_import_form"><input type="hidden" name="import" value="1"><input type="file" name="import_file[]" id="tts_import_file" accept=".csv" multiple style="display:none;"><button type="button" class="btn-primary" id="tts_import_btn">Import</button></form></div><div class="list-wrap" id="tts_connector_list"><?php foreach ($rows as $row): ?><?php
+</style><main><div class="page-shell"><div class="page-header synth-page-head"><h1 class="api-title synth-page-head-title">TTS Connectors</h1><p class="page-subtitle synth-page-head-note">Text-to-Speech Setup Options.</p></div><?php if (!empty($_GET['notice'])): ?><div class="notice"><?php echo h($_GET['notice']); ?></div><?php endif; ?><div class="layout"><div class="left-col"><div class="btn-row sidebar-action-grid"><form method="post" action="<?php echo h(ttsPageUrl()); ?>" id="tts_actions"><?php echo synthManagementCsrfField(); ?><button type="submit" class="btn-save" name="create_blank" value="1">New</button></form><form method="post" action="<?php echo h(ttsPageUrl()); ?>" enctype="multipart/form-data" id="tts_import_form"><input type="hidden" name="import" value="1"><input type="file" name="import_file[]" id="tts_import_file" accept=".csv" multiple style="display:none;"><button type="button" class="btn-primary" id="tts_import_btn">Import</button></form></div><div class="list-wrap" id="tts_connector_list"><?php foreach ($rows as $row): ?><?php
  $rowId = intval($row['id'] ?? 0);
  $rowDriver = $ttsConnector->normalizeDriverValue($row['driver'] ?? 'none');
  $rowActive = ($editItem && intval($editItem['id'] ?? 0) === $rowId) ? ' active' : '';
  $rowUseCount = intval($usageMap[strval($rowId)] ?? 0);
  ?><div class="conn-card<?php echo $rowActive; ?>" data-edit-id="<?php echo h($rowId); ?>"><div class="conn-head"><div class="conn-name"><?php echo h($row['label'] ?? ('Connector #' . $rowId)); ?></div><div class="conn-badge"><?php echo h($ttsConnector->getDisplayName($rowDriver)); ?></div></div><div class="conn-sub"><?php echo h($row['url'] ?? ''); ?></div><div class="conn-usage"><?php echo h($rowUseCount); ?> assignment<?php echo $rowUseCount === 1 ? '' : 's'; ?></div></div><?php endforeach; ?></div></div><div class="right-col"><?php if (!$editItem): ?><div class="placeholder">
  Select a connector from the left to edit it. New installs will already have the currently selected TTS provider migrated into this table.
- </div><?php else: ?><form method="post" action="<?php echo h(ttsPageUrl()); ?>" id="tts_connector_form"><input type="hidden" name="id" value="<?php echo h($editItem['id']); ?>"><div class="btn-row"><button type="submit" class="btn-save" name="save_connector" value="1">Save</button><button type="button" class="btn-primary" id="btn_test_connector">Test</button><button type="submit" class="btn-primary" formmethod="get" formaction="<?php echo h(ttsPageUrl()); ?>" name="export" value="<?php echo h($editItem['id']); ?>">Export</button><a class="btn-primary" href="<?php echo h(ttsPageUrl(['clone' => $editItem['id']])); ?>">Clone</a><a class="btn-danger" href="<?php echo h(ttsPageUrl(['delete' => $editItem['id']])); ?>" onclick="return confirm('Delete this TTS connector?');">Delete</a></div><div class="orm-note">Please save any changes before testing to ensure the latest settings are used.</div><div class="editor-grid"><div class="field-block"><label for="label">Name</label><input type="text" id="label" name="label" value="<?php echo h($editItem['label'] ?? ''); ?>"><div class="field-help">This label appears in profile and player connector pickers.</div></div><div class="field-block"><label for="driver">Service</label><select id="driver" name="driver"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><optgroup label="<?php echo h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverValue): ?><option value="<?php echo h($driverValue); ?>" <?php echo $currentDriver === $driverValue ? 'selected' : ''; ?>><?php echo h($ttsConnector->getDisplayName($driverValue)); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">The provider driver this connector loads at runtime.</div></div><?php $showUrlField = ttsShouldShowUrlField($ttsConnector, $currentDriver); ?><div class="field-block" id="url_block" style="<?php echo $showUrlField ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editItem['url'] ?? ''); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $ttsConnector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_badge_id">API Badge</label><?php
+ </div><?php else: ?><form method="post" action="<?php echo h(ttsPageUrl()); ?>" id="tts_connector_form"><input type="hidden" name="id" value="<?php echo h($editItem['id']); ?>"><div class="btn-row"><button type="submit" class="btn-save" name="save_connector" value="1">Save</button><button type="button" class="btn-primary" id="btn_test_connector">Test</button><button type="submit" class="btn-primary" formmethod="get" formaction="<?php echo h(ttsPageUrl()); ?>" name="export" value="<?php echo h($editItem['id']); ?>">Export</button><button type="submit" class="btn-primary" form="tts_actions" name="clone" value="<?php echo h($editItem['id']); ?>">Clone</button><button type="submit" class="btn-danger" form="tts_actions" name="delete" value="<?php echo h($editItem['id']); ?>" onclick="return confirm('Delete this TTS connector?');">Delete</button></div><div class="orm-note">Please save any changes before testing to ensure the latest settings are used.</div><div class="editor-grid"><div class="field-block"><label for="label">Name</label><input type="text" id="label" name="label" value="<?php echo h($editItem['label'] ?? ''); ?>"><div class="field-help">This label appears in profile and player connector pickers.</div></div><div class="field-block"><label for="driver">Service</label><select id="driver" name="driver"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><optgroup label="<?php echo h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverValue): ?><option value="<?php echo h($driverValue); ?>" <?php echo $currentDriver === $driverValue ? 'selected' : ''; ?>><?php echo h($ttsConnector->getDisplayName($driverValue)); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">The provider driver this connector loads at runtime.</div></div><?php $showUrlField = ttsShouldShowUrlField($ttsConnector, $currentDriver); ?><div class="field-block" id="url_block" style="<?php echo $showUrlField ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editItem['url'] ?? ''); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $ttsConnector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_badge_id">API Badge</label><?php
  $selectedApi = $editItem['api_badge_id'] ?? '';
  $withKey = [];
  $noKey = [];

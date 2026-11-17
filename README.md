@@ -41,7 +41,7 @@ acceptance has not been performed.** See [docs/HANDOFF.md](docs/HANDOFF.md) and
 |---|---|---|
 | SYNTH client | Windows, Fallout 4 / Fallout 4 VR | sends to `BaseUrl` |
 | Apache and PHP (normal) | WSL, `/var/www/html/Synthserver` | `http://127.0.0.1:8087/Synthserver/` |
-| PostgreSQL with `pgvector` and `pg_trgm` | WSL, database `synth` | `127.0.0.1:5432`, loopback only |
+| PostgreSQL 17 with `pgvector` and `pg_trgm` | WSL, database `synth` | `127.0.0.1:5432`, loopback only |
 | Optional standalone dev launcher | Windows PHP, `start-dev.ps1` | `http://127.0.0.1:8085/Synthserver/` by default |
 
 The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Apache site in
@@ -51,9 +51,22 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
 
 1. **WSL environment.** You need a WSL 2 distribution with `sudo`, `rsync`, Apache 2, PHP 8
    (CLI plus the Apache module, with the `curl`, `mbstring`, `pgsql` and `xml` extensions),
-   Composer on the default `sudo` `PATH`, and PostgreSQL with `pgvector`. Check each one in your
+   Composer on the default `sudo` `PATH`, and PostgreSQL 17 with `pgvector`. Check each one in your
    distribution, including DwemerDistro, and install any that are missing with its package
-   manager first; the deploy script does not install them.
+   manager first; the deploy script does not install them. On Debian or Ubuntu, PostgreSQL 17 and
+   its `pgvector` package come from the PostgreSQL project's apt repository (PGDG):
+
+   ```bash
+   sudo apt-get install --yes postgresql-common
+   sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+   sudo apt-get install --yes postgresql-17 postgresql-client-17 postgresql-17-pgvector
+   pg_lsclusters
+   ```
+
+   `pg_lsclusters` must show a 17 cluster online. The database script below runs in your default
+   WSL distribution and reaches that distribution's default PostgreSQL cluster (port 5432), the
+   port the sample `$SYNTH_DB_PORT` uses. For any other port or cluster, create the database
+   manually and set `$SYNTH_DB_PORT` (and the other `$SYNTH_DB_*` values) in `conf/conf.php`.
 2. **Database role.** Create the loopback-only role used by the sample configuration, if it
    does not exist:
 
@@ -64,7 +77,13 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    `dwemer`/`dwemer` is a local development default. Keep PostgreSQL bound to loopback.
 3. **Checkout.** Clone this repository on Windows into a folder named `Synthserver`.
 4. **Database.** This step uses your default WSL distribution and needs passwordless `sudo` and the
-   production dependencies (`composer install --no-dev` in the checkout, from the tracked `composer.lock`):
+   production dependencies. Install them from the tracked `composer.lock` in the checkout root first:
+
+   ```bash
+   composer install --no-dev --no-interaction --prefer-dist
+   ```
+
+   Then create and migrate the database:
 
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\tools\create-synth-db-wsl.ps1
@@ -116,7 +135,14 @@ The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Ap
    Composer dependencies, into a private staging directory. If Composer is missing it stops
    before changing the deployment target.
 6. **Check.** Open `http://127.0.0.1:8087/Synthserver/health.php`, then
-   `http://127.0.0.1:8087/Synthserver/ui/quickstart.php`.
+   `http://127.0.0.1:8087/Synthserver/ui/quickstart.php`. Health answers HTTP 200 only when the
+   database, its UTF8 encoding, the schema and the migration ledger are ready. Otherwise it answers
+   503 with an `error` naming the fix, for example running `php tools/bootstrap-database.php` in
+   the server root (see [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md#readiness)). The
+   `background_processor` field is advisory. While the database is unreachable or not ready,
+   Quickstart answers 503 with a link to health.php (its GET also requires a current migration
+   ledger and installed vendor dependencies) and its saves are refused before any settings are
+   saved.
 
 ### Optional development launcher
 
@@ -174,8 +200,8 @@ validates JSON and World Knowledge checksums, and checks the TTS, STT and ITT dr
 rejects runtime files, vendored test dependencies and assets without verified redistribution
 rights.
 
-Unit-test dependencies are not committed. Run PHPUnit only against a **disposable** PostgreSQL
-with pgvector and the `dwemer` role (see `.github/workflows/server.yml`):
+Unit-test dependencies are not committed. Run PHPUnit only against a **disposable** PostgreSQL 17
+with pgvector, the `dwemer` role and port 5432 (see `.github/workflows/server.yml`):
 
 ```bash
 composer install --no-dev

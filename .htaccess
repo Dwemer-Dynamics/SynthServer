@@ -1,6 +1,2 @@
-<IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
-    Header set Access-Control-Allow-Headers "X-Requested-With, Content-Type"
-</IfModule>
-
+# No CORS grant: native and plugin clients are not browsers and need none, and the dashboard calls itself
+# same-origin. Management scripts also refuse cross-origin browser requests (lib/management_request_guard.php).

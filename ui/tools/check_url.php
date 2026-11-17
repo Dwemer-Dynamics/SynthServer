@@ -1,5 +1,8 @@
 <?php
 
+// Outbound URL probe: refuse cross-origin callers before any request is made.
+require_once dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
+
 $json = file_get_contents('php://input');
 $data = json_decode($json, true);
 

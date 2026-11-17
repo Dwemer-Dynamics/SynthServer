@@ -23,7 +23,8 @@ transactions or ORM use.
   baseline. `Version20261115000000.fresh.sql` is generated data too: the statements that install the baseline
   on an empty database.
 - `lib/runtime_bootstrap.php` (`synthRuntimeApplySchemaMigrations`): the entry used by
-  `tools/bootstrap-database.php` and by `debug/db_updates.php`.
+  `tools/bootstrap-database.php` and by `debug/db_updates.php`. `synthRuntimeSchemaMigrationStatus` is the
+  read-only counterpart used by `health.php` (see Readiness).
 - `composer.json` / `composer.lock`: adds `doctrine/migrations` 3.9.8 and `symfony/stopwatch` v7.4.8; every
   other locked package is unchanged.
 
@@ -192,6 +193,37 @@ privileges, or any row beyond the frozen seeds. The playthrough functions are ch
 The manifest comes from a fresh-install fixture, not from installed databases. An older install that
 reaches the baseline by a path producing different constraint or index names is refused until reviewed.
 
+## Readiness
+
+`health.php` is read-only: it loads configuration, connects through `synthRuntimeConnectDatabase` (an
+exception, never the legacy plaintext exit; connect timeout capped at 5 seconds unless the environment sets
+`SYNTH_DB_CONNECT_TIMEOUT`) and inspects. It never migrates, takes the owner's lock, creates the version table,
+loads settings or calls providers, and `Logger::suspendFileWrites()` keeps it from writing or rotating any
+SYNTH log file; warnings go to the web server error log. `SchemaMigrations::status()` compares the migrations
+this tree contains with the recorded ledger and reports `schema_migrations` as:
+
+| State | Meaning | Action |
+|---|---|---|
+| `current` | every known migration is recorded | none |
+| `missing` | no version table or no record (a pre-ledger install or an empty database) | run `tools/bootstrap-database.php` |
+| `pending` | a known migration is not recorded | run `tools/bootstrap-database.php` |
+| `unknown` | a record this tree does not contain (code older than the database) | deploy the server version that last migrated it |
+| `unavailable` | not inspected: no connection, unsupported encoding, missing `vendor/` or a failed read | follow `error` |
+
+The answer is HTTP 200 only when the database answers, uses UTF8, passes the runtime gate
+(`synthRuntimeNeedsDbUpdates`) and the ledger is `current`; otherwise 503 with one fixed, actionable `error`.
+A `current` ledger with the gate unmet is reported as an incomplete schema, not as a missing migration.
+Driver and migration messages are never returned. `background_processor` is advisory and does not change the
+status code.
+
+Quickstart GET runs one runtime bootstrap (`conf.php` read once) with `throw_db_connection_errors`. It answers a
+short HTTP 503 page that links to `health.php` unless the database is reachable, uses UTF8, passes the runtime
+gate, has a `current` ledger and has its vendor dependencies installed; only then does it load the render
+settings, and it reads the active STT connector without writing it. A GET never migrates. A save checks the
+encoding, runs the owner through `debug/db_updates.php`, rechecks the gate and answers any failure with a fixed
+JSON 503 before any settings save. `tools/bootstrap-database.php` uses the same single bootstrap, checks UTF8
+before migrating and exits nonzero when PostgreSQL is unreachable.
+
 ## Rules for new migrations
 
 - Use `addSql()` only. Never read or change the `Schema` argument: building it makes DBAL introspect the
@@ -205,13 +237,12 @@ reaches the baseline by a path producing different constraint or index names is 
 
 ## Limits
 
-- `health.php` still reports the runtime gate only; it does not report a missing baseline record.
 - A fresh install seeds the stock values of `conf/conf.sample.php`. The legacy chain also copied an existing
   `conf/conf.php`'s legacy values into new managed settings and narrator rows; the fresh path does not, so such
   values are set in the UI after installing. Existing databases are unaffected.
 - A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
   a SYNTH install; such a database is usually refused by verification and is never reset.
-- `ui/cmd/install-db.php` (an explicit reset command) and the shared `DatabaseTestCase` fixture still import
+- `ui/cmd/install-db.php` (an explicit reset command, command line only; web requests are refused) and the shared `DatabaseTestCase` fixture still import
   `data/database_default.sql` and run the chain, which stay as legacy-upgrade sources. The fixture therefore
   does not exercise the fresh path; `SchemaMigrationOwnerTest` does.
 - The fresh path was proven on disposable PostgreSQL 17.11 only, not on an installed database, through the WSL
@@ -219,7 +250,8 @@ reaches the baseline by a path producing different constraint or index names is 
 - Every entry needs the root `vendor/`. `tools/create-synth-db-wsl.ps1` fails before touching the database
   and asks for `composer install --no-dev` when the checkout has none.
 - UI callers that wrapped the old `require_once` in `try`/`catch` still swallow failures, which now include
-  the owner's refusals.
+  the owner's refusals. Quickstart saves no longer do (see Readiness); the other pages are unchanged.
+- The [install and upgrade checklist](ALPHA-ACCEPTANCE.md#install-and-upgrade) records readiness verification and remaining setup checks.
 - The shared in-process test fixture still lacks `synth.synthnpcs` for every class after the first (the
   pre-existing per-process flag above; base behavior, unchanged here).
 - Legacy playthrough snapshots are paused. The old UI cloned `public` instead of the `synth` application schema,

@@ -1,5 +1,7 @@
 <?php 
 
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
+
 header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
 header("Pragma: no-cache"); // HTTP 1.0
 header("Expires: 0"); // Proxies
@@ -16,6 +18,7 @@ if (!function_exists('pg_connect')) {
 
 ob_start();
 
+$profileLoaderReadOnly = in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true);
 $url = 'core/config_hub.php';
 $rootPath = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR;
 require_once($rootPath . "lib" .DIRECTORY_SEPARATOR."runtime_bootstrap.php");
@@ -25,6 +28,9 @@ synthRuntimeBootstrapIfNeeded($rootPath, [
     'load_tts_connector' => false,
     'load_player_name' => true,
     'load_narrator' => true,
+    // Dashboard page views neither rotate logs nor seed narrator rows; native and write requests keep the defaults.
+    'rotate_logs' => !$profileLoaderReadOnly,
+    'seed_narrator' => !$profileLoaderReadOnly,
 ]);
 
 require_once($rootPath . "lib" .DIRECTORY_SEPARATOR."model_dynmodel.php");
@@ -37,6 +43,7 @@ synthRuntimeApplyBootstrapOptions($rootPath, [
     'load_tts_connector' => false,
     'load_player_name' => true,
     'load_narrator' => true,
+    'seed_narrator' => !$profileLoaderReadOnly,
 ]);
 
 // Initialize automatic backup system (after profiles are loaded)

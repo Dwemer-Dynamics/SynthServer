@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
+// Read-only readiness answer. It loads configuration, connects and inspects. The connect timeout is capped at
+// HEALTH_CONNECT_TIMEOUT seconds unless the environment sets SYNTH_DB_CONNECT_TIMEOUT. It never migrates, takes the migration lock, creates schema objects, loads settings or calls providers, and it
+// writes no SYNTH log file (warnings go to the web server error log). 200 only when the database, its encoding, the
+// runtime schema gate and the migration ledger are all ready; otherwise 503 with one fixed, actionable error. The
+// background processor is advisory and never changes the status code.
 
 $root = __DIR__;
 $response = [
@@ -15,42 +18,103 @@ $response = [
     'database_encoding' => '',
     'database_encoding_supported' => false,
     'schema' => false,
+    // current | missing | pending | unknown | unavailable (see SchemaMigrations::status()).
+    'schema_migrations' => 'unavailable',
     'background_processor' => false,
     'background_port' => 12348,
     'timestamp' => gmdate('c'),
 ];
+$answered = false;
+const HEALTH_CONNECT_TIMEOUT = 5;
 
+// Configuration output, PHP warnings and a legacy plaintext exit stay in this request's own buffer. A fatal error or
+// an exit before the answer still gets the sanitized JSON 503 (shutdown functions run before buffers are flushed).
+$bufferLevel = ob_get_level();
+ob_start();
+
+$answer = static function (array $response, bool $ready) use (&$answered, $bufferLevel): void {
+    $answered = true;
+    // Only the buffers this script opened (and any opened inside them); stop at one that cannot be removed.
+    while (ob_get_level() > $bufferLevel) {
+        if (!@ob_end_clean()) {
+            break;
+        }
+    }
+    if (!headers_sent()) {
+        http_response_code($ready ? 200 : 503);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+    }
+    echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n";
+};
+
+register_shutdown_function(static function () use (&$response, &$answered, $answer): void {
+    if ($answered) {
+        return;
+    }
+    $response['error'] = 'The health check stopped before it finished; see the web server error log.';
+    $answer($response, false);
+});
+
+$failure = 'SYNTH could not load its runtime files; redeploy the server.';
 try {
     require_once $root . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
-    require_once $root . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'synth_runtime.php';
+    Logger::suspendFileWrites();
     require_once $root . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'background_processor.php';
 
-    synthRuntimeBootstrap($root, [
-        'run_db_updates' => false,
-        'load_general_settings' => false,
-        'load_stt_connector' => false,
-        'load_tts_connector' => false,
-        'load_player_name' => false,
-        'load_narrator' => false,
-    ]);
-
-    $db = $GLOBALS['db'] ?? null;
-    $response['database'] = is_object($db) && (bool)$db->query('SELECT 1');
-    $response['database_encoding'] = $response['database'] ? synthRuntimeDatabaseEncoding() : '';
-    $response['database_encoding_supported'] = $response['database'] && synthRuntimeDatabaseEncodingIsSupported();
-    $response['schema'] = $response['database']
-        && $response['database_encoding_supported']
-        && !synthRuntimeNeedsDbUpdates();
     $response['background_port'] = synthBackgroundProcessorPort();
     $response['background_processor'] = synthBackgroundProcessorIsRunning(0.2);
-    $response['status'] = $response['schema'] ? 'ok' : 'degraded';
-    if ($response['database'] && !$response['database_encoding_supported']) {
-        $response['error'] = synthRuntimeDatabaseEncodingError();
+
+    $failure = 'The PHP PostgreSQL extension (pgsql) is not loaded; install it for the PHP that serves SYNTH and restart that PHP.';
+    if (!function_exists('pg_connect')) {
+        throw new RuntimeException('pgsql');
+    }
+
+    $failure = 'SYNTH cannot connect to PostgreSQL. Check that PostgreSQL 17 is running and that SYNTH_DB_HOST, '
+        . 'SYNTH_DB_PORT, SYNTH_DB_NAME, SYNTH_DB_USER and SYNTH_DB_PASSWORD in conf/conf.php are correct.';
+    $db = synthRuntimeConnectDatabase($root, HEALTH_CONNECT_TIMEOUT);
+    $response['database'] = (bool)$db->query('SELECT 1');
+    if (!$response['database']) {
+        throw new RuntimeException('database');
+    }
+    $response['status'] = 'degraded';
+
+    $failure = 'SYNTH could not inspect its database; see the web server error log.';
+    $encoding = synthRuntimeDatabaseEncoding();
+    $response['database_encoding'] = $encoding;
+    $response['database_encoding_supported'] = synthRuntimeDatabaseEncodingIsSupported($encoding);
+    if (!$response['database_encoding_supported']) {
+        $response['error'] = synthRuntimeDatabaseEncodingError($encoding);
+        $answer($response, false);
+        exit;
+    }
+
+    $runtimeGateMet = !synthRuntimeNeedsDbUpdates();
+
+    $failure = 'SYNTH production dependencies are missing; run composer install --no-dev in the server root.';
+    if (!is_file($root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php')) {
+        throw new RuntimeException('vendor');
+    }
+    $failure = 'SYNTH could not read its schema migration ledger; see the web server error log.';
+    $response['schema_migrations'] = strval(synthRuntimeSchemaMigrationStatus($root)['state'] ?? 'unavailable');
+
+    $response['schema'] = $runtimeGateMet && $response['schema_migrations'] === 'current';
+    if ($response['schema']) {
+        $response['status'] = 'ok';
+    } elseif ($response['schema_migrations'] === 'unknown') {
+        $response['error'] = 'The database records schema migrations this SYNTH version does not contain. Deploy the '
+            . 'SYNTH server version that last migrated this database and check health again before changing it.';
+    } elseif ($response['schema_migrations'] === 'current') {
+        $response['error'] = 'The SYNTH database records every schema migration but its schema is incomplete. Check '
+            . 'that SYNTH_DB_NAME in conf/conf.php names the SYNTH database and that this is the SYNTH version that '
+            . 'migrated it; see docs/SCHEMA-MIGRATIONS.md.';
+    } else {
+        $response['error'] = 'The SYNTH database schema is not current. Run php tools/bootstrap-database.php in the '
+            . 'server root (or tools/create-synth-db-wsl.ps1) to apply the migrations.';
     }
 } catch (Throwable $e) {
-    $response['error'] = $e->getMessage();
+    // Driver and configuration messages can carry connection details; the client gets the fixed message only.
+    $response['error'] = $failure;
 }
 
-$healthy = $response['database'] && $response['schema'];
-http_response_code($healthy ? 200 : 503);
-echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+$answer($response, $response['schema']);

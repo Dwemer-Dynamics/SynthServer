@@ -20,9 +20,9 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     }
 
     /** Child PHP prevents page globals and sql classes from leaking between renders. */
-    private function render(string $page,array $get=[],array $post=[]): string
+    private function render(string $page,array $get=[],array $post=[],bool $withConf=true): string
     {
-        self::assertContains($page,['ui/home.php','ui/npc_upload.php','ui/worldknowledge_upload.php']);
+        self::assertContains($page,['ui/home.php','ui/index.php','ui/events-memories.php','ui/npc_upload.php','ui/worldknowledge_upload.php']);
         self::assertSame('testdb',self::$testDatabaseName);
         // phpunit.xml sets "true"; an outer runner may already export "1". Both mean the disposable suite.
         self::assertContains(getenv('PHPUNIT_TEST'),['true','1'],'Render tests require the disposable PHPUnit suite flag.');
@@ -30,10 +30,13 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
         $conf=$root.'/conf/conf.php';
         // Never open, overwrite or import an existing installation's configuration.
         self::assertFileDoesNotExist($conf,'Render tests require a source-only disposable checkout.');
-        $owned=fopen($conf,'x');
-        self::assertIsResource($owned);
-        fwrite($owned,"<?php require __DIR__.'/conf.sample.php';\n");
-        fclose($owned);
+        // Without the optional override a page must run from the tracked sample and the environment alone.
+        if ($withConf) {
+            $owned=fopen($conf,'x');
+            self::assertIsResource($owned);
+            fwrite($owned,"<?php require __DIR__.'/conf.sample.php';\n");
+            fclose($owned);
+        }
         $environment=getenv();
         $environment['SYNTH_DB_NAME']='testdb';
         $environment['SYNTH_DB_HOST']='127.0.0.1';
@@ -48,7 +51,7 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
             .'$_SERVER["HTTP_HOST"]="127.0.0.1";'
             .'require '.var_export($root.'/'.$page,true).';';
         try {
-            $process=proc_open([PHP_BINARY,'-d','allow_url_fopen=0','-r',$bootstrap],
+            $process=proc_open([PHP_BINARY,'-d','allow_url_fopen=0','-d','session.save_path='.sys_get_temp_dir(),'-r',$bootstrap],
                 [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,$root,$environment);
             self::assertIsResource($process);
             fclose($pipes[0]);
@@ -57,9 +60,10 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
             self::assertSame(0,proc_close($process),$page.' render failed: '.$errors);
             self::assertStringNotContainsString('Fatal error',$output);
             self::assertStringNotContainsString('Warning:',$output);
-            self::assertStringNotContainsString('Error fetching',$output);
+            // Server-side fetch failures; the events page's own console.error() text is not one.
+            self::assertDoesNotMatchRegularExpression("/(?<!console\\.error\\(')Error fetching/",$output);
             return $output;
-        } finally { unlink($conf); }
+        } finally { if ($withConf) { unlink($conf); } }
     }
 
     private function xpath(string $html): DOMXPath
@@ -166,5 +170,82 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
             self::assertCount(1,$values,$label.' must have a distinct visible counter.');
             self::assertSame(number_format($expected),trim($values->item(0)->textContent));
         }
+    }
+
+    public function testManagementGuardAcceptsOnlySameOriginBrowserEvidence(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/management_request_guard.php';
+        $host=['HTTP_HOST'=>'127.0.0.1:8087','REQUEST_METHOD'=>'POST'];
+        foreach ([
+            [['HTTP_ORIGIN'=>'http://127.0.0.1:8087','HTTP_SEC_FETCH_SITE'=>'same-origin'],true],
+            [['HTTP_REFERER'=>'http://127.0.0.1:8087/ui/index.php','HTTP_USER_AGENT'=>'Mozilla/5.0'],true],
+            [['HTTP_USER_AGENT'=>'SYNTH-native'],true],
+            [['HTTP_ORIGIN'=>'http://evil.test'],false],
+            [['HTTP_ORIGIN'=>'null'],false],
+            [['HTTP_ORIGIN'=>'http://127.0.0.1:9000','HTTP_SEC_FETCH_SITE'=>'same-site'],false],
+            [['HTTP_SEC_FETCH_SITE'=>'cross-site','REQUEST_METHOD'=>'GET'],false],
+            [['HTTP_REFERER'=>'http://evil.test/','HTTP_USER_AGENT'=>'Mozilla/5.0'],false],
+            [['HTTP_USER_AGENT'=>'Mozilla/5.0'],false],
+            [['HTTP_ORIGIN'=>'http://127.0.0.1:8087','HTTP_SEC_FETCH_SITE'=>'cross-site'],false],
+            [['HTTP_ORIGIN'=>'https://127.0.0.1:8087'],false],
+            [['HTTP_REFERER'=>'http://127.0.0.1:9000/ui/index.php','HTTP_USER_AGENT'=>'Mozilla/5.0'],false],
+            [['HTTP_SEC_FETCH_SITE'=>'none','HTTP_USER_AGENT'=>'Mozilla/5.0','REQUEST_METHOD'=>'GET'],true],
+            [['HTTP_USER_AGENT'=>'Mozilla/5.0','REQUEST_METHOD'=>'GET'],true],
+        ] as [$headers,$allowed]) {
+            self::assertSame($allowed,synthManagementRequestRefusal($headers+$host)===null,json_encode($headers));
+        }
+        // A GET with an outbound effect (the Quickstart MiniMe probe) needs browser evidence like a POST.
+        $get=['HTTP_HOST'=>'127.0.0.1:8087','REQUEST_METHOD'=>'GET'];
+        self::assertNotNull(synthManagementRequestRefusal($get+['HTTP_USER_AGENT'=>'Mozilla/5.0'],'browser',true));
+        self::assertNull(synthManagementRequestRefusal($get+['HTTP_USER_AGENT'=>'Mozilla/5.0','HTTP_SEC_FETCH_SITE'=>'same-origin'],'browser',true));
+        self::assertNull(synthManagementRequestRefusal($get+['HTTP_USER_AGENT'=>'curl/8'],'browser',true));
+        self::assertNotNull(synthManagementRequestRefusal(['REQUEST_METHOD'=>'GET'],'cli-only'));
+        self::assertSame('cli-only',synthManagementScriptScope('/srv/s/tools/bootstrap-database.php','/srv/s'));
+        self::assertNull(synthManagementScriptScope('/srv/s/main.php','/srv/s'));
+    }
+
+    public function testDashboardIndexRefusesDestructiveLinksAndRendersConfirmedPostControls(): void
+    {
+        $db=$this->db();
+        $db->insert('eventlog',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Dashboard fixture','sess'=>'pending',
+            'localts'=>10,'people'=>'||','location'=>'','party'=>'[]']);
+        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM eventlog')['n'];
+        $before=$count();
+        foreach (['reset','cleanlog','delete_last','delete_memory','reinstall'] as $legacy) {
+            self::assertStringContainsString('no longer available by link',$this->render('ui/index.php',[$legacy=>'1','table'=>'eventlog']));
+        }
+        self::assertSame($before,$count());
+        $xpath=$this->xpath($this->render('ui/index.php',['table'=>'eventlog']));
+        self::assertSame(0,$xpath->query('//*[contains(@onclick,"delete_last=") or contains(@onclick,"reset=")]')->length);
+        $form=$xpath->query('//form[@method="post"][.//button[@value="reset_events"]]');
+        self::assertCount(1,$form);
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/',$xpath->query('.//input[@name="csrf_token"]/@value',$form->item(0))->item(0)->nodeValue);
+        self::assertCount(3,$xpath->query('.//button[@value="delete_last"]',$form->item(0)));
+        self::assertSame($before,$count());
+    }
+
+    public function testEventsAndMemoriesRunWithoutLocalOverrideAndRefuseUnconfirmedActions(): void
+    {
+        $db=$this->db();
+        $db->insert('eventlog',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Events fixture','sess'=>'pending',
+            'localts'=>10,'people'=>'||','location'=>'','party'=>'[]']);
+        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM eventlog')['n'];
+        $before=$count();
+        foreach (['delete_last'=>'20','reset'=>'true','delete_memory'=>'1','hide_event_type'=>'chat','clear_hidden_event_types'=>'1'] as $key=>$value) {
+            self::assertStringContainsString('no longer available by link',
+                $this->render('ui/events-memories.php',[$key=>$value,'tab'=>'eventlog'],[],false));
+        }
+        foreach (['reset_events','delete_last','hide_event_type'] as $action) {
+            self::assertStringContainsString('page expired',$this->render('ui/events-memories.php',['tab'=>'eventlog'],
+                ['events_action'=>$action,'value'=>'20','csrf_token'=>str_repeat('0',64)],false));
+        }
+        self::assertSame($before,$count());
+        // Without conf/conf.php the page renders from the sample and environment instead of redirecting to setup.
+        $html=$this->render('ui/events-memories.php',['tab'=>'memory'],[],false);
+        self::assertStringContainsString('window.synthManagementPost=',$html);
+        self::assertStringContainsString("postEventLogAction('reset_events'",$html);
+        self::assertStringNotContainsString('delete_memory=',$html);
+        self::assertStringNotContainsString("params.set('hide_event_type'",$html);
+        self::assertSame($before,$count());
     }
 }

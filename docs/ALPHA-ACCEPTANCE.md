@@ -595,6 +595,20 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       and runtime data survive normal startup; failures show an actionable message.
 - [ ] Clean machine: following the README on a fresh WSL install gives `health.php` with
       a healthy database, schema and background processor on `127.0.0.1:8087`.
+- [x] `health.php` from the exact source on a disposable PostgreSQL 17.11 (pgvector 0.8.7, PHP 8.4.27)
+      on port 55432 set through configuration, with a synthetic custom config loaded once (marker): 200
+      when current, including while both advisory locks are held (~0.27 s); 503 with the matching
+      `schema_migrations` for an empty database and a true pre-ledger install (`missing`), an unknown
+      record (`unknown`), a missing `vendor/`, an unreachable server and `SQL_ASCII`; `pending` only
+      as an owner-run synthetic fixture. Fresh install and an idempotent rerun pass; no health
+      request writes the log or database. `tools/bootstrap-database.php` exits 1 when unreachable.
+- [x] Quickstart refusal: an HTTP fixture gives GET 503 and a refused POST with no writes. In a
+      browser, the healthy screen showed, then with an injected unknown ledger record a real Save
+      and Continue displayed the refusal. The GET recovery page was checked visually at 1280 and
+      390 px with no narrow overflow. A browser check with the database unreachable was not run.
+- [x] Focused PHP tests: 35 tests, 5,001 assertions, no failures, errors or skips; the release
+      audit covers 548 PHP files.
+- [ ] Hosted CI on the PostgreSQL 17 PGDG cluster (Actions are disabled).
 - [ ] Re-running the database and deploy scripts is idempotent. Configuration, voices,
       uploads and the database stay intact without `-Reset`.
 - [ ] Upgrading from an earlier SYNTH install applies only the pending migrations. Existing
@@ -745,3 +759,47 @@ survives cancellation. When cancellation revokes a pending line first, a late re
 cannot promote it. Owned rechat waits for the exact enrolled parent to be accepted
 as heard before reserving the child. For Whisper and Close, verify hearers against
 the frozen origin capture.
+
+## Dashboard request safety
+
+See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
+
+- [x] `php -l` on every changed PHP file; `git diff --check`.
+- [x] `DashboardContentCatalogTest` (7 tests: guard decisions, index and Events/Memories stale links and
+      token-less POSTs refused with rows unchanged, Events/Memories rendered without `conf/conf.php`) on a
+      disposable PostgreSQL 17.11 with pgvector 0.8.7 in a private WSL network namespace, run as `nobody`
+      against a snapshot of the candidate tree. Hosted CI not run.
+- [x] HTTP probe through real Apache 2.4.69 with mod_php 8.4 and the shipped `Require local` /
+      `AllowOverride FileInfo` policy, in the same namespace, on a fresh `synth` database from
+      `tools/bootstrap-database.php`, with no `conf/conf.php`. Results:
+      - Bare index GET and HEAD: `302` to Home. Configuration, logs, schema and the session store are unchanged.
+      - Home GET and HEAD, and profile-loader pages: no log rotation (oversized sentinel logs kept), no
+        worker start, and a deleted optional narrator row stays absent.
+      - Without PHP's PostgreSQL extension (CLI `php -n`), Home renders the setup guidance.
+      - Events/Memories, the index tables, the diary book, the adventure log and the event API: these render
+        without the override.
+      - Stale action links: 21 GET and HEAD pairs answer `400` and the vector pages answer `405`.
+      - Refused before session or data: cross-origin, `null`, same-site-port, scheme-mismatch, cross-site
+        fetch metadata, foreign-Referer and evidence-free browser POSTs, and cross-origin Quickstart and
+        package POSTs.
+      - Same-origin event deletes, hidden-type changes, memory delete and LLM connector create/delete
+        succeed with the token. A wrong or missing token answers `403` with no change.
+      - The MiniMe GET probe needs browser evidence; HEAD answers `405`.
+      - Array action values (`delete[]`, `rowid[]`, `value[]`) answer `400` with no change.
+      - Headerless native package `probe` and `packages` calls pass.
+      - Connector views leave the schema unchanged.
+      - Malicious audit dates fall back to today. Regular dates and ISO weeks are kept.
+- [ ] Browser clicks of the converted controls (desktop and narrow, keyboard, confirm and cancel). The
+      evidence above is HTTP only.
+- [ ] Coverage is the scripts that include `lib/runtime_bootstrap.php`, `ui/profile_loader.php` or the guard.
+      Not reached: redirects (`immersion.php`, `native-*.php`), `system_health.php`,
+      `tools/server_version.php`, `synth_setup.php`, the disabled `cmd/action_ai_update_appearance.php`, and
+      included helpers. The private narrator page keeps its own token.
+- [ ] GET writes were converted only on the pages named in the handoff. Other `ui/` scripts were not audited
+      for GET writes. Existing POST forms without a token rely on the origin check.
+- [ ] Other bootstrapping pages (for example AI Response, Request Logs and the connector pages) keep the default
+      log rotation on GET.
+- [ ] Fresh empty database: the index now lands on Home rather than Quickstart. Not checked against an
+      uninitialised database.
+- [ ] DNS rebinding: Host is not allowlisted, so a rebound name passes the origin match.
+- [ ] Deploy, installed Apache/PHP-FPM, and in-game plugin package flows: none claimed.

@@ -1,8 +1,13 @@
 <?php
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 
 $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
-require_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
+// conf/conf.php is an optional operator override of the tracked sample (and the environment for the database).
+require_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.sample.php");
+if (is_file($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php")) {
+    require_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
+}
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
 
 header('Content-Type: application/json');

@@ -13,6 +13,9 @@ env:
   TZ: UTC
   LANG: C.UTF-8
   LC_ALL: C.UTF-8
+  # The disposable test cluster. Tests and the sample configuration use port 5432.
+  POSTGRESQL_MAJOR: '17'
+  PGPORT: '5432'
 
 jobs:
   php-postgresql:
@@ -24,19 +27,39 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Add the PostgreSQL apt repository
+        run: |
+          # PGDG signing key, checked against its published fingerprint before apt trusts it.
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o "$RUNNER_TEMP/pgdg.asc"
+          fingerprint="$(gpg --show-keys --with-colons "$RUNNER_TEMP/pgdg.asc" | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$fingerprint" = B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+          sudo install -D -m 0644 "$RUNNER_TEMP/pgdg.asc" /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
       - name: Install runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes php-cli php-curl php-mbstring php-pgsql php-xml postgresql postgresql-client postgresql-16-pgvector
+          sudo apt-get install --yes php-cli php-curl php-mbstring php-pgsql php-xml \
+            "postgresql-$POSTGRESQL_MAJOR" "postgresql-client-$POSTGRESQL_MAJOR" "postgresql-$POSTGRESQL_MAJOR-pgvector"
           php --version
-          psql --version
           composer --version
-      - name: Create disposable test role
+      - name: Start disposable PostgreSQL cluster
         run: |
-          sudo systemctl start postgresql
+          # The package may start its own default cluster on this ephemeral runner; stop that service only, then
+          # create one explicit cluster of the pinned major on $PGPORT.
+          sudo systemctl stop postgresql || true
+          sudo pg_createcluster "$POSTGRESQL_MAJOR" synthci --port "$PGPORT" --encoding UTF8 --locale C.UTF-8 --start
+          pg_lsclusters
+          psql_admin() { sudo -u postgres psql --cluster "$POSTGRESQL_MAJOR/synthci" --set ON_ERROR_STOP=1 "$@"; }
           # Disposable superuser on this ephemeral runner, matching the loopback harness role:
           # DatabaseTestCase setup runs CREATE EXTENSION vector, which needs superuser.
-          sudo -u postgres psql --set ON_ERROR_STOP=1 --command "CREATE ROLE dwemer LOGIN SUPERUSER PASSWORD 'dwemer';"
+          psql_admin --command "CREATE ROLE dwemer LOGIN SUPERUSER PASSWORD 'dwemer';"
+          # The server the tests reach over TCP is the pinned major, and the role logs in there.
+          psql_tcp() { psql "host=localhost port=$PGPORT dbname=postgres user=dwemer password=dwemer" -Atc "$1"; }
+          test "$(psql_tcp 'SHOW server_version_num' | cut -c1-2)" = "$POSTGRESQL_MAJOR"
+          test "$(psql_tcp 'SELECT current_user')" = dwemer
+          psql_tcp 'SELECT version()'
       - name: Install locked production dependencies
         run: |
           composer validate --no-check-publish --no-check-all
@@ -62,5 +85,6 @@ jobs:
         if: always()
         run: |
           printf '%s\n' 'This job proves the tracked source-tree lint/safety audit, protocol hashes, PHPUnit, and disposable PostgreSQL behavior.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "PostgreSQL major: $POSTGRESQL_MAJOR (PGDG), cluster port $PGPORT." >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'It builds no release package.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'It does not claim DwemerDistro deployment, live providers, or Fallout 4 gameplay.' >> "$GITHUB_STEP_SUMMARY"

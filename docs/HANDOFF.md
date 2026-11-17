@@ -29,6 +29,21 @@ and snapshot create, switch, delete and the Timeline Break autosnapshot change n
 are kept and not marked compatible. Re-enabling needs versioned snapshots and a ledger-checked restore
 first ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#limits)).
 
+## Setup readiness candidate
+
+`health.php` is a read-only readiness check. It connects through `synthRuntimeConnectDatabase`, which throws
+instead of the legacy plaintext exit, and adds `schema_migrations` (`current`, `missing`, `pending`, `unknown`
+or `unavailable`) from the owner's lock-free `SchemaMigrations::status()`. It answers 200 only when the
+database, UTF8 encoding, runtime gate and ledger are ready, otherwise 503 with one fixed, actionable error;
+it never migrates or loads settings, writes no SYNTH log file, and the background processor stays advisory.
+Quickstart GET answers a 503 page linking to `health.php` unless the database, UTF8 encoding, runtime gate,
+current ledger and vendor dependencies are ready; its saves answer a database or migration failure with a fixed
+JSON 503 before any settings save. `tools/bootstrap-database.php` reads `conf.php` once, checks UTF8 before
+migrating and exits nonzero when PostgreSQL is unreachable. The legacy `sql` class honors `SYNTH_DB_PORT` (environment, then
+configuration, then libpq's `PGPORT` or 5432), and its explicit-settings path does not log the password. CI
+creates an explicit PostgreSQL 17 (PGDG) cluster on 5432 and checks its major and role. See [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#readiness) and
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#install-and-upgrade).
+
 ## Doctrine settings read pilot
 
 `SettingsRepository::value()` and `values()` read through Doctrine ORM on the legacy `sql`
@@ -527,7 +542,7 @@ Its five optional override fields are blank. It is a custom-template import, not
 factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
 
 - Windows hosts Fallout 4 and the SYNTH client. A WSL Linux distribution runs Apache with PHP
-  (cli and Apache module; `curl`, `mbstring`, `pgsql` and `xml` extensions) and PostgreSQL
+  (cli and Apache module; `curl`, `mbstring`, `pgsql` and `xml` extensions) and PostgreSQL 17
   with `pgvector` and `pg_trgm`.
 - Apache serves `/var/www/html/Synthserver` on **`127.0.0.1:8087`** with
   `Require local` (`tools/apache/synthserver.conf`). This matches the client default
@@ -536,7 +551,8 @@ factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
   `dwemer`/`dwemer` (`conf/conf.sample.php`, `lib/db_connection_settings.php`). These are
   loopback-only development defaults. Never expose PostgreSQL or Apache beyond loopback.
 - The background processor (`service/start.sh`, `service/manager.php`) runs memory,
-  relationship and TTS workers. `health.php` reports the database, schema and processor state.
+  relationship and TTS workers. `health.php` reports the database, schema, migration ledger and
+  (advisory) processor state.
   It can be supervised or started directly with `service/start.sh`. The SYNTH UI and legacy game
   traffic through `main.php` also start it on demand. Explicit v2 dialogue (`/talk` and speech
   receipts) is dispatched before that step and never loads or probes the processor helper; its
@@ -909,3 +925,34 @@ holder, and the GPLv3 does not narrow those MIT terms. Keep `MIT-LICENSE` and th
 CC BY-SA 4.0 and OFL notices. History and publication decisions remain open. See
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) and the
 [publication gates](ALPHA-ACCEPTANCE.md#publication-gates).
+
+## Dashboard request safety candidate
+
+`lib/management_request_guard.php` refuses cross-origin browser requests to web scripts under `ui/` before
+configuration or database work. It is the first include of `lib/runtime_bootstrap.php` and
+`ui/profile_loader.php`. Quickstart, the API key test, URL check, package API, log/cache/diary/stats views and
+pages that act before bootstrap require it directly. Browser evidence (`Sec-Fetch-Site`, `Origin`, else
+`Referer`) must show the same scheme, Host and port, or a typed URL. `same-site` (another local port),
+`Origin: null` and unknown values are refused. A request with none of these headers is a native or operator
+client and passes, except an unsafe request with a browser User-Agent; the Quickstart MiniMe GET probe counts as
+unsafe and HEAD answers 405. This is CSRF defence, not authentication; loopback `Require local` stays the only access control. Web
+requests to `debug/` and `tools/` scripts are refused. The root `.htaccess` and the pmstt and diary-audio
+endpoints no longer send `Access-Control-Allow-Origin: *`.
+
+Converted GET actions are confirmed POSTs carrying one session token (`synthManagementActionGate`,
+`synthManagementPost`). They cover the index event, memory and log deletes; Events/Memories delete-last,
+delete-all, memory delete and hidden event types; AI Response and Request Log clear; vector memory delete-all and
+compact (compact calls the AI connector); profile create, clone, delete and default reassignment; LLM and TTS
+connector create, clone and delete; NPC delete; and API key delete (transport only). Old links answer 400 and
+token failures answer 403, both before bootstrap. Array values for action keys answer 400. `ui/cmd/install-db.php` has no web route.
+
+`ui/index.php` GET only reads or redirects. The bare URL redirects to Home before session or configuration work;
+Home shows the setup page first when PHP's PostgreSQL extension is missing.
+`conf/conf.php` is an optional override of the tracked sample and environment, so the index and Events/Memories
+no longer bounce to Quickstart without it. The direct-require standalone pages load the sample first. Home and
+profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD (missing optional
+narrator rows are read as defaults, not inserted); other callers keep rotation and seeding. Home no longer
+starts the background processor (`main.php` does). STT, ITT and TTS connector views no longer apply schema
+migrations; Quickstart's explicit save still does. Snapshot restore stays paused. Provider key fields, their
+rendering and key-test provider resolution belong to the separate credential draft. Open checks are in
+[ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#dashboard-request-safety).

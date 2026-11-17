@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
+// Cross-origin package probes, uploads and activation are refused before any input or package state is read.
+require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
 $configuration = [];
 foreach (['conf.sample.php', 'conf.php'] as $configurationFile) {
