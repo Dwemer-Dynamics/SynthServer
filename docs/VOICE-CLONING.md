@@ -25,3 +25,47 @@ a manual voice choice. Speech-cache keys include the current sample SHA-256, and
 do not permanently hide samples imported by another worker.
 
 Local extraction/upload/generation probes do not prove in-game playback or voice likeness.
+
+## Silent samples
+
+An import is refused with a 400 `Voice sample is silent` when the decoded WAV holds only zero samples, and
+`vsx.php` stores nothing: an existing sample of that voice is left as it was. Any nonzero sample, however quiet,
+passes (loudness normalisation runs before the check). A decode that yields no readable PCM WAV is refused the
+same way. TTS Studio's own WAV upload applies the same check and reports the file by name.
+
+## Stored sample list
+
+`GET /api/v1/voice/samples.php` is a read-only dashboard route (the Host allowlist and same-origin guard apply).
+It answers `{"ok":true,"voice_samples":[...],"count":N}` with, per sample in `data/voices`: `voice_id`, `bytes`,
+`sha256`, `duration_seconds`, `sample_rate`, `playable`, `stored_at`, `source` (the game file recorded by the
+import, when known), `selection`, `has_reference_text` and `reference_text`. It returns no file paths, provider
+settings or keys, and it writes nothing. `?voice_id=<id>` limits the list to one voice; `?npc_id=<n>` resolves
+that NPC's saved voice and adds `npc: {id, name, voice_id, has_sample}`. Bad ids answer 400, an unknown NPC 404.
+
+## Voice preview
+
+`POST /api/v1/voice/preview.php` speaks one short line with an NPC's saved voice and answers the audio itself
+(`200 audio/wav`, `Cache-Control: no-store`). Body: `{"npc_id": 12, "text": "...", "csrf_token": "..."}`; `text`
+is optional (a fixed line is used) and has 1 to 300 characters without control characters. The token is the
+dashboard session token the Voice Samples tab of TTS Studio embeds (`X-CSRF-Token` also works); a POST without it
+is refused with 403 before any provider is contacted. The body is JSON of at most 4096 bytes with a
+Content-Length, and no other field is accepted.
+
+The connector is the one dialogue would use: the NPC's profile connector, else the preferred default. The voice is
+the NPC's saved voice, resolved to a local sample as in dialogue. An NPC without a saved voice is spoken with the
+connector's fallback voice, as in dialogue, and the reply carries `X-Voice-Fallback: 1`. Nothing is saved: no
+speech row, memory, event or NPC change. The audio is written to `soundcache` under a random name, read back and
+deleted with its request log at once.
+
+Every preview is one provider call and may be charged, so one preview runs at a time (a second answers 429
+`busy`) and the provider call is bounded by a 20 second socket timeout. Failures answer
+`{"ok":false,"code":...,"error":...}` with fixed text, never the endpoint or provider reply: 400 `invalid_input`,
+403 `csrf`, 404 `unknown_npc`, 411, 413, 415, 422 `tts_not_configured` (no connector, or driver `none`) or
+`no_voice` (a silent-marker voice), 429 `busy`, 502 `provider_failed`, 503 `unavailable`.
+
+## Reference text
+
+A sample's transcript is kept as `reference_text` (up to 4096 bytes, no control characters) in the sidecar
+`data/voices/<voice>.json` written by `vsx.php` and shown by the list. It is for cloning providers that take a
+transcript with the sample. No connector shipped with SYNTH sends it with a synthesis request today (OmniVoice
+transcribes imports itself with local STT), so it is stored and listed but not forwarded.
