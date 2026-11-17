@@ -28,18 +28,28 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
 {
     $invalid = static fn(string $issue) => synth_protocol_fail('invalid_payload', 422, [['field' => 'payload', 'issue' => $issue]]);
     if ($type === 'narrator_command') {
-        $select = ($payload['action'] ?? null) === 'select';
-        synth_protocol_expect_exact_keys($payload, $select ? ['action', 'definition_id'] : ['action'],
-            ($payload['action'] ?? '') === 'transcript' ? ['cursor'] : [], 'payload');
-        if (!in_array($payload['action'], ['state', 'select', 'cancel', 'transcript'], true)
-            || ($select && !synth_private_narrator_valid_definition_id($payload['definition_id']))) $invalid('narrator_command_invalid');
+        $action = $payload['action'] ?? null;
+        $needsDefinition = $action === 'select' || $action === 'bind_object';
+        synth_protocol_expect_exact_keys($payload, $needsDefinition ? ['action', 'definition_id', ...($action === 'bind_object' ? ['object'] : [])] : ['action'],
+            $action === 'transcript' ? ['cursor', 'definition_id'] : [], 'payload');
+        if (!in_array($action, ['state', 'select', 'cancel', 'transcript', 'bind_object'], true)
+            || (($needsDefinition || array_key_exists('definition_id', $payload)) && !synth_private_narrator_valid_definition_id($payload['definition_id']))) $invalid('narrator_command_invalid');
+        if ($action === 'bind_object') $payload['object'] = synth_private_narrator_validate_object($payload['object']);
         if (array_key_exists('cursor', $payload) && (!is_string($payload['cursor']) || preg_match('/^[0-9a-f]{64}$/D', $payload['cursor']) !== 1))
             $invalid('narrator_cursor_invalid');
     } elseif ($type === 'narrator_turn') {
         $kind = $payload['kind'] ?? null;
         $extra = ['typed' => ['text'], 'voice' => ['media'], 'scene' => []][$kind] ?? null;
         if ($extra === null) $invalid('narrator_turn_invalid');
-        synth_protocol_expect_exact_keys($payload, ['kind', 'definition_id', 'state_id', ...$extra], [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['kind', 'definition_id', 'state_id', ...$extra], ['object', 'object_name'], 'payload');
+        if (array_key_exists('object', $payload)) {
+            // Object turns are typed or push-to-talk only; scene commentary belongs to the selected narrator.
+            if ($kind === 'scene') $invalid('narrator_object_invalid');
+            $payload['object'] = synth_private_narrator_validate_object($payload['object']);
+        }
+        if (array_key_exists('object_name', $payload) && (!array_key_exists('object', $payload) || !is_string($payload['object_name'])
+            || trim($payload['object_name']) === '' || mb_strlen($payload['object_name']) > 64 || str_contains($payload['object_name'], "\0")
+            || preg_match('//u', $payload['object_name']) !== 1)) $invalid('narrator_object_invalid');
         if (!synth_private_narrator_valid_definition_id($payload['definition_id'])
             || !synth_private_narrator_valid_record_id($payload['state_id'], 0)
             || ($kind === 'typed' && (!is_string($payload['text']) || trim($payload['text']) === ''
@@ -57,6 +67,22 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
             || !in_array($payload['outcome'], ['audio_completed', 'interrupted', 'failed'], true)) $invalid('narrator_receipt_invalid');
     }
     return $payload;
+}
+
+// One talking-object identity (docs/TALKING-OBJECTS.md): a plugin reference by local ID, or a runtime (FF) reference
+// with a null plugin; the base always comes from a plugin. Every field is exact, upper-case and load-order free.
+function synth_private_narrator_validate_object($value): array
+{
+    $invalid = static fn() => synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.object', 'issue' => 'narrator_object_invalid']]);
+    if (!is_array($value) || array_is_list($value)) $invalid();
+    synth_protocol_expect_exact_keys($value, ['ref_plugin', 'ref_id', 'base_plugin', 'base_id'], [], 'payload.object');
+    $plugin = static fn($name) => is_string($name) && strlen($name) <= 255
+        && preg_match('/^[^\/\\\\\x00-\x1F\x7F]+\.(esm|esp|esl)$/D', $name) === 1;
+    $runtime = $value['ref_plugin'] === null;
+    if (!is_string($value['ref_id']) || !is_string($value['base_id']) || (!$runtime && !$plugin($value['ref_plugin'])) || !$plugin($value['base_plugin'])
+        || preg_match($runtime ? '/^0xFF[0-9A-F]{6}$/D' : '/^0x00(?!000000)[0-9A-F]{6}$/D', $value['ref_id']) !== 1
+        || preg_match('/^0x00(?!000000)[0-9A-F]{6}$/D', $value['base_id']) !== 1) $invalid();
+    return $value;
 }
 
 // An install whose migration has not run yet keeps publishing contexts and never grants the capability.
