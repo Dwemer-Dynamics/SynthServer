@@ -153,11 +153,11 @@ function callLLMFast($contextData, $customParms = []) {
     // Build the request
     $url = $connectorData["url"];
     $model = $connectorData["model"];
-    $apiKeyId = intval($connectorData["api_badge_id"] ?? 0);
+    $apiKeyId = \Synth\Core\SharedApiKeyStore::normalizeId($connectorData["api_key_id"] ?? null);
 
     // Get API key
     $apiBadge = new ApiBadge();
-    $apiKeyData = $apiKeyId > 0 ? $apiBadge->getById($apiKeyId) : null;
+    $apiKeyData = $apiKeyId !== null ? $apiBadge->getById($apiKeyId) : null;
     $apiKey = strval($apiKeyData["api_key"] ?? '');
 
     // Prepare request data

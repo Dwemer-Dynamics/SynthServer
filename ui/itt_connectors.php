@@ -92,7 +92,7 @@ function ittCreateDefaultConnector(ITTConnector $connector): int
         'driver' => $defaultDriver,
         'label' => 'Global ITT Connector',
         'metadata' => json_encode($connector->getDefaultMetadataForDriver($defaultDriver), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'api_badge_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
+        'api_key_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
         'url' => $connector->getDefaultUrlForDriver($defaultDriver),
     ]);
 }
@@ -209,11 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 
     $apiBadgeId = null;
     if ($connector->driverUsesApiBadge($driver)) {
-        $postedApiBadgeId = intval($_POST['api_badge_id'] ?? 0);
-        $apiBadgeId = $postedApiBadgeId > 0 ? $postedApiBadgeId : $connector->getDefaultApiBadgeIdForDriver($driver);
-        if ($apiBadgeId <= 0) {
-            $apiBadgeId = null;
-        }
+        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
     }
 
     $url = null;
@@ -228,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
         'driver' => $driver,
         'label' => $label,
         'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'api_badge_id' => $apiBadgeId,
+        'api_key_id' => $apiBadgeId,
         'url' => $url,
     ];
     $savedId = $editId > 0 ? ($connector->update($editId, $payload) ? $editId : 0) : $connector->create($payload);
@@ -398,9 +394,9 @@ h1.api-title { margin: 0 0 8px; font-size: 2.2em; color: var(--synth-accent); te
                             </div>
 
                             <div class="field-block" id="api_badge_block" style="<?php echo $connector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>">
-                                <label for="api_badge_id">API Badge</label>
+                                <label for="api_key_id">API Badge</label>
                                 <?php
-                                $selectedApi = $editingRow['api_badge_id'] ?? '';
+                                $selectedApi = $editingRow['api_key_id'] ?? '';
                                 $withKey = [];
                                 $noKey = [];
                                 foreach ($apiRows as $apiRow) {
@@ -411,7 +407,7 @@ h1.api-title { margin: 0 0 8px; font-size: 2.2em; color: var(--synth-accent); te
                                     }
                                 }
                                 ?>
-                                <select id="api_badge_id" name="api_badge_id">
+                                <select id="api_key_id" name="api_key_id">
                                     <option value="">-- None --</option>
                                     <?php foreach ($withKey as $apiRow): ?>
                                         <?php $apiRowId = intval($apiRow['id'] ?? 0); ?>
@@ -514,7 +510,7 @@ h1.api-title { margin: 0 0 8px; font-size: 2.2em; color: var(--synth-accent); te
     const driverSelect = document.getElementById('driver');
     const driverCards = document.querySelectorAll('[data-driver-card]');
     const apiBadgeBlock = document.getElementById('api_badge_block');
-    const apiBadgeSelect = document.getElementById('api_badge_id');
+    const apiBadgeSelect = document.getElementById('api_key_id');
     const apiKeyNotice = document.getElementById('api_key_notice');
     const urlBlock = document.getElementById('url_block');
     const urlInput = document.getElementById('url');

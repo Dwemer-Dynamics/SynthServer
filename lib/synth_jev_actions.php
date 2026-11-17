@@ -113,7 +113,7 @@ function synth_jev_action_connector(): ?array
     if (!is_array($row) || ($row['driver'] ?? '') !== 'openrouterjson'
         || !is_string($row['model'] ?? null)
         || preg_match('/^(?:typesafe\/jev-[a-z0-9.-]+|~typesafe\/jev-latest)$/D', $row['model']) !== 1) return null;
-    $badge = (new ApiBadge())->getById(intval($row['api_badge_id'] ?? 0));
+    $badge = (new ApiBadge())->getById(strval($row['api_key_id'] ?? ''));
     $key = is_array($badge) ? ($badge['api_key'] ?? '') : '';
     if (!is_string($key) || trim($key) === '' || strlen($key) > 2048 || preg_match('/[\x00-\x20\x7F]/', $key)) return null;
     return ['model'=>$row['model'], 'key'=>$key];

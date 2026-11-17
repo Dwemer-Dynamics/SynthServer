@@ -20,6 +20,8 @@ $response = [
     'schema' => false,
     // current | missing | pending | unknown | unavailable (see SchemaMigrations::status()).
     'schema_migrations' => 'unavailable',
+    // ok | not_configured | unreachable | not_migrated: the shared dwemer API key store. Advisory, like the background processor.
+    'api_key_store' => 'unavailable',
     'background_processor' => false,
     'background_port' => 12348,
     'timestamp' => gmdate('c'),
@@ -97,6 +99,11 @@ try {
     }
     $failure = 'SYNTH could not read its schema migration ledger; see the web server error log.';
     $response['schema_migrations'] = strval(synthRuntimeSchemaMigrationStatus($root)['state'] ?? 'unavailable');
+
+    require_once $root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+    require_once $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'dbmanager' . DIRECTORY_SEPARATOR . 'repositories' . DIRECTORY_SEPARATOR . 'ApiBadgeRepository.php';
+    $response['api_key_store'] = \Synth\Core\ApiBadgeRepository::unavailableReason() ?? 'ok';
+    if ($response['api_key_store'] !== 'ok') $response['api_key_store_message'] = \Synth\Core\ApiBadgeRepository::unavailableMessage();
 
     $response['schema'] = $runtimeGateMet && $response['schema_migrations'] === 'current';
     if ($response['schema']) {

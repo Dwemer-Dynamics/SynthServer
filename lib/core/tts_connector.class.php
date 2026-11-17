@@ -187,7 +187,7 @@ class TTSConnector
     public function create($data)
     {
         $fields = [
-            "driver", "label", "metadata", "api_badge_id", "url", "voice_field",
+            "driver", "label", "metadata", "api_key_id", "url", "voice_field",
         ];
 
         $driver = $data['driver'] ?? '';
@@ -199,7 +199,7 @@ class TTSConnector
                 )
             );
         }
-        $data['api_badge_id'] = $this->normalizeApiBadgeIdForDriver($driver, $data['api_badge_id'] ?? null);
+        $data['api_key_id'] = $this->normalizeApiBadgeIdForDriver($driver, $data['api_key_id'] ?? null);
         $data['url'] = $this->normalizeUrlForDriver(
             $driver,
             $data['url'] ?? null,
@@ -251,7 +251,7 @@ class TTSConnector
         $id = intval($id);
         $where = "id = {$id}";
         $fields = [
-            "driver", "label", "metadata", "api_badge_id", "url", "voice_field",
+            "driver", "label", "metadata", "api_key_id", "url", "voice_field",
         ];
         $existing = $this->readOne($id);
         $driver = $data['driver'] ?? ($existing['driver'] ?? '');
@@ -264,9 +264,9 @@ class TTSConnector
                 )
             );
         }
-        $data['api_badge_id'] = $this->normalizeApiBadgeIdForDriver(
+        $data['api_key_id'] = $this->normalizeApiBadgeIdForDriver(
             $driver,
-            array_key_exists('api_badge_id', $data) ? $data['api_badge_id'] : ($existing['api_badge_id'] ?? null)
+            array_key_exists('api_key_id', $data) ? $data['api_key_id'] : ($existing['api_key_id'] ?? null)
         );
         $data['url'] = $this->normalizeUrlForDriver(
             $driver,
@@ -325,7 +325,7 @@ class TTSConnector
 
     public function getAllFk($fieldName)
     {
-        if ($fieldName !== 'api_badge_id') {
+        if ($fieldName !== 'api_key_id') {
             return [];
         }
         return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
@@ -496,12 +496,12 @@ class TTSConnector
         return $providerKey !== '' && $this->getApiBadgeLabelForProvider($providerKey) !== '';
     }
 
-    public function getDefaultApiBadgeIdForDriver($driver): int
+    public function getDefaultApiBadgeIdForDriver($driver): ?string
     {
         $providerKey = $this->getProviderKeyFromDriver($driver);
         $badgeLabel = $this->getApiBadgeLabelForProvider($providerKey);
         if ($badgeLabel === '') {
-            return 0;
+            return null;
         }
 
         if (!class_exists('ApiBadge')) {
@@ -510,7 +510,7 @@ class TTSConnector
 
         $apiBadge = new ApiBadge();
         $badge = $apiBadge->getByLabel($badgeLabel);
-        return $badge ? intval($badge['id'] ?? 0) : 0;
+        return $badge ? \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) : null;
     }
 
     public function driverSupportsEditableUrl($driver): bool
@@ -726,8 +726,8 @@ class TTSConnector
             }
         }
 
-        $apiBadgeId = intval($currentTTSData['api_badge_id'] ?? 0);
-        if ($apiBadgeId > 0) {
+        $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($currentTTSData['api_key_id'] ?? null);
+        if ($apiBadgeId !== null) {
             if (!class_exists('ApiBadge')) {
                 require_once(__DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php");
             }
@@ -871,11 +871,11 @@ class TTSConnector
         return self::$apiBadgeLabelMap[$providerKey] ?? '';
     }
 
-    private function resolveApiBadgeIdForMetadata(string $providerKey, array &$metadata): int
+    private function resolveApiBadgeIdForMetadata(string $providerKey, array &$metadata): ?string
     {
         $badgeLabel = $this->getApiBadgeLabelForProvider($providerKey);
         if ($badgeLabel === '') {
-            return 0;
+            return null;
         }
 
         if (!class_exists('ApiBadge')) {
@@ -893,16 +893,16 @@ class TTSConnector
             ]);
             $badge = $apiBadge->getByLabel($badgeLabel);
         } elseif ($badge && trim(strval($badge['api_key'] ?? '')) === '' && $apiKey !== '') {
-            $apiBadge->update(intval($badge['id'] ?? 0), ['api_key' => $apiKey]);
-            $badge = $apiBadge->getById(intval($badge['id'] ?? 0));
+            $apiBadge->update(strval($badge['id'] ?? ''), ['api_key' => $apiKey]);
+            $badge = $apiBadge->getById(strval($badge['id'] ?? ''));
         }
 
-        if ($badge && intval($badge['id'] ?? 0) > 0) {
+        if ($badge && \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null) !== null) {
             unset($metadata['API_KEY']);
-            return intval($badge['id']);
+            return \Synth\Core\SharedApiKeyStore::normalizeId($badge['id']);
         }
 
-        return 0;
+        return null;
     }
 
     private function normalizeUrlForDriver($driver, $url, array $metadata = []): ?string
@@ -928,20 +928,19 @@ class TTSConnector
         return $this->normalizeUrlForDriver($driver, $url, $metadata);
     }
 
-    private function normalizeApiBadgeIdForDriver($driver, $apiBadgeId): ?int
+    private function normalizeApiBadgeIdForDriver($driver, $apiBadgeId): ?string
     {
         $driver = $this->normalizeDriver($driver);
         if (!$this->driverUsesApiBadge($driver)) {
             return null;
         }
 
-        $currentId = intval($apiBadgeId ?? 0);
-        if ($currentId > 0) {
+        $currentId = \Synth\Core\SharedApiKeyStore::normalizeId($apiBadgeId);
+        if ($currentId !== null) {
             return $currentId;
         }
 
-        $defaultId = $this->getDefaultApiBadgeIdForDriver($driver);
-        return $defaultId > 0 ? $defaultId : null;
+        return $this->getDefaultApiBadgeIdForDriver($driver);
     }
 
     private function findMatchingConnector(array $payload)
@@ -954,7 +953,7 @@ class TTSConnector
             if (trim(strval($row['url'] ?? '')) !== trim(strval($payload['url'] ?? ''))) {
                 continue;
             }
-            if (intval($row['api_badge_id'] ?? 0) !== intval($payload['api_badge_id'] ?? 0)) {
+            if (($rowKeyId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? '') !== (\Synth\Core\SharedApiKeyStore::normalizeId($payload['api_key_id'] ?? null) ?? '')) {
                 continue;
             }
             if (trim(strval($row['voice_field'] ?? '')) !== trim(strval($payload['voice_field'] ?? ''))) {
@@ -990,17 +989,17 @@ class TTSConnector
             $driver,
             $this->stripVoiceMetadataForDriver($driver, $metadata)
         );
-        $normalizedApiBadgeId = $this->normalizeApiBadgeIdForDriver($driver, $row['api_badge_id'] ?? null);
+        $normalizedApiBadgeId = $this->normalizeApiBadgeIdForDriver($driver, $row['api_key_id'] ?? null);
         $normalizedUrl = $this->normalizeUrlForDriver($driver, $row['url'] ?? null, $sanitizedMetadata);
         $currentUrl = array_key_exists('url', $row) ? $row['url'] : null;
         if ($this->canonicalJson($metadata) === $this->canonicalJson($sanitizedMetadata)
-            && intval($row['api_badge_id'] ?? 0) === intval($normalizedApiBadgeId ?? 0)
+            && (\Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? '') === ($normalizedApiBadgeId ?? '')
             && trim(strval($currentUrl ?? '')) === trim(strval($normalizedUrl ?? ''))) {
             return $row;
         }
 
         $row['metadata'] = $this->canonicalJson($sanitizedMetadata);
-        $row['api_badge_id'] = $normalizedApiBadgeId;
+        $row['api_key_id'] = $normalizedApiBadgeId;
         $row['url'] = $normalizedUrl;
         $id = intval($row['id'] ?? 0);
         if ($id > 0) {
@@ -1008,7 +1007,7 @@ class TTSConnector
                 'metadata' => $row['metadata'],
                 'driver' => $driver,
                 'label' => $row['label'] ?? '',
-                'api_badge_id' => $normalizedApiBadgeId,
+                'api_key_id' => $normalizedApiBadgeId,
                 'url' => $normalizedUrl,
                 'voice_field' => $row['voice_field'] ?? null,
             ]);

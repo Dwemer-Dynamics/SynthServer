@@ -187,7 +187,7 @@ function synthQuickstartEnsureActiveSttConnectorId(STTConnector $connector): int
         'driver' => $defaultDriver,
         'label' => ($defaultDriver === 'none') ? 'Disabled STT' : ('Global ' . $connector->getDisplayName($defaultDriver)),
         'metadata' => json_encode([], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'api_badge_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
+        'api_key_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
         'url' => $connector->getDefaultUrlForDriver($defaultDriver),
     ]);
     if ($createdId > 0) {
@@ -217,7 +217,7 @@ function synthQuickstartEnsureTtsConnectorForDriver(TTSConnector $connector, str
         'driver' => $selectedDriver,
         'label' => ($selectedDriver === 'none') ? 'Disabled TTS' : ('Default ' . $connector->getDisplayName($selectedDriver)),
         'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'api_badge_id' => $connector->driverUsesApiBadge($selectedDriver)
+        'api_key_id' => $connector->driverUsesApiBadge($selectedDriver)
             ? $connector->getDefaultApiBadgeIdForDriver($selectedDriver)
             : null,
         'url' => $connector->driverSupportsEditableUrl($selectedDriver)
@@ -410,7 +410,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
         foreach ($keys as $slug => $apiKey) {
             $saved = $apiBadges->saveKeyForLowerLabel($slug, $presetLabels[$slug], $apiKey);
             if (!$saved) {
-                echo json_encode([ 'ok' => false, 'error' => 'Could not save the ' . $presetLabels[$slug] . ' API key.' ]);
+                $storeMessage = \Synth\Core\ApiBadgeRepository::unavailableMessage();
+                echo json_encode([ 'ok' => false, 'error' => $storeMessage !== '' ? $storeMessage : 'Could not save the ' . $presetLabels[$slug] . ' API key.' ]);
                 exit;
             }
         }
@@ -481,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
                 'driver' => $selectedSttDriver,
                 'label' => ($selectedSttDriver === 'none') ? 'Disabled STT' : ('Global ' . $sttConnector->getDisplayName($selectedSttDriver)),
                 'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                'api_badge_id' => $sttConnector->driverUsesApiBadge($selectedSttDriver)
+                'api_key_id' => $sttConnector->driverUsesApiBadge($selectedSttDriver)
                     ? $sttConnector->getDefaultApiBadgeIdForDriver($selectedSttDriver)
                     : null,
                 'url' => $url,
@@ -626,6 +627,9 @@ function synthQuickstartPresetKeyConfigured($db, string $slug): bool {
 }
 $openrouterConfigured = synthQuickstartPresetKeyConfigured($db, 'openrouter');
 $quickstartSavedKeyPlaceholder = 'Key saved - leave blank to keep';
+// Keys live in the shared dwemer store; without it nothing can be saved or read (one fixed sentence, never a value).
+$keyStoreMessage = \Synth\Core\ApiBadgeRepository::unavailableMessage();
+$keyStoreNotice = $keyStoreMessage === '' ? '' : '<div class="qs-key-store-notice" role="alert" style="margin:8px 0;padding:8px 10px;border:1px solid #b36b00;border-radius:6px;color:#ffcf8a;">' . htmlspecialchars($keyStoreMessage) . '</div>';
 $player2ForceAllLlm = false;
 try { $player2ForceAllLlm = LLMRandomizer::isPlayer2ForceEnabled(); } catch (Throwable $_e) { $player2ForceAllLlm = false; }
 $player2ForceChecked = $player2ForceAllLlm ? " checked" : "";
@@ -646,6 +650,7 @@ if (!empty($generalLlmConnectorSummary)) {
 
 echo '<section class="qs-section" id="qs_openrouter_section"' . ($player2ForceAllLlm ? ' style="display:none;"' : '') . '>
         <h2 class="qs-section-title">OpenRouter</h2>
+        ' . $keyStoreNotice . '
         <div class="form-group qs-field">
             <label for="qs_openrouter_api_key">OpenRouter API Key</label>
             <div class="input-group">

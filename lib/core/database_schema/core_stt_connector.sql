@@ -29,7 +29,7 @@ CREATE TABLE synth.core_stt_connector (
     driver text,
     label text,
     metadata jsonb,
-    api_badge_id integer,
+    api_key_id uuid,
     url text
 );
 
@@ -84,14 +84,6 @@ SELECT pg_catalog.setval('synth.stt_connector_id_seq', 1, false);
 
 ALTER TABLE ONLY synth.core_stt_connector
     ADD CONSTRAINT stt_connector_pkey PRIMARY KEY (id);
-
-
---
--- Name: core_stt_connector stt_connector_api_badge_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dwemer
---
-
-ALTER TABLE ONLY synth.core_stt_connector
-    ADD CONSTRAINT stt_connector_api_badge_id_fkey FOREIGN KEY (api_badge_id) REFERENCES synth.core_api_badge(id);
 
 
 --

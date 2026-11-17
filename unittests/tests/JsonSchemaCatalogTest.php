@@ -1971,10 +1971,10 @@ foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
         $rows[]=[$driver,$case,$config,$GLOBALS['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'],$GLOBALS['TTS'][strtoupper($driver)]['API_KEY']];
     }
     $prefix='get'.$title.'VoiceCachePrefix'; $remote='get'.$title.'RemoteVoicesCacheKey';
-    $one=['connector_id'=>71,'api_badge_id'=>1,'api_key'=>'fixture-key-one','workspace'=>'workspace-A'];
+    $one=['connector_id'=>71,'api_key_id'=>'11111111-1111-4111-8111-111111111111','api_key'=>'fixture-key-one','workspace'=>'workspace-A'];
     $two=array_replace($one,['api_key'=>'fixture-key-two']);
     $scopes[$driver]=[$prefix($one),$prefix($two),$remote($one),$remote($two),
-        $prefix(array_replace($one,['connector_id'=>72])),$prefix(array_replace($one,['api_badge_id'=>2])),
+        $prefix(array_replace($one,['connector_id'=>72])),$prefix(array_replace($one,['api_key_id'=>'22222222-2222-4222-8222-222222222222'])),
         $prefix(array_replace($one,['workspace'=>'workspace-B']))];
     $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']=['inputs'=>['TTSFUNCTION'=>'wrong-provider']];
     try { $getter(); throw new LogicException('Provider mismatch accepted'); }

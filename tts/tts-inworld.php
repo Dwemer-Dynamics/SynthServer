@@ -299,8 +299,8 @@ function getInworldActiveConfig(): array {
         }
         if ($apiCredential === '') {
             $db = ensureInworldDb();
-            $apiBadgeId = intval($row['api_badge_id'] ?? 0);
-            if ($db && $apiBadgeId > 0) {
+            $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null);
+            if ($db && $apiBadgeId !== null) {
                 require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
                 $badgeRow = (new \Synth\Core\ApiBadgeRepository($db))->keyById($apiBadgeId);
                 if (is_array($badgeRow) && !empty($badgeRow['api_key'])) {

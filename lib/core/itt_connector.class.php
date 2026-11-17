@@ -53,11 +53,11 @@ class ITTConnector
     {
         $normalized = $this->normalize($data);
         $row = $GLOBALS['db']->fetchOne(
-            "INSERT INTO {$this->table} (driver, label, metadata, api_badge_id, url) VALUES (" .
+            "INSERT INTO {$this->table} (driver, label, metadata, api_key_id, url) VALUES (" .
             $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
             $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
-            ($normalized['api_badge_id'] > 0 ? $normalized['api_badge_id'] : 'NULL') . ', ' .
+            ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             ') RETURNING id'
         );
@@ -77,7 +77,7 @@ class ITTConnector
             'driver=' . $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             'label=' . $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
             'metadata=' . $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
-            'api_badge_id=' . ($normalized['api_badge_id'] > 0 ? $normalized['api_badge_id'] : 'NULL') . ', ' .
+            'api_key_id=' . ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             'url=' . ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             " WHERE id={$id}"
         ) !== false;
@@ -144,14 +144,14 @@ class ITTConnector
         return isset(self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)]);
     }
 
-    public function getDefaultApiBadgeIdForDriver($driver): int
+    public function getDefaultApiBadgeIdForDriver($driver): ?string
     {
         $label = self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)] ?? '';
         if ($label === '') {
-            return 0;
+            return null;
         }
         $badge = (new ApiBadge())->getByLabel($label);
-        return intval($badge['id'] ?? 0);
+        return \Synth\Core\SharedApiKeyStore::normalizeId($badge['id'] ?? null);
     }
 
     public function driverSupportsEditableUrl($driver): bool
@@ -264,8 +264,8 @@ class ITTConnector
             $metadata['URL'] = $url;
         }
 
-        $badgeId = intval($row['api_badge_id'] ?? 0);
-        if ($badgeId > 0) {
+        $badgeId = \Synth\Core\SharedApiKeyStore::normalizeId($row['api_key_id'] ?? null) ?? ($this->driverUsesApiBadge($driver) ? $this->getDefaultApiBadgeIdForDriver($driver) : null);
+        if ($badgeId !== null) {
             $badge = (new ApiBadge())->getById($badgeId);
             $apiKey = trim(strval($badge['api_key'] ?? ''));
             if ($apiKey !== '') {
@@ -303,7 +303,7 @@ class ITTConnector
             'driver' => $driver,
             'label' => substr($label, 0, 200),
             'metadata' => $metadataJson !== false ? $metadataJson : '{}',
-            'api_badge_id' => $this->driverUsesApiBadge($driver) ? intval($data['api_badge_id'] ?? 0) : 0,
+            'api_key_id' => $this->driverUsesApiBadge($driver) ? \Synth\Core\SharedApiKeyStore::normalizeId($data['api_key_id'] ?? null) : null,
             'url' => $url,
         ];
     }

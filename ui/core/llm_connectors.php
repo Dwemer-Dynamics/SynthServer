@@ -93,30 +93,9 @@ function synth_llm_apply_connector_metadata_post_overrides(array $metadata, arra
  return $metadata;
 }
 
-function find_player2_api_badge_id() {
- static $cachedBadgeId = null;
- if ($cachedBadgeId !== null) {
- return $cachedBadgeId > 0 ? $cachedBadgeId : null;
- }
-
- $db = $GLOBALS["db"] ?? null;
- if (!$db) {
- $cachedBadgeId = 0;
+// Player2 needs no stored key: the connector sends its fixed game key when it has none.
+function find_player2_api_key_id() {
  return null;
- }
- $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
-
- $row = $apiBadges->localProviderId();
- $badgeId = intval($row["id"] ?? 0);
-
- if ($badgeId <= 0) {
- $apiBadges->add("Player2", "SYNTH");
- $row = $apiBadges->localProviderId();
- $badgeId = intval($row["id"] ?? 0);
- }
-
- $cachedBadgeId = $badgeId;
- return $badgeId > 0 ? $badgeId : null;
 }
 
 function normalize_player2_connector_payload($payload) {
@@ -142,8 +121,8 @@ function normalize_player2_connector_payload($payload) {
  $payload["model"] = null;
  $payload["provider"] = null;
 
- $badgeId = find_player2_api_badge_id();
- $payload["api_badge_id"] = $badgeId;
+ $badgeId = find_player2_api_key_id();
+ $payload["api_key_id"] = $badgeId;
 
  return $payload;
 }
@@ -173,7 +152,7 @@ if (isset($_GET["export"])) {
  $rowEarly = $llmEarly->getById($idEarly);
  if (!$rowEarly) { header('HTTP/1.1 404 Not Found'); echo 'Not found'; exit; }
  $colsEarly = [
- 'id','label','service','url','model','provider','driver','api_badge_id','max_tokens','temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','top_k','min_p','top_a','enforce_json','json_schema','prefill_json','reasoning_model','metadata'
+ 'id','label','service','url','model','provider','driver','api_key_id','max_tokens','temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','top_k','min_p','top_a','enforce_json','json_schema','prefill_json','reasoning_model','metadata'
  ];
  $boolKeysEarly = ['enforce_json','json_schema','prefill_json','reasoning_model'];
  $filenameBase = (string)($rowEarly['label'] ?? ('connector_'.$idEarly));
@@ -249,7 +228,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  $webRoot = rtrim($webRoot, '/');
  // Fetch API badges for select
  $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
- $selectedApi = $editItem["api_badge_id"] ?? "";
+ $selectedApi = $editItem["api_key_id"] ?? "";
  $withKey = [];
  $noKey = [];
  $isEmptyKey = function($v){
@@ -376,8 +355,8 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  </div><div id="custom_note" class="orm-muted" style="font-size:12px; display:none; margin:-6px 0 8px 0;">
  Custom allows you to build your own connector setting using one of our API drivers to use non-supported services with SYNTH. For advanced users only
  </div><div id="url_row"><label for='url'>URL</label><br><div style="display:flex; gap:8px; align-items:center;"><input type="text" name="url" value="<?= htmlspecialchars($editItem["url"] ?? "") ?>" style="flex:1 1 auto;"><button type="button" id="btn_wsl_ip" class="btn-primary" title="Use WSL IP" style="display:none;" data-ip="<?= htmlspecialchars($WSL_IP) ?>">WSL IP</button><button type="button" id="btn_host_ip" class="btn-primary" title="Use HOST IP" style="display:none;" data-ip="<?= htmlspecialchars($HOST_IP) ?>">PC IP</button></div></div><div id="model_row"><label for='model'>Model</label><br><input type="text" name="model" value="<?= htmlspecialchars($editItem["model"] ?? "") ?>"><br></div><div id="provider_row"><label for='provider'>Provider</label><br><input type="text" name="provider" placeholder="(Optional) leave empty to use recommended provider" value="<?= htmlspecialchars($editItem["provider"] ?? "") ?>"><br></div><div id="driver_row" style="display:none;"><label for='driver'>Driver</label><br><input type="text" id="driver_input" name="driver" value="<?= htmlspecialchars($editItem["driver"] ?? "") ?>" style="display:none"><br><select id="driver_select" style="display:none"><option value="openrouterjson">OpenRouter JSON</option><option value="openaijson">OpenAI JSON</option><option value="google_openaijson">Google OpenAI JSON</option><option value="groqjson">Groq JSON</option><option value="player2json">Player2 JSON</option></select></div><div id="api_key_row"><?php
- echo "<label for='api_badge_id'>API Key</label><br>";
- echo "<select id='api_badge_id' name='api_badge_id'>";
+ echo "<label for='api_key_id'>API Key</label><br>";
+ echo "<select id='api_key_id' name='api_key_id'>";
  echo "<option value=''>-- Select API Key --</option>";
  foreach ($withKey as $r){
  $id = htmlspecialchars($r['id']);
@@ -722,7 +701,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  const urlInput = document.querySelector('input[name="url"]');
  const driverInput = document.querySelector('input[name="driver"]');
  const driverRow = document.getElementById('driver_row');
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const icons = document.querySelectorAll('.service-icon');
  const apiKeyRow = document.getElementById('api_key_row');
  const serviceLabelEl = document.getElementById('service_label');
@@ -828,7 +807,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  })();
  // API key notice
  (function(){
- const sel = document.getElementById('api_badge_id');
+ const sel = document.getElementById('api_key_id');
  const note = document.getElementById('api_key_notice');
  if (!sel || !note) return;
  function update(){
@@ -939,7 +918,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  }
  async function loadGroqModels(){
  if (groqCache) return groqCache;
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const apiBadgeId = apiBadgeSelect ? apiBadgeSelect.value : '';
  if (!apiBadgeId) {
  ensureGroqDropdown();
@@ -954,7 +933,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  const res = await fetch('<?= $webRoot; ?>/ui/cmd/action_groq_get_models.php', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ api_badge_id: apiBadgeId })
+ body: JSON.stringify({ api_key_id: apiBadgeId })
  });
  if (!res.ok) throw new Error('HTTP '+res.status);
  const json = await res.json();
@@ -985,7 +964,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeGroqDropdown(); });
  document.querySelector('input[name="url"]').addEventListener('change', () => { groqCache = null; closeGroqDropdown(); });
  document.querySelector('input[name="driver"]').addEventListener('change', () => { groqCache = null; closeGroqDropdown(); });
- const apiBadgeSel = document.getElementById('api_badge_id');
+ const apiBadgeSel = document.getElementById('api_key_id');
  if (apiBadgeSel) apiBadgeSel.addEventListener('change', () => { groqCache = null; });
  })();
  // Providers dropdown
@@ -1065,7 +1044,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create"])) {
  $payload['url'] = 'https://openrouter.ai/api/v1/chat/completions';
  $payload['reasoning_model'] = 0;
  $payload['max_tokens'] = 500;
- $payload['api_badge_id'] = 1;
+ $payload['api_key_id'] = null;
  $payload['enforce_json'] = 1;
  $payload['json_schema'] = 1;
  $payload['service'] = 'openrouter';
@@ -1142,7 +1121,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import"])) {
  $payload['model'] = $getString('model');
  $payload['provider'] = $getString('provider');
  $payload['driver'] = $getString('driver');
- $payload['api_badge_id'] = $getInt('api_badge_id');
+ $payload['api_key_id'] = \Synth\Core\SharedApiKeyStore::normalizeId($getString('api_key_id'));
  $payload['max_tokens'] = $getInt('max_tokens');
  $payload['temperature'] = $getFloat('temperature');
  $payload['presence_penalty'] = $getFloat('presence_penalty');
@@ -1220,7 +1199,7 @@ if ($llmAction && isset($_POST["create_blank"])) {
  'url' => 'https://openrouter.ai/api/v1/chat/completions',
  'reasoning_model' => 0,
  'max_tokens' => 500,
- 'api_badge_id' => 1,
+ 'api_key_id' => null,
  'enforce_json' => 1,
  'json_schema' => 1,
  'service' => 'openrouter',
@@ -1526,7 +1505,7 @@ if (typeof window.consolidation !== 'function') {
  </div><div id="url_row"><label for='url'>URL</label><br><div style="display:flex; gap:8px; align-items:center;"><input type="text" name="url" value="<?= htmlspecialchars($editItem["url"] ?? "") ?>" style="flex:1 1 auto;"><button type="button" id="btn_wsl_ip" class="btn-primary" title="Use WSL IP" style="display:none;" data-ip="<?= htmlspecialchars($WSL_IP) ?>">WSL IP</button><button type="button" id="btn_host_ip" class="btn-primary" title="Use HOST IP" style="display:none;" data-ip="<?= htmlspecialchars($HOST_IP) ?>">PC IP</button></div></div><div id="model_row"><label for='model'>Model</label><br><input type="text" name="model" value="<?= htmlspecialchars($editItem["model"] ?? "") ?>"><br></div><div id="provider_row"><label for='provider'>Provider</label><br><input type="text" name="provider" placeholder="(Optional) leave empty to use recommended provider" value="<?= htmlspecialchars($editItem["provider"] ?? "") ?>"><br></div><div id="driver_row" style="display:none;"><label for='driver'>Driver</label><br><input type="text" id="driver_input" name="driver" value="<?= htmlspecialchars($editItem["driver"] ?? "") ?>" style="display:none"><br><select id="driver_select"><option value="openrouterjson">OpenRouter JSON</option><option value="openaijson">OpenAI JSON</option><option value="google_openaijson">Google OpenAI JSON</option><option value="groqjson">Groq JSON</option><option value="player2json">Player2 JSON</option></select></div><div id="api_key_row"><?php
  // API Key select with non-empty keys first + notice
  $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
- $selectedApi = $editItem["api_badge_id"] ?? "";
+ $selectedApi = $editItem["api_key_id"] ?? "";
  $withKey = [];
  $noKey = [];
  $isEmptyKey = function($v){
@@ -1537,8 +1516,8 @@ if (typeof window.consolidation !== 'function') {
  return false;
  };
  foreach ($apiRows as $r){ if (!$isEmptyKey($r['api_key'] ?? '')) $withKey[]=$r; else $noKey[]=$r; }
- echo "<label for='api_badge_id'>API Key</label><br>";
- echo "<select id='api_badge_id' name='api_badge_id'>";
+ echo "<label for='api_key_id'>API Key</label><br>";
+ echo "<select id='api_key_id' name='api_key_id'>";
  echo "<option value=''>-- Select API Key --</option>";
  foreach ($withKey as $r){
  $id = htmlspecialchars($r['id']);
@@ -1726,7 +1705,7 @@ if (typeof window.consolidation !== 'function') {
  const urlInput = document.querySelector('input[name="url"]');
  const driverInput = document.querySelector('input[name="driver"]');
  const driverRow = document.getElementById('driver_row');
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const icons = document.querySelectorAll('.service-icon');
  const apiKeyRow = document.getElementById('api_key_row');
  const serviceLabelEl = document.getElementById('service_label');
@@ -1889,7 +1868,7 @@ function llmClamp(rangeId, numberId, min, max){ const r = document.getElementByI
 })();
 // API key notice
 (function(){
- const sel = document.getElementById('api_badge_id');
+ const sel = document.getElementById('api_key_id');
  const note = document.getElementById('api_key_notice');
  if (!sel || !note) return;
  function update(){
@@ -2000,7 +1979,7 @@ function llmClamp(rangeId, numberId, min, max){ const r = document.getElementByI
  }
  async function loadGroqModels(){
  if (groqCache) return groqCache;
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const apiBadgeId = apiBadgeSelect ? apiBadgeSelect.value : '';
  if (!apiBadgeId) {
  ensureGroqDropdown();
@@ -2015,7 +1994,7 @@ function llmClamp(rangeId, numberId, min, max){ const r = document.getElementByI
  const res = await fetch('<?= $webRoot; ?>/ui/cmd/action_groq_get_models.php', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ api_badge_id: apiBadgeId })
+ body: JSON.stringify({ api_key_id: apiBadgeId })
  });
  if (!res.ok) throw new Error('HTTP '+res.status);
  const json = await res.json();
@@ -2046,7 +2025,7 @@ function llmClamp(rangeId, numberId, min, max){ const r = document.getElementByI
  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeGroqDropdown(); });
  document.querySelector('input[name="url"]').addEventListener('change', () => { groqCache = null; closeGroqDropdown(); });
  document.querySelector('input[name="driver"]').addEventListener('change', () => { groqCache = null; closeGroqDropdown(); });
- const apiBadgeSel = document.getElementById('api_badge_id');
+ const apiBadgeSel = document.getElementById('api_key_id');
  if (apiBadgeSel) apiBadgeSel.addEventListener('change', () => { groqCache = null; });
 })();
 // Providers dropdown

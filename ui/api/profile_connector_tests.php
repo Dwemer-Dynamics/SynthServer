@@ -75,8 +75,8 @@ function profileConnectorTestsConnectorLabel(array $row, string $fallback): stri
 
 function profileConnectorTestsApiBadgeStatus($apiBadgeId): array
 {
-    $id = intval($apiBadgeId ?? 0);
-    if ($id <= 0) {
+    $id = \Synth\Core\SharedApiKeyStore::normalizeId($apiBadgeId);
+    if ($id === null) {
         return [
             'status' => 'missing',
             'message' => 'No API key badge selected',
@@ -88,7 +88,7 @@ function profileConnectorTestsApiBadgeStatus($apiBadgeId): array
     if (!is_array($row)) {
         return [
             'status' => 'missing',
-            'message' => "API key badge #{$id} was not found",
+            'message' => "The selected API key was not found in the shared key store",
         ];
     }
 
@@ -459,7 +459,7 @@ function profileConnectorTestsTestLlm(int $connectorId): array
     }
 
     if (profileConnectorTestsLlmRequiresApiKey($connector)) {
-        $badge = profileConnectorTestsApiBadgeStatus($connector['api_badge_id'] ?? 0);
+        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null);
         $details['api_badge'] = $badge['label'] ?? '';
         if ($badge['status'] !== 'ok') {
             return profileConnectorTestsProblemResult('llm', $connectorId, 'fail', $badge['message'], $details);
@@ -555,7 +555,7 @@ function profileConnectorTestsTestTts(int $connectorId): array
     }
 
     if ($tts->driverUsesApiBadge($driver)) {
-        $badge = profileConnectorTestsApiBadgeStatus($connector['api_badge_id'] ?? 0);
+        $badge = profileConnectorTestsApiBadgeStatus($connector['api_key_id'] ?? null);
         $details['api_badge'] = $badge['label'] ?? '';
         if ($badge['status'] !== 'ok') {
             return profileConnectorTestsProblemResult('tts', $connectorId, 'fail', $badge['message'], $details);

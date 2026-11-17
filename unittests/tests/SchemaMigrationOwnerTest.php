@@ -243,8 +243,9 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
               UNION ALL
               SELECT format('ext %s', extname) FROM pg_extension
             ) entries WHERE line NOT LIKE '%doctrine_migration_versions%'
-               -- the first migration after the baseline owns these (checked by tools/schema-check.php); this fingerprint states the baseline
-               AND line NOT LIKE '%core_api_badge.shared_key_id %' AND line NOT LIKE '%core_api_badge_shared_key_idx%'
+               -- the first migration after the baseline owns these (checked by tools/schema-check.php): it removes core_api_badge and
+               -- replaces the connectors' api_badge_id with api_key_id, so the fingerprint leaves them out
+               AND line NOT LIKE '%core_api_badge%' AND line NOT LIKE '%api_badge_id%' AND line NOT LIKE '%api_key_id%'
             SQL);
     }
 
@@ -535,10 +536,10 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $fingerprint = [];
         foreach (self::rowsOn($pg, "SELECT table_schema, table_name FROM information_schema.tables
                 WHERE table_schema IN ('synth', 'synth_meta') AND table_type = 'BASE TABLE'
-                  AND table_name <> 'doctrine_migration_versions' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
+                  AND table_name <> 'doctrine_migration_versions' AND table_name <> 'core_api_badge' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
             $columns = array_column(self::rowsOn($pg, "SELECT quote_ident(column_name) AS name FROM information_schema.columns
                 WHERE table_schema = $1 AND table_name = $2 AND data_type NOT LIKE 'timestamp%'
-                  AND column_name <> 'shared_key_id' ORDER BY ordinal_position",
+                  AND column_name NOT IN ('api_badge_id', 'api_key_id') ORDER BY ordinal_position",
                 [$schema, $table]), 'name');
             $row = 'ROW('.implode(', ', $columns).')::text';
             $relation = pg_escape_identifier($pg, $schema).'.'.pg_escape_identifier($pg, $table);
@@ -582,7 +583,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     // with the version record when $withLedger: one writer means one transaction created them all.
     private static function installWriters(\PgSql\Connection $pg, bool $withLedger): array
     {
-        // Only the baseline's record and objects: the later migration (core_api_badge.shared_key_id and its index) is its own savepoint.
+        // Only the baseline's record and objects: the later migration (it alters the four connector tables) is its own savepoint.
         $ledger = $withLedger ? "UNION ALL SELECT xmin::text FROM synth_meta.doctrine_migration_versions WHERE version LIKE '%Version20261115000000'" : '';
         return array_column(self::rowsOn($pg, <<<SQL
             SELECT writer, count(*) AS objects FROM (
@@ -595,7 +596,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 UNION ALL SELECT xmin::text FROM pg_namespace WHERE nspname IN ('synth', 'plugins')
                 UNION ALL SELECT c.xmin::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE n.nspname IN ('synth', 'synth_meta')
-                   AND c.relname NOT IN ('doctrine_migration_versions', 'doctrine_migration_versions_pkey', 'core_api_badge', 'core_api_badge_shared_key_idx')
+                   AND c.relname NOT IN ('doctrine_migration_versions', 'doctrine_migration_versions_pkey', 'core_api_badge', 'core_llm_connector', 'core_tts_connector', 'core_stt_connector', 'core_itt_connector')
                 {$ledger}
             ) writers GROUP BY writer
             SQL), 'objects', 'writer');

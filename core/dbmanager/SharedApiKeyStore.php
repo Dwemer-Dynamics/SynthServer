@@ -5,13 +5,15 @@ namespace Synth\Core;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 
-// SYNTH's consumer side of the shared `dwemer` database's api_keys table (owned and migrated by the CHIM 4 server's
-// shared migrations; see docs/SCHEMA-MIGRATIONS.md, "Shared API keys"). It has its own DBAL connection, never the legacy
-// session: the shared store is another database. Connection values come from the same CHIM_SHARED_DB_* variables the CHIM 4
-// server reads, with no defaults; when any is missing the store does not exist (fromEnvironment() returns null) and
-// SYNTH keeps using its local keys without a query, a log line or a warning.
+// SYNTH's only key store: the shared `dwemer` database's api_keys table, owned and migrated by the CHIM 4 server's shared
+// migrations (docs/SCHEMA-MIGRATIONS.md, "Shared API keys"). It has its own DBAL connection, never the legacy session: the
+// store is another database. Connection values come from the same CHIM_SHARED_DB_* variables the CHIM 4 server reads, with
+// no defaults. When any is missing, or the store cannot answer, SYNTH has no keys (see unavailableReason()): nothing falls
+// back to another place, nothing is logged and PHP emits no warning.
 // Secrets are only ever bound parameters and are never logged. Every database failure becomes a fixed-message
-// SharedApiKeyException, because a constraint error's detail can repeat the failing row.
+// SharedApiKeyException, because a constraint error's detail can repeat the failing row. The API follows ChimServer's
+// ApiKeyStore: tombstones instead of deletes, a revision on every change, the catalog advisory lock and the 64 active key cap,
+// and FOR UPDATE / FOR SHARE row locks around product reference checks (lock order: shared row first, then SYNTH rows).
 final class SharedApiKeyStore
 {
     /** The same advisory key as ChimServer's ApiKeyStore: key creation is serialized across every product. */
@@ -20,9 +22,13 @@ final class SharedApiKeyStore
     // Same rule as ChimServer's ApiKeyManager::SECRET_PATTERN and the table's status_shape check.
     private const SECRET_PATTERN = '/^[\x21-\x7E]{1,4096}$/D';
     private const LABEL_PATTERN = '/^[^\x00-\x1F\x7F]{1,64}$/Du';
+    private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D';
 
-    /** Provider => fixed origin. Providers whose origin is not fixed (azure, replicate, deepl, ploofy, custom_openai) are not migrated: SYNTH does not know the endpoint. */
-    public const FIXED_ORIGINS = [
+    /**
+     * Provider => fixed origin, or the origin SYNTH records when the provider's endpoint varies (Azure's is regional) and
+     * nothing else names one. SYNTH never sends a key by its stored origin; it only has to satisfy the table's checks.
+     */
+    public const ORIGINS = [
         'openrouter' => 'https://openrouter.ai:443',
         'openai' => 'https://api.openai.com:443',
         'inworld' => 'https://api.inworld.ai:443',
@@ -33,17 +39,24 @@ final class SharedApiKeyStore
         'nano_gpt' => 'https://nano-gpt.com:443',
         'groq' => 'https://api.groq.com:443',
         'atlascloud' => 'https://api.atlascloud.ai:443',
+        'replicate' => 'https://api.replicate.com:443',
+        'azure' => 'https://api.cognitive.microsoft.com:443',
+        'deepl' => 'https://api.deepl.com:443',
     ];
 
-    /** Lower-cased SYNTH badge label => shared provider. Anything else stays local. */
+    /** Lower-cased label => provider. Any other label is a custom key (provider custom_openai, origin entered by the operator). */
     private const PROVIDER_BY_LABEL = [
         'openrouter' => 'openrouter', 'openai' => 'openai', 'inworld' => 'inworld', 'deepgram' => 'deepgram',
         'google' => 'google', 'gemini' => 'google', 'elevenlabs' => 'elevenlabs', 'cartesia' => 'cartesia',
         'nano-gpt' => 'nano_gpt', 'nano_gpt' => 'nano_gpt', 'groq' => 'groq', 'atlascloud' => 'atlascloud',
+        'replicate' => 'replicate', 'azure' => 'azure', 'deepl' => 'deepl',
     ];
 
+    private const COLUMNS = 'k.key_id::text AS id, k.provider, k.label, k.origin, k.status, k.revision';
+
     private ?Connection $connection = null;
-    private ?bool $ready = null;
+    private bool $checked = false;
+    private ?string $reason = null;
 
     private function __construct(private readonly array $settings) {}
 
@@ -68,6 +81,7 @@ final class SharedApiKeyStore
         return new self($settings);
     }
 
+    /** The provider a label names, or null for a custom label. */
     public static function providerForLabel(string $label): ?string
     {
         return self::PROVIDER_BY_LABEL[strtolower(trim($label))] ?? null;
@@ -78,91 +92,190 @@ final class SharedApiKeyStore
         return is_string($secret) && preg_match(self::SECRET_PATTERN, $secret) === 1;
     }
 
+    public static function labelValid(mixed $label): bool
+    {
+        return is_string($label) && preg_match(self::LABEL_PATTERN, $label) === 1 && $label === trim($label);
+    }
+
+    public static function idValid(mixed $id): bool
+    {
+        return is_string($id) && preg_match(self::UUID_PATTERN, $id) === 1;
+    }
+
+    /** The canonical (lower-case) key id, or null when $value is not one. Used wherever an id is accepted from a request or a row. */
+    public static function normalizeId(mixed $value): ?string
+    {
+        if (!is_string($value)) return null;
+        $value = strtolower(trim($value));
+        return self::idValid($value) ? $value : null;
+    }
+
+    /**
+     * The canonical "scheme://host:port" of an origin, or null: https, or http to a loopback host; no user info, path, query or
+     * fragment (ChimServer's ApiKeyManager::canonicalOrigin rules).
+     */
+    public static function canonicalOrigin(mixed $origin): ?string
+    {
+        if (!is_string($origin) || preg_match('/[\x00-\x20\x7F?#@]/', $origin) === 1) return null;
+        $parts = parse_url($origin);
+        if (!is_array($parts) || isset($parts['path']) || isset($parts['user']) || !isset($parts['scheme'], $parts['host'])) return null;
+        $scheme = strtolower($parts['scheme']);
+        $host = strtolower($parts['host']);
+        $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
+        if ($scheme === 'http' && !in_array($host, ['127.0.0.1', 'localhost', '[::1]'], true)) return null;
+        if ($scheme !== 'https' && $scheme !== 'http') return null;
+        if (preg_match('/^([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])$/D', $host) !== 1 || $port < 1 || $port > 65535) return null;
+        return $scheme.'://'.$host.':'.$port;
+    }
+
     /** True when the shared database answers and holds the api_keys table with the columns SYNTH uses. Never throws. */
     public function ready(): bool
     {
-        if ($this->ready !== null) return $this->ready;
+        return $this->unavailableReason() === null;
+    }
+
+    /**
+     * Why the store cannot be used, as one of 'unreachable' or 'not_migrated', or null when it can. Fixed codes only: a
+     * driver message can carry connection details.
+     */
+    public function unavailableReason(): ?string
+    {
+        if ($this->checked) return $this->reason;
+        $this->checked = true;
         try {
             $found = $this->db()->fetchOne("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'
                 AND table_name = 'api_keys' AND column_name IN ('key_id','provider','label','origin','status','secret','revision','created_at')");
-            return $this->ready = ((int) $found === 8);
         } catch (\Throwable) {
-            return $this->ready = false;
+            return $this->reason = 'unreachable';
         }
+        return $this->reason = (int) $found === 8 ? null : 'not_migrated';
     }
 
     /**
-     * Resolves keys in one query. Returns key_id => ['status' => 'active'|'deleted', 'secret' => string|null]; an id the
-     * store has never held is absent. A legacy sealed row (no plain-text secret) reports a null secret.
+     * Active keys, oldest first (created_at, key_id): id, provider, label, origin, revision and, with $withSecrets, secret
+     * ('' for a sealed legacy row, which SYNTH cannot open).
      *
-     * @param list<string> $keyIds
-     * @return array<string, array{status:string, secret:?string}>
+     * @return list<array<string,string>>
      */
-    public function resolve(array $keyIds): array
+    public function listActive(bool $withSecrets = false): array
     {
-        $keyIds = array_values(array_unique(array_filter($keyIds, self::uuidValid(...))));
-        if ($keyIds === []) return [];
-        $out = [];
         try {
-            $rows = $this->db()->fetchAllAssociative('SELECT key_id::text AS key_id, status, secret FROM public.api_keys WHERE key_id = ANY(?::uuid[])',
-                ['{'.implode(',', $keyIds).'}']);
+            return array_map(self::texts(...), $this->db()->fetchAllAssociative('SELECT '.self::COLUMNS.($withSecrets ? ", coalesce(k.secret, '') AS secret" : '')
+                ." FROM public.api_keys AS k WHERE k.status = 'active' ORDER BY k.created_at, k.key_id LIMIT ?", [self::ACTIVE_MAX]));
         } catch (\Throwable) {
             throw new SharedApiKeyException('shared key lookup failed');
         }
-        foreach ($rows as $row) {
-            $out[$row['key_id']] = ['status' => $row['status'], 'secret' => $row['secret'] === null ? null : (string) $row['secret']];
-        }
-        return $out;
     }
 
     /**
-     * Adopts the oldest active plain-text key with this provider and secret, or creates one, under the catalog lock so
-     * a concurrent product cannot add a duplicate or exceed the cap. Returns ['outcome' => 'adopted'|'created'|'limit',
-     * 'key_id' => ?string].
+     * One key by id, active or deleted: id, provider, label, origin, status, revision, secret ('' when sealed or deleted); null
+     * when the id was never stored.
+     *
+     * @return ?array<string,string>
      */
-    public function adoptOrCreate(string $provider, string $label, #[\SensitiveParameter] string $secret): array
+    public function find(string $id): ?array
     {
-        $origin = self::FIXED_ORIGINS[$provider] ?? null;
-        if ($origin === null || !self::secretValid($secret)) throw new SharedApiKeyException('shared key value refused');
-        if (preg_match(self::LABEL_PATTERN, $label) !== 1 || $label !== trim($label)) $label = ucfirst(str_replace('_', '-', $provider));
+        if (!self::idValid($id)) return null;
+        try {
+            $row = $this->db()->fetchAssociative('SELECT '.self::COLUMNS.", coalesce(k.secret, '') AS secret FROM public.api_keys AS k WHERE k.key_id = ?::uuid", [$id]);
+        } catch (\Throwable) {
+            throw new SharedApiKeyException('shared key lookup failed');
+        }
+        return $row === false ? null : self::texts($row);
+    }
+
+    /**
+     * Creates an active key with revision 1 under the catalog lock, or reports 'limit' when 64 keys are active. Returns
+     * ['outcome' => 'created'|'limit', 'id' => ?string]. The provider's origin must satisfy the table's checks.
+     */
+    public function create(string $provider, string $label, string $origin, #[\SensitiveParameter] string $secret): array
+    {
+        if (!self::labelValid($label) || !self::secretValid($secret) || self::canonicalOrigin($origin) !== $origin) {
+            throw new SharedApiKeyException('shared key value refused');
+        }
         try {
             return $this->db()->transactional(function (Connection $db) use ($provider, $label, $origin, $secret): array {
                 $db->executeQuery('SELECT pg_advisory_xact_lock(?)', [self::CATALOG_LOCK_KEY]);
-                $existing = $db->fetchOne("SELECT key_id::text FROM public.api_keys WHERE status = 'active' AND provider = ? AND secret = ?
-                    ORDER BY created_at, key_id LIMIT 1", [$provider, $secret]);
-                if (is_string($existing)) return ['outcome' => 'adopted', 'key_id' => $existing];
                 if ((int) $db->fetchOne("SELECT count(*) FROM public.api_keys WHERE status = 'active'") >= self::ACTIVE_MAX) {
-                    return ['outcome' => 'limit', 'key_id' => null];
+                    return ['outcome' => 'limit', 'id' => null];
                 }
-                $keyId = self::newKeyId();
+                $id = self::newKeyId();
                 $db->executeStatement('INSERT INTO public.api_keys (key_id, provider, label, origin, secret) VALUES (?::uuid, ?, ?, ?, ?)',
-                    [$keyId, $provider, $label, $origin, $secret]);
-                return ['outcome' => 'created', 'key_id' => $keyId];
+                    [$id, $provider, $label, $origin, $secret]);
+                return ['outcome' => 'created', 'id' => $id];
             });
         } catch (\Throwable) {
             throw new SharedApiKeyException('shared key write failed');
         }
     }
 
-    /** Read-only: the key_id adoptOrCreate() would adopt for this provider and secret, or null. */
-    public function findActive(string $provider, #[\SensitiveParameter] string $secret): ?string
+    /**
+     * Edits an active key's label and/or secret (a new secret also clears any legacy sealed value), revision + 1, under the row
+     * lock. Provider and origin never change. Returns 'updated', 'missing' or 'revoked'.
+     */
+    public function update(string $id, ?string $label, #[\SensitiveParameter] ?string $secret): string
     {
+        if (!self::idValid($id) || ($label !== null && !self::labelValid($label)) || ($secret !== null && !self::secretValid($secret))) {
+            throw new SharedApiKeyException('shared key value refused');
+        }
         try {
-            $id = $this->db()->fetchOne("SELECT key_id::text FROM public.api_keys WHERE status = 'active' AND provider = ? AND secret = ?
-                ORDER BY created_at, key_id LIMIT 1", [$provider, $secret]);
-            return is_string($id) ? $id : null;
+            return $this->db()->transactional(function (Connection $db) use ($id, $label, $secret): string {
+                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
+                if ($status === false) return 'missing';
+                if ($status !== 'active') return 'revoked';
+                $db->executeStatement('UPDATE public.api_keys SET label = COALESCE(?, label), secret = COALESCE(?::text, secret),
+                    nonce = CASE WHEN ?::text IS NULL THEN nonce END, ciphertext = CASE WHEN ?::text IS NULL THEN ciphertext END,
+                    revision = revision + 1, updated_at = clock_timestamp() WHERE key_id = ?::uuid', [$label, $secret, $secret, $secret, $id]);
+                return 'updated';
+            });
         } catch (\Throwable) {
-            throw new SharedApiKeyException('shared key lookup failed');
+            throw new SharedApiKeyException('shared key write failed');
         }
     }
 
-    /** Read-only: the number of active keys (the cap is ACTIVE_MAX). */
-    public function activeCount(): int
+    /**
+     * Deletes an active key by wiping its secret and keeping a tombstone (revision + 1), after $inUse() returns exactly false
+     * while the row is locked FOR UPDATE. $inUse must only read SYNTH's own database and must not use this store. Returns
+     * 'deleted', 'in_use', 'missing' or 'revoked'.
+     */
+    public function tombstone(string $id, callable $inUse): string
     {
+        if (!self::idValid($id)) return 'missing';
         try {
-            return (int) $this->db()->fetchOne("SELECT count(*) FROM public.api_keys WHERE status = 'active'");
+            return $this->db()->transactional(function (Connection $db) use ($id, $inUse): string {
+                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR UPDATE', [$id]);
+                if ($status === false) return 'missing';
+                if ($status !== 'active') return 'revoked';
+                $used = $inUse();
+                if ($used !== false) return 'in_use';
+                $db->executeStatement("UPDATE public.api_keys SET status = 'deleted', secret = NULL, nonce = NULL, ciphertext = NULL,
+                    revision = revision + 1, updated_at = clock_timestamp(), deleted_at = clock_timestamp() WHERE key_id = ?::uuid", [$id]);
+                return 'deleted';
+            });
         } catch (\Throwable) {
-            throw new SharedApiKeyException('shared key lookup failed');
+            throw new SharedApiKeyException('shared key write failed');
+        }
+    }
+
+    /**
+     * ChimServer's bind protocol: holds FOR SHARE on an active key while $work commits a SYNTH reference to it, so a concurrent
+     * delete either waits and then sees the reference or wins and the work never runs. $work must be database-only, must
+     * not use this store and must commit before it returns. Returns 'locked' (with $work's result), 'missing' or 'revoked'.
+     *
+     * @return array{outcome:string, result:mixed}
+     */
+    public function withShareLock(string $id, callable $work): array
+    {
+        if (!self::idValid($id)) return ['outcome' => 'missing', 'result' => null];
+        try {
+            return $this->db()->transactional(function (Connection $db) use ($id, $work): array {
+                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR SHARE', [$id]);
+                if ($status === false) return ['outcome' => 'missing', 'result' => null];
+                if ($status !== 'active') return ['outcome' => 'revoked', 'result' => null];
+                return ['outcome' => 'locked', 'result' => $work()];
+            });
+        } catch (\Throwable) {
+            throw new SharedApiKeyException('shared key lock failed');
         }
     }
 
@@ -176,41 +289,6 @@ final class SharedApiKeyStore
         }
     }
 
-    /** Replaces the secret of an active key (also clearing any legacy sealed value), revision + 1. True when a row changed. */
-    public function replaceSecret(string $keyId, #[\SensitiveParameter] string $secret): bool
-    {
-        if (!self::uuidValid($keyId) || !self::secretValid($secret)) throw new SharedApiKeyException('shared key value refused');
-        try {
-            return 1 === $this->db()->executeStatement("UPDATE public.api_keys SET secret = ?, nonce = NULL, ciphertext = NULL,
-                revision = revision + 1, updated_at = clock_timestamp() WHERE key_id = ?::uuid AND status = 'active'", [$secret, $keyId]);
-        } catch (\Throwable) {
-            throw new SharedApiKeyException('shared key write failed');
-        }
-    }
-
-    /**
-     * ChimServer's bind protocol: holds FOR SHARE on an active key while $work commits a SYNTH reference to it, so a
-     * concurrent delete either waits and then sees the reference or wins and the work never runs. $work must be
-     * database-only, must not use this store and must commit before it returns. Returns 'locked' (with $work's result),
-     * 'missing' or 'revoked'.
-     *
-     * @return array{outcome:string, result:mixed}
-     */
-    public function withShareLock(string $keyId, callable $work): array
-    {
-        if (!self::uuidValid($keyId)) return ['outcome' => 'missing', 'result' => null];
-        try {
-            return $this->db()->transactional(function (Connection $db) use ($keyId, $work): array {
-                $status = $db->fetchOne('SELECT status FROM public.api_keys WHERE key_id = ?::uuid FOR SHARE', [$keyId]);
-                if ($status === false) return ['outcome' => 'missing', 'result' => null];
-                if ($status !== 'active') return ['outcome' => 'revoked', 'result' => null];
-                return ['outcome' => 'locked', 'result' => $work()];
-            });
-        } catch (\Throwable) {
-            throw new SharedApiKeyException('shared key lock failed');
-        }
-    }
-
     public function close(): void
     {
         $this->connection?->close();
@@ -220,6 +298,10 @@ final class SharedApiKeyStore
     private function db(): Connection
     {
         if ($this->connection !== null) return $this->connection;
+        // Production dependencies come only from the root composer.lock (as in EntityManagerFactory); a missing tree reads as unavailable.
+        $autoload = dirname(__DIR__, 2).'/vendor/autoload.php';
+        if (!is_file($autoload)) throw new SharedApiKeyException('shared database is unavailable');
+        require_once $autoload;
         try {
             $connection = DriverManager::getConnection([
                 'driver' => 'pgsql',
@@ -238,9 +320,9 @@ final class SharedApiKeyStore
         return $this->connection = $connection;
     }
 
-    private static function uuidValid(mixed $value): bool
+    private static function texts(array $row): array
     {
-        return is_string($value) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $value) === 1;
+        return array_map(static fn($value) => $value === null ? '' : strval($value), $row);
     }
 
     private static function newKeyId(): string

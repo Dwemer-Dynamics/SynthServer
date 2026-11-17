@@ -314,7 +314,9 @@ final class NativeWaitActionTest extends DatabaseTestCase
             $this->assertSame(synthSettingsStringifyValue($value), synthGetGeneralSetting($name));
         }
         $GLOBALS['CORE_CONNECTOR_DECISION'] = 1;
-        $this->database->execQuery("UPDATE synth.core_llm_connector SET driver='openrouterjson',model='typesafe/jev-1.13',api_badge_id=1 WHERE id=1");
+        $keyId = (new \Synth\Core\ApiBadgeRepository($this->database))->idByLowerLabel('openrouter')['id'] ?? '';
+        $this->assertNotSame('', $keyId, 'The fixture key store holds the OpenRouter test key');
+        $this->database->execQuery("UPDATE synth.core_llm_connector SET driver='openrouterjson',model='typesafe/jev-1.13',api_key_id='{$keyId}' WHERE id=1");
         $row = synth_jev_action_connector();
         $this->assertSame('typesafe/jev-1.13', $row['model']);
         $this->assertSame('openrouterjson_key', $row['key']);

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS synth.core_itt_connector (
     driver TEXT NOT NULL,
     label TEXT NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    api_badge_id INTEGER REFERENCES synth.core_api_badge(id),
+    api_key_id uuid,
     url TEXT
 );
 

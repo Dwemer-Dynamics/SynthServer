@@ -322,7 +322,7 @@ if (isset($_GET['export'])) {
  exit;
  }
 
- $columns = ['id', 'label', 'driver', 'metadata', 'api_badge_id', 'url', 'voice_field'];
+ $columns = ['id', 'label', 'driver', 'metadata', 'api_key_id', 'url', 'voice_field'];
  $filenameBase = trim(strval($row['label'] ?? ('tts_connector_' . $exportId)));
  if ($filenameBase === '') {
  $filenameBase = 'tts_connector_' . $exportId;
@@ -429,7 +429,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import'])) {
  'driver' => $driver,
  'label' => $ttsConnector->uniqueLabel(trim(strval($dataMap['label'] ?? '')) !== '' ? trim(strval($dataMap['label'])) : 'Imported TTS Connector'),
  'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_badge_id' => intval($dataMap['api_badge_id'] ?? 0) > 0 ? intval($dataMap['api_badge_id']) : null,
+ 'api_key_id' => \Synth\Core\SharedApiKeyStore::normalizeId($dataMap['api_key_id'] ?? null),
  'url' => trim(strval($dataMap['url'] ?? '')) !== '' ? trim(strval($dataMap['url'])) : null,
  'voice_field' => trim(strval($dataMap['voice_field'] ?? '')) !== '' ? trim(strval($dataMap['voice_field'])) : $ttsConnector->getVoiceFieldForDriver($driver),
  ];
@@ -461,7 +461,7 @@ if ($ttsAction && isset($_POST['create_blank'])) {
  'driver' => $newDriver,
  'label' => $ttsConnector->uniqueLabel('New TTS Connector'),
  'metadata' => json_encode([], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_badge_id' => $ttsConnector->getDefaultApiBadgeIdForDriver($newDriver),
+ 'api_key_id' => $ttsConnector->getDefaultApiBadgeIdForDriver($newDriver),
  'url' => $ttsConnector->getDefaultUrlForDriver($newDriver),
  'voice_field' => $ttsConnector->getVoiceFieldForDriver($newDriver),
  ]);
@@ -510,10 +510,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
  $metadata = ttsParseMetadataFromPost($_POST, $driver, $existingMetadata, $ttsConnector);
  $apiBadgeId = $ttsConnector->driverUsesApiBadge($driver)
  ? $ttsConnector->getDefaultApiBadgeIdForDriver($driver)
- : 0;
+ : null;
  if ($ttsConnector->driverUsesApiBadge($driver)) {
- $postedApiBadgeId = intval($_POST['api_badge_id'] ?? 0);
- if ($postedApiBadgeId > 0) {
+ $postedApiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($_POST['api_key_id'] ?? null);
+ if ($postedApiBadgeId !== null) {
  $apiBadgeId = $postedApiBadgeId;
  }
  }
@@ -526,7 +526,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
  'driver' => $driver,
  'label' => $ttsConnector->uniqueLabel($label, $editId),
  'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_badge_id' => $apiBadgeId > 0 ? $apiBadgeId : null,
+ 'api_key_id' => $apiBadgeId,
  'url' => ttsShouldShowUrlField($ttsConnector, $driver)
  ? (trim(strval($_POST['url'] ?? '')) !== '' ? trim(strval($_POST['url'])) : null)
  : null,
@@ -629,8 +629,8 @@ main { padding: <?php echo $isEmbed ? '10px 5px 5px' : '30px 5px 5px'; ?>; }
  $rowUseCount = intval($usageMap[strval($rowId)] ?? 0);
  ?><div class="conn-card<?php echo $rowActive; ?>" data-edit-id="<?php echo h($rowId); ?>"><div class="conn-head"><div class="conn-name"><?php echo h($row['label'] ?? ('Connector #' . $rowId)); ?></div><div class="conn-badge"><?php echo h($ttsConnector->getDisplayName($rowDriver)); ?></div></div><div class="conn-sub"><?php echo h($row['url'] ?? ''); ?></div><div class="conn-usage"><?php echo h($rowUseCount); ?> assignment<?php echo $rowUseCount === 1 ? '' : 's'; ?></div></div><?php endforeach; ?></div></div><div class="right-col"><?php if (!$editItem): ?><div class="placeholder">
  Select a connector from the left to edit it. New installs will already have the currently selected TTS provider migrated into this table.
- </div><?php else: ?><form method="post" action="<?php echo h(ttsPageUrl()); ?>" id="tts_connector_form"><input type="hidden" name="id" value="<?php echo h($editItem['id']); ?>"><div class="btn-row"><button type="submit" class="btn-save" name="save_connector" value="1">Save</button><button type="button" class="btn-primary" id="btn_test_connector">Test</button><button type="submit" class="btn-primary" formmethod="get" formaction="<?php echo h(ttsPageUrl()); ?>" name="export" value="<?php echo h($editItem['id']); ?>">Export</button><button type="submit" class="btn-primary" form="tts_actions" name="clone" value="<?php echo h($editItem['id']); ?>">Clone</button><button type="submit" class="btn-danger" form="tts_actions" name="delete" value="<?php echo h($editItem['id']); ?>" onclick="return confirm('Delete this TTS connector?');">Delete</button></div><div class="orm-note">Please save any changes before testing to ensure the latest settings are used.</div><div class="editor-grid"><div class="field-block"><label for="label">Name</label><input type="text" id="label" name="label" value="<?php echo h($editItem['label'] ?? ''); ?>"><div class="field-help">This label appears in profile and player connector pickers.</div></div><div class="field-block"><label for="driver">Service</label><select id="driver" name="driver"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><optgroup label="<?php echo h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverValue): ?><option value="<?php echo h($driverValue); ?>" <?php echo $currentDriver === $driverValue ? 'selected' : ''; ?>><?php echo h($ttsConnector->getDisplayName($driverValue)); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">The provider driver this connector loads at runtime.</div></div><?php $showUrlField = ttsShouldShowUrlField($ttsConnector, $currentDriver); ?><div class="field-block" id="url_block" style="<?php echo $showUrlField ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editItem['url'] ?? ''); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $ttsConnector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_badge_id">API Badge</label><?php
- $selectedApi = $editItem['api_badge_id'] ?? '';
+ </div><?php else: ?><form method="post" action="<?php echo h(ttsPageUrl()); ?>" id="tts_connector_form"><input type="hidden" name="id" value="<?php echo h($editItem['id']); ?>"><div class="btn-row"><button type="submit" class="btn-save" name="save_connector" value="1">Save</button><button type="button" class="btn-primary" id="btn_test_connector">Test</button><button type="submit" class="btn-primary" formmethod="get" formaction="<?php echo h(ttsPageUrl()); ?>" name="export" value="<?php echo h($editItem['id']); ?>">Export</button><button type="submit" class="btn-primary" form="tts_actions" name="clone" value="<?php echo h($editItem['id']); ?>">Clone</button><button type="submit" class="btn-danger" form="tts_actions" name="delete" value="<?php echo h($editItem['id']); ?>" onclick="return confirm('Delete this TTS connector?');">Delete</button></div><div class="orm-note">Please save any changes before testing to ensure the latest settings are used.</div><div class="editor-grid"><div class="field-block"><label for="label">Name</label><input type="text" id="label" name="label" value="<?php echo h($editItem['label'] ?? ''); ?>"><div class="field-help">This label appears in profile and player connector pickers.</div></div><div class="field-block"><label for="driver">Service</label><select id="driver" name="driver"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><optgroup label="<?php echo h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverValue): ?><option value="<?php echo h($driverValue); ?>" <?php echo $currentDriver === $driverValue ? 'selected' : ''; ?>><?php echo h($ttsConnector->getDisplayName($driverValue)); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">The provider driver this connector loads at runtime.</div></div><?php $showUrlField = ttsShouldShowUrlField($ttsConnector, $currentDriver); ?><div class="field-block" id="url_block" style="<?php echo $showUrlField ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editItem['url'] ?? ''); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $ttsConnector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_key_id">API Badge</label><?php
+ $selectedApi = $editItem['api_key_id'] ?? '';
  $withKey = [];
  $noKey = [];
  foreach ($apiRows as $apiRow) {
@@ -640,7 +640,7 @@ main { padding: <?php echo $isEmbed ? '10px 5px 5px' : '30px 5px 5px'; ?>; }
  $noKey[] = $apiRow;
  }
  }
- ?><select id="api_badge_id" name="api_badge_id"><option value="">-- None --</option><?php foreach ($withKey as $apiRow): ?><?php
+ ?><select id="api_key_id" name="api_key_id"><option value="">-- None --</option><?php foreach ($withKey as $apiRow): ?><?php
  $apiRowId = intval($apiRow['id'] ?? 0);
  $selected = strval($selectedApi) === strval($apiRowId) ? 'selected' : '';
  $labelText = ' ' . strval($apiRow['label'] ?? ('Key #' . $apiRowId));
@@ -773,7 +773,7 @@ main { padding: <?php echo $isEmbed ? '10px 5px 5px' : '30px 5px 5px'; ?>; }
 
  const driverSelect = document.getElementById('driver');
  const apiBadgeBlock = document.getElementById('api_badge_block');
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const apiKeyNotice = document.getElementById('api_key_notice');
  const urlBlock = document.getElementById('url_block');
  const apiDrivers = <?php echo json_encode(array_values(array_filter($driverOptions, function ($driver) use ($ttsConnector) { return $ttsConnector->driverUsesApiBadge($driver); })), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;

@@ -59,7 +59,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.conf_opts',
             'synth.core_action',
             'synth.core_action_custom',
-            'synth.core_api_badge',
             'synth.core_llm_connector',
             'synth.core_narrator',
             'synth.core_npc_master',

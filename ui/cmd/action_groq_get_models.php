@@ -21,19 +21,19 @@ if ($method === 'POST') {
 
     // Read JSON data from the request
     $jsonDataInput = json_decode(file_get_contents("php://input"), true);
-    $apiBadgeId = $jsonDataInput['api_badge_id'] ?? null;
+    $apiBadgeId = \Synth\Core\SharedApiKeyStore::normalizeId($jsonDataInput['api_key_id'] ?? null);
 
-    if (empty($apiBadgeId)) {
+    if ($apiBadgeId === null) {
         echo json_encode(['error' => 'API badge ID required']);
         exit;
     }
 
     // Fetch the API key from the database
     $apiBadge = new ApiBadge();
-    $badgeRow = $apiBadge->getById((int)$apiBadgeId);
+    $badgeRow = $apiBadge->getById($apiBadgeId);
 
     if (!$badgeRow || empty($badgeRow['api_key'])) {
-        echo json_encode(['error' => 'API key not found for badge ID ' . $apiBadgeId]);
+        echo json_encode(['error' => 'API key not found']);
         exit;
     }
 

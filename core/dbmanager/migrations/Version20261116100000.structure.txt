@@ -1,3 +1,5 @@
-# Structure of Version20261116100000 (shared API key binding). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
-column|synth|core_api_badge|shared_key_id|uuid|uuid|YES||
-index|synth|core_api_badge|core_api_badge_shared_key_idx|CREATE INDEX core_api_badge_shared_key_idx ON synth.core_api_badge USING btree (shared_key_id) WHERE (shared_key_id IS NOT NULL)
+# Structure of Version20261116100000 (shared key references). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+column|synth|core_itt_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_llm_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_stt_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_tts_connector|api_key_id|uuid|uuid|YES||
