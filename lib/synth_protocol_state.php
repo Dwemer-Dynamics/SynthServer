@@ -1857,6 +1857,9 @@ function synth_protocol_record_action_intent($db, array $action): void
     $wait=synth_wait_action_is_intent($action) && (($event['protocol_version'] ?? 1)===2
         || ($action['name'] ?? '')==='release_wait' || ($action['server_code'] ?? '')==='ReleaseWait');
     if ($wait && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('wait_emission_claim_required');
+    require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+    $order=\Synth\Managers\ActionsManager\CompanionOrders::isIntent($action);
+    if ($order && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('order_emission_claim_required');
     if ((($action['capability'] ?? '')==='action.read_quests'
             || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
         && !synth_protocol_player_journal_action_allowed()) throw new DomainException('private_quest_journal_not_shared');
@@ -1887,13 +1890,14 @@ function synth_protocol_record_action_intent($db, array $action): void
     }
     $guarded = !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
     $native = $guarded && ($event['protocol_version'] ?? 1) === 2;
-    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack): void {
+    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack, $order): void {
         synth_protocol_assert_request_active();
         if ($wait && $owner!==$event) throw new LogicException('wait_emission_owner_changed');
         if ($attack && $owner!==$event) throw new LogicException('attack_emission_owner_changed');
         if ($giftMenu && $owner!==$event) throw new LogicException('gift_menu_emission_owner_changed');
         if ($playerItem && $owner!==$event) throw new LogicException('player_item_emission_owner_changed');
         if ($wait) synth_wait_action_validate($db,$event,$action);
+        if ($order) \Synth\Managers\ActionsManager\CompanionOrders::validate($db,$event,$action);
         if ($attack) synth_attack_validate($db,$event,$action);
         if ((($action['capability'] ?? '')==='action.read_quests'
                 || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
@@ -2189,6 +2193,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
     $result = $wireEvent['payload']['result'];
     if (($wireEvent['protocol_version']??1)===2 && in_array($row['action_name'],['WaitHere','wait_here','ReleaseWait','release_wait'],true))
         $result['detail']=synth_wait_result_context($db,$wireEvent)['message'];
+    if (($wireEvent['protocol_version']??1)===2 && \Synth\Managers\ActionsManager\CompanionOrders::isIntent(['name'=>$row['action_name'],'server_code'=>$row['action_name'],'capability'=>$row['capability']??'']))
+        $result['detail']=\Synth\Managers\ActionsManager\CompanionOrders::boundResultDetail($wireEvent,$row);
     if (($wireEvent['protocol_version'] ?? 1)===2
         && (($row['capability'] ?? '')==='action.read_quests' || in_array($row['action_name'],['ReadQuests','read_quests'],true))
         && !synth_protocol_player_journal_action_allowed()) {
