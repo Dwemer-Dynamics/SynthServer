@@ -37,7 +37,8 @@ $apiKeyTestEndpoints = [
 $apiKeyTestLabels = [ 'openrouter' => 'OpenRouter', 'openai' => 'OpenAI' ];
 $provider = is_string($_POST['provider'] ?? null) ? strtolower(trim($_POST['provider'])) : '';
 $apiKey = is_string($apiKey) ? trim($apiKey) : '';
-$badgeId = is_string($_POST['badge_id'] ?? null) ? trim($_POST['badge_id']) : '';
+// The badge id uses the API Keys page's row id grammar exactly; a padded or signed value names no row.
+$badgeId = is_string($_POST['badge_id'] ?? null) ? $_POST['badge_id'] : '';
 header('Cache-Control: no-store');
 $testProblem = '';
 if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
@@ -52,7 +53,8 @@ if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  $savedResult = $GLOBALS['db']->execQuery('SELECT label, api_key FROM core_api_badge WHERE id = $1', [ intval($badgeId) ]);
  $savedRow = $savedResult ? pg_fetch_assoc($savedResult) : false;
  if (is_array($savedRow)) {
- $savedLabel = trim(strval($savedRow['label'] ?? ''));
+ // The stored label must equal the provider label apart from letter case; a padded label is a custom entry.
+ $savedLabel = strval($savedRow['label'] ?? '');
  if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) $apiKey = trim(strval($savedRow['api_key'] ?? ''));
  }
  } catch (Throwable $_e) {

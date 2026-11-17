@@ -223,6 +223,7 @@ include(__DIR__.DIRECTORY_SEPARATOR."../tmpl/head.html");
  }
  .key-state { font-size:11px; color:#8fd1ae; border:1px solid rgba(45,106,79,0.6); border-radius:4px; padding:1px 6px; }
  .key-state[hidden], .btn-clear-key[hidden] { display:none; }
+ .section-note { margin:-8px 0 12px; color:#bdbdbd; font-size:12px; }
  @media (max-width: 600px) {
  .provider-card .provider-body, .custom-card .provider-body { flex-wrap:wrap; }
  .provider-card .provider-body input, .custom-card .provider-body input { flex:1 1 100%; min-width:0; }
@@ -325,14 +326,45 @@ function synthApiBadgeIsPresetRow($row, array $reservedLabelsLower): bool {
 // value changes nothing; each write is then checked and a failure is reported instead of a silent success.
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  $writes = [];
- // 1) Presets: identified by their fixed label, never by a posted id or label.
+ // 1) Presets: the row is the provider's current lowest-id entry, found by its fixed label. The posted id is the
+ // row the page displayed and only confirms that row: if it no longer matches (another entry became the
+ // provider's row, or one was added after a page shown without one), nothing is written and the page asks for
+ // a reload, so a key never lands in an entry the user did not see.
  if (isset($_POST['presets']) && is_array($_POST['presets'])) {
  foreach ($presetMap as $slug => $pretty) {
  $posted = $_POST['presets'][$slug] ?? null;
  if (!is_array($posted)) continue;
  $apiKey = synthApiBadgeSubmittedKey($posted['api_key'] ?? '');
  if ($apiKey === null) { header("Location: api_badge.php?err=invalid_key"); exit; }
- if ($apiKey !== '') $writes[] = [ 'preset', $pretty, [ 'api_key' => $apiKey ] ];
+ if ($apiKey === '') continue;
+ $postedId = $posted['id'] ?? null;
+ if (!is_string($postedId)) { header("Location: api_badge.php?err=stale"); exit; }
+ $shownId = $postedId === '' ? 0 : synthApiBadgeRowId($postedId);
+ if ($postedId !== '' && $shownId === 0) { header("Location: api_badge.php?err=stale"); exit; }
+ $currentRow = $apiBadge->getByLabel($pretty);
+ if (intval($currentRow['id'] ?? 0) !== $shownId) { header("Location: api_badge.php?err=stale"); exit; }
+ $writes[] = [ 'preset', [ $pretty, $shownId ], [ 'api_key' => $apiKey ] ];
+ }
+ }
+
+ // 1b) Other saved entries whose label matches a preset in another letter case. Each is its own row, named by
+ // id; the id must still be such an entry and never the provider's lowest-id row, which only the card above
+ // writes.
+ if (isset($_POST['preset_variants']) && is_array($_POST['preset_variants'])) {
+ foreach ($_POST['preset_variants'] as $rawId => $posted) {
+ $vid = synthApiBadgeRowId(strval($rawId));
+ if ($vid === 0 || !is_array($posted)) { header("Location: api_badge.php?err=not_found"); exit; }
+ $apiKey = synthApiBadgeSubmittedKey($posted['api_key'] ?? '');
+ if ($apiKey === null) { header("Location: api_badge.php?err=invalid_key"); exit; }
+ if ($apiKey === '') continue;
+ $variant = $apiBadge->getById($vid);
+ $canonical = !empty($variant['id']) ? $apiBadge->getByLabel(strval($variant['label'])) : null;
+ if (empty($variant['id']) || !synthApiBadgeIsPresetRow($variant, $reservedLabelsLower)
+  || intval($canonical['id'] ?? 0) === $vid) {
+ header("Location: api_badge.php?err=not_found");
+ exit;
+ }
+ $writes[] = [ 'variant', $vid, [ 'api_key' => $apiKey ] ];
  }
  }
 
@@ -368,13 +400,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["save_all"])) {
  $saveFailed = false;
  foreach ($writes as [$kind, $target, $payload]) {
  if ($kind === 'preset') {
- $presetRow = $apiBadge->getByLabel($target);
- $saved = !empty($presetRow['id'])
- ? $apiBadge->update($presetRow['id'], $payload)
- : $apiBadge->create([ 'label' => $target ] + $payload) > 0;
+ // Re-checked at write time: the provider's row must still be the one validated above.
+ [ $pretty, $shownId ] = $target;
+ $presetRow = $apiBadge->getByLabel($pretty);
+ if (intval($presetRow['id'] ?? 0) !== $shownId) {
+ $saved = false;
+ } else {
+ $saved = $shownId > 0
+ ? $apiBadge->update($shownId, $payload)
+ : $apiBadge->create([ 'label' => $pretty ] + $payload) > 0;
+ }
  } else if ($kind === 'custom') {
  $current = $apiBadge->getById($target);
  if (empty($current['id']) || synthApiBadgeIsPresetRow($current, $reservedLabelsLower)) continue;
+ $saved = $apiBadge->update($target, $payload);
+ } else if ($kind === 'variant') {
  $saved = $apiBadge->update($target, $payload);
  } else {
  $saved = $apiBadge->create($payload) > 0;
@@ -488,22 +528,55 @@ if (isset($_GET["edit"])) {
  $editItem = $apiBadge->getById($_GET["edit"]);
 }
 ?><?php
-// Build lookup by lower(label)
-$byLabel = [];
-foreach ($data as $row) {
- $byLabel[strtolower($row['label'] ?? '')] = $row;
-}
-
-// Split presets and customs
+// A provider's preset card is its lowest-id row whose label matches case-insensitively, the same row Save Keys,
+// Quickstart and getByLabel() write. Other rows whose label matches in another letter case are kept as their own
+// entries and listed under the provider with their actual label and id.
 $presetRows = [];
+$presetVariants = [];
 foreach ($presetMap as $slug => $pretty) {
- $presetRows[$slug] = $byLabel[strtolower($pretty)] ?? [ 'id' => '', 'label' => $pretty, 'configured' => false ];
+ $presetRows[$slug] = [ 'id' => '', 'label' => $pretty, 'configured' => false ];
+ $presetVariants[$slug] = [];
+}
+foreach ($data as $row) {
+ $slug = strtolower(strval($row['label'] ?? ''));
+ if (!array_key_exists($slug, $presetMap) || intval($row['id']) <= 0) continue;
+ $presetVariants[$slug][] = $row;
+}
+foreach ($presetVariants as $slug => $rows) {
+ usort($rows, function($a, $b) { return intval($a['id']) <=> intval($b['id']); });
+ if ($rows) $presetRows[$slug] = array_shift($rows);
+ $presetVariants[$slug] = $rows;
 }
 $savedKeyPlaceholder = 'Key saved - leave blank to keep, paste to replace';
 $customRows = array_filter($data, function($row) use ($presetMap) {
  return !array_key_exists(strtolower($row['label'] ?? ''), $presetMap);
 });
-?><input type="hidden" name="csrf_token" id="api_key_csrf" value="<?= htmlspecialchars($apiKeyCsrf) ?>"><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Preset Keys (Saved When You Leave a Field)</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div><div class="provider-grid"><?php foreach ($presetRows as $slug => $row): ?><div class="provider-card<?= $row['configured'] ? ' has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128273;</div><div><?= htmlspecialchars($presetMap[$slug]) ?></div><span class="key-state"<?= $row['configured'] ? '' : ' hidden' ?>>Key saved</span></div><div class="provider-links"><?php if (!empty($providerLinks[$slug])): ?><a href="<?= htmlspecialchars($providerLinks[$slug]) ?>" target="_blank" rel="noopener">Create Key</a><?php endif; ?></div></div><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($row['id']) ?>"><div class="provider-body"><input type="password" name="presets[<?= htmlspecialchars($slug) ?>][api_key]" value="" placeholder="<?= $row['configured'] ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $row['configured'] ? '' : ' hidden' ?>>Clear</button><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($row['id']) ?>">Test</button><?php endif; ?></div><?php if (!empty($providerSubtext[$slug])): ?><div class="provider-subtext"><div class="desc">This key can be used for: <?= htmlspecialchars(implode(', ', $providerSubtext[$slug])) ?></div></div><?php endif; ?></div><?php endforeach; ?></div></div><div class="content-section full-width-section"><h2>Custom Keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = $row['configured']; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $hasKey ? '' : ' hidden' ?>>Clear</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div></div></form><script>
+?><input type="hidden" name="csrf_token" id="api_key_csrf" value="<?= htmlspecialchars($apiKeyCsrf) ?>"><div class="content-grid"><div class="content-section full-width-section"><div class="section-header"><h2>Preset Keys</h2><button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button></div>
+<p class="section-note">Existing entries save when you leave the field. New presets need Save Keys.</p>
+<div class="provider-grid">
+<?php foreach ($presetRows as $slug => $presetRow):
+ foreach (array_merge([ $presetRow ], $presetVariants[$slug]) as $variantIndex => $row):
+  $isVariant = $variantIndex > 0;
+  $rowId = strval($row['id']);
+  $fieldName = $isVariant ? 'preset_variants[' . $rowId . '][api_key]' : 'presets[' . $slug . '][api_key]';
+  // With other entries listed, every card shows its saved label and id so the letter case each entry uses is clear.
+  $entryName = $presetVariants[$slug] ? strval($row['label']) . ' (ID ' . $rowId . ')' : $presetMap[$slug];
+?>
+<div class="provider-card<?= $row['configured'] ? ' has-key' : '' ?>">
+ <div class="provider-head">
+  <div class="provider-title"><div class="provider-icon" aria-hidden="true">&#128273;</div><div><?= htmlspecialchars($entryName) ?></div><span class="key-state"<?= $row['configured'] ? '' : ' hidden' ?>>Key saved</span></div>
+  <div class="provider-links"><?php if (!$isVariant && !empty($providerLinks[$slug])): ?><a href="<?= htmlspecialchars($providerLinks[$slug]) ?>" target="_blank" rel="noopener">Create Key</a><?php endif; ?></div>
+ </div>
+ <?php if (!$isVariant): ?><input type="hidden" name="presets[<?= htmlspecialchars($slug) ?>][id]" value="<?= htmlspecialchars($rowId) ?>"><?php endif; ?>
+ <div class="provider-body"><input type="password" name="<?= htmlspecialchars($fieldName) ?>" value="" placeholder="<?= $row['configured'] ? $savedKeyPlaceholder : ($rowId === '' ? 'Paste API key, then press Save Keys' : 'Paste API key') ?>" autocomplete="off" aria-label="<?= htmlspecialchars($entryName) ?> API key" data-autosave="preset" data-provider="<?= htmlspecialchars($slug) ?>" data-id="<?= htmlspecialchars($rowId) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($rowId) ?>"<?= $row['configured'] ? '' : ' hidden' ?>>Clear</button><?php if (in_array($slug, ['openrouter','openai'])): ?><button type="button" class="btn-save" data-test-provider="<?= htmlspecialchars($slug) ?>" data-badge-id="<?= htmlspecialchars($rowId) ?>">Test</button><?php endif; ?></div>
+ <div class="provider-subtext">
+  <?php if ($rowId === ''): ?><div class="desc">Not saved yet: paste a key and press Save Keys. After that this field saves when you leave it.</div><?php endif; ?>
+  <?php if ($isVariant): ?><div class="desc">This entry has its own key.<?php if (in_array($slug, ['openrouter','deepgram'], true)): ?> Quickstart uses ID <?= htmlspecialchars(strval($presetRow['id'])) ?>.<?php endif; ?></div><?php elseif (!empty($providerSubtext[$slug])): ?><div class="desc">This key can be used for: <?= htmlspecialchars(implode(', ', $providerSubtext[$slug])) ?></div><?php endif; ?>
+ </div>
+</div>
+<?php endforeach; endforeach; ?>
+</div></div>
+<div class="content-section full-width-section"><h2>Custom Keys</h2><div id="custom-keys" style="margin-bottom:10px;"><?php foreach ($customRows as $row): ?><?php $hasKey = $row['configured']; ?><div class="custom-card <?= $hasKey ? 'has-key' : '' ?>"><div class="provider-head"><div class="provider-title"><div class="provider-icon" aria-hidden="true">&#129513;</div><div>Custom Key</div><span class="key-state"<?= $hasKey ? '' : ' hidden' ?>>Key saved</span></div><div style="display:flex; gap:6px;"><button type="button" class="button btn-save" data-save-id="<?= htmlspecialchars($row['id']) ?>">Save</button><button type="button" class="button btn-delete" data-delete-id="<?= htmlspecialchars($row['id']) ?>">Delete</button></div></div><input type="hidden" name="custom[id][]" value="<?= htmlspecialchars($row['id']) ?>"><label>Label</label><input type="text" name="custom[label][]" value="<?= htmlspecialchars($row['label']) ?>" placeholder="Provider label (e.g., MyService)" data-autosave="custom" data-field="label" data-id="<?= htmlspecialchars($row['id']) ?>"><label>API Key</label><div class="provider-body"><input type="password" name="custom[api_key][]" value="" placeholder="<?= $hasKey ? $savedKeyPlaceholder : 'Paste API key' ?>" autocomplete="off" data-autosave="custom" data-field="api_key" data-id="<?= htmlspecialchars($row['id']) ?>"><button type="button" class="button" onclick="toggleVisibility(this)">Show</button><button type="button" class="button btn-clear-key" data-clear-id="<?= htmlspecialchars($row['id']) ?>"<?= $hasKey ? '' : ' hidden' ?>>Clear</button></div></div><?php endforeach; ?></div><button type="button" class="action-button add-new" onclick="addCustomKey()">Add Custom Key</button></div></div></form><script>
 function toggleVisibility(btn){
  const input = btn.parentElement.querySelector('input');
  if(!input) return;
@@ -704,7 +777,7 @@ function addCustomKey(){
  btn.addEventListener('click', () => {
  const provider = btn.getAttribute('data-test-provider');
  const row = btn.closest('.provider-card');
- const input = row ? row.querySelector('input[name^="presets"][name$="[api_key]"]') : null;
+ const input = row ? row.querySelector('input[data-autosave="preset"]') : null;
  // A typed key is tested as entered; a blank field tests the saved key, which the server looks up.
  const apiKey = input ? input.value.trim() : '';
  const configured = !!(row && row.classList.contains('has-key'));
@@ -732,6 +805,8 @@ function addCustomKey(){
  alert('An API key was not saved: it must be one line of text without control characters, up to 4096 characters.');
  } else if (sp.get('err') === 'save_failed') {
  alert('Some changes were not saved. A label may already be in use; check the entries and try again.');
+ } else if (sp.get('err') === 'stale') {
+ alert('Nothing was saved: the saved API key entries changed since this page loaded. Check the reloaded page and enter the key again.');
  } else if (sp.get('err') === 'not_found') {
  alert('That API key entry no longer exists. Reload the page and try again.');
  } else if (sp.get('ok') === 'saved') {

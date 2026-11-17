@@ -519,8 +519,18 @@ echo '<section class="qs-section qs-header-card">
 
 // API Keys section (OpenRouter only here; Deepgram rendered under STT)
 // Only whether a key is saved reaches the page; the field is always blank and blank keeps the saved key.
-try { $openrouterRow = $db->fetchOne("SELECT 1 AS configured FROM core_api_badge WHERE lower(label)='openrouter' AND coalesce(api_key,'') <> '' LIMIT 1"); } catch (Throwable $_e) { $openrouterRow = []; }
-$openrouterConfigured = !empty($openrouterRow['configured']);
+// The saved state is the provider's lowest-id entry, the one Quickstart and the API Keys page write; a
+// whitespace-only key counts as not saved.
+function synthQuickstartPresetKeyConfigured($db, string $slug): bool {
+    try {
+        $result = $db->execQuery('SELECT api_key FROM core_api_badge WHERE lower(label) = $1 ORDER BY id LIMIT 1', [ $slug ]);
+        $row = $result ? pg_fetch_assoc($result) : false;
+        return is_array($row) && trim(strval($row['api_key'] ?? '')) !== '';
+    } catch (Throwable $_e) {
+        return false;
+    }
+}
+$openrouterConfigured = synthQuickstartPresetKeyConfigured($db, 'openrouter');
 $quickstartSavedKeyPlaceholder = 'Key saved - leave blank to keep';
 $player2ForceAllLlm = false;
 try { $player2ForceAllLlm = LLMRandomizer::isPlayer2ForceEnabled(); } catch (Throwable $_e) { $player2ForceAllLlm = false; }
@@ -705,8 +715,7 @@ foreach ($quickstartConf as $pname => $parms) {
         echo "</select>";
 
         if ($pname == "STTFUNCTION") {
-            try { $deepgramRow = $db->fetchOne("SELECT 1 AS configured FROM core_api_badge WHERE lower(label)='deepgram' AND coalesce(api_key,'') <> '' LIMIT 1"); } catch (Throwable $_e) { $deepgramRow = []; }
-            $deepgramConfigured = !empty($deepgramRow['configured']);
+            $deepgramConfigured = synthQuickstartPresetKeyConfigured($db, 'deepgram');
             $showDG = ($parms["currentValue"] === "deepgram") ? "" : " style=\"display:none\"";
             echo "<div class='form-group' id='dg_api_wrap'".$showDG.">";
             echo "<label for='qs_deepgram_api_key'>Deepgram API Key</label>";
