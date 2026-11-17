@@ -159,7 +159,7 @@ New entity `RelationshipConfig` (`core_relationship_config`), chevo's three laye
 ### Identity rule
 
 One rule, `AuthoredRelationships::identityKey()`, builds the key for fixture rows and live actors alike: `form_id` must match
-the wire `^0x[0-9A-Fa-f]{8}$` (not `0x00000000` or `0xFFFFFFFF`), `origin_plugin` must match `^[^/\]+\.(esm|esp|esl)$` (at most 255
+the wire `^0x[0-9A-Fa-f]{8}$` (not `0x00000000` or `0xFFFFFFFF`), `origin_plugin` must match `^[^/\\]+\.(esm|esp|esl)$` (at most 255
 characters), and the key is both lower-cased and joined with `|`, so `0x0001A4D7|Fallout4.esm` equals `0x0001a4d7|fallout4.esm`. An invalid
 form id or plugin gives no key, so no row matches. The playthrough id is never case-folded. Other features that key actors should
 use the same rule.
