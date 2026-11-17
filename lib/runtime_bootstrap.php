@@ -449,9 +449,20 @@ if (!function_exists('synthRuntimeApplyBootstrapOptions')) {
             synthLoadPlayerNameIntoGlobals();
         }
         if ($loadNarrator) {
-            // seed_narrator (default true): false reads narrator settings without inserting missing optional rows.
-            synthLoadNarratorSettingsIntoGlobals($options['seed_narrator'] ?? true);
+            // seed_narrator (default true, false for web GET/HEAD): false reads narrator settings without inserting missing optional rows.
+            synthLoadNarratorSettingsIntoGlobals($options['seed_narrator'] ?? !synthRuntimeIsReadOnlyWebRequest());
         }
+    }
+}
+
+if (!function_exists('synthRuntimeIsReadOnlyWebRequest')) {
+    // True for a web GET/HEAD page load (never the CLI), which must not rotate logs or seed settings rows by default.
+    function synthRuntimeIsReadOnlyWebRequest(): bool
+    {
+        if (PHP_SAPI === 'cli') {
+            return false;
+        }
+        return in_array(strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')), ['GET', 'HEAD'], true);
     }
 }
 
@@ -461,8 +472,8 @@ if (!function_exists('synthRuntimeBootstrap')) {
         $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
         $GLOBALS["ENGINE_PATH"] = $enginePath;
         Logger::bootstrapRequestId("rt");
-        // rotate_logs (default true): read-only dashboard views pass false so viewing a page never renames logs.
-        if ($options['rotate_logs'] ?? true) {
+        // rotate_logs (default true, false for web GET/HEAD): viewing a page never renames logs; an explicit option wins.
+        if ($options['rotate_logs'] ?? !synthRuntimeIsReadOnlyWebRequest()) {
             Logger::rotateKnownLogs($enginePath);
         }
 
@@ -524,7 +535,7 @@ if (!function_exists('synthRuntimeBootstrapIfNeeded')) {
 
         $GLOBALS["ENGINE_PATH"] = $enginePath;
         Logger::bootstrapRequestId("rt");
-        if ($options['rotate_logs'] ?? true) {
+        if ($options['rotate_logs'] ?? !synthRuntimeIsReadOnlyWebRequest()) {
             Logger::rotateKnownLogs($enginePath);
         }
         synthRuntimeApplyBootstrapOptions($enginePath, $options);

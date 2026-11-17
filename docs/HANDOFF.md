@@ -959,8 +959,13 @@ token failures answer 403, both before bootstrap. Array values for action keys a
 Home shows the setup page first when PHP's PostgreSQL extension is missing.
 `conf/conf.php` is an optional override of the tracked sample and environment, so the index and Events/Memories
 no longer bounce to Quickstart without it. The direct-require standalone pages load the sample first. Home and
-profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD (missing optional
-narrator rows are read as defaults, not inserted); other callers keep rotation and seeding. Home no longer
+profile-loader page views pass `rotate_logs => false` and `seed_narrator => false` on GET/HEAD, and
+`synthRuntimeBootstrap` now defaults both to false for any web GET/HEAD (explicit caller options still win; CLI,
+POST and `main.php`'s own game-path rotation are unchanged). A dashboard page view therefore neither renames
+logs nor inserts missing optional narrator rows (they are read as defaults), and a malformed NPC `extended_data`
+or `metadata` value is recovered in memory without being written back; POST saves and the CLI still persist
+the repair. Not covered: an append to an already oversized log still rotates it, and the first view of the
+TTS and STT connector pages can still write a default connector row. Home no longer
 starts the background processor (`main.php` does). STT, ITT and TTS connector views no longer apply schema
 migrations; Quickstart's explicit save still does. Snapshot restore stays paused. Provider key fields, their
 rendering and key-test provider resolution are described under
