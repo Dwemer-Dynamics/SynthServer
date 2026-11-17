@@ -228,8 +228,8 @@ function synthEncodeActionLine(string $actor, string $action, $parameter = '', s
     }
 
     if (in_array($action,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
-        require_once __DIR__.'/synth_order_actions.php';
-        if (!synth_order_action_supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)
             || !synth_wait_action_parameters_empty($parameter)
             || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
         $parameter=[];$parameterString='{}';

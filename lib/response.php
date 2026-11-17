@@ -49,8 +49,8 @@ function synth_protocol_encode_response_line(string $type, array $payload, strin
     if ($context['protocol_version'] === 2) $line['context_sequence'] = $context['context_sequence'];
     if ($type === 'dialogue') {
         // A companion order names the exact NPC reply line it rides on.
-        require_once __DIR__.'/synth_order_actions.php';
-        synth_order_note_reply_line($line);
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine($line);
     }
     return json_encode($line, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
 }
@@ -275,8 +275,8 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     }
     $order = in_array($serverCode,['FollowPlayer','StopFollowing','TakeASeat'],true);
     if ($order) {
-        require_once __DIR__.'/synth_order_actions.php';
-        if (!synth_order_action_supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
     }
     if ($capability==='action.attack' && ($event['protocol_version'] ?? 1)===2 && !synth_attack_supported($event)) return null;
     if ($capability==='action.read_quests' && !synth_protocol_player_journal_action_allowed()) return null;
@@ -421,10 +421,10 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     }
     if ($order) {
         // Bound to the NPC's own first reply line in this response; the game applies it, never the server.
-        $replyLine = synth_order_claim_reply_line($context['request_id'],$actor);
+        $replyLine = \Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine($context['request_id'],$actor);
         if ($replyLine === null) return null;
         $action['reply_line_id'] = $replyLine;
-        try { synth_order_action_validate($db,$event,$action); }
+        try { \Synth\Managers\ActionsManager\CompanionOrders::validate($db,$event,$action); }
         catch (DomainException) { return null; }
     }
     if ($nativeTarget && $capability==='action.attack') {

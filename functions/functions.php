@@ -1042,8 +1042,8 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         if (!synth_attack_supported($event)) return false;
     }
     if (($event['protocol_version'] ?? 1)===2 && in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true)) {
-        require_once dirname(__DIR__).'/lib/synth_order_actions.php';
-        if (!synth_order_action_supported($event,$codeName)) return false;
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$codeName)) return false;
     }
     if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
