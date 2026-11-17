@@ -1,6 +1,6 @@
 # Schema migration owner
 
-> A from-scratch redesign of the whole schema (one new baseline, `synth_*` tables, domain stores) is proposed in
+> A from-scratch redesign of the whole schema (one new baseline on the CHIM Evolution `core_*` entity, DAO model) is proposed in
 > [SCHEMA-REDESIGN.md](SCHEMA-REDESIGN.md). It is design only and changes nothing described below until approved.
 
 Doctrine Migrations owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`.

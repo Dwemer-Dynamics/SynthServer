@@ -1,443 +1,397 @@
-# Schema redesign (from scratch, CHIM 4 layout)
+# Schema redesign (from scratch, on the CHIM Evolution persistence model)
 
-**Status: Phase 1, design only. Nothing here is implemented.** No migration, table, store or caller changes
-with this document. It supersedes conventions D1 and D5 of [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#schema-conventions)
-once approved (D2 is replaced by [naming](#2-naming-and-layout), D6 by [snapshots](#8-snapshots)).
+**Status: Phase 1, design only. Nothing here is implemented.** No migration, table, entity, DAO or caller changes
+with this document. Once approved it supersedes conventions D1, D2, D4 and D5 of
+[SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#schema-conventions); D6 is replaced by [snapshots](#9-snapshots).
 
-The decision behind it, quoted from the owner: "we can reorganize and rework tables from scratch it does not
-matter. we dont need to care about migrations". SYNTH is pre-alpha, so there is **no upgrade path** from
-existing installs: the new schema is one new Doctrine baseline that replaces `Version20261115000000`, and an
-install made from the old baseline is recreated, not migrated.
+Decision behind it, quoted from the owner: "we can reorganize and rework tables from scratch it does not
+matter. we dont need to care about migrations". SYNTH is pre-alpha, so there is **no upgrade path**: the new schema is
+one new Doctrine baseline replacing `Version20261115000000`, and an install made from the old baseline is recreated.
 
-Inputs read, all read-only:
+**Target: chevo ("CHIM Evolution", CHIM 4.0), not ChimServer.** An earlier revision of this document mapped to ChimServer
+(DBAL stores, `chim_*`, no ORM). The owner chose chevo, so that revision is replaced: ORM, `core_*`, entities and DAOs.
 
-- SYNTH `origin/unstable` `0fa6e84` (121 relations: 115 tables and 6 views; 53 in `synth`, 68 in `synth_meta`).
-- ChimServer `origin/unstable` `804e501`: 36 migrations, 46 `chim_*` tables, `runtime.json` format 2,
-  `bin/schema-check.php`, `tools/schema-candidate.php`, `DBManager` routing to `Runtime/*Store`, shared `api_keys`.
-- PR #62 branch `codex/shared-api-keys`, **head `648d1a2`** at the time of writing (see [section 6](#6-connectors-and-shared-keys)).
+Inputs, all read-only:
 
-How the inventory was measured: `git grep` on `origin/unstable` over tracked files, excluding
-`vendor/`, `unittests/`, `core/dbmanager/migrations/` and the frozen `debug/db_updates.php`. A "caller file" is a
-file that names the table in SQL position (`FROM`, `JOIN`, `INTO`, `UPDATE`, `synth.x`, `synth_meta.x`) or as a quoted
-table argument (`$db->insert('x', ...)`). `lib/runtime_bootstrap.php` (the readiness gate) lists most tables; it is
-counted separately and not as a caller. Counts are files, not call sites, and a few generic names (`log`, `memory`,
-`speech`, `prompts`, `factions`) are noisy, so they are given as approximations (`~`). They size work; they are not proofs.
+- SYNTH `origin/unstable` `0fa6e84`: 121 relations (115 tables, 6 views); 53 in `synth`, 68 in `synth_meta`.
+- chevo `origin/unstable` `8ebe86e`: `README.md`, `PLAN.md`, `AGENT.md`, `.github/copilot-instructions.md`, `coding-standards.txt`,
+  `core/dbmanager/PLAN.MD`, `core/dbmanager/CORE-ENTITY-ALIGNMENT.md`, `api/v1/editing/README.md`, all 51 mapped entities in
+  `core/entities/base`, `Database.php`, `Editor/EntityCatalog.php`, and the 51 incremental migrations in `core/dbmanager/migrations`.
+- PR #62 (shared `dwemer` key store, `codex/shared-api-keys`, last read head `648d1a2`) is **dropped** by this design ([section 7](#7-api-keys)).
+
+Inventory method: `git grep` on `origin/unstable` over tracked files, excluding `vendor/`, `unittests/`,
+`core/dbmanager/migrations/` and the frozen `debug/db_updates.php`. A "caller file" names the table in SQL position
+(`FROM`, `JOIN`, `INTO`, `UPDATE`, `synth.x`, `synth_meta.x`) or as a quoted table argument (`$db->insert('x', ...)`).
+`lib/runtime_bootstrap.php` (the readiness gate) lists most tables and is not counted as a caller. Counts are files, not
+call sites; generic names (`log`, `memory`, `speech`, `prompts`, `factions`) are approximate (`~`). They size work, they prove nothing.
 
 ---
 
-## 1. Summary of decisions
+## 1. What chevo's persistence model is
+
+From `PLAN.md` §6 and `core/dbmanager/PLAN.MD`:
+
+- **Doctrine ORM + Doctrine Migrations**. Only `core/dbmanager` touches the database; no second ORM.
+- **Three layers per `core_*` table.** A mapped class `core/entities/base/Abstract<Name>.php` (`#[ORM\Entity]`, `#[ORM\Table(name: 'core_x')]`,
+  protected typed properties); an application-facing class `core/entities/system/<Name>.php` (no ORM attributes; static lookups
+  return untracked copies via the `CopiesMappedEntity` trait); a DAO `core/dbmanager/dao/<Name>DAO.php` (`Chevo\Core\DbManager\Dao`,
+  singleton-backed, registered in `Database::DAOS`). Top-level code (API, `lib`, drivers, workers, UI) uses **only** the system
+  classes; it never calls a DAO and never names an `Abstract*` class.
+- **Boot.** `Database::boot()` creates the shared EntityManager from config and configures every DAO; types beyond Doctrine's
+  live in `core/dbmanager/Types` (`PreciseDateTimeType` / `datetimetz_precise`, microsecond `timestamptz`), listed in `Database::TYPES`.
+- **`core_` means the pattern, not membership.** A table outside the pattern must use another name and document its owner and
+  access path. Migration ledgers, temporary tables and archives keep their names.
+- **Atomic work stays DBAL inside DAOs.** Locks, leases, claims and append-only checkpoints keep their SQL; their tables get
+  `#[ORM\Entity(readOnly: true)]` mappings with scalar columns only (no associations), as chevo did for `core_relationship_*`
+  and `core_narrator_*`. They are not registered as generic editable resources.
+- **Migrations.** Incremental `Chevo\Migrations\VersionYYYYMMDDHHMMSS` classes using `addSql()` with
+  `CREATE TABLE IF NOT EXISTS public.core_x (...)`, `all_or_nothing`, `check_database_platform`. There is **no baseline, no manifest
+  and no schema-check in chevo**: its guard is hand-written PostgreSQL migration tests and a data-preservation procedure.
+- **Edit API.** `/api/v1/edit` (`api/v1/editing`, `Editor/EntityCatalog` + `EntityEditor`) is a generic CRUD API built on the Doctrine
+  mapping; the UI and an MCP server use it ([section 10](#10-ui-and-the-edit-api)).
+- **Conventions** (`coding-standards.txt`): file and method comments, `declare(strict_types=1)`, PSR-12, no `function_exists()` checks.
+
+SYNTH already ancestrally shares chevo's names: `core_api_badge`, `core_llm_connector`, `core_tts_connector`, `core_stt_connector`,
+`core_itt_connector`, `core_profiles`, `core_npc_master`, `core_action` are CHIM-lineage tables. So most of this redesign is
+**aligning SYNTH to chevo's current shape of the same concept**, and designing SYNTH-only tables in the same style.
+
+---
+
+## 2. Decisions
 
 | # | Decision | Why |
 |---|---|---|
-| R1 | One new baseline `Version20261117000000` replaces `Version20261115000000`; its `.php`, `.structure.txt` and `.fresh.sql` are regenerated from a disposable PostgreSQL 17. No `debug/db_updates.php` chain, no `data/database_default.sql` import. | Owner decision: no migrations. |
-| R2 | Every table is `synth_<domain>_<noun>` in schema `public`; `synth` and `synth_meta` schemas, `plugins` schema and the `synth.`/`synth_meta.` qualifiers disappear. | Mirrors `chim_*`; one search path; manifest-friendly ([section 2](#2-naming-and-layout)). |
-| R3 | Domain stores replace the `$db->` string API and the six repositories: one DBAL store per domain behind a `SynthDBManager` facade ([section 5](#5-domain-stores)). | ChimServer `DBManager` + `Runtime/*Store`. |
-| R4 | Format-2 manifest with per-migration hashes and one manifest per reviewed PostgreSQL major (17 first) ([section 7](#7-manifest-and-drift-check)). | ChimServer `runtime.json`. |
-| R5 | API keys are not in SYNTH's schema at all; connectors hold a shared-key reference ([section 6](#6-connectors-and-shared-keys)). | PR #62. |
-| R6 | 5 tables are dropped outright, 10 more are merged away and 5 views are replaced ([section 4](#4-drop-list), [3.11](#311-totals)). | Dead, duplicate or replaced. |
-| R7 | Snapshots stay **paused**; their tables and version metadata are designed, not wired ([section 8](#8-snapshots)). | Hard hold. |
-| R8 | Phase 2 proceeds domain by domain; the baseline is regenerated at every step so the app works at each commit ([section 9](#9-rollout-order)). | App must stay runnable. |
+| C1 | Doctrine ORM with chevo's three layers and DAO registry (`Database::boot()`, `Database::DAOS`) under `core/dbmanager`, `core/entities/base`, `core/entities/system`. Namespaces `Synth\Core\Entities\Base`, `Synth\Core\Entities\System`, `Synth\Core\DbManager\Dao`. Supersedes D4 (ORM pilot frozen) and the earlier DBAL-store plan. | Owner decision; PLAN.md §6. |
+| C2 | All tables live in `public` and are named `core_*`, using **chevo's name wherever chevo has the concept**. SYNTH-only tables are also `core_<singular_noun>` because they use the same mapped pattern. The `synth` and `synth_meta` schemas, the empty `plugins` schema and every `synth.`/`synth_meta.` qualifier disappear. | chevo naming rule: `core_` marks the pattern. |
+| C3 | One new baseline `Version20261117000000` (`Synth\Migrations`) replaces `Version20261115000000`; its class, `.structure.txt` and `.fresh.sql` are regenerated from a disposable PostgreSQL 17. Later changes are incremental migrations in chevo's style. | No upgrade path (owner). |
+| C4 | API keys follow chevo: one global `core_api_badge` + `ApiBadge` entity + `ApiBadgeDAO`; connectors reference it by `api_badge_id`. PR #62 and the shared `dwemer` store are dropped. | Owner decision ([section 7](#7-api-keys)). |
+| C5 | SYNTH's read-only drift check stays and is retargeted to `public.core_*` ([section 8](#8-schema-check)). | chevo has none; SYNTH's is kept. |
+| C6 | Snapshots stay **paused**; their metadata is designed ([section 9](#9-snapshots)). | Hard hold. |
+| C7 | The generic edit API and moving UI SQL behind it is a **later phase** ([section 10](#10-ui-and-the-edit-api)); every domain step still moves UI SQL into system-entity methods. | Size. |
+| C8 | Phase 2 proceeds domain by domain; the baseline is regenerated at every step so the app runs at each commit ([section 11](#11-rollout-order)). | App must stay runnable. |
+
+### Type and column conventions (chevo's, adopted)
+
+- Config tables keep `integer` generated ids; event, log and queue tables use `bigint`.
+- Timestamps: `PreciseDateTimeType` (`timestamptz`, microseconds) for server-written times; `datetime_immutable` where chevo uses it.
+- JSON: Doctrine `json` with `options: ['jsonb' => true]`. Booleans are `boolean`, not `0/1` integers.
+- Hashes are fixed-length strings with `CHECK`s. Enumerations get `CHECK (x IN (...))`.
+- `playthrough_id` is a `guid` in chevo; SYNTH stores it as `text`. Adopting `guid` is open question 4.
+- **Specialized columns** (`vector(n)`, `tsvector`, generated columns, `point`) are **not** ORM fields: the mapping omits them and the DAO
+  reads and writes them with parameterized DBAL, as chevo does for search columns (`CORE-ENTITY-ALIGNMENT.md`: "not a project to map every
+  specialized search column"). Their typmods and indexes are still frozen by the schema-check.
+- Foreign keys: durable state tables have real FKs; append-only logs carry ids without FKs so pruning by `gamets` stays cheap.
 
 ---
 
-## 2. Naming and layout
+## 3. Inventory and mapping to chevo
 
-**Choice: `public.synth_<domain>_<noun>`.** Rejected: old D2 `synth_meta.<domain>_<noun>`.
+**Match** column: `=` same concept and same columns as the chevo table; `~` same concept, columns differ (differences listed);
+`new` SYNTH-only, designed in chevo's style; `merge` folded into another table; `drop` removed ([section 5](#5-drop-list)).
+Volume: **cfg** config or catalog, **npc** per-NPC, **log** per-turn or append-only, **cache** rebuildable.
+Status: **live**, **legacy-live** (HerikaServer-era table still driving the pipeline), **dead**, **snap**.
+"Files" is `prod/tests` caller files.
 
-- ChimServer puts every table in `public` with a `chim_` prefix. The prefix, not a schema, marks ownership, which is
-  what its manifest relies on ("only explicitly listed public tables ... are managed; other relations are ignored").
-  SYNTH shares a PostgreSQL server (and, via #62, the `dwemer` database neighbours) with other Dwemer products, so
-  a product prefix is the safer boundary than a schema the other products do not use.
-- D2 made sense only to extend a baseline that already lived in two schemas. With a from-scratch baseline a single
-  rule is simpler: the table name alone says product and domain, and the 53/68 split (which was historical, not
-  semantic: `core_*` legacy tables beside native protocol tables) is removed.
-- Domain names in the table name match the store that owns it (`synth_memory_*` belongs to `MemoryStore`), so a
-  `git grep synth_memory_` finds exactly one owner.
-- One schema removes the `search_path` dependence of today's `$db->insert('eventlog', ...)` unqualified names, which
-  is also why the callers are hard to audit.
+### 3.1 API keys, connectors, profiles, settings
 
-Other layout rules:
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth.core_api_badge` | `core_api_badge` (`ApiBadge`, `ApiBadgeDAO`) | `=` | `id integer, label text, api_key text`. #62's `shared_key_id` is not added. | 4/0 | cfg | live |
+| `synth.core_llm_connector` | `core_llm_connector` | `=` | Identical 22 columns (`api_badge_id`, sampler columns, `metadata jsonb`). `int` flags (`enforce_json`, `json_schema`, `prefill_json`, `reasoning_model`) stay integers as in chevo. | 19/5 | cfg | live |
+| `synth.core_tts_connector` | `core_tts_connector` | `=` | `voice_field` present in both. | 6/1 | cfg | live |
+| `synth.core_stt_connector` | `core_stt_connector` | `=` | | 3/1 | cfg | live |
+| `synth.core_itt_connector` | `core_itt_connector` | `=` | | 3/0 | cfg | live |
+| `synth.core_profiles` | `core_profiles` | `~` | chevo adds `itt_connector_id`; SYNTH has the rest (six `llm_*_id`, `tts_connector_id`, `diary_connector_id`, `slot`, `prompt`, `metadata`). Add `itt_connector_id`. | 28/8 | cfg | live |
+| `synth.general_settings`, `synth.conf_opts`, `synth_meta.settings`, `synth.core_player`, `synth.core_narrator` | `core_config_setting` (`ConfigSetting`) | merge | chevo: `config_key text PK, config_value json, updated_at`, dotted lower-case keys (`player.tts`, `memory.window.*`) with a registry in `ConfigManager`. Five SYNTH key/value tables become one. Player/narrator definition values become `player.*` / `narrator.*` keys. | 5+34+4+14+7 / ~25 | cfg | live |
+| `synth.core_tts_pronunciation` | `core_config_setting` keys `tts.pronunciation.rules` / `.defaults` | merge | chevo stores pronunciation as settings, not a table. | 2/1 | cfg | live |
+| `synth.global_settings_presets` | `core_config_preset` | new | `id integer, name varchar(60) unique, snapshot jsonb, created_at, updated_at`; mapped, editable. | 2/0 | cfg | live |
+| `synth.prompts` | `core_prompt` | new | chevo renders prompts from files in `PromptManager` and has no table; SYNTH has `default_prompt`/`custom_prompt` per key. Kept as `(prompt_key PK, default_prompt, custom_prompt, description, updated_at)`. See open question 7. | ~26/3 | cfg | live |
 
-- Extensions `vector` and `pg_trgm` live in `public`. Ledger table: `doctrine_migration_versions` in `public`
-  (as ChimServer), outside the application tables so it cannot be copied by any row-scoped snapshot.
-- **Types.** Surrogate keys `bigint GENERATED ALWAYS AS IDENTITY` (not `integer`/`serial`, not `rowid`). All
-  timestamps `timestamptz` (today ~20 columns are `timestamp without time zone`). Hashes `char(64)` with a
-  `CHECK (x ~ '^[0-9a-f]{64}$')`. Integer `0/1` flags become `boolean`. Free enumerations get `CHECK (... IN (...))`.
-- **Foreign keys.** Durable state tables carry real FKs (they already do in `synth_meta`). Append-only per-turn logs
-  carry `playthrough_id` and `session_id` without FKs so pruning and rollback by `gamets` stay cheap. `playthrough_id`
-  is a FK to `synth_playthroughs` on durable tables only.
-- **JSON vs columns.** Keep `jsonb` for payloads that are stored and returned whole (`input_payload`, `result_payload`,
-  `event_payload`, `capabilities`) and add `CHECK (jsonb_typeof(x)='object')`. Promote to columns anything a query
-  filters on (`worker_jobs` FKs, `eventlog.type`). Demote sparse tuning knobs to one `params jsonb` (LLM sampling
-  columns, as `chim_provider_connections.params`).
-- **Functions.** `synth.convert_gamets2*` (6 functions, used by 9 files) are kept as `public.synth_gamets_to_*`;
-  `synth_meta.json_object_has_unique_keys` becomes `public.synth_json_object_has_unique_keys` (used by
-  `synth_protocol.sql` CHECKs and `lib/synth_wait_actions.php`). The four schema-clone functions are dropped
-  ([section 8](#8-snapshots)).
+### 3.2 Characters, plugins, authored content
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth.core_npc_master` | `core_npc` | `~` | chevo `core_npc`: `character_id integer PK, canonical_name, npc_favorite, lock_profile, dynamic_profile, profile_id, prompt_head, npc_static_bio, oghma_knowledge_tags, emote_moods, personality, relationships, occupation, appearance, skills, speechstyle, goals json, voiceid, voicefilter, ...`; SYNTH `npc_master` has the same family plus `md5`, `base`, `core`, `refid`, `race`, `gender`, `gamets_last_updated`, `extended_data`. Identity text moves to `core_npc_actor`; SYNTH fields with no chevo column (`core`, `md5`, `base`, Fallout `worldknowledge_tags`) are added to `core_npc` or `extended_data`. | 38/16 | npc | live |
+| `synth.actor_identities` | `core_npc_actor` | `~` | chevo: composite key `(refid, plugin)` plus `character_id`, `name`, `gender`, `race`, `actor_class`, `base_plugin`, `base_formid`, template and replaced fields. SYNTH identity is `(playthrough_id, game, origin_plugin, full_form_id)` bigint. Fallout `full_form_id` becomes `(refid, plugin)`; `playthrough_id` stays on the runtime tables, not the actor. See open question 3. | 38/15 | npc | live |
+| `synth.core_npc_master_history` | `core_npc_history` | `~` | chevo: `(character_id, saved_gamets) PK, state_hash, state json`. SYNTH's 31-column row copy becomes a JSON `state` snapshot per save point. | 8/1 | npc | live |
+| `synth.import_rules` | `core_npc_profile_rule` | `~` | chevo: `id, label, enabled, priority, profile_id, race, gender, actor_class, plugin, local_formid`. SYNTH `match_*`, `mods[]`, `action jsonb` map onto these; arrays and `action` that chevo lacks are added. | 4/0 | cfg | live |
+| `synth.bio_templates`, `bio_templates_custom`, `bio_template_actor_map` | `core_npc_biography_template`, `core_npc_biography_application`, `core_npc_biography_import` | `~` | chevo: versioned `document json` templates, per-NPC application report and catalog import record. SYNTH's flat 15-column template rows become `document`. | 6/9, 3/2, 5/6 | cfg | live |
+| `synth.game_plugins` | `core_plugins` | `~` | chevo: `canonical_name PK, reported_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix`; same fields, `plugin_name` becomes `canonical_name`. | 3/1 | cfg | live |
+| `synth_meta.profile_revisions`, `profile_job_inputs`, `profile_job_fields` | `core_character_generation`, `core_character_generation_field` | new | AI profile generation jobs and results (chevo's `core_npc_biography_application` records only template application). | 1/1, 1/0, 1/0 | npc | live |
+| view `synth.synthnpcs` | none | drop | Lazy compat view (2 callers). | 2/1 | | dead after C2 |
+
+### 3.3 Catalogs and knowledge
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth.descriptions`, `descriptions_custom`, view `combined_descriptions` | `core_item_description`, `core_item_description_custom` | `=`/`~` | Same base/custom split. chevo adds `reported_plugin`, `catalog_version`, `row_sha256`, timestamps. The view is replaced by chevo's merge in `ItemDescription` (the system class). | 4+2+3 | cfg | live |
+| `synth.worldknowledge`, view `worldknowledge_effective` | `core_oghma_article`, `core_oghma_custom` | `~` | chevo: `topic PK, aliases, retrieval_phrases, basic/advanced text and tags, keywords, category, catalog_version, row_sha256`; SYNTH keeps `entry_id`, `canonical_topic`, `knowledge_class*`, `topic_desc*`, plus `vector384` and `native_vector` (specialized, DAO-only). "Oghma" is a Skyrim name: open question 5. | ~20/8 | cfg | live |
+| `synth.worldknowledge_catalogs` | `core_oghma_catalog_state` | `~` | chevo: singleton `id smallint, catalog_version, articles_sha256, manifest_sha256, row_count, imported_at`. SYNTH keeps multiple catalogs (`catalog_id`, `is_active`, `manifest jsonb`). | 6/3 | cfg | live |
+| `synth.worldknowledge_audit` | `core_worldknowledge_audit` | new | retrieval audit rows (23 columns). | 3/2 | log | live |
+| `synth.database_versioning` | `core_catalog_version` | new | Content versions per catalog key for `fallout_catalogue_sql.php` and `fallout_content_pack.php`; the 47 legacy schema floors disappear. | 5/6 | cfg | live (content) |
+| `synth.locations` | `core_location`, `core_location_state`, `core_location_marker`, `core_worldspace` | `~` | chevo splits a stable catalog (`location_id bigint`, `plugin`, `baseid`, hierarchy, `map_x`, `map_y`) from per-playthrough `core_location_state(playthrough_id, location_id, cleared)`. SYNTH's flat `formid`, `coords point`, `cleared`, `refs`, `tags` move accordingly. | ~7/1 | cfg | live |
+| `synth.factions` | `core_faction` | new | Fallout faction ranks and vendor data (`caps`, `stock jsonb`, `vendor_cont`). | ~4/5 | cfg | live |
+| `synth.quests` | `core_quest` | new | Fallout quest records; `ts text` becomes `PreciseDateTimeType`; pruned by `gamets`. | ~6/4 | per-save | live |
+| `synth.core_action`, `core_action_custom`, view `combined_core_action` | `core_action`, `core_action_custom` | new | chevo's actions are code-defined (`ActionsManager`); SYNTH's catalog stays as authored rows with the same base/custom split. View dropped; the system class merges. | 4+3+4 | cfg | live |
+| `synth_meta.media_objects` | `core_media_object` | new | Media metadata and cache keys (chevo keeps audio files in `cache/` with no table). | 3/3 | cache | live |
+| `synth.visual_context`, `synth_meta.visual_results`, `visual_description_revisions` | `core_visual_context`, `core_visual_result`, `core_visual_description_revision` | new | ITT descriptions per subject; chevo has an ITT connector but no visual table. | 12/2, 1/0, 1/0 | npc | live |
+
+### 3.4 Timeline, dialogue, queue, logs (the legacy HerikaServer tables)
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth.eventlog` and `synth_meta.history_events` | `core_context_event` | merge, `~` | chevo `core_context_event`: `id bigint, playthrough_id guid, event_type, gamets, gametm, recorded_at, dialogue_status, characters_present json, location_id, party json, payload json, context_metadata json, request_id, utterance_id, chain_id`. SYNTH has **two** ledgers for the same thing: legacy `eventlog` (~40/12) and the native `history_events` (31/8, with `eventlog_rowid`). Both become one `core_context_event`; `eventlog.type`, `data`, `people`, `location`, `party`, `ts`, `localts`, `sess`, `delivery_state` map onto `event_type`, `payload`, `characters_present`, `location_id`, `party`, `recorded_at`, `context_metadata`. **The largest semantic change in the plan.** | ~40/12 + 31/8 | log | legacy-live + live |
+| `synth.speech`, `synth.actions_issued`, `synth.moods_issued` | `core_context_event` rows | merge | Spoken lines and issued actions are event types (chevo records them as context events). `moods_issued` is dropped ([section 5](#5-drop-list)). | ~34/0, 5/1, 3/0 | log | legacy-live |
+| `synth.responselog` | `core_message_queue` (`QueuedMessage`) | `~` | chevo: durable outbound queue with `message_type`, `payload`, `request_id`, `status`, `delivered_at`, `cancelled_at`, `expires_at`, `notified_at`. SYNTH's `sent` flag becomes `status`. | 12/0 | log | legacy-live |
+| `synth.rolemaster` | `core_director_note` | new | Scene notes with `ttl` (`type='scenenote'`). | ~3/0 | log | legacy-live |
+| `synth.log`, `synth.audit_request` | `core_llm_request_log` | merge, `~` | chevo `core_llm_request_log`: 26 columns (`status`, `purpose`, `connector_id`, `driver`, `model`, `request`, `response_*`, `duration_ms`, `replay_of_id`). SYNTH `log(prompt, response, url)` and `audit_request(connector, request, result, url, usage)` are both subsets. | ~6/1 + 14/0 | log | legacy-live + live |
+| `synth_meta.request_executions` | `core_dialogue_request` | `~` | chevo `core_dialogue_request`: `request_id`, `request_type`, `gamets`, `chain_id`, `speaker_rid`, `listener_rid`, `dialogue_text`, `request_payload json`, `created_at`, `completed_at`, cancel fields. SYNTH adds idempotent claim, `request_sha256`, stored `response_body bytea`, `state`; those columns are added (response body is DAO-only). | 45/15 | log | live |
+| `synth_meta.context_snapshots` | `core_runtime_context` | new | Per-sequence context payload and audience (chevo derives context from events). | 43/13 | log | live |
+| `synth_meta.protocol_events` | `core_protocol_event` | new | Canonical wire events with hash, for replay and audit. | 41/9 | log | live |
+| `synth_meta.runtime_sessions` | `core_runtime_session` | new | Game connection state: generation, active turn, capabilities, per-worker dispatch deadlines. | 41/13 | cfg-ish | live |
+| `synth_meta.active_agents` | `core_actor_activation` | new | chevo's archived `core_actor_assignment` is the nearest ancestor; SYNTH's per-session activation stays. | 4/2 | npc | live |
+| `synth_meta.actor_event_batches` | `core_actor_event_batch` | new | Batched observations. | 1/0 | log | live |
+| `synth_meta.dialogue_utterances`, `dialogue_origin_policies`, `response_routes` | `core_dialogue_utterance`, `core_dialogue_origin_policy`, `core_dialogue_route` | new | Receipt state, origin policy (`policy jsonb`), speaker/listener routing. | 4/2, 7/4, 9/5 | log | live |
+| `synth_meta.worker_jobs` | `core_worker_job` | new, `~` | chevo `core_worker_unit(worker, unit_key, failures, retry_after)` is a derived-from-data back-off record, not a lease queue. SYNTH's leases and five nullable FK columns are kept (`CHECK (num_nonnulls(...) <= 1)`). See open question 8. | 23/5 | log | live |
+
+### 3.5 Memory, middle term, diaries
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth.memory`, `synth.memory_summary`, view `memory_v` | `core_memory` | merge, `~` | chevo `core_memory`: `id, playthrough_id, gamets, gametm, from_gamets, source_type, source_key, source_id_from/to, episode, owner_character_id, character_ids json, location_id, text, tags, created_at`. SYNTH legacy raw `memory` (~24/6) and summarised `memory_summary` (~14/2) both fit as `source_type`; the SYNTH `embedding` (384), `embedding768` and `native_vec` stay DAO-only columns. View dropped. | ~24/6, ~14/2, 4/1 | log/cache | legacy-live |
+| `synth_meta.memory_batches`, `memory_batch_sources`, `memory_batch_summary_sources`, `memory_batch_rebuilds`, `memory_batch_controls` | `core_memory_batch` + `_source`, `_summary_source`, `_rebuild`, `_control` | new | Native memory batching. | 3/2, 2/1-3 each | log | live |
+| `synth_meta.memory_summaries`, `memory_summary_revisions` | `core_memory_summary`, `core_memory_summary_revision` | new | Native summaries with vectors (DAO-only). | 6/4, 3/1 | cache | live |
+| `synth_meta.middleterm_*` (6 tables) | `core_middleterm_input`, `_source`, `_result`, `_replacement`, `_regeneration_approval`, `_control_revision` | new | chevo has `memory.middle_term.*` settings but no table. | 2-4/0 each | npc | live |
+| `synth_meta.diary_*` (5 tables) and `synth.diarylog` | `core_diary_input`, `_input_source`, `_result`, `_job_result`, `_control_revision`, `core_diary_legacy_entry` | new | `diarylog` rows could instead be `core_memory` with `source_type='diary'`: open question 6. | 1-5/0-1, 10/0 | npc | live / legacy-live |
+
+### 3.6 Relationships and narrator
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|---|
+| `synth_meta.relationship_actor_controls` and `relationship_revisions` | `core_relationship_config` | `~` | chevo: directed pair per playthrough `(playthrough_id, source_character_id, target_character_id)` with `relation_detail`, `custom_info`, `private_notes`, `automatic_updates_locked`, `baseline_affinity`, `baseline_type`, `revision`. SYNTH's `locked`, `affinity`, `relationship_type`, `revision` correspond. | 3 + 6 | npc | live |
+| `relationship_evaluations`, `_evaluation_sources`, `_results`, `_result_priors`, `_revision_sources`, `_response_inputs`, `_response_sources`, `_interaction_evaluations`, `_interaction_results`, `_interaction_priors`, `_interaction_result_priors` (11 tables) | `core_relationship_evaluation`, `_evaluation_source`, `_result`, `_result_prior`, `_revision_source`, `_response_input`, `_response_source`, `_interaction_evaluation`, `_interaction_result`, `_interaction_prior`, `_interaction_result_prior` | new | SYNTH's LLM evaluation pipeline; chevo's `core_relationship_{checkpoint,session,output_proof,batch}` are a different, narrower mechanism (open question 8). Mapped read-only with DBAL writes, as chevo's relationship tables. | 2-10/0-1 each | log | live |
+| `synth_meta.relationship_actor_control_events` | none | drop | | 0/0 | | dead |
+| `synth.relationship_eval_queue`, `relationship_init_queue` | `core_relationship_eval_queue`, `core_relationship_init_queue` | new | `ext/relationship_system` queues; open question 9. | 3/0 each | log | legacy-live |
+| `synth_meta.narrator_definitions`, `narrator_definition_revisions` | `core_narrator_definition` | `~` | chevo: `(playthrough_id, narrator_id, definition_id, settings json)`. SYNTH's `name`, `personality`, `style`, `background`, `voice` move into `settings`; revisions become `definition_id` generations. | 2/0, 2/0 | npc | live |
+| `synth_meta.narrator_transcript_entries`, `narrator_transcript_cursors` | `core_narrator_transcript` | `~` | chevo: `(playthrough_id, narrator_id, entry_id, parent_id, role, body)`. | 1/0 each | log | live |
+| `synth_meta.narrator_states`, `narrator_lane_heads`, `narrator_context_states` | `core_narrator_checkpoint` | `~` | chevo: `(playthrough_id, token, parent_token, operation_id, session_id, action, input_digest, manifest json)`. SYNTH's `applied_revisions`, `persona_heads` map into `manifest`. | 2/0, 2/0, 1/0 | log | live |
+| `synth_meta.narrator_pending_outputs` | `core_narrator_generation` | `~` | chevo: `(playthrough_id, operation_id)` claim. SYNTH's pending text and receipt state need extra columns. | 4/0 | log | live |
+
+### 3.7 Rechat, actions, social tasks
+
+| SYNTH table | New name | Notes | Files | Vol | Status |
+|---|---|---|---|---|---|
+| `rechat_chains`, `rechat_continuations`, `rechat_selections` | `core_rechat_chain`, `core_rechat_continuation`, `core_rechat_selection` | SYNTH-only; chevo has `chain_id` on events only. | 11-12 each | log | live |
+| `action_intents`, `action_terminal_results` | `core_action_intent`, `core_action_result` | SYNTH-only. | 8, 7 | log | live |
+| `social_task_inputs`, `_claims`, `_events` | `core_social_task_input`, `_claim`, `_event` | SYNTH-only follower errands. | 1 each | npc | live |
+
+### 3.8 Playthroughs and snapshots
+
+| SYNTH table | chevo table / new name | Match | Notes | Files | Status |
+|---|---|---|---|---|---|
+| `synth_meta.playthrough_profiles` | `core_playthrough`, `core_save_point`, `core_timeline_control`, `core_snapshot` | `~` / new | chevo has the playthrough (`playthrough_id guid, active, last_saved_gamets, last_loaded_gamets, player_background, background_revision`), save points `(playthrough_id, gamets)` and a timeline control row. `core_snapshot` is new and paused ([section 9](#9-snapshots)). | 4/1 | snap |
+
+### 3.9 Totals
+
+121 relations (115 tables, 6 views) become **about 102 tables and no views**, counted from the tables above: settings and connectors 9, characters 10, catalogs 19,
+timeline/dialogue/queue/logs 14, memory/middle term/diaries 20, relationships and narrator 18, rechat/actions/social 8, playthroughs/snapshots 4.
+Where chevo has the concept (`=` or `~`) the table takes chevo's name; the rest are SYNTH-only `core_*` tables. Four tables are dropped outright and about 20 are merged away.
+The exact figures are fixed by the Phase 2 baseline and then carried by the schema-check manifest.
 
 ---
 
-## 3. Inventory and mapping
+## 4. Entities and DAOs
 
-Volume classes: **cfg** config or catalog (rarely written), **npc** per-NPC rows, **log** per-turn or append-only log,
-**cache** derived/rebuildable. Status: **live** (read and written by current code), **legacy-live** (HerikaServer-era
-table still used by the running pipeline), **dead** ([section 4](#4-drop-list)), **snap** (snapshot-related).
-"Files" is `prod/tests`. All tables below get new names; "same" shapes keep their columns except where stated.
+Each domain gets, per table family, one `Abstract<Name>` mapping, one system class and one DAO, following chevo. SYNTH's existing
+`core/dbmanager` already has an `EntityManagerFactory`, a `SharedSessionDriver` (the DBAL driver that shares the legacy PostgreSQL
+session so a DAO can run inside a legacy-owned transaction), `entities/GeneralSetting` and six repositories. Their fate:
 
-### 3.1 Runtime and protocol (`synth_runtime_*`, `synth_protocol_*`, `synth_actor_*`, `synth_dialogue_*`, `synth_worker_*`)
+| SYNTH today | After |
+|---|---|
+| `EntityManagerFactory`, `SharedSessionDriver` | Kept until the last legacy `$db->` call is gone (step 8), then removed; `Database::boot()` wraps them. |
+| `entities/GeneralSetting`, `repositories/SettingsRepository` | Become `AbstractConfigSetting`, `ConfigSetting`, `ConfigSettingDAO`. |
+| `repositories/ApiBadgeRepository` | Become `AbstractApiBadge`, `ApiBadge`, `ApiBadgeDAO` ([section 7](#7-api-keys)). |
+| `repositories/CharacterRepository`, `UtteranceRepository`, `PrivateNarratorRepository`, `SaveRepository` | Replaced by `NpcDAO`/`NpcActorDAO`, the context-event, dialogue-request and queue DAOs, the narrator DAOs, and `PlaythroughDAO`. |
 
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth_meta.runtime_sessions` | `synth_runtime_sessions` | One row per game connection: generation, active turn, capabilities, per-worker dispatch deadlines. | 41/13 | cfg-ish | live |
-| `synth_meta.request_executions` | `synth_runtime_requests` | Idempotent request claim and stored response (`response_body bytea`). | 45/15 | log | live |
-| `synth_meta.protocol_events` | `synth_protocol_events` | Canonical wire events with hash, for replay and audit. | 41/9 | log | live |
-| `synth_meta.context_snapshots` | `synth_runtime_contexts` | Per-sequence context payload and audience; links to history event. Name follows `chim_runtime_contexts`. | 43/13 | log | live |
-| `synth_meta.active_agents` | `synth_actor_activation` | Which actors are active in a session (`chim_actor_activation`). | 4/2 | per-NPC | live |
-| `synth_meta.actor_event_batches` | `synth_actor_event_batches` | Batched actor observations. | 1/0 | log | live |
-| `synth_meta.dialogue_utterances` | `synth_dialogue_utterances` | Spoken lines with receipt state. | 4/2 | log | live |
-| `synth_meta.dialogue_origin_policies` | `synth_dialogue_origin_policies` | Per-request origin and execution policy (`policy jsonb`). | 7/4 | log | live |
-| `synth_meta.response_routes` | `synth_dialogue_routes` | Speaker/listener routing of each line. | 9/5 | log | live |
-| `synth_meta.worker_jobs` | `synth_worker_jobs` | Lease-based background jobs (diary, memory, middleterm, relationship). Five nullable FK columns kept, plus `CHECK (num_nonnulls(...) <= 1)` and a partial index per job type. | 23/5 | log | live |
-| `synth_meta.history_events` | `synth_history_events` | Ordered event ledger every native subsystem points at (`event_payload`, `eventlog_rowid`). | 31/8 | log | live |
-| `synth.synthnpcs` (view) | dropped | Compatibility view over the NPC table, created lazily by `synth_ensure_synthnpcs_view()`. | 2/1 | | dead after R6 |
-
-### 3.2 Characters (`synth_characters`, `synth_character_*`)
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.actor_identities` | `synth_characters` | Actor identity (game, plugin, full form id, playthrough, name). Unique `(playthrough_id, game, origin_plugin, full_form_id)`. | 38/15 | npc | live |
-| `synth.core_npc_master` | `synth_character_profiles` | NPC profile text and flags. 29 columns: `int` flags become `boolean` (`npc_favorite`, `lock_profile`, `dynamic_profile`), `md5`/`base`/`emote_moods` kept, `extended_data jsonb` stays, FK `character_id` replaces `actor_identity_id` nullable. | 38/16 | npc | live |
-| `synth.core_npc_master_history` | `synth_character_profile_revisions` | Profile revisions (31 columns, a full copy of the master row). Redesigned as `(character_id, revision, profile jsonb, reason, created_at)` plus the relationship fields the readers query. | 8/1 | npc | live |
-| `synth_meta.profile_revisions` | `synth_character_generation_revisions` | AI profile generation results per history event. | 1/1 | npc | live |
-| `synth_meta.profile_job_inputs`, `profile_job_fields` | `synth_character_generation_jobs`, `synth_character_generation_fields` | Inputs and per-field results of profile jobs. | 1/0 each | npc | live |
-| `synth.import_rules` | `synth_character_import_rules` | Rules mapping imported actors to profiles. | 4/0 | cfg | live |
-| `synth.bio_template_actor_map` | `synth_character_bio_actor_map` | Authored biography template per actor. | 5/6 | cfg | live |
-| `synth.core_player` | row-group of `synth_settings_global` (`scope='player'`) | Key/value player definition (`id text, value text`). | 14/1 | cfg | live |
-| `synth.core_narrator` | row-group of `synth_settings_global` (`scope='narrator'`) | Key/value narrator definition. | 7/1 | cfg | live |
-
-### 3.3 Settings, profiles and presets (`synth_settings_*`)
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.general_settings` | `synth_settings_global` (`scope='general'`) | Managed typed settings (54 ids). `updated_at` becomes `timestamptz`. | 5/3 | cfg | live (ORM pilot) |
-| `synth.conf_opts` | `synth_settings_global` (`scope='runtime'`) | Free runtime flags (`COMBAT_BARK_LAST_TIMESTAMP` ...). | ~34/3 | cfg | live |
-| `synth_meta.settings` | `synth_settings_global` (`scope='system'`) | Backup and log-trim keys. | 4/0 | cfg | live |
-| `synth.core_profiles` | `synth_settings_profiles` + `synth_settings_profile_connections` | Profile shell; the six `llm_*_id` columns and `diary_connector_id`/`tts_connector_id` become `(profile_id, role, connection_id)` rows with `role` checked. | 28/8 | cfg | live |
-| `synth.global_settings_presets` | `synth_settings_presets` | Named settings snapshots (`snapshot jsonb`). | 2/0 | cfg | live |
-| `synth.prompts` | `synth_settings_prompts` | Default and custom prompt text by key. | ~26/3 | cfg | live |
-
-`synth_settings_global` is one table `(scope, key, value text, updated_at)` with `PRIMARY KEY (scope, key)` and a
-`CHECK` on scope. Five key/value tables have the same shape and are always read by key; collapsing them removes four
-tables and one store without losing a distinguishing constraint. `scope='general'` keys still have their
-managed-id allowlist enforced in the store, as `SettingsRepository` does today.
-
-### 3.4 Provider connectors (`synth_provider_*`; see [section 6](#6-connectors-and-shared-keys))
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.core_llm_connector` | `synth_provider_connections` `(kind='llm')` | LLM endpoint + sampling. 13 sampler/format columns move to `params jsonb`; `*_i4` flags become booleans inside `params`. | 19/5 | cfg | live |
-| `synth.core_tts_connector` | `synth_provider_connections` `(kind='tts')` | TTS endpoint, `voice_field`. | 6/1 | cfg | live |
-| `synth.core_stt_connector` | `synth_provider_connections` `(kind='stt')` | STT endpoint. | 3/1 | cfg | live |
-| `synth.core_itt_connector` | `synth_provider_connections` `(kind='itt')` | Image-to-text endpoint. | 3/0 | cfg | live |
-| `synth.core_api_badge` | **none** | Local key table. Removed by #62's rework: keys live only in the shared store. | 4/0 | cfg | replaced |
-| `synth.core_tts_pronunciation` | `synth_tts_pronunciations` | Spoken-form overrides. | 2/1 | cfg | live |
-
-### 3.5 Catalogs and authored content (`synth_catalog_*`, `synth_worldknowledge_*`)
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.core_action`, `core_action_custom`, view `combined_core_action` | `synth_catalog_actions` + view `synth_catalog_actions_effective` | Action definitions. Two tables + a UNION view become one table with `origin IN ('stock','custom')`, PK `(code_name, origin)`; the view keeps custom-over-stock precedence. | 4+3+4 | cfg | live |
-| `synth.descriptions`, `descriptions_custom`, view `combined_descriptions` | `synth_catalog_descriptions` + `_effective` view | Same collapse. | 4+2+3 | cfg | live |
-| `synth.bio_templates`, `bio_templates_custom`, view `combined_bio_templates` | `synth_catalog_bio_templates` + `_effective` view | Same collapse. | 6+3+6 | cfg | live |
-| `synth.worldknowledge`, view `worldknowledge_effective` | `synth_worldknowledge_entries` + `_effective` view | Articles with `vector384`, `native_vector`. | ~20/8 | cfg | live |
-| `synth.worldknowledge_catalogs` | `synth_worldknowledge_catalogs` | Installed catalog versions and checksums. | 6/3 | cfg | live |
-| `synth.worldknowledge_audit` | `synth_worldknowledge_audits` | Retrieval audit (23 columns). | 3/2 | log | live |
-| `synth.factions` | `synth_catalog_factions` | Faction ranks and vendor data. | ~4/5 | cfg | live |
-| `synth.locations` | `synth_catalog_locations` | Locations with `coords point`. | ~7/1 | cfg | live |
-| `synth.quests` | `synth_catalog_quests` | Quest records (`ts text` becomes `timestamptz`; `rowid` identity). Pruned by `gamets`. | ~6/4 | per-save | live |
-| `synth.game_plugins` | `synth_catalog_game_plugins` | Plugin load-order and form-id prefixes. | 3/1 | cfg | live |
-| `synth.database_versioning` | `synth_catalog_versions` | Installed content versions per catalog key. Re-purposed: the 47 legacy schema floors disappear; what remains is content versions for `fallout_catalogue_sql.php` and `fallout_content_pack.php`. | 5/6 | cfg | live (content only) |
-| `synth_meta.media_objects` | `synth_media_objects` | Stored media metadata and cache keys. | 3/3 | cache | live |
-| `synth.visual_context` | `synth_visual_contexts` | ITT descriptions per subject (34 columns). | 12/2 | npc | live |
-| `synth_meta.visual_results`, `visual_description_revisions` | `synth_visual_results`, `synth_visual_description_revisions` | Native visual results/revisions. | 1/0 each | npc | live |
-
-### 3.6 Legacy timeline (`synth_timeline_*`) — HerikaServer-era tables still driving the pipeline
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.eventlog` | `synth_timeline_events` | Raw game events with `gamets`/`localts` (`rowid` identity, `synth_*` correlation columns). `data` stays `text` in step 5 (see open question 6). | ~40/12 | log | legacy-live |
-| `synth.speech` | `synth_timeline_speech` | Spoken dialogue per turn. | ~34/0 | log | legacy-live |
-| `synth.actions_issued` | `synth_timeline_actions` | Issued game actions. | 5/1 | log | legacy-live |
-| `synth.responselog` | `synth_timeline_responses` | Outbound response queue with `sent` flag (`processor/comm.php`). | 12/0 | log | legacy-live |
-| `synth.rolemaster` | `synth_timeline_director_notes` | Scene notes with `ttl` (`type='scenenote'`). | ~3/0 | log | legacy-live |
-| `synth.log` | `synth_audit_prompt_log` | Prompt and response log read by `log_trim.php`. | ~6/1 | log | legacy-live |
-| `synth.audit_request` | `synth_audit_llm_requests` | Per-connector request/result with `usage jsonb`; read by the audit UI. | 14/0 | log | live |
-
-### 3.7 Memory, middle term and diaries (`synth_memory_*`, `synth_middleterm_*`, `synth_diary_*`)
-
-| Old | New | Purpose | Files | Vol | Status |
-|---|---|---|---|---|---|
-| `synth.memory` | `synth_memory_events` | Legacy conversation memory. | ~24/6 | log | legacy-live |
-| `synth.memory_summary` | `synth_memory_legacy_summaries` | Legacy summaries with `embedding`, `embedding768`, `native_vec`. | ~14/2 | cache | legacy-live |
-| view `synth.memory_v` | `synth_memory_events_view` only if a reader remains | Projection for `util_memory_subsystem.php`. | 4/1 | | review |
-| `synth_meta.memory_batches` | `synth_memory_batches` | Native memory batches. | 3/2 | log | live |
-| `memory_batch_sources`, `memory_batch_summary_sources`, `memory_batch_rebuilds`, `memory_batch_controls` | `synth_memory_batch_sources`, `_summary_sources`, `_rebuilds`, `_controls` | Source links and control state. | 2/1-3 each | log | live |
-| `memory_summaries`, `memory_summary_revisions` | `synth_memory_summaries`, `synth_memory_summary_revisions` | Native summaries, embedding, `native_vec`. | 6/4, 3/1 | cache | live |
-| `middleterm_inputs`, `_sources`, `_results`, `_replacements`, `_regeneration_approvals`, `_control_revisions` | `synth_middleterm_*` (same suffixes) | Middle-term narrative pipeline. | 2-4/0 each | npc | live |
-| `diary_inputs`, `diary_input_sources`, `diary_results`, `diary_job_results`, `diary_control_revisions` | `synth_diary_*` (same suffixes) | Native diary pipeline with embeddings. | 1-5/0-1 | npc | live |
-| `synth.diarylog` | `synth_diary_legacy_entries` | Legacy diary text (`ts text` becomes `timestamptz`). | 10/0 | npc | legacy-live |
-
-### 3.8 Relationships (`synth_relationship_*`)
-
-The 13 kept `synth_meta.relationship_*` tables keep their shape and gain the prefix (`relationship_evaluations`, `_evaluation_sources`,
-`_results`, `_result_priors`, `_revisions`, `_revision_sources`, `_response_inputs`, `_response_sources`,
-`_interaction_evaluations`, `_interaction_results`, `_interaction_priors`, `_interaction_result_priors`,
-`_actor_controls`; the 14th, `_actor_control_events`, is dropped). Callers: 2-10 files each (combined ~25 files, all under `lib/synth_relationship*.php`,
-`lib/relationship_response.php` and the relationship service); volume class npc/log; status live. Two legacy queues
-`synth.relationship_eval_queue` and `synth.relationship_init_queue` (`ext/relationship_system/async_queue.php`,
-3 files each) become `synth_relationship_eval_queue`/`_init_queue`; they are pruned by `save_rollback.php` (`1=1`).
-
-### 3.9 Narrator, rechat, actions, social tasks
-
-| Old | New | Files | Notes |
-|---|---|---|---|
-| `narrator_definitions`, `_definition_revisions`, `_states`, `_lane_heads`, `_context_states`, `_pending_outputs`, `_transcript_entries`, `_transcript_cursors` | `synth_narrator_*` (same suffixes) | 1-4 each; `PrivateNarratorRepository` | live; per-NPC/log |
-| `rechat_chains`, `rechat_continuations`, `rechat_selections` | `synth_rechat_*` | 11-12 each | live; log |
-| `action_intents`, `action_terminal_results` | `synth_action_intents`, `synth_action_results` | 8, 7 | live; log |
-| `social_task_inputs`, `_claims`, `_events` | `synth_social_task_*` | 1 each (`lib/synth_social_tasks.php`) | live; npc |
-
-### 3.10 Playthroughs and snapshots (`synth_playthroughs`, `synth_snapshots`)
-
-| Old | New | Files | Status |
-|---|---|---|---|
-| `synth_meta.playthrough_profiles` | `synth_playthroughs` + `synth_snapshots` | 4/1 | snap (paused). See [section 8](#8-snapshots). |
-
-### 3.11 Totals
-
-121 relations in (115 tables, 6 views) → **103 tables and 4 views out** (the four `_effective` views). Counted from the tables above:
-runtime 11, characters 8, settings 5, connectors 2, catalogs 15, timeline 7, memory/middleterm/diary 21, relationships 15,
-narrator/rechat/actions/social 16, playthroughs/snapshots 3. Tables removed outright: 5 (`relationship_actor_control_events`,
-`memory_batch_control_events`, `moods_issued`, `audit_memory`, `core_api_badge`). Tables merged away: 3 `_custom` tables, 3 of the 4 connector
-tables, 4 of the 5 key/value tables. Views removed: `combined_*` (3), `synthnpcs`, `memory_v`. New tables: `synth_settings_profile_connections`,
-`synth_snapshots`, `synth_snapshot_rows`. The exact figures are fixed by the Phase 2 baseline and then carried by the manifest.
+Approximate class counts (about 102 tables): 100 mapped `Abstract*`, 75 system classes, 60 DAOs. Tables with atomic claims, leases or append-only
+semantics (`core_worker_job`, `core_request_execution`-style claims, protocol and narrator tables) get `readOnly: true` mappings and keep every write in
+DBAL inside the DAO, exactly as chevo does for `core_relationship_*`. Top-level code (API, `lib`, UI, drivers, `service/`) switches to the system
+classes; the 194 files that use `$db->`/`$GLOBALS['db']->` are converted domain by domain. `lib/postgresql.class.php` stays only as the legacy session owner
+until step 8.
 
 ---
 
-## 4. Drop list
+## 5. Drop list
 
 Evidence is `git grep` on `origin/unstable` outside `debug/db_updates.php`, the migrations and the generated baseline files.
 
 | Relation | Evidence it is not needed | Replacement |
 |---|---|---|
-| `synth_meta.relationship_actor_control_events` | **0** PHP files name it (only `lib/core/database_schema/synth_protocol.sql` creates it and the `legacy_profile_id` column). `synth_relationship_control.php` reads only `relationship_actor_controls`. | `relationship_actor_controls.revision` already versions the lock. |
-| `synth_meta.memory_batch_control_events` | **0** PHP files except the readiness list (`runtime_bootstrap.php:129`) and the schema SQL. Written by nothing. | `memory_batch_controls` (`revision`, `changed_at`). |
-| `synth.moods_issued` | Written once (`chat_helper_functions.php:2126`) and deleted by `save_rollback.php`; no `SELECT` anywhere in 3 files. | none (no reader). |
-| `synth.audit_memory` | Written only by `data_functions.php` (5 inserts, all diagnostic); no `SELECT`, no UI. | none. |
-| `synth.core_api_badge` | Replaced by shared keys (#62 rework). | shared `dwemer.api_keys`. |
-| `synth.core_action_custom`, `descriptions_custom`, `bio_templates_custom` | Folded into the base table with `origin`. | [section 3.5](#35-catalogs-and-authored-content-synth_catalog_-synth_worldknowledge_). |
-| views `combined_core_action`, `combined_descriptions`, `combined_bio_templates` | Replaced by `_effective` views over one table. | same. |
-| view `synth.synthnpcs` | Lazy compat view with 2 callers (`synth_runtime.php`, readiness list). | Query `synth_character_profiles` directly. |
-| `synth_meta.settings`, `synth.general_settings`, `conf_opts`, `core_player`, `core_narrator` | Merged into `synth_settings_global`. | [section 3.3](#33-settings-profiles-and-presets-synth_settings_). |
-| `synth.core_llm_connector`, `core_tts_connector`, `core_stt_connector`, `core_itt_connector` | Merged into `synth_provider_connections`. | [section 6](#6-connectors-and-shared-keys). |
-| `synth.database_versioning` (47 version floors) | The floors were upgrade gates for the legacy chain (`runtime_bootstrap.php` lists them). | `synth_catalog_versions` for content only. |
-| schema `plugins` | Created empty in the baseline; no table or function in the 121-object inventory lives in it. | none. |
-| functions `clone_schema`, `drop_schema_safe`, `get_schema_size`, `sync_schema_sequences` | Only `lib/playthrough_schema.php` and `lib/runtime_bootstrap.php`; those entry points are already refused while snapshots are paused. | Row-scoped snapshots ([section 8](#8-snapshots)). |
+| `synth_meta.relationship_actor_control_events` | **0** PHP files name it; only the schema SQL creates it. `relationship_actor_controls` is read, never this table. | `revision` on the controls row. |
+| `synth_meta.memory_batch_control_events` | **0** PHP files except the readiness list (`runtime_bootstrap.php:129`). | `memory_batch_controls.revision`. |
+| `synth.moods_issued` | One write (`chat_helper_functions.php:2126`) and a rollback delete; no `SELECT`. | none. |
+| `synth.audit_memory` | Five inserts in `data_functions.php`; no `SELECT`, no UI. | none. |
+| views `combined_core_action`, `combined_descriptions`, `combined_bio_templates`, `memory_v`, `worldknowledge_effective`, `synthnpcs` | Replaced by merging in the system classes, as chevo does. | system entity methods. |
+| `synth.general_settings`, `conf_opts`, `synth_meta.settings`, `core_player`, `core_narrator`, `core_tts_pronunciation` | Merged into `core_config_setting`. | [section 3.1](#31-api-keys-connectors-profiles-settings). |
+| `synth.eventlog` + `history_events`, `speech`, `actions_issued`, `diarylog` (maybe) | Merged into `core_context_event` (and `core_memory`). | [section 3.4](#34-timeline-dialogue-queue-logs-the-legacy-herikaserver-tables). |
+| `synth.log`, `synth.audit_request` | Merged into `core_llm_request_log`. | same. |
+| `synth.database_versioning` (47 version floors) | Floors were upgrade gates for the legacy chain. | `core_catalog_version` for content only. |
+| schema `plugins` | Created empty; no table or function lives in it. | none. |
+| functions `clone_schema`, `drop_schema_safe`, `get_schema_size`, `sync_schema_sequences` | Only `lib/playthrough_schema.php` and `lib/runtime_bootstrap.php`; already refused while snapshots are paused. | [section 9](#9-snapshots). |
+| `synth.core_api_badge` columns from #62 | Not added: #62 dropped. | none. |
 
-Candidates **kept but flagged** as maybe dead (decision needed, [open questions](#10-open-questions)): `synth.memory`,
-`memory_summary`, `diarylog` (legacy memory path that the native batches replace), `synth.log`, the two relationship queues, `rolemaster`.
+Functions kept: `synth.convert_gamets2*` (6, used by 9 files) become `public` helpers; `json_object_has_unique_keys` is kept for the protocol `CHECK`s.
 
 ---
 
-## 5. Domain stores
+## 6. Naming
 
-One final class per domain in `core/dbmanager/stores/`, namespace `Synth\DBManager\Stores`, each taking a shared
-`RuntimeConnection` (the DBAL `pgsql` connection `SharedSessionDriver` already adapts) and `RuntimeStores`, stateless and
-created per call as in ChimServer. `core/dbmanager/SynthDBManager.php` is the facade; no ORM.
-`GeneralSetting` (the only ORM entity) is removed with `SettingsRepository`.
+**Choice: chevo's own names, in `public`, with the `core_` prefix; no invented `synth_*` prefix.**
 
-| Store | Owns | Absorbs |
-|---|---|---|
-| `RuntimeStore` | sessions, requests, protocol events, contexts, history events | `UtteranceRepository` (request and context parts), `$db->` in `lib/synth_protocol_state.php`, `lib/actor_event.php` |
-| `ActivationStore` | `synth_actor_activation` | `player_reaction.php`, `quest_reaction.php` call sites |
-| `DialogueStore` | utterances, origin policies, routes | `UtteranceRepository` (utterance part), `lib/synth_dialogue_policy.php`, `synth_rechat_history.php` |
-| `CharacterStore` | characters, profiles, revisions, generation jobs, import rules, bio actor map | `CharacterRepository`, `lib/core/npc_master.class.php`, `synth_profile_jobs.php`, `synth_profile_state.php` |
-| `SettingsStore` | global settings, profiles, presets, prompts | `SettingsRepository`, `lib/core/settings_presets.php`, `core_profiles.class.php`, `$db` KV reads of `conf_opts`/`core_player`/`core_narrator` |
-| `ProviderStore` | `synth_provider_connections` and key references | `ApiBadgeRepository` (connector part), `lib/core/{llm,tts,stt,itt}_connector.class.php`, `tts_pronunciation.php` |
-| `CatalogStore` | actions, descriptions, bio templates, factions, locations, quests, plugins, versions | `lib/core/action_catalog.php`, `game_plugins.php`, `fallout_catalogue_sql.php`, `fallout_content_pack.php` |
-| `WorldKnowledgeStore` | entries, catalogs, audits | `lib/worldknowledge_*.php`, `WorldKnowledgeManager.php` |
-| `TimelineStore` | events, speech, actions, responses, director notes | `lib/data_functions.php` (about 60 call sites), `chat_helper_functions.php`, `processor/comm.php`, `save_rollback.php` |
-| `AuditStore` | prompt log, LLM requests, memory audit (none) | `connector/*json.php`, `log_trim.php`, `Logger` DB sink |
-| `MemoryStore` | legacy events and summaries, native batches and summaries | `lib/synth_memory*.php`, `util_memory_subsystem.php`, `memory_helper_vectordb.php` |
-| `MiddletermStore` | middle-term tables | `lib/synth_middleterm*.php` |
-| `DiaryStore` | native and legacy diaries | `lib/synth_diary_*.php`, `ui/diaries.php` |
-| `RelationshipStore` | relationship tables and queues | `lib/synth_relationship*.php`, `ext/relationship_system/async_queue.php` (see open question 3) |
-| `NarratorStore` | narrator tables | `PrivateNarratorRepository`, `synth_private_narrator.php` |
-| `RechatStore` | rechat tables | `lib/synth_rechat_*.php` |
-| `ActionStore` | intents and results | `synth_action_inventory.php`, `synth_player_gifts.php` |
-| `VisualStore` | visual contexts, results, revisions, media | `lib/visual_context*.php`, `media_store.php`, `itt.php` |
-| `SocialTaskStore` | social tasks | `lib/synth_social_tasks.php` |
-| `WorkerJobStore` | `synth_worker_jobs` leasing | the job code in `service/processors/*` and `synth_*_jobs.php` |
-| `PlaythroughStore` | playthroughs and (paused) snapshots | `SaveRepository`, `lib/playthrough_schema.php` (paused paths stay refusing) |
-
-That is 21 stores for 103 tables; ChimServer routes 18 stores for 46. The legacy `$db->` call sites (194 files use
-`$db->`/`$GLOBALS['db']->`) are removed table by table in [section 9](#9-rollout-order); `lib/postgresql.class.php`
-remains only as the connection owner for sessions and advisory locks until the last step.
+- chevo's `PLAN.MD`: "`core_` identifies tables using this mapped Abstract entity, business entity and DAO approach ... Do not replace
+  `core_` with `chim_`." The same applies to a SYNTH rename. So the earlier `synth_<domain>_<noun>` scheme is withdrawn.
+- Singular nouns (`core_book`, `core_memory`, `core_location`, `core_context_event`) are chevo's majority style; the plural exceptions
+  (`core_profiles`, `core_plugins`, `core_extensions`) are kept where SYNTH maps to those. SYNTH-only tables use the singular.
+- A SYNTH table is named `core_*` only if it gets the three-layer mapping. A table deliberately outside the pattern must carry another name and document
+  its owner; none is proposed.
+- One schema removes the `search_path` dependence of unqualified `$db->insert('eventlog', ...)`.
+- Domain grouping by name prefix (`core_diary_*`, `core_middleterm_*`, `core_relationship_*`, `core_narrator_*`, `core_memory_*`) mirrors chevo's
+  (`core_npc_*`, `core_oghma_*`, `core_location_*`, `core_relationship_*`).
 
 ---
 
-## 6. Connectors and shared keys
+## 7. API keys
 
-PR #62 (`codex/shared-api-keys`, session `local_3f5f8f84-e5f9-4131-8ff2-68ea0c0bc0ef`) is being reworked. **Head read:
-`648d1a2`**, which is still the *previous* design (a local `core_api_badge.shared_key_id uuid` binding column, migration
-`Version20261116100000`, `SharedApiKeyStore`, four byte-identical copies of ChimServer's shared migrations pinned in
-`shared-schema-manifest.json`). The brief says the reworked branch removes the local key table and re-points the connector
-tables at shared keys. This design therefore takes only that as given and does **not** redo it:
+PR #62 (shared `dwemer` store, `SharedApiKeyStore`, `core_api_badge.shared_key_id`, the four copied shared migrations and their manifest) is **dropped**.
+SYNTH uses chevo's model unchanged:
 
-- No SYNTH-side table stores a credential or a key label. Nothing named `synth_*api_key*` exists.
-- `SharedApiKeyStore` (connection, `CHIM_SHARED_DB_*`, 5 s statement timeout, fixed error messages, the four shared
-  migrations and their ledger `dwemer_shared_migration_versions`) is #62's and stays unchanged and outside the baseline.
-- Each connector row carries `credential_key_id uuid NULL`: the `key_id` of a shared `api_keys` row. No FK (another
-  database). `NULL` means "no key" (local STT/TTS, or a provider that needs none).
+- One global table `core_api_badge (id integer PK, label text, api_key text)`: identical to today's SYNTH table. No column is added.
+- `ApiBadge` (system entity, `core/entities/system`), `AbstractApiBadge` (mapping) and `ApiBadgeDAO` (`find`, `findByLabel`, `findAll`, `count`).
+  `ApiBadgeRepository` is removed; `ConnectorReferences` (chevo's DAO helper) lists which connectors reference a badge.
+- Connectors point at keys with `api_badge_id integer` on `core_llm_connector`, `core_tts_connector`, `core_stt_connector`, `core_itt_connector`; ids and
+  connector rows are untouched by a key edit.
+- Edit-API exposure follows chevo's `EntityCatalog`: `'api-badge' => ['class' => AbstractApiBadge::class, 'writable' => true, 'write_only' => ['api_key']]`,
+  and the `_setup` and `readiness` endpoints report `configured` presence flags only, never key values.
+- The #53/#54 UI behaviour is kept, now implemented on the system entity rather than the repository:
+  **write-only keys** (the key is never returned; only a `configured` flag), **blank preserves** the stored key on save, **Clear** is an explicit action,
+  **server-side Test** runs a provider check from `ApiBadge` (outside the DAO), and **strict Delete** refuses while any connector row references the badge
+  (409, as chevo's editor returns for referenced records).
+- Credential harnesses are rerun on the new path ([section 11](#11-rollout-order)).
 
-Target table, one for all four kinds, like `chim_provider_connections`:
-
-```
-synth_provider_connections
-  connection_id   bigint identity PK
-  kind            varchar(3)   CHECK (kind IN ('llm','tts','stt','itt'))
-  label           varchar(64)  NOT NULL, UNIQUE (kind, label)
-  driver          varchar(32)  NOT NULL            -- today's driver/provider/service values
-  endpoint        varchar(2048)                    -- url, CHECK like chim endpoint rule
-  model           varchar(256)
-  params          jsonb NOT NULL DEFAULT '{}'      -- sampling, voice_field, json mode, prefill, metadata
-  credential_key_id uuid                           -- shared api_keys.key_id (#62), no FK
-  revision        bigint NOT NULL DEFAULT 1
-  created_at, updated_at timestamptz
-  CHECK (jsonb_typeof(params)='object')
-```
-
-Differences from `chim_provider_connections`: SYNTH has four kinds, so `kind` is wider; the single `credential_ref`
-`'env:'|'key:'` string and `credential_origin` are *not* copied, because #62 pins the provider and origin in the shared
-row. Profiles reference `connection_id`, not an `api_badge_id`, so no connector row is rewritten for a key change.
-
-Risk to resolve at Phase 2 step 1: the exact column name and bind semantics in #62's rework. If its final head names the
-column differently (for example `api_key_id`), the baseline adopts that name; the design only requires "a nullable uuid on the
-connection row". Phase 2 must re-read the then-current head before writing the baseline.
-
-Alternative considered: keep four per-kind tables (as #62's brief says "connector tables"). Rejected because the four
-tables share endpoint, label, driver, key reference and `metadata`, and the profile-to-connector join then needs a `kind`
-discriminator anyway. Open question 1 asks for the owner's choice.
+Because the table already matches, this is the one domain with **no schema change** relative to today.
 
 ---
 
-## 7. Manifest and drift check
+## 8. Schema check
 
-Adopt ChimServer's format-2 manifest (`runtime.json`) and adapt `tools/schema-check.php`.
+chevo has no schema-check, so there is nothing to adopt; SYNTH keeps and retargets its own (`tools/schema-check.php`,
+`core/dbmanager/SchemaCheck.php`, `migrations/schema-manifest.json`). Changes:
 
-| Aspect | Today (format 1) | Target (format 2, ChimServer) |
-|---|---|---|
-| Content frozen | hashes of the migration class and its two generated companion files; structure text file (2062 lines) | per-migration `migration_hashes` (SHA-256 of each `Version*.php`, LF-normalized) **and** a catalog snapshot of every managed table: columns (type, nullability, identity, default, collation), constraints (name, type, validated, definition), indexes, triggers, policies, owned sequences; and functions |
-| Scope | structure lines in `synth` and `synth_meta`, `vector` typmods | explicit list of managed tables in `public` plus owned functions; other relations are ignored, never repaired |
-| PostgreSQL major | one manifest (generated on 15, validated on 17) | `runtime.json` (15) retained as the legacy name only for major 15; `runtime-pg17.json` for 17. SYNTH has no installed majors to carry, so **start at 17 only** and name the file `runtime-pg17.json`; add another major only by a reviewed file |
-| Generation | hand-edited text from a PG15 inventory | `tools/schema-candidate.php runtime --from-disposable-migrations`: builds from an empty disposable database named `synth_schema_candidate_*`, prints a candidate, never overwrites |
-| Check | `tools/schema-check.php` compares structure lines, ledger state | `tools/schema-check.php runtime`: loads every reviewed manifest, validates hashes **before** connecting, picks the one for the server major, compares catalog, ledger versions exactly, exits 0 match / 1 drift / 2 cannot inspect / 3 manifest stale |
-
-Concrete changes in Phase 2: replace `core/dbmanager/migrations/schema-manifest.json` with
-`core/dbmanager/schema/runtime-pg17.json`; add `core/dbmanager/schema/SchemaDefinition.php` and `SchemaInspector.php`
-(ported shapes, SYNTH namespace and read-only transaction wrapper from today's `SchemaCheck.php`); keep `--offline`,
-`--hashes` and the fixed-message error policy; drop `<Version>.structure.txt` and `<Version>.fresh.sql` as manifest inputs (the
-baseline is now authored SQL in the `.php`, see below). `vector` columns keep their typmods as part of the type string.
-Limits text is copied from ChimServer's `SchemaDefinition` and adapted ("PostgreSQL 17 only").
-
-**Baseline shape.** `Version20261117000000.php` holds the DDL in `addSql()` heredocs, as ChimServer's migrations do, not a 5500-line
-generated `.fresh.sql`. It is generated once from a disposable PG17 and hand-reviewed; later changes are new migration files
-with their own `migration_hashes` entry. The old "fresh vs chain" duality (`isEmptyDatabase`, SHA-pinned statement list,
-legacy session lock) is removed from `SchemaMigrations.php`: the owner migrates an empty or ledgered database only and refuses
-anything else with a fixed message ("recreate the database").
+- Scope becomes **`public` relations whose name starts with `core_`** (plus the two `public` functions), instead of the `synth` and `synth_meta` schemas; the check
+  still renders under one `search_path`, reads in one `READ ONLY` transaction and ends in `ROLLBACK`.
+- The migration ledger stays `doctrine_migration_versions` in `public` (ChimServer-style, not chevo-specific); chevo does not ship its own ledger convention beyond
+  Doctrine's default.
+- `<Version>.structure.txt` is regenerated from the disposable PG17 baseline; `vector` typmods and indexes of DAO-only columns remain in the structure so
+  they stay frozen even though the ORM does not map them.
+- The manifest stays format 1, one entry per migration; the optional move to per-migration hashes over a catalog snapshot is deferred and not required here.
+- Exit codes, `--offline`, `--hashes` and the fixed-message error policy are unchanged.
+- A new PHPUnit test (kept small) checks that every `#[ORM\Table(name: 'core_*')]` in `core/entities/base` exists in the manifest, so an entity cannot be
+  added without its table and structure line.
+- Mapping validation is **separate** from schema output (chevo rule): never `doctrine:schema:update`; real migrations build the test database, not an
+  ORM-generated schema that omits checks, cascades and DAO-only columns.
 
 ---
 
-## 8. Snapshots
+## 9. Snapshots
 
-Snapshots stay **feature-paused**: nothing in this redesign re-enables `timeline_break_create_snapshot`, `pts_clone_schema`
-or the playthrough UI. The existing refusals stay in place and keep their tests.
+Snapshots stay **feature-paused**: nothing here re-enables `timeline_break_create_snapshot`, `pts_clone_schema` or the playthrough UI. Existing refusals and their tests stay.
 
-The old design cloned a whole schema; with one `public` schema that is impossible, and it also copied configuration
-and catalogs. The redesign makes a snapshot **row-scoped to one playthrough** and records the version metadata D6 needed:
+chevo does not clone schemas: it records `core_save_point(playthrough_id, gamets)` and `core_npc_history(character_id, saved_gamets, state)` and
+restores NPC state on load (`managers/SaveState`). With one `public` schema, cloning is impossible anyway. The redesign therefore:
 
-```
-synth_playthroughs        playthrough_id text PK, name, game, player_name, is_active, notes, created_at, updated_at
-synth_snapshots           snapshot_id bigint identity PK, playthrough_id FK, reason text,
-                          format text NOT NULL,                 -- 'synth-schema-snapshot.v2'
-                          schema_major int NOT NULL,            -- PostgreSQL major the manifest targets (17)
-                          migration_versions jsonb NOT NULL,    -- sorted list, from the ledger (as captureSnapshot())
-                          manifest_sha256 char(64) NOT NULL,    -- hash of runtime-pg17.json at capture
-                          table_counts jsonb NOT NULL, size_bytes bigint, last_gamets bigint,
-                          state text CHECK (state IN ('creating','ready','failed')), created_at timestamptz
-synth_snapshot_rows       snapshot_id FK, table_name text, rows jsonb   -- or an external file; see open question 5
-```
-
-`SchemaMigrations::captureSnapshot()` and `restoreSnapshot()` are kept as the compatibility guard (same metadata contract:
-`format`, `schema`, `migration_versions`); `schema` becomes `public` and `manifest_sha256` is added. Per-save tables are the
-ones carrying `playthrough_id` or a `gamets` column; the table list is a constant in `PlaythroughStore`, checked against the
-manifest by a test so a new per-save table cannot be forgotten. Restore refuses unless `migration_versions` and
-`manifest_sha256` equal the live values. Existing refusals remain until the owner lifts the pause.
+- keeps the paused snapshot feature as a **row-scoped** design: `core_snapshot (snapshot_id bigint identity PK, playthrough_id, reason text, format text, schema_major int,
+  migration_versions jsonb, manifest_sha256 char(64), table_counts jsonb, size_bytes bigint, last_gamets bigint, state, created_at)`, plus row storage chosen under open question 10;
+- stores the version metadata D6 needed (`format`, `migration_versions`, `manifest_sha256`) so `SchemaMigrations::restoreSnapshot()` can refuse a mismatch;
+- records per-save tables as a constant checked by a test against the manifest (those with `playthrough_id` or `gamets`);
+- offers the alternative of adopting chevo's save-point model wholesale and retiring snapshots (open question 10).
 
 ---
 
-## 9. Rollout order
+## 10. UI and the edit API
 
-The baseline cannot be both replaced and kept running in one commit, so Phase 2 regenerates the **single** baseline at every
-step. At step N the baseline file contains new-name tables for the domains already done and the old tables, verbatim and
-under their old names, for the rest. Each commit therefore installs on an empty disposable PG17, passes `schema-check` and the
-suite, and the app runs. The final step deletes the last verbatim legacy block. All of this stays on the one branch
-`codex/schema-redesign`; each step is a commit, not a PR. Estimates count files touched in production code (tests extra,
-roughly +30 %).
+SYNTH's `ui/` has about 73 files that use `$db->`, of which about 45 hold raw SQL (`FROM`/`INSERT`/`UPDATE` strings); they read and write tables directly,
+which is what chevo forbids ("Top-level code never calls a DAO ..."). chevo's UI is a Slim/Twig app at `/ui/` that works only through `/api/v1/edit`
+(`api/v1/editing/index.php`, `EntityCatalog`, `EntityEditor`, `ConnectorReadiness`, `NpcProfileRuleValues`), describing each entity so forms build from `GET /api/v1/edit`.
+
+- **In each domain step (Phase 2):** the UI's raw SQL for that domain moves into system-entity methods; pages keep their present PHP rendering. This is required for the table to leave
+  its old name.
+- **Later phase (separate PR, not part of this redesign):** port `core/dbmanager/Editor/*` and `api/v1/editing` to SYNTH, register `EntityCatalog::ENTITIES` per table (writable, `write_only`,
+  `references`, read-only for internal records), then convert pages one by one to call `/api/v1/edit`, replacing the per-page JSON endpoints in `ui/api`. Size: about 10 new files for the editor
+  plus a conversion of about 45 pages. It is large and depends on every domain being on entities, so it follows step 8.
+- Internal records (protocol events, checkpoints, leases, proofs) are **never** exposed in the catalog, per chevo.
+
+---
+
+## 11. Rollout order
+
+The baseline cannot be both replaced and kept running in one commit, so Phase 2 regenerates the **single** baseline at every step: new `public.core_*` tables for the domains done,
+the old `synth`/`synth_meta` tables verbatim for the rest. Because `search_path` is `synth, synth_meta, public` during the transition, a name that moves to `public` is removed from `synth` in
+the same commit. Every commit installs on an empty disposable PG17, passes `schema-check` and the suite, and runs. The final step deletes the last verbatim legacy block. All work stays on
+`codex/schema-redesign`; each step is a commit. Counts are production files; tests add roughly 30 %.
 
 | Step | Scope | Prod files (est.) | Notes / risk |
 |---|---|---|---|
-| 0 | Scaffolding: `Version20261117000000` = old baseline renamed byte-for-byte as authored SQL; format-2 manifest and `schema-candidate`; `SynthDBManager` + `RuntimeConnection` + `RuntimeStores`; `DatabaseTestCase` builds the fresh baseline instead of `database_default.sql` plus the chain. No table renamed. | ~15 (`core/dbmanager/*`, `tools/schema-*.php`, `unittests/DatabaseTestCase`, docs) | Highest leverage; proves fresh install and drift. |
-| 1 | Settings and provider connectors: `synth_settings_*`, `synth_provider_connections`, `synth_tts_pronunciations`, profiles. Rebase on #62's reworked head first. | ~75 (`conf_opts` ~34, `core_profiles` 28, `llm_connector` 19, `core_player` 14, `core_narrator` 7, connectors, `ui/core/*`) | Largest fan-out through UI; `ApiBadgeRepository`, `SettingsRepository` removed. |
-| 2 | Characters: `synth_characters`, `synth_character_*`, `synthnpcs` view dropped. | ~60 (`actor_identities` 38, `core_npc_master` 38, history 8) | Identity FK used by every native table; do before runtime. |
-| 3 | Catalogs: actions, descriptions, bio templates (origin collapse), factions, locations, plugins, worldknowledge, catalog versions, media/visual. | ~55 | Touches installers `fallout_catalogue_sql.php`, `fallout_content_pack.php`. |
-| 4 | Runtime/protocol: sessions, requests, protocol events, contexts, activation, dialogue, routes, policies, history events, worker jobs. | ~95 (`request_executions` 45, `context_snapshots` 43, `runtime_sessions` 41, `protocol_events` 41, `history_events` 31) | Largest and riskiest; native dialogue turn tests, loopback. Split commits: 4a runtime (sessions, requests, events, contexts), 4b dialogue, 4c worker jobs and history. |
-| 5 | Legacy timeline and audit: events, speech, actions, responses, director notes, prompt log, LLM requests; `save_rollback.php`, `legacy_row_management.php`. | ~75 (`eventlog` ~40, `speech` ~34, `data_functions.php`) | Keep `localts`/`gamets` bigint unchanged; no semantic rewrite. |
-| 6 | Memory, middle term, diaries (native and legacy). | ~40 | Includes vector columns; drop `memory_batch_control_events`. |
-| 7 | Relationships and queues. | ~30 | Includes `ext/relationship_system/*`. |
-| 8 | Narrator, rechat, action intents, social tasks. | ~35 | |
-| 9 | Snapshots/playthroughs ([section 8](#8-snapshots)); delete the last legacy block, `lib/core/database_schema/*.sql`, the frozen `debug/db_updates.php` chain, `data/database_default.sql`; update `README.md`, `CONTRIBUTING.md`, `docs/SCHEMA-MIGRATIONS.md`, `docs/HANDOFF.md`; final search proving no old table name remains. | ~25 | **Deletes whole files: needs the owner's explicit approval (AGENTS.md).** |
+| 0 | Scaffolding: `Database::boot()`, `Database::DAOS`, `Types/PreciseDateTimeType`, `core/entities/{base,system}` and `core/dbmanager/dao` layout (chevo conventions), new baseline id as byte-equivalent old DDL, schema-check retargeted ([section 8](#8-schema-check)), `DatabaseTestCase` builds the fresh baseline instead of `database_default.sql` plus the chain. No table renamed. | ~18 | Proves boot, fresh install and drift. Must keep `SharedSessionDriver` working with the ORM. |
+| 1 | API keys, connectors, profiles, settings: `core_api_badge`, `core_*_connector`, `core_profiles` (+`itt_connector_id`), `core_config_setting`, `core_config_preset`, `core_prompt`; remove `ApiBadgeRepository`, `SettingsRepository`, `GeneralSetting`, close #62; #53/#54 behaviour retained. | ~80 (`conf_opts` ~34, `core_profiles` 28, `core_llm_connector` 19, `core_player` 14) | Largest UI fan-out; moves the UI SQL for these tables into `ApiBadge`, `ConfigSetting`, connector system classes. |
+| 2 | Characters and plugins: `core_npc`, `core_npc_actor`, `core_npc_history`, `core_npc_profile_rule`, `core_npc_biography_*`, `core_plugins`, `core_character_generation*`. | ~65 (`actor_identities` 38, `npc_master` 38) | Identity model decision (question 3) lands here. |
+| 3 | Catalogs: items, oghma/worldknowledge, locations + state, factions, quests, actions, catalog versions, media, visual. | ~60 | Installers `fallout_catalogue_sql.php`, `fallout_content_pack.php`. |
+| 4 | Context, queue, logs: `core_context_event` (merging `eventlog`, `history_events`, `speech`, `actions_issued`), `core_message_queue`, `core_llm_request_log`, `core_dialogue_request`. Commits 4a events, 4b queue/log, 4c requests. | ~110 (`eventlog` ~40, `history_events` 31, `request_executions` 45, `speech` ~34) | Highest risk: merges two event ledgers; native dialogue tests, loopback. `save_rollback.php`, `legacy_row_management.php`. |
+| 5 | Runtime/protocol: `core_runtime_session`, `core_runtime_context`, `core_protocol_event`, `core_actor_*`, `core_dialogue_*`, `core_worker_job`. | ~85 (`context_snapshots` 43, `runtime_sessions` 41, `protocol_events` 41) | |
+| 6 | Memory, middle term, diaries. | ~40 | Vector columns DAO-only. |
+| 7 | Relationships, narrator, rechat, action intents, social tasks, queues. | ~70 | Read-only mappings, DBAL writes. |
+| 8 | Playthroughs/snapshots ([section 9](#9-snapshots)); delete the last legacy block, `lib/core/database_schema/*.sql`, the frozen `debug/db_updates.php` chain, `data/database_default.sql`, `SharedSessionDriver`; update `README.md`, `CONTRIBUTING.md`, `docs/SCHEMA-MIGRATIONS.md`, `docs/HANDOFF.md`; final search proving no old name remains. | ~30 | **Deletes whole files: needs the owner's approval (AGENTS.md).** |
+| later | Edit API and UI conversion ([section 10](#10-ui-and-the-edit-api)). | ~10 new + ~45 pages | Separate PR. |
 
-Total about **500 prod-file edits across 130–140 distinct files**, plus ~60 test files; matches the "133 PHP files" noted at the start.
-Every step ends with: `php -l` on changed files, the PHPUnit suite on isolated PG17, `schema-check` match on a fresh
-install, the dashboard HTTP probe, the credential harnesses, and a name-search for the removed old names. Scratch under
-`D:\build\synth-schema-redesign`.
-
-Test fixture note: `unittests/tests/DatabaseTestCase` builds the schema from `data/database_default.sql` plus the legacy chain
-today (111 test files, about 30 use per-table assertions). Step 0 changes it once; every later step edits only its own
-domain's assertions.
+Total about **550 prod-file edits across roughly 140 distinct files** plus about 60 test files, and about 235 new entity, system and DAO classes (about 100 + 75 + 60). Every step ends with:
+`php -l` on changed files, the PHPUnit suite on isolated PG17, `schema-check` match on a fresh install, the dashboard HTTP probe, the credential harnesses (step 1 onward) and a name search for the removed names.
+Scratch under `D:\build\synth-schema-redesign`.
 
 ---
 
-## 10. Open questions
+## 12. Risks
 
-For Stu (CHIM 4 / schema owner):
+1. **ORM against a shared legacy session.** SYNTH's DAOs ride `SharedSessionDriver` on the legacy `pg_*` session; flushes inside legacy transactions or advisory-lock windows need explicit tests. chevo's rule applies: no inner flush, atomic SQL stays DBAL.
+2. **Merging `eventlog` and `history_events`** (step 4) changes semantics, rollback pruning by `gamets` and every native subsystem that points at `history_events.id`; it needs its own review.
+3. **Identity mismatch** between SYNTH's playthrough-scoped bigint actors and chevo's global `character_id` plus `(refid, plugin)` ([question 3](#13-open-questions)).
+4. **Fallout vs Skyrim.** Oghma naming, plugin load-order fields and S.P.E.C.I.A.L.-style profile fields differ; columns SYNTH needs that chevo lacks are added to the chevo-shaped table, not forked.
+5. **Volume of classes.** About 235 new classes under chevo's documentation rules (every file and method commented) is large; the DAO/system split is mechanical but must be reviewed in batches.
+6. **ORM-generated DDL.** The Doctrine schema tool omits checks, cascades, generated and vector columns; never use it to create or diff (chevo rule). Tests use real migrations.
+7. **Divergence from chevo.** `core/dbmanager` is a copy, not a shared package, so chevo changes must be ported by hand; unresolved in question 11.
+8. **Test fixture.** 111 test files, about 30 with per-table assertions; each step edits only its domain's.
 
-1. **Single `synth_provider_connections` or four per-kind tables?** Recommendation: one table (as `chim_provider_connections`). Needs agreement with #62's final shape.
-2. **Prefix `synth_` in `public`, versus keeping a `synth` schema?** Recommendation: `public` + prefix, as CHIM.
-3. **Are `ext/relationship_system/*` and the two relationship queues still maintained?** If not, they and their tables go in the drop list.
-4. **`credential_key_id` name and semantics** in #62's rework (nullable uuid, no FK, shared `api_keys.key_id`).
-5. **Snapshot storage:** `synth_snapshot_rows jsonb` in the same database, or a per-snapshot file/schema outside the application schema?
+---
+
+## 13. Open questions
+
+For Stu (CHIM 4 / chevo owner):
+
+1. **Is copying chevo's `core/dbmanager` layout and `Database` class right, or will they become a shared package?** (risk 7)
+2. **`core_context_event`:** may SYNTH extend it with the few columns it needs (`delivery_state`, `synth_*` correlation) or should they live in `context_metadata`?
+3. **Identity:** keep SYNTH's playthrough-scoped actor id, or adopt `core_npc.character_id` + `core_npc_actor(refid, plugin)` with `playthrough_id` on events only?
+4. **`playthrough_id`:** adopt chevo's `guid` or keep SYNTH's `text`?
+5. **Naming for knowledge:** chevo's `core_oghma_*` is Skyrim lore; keep that table name for SYNTH's world knowledge, or a neutral name (such as `core_worldknowledge_*`)?
+6. **Legacy diary:** fold `diarylog` into `core_memory` (`source_type='diary'`) or keep `core_diary_legacy_entry`?
+7. **Prompts:** does chevo store editable prompt text in a table anywhere? If not, is a `core_prompt` table acceptable?
+8. **Workers and relationships:** is chevo's derived-from-data `core_worker_unit` and narrower relationship model intended to replace SYNTH's `core_worker_job` leases and evaluation pipeline?
 
 For the owner:
 
-6. **Can the legacy `memory`, `memory_summary`, `diarylog` tables be retired now?** Pre-alpha, no data to keep: the native batches/summaries/diaries
-   exist. Retiring removes ~50 caller files from steps 5–6 but is a behaviour change, not a rename. `eventlog.data` JSON-vs-text is part of the same decision.
-7. **Approval to delete files** in step 9 (`debug/db_updates.php`, `lib/core/database_schema/*.sql`, `data/database_default.sql`, the old baseline's companion files). AGENTS.md forbids removing complete files without it.
-8. **Settings collapse:** `synth_settings_global` merges five KV tables; OK, or keep `core_player`/`core_narrator` separate for UI parity?
-9. **Drop `moods_issued` and `audit_memory`** ([section 4](#4-drop-list))? Evidence shows no reader; confirm no external reporting depends on them.
-10. **New baseline id `Version20261117000000`:** acceptable, given #62's `Version20261116100000` goes away?
-11. **Test impact:** ok to rewrite per-table assertions in ~30 test files as part of each step, rather than add compatibility views for old names?
-12. **PostgreSQL 15 users:** the manifest targets 17 only. Is anyone still on 15?
+9. **`ext/relationship_system` and its two queues:** still maintained? If not they join the drop list.
+10. **Snapshots:** keep a row-scoped snapshot design, or adopt chevo's save-point model and retire snapshots?
+11. **Retire the legacy `memory`, `memory_summary`, `diarylog` path now** (about 50 caller files)? This is a behaviour change, not a rename.
+12. **Approval to delete files** in step 8 (`debug/db_updates.php`, `lib/core/database_schema/*.sql`, `data/database_default.sql`, `SharedSessionDriver`). AGENTS.md forbids it without approval.
+13. **Confirm dropping** `moods_issued` and `audit_memory`, and **closing #62**, #61 stays as is.
+14. **Baseline id `Version20261117000000`** acceptable?
+15. **Edit API timing:** is a later separate PR for `/api/v1/edit` and UI conversion acceptable, with each step moving UI SQL into system classes meanwhile?
 
-Out of scope and unchanged by this design: the installed database, deployments, services, the game, legacy snapshots (stay paused), PR #41,
-ChimServer, HerikaServer, Stobe and Dialectic.
+Out of scope and unchanged by this design: the installed database, deployments, services, the game, legacy snapshots (stay paused), PR #41, ChimServer, HerikaServer, Stobe, Dialectic and chevo.
