@@ -34,9 +34,9 @@ final class NarratorObjectIdentity
             || ($action === 'transcript' && array_key_exists('definition_id', $payload));
     }
 
-    // A loaded plugin file name: bounded, printable, with a plugin extension.
+    // A loaded plugin file name: bounded, printable, with a plugin extension (any letter case).
     private static function plugin(mixed $name): bool
     {
-        return is_string($name) && strlen($name) <= 255 && preg_match('/^[^\/\\\\\x00-\x1F\x7F]+\.(esm|esp|esl)$/D', $name) === 1;
+        return is_string($name) && strlen($name) <= 255 && preg_match('/^[^\/\\\\\x00-\x1F\x7F]+\.(esm|esp|esl)$/Di', $name) === 1;
     }
 }
