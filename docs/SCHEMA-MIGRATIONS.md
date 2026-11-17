@@ -1,5 +1,8 @@
 # Schema migration owner
 
+> A from-scratch redesign of the whole schema (one new baseline, `synth_*` tables, domain stores) is proposed in
+> [SCHEMA-REDESIGN.md](SCHEMA-REDESIGN.md). It is design only and changes nothing described below until approved.
+
 Doctrine Migrations owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`.
 `debug/db_updates.php` is frozen as the legacy bootstrap baseline. The first migration recognizes that
 baseline on an existing install after verifying it, changing no schema and no row. On an empty database it
