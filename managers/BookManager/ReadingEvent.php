@@ -15,8 +15,8 @@ use DomainException;
 
 final class ReadingEvent
 {
-    // The kinds of reading the contract allows.
-    public const KINDS = ['book', 'note', 'magazine', 'holotape', 'terminal'];
+    // The kinds of reading the contract allows. Paper notes are private and have no kind here.
+    public const KINDS = ['book', 'magazine', 'holotape', 'terminal'];
     // Longest title and text kept, in characters; the client bounds them the same way.
     public const TITLE_LIMIT = 128;
     public const TEXT_LIMIT = 4000;
@@ -84,11 +84,22 @@ final class ReadingEvent
      */
     public static function describe(array $reading, string $playerName): string
     {
-        $text = $playerName . ' read the ' . $reading['kind'] . ' "' . $reading['title'] . '".';
+        $text = $playerName . ' read the ' . $reading['kind'] . ' "' . self::quote($reading['title']) . '".';
         if (array_key_exists('text', $reading)) {
-            return $text . ' It reads: "' . $reading['text'] . '"' . ($reading['text_truncated'] ? ' [text truncated]' : '');
+            return $text . ' It reads: "' . self::quote($reading['text']) . '"'
+                . ($reading['text_truncated'] ? ' [text truncated]' : '');
         }
         return $text . ' Only its title is known; no text was captured.';
+    }
+
+    // Makes untrusted game text safe to sit inside the quoted framing: straight quotes become typographic
+    // ones, line breaks become a visible separator (so a line cannot pose as another speaker's line), and
+    // Unicode line separators, bidi and zero-width controls are removed.
+    private static function quote(string $text): string
+    {
+        $text = preg_replace('/[\x{0085}\x{2028}\x{2029}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2069}\x{FEFF}]/u', '', $text) ?? '';
+        $text = preg_replace('/\s*[\r\n]+\s*/', ' / ', $text) ?? '';
+        return str_replace(['"', "\u{201C}"], "\u{201D}", $text);
     }
 
     // Checks the reading:<n> event ID and its wire-safe range.

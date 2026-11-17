@@ -96,13 +96,23 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $this->assertEquals($canonical['payload'],json_decode($capture['context_payload'],true));
         return [$body,$lines];
     }
-    private function reading(string $text='Dear Nate, the key is under the mat.'): array {
-        return ['event_id'=>'reading:1','kind'=>'note','title'=>'Sanctuary Hills Note','source'=>['form_id'=>'0x0001F2A3','origin_plugin'=>'Fallout4.esm'],
+    private function reading(string $text='The barbarian raised his axe.'): array {
+        return ['event_id'=>'reading:1','kind'=>'book','title'=>'Grognak the Barbarian #5','source'=>['form_id'=>'0x0001F2A3','origin_plugin'=>'Fallout4.esm'],
             'text'=>$text,'text_truncated'=>false,'age_ms'=>120];
     }
     private function rows(string $type): int {
         $result=pg_query($this->connection,"SELECT count(*) AS n FROM synth_meta.history_events WHERE event_payload->>'type'='".$type."'");
         return intval(pg_fetch_assoc($result)['n']);
+    }
+    private function readerRows(int $identityId,bool $player=false): array {
+        $db=$GLOBALS['db'] ?? new sql();
+        $event=$this->event('input_text','context-http',1,[],1);
+        $cte=$player ? synth_protocol_history_cte($db,$event,'',null,true) : synth_protocol_history_cte($db,$event,'',$identityId);
+        return $db->fetchAll($cte." SELECT type,data FROM native_history WHERE type='reading_event'");
+    }
+    private function identity(string $formId): int {
+        $result=pg_query_params($this->connection,"SELECT id FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1)",[$formId]);
+        return intval(pg_fetch_assoc($result)['id'] ?? 0);
     }
     private function promptRows(string $actor): array {
         $db=$GLOBALS['db'] ?? new sql();
@@ -120,9 +130,16 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $target=$context['payload']['target']['display_name'];
         $rows=$this->promptRows($target);
         $this->assertCount(1,$rows);
-        $this->assertStringContainsString('read the note "Sanctuary Hills Note"',$rows[0]['data']);
-        $this->assertStringContainsString('the key is under the mat',$rows[0]['data']);
+        $this->assertStringContainsString('read the book "Grognak the Barbarian #5"',$rows[0]['data']);
+        $this->assertStringContainsString('The barbarian raised his axe',$rows[0]['data']);
         $this->assertSame([],$this->promptRows('Nobody Nearby'));
+        // Target only: a non-target actor in the same audience and the player-side reader cannot recall it.
+        $targetId=$this->identity($context['payload']['target']['form_id']);
+        $otherId=$this->identity('0x00000016');
+        $this->assertGreaterThan(0,$targetId);$this->assertGreaterThan(0,$otherId);$this->assertNotSame($targetId,$otherId);
+        $this->assertCount(1,$this->readerRows($targetId));
+        $this->assertSame([],$this->readerRows($otherId),'A non-target audience NPC recalled the reading');
+        $this->assertSame([],$this->readerRows(0,true),'The player-side reader recalled the reading');
         // A later context repeating the same reading is idempotent; changed content for the same id is refused.
         $again=$this->context(2);$again['payload']['reading_event']=$this->reading();
         $this->completeContext($again);
@@ -131,6 +148,14 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $body=$this->http($conflict);
         $this->assertStringNotContainsString('context_accepted',$body);
         $this->assertSame(1,$this->rows('reading_event'));
+    }
+    public function testNoteKindAndTargetlessReadingsStoreNothing(): void {
+        $this->init();
+        $note=$this->context(1);$note['payload']['reading_event']=['kind'=>'note']+$this->reading();
+        $this->assertStringNotContainsString('context_accepted',$this->http($note));
+        $targetless=$this->context(2);unset($targetless['payload']['target']);$targetless['payload']['reading_event']=$this->reading();
+        $this->assertStringNotContainsString('context_accepted',$this->http($targetless));
+        $this->assertSame(0,$this->rows('reading_event'));
     }
     public function testReadingWithoutNegotiatedCapabilityIsRejectedAndStoresNothing(): void {
         $this->init();

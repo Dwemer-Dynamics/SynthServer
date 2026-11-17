@@ -18,6 +18,10 @@ require_once __DIR__ . '/../../lib/synth_protocol_state.php';
 
 final class ReadingHistory
 {
+    // A retry reuses its capture within a few contexts; the duplicate lookup only reaches this far back so its
+    // cost does not grow with the whole history. A schema-level unique key belongs to the persistence redesign.
+    private const RETRY_WINDOW = 256;
+
     /**
      * Stores the reading carried by a context event; a retry of the same reading is a no-op.
      *
@@ -35,6 +39,10 @@ final class ReadingHistory
         if (!ReadingEvent::isAllowedOn($event)) {
             throw new DomainException('reading_events_capability_required');
         }
+        if (!is_array($payload['target'] ?? null)) {
+            // A reading is recorded for the addressed actor only; with none there is nobody who may recall it.
+            throw new DomainException('reading_event_target_required');
+        }
         $reading = ReadingEvent::validate($payload['reading_event']);
         $player = array_intersect_key($payload['player'], array_flip(['form_id', 'origin_plugin', 'playthrough_id']));
         $input = $reading;
@@ -48,22 +56,19 @@ final class ReadingHistory
             'snapshot_sequence' => $payload['snapshot_sequence']];
         $gamets = (int) ($payload['world']['game_time_ticks'] ?? 0);
         \synth_protocol_persist_observation_history($db, $event, 'reading_event', ReadingEvent::describe($reading, $name),
-            self::people($payload, $name), (string) ($payload['world']['location'] ?? ''), $metadata,
+            self::people($payload), (string) ($payload['world']['location'] ?? ''), $metadata,
             $gamets > 0 ? $gamets : (int) $payload['snapshot_sequence']);
     }
 
-    // The player plus everyone in this capture's scene, as |A|B|: the people who may later recall the reading.
-    private static function people(array $payload, string $playerName): string
+    // Only the addressed actor, as |Name|: history visibility matches this token, so no player-side reader and
+    // no other NPC in the audience can recall the reading, in prompts or in diary inputs.
+    private static function people(array $payload): string
     {
-        $names = [$playerName];
-        $others = array_merge(isset($payload['target']) ? [$payload['target']] : [], $payload['audience'] ?? []);
-        foreach ($others as $actor) {
-            $name = str_replace('|', ' ', trim((string) ($actor['display_name'] ?? '')));
-            if ($name !== '' && !in_array($name, $names, true)) {
-                $names[] = $name;
-            }
+        $name = str_replace('|', ' ', trim((string) ($payload['target']['display_name'] ?? '')));
+        if ($name === '') {
+            throw new DomainException('reading_event_target_required');
         }
-        return '|' . implode('|', $names) . '|';
+        return '|' . $name . '|';
     }
 
     // Looks for the same event ID in this session; same content is a retry, different content a conflict.
@@ -72,8 +77,9 @@ final class ReadingHistory
         $payload = $event['payload'];
         $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM synth_meta.history_events
             WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND event_payload->>'type'='reading_event'
-              AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",
-            [$event['session_id'], $event['generation'], $payload['playthrough_id'], $reading['event_id']]);
+              AND context_sequence>=$5 AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",
+            [$event['session_id'], $event['generation'], $payload['playthrough_id'], $reading['event_id'],
+             max(0, (int) $payload['snapshot_sequence'] - self::RETRY_WINDOW)]);
         if ($result === false) {
             throw new RuntimeException('reading_event_history_read_failed');
         }
