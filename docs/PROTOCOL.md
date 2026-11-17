@@ -4,6 +4,12 @@ Optional v2 post-combat companion comments use negotiated participant evidence a
 the `companion_combat_comment` trigger. See [the feature contract](COMPANION-COMBAT-COMMENTS.md).
 The v1 contract remains unchanged.
 
+## Confirmed NPC trade
+
+The optional flat v2 `action.barter` + `action.trade_confirmation` contract lets an NPC offer one stack of one item for caps;
+only the player's Yes moves anything. The offer is a `barter` action, every outcome the existing paired transfer receipt. See
+[the feature contract](CONFIRMED-TRADE.md) and `protocol/v2/README.md`.
+
 ## Actor SPECIAL observations
 
 The optional v2 `context.actor_stats` capability adds seven exact-actor SPECIAL base/current pairs or unknown entries to the bound session snapshot. Clients require the explicit `actor_stats: true` init acknowledgement, including specialized `init_*_accepted` status codes. Wholly unread observations are `unavailable`. Values are never profile fields or generic history. See `protocol/v2/README.md` for the mirrored shape and bounds.
