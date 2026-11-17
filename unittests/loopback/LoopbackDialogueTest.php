@@ -512,6 +512,44 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     // Witness scenario: one SYNTHETIC first-observed line (Preston speaks; Piper is the only granted witness). The actual
     // provider messages must carry it once for Piper and never for Nick, a same-name Piper or Piper restored from a
     // pre-observation save, on both routes.
+    // ---- Voice-optional scenario: the compiled client's "voice" run against a profile with no TTS connector ----
+    // Before voice became optional this /talk ended native_turn_ineligible / tts_profile_unsupported. The line must now
+    // arrive as text (the driver checks the missing speech block and the receipt), no speech job may exist, and the
+    // client's text_presented receipt must be stored as `presented` with one heard history row.
+    private const VOICELESS='Loopback voiceless token LVT5512 heard.';
+    public function testCompiledClientVoiceOptionalTalkIsDeliveredAsText(): void {
+        $phases=$this->runDriver(['voice'],function(string $name,array $value): void {
+            if ($name==='context') {
+                $identity=$this->query("SELECT id FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1) AND playthrough_id=$2",
+                    [$value['target_form'],$value['playthrough_id']]);
+                $this->assertCount(1,$identity);
+                $llm=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+                    VALUES('loopback llm','{}',$1,'loopback-model','openaijson',0,300,0.3,0.8) RETURNING id",[$this->llmUrl])[0]['id'];
+                $profile=$this->query("INSERT INTO synth.core_profiles(label,tts_connector_id,llm_primary_id,metadata) VALUES('voiceless profile',NULL,$1,'{}') RETURNING id",
+                    [$llm])[0]['id'];
+                $this->query("INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,profile_id,personality,voiceid)
+                    VALUES('Settler',$1,$2,$3,'')",[$identity[0]['id'],$profile,self::BASE]);
+                $this->script(self::VOICELESS);
+                return;
+            }
+            $this->assertSame('receipt',$name);
+            $session=$value['session'];
+            $this->assertSame(self::VOICELESS,$value['heard_text'],'the stored reply reached the client unchanged');
+            $utterance=$this->query('SELECT state,receipt_request_id,request_id FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND line_id=$2',
+                [$session,$value['line_id']]);
+            $this->report('voiceless_utterance',$utterance);
+            $this->assertCount(1,$utterance);
+            $this->assertSame('presented',$utterance[0]['state']);
+            $this->assertSame($value['receipt_request_id'],$utterance[0]['receipt_request_id']);
+            $heard=$this->query("SELECT h.id FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+                WHERE h.session_id=$1 AND e.type='chat' AND strpos(e.data,$2)>0",[$session,'LVT5512']);
+            $this->assertCount(1,$heard,'exactly one heard row for the text-only line');
+            $this->assertSame(0,intval($this->query("SELECT count(*) AS n FROM synth_meta.worker_jobs WHERE job_type='tts'")[0]['n']),'no speech job without a connector');
+            $this->assertSame(1,intval($this->query("SELECT count(*) AS n FROM synth_meta.request_executions WHERE session_id=$1 AND event_type='speech_receipt' AND state='complete'",[$session])[0]['n']));
+        });
+        $this->assertSame(['context','receipt'],$phases);
+    }
+
     public function testCompiledClientObservedDialogueWitnesses(): void {
         $phases=$this->runDriver(['witness'],$this->witnessPhase(...));
         $this->assertSame(['witness_observed','witness_ordinary','witness_talk','witness_ordinary','witness_talk',

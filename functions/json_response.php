@@ -261,6 +261,9 @@
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Only after the player agrees. Put the caps amount in 'amount'.{$paymentTarget}";
                 } else if ($fname == "Consume") {
                 $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the exact item name from <inventory> in the 'target' field. Only use this for food, drinks, chems, or aid items already in inventory. Leave 'item' blank unless you need it as a fallback copy of the same item name. The spoken reply for this action happens after the item is consumed, so use it only when {$promptCharacterName} is actually going to use that item.";
+                } else if ($fname == "Barter") {
+                    $GLOBALS["PROMPT_ACTIONS_LIST"].="
+AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 'target', the exact item name from your own <inventory> in 'item', and the price in caps as a whole number in 'amount'. Offer only an item you carry, one unit, at a fair price. Your spoken line is the pitch; the player confirms in a box.";
                 } else if ($fname == "GiveItemTo") {
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the recipient in 'target', exact inventory item name in 'item', and quantity in 'amount'.";
                 } else if ($fname == "PickupItem") {

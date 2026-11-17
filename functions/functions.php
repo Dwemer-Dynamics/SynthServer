@@ -422,7 +422,7 @@ function synthExtractActionArgumentTargetValue($arguments)
 // We must use internal keys here.
 
 $F_DESCRIPTIONS_LOCAL["MoveTo"] = "Move to a visible nearby actor or NPC. Use TravelTo for places, buildings, cities, doors, or locations.";
-$F_DESCRIPTIONS_LOCAL["Barter"] = "Open a vendor-style barter menu with #SYNTH_NAME#.";
+$F_DESCRIPTIONS_LOCAL["Barter"] = "#SYNTH_NAME# offers to sell #PLAYER_NAME# one unit of one item from #SYNTH_NAME#'s own inventory for caps. The player then confirms or cancels in a box; nothing moves without a Yes. Never claim the sale happened before the result.";
 $F_DESCRIPTIONS_LOCAL["OpenInventory"] = "Open #SYNTH_NAME#'s inventory for free item exchange with #PLAYER_NAME#.";
 $F_DESCRIPTIONS_LOCAL["Attack"] = "Attack with intention to kill a target actor or entity.";
 $F_DESCRIPTIONS_LOCAL["Follow"] = "Move to and follow the specified target actor";
@@ -461,7 +461,7 @@ $F_DESCRIPTIONS_LOCAL["UnequipItem"] = "#SYNTH_NAME# removes a currently equippe
 $F_DESCRIPTIONS_LOCAL["EndConversation"] = "#SYNTH_NAME# ends the conversation and becomes unavailable to talk for a short time.";
 
 $F_RETURNMESSAGES_LOCAL["MoveTo"] = "#SYNTH_NAME# moves to #TARGET#.";
-$F_RETURNMESSAGES_LOCAL["Barter"] = "Opens barter menu with #SYNTH_NAME#.";
+$F_RETURNMESSAGES_LOCAL["Barter"] = "#SYNTH_NAME# offered #ITEM# to #TARGET# for caps; the player's answer follows.";
 $F_RETURNMESSAGES_LOCAL["OpenInventory"] = "Opens #SYNTH_NAME#'s inventory for item exchange with #PLAYER_NAME#.";
 $F_RETURNMESSAGES_LOCAL["Attack"] = "#SYNTH_NAME# attacks #TARGET#.";
 $F_RETURNMESSAGES_LOCAL["Follow"] = "#SYNTH_NAME# follows #TARGET#.";
@@ -576,10 +576,18 @@ $GLOBALS["FUNCTIONS"] = [
             "properties" => [
                 "target" => [
                     "type" => "string",
-                    "description" => "Keep it blank",
+                    "description" => "The player being sold to.",
+                ],
+                "item" => [
+                    "type" => "string",
+                    "description" => "Exact name of an item in your own <inventory>. One unit is offered.",
+                ],
+                "amount" => [
+                    "type" => "integer",
+                    "description" => "Price in caps, a whole number from 1 to 100000 that fits the item's value.",
                 ],
             ],
-            "required" => [],
+            "required" => ["target", "item", "amount"],
         ],
     ],
     [
@@ -1054,6 +1062,10 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'TakeItemFromPlayer'
         && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
+    if ($codeName === 'Barter') {
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        if (!function_exists('synth_protocol_supports_transfer') || !\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return false;
+    }
     if ($codeName === 'GiveItemTo'
         && (!function_exists('synth_protocol_supports_transfer') || !synth_protocol_supports_transfer($event))) return false;
     if ($codeName === 'GiveCapsTo' && ($event['protocol_version'] ?? 1) === 2
@@ -1633,7 +1645,7 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
         // Preserve every raw non-speech field; only shared exact-empty placeholders are not wait arguments.
         $parameterValue=array_diff_key($parsedResponse,array_flip(['action','character','listener','mood','message','lang','emotion','emotion_intensity']));
         foreach (['target','item','amount'] as $key) if (($parameterValue[$key] ?? null)==='') unset($parameterValue[$key]);
-    } elseif (in_array($functionCodeName,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    } elseif (in_array($functionCodeName,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         // Keep action fields separate from speech before strict transfer validation.
         $parameterValue = array_diff_key($parsedResponse, array_flip([
             'action','character','listener','mood','message','lang','emotion','emotion_intensity',
@@ -1645,6 +1657,8 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
             && intval($quantity) <= 1000000) $parameterValue['amount'] = intval($quantity);
         // An exact empty placeholder means the optional item quantity was omitted.
         if (in_array($functionCodeName,['GiveItemTo','TakeItemFromPlayer'],true) && $quantity === '') unset($parameterValue['amount']);
+        // A sale's amount is its price; an empty price is no offer, never a default.
+        if ($functionCodeName === 'Barter' && $quantity === '') unset($parameterValue['amount']);
         // The shared speech envelope requires an item field. Only its exact empty placeholder is not a caps argument.
         if (in_array($functionCodeName,['GiveCapsTo','TakeCapsFromPlayer'],true) && ($parameterValue['item'] ?? null) === '') unset($parameterValue['item']);
     } elseif (is_array($functionDef)) {

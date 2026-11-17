@@ -152,6 +152,10 @@ function synth_resolve_npc_tts_media(string $cacheKey, ?string $root = null, boo
     if (!is_string($bytes) || strlen($bytes) !== $size) {
         return null;
     }
+    // Digital silence is never deliverable speech, whichever provider wrote the cache file.
+    if (synth_media_wave_is_silent($bytes)) {
+        return null;
+    }
     try {
         $media = $publish ? synth_media_publish_bytes($root, $bytes, 'audio/wav')
             : synth_media_resolve($root,'media/'.hash('sha256',$bytes),['audio/wav']);

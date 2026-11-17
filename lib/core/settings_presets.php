@@ -22,6 +22,7 @@ function synthSettingsPresetDefaults(): array
         'NEVER_CLEAR_RELATIONSHIP_DATA' => false,
         'SCENE_CLASSIFIER_ENABLED' => true,
         'POWER_AWARENESS_ENABLED' => false,
+        'CONDITION_CONTEXT_ENABLED' => true,
         'WORLDKNOWLEDGE_CUSTOM' => false,
         'WORLDKNOWLEDGE_INFINIUM' => true,
         'WORLDKNOWLEDGE_AMOUNT' => 1,
