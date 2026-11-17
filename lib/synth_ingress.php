@@ -692,7 +692,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             $payload,
             ['playthrough_id', 'snapshot_sequence', 'player', 'audience', 'active_quests',
              'nearby_items', 'points_of_interest'],
-            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events', 'observed_dialogue']
+            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events', 'observed_dialogue', 'reading_event']
                 : ['target', 'actor_states', 'world', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation'],
             'payload'
         );
@@ -789,6 +789,11 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (array_key_exists('observed_dialogue',$payload)) {
             require_once __DIR__.'/observed_dialogue.php';
             try {$payload['observed_dialogue']=synthValidateObservedDialogue($payload['observed_dialogue'],$payload);}
+            catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
+        }
+        if (array_key_exists('reading_event',$payload)) {
+            require_once __DIR__.'/reading_event.php';
+            try {$payload['reading_event']=synthValidateReadingEvent($payload['reading_event']);}
             catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
         }
         foreach (['nearby_items','points_of_interest'] as $collection) {
@@ -1175,6 +1180,10 @@ function synth_protocol_validate_event(array $event): array
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.observed_dialogue',$event['capabilities'],true)))
         synth_protocol_fail('invalid_observed_dialogue',422,[['field'=>'capabilities','issue'=>'flat_observed_dialogue_required']]);
+    if ($event['type']==='context' && array_key_exists('reading_event',$event['payload'])
+        && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
+            || !in_array('context.reading_events',$event['capabilities'],true)))
+        synth_protocol_fail('invalid_reading_event',422,[['field'=>'capabilities','issue'=>'flat_reading_events_required']]);
     if ($event['type']==='context' && array_key_exists('player_event',$event['payload'])
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.player_events',$event['capabilities'],true)))

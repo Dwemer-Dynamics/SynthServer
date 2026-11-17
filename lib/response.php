@@ -462,6 +462,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     // First-observed vanilla dialogue is flat-only; VR and older clients never receive the acknowledgement.
     $observedDialogue=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.observed_dialogue',$event['capabilities'] ?? [],true);
+    // Reading context (notes, books, holotapes, terminals) is flat-only; computed before the status chain below.
+    $readingEvents=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
+        && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.reading_events',$event['capabilities'] ?? [],true);
     if ($status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2 && ($event['runtime_variant'] ?? '') === 'flat') {
         $quests = in_array('context.quest_events', $event['capabilities'] ?? [], true);
@@ -503,6 +506,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($socialTasks) $statusPayload['social_tasks'] = true;
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
+    if ($readingEvents) $statusPayload['reading_events'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
