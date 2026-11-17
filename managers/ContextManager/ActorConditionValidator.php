@@ -50,7 +50,7 @@ final class ActorConditionValidator
             \synth_protocol_expect_exact_keys($entry, $withKind ? ['form_id', 'origin_plugin', 'name', 'kind'] : ['form_id', 'origin_plugin', 'name'], [], $path);
             if (!is_string($entry['form_id']) || preg_match('/^0x[0-9A-Fa-f]{8}$/D', $entry['form_id']) !== 1) $fail($path . '.form_id', 'invalid');
             if (!is_string($entry['origin_plugin']) || strlen($entry['origin_plugin']) > 255
-                || preg_match('#^[^/\\]+\.(esm|esp|esl)$#D', $entry['origin_plugin']) !== 1) $fail($path . '.origin_plugin', 'invalid');
+                || preg_match('#^[^/\\\\]+\.(esm|esp|esl)$#Di', $entry['origin_plugin']) !== 1) $fail($path . '.origin_plugin', 'invalid');
             if (!is_string($entry['name']) || $entry['name'] === '' || mb_strlen($entry['name']) > self::NAME_CHARS) $fail($path . '.name', 'bounded_string_required');
             if ($withKind && !in_array($entry['kind'], ['chem', 'effect'], true)) $fail($path . '.kind', 'invalid');
         }

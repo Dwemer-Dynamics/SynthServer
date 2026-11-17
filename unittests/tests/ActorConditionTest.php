@@ -35,8 +35,11 @@ final class ActorConditionTest extends TestCase
     public function testValidFixturesAreAcceptedAndInvalidOnesRejected(): void
     {
         foreach (glob(self::ROOT . '/protocol/v2/fixtures/valid/context-actor-condition*.json') as $file) {
-            $event = json_decode(file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
-            $this->assertSame($event, synth_protocol_validate_event($event), basename($file));
+            // A rejection prints an error and exits, so admission runs in its own process and must say ACCEPTED.
+            $script = 'require ' . var_export(self::ROOT . '/lib/request.php', true) . ';synth_protocol_validate_event(json_decode('
+                . var_export(file_get_contents($file), true) . ',true));echo "ACCEPTED";';
+            $output = strval(shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($script)));
+            $this->assertStringContainsString('ACCEPTED', $output, basename($file) . ': ' . $output);
         }
         $invalid = glob(self::ROOT . '/protocol/v2/fixtures/invalid/context-actor-condition-*.json');
         $this->assertGreaterThanOrEqual(10, count($invalid));
@@ -118,6 +121,32 @@ final class ActorConditionTest extends TestCase
         // Unattested health is never invented as low.
         unset($event['payload']['actor_states'][0]['health_percent_available']);
         $this->assertStringNotContainsString('low health', $this->line($event));
+    }
+
+    // Strongest layer wins: NPC metadata, profile metadata, the override-resolved global; a blank value is "not set".
+    public function testSettingLayersResolveOverridesAndBlankMeansDefault(): void
+    {
+        $old = $GLOBALS['CONDITION_CONTEXT_ENABLED'] ?? null;
+        $key = 'CONDITION_CONTEXT_ENABLED';
+        try {
+            unset($GLOBALS[$key]);
+            $this->assertTrue(ConditionProjector::enabled(null));
+            $this->assertTrue(ConditionProjector::enabled(null, [$key => '']), 'blank config is the default');
+            $this->assertTrue(ConditionProjector::enabled(null, [], [$key => '']), 'blank profile value is not an override');
+            $this->assertFalse(ConditionProjector::enabled(null, [$key => 'false']));
+            $this->assertFalse(ConditionProjector::enabled(null, [], [$key => false]), 'profile override');
+            $this->assertFalse(ConditionProjector::enabled(null, [], [$key => '0']));
+            $this->assertTrue(ConditionProjector::enabled(null, [], [$key => false], [$key => true]), 'NPC beats profile');
+            $GLOBALS[$key] = false;
+            $this->assertFalse(ConditionProjector::enabled(null));
+            $this->assertTrue(ConditionProjector::enabled(null, [], [$key => true]), 'profile beats the global');
+            $GLOBALS[$key] = '';
+            $this->assertTrue(ConditionProjector::enabled(null), 'blank global is not off');
+        } finally {
+            if ($old === null) unset($GLOBALS[$key]); else $GLOBALS[$key] = $old;
+        }
+        $this->assertSame(['a' => 1], ConditionProjector::metadata('{"a":1}'));
+        $this->assertSame([], ConditionProjector::metadata('nonsense'));
     }
 
     public function testGenericPromptCopiesDropTheCondition(): void

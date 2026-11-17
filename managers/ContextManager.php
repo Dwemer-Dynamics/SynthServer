@@ -27,7 +27,7 @@ final class ContextManager
     // the quest reader is unavailable and no diary is read.
     public function __construct(private SaveState $saves, private $db = null, private ?\SYNTHClaimedRequest $owner = null) {}
 
-    public function situation(TurnRequest $request): array
+    public function situation(TurnRequest $request, ?PlacedCharacter $character = null): array
     {
         $payload = $request->context['payload'];
         $situation = ['player' => strval($request->context['player']['display_name'] ?? ''),
@@ -45,7 +45,10 @@ final class ContextManager
             is_array($request->context['player'] ?? null) ? $request->context['player'] : [],
             is_array($request->context['target'] ?? null) ? $request->context['target'] : [],
             ['player' => $request->context['player']['display_name'] ?? '', 'responder' => $request->context['target']['display_name'] ?? ''],
-            ContextManager\ConditionProjector::enabled($this->db));
+            ContextManager\ConditionProjector::enabled($this->db, [],
+                ContextManager\ConditionProjector::metadata($character?->profile['metadata'] ?? null),
+                ContextManager\ConditionProjector::metadata($character?->npc['metadata'] ?? null)
+                + ContextManager\ConditionProjector::metadata($character?->npc['extended_data'] ?? null)));
         if ($line !== '') $situation['condition_line'] = $line;
         // Explicit public address: the player spoke to everyone in the audience, not to this responder alone.
         if (\synth_control_everyone_input($request->event)) $situation['addressed_everyone'] = true;

@@ -31,18 +31,34 @@ final class ConditionProjector
         return mb_strlen($line) > self::LINE_CHARS ? mb_substr($line, 0, self::LINE_CHARS - 1) . '…' : $line;
     }
 
-    // Opt-out only: a stored general setting wins, then server configuration, and the default is on.
-    public static function enabled($db, array $config = []): bool
+    // Opt-out only. Strongest layer first, each ignored when null or blank: the NPC's own metadata and extended
+    // data, the profile metadata, the override-resolved runtime global, the stored general setting, server
+    // configuration. A blank value anywhere means "not set", and the default is on.
+    public static function enabled($db, array $config = [], array $profileMetadata = [], array $npcMetadata = []): bool
     {
-        $value = null;
+        $layers = [$npcMetadata['CONDITION_CONTEXT_ENABLED'] ?? null, $profileMetadata['CONDITION_CONTEXT_ENABLED'] ?? null,
+            $GLOBALS['CONDITION_CONTEXT_ENABLED'] ?? null];
+        $stored = null;
         if ($db !== null) {
             try {
                 require_once dirname(__DIR__, 2) . '/core/dbmanager/repositories/SettingsRepository.php';
-                $value = (new \Synth\Core\SettingsRepository($db))->value('CONDITION_CONTEXT_ENABLED');
-            } catch (\Throwable) { $value = null; }
+                $stored = (new \Synth\Core\SettingsRepository($db))->value('CONDITION_CONTEXT_ENABLED');
+            } catch (\Throwable) { $stored = null; }
         }
-        $value ??= $config['CONDITION_CONTEXT_ENABLED'] ?? $GLOBALS['CONDITION_CONTEXT_ENABLED'] ?? true;
-        return !in_array(is_string($value) ? strtolower(trim($value)) : $value, [false, 0, '0', 'false', 'off', 'no', ''], true);
+        $layers[] = $stored;
+        $layers[] = $config['CONDITION_CONTEXT_ENABLED'] ?? null;
+        foreach ($layers as $value) {
+            if ($value === null || (is_string($value) && trim($value) === '')) continue;
+            return !in_array(is_string($value) ? strtolower(trim($value)) : $value, [false, 0, '0', 'false', 'off', 'no'], true);
+        }
+        return true;
+    }
+
+    // Decoded metadata object from a profile or NPC row field (JSON text or array); anything else is empty.
+    public static function metadata($value): array
+    {
+        if (is_string($value)) $value = json_decode($value, true);
+        return is_array($value) ? $value : [];
     }
 
     // A client string becomes a short plain label: letters, digits and common name punctuation only.
