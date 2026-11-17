@@ -28,3 +28,5 @@ player background; typed turns may add copied scene facts. Private content stays
 This capability is separate from the legacy **Narrator** chat mode. Older servers keep that mode and refuse the
 private controls. Flat gameplay, VR headset presentation and actual microphone/provider quality require separate
 acceptance; builds and disposable HTTP tests do not establish those results.
+
+Object-bound narrators (a terminal, radio or held item that answers in its own voice) are designed in [TALKING-OBJECTS.md](TALKING-OBJECTS.md).
