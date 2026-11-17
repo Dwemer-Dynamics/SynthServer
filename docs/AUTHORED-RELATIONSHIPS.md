@@ -60,13 +60,13 @@ The evaluator keeps producing live state; authored data is a prior and an overri
    last result): the authored value **re-seeds** that field. Work in flight against the older revision is fenced
    and refused, exactly as a manual correction fences it today. The other field is unaffected.
 
-`synth_authored_relationship_resolve()` implements these rules as a pure function with unit tests; Phase A does
+`AuthoredRelationships::resolve()` implements these rules as a pure function with unit tests; Phase A does
 not call it from the worker. Wiring it in (priors, fencing, the recorded revisions) is storage-dependent work
 for the step that lands the table.
 
 ## Prompt block
 
-Read path: `lib/synth_authored_relationships.php`, called from `ext/relationship_system/context_pre.php` after
+Read path: `managers/Relationships/AuthoredRelationships.php`, called from `ext/relationship_system/context_pre.php` after
 the existing `[RELATIONSHIPS]` block, native requests only.
 
 - Source is the NPC that answers (the same responder identity the live block uses, with the same display-name
@@ -159,7 +159,7 @@ New entity `RelationshipConfig` (`core_relationship_config`), chevo's three laye
 
 ## Not in Phase A
 
-Storage, the DAO, the edit API and editor, wiring `synth_authored_relationship_resolve()` into the worker and its
+Storage, the DAO, the edit API and editor, wiring `AuthoredRelationships::resolve()` into the worker and its
 fencing, the pair lock in the dispatcher, and any client or protocol change (the wire protocol is untouched).
 In-game behaviour is unverified; no game, installed database or deployment was touched.
 

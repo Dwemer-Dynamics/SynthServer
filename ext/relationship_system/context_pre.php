@@ -47,9 +47,9 @@ if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
     }
     if ($relationshipContext!=='') $GLOBALS['SYNTH_PERS']=strval($GLOBALS['SYNTH_PERS'] ?? '')."\n\n".$relationshipContext;
     // Feature-flagged authored view (docs/AUTHORED-RELATIONSHIPS.md); empty and DB-free while the flag is off.
-    require_once $GLOBALS['ENGINE_PATH'].'lib/synth_authored_relationships.php';
+    require_once $GLOBALS['ENGINE_PATH'].'managers/Relationships/AuthoredRelationships.php';
     try {
-        $authoredContext=synth_authored_relationship_prompt_block($GLOBALS['db'],strval($GLOBALS['SYNTH_NAME'] ?? ''));
+        $authoredContext=\Synth\Managers\Relationships\AuthoredRelationships::promptBlock($GLOBALS['db'],strval($GLOBALS['SYNTH_NAME'] ?? ''));
     } catch (SYNTHProtocolCancelled $error) {
         throw $error;
     } catch (Throwable $error) {
