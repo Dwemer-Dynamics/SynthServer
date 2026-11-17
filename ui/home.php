@@ -999,6 +999,7 @@ $debugPaneLink = false;
                         <?php endif; ?>
                         <tr><td>SYNTH Mode</td><td><?php echo synth_home_h($currentModeLabel); ?></td></tr>
                         <tr><td>Active Model</td><td><?php echo synth_home_h($currentModel); ?></td></tr>
+                        <tr><td>Native /talk Model</td><td>Standard <span class="muted">(fixed; ignores the selected slot)</span></td></tr>
                     </table>
                 </div>
                 <fieldset id="audienceControl" class="audience-control" aria-busy="true" aria-describedby="audienceHelp">
