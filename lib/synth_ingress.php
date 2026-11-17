@@ -2,7 +2,7 @@
 require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
-require_once __DIR__.'/synth_conversation.php';
+require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
@@ -677,7 +677,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             synth_protocol_fail('invalid_control', 422);
     } elseif ($type === 'input_text') {
         synth_protocol_expect_exact_keys($payload, ['text'],
-            $version === 2 ? ['control', 'intent', 'audience_intent', 'audience_reset_epoch', ...synth_conversation_payload_keys($type, $version)] : [], 'payload');
+            $version === 2 ? ['control', 'intent', 'audience_intent', 'audience_reset_epoch', ...\Synth\Managers\Conversation\ConversationManager::payloadKeys($type, $version)] : [], 'payload');
         if (!is_string($payload['text']) || trim($payload['text']) === '' || strlen($payload['text']) > 4096) {
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.text', 'issue' => 'invalid']]);
         }
@@ -686,7 +686,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.intent', 'issue' => 'unknown']]);
     } elseif ($type === 'input_audio') {
         synth_protocol_expect_exact_keys($payload, ['media'],
-            $version === 2 ? ['control', 'audience_intent', 'audience_reset_epoch', ...synth_conversation_payload_keys($type, $version)] : [], 'payload');
+            $version === 2 ? ['control', 'audience_intent', 'audience_reset_epoch', ...\Synth\Managers\Conversation\ConversationManager::payloadKeys($type, $version)] : [], 'payload');
         $payload['media'] = synth_protocol_validate_media($payload['media'] ?? null, 'payload.media');
     } elseif ($type === 'context') {
         synth_protocol_expect_exact_keys(
@@ -842,7 +842,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         }
     } elseif ($type === 'trigger') {
         synth_protocol_expect_exact_keys($payload, ['kind', 'actor'],
-            $version === 2 ? ['game_time_ticks', 'instruction', 'text', 'capture_id', 'previous_context_sequence', 'event_id', 'reply_to_request_id', 'reply_to_line_id', 'scene_context_sequence', ...synth_conversation_payload_keys($type, $version)] : ['game_time_ticks', 'instruction', 'text'], 'payload');
+            $version === 2 ? ['game_time_ticks', 'instruction', 'text', 'capture_id', 'previous_context_sequence', 'event_id', 'reply_to_request_id', 'reply_to_line_id', 'scene_context_sequence', ...\Synth\Managers\Conversation\ConversationManager::payloadKeys($type, $version)] : ['game_time_ticks', 'instruction', 'text'], 'payload');
         $payload['actor'] = synth_protocol_validate_identity($payload['actor'] ?? null, 'payload.actor');
         if (!in_array($payload['kind'] ?? null, [
             'auto_greeting', 'bored', 'combat_bark', 'rechat',
@@ -965,7 +965,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             || array_key_exists('conversation_id', $payload));
         synth_protocol_expect_exact_keys($payload, $extended ? [] : ['cancel_request_id'],
             $extended ? ['cancel_request_id', 'conversation_id', 'scope', 'reason'] : [], 'payload');
-        synth_conversation_validate_cancel($payload);
+        \Synth\Managers\Conversation\ConversationManager::validateCancel($payload);
     } elseif ($type === 'halt') {
         synth_protocol_expect_exact_keys($payload, [], [], 'payload');
     }
@@ -1050,7 +1050,7 @@ function synth_protocol_validate_event(array $event): array
     if ((isset($seen['social.tasks.v1']) || in_array($event['type'],['social_task_request','social_task_progress'],true)) && !synth_social_supported($event))
         synth_protocol_fail('invalid_social_capability',422);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
-    synth_conversation_validate_event($event, $seen);
+    \Synth\Managers\Conversation\ConversationManager::validateEvent($event, $seen);
     if ($event['type'] === 'action_result' && in_array($event['payload']['result']['schema'] ?? '',
         ['synth.action.result.v2', 'synth.action.transfer-result.v2'], true)) {
         if ($event['protocol_version'] !== 2 || intval($event['context_sequence'] ?? 0) < 1 || !in_array('action.inventory_observation', $event['capabilities'], true)

@@ -9,7 +9,7 @@ require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
-require_once __DIR__.'/synth_conversation.php';
+require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 // An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
 function synth_protocol_response_context(?array $wire = null): array
@@ -181,7 +181,7 @@ function synth_protocol_start_payload(?array $event = null): array
 {
     $payload = ['server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source')];
     // Every response to a request that carried a conversation_id echoes it unchanged, on both dialogue lanes.
-    $conversation = synth_conversation_id_of($event ?? ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null));
+    $conversation = \Synth\Managers\Conversation\ConversationManager::idOf($event ?? ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null));
     if ($conversation !== null) $payload['conversation_id'] = $conversation;
     return $payload;
 }
@@ -510,7 +510,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
-    if ($status === 'init_accepted' && synth_conversation_init_granted($event)) $statusPayload['conversation'] = true;
+    if ($status === 'init_accepted' && \Synth\Managers\Conversation\ConversationManager::initGranted($event)) $statusPayload['conversation'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;

@@ -4,7 +4,7 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__, 2) . '/lib/request.php';
 require_once dirname(__DIR__, 2) . '/lib/response.php';
-require_once dirname(__DIR__, 2) . '/lib/synth_conversation.php';
+require_once dirname(__DIR__, 2) . '/managers/Conversation/ConversationManager.php';
 require_once dirname(__DIR__, 2) . '/api/v2/dispatch.php';
 
 use Synth\Core\UtteranceRepository;
@@ -49,20 +49,20 @@ final class ConversationLifecycleTest extends TestCase
     {
         $text = $this->fixture('valid/input-text-conversation.json');
         $id = $text['payload']['conversation_id'];
-        $this->assertSame($id, synth_conversation_id_of($text));
+        $this->assertSame($id, \Synth\Managers\Conversation\ConversationManager::idOf($text));
         $this->assertSame(['server_version' => 'source', 'conversation_id' => $id], synth_protocol_start_payload($text));
         $trigger = $this->fixture('valid/trigger-ambient-conversation.json');
-        $this->assertSame($id, synth_conversation_id_of($trigger));
+        $this->assertSame($id, \Synth\Managers\Conversation\ConversationManager::idOf($trigger));
         // No capability in the admitted bytes, a receipt or a cancel: nothing is echoed.
         $old = $text; $old['capabilities'] = ['dialogue.text', 'dialogue.turn_ownership'];
-        $this->assertNull(synth_conversation_id_of($old));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::idOf($old));
         $this->assertSame(['server_version' => 'source'], synth_protocol_start_payload($old));
-        $this->assertNull(synth_conversation_id_of($this->fixture('valid/speech-receipt-skipped.json')));
-        $this->assertNull(synth_conversation_id_of($this->fixture('valid/cancel-conversation.json')));
-        $this->assertNull(synth_conversation_id_of($this->fixture('valid/input-text-delivery-receipts.json')));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::idOf($this->fixture('valid/speech-receipt-skipped.json')));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::idOf($this->fixture('valid/cancel-conversation.json')));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::idOf($this->fixture('valid/input-text-delivery-receipts.json')));
         // The init acknowledgement needs both the capability and its prerequisite.
-        $this->assertTrue(synth_conversation_init_granted($this->fixture('valid/init-conversation.json')));
-        $this->assertFalse(synth_conversation_init_granted($this->fixture('valid/init-delivery-receipts.json')));
+        $this->assertTrue(\Synth\Managers\Conversation\ConversationManager::initGranted($this->fixture('valid/init-conversation.json')));
+        $this->assertFalse(\Synth\Managers\Conversation\ConversationManager::initGranted($this->fixture('valid/init-delivery-receipts.json')));
     }
 
     private function receipts(array &$rows): ReceiptManager
@@ -132,7 +132,7 @@ final class ConversationLifecycleTest extends TestCase
     {
         $event = $this->fixture('valid/cancel-conversation.json');
         $db = $this->recordingDb();
-        $ids = synth_conversation_cancel($db, $event, $db->escapeLiteral($event['session_id']), $event['generation']);
+        $ids = \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $db->escapeLiteral($event['session_id']), $event['generation']);
         $this->assertSame(['req-text-3'], $ids);
         $sql = implode("\n", $db->queries);
         // In-flight and completed-undelivered work only, selected by the id in the stored admitted bytes, in this
@@ -149,7 +149,7 @@ final class ConversationLifecycleTest extends TestCase
         $other = $this->fixture('valid/cancel-conversation.json');
         $other['payload']['conversation_id'] = 'b8e2a470-1c9d-4f63-a5e8-0d7c3b6a2f94';
         $second = $this->recordingDb();
-        synth_conversation_cancel($second, $other, $second->escapeLiteral($other['session_id']), $other['generation']);
+        \Synth\Managers\Conversation\ConversationManager::cancel($second, $other, $second->escapeLiteral($other['session_id']), $other['generation']);
         $this->assertStringContainsString("'b8e2a470-1c9d-4f63-a5e8-0d7c3b6a2f94'", implode("\n", $second->queries));
         $this->assertStringNotContainsString($event['payload']['conversation_id'], implode("\n", $second->queries));
     }
@@ -158,10 +158,10 @@ final class ConversationLifecycleTest extends TestCase
     {
         $db = $this->recordingDb();
         $text = $this->fixture('valid/input-text-conversation.json');
-        $rank = synth_conversation_rank_sql($db, $text);
+        $rank = \Synth\Managers\Conversation\ConversationManager::rankSql($db, $text);
         $this->assertStringContainsString("conv_e.canonical_event#>>'{payload,conversation_id}'='".$text['payload']['conversation_id']."'", $rank);
         $this->assertStringContainsString("conv_h.session_id='".$text['session_id']."'", $rank);
-        $this->assertNull(synth_conversation_rank_sql($db, $this->fixture('valid/input-text-delivery-receipts.json')));
-        $this->assertNull(synth_conversation_rank_sql($db, null));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::rankSql($db, $this->fixture('valid/input-text-delivery-receipts.json')));
+        $this->assertNull(\Synth\Managers\Conversation\ConversationManager::rankSql($db, null));
     }
 }
