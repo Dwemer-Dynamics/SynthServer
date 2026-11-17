@@ -11,6 +11,7 @@ use Synth\Core\UtteranceRepository;
 require_once dirname(__DIR__).'/core/contracts/dialogue.php';
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
+require_once dirname(__DIR__).'/lib/logger.php';
 require_once __DIR__.'/SessionManager.php';
 require_once __DIR__.'/CharacterManager.php';
 require_once __DIR__.'/ContextManager.php';
@@ -38,7 +39,15 @@ final class DialogueManager
     public function converse(array $event): void
     {
         try { $turn = $this->admit($event); }
-        catch (TurnRejected $rejected) { $this->output->reject($rejected->getMessage()); return; }
+        catch (TurnRejected $rejected) {
+            $reason = $rejected->getMessage();
+            // One line per rejected request: admission runs once and a replay returns the stored response.
+            \Logger::warn('[native-turn] Conversation turn rejected: ' . $reason . ($reason === 'tts_profile_unsupported'
+                ? '. The speaking profile needs a TTS connector (xtts-fastapi, chatterbox, pockettts, cartesia or inworld) with its provider key.'
+                : ''));
+            $this->output->reject($reason);
+            return;
+        }
         $this->run($turn);
     }
 

@@ -4404,7 +4404,7 @@ function synthGetInFlightChatDeliveryStates()
     return ['pending', 'emitted'];
 }
 
-function synthBuildChatDeliveryStateSql($column = 'delivery_state', array $states = null, $defaultState = 'spoken')
+function synthBuildChatDeliveryStateSql($column = 'delivery_state', ?array $states = null, $defaultState = 'spoken')
 {
     $column = trim((string)$column);
     if ($column === '') {

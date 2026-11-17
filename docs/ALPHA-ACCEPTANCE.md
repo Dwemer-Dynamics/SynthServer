@@ -654,8 +654,15 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       custom/locked profiles retain their edits. Check tatos, caps, common chems and
       radroach pronunciation with the selected voice provider.
 
-- [ ] Quickstart saves the LLM connector, TTS and STT. Missing optional keys fail cleanly,
-      without PHP warnings.
+- [x] Quickstart saves the LLM connector, TTS and STT. Missing optional keys fail cleanly,
+      without PHP warnings. Disposable PostgreSQL 17.11 and PHP 8.4 with `error_reporting=-1`, mock
+      provider only, a keyless LLM connector and no TTS, STT or ITT connector: every dashboard and
+      connector page, a legacy game turn, `/talk`, the Quickstart saves (blank API keys, TTS `none`
+      and a keyless TTS and STT choice) and the service manager tasks. The run logged 6 warnings
+      and deprecations from web requests and 25 from the CLI before the fix, and 0 and 0 after.
+      `/talk` without a usable TTS connector ends with `native_turn_ineligible` /
+      `tts_profile_unsupported` and one `[native-turn]` warn line per request. Not covered: live
+      providers, a real recall service, and a native turn that completes with speech.
 - [ ] The STT diagnostic shows a clear message when no local sample is present and
       transcribes a locally supplied WAV.
 - [ ] Theme: headings and monospace text render with the system fallback fonts.
