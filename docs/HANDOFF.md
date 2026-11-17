@@ -29,6 +29,15 @@ and snapshot create, switch, delete and the Timeline Break autosnapshot change n
 are kept and not marked compatible. Re-enabling needs versioned snapshots and a ledger-checked restore
 first ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#limits)).
 
+Schema conventions and a read-only drift check (candidate, docs and tooling only): decisions D1-D6 are recorded
+in [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#schema-conventions) (new work only; new tables named
+`synth_meta.<domain>_<noun>`; one manifest entry per migration; ORM pilot frozen; no shared `api_keys` table; the
+first future migration is snapshot version metadata). Three questions stay open for review: the meaning of "CHIM
+4.0 planning format", the PostgreSQL major the manifest targets, and acceptance of the D2 naming.
+`php tools/schema-check.php` compares a live database with `migrations/schema-manifest.json` and reports drift
+without migrating, locking or writing ([drift check](SCHEMA-MIGRATIONS.md#drift-check)). No schema, migration,
+installed database or runtime behavior changes.
+
 ## Setup readiness candidate
 
 `health.php` is a read-only readiness check. It connects through `synthRuntimeConnectDatabase`, which throws
