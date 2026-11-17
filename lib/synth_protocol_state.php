@@ -1352,7 +1352,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     $session = $db->escapeLiteral($sessionId);
     $generation = intval($event['generation']);
     $intent = $db->fetchOne(
-        "SELECT action_id, idempotency_key, state, action_name, (deadline_at < NOW()) AS expired
+        "SELECT action_id, idempotency_key, state, action_name, (deadline_at + INTERVAL '5 minutes' < NOW()) AS expired
            FROM synth_meta.action_intents
           WHERE action_id={$actionId} AND session_id={$session} AND generation={$generation}
           FOR UPDATE"
@@ -1454,7 +1454,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
                 if (!\Synth\Managers\ActionsManager\TradeOffer::supported($event) || !\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !$transferReceipt)
                     throw new DomainException('action_inventory_capability_mismatch');
-                // A sale is never accepted after its offer expired; the client discards stale offers on its own.
+                // The client owns the 45 s box; the server only refuses a receipt more than 5 minutes past the 60 s deadline.
                 if ($result['status']==='succeeded' && in_array($intent['expired'] ?? false,[true,'t','true',1,'1'],true))
                     throw new DomainException('trade_offer_expired');
             }

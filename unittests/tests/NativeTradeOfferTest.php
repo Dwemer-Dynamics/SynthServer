@@ -123,7 +123,8 @@ final class NativeTradeOfferTest extends TestCase
     private function action(array $event, array $context, array $npc, array $player): array
     {
         return ['name' => 'barter', 'capability' => 'action.barter', 'server_code' => 'Barter', 'actor' => $npc, 'target' => $player,
-            'arguments' => \Synth\Managers\ActionsManager\TradeOffer::arguments($context, $npc, $player, $this->line()), 'deadline_ms' => 60000];
+            'arguments' => \Synth\Managers\ActionsManager\TradeOffer::arguments($context, $npc, $player, $this->line()), 'deadline_ms' => 60000,
+            'reply_line_id' => 'req:dialogue:1'];
     }
 
     public function testIntentValidationRechecksEverythingAgainstTheAdmittedSnapshot(): void
@@ -138,6 +139,7 @@ final class NativeTradeOfferTest extends TestCase
             'count' => ['arguments' => ['count' => 4] + $action['arguments']], 'zero count' => ['arguments' => ['count' => 0] + $action['arguments']],
             'price' => ['arguments' => ['price' => 500] + $action['arguments']], 'form' => ['arguments' => ['item_form_id' => '0x00001111'] + $action['arguments']],
             'plugin' => ['arguments' => ['item_origin_plugin' => 'Other.esp'] + $action['arguments']],
+            'no reply line' => ['reply_line_id' => ''], 'bad reply line' => ['reply_line_id' => 'bad line!'],
             'extra' => ['arguments' => $action['arguments'] + ['note' => 'x']], 'missing' => ['arguments' => ['item' => 'Fat Man'] + $action['arguments']],
         ];
         foreach ($mutations as $case => $change) {

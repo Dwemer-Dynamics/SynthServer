@@ -431,6 +431,12 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         try { synth_wait_action_validate($db,$event,$action); }
         catch (DomainException) { return null; }
     }
+    if ($capability==='action.barter') {
+        // Bound to the NPC's own first reply line in this response, and at most one offer per response.
+        $replyLine = \Synth\Managers\ActionsManager\TradeOffer::claimReplyLine($context['request_id'],$actor);
+        if ($replyLine === null) return null;
+        $action['reply_line_id'] = $replyLine;
+    }
     if ($order) {
         // Bound to the NPC's own first reply line in this response; the game applies it, never the server.
         $replyLine = \Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine($context['request_id'],$actor);

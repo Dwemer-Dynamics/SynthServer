@@ -4,6 +4,7 @@ require_once __DIR__.'/DatabaseTestCase.php';
 require_once dirname(__DIR__, 2).'/lib/request.php';
 require_once dirname(__DIR__, 2).'/lib/response.php';
 require_once dirname(__DIR__, 2).'/lib/phpunit.class.php';
+require_once dirname(__DIR__, 2).'/lib/synth_wait_actions.php';
 require_once dirname(__DIR__, 2).'/managers/ActionsManager/TradeOffer.php';
 
 // Same single-connection owner lock the real native request uses, so the intent is written by the real code path.
@@ -45,7 +46,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
         parent::setUp();
         foreach (['db', 'SYNTH_REQUEST_EVENT', 'SYNTH_PROTOCOL_REQUEST_CLAIMED', 'SYNTH_NAME', 'SYNTH_SPEECH_ROLE', 'SYNTH_CLIENT_CAPABILITIES',
             'SYNTH_JSON_RESPONSE_LINES', 'SYNTH_RESPONSE_STREAMING', 'SYNTH_PROTOCOL_RESPONSE_BODY', 'SYNTH_PROTOCOL_RESPONSE_STARTED',
-            'SYNTH_PROTOCOL_RESPONSE_SEQUENCE', 'gameRequest'] as $key)
+            'SYNTH_PROTOCOL_RESPONSE_SEQUENCE', 'gameRequest', 'SYNTH_ORDER_REPLY_LINES', 'SYNTH_TRADE_ISSUED'] as $key)
             $this->saved[$key] = [array_key_exists($key, $GLOBALS), $GLOBALS[$key] ?? null];
         $fixture = json_decode(file_get_contents(dirname(__DIR__, 2).'/protocol/v2/fixtures/valid/context-combat-contacts.json'), true, flags: JSON_THROW_ON_ERROR);
         $this->payload = $fixture['payload'];
@@ -103,8 +104,14 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
     }
 
     /** The model's Barter line, through the real tool-call to action path. */
-    private function offer(string $item = 'Nuka-Cola', $price = 12): ?array
+    private function offer(string $item = 'Nuka-Cola', $price = 12, bool $noteLine = true, int $ordinal = 0): ?array
     {
+        if ($noteLine && $ordinal === 0) {
+            // Each offer is its own response, so each has its own request and its own spoken line.
+            $GLOBALS['SYNTH_TRADE_ISSUED'] = [];
+            $GLOBALS['SYNTH_ORDER_REPLY_LINES'] = [['request_id' => 'trade-input', 'line_id' => 'trade-input:dialogue:1',
+                'actor' => synth_wait_actor_key($this->payload['target'])]];
+        }
         $GLOBALS['SYNTH_REQUEST_EVENT'] = synth_normalize_json_event($this->event);
         $GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] = ++$this->ordinal;
         return synth_protocol_action_from_legacy_line(['speaker' => 'Preston Garvey', 'command_name' => 'Barter', 'target' => 'Sole Survivor',
@@ -198,6 +205,33 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
         self::assertSame('barter', $emitted['name']);
     }
 
+    public function testTheOfferRidesTheNpcsOwnReplyLineAndOnlyOncePerResponse(): void
+    {
+        $first = $this->offer();
+        self::assertSame('trade-input:dialogue:1', $first['reply_line_id']);
+        // A second offer in the same response is refused even though the line and the item are valid.
+        self::assertNull($this->offer('Nuka-Cola', 11, false), 'a second offer in one response');
+        self::assertCount(1, $this->intentRows());
+        // No line was spoken: no box for a line the player never heard.
+        $GLOBALS['SYNTH_TRADE_ISSUED'] = []; $GLOBALS['SYNTH_ORDER_REPLY_LINES'] = [];
+        self::assertNull($this->offer('Nuka-Cola', 10, false), 'an offer with no reply line');
+        // A line spoken by someone else, or in another request, is not this NPC's reply.
+        $GLOBALS['SYNTH_ORDER_REPLY_LINES'] = [
+            ['request_id' => 'trade-input', 'line_id' => 'x:1', 'actor' => synth_wait_actor_key($this->payload['player'])],
+            ['request_id' => 'other-request', 'line_id' => 'x:2', 'actor' => synth_wait_actor_key($this->payload['target'])]];
+        self::assertNull($this->offer('Nuka-Cola', 10, false), 'a line that is not this NPC\'s in this response');
+        self::assertCount(1, $this->intentRows());
+    }
+
+    public function testAClientThatAnswersLateWithinItsOwnWindowIsNeverRefusedForTheDeadline(): void
+    {
+        $action = $this->offer();
+        // The 60 s deadline passed two minutes ago (speech queued, slow answer): inside the 5 minute grace.
+        $this->database->execQuery("UPDATE synth_meta.action_intents SET deadline_at=NOW()-INTERVAL '2 minutes' WHERE action_id=$1", [$action['action_id']]);
+        $told = $this->answer($this->sale($action, 'trade-result-late-grace'));
+        self::assertSame('completed', $told['detail']['outcome']);
+    }
+
     public function testRefusedOffersWriteNoIntent(): void
     {
         foreach ([['Fat Man', 12], ['Nuka-Cola', 0], ['Nuka-Cola', 500], ['Nuka-Cola', 101], ['Bottle Cap', 5], ['Nuka-Cola', 'free']] as [$item, $price])
@@ -250,7 +284,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
 
         // The server enforces the deadline itself: a Yes after expiry is refused and writes nothing.
         $late = $this->offer('Nuka-Cola', 11);
-        $this->database->execQuery("UPDATE synth_meta.action_intents SET deadline_at=NOW()-INTERVAL '1 second' WHERE action_id=$1", [$late['action_id']]);
+        $this->database->execQuery("UPDATE synth_meta.action_intents SET deadline_at=NOW()-INTERVAL '6 minutes' WHERE action_id=$1", [$late['action_id']]);
         try { synth_protocol_persist_action_result($this->database, $this->sale($late, 'trade-result-expired-yes'), self::SESSION); self::fail('An expired sale was accepted'); }
         catch (DomainException $error) { self::assertSame('trade_offer_expired', $error->getMessage()); }
         self::assertNull($this->terminal($late['action_id']));

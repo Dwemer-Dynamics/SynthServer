@@ -120,6 +120,21 @@ final class TradeOffer
             'item_origin_plugin' => $item['origin_plugin'], 'count' => $count, 'price' => $price];
     }
 
+    // The NPC's first dialogue line of this request, noted as it was encoded; one offer per request, so a second is refused.
+    public static function claimReplyLine(string $requestId, array $actor): ?string
+    {
+        require_once dirname(__DIR__, 2) . '/lib/synth_wait_actions.php';
+        $key = synth_wait_actor_key($actor);
+        if ($key === null || !empty($GLOBALS['SYNTH_TRADE_ISSUED'][$requestId])) return null;
+        foreach ($GLOBALS['SYNTH_ORDER_REPLY_LINES'] ?? [] as $note) {
+            if ($note['request_id'] === $requestId && $note['actor'] === $key) {
+                $GLOBALS['SYNTH_TRADE_ISSUED'][$requestId] = true;
+                return $note['line_id'];
+            }
+        }
+        return null;
+    }
+
     // Whole-action check used when the intent is recorded (and again on any replay path).
     public static function validate(array $event, array $action, array $context): void
     {
@@ -127,6 +142,7 @@ final class TradeOffer
         if (!self::requestAllowed($event)) throw new DomainException('trade_contract_required');
         if (($action['name'] ?? '') !== 'barter' || ($action['capability'] ?? '') !== 'action.barter'
             || ($action['server_code'] ?? 'Barter') !== 'Barter' || !is_array($arguments)
+        || !is_string($action['reply_line_id'] ?? null) || preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D', $action['reply_line_id']) !== 1
             || array_diff(array_keys($arguments), ['item', 'item_form_id', 'item_origin_plugin', 'count', 'price']) !== []
             || !is_array($action['actor'] ?? null) || !is_array($action['target'] ?? null)
             || strcasecmp($action['target']['form_id'] ?? '', self::PLAYER_FORM_ID) !== 0
