@@ -53,9 +53,9 @@ if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  $enginePath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
  require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
  synthRuntimeBootstrap($enginePath, []);
- $savedResult = $GLOBALS['db']->execQuery('SELECT label, api_key FROM core_api_badge WHERE id = $1', [ intval($badgeId) ]);
- $savedRow = $savedResult ? pg_fetch_assoc($savedResult) : false;
- if (is_array($savedRow)) {
+ require_once($enginePath . 'core' . DIRECTORY_SEPARATOR . 'dbmanager' . DIRECTORY_SEPARATOR . 'repositories' . DIRECTORY_SEPARATOR . 'ApiBadgeRepository.php');
+ $savedRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS['db']))->byId(intval($badgeId));
+ if ($savedRow !== []) {
  // The stored label must equal the provider label apart from letter case; a padded label is a custom entry.
  $savedLabel = strval($savedRow['label'] ?? '');
  if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) $apiKey = trim(strval($savedRow['api_key'] ?? ''));

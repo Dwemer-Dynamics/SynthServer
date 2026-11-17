@@ -227,20 +227,12 @@ class LLMConnector
 
     public function getAllFk($fieldName)
     {
-        // Define supported foreign keys and their corresponding table + label fields
-        $foreignKeys = [
-            "api_badge_id" => ["table" => "core_api_badge", "label_field" => "label"]
-        ];
-
-        if (!isset($foreignKeys[$fieldName])) {
+        // The API key list is the only supported foreign key.
+        if ($fieldName !== "api_badge_id") {
             return []; // Unknown FK
         }
 
-        $table = $foreignKeys[$fieldName]["table"];
-        $labelField = $foreignKeys[$fieldName]["label_field"];
-
-        $query = "SELECT id, {$labelField} AS label FROM {$table} ORDER BY LOWER({$labelField}) ASC";
-        return $GLOBALS["db"]->fetchAll($query);
+        return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
     }
 
     public function clone($id)

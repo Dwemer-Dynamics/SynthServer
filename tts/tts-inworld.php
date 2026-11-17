@@ -301,7 +301,8 @@ function getInworldActiveConfig(): array {
             $db = ensureInworldDb();
             $apiBadgeId = intval($row['api_badge_id'] ?? 0);
             if ($db && $apiBadgeId > 0) {
-                $badgeRow = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE id = {$apiBadgeId} LIMIT 1");
+                require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+                $badgeRow = (new \Synth\Core\ApiBadgeRepository($db))->keyById($apiBadgeId);
                 if (is_array($badgeRow) && !empty($badgeRow['api_key'])) {
                     $apiCredential = trim(strval($badgeRow['api_key']));
                 }

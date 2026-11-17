@@ -12,7 +12,8 @@ $GLOBALS['SYNTH_TTS_DRIVERS']['deepgram'] = $GLOBALS["TTS_IN_USE"] = function($t
     try {
         if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once(__DIR__ . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
         if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
-        $row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='deepgram' LIMIT 1");
+        require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+        $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('deepgram');
         if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
     } catch (Throwable $_e) {}
     if ($apiKey === '') $apiKey = $GLOBALS["TTS"]["deepgram"]["API_KEY"];

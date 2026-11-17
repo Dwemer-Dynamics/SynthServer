@@ -145,7 +145,7 @@ class STTConnector
         if ($fieldName !== 'api_badge_id') {
             return [];
         }
-        return $GLOBALS["db"]->fetchAll("SELECT id, label FROM core_api_badge ORDER BY LOWER(label) ASC");
+        return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
     }
 
     public function getDriverOptions(): array

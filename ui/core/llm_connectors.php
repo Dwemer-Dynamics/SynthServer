@@ -104,24 +104,14 @@ function find_player2_api_badge_id() {
  $cachedBadgeId = 0;
  return null;
  }
+ $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
 
- $row = $db->fetchOne(
- "SELECT id FROM core_api_badge " .
- "WHERE lower(label) IN ('player2','synth') " .
- "ORDER BY CASE WHEN lower(label)='player2' THEN 0 ELSE 1 END, id ASC LIMIT 1"
- );
+ $row = $apiBadges->localProviderId();
  $badgeId = intval($row["id"] ?? 0);
 
  if ($badgeId <= 0) {
- $db->insert("core_api_badge", [
- "label" => "Player2",
- "api_key" => "SYNTH"
- ]);
- $row = $db->fetchOne(
- "SELECT id FROM core_api_badge " .
- "WHERE lower(label) IN ('player2','synth') " .
- "ORDER BY CASE WHEN lower(label)='player2' THEN 0 ELSE 1 END, id ASC LIMIT 1"
- );
+ $apiBadges->add("Player2", "SYNTH");
+ $row = $apiBadges->localProviderId();
  $badgeId = intval($row["id"] ?? 0);
  }
 
@@ -258,7 +248,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  if ($webRoot == '/') $webRoot = '';
  $webRoot = rtrim($webRoot, '/');
  // Fetch API badges for select
- $apiRows = $GLOBALS["db"]->fetchAll("SELECT id, label, api_key FROM core_api_badge ORDER BY label ASC");
+ $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
  $selectedApi = $editItem["api_badge_id"] ?? "";
  $withKey = [];
  $noKey = [];
@@ -1535,7 +1525,7 @@ if (typeof window.consolidation !== 'function') {
  Custom allows you to build your own connector setting using one of our API drivers to use non-supported services with SYNTH. Depending on the service you may not need to fill out all fields. For advanced users only
  </div><div id="url_row"><label for='url'>URL</label><br><div style="display:flex; gap:8px; align-items:center;"><input type="text" name="url" value="<?= htmlspecialchars($editItem["url"] ?? "") ?>" style="flex:1 1 auto;"><button type="button" id="btn_wsl_ip" class="btn-primary" title="Use WSL IP" style="display:none;" data-ip="<?= htmlspecialchars($WSL_IP) ?>">WSL IP</button><button type="button" id="btn_host_ip" class="btn-primary" title="Use HOST IP" style="display:none;" data-ip="<?= htmlspecialchars($HOST_IP) ?>">PC IP</button></div></div><div id="model_row"><label for='model'>Model</label><br><input type="text" name="model" value="<?= htmlspecialchars($editItem["model"] ?? "") ?>"><br></div><div id="provider_row"><label for='provider'>Provider</label><br><input type="text" name="provider" placeholder="(Optional) leave empty to use recommended provider" value="<?= htmlspecialchars($editItem["provider"] ?? "") ?>"><br></div><div id="driver_row" style="display:none;"><label for='driver'>Driver</label><br><input type="text" id="driver_input" name="driver" value="<?= htmlspecialchars($editItem["driver"] ?? "") ?>" style="display:none"><br><select id="driver_select"><option value="openrouterjson">OpenRouter JSON</option><option value="openaijson">OpenAI JSON</option><option value="google_openaijson">Google OpenAI JSON</option><option value="groqjson">Groq JSON</option><option value="player2json">Player2 JSON</option></select></div><div id="api_key_row"><?php
  // API Key select with non-empty keys first + notice
- $apiRows = $GLOBALS["db"]->fetchAll("SELECT id, label, api_key FROM core_api_badge ORDER BY label ASC");
+ $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
  $selectedApi = $editItem["api_badge_id"] ?? "";
  $withKey = [];
  $noKey = [];

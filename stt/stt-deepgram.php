@@ -67,7 +67,8 @@ function stt($filePath)
     $apiKey = trim($GLOBALS['STT']['DEEPGRAM']['API_KEY'] ?? '');
     if ($apiKey === '') {
         try {
-            $row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='deepgram' LIMIT 1");
+            require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('deepgram');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = $row['api_key'];
         } catch (Throwable $_e) {}
     }

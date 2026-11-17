@@ -405,14 +405,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
             if ($apiKey !== '') $keys[$slug] = $apiKey;
         }
         $db = $GLOBALS['db'];
+        require_once dirname(__DIR__) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
+        $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
         foreach ($keys as $slug => $apiKey) {
-            $result = $db->execQuery('SELECT id FROM core_api_badge WHERE lower(label) = $1 ORDER BY id LIMIT 1', [ $slug ]);
-            $row = $result ? pg_fetch_assoc($result) : false;
-            if (is_array($row) && intval($row['id'] ?? 0) > 0) {
-                $saved = $db->updateRow('core_api_badge', [ 'api_key' => $apiKey ], 'id=' . intval($row['id']));
-            } else {
-                $saved = $result && $db->insert('core_api_badge', [ 'label' => $presetLabels[$slug], 'api_key' => $apiKey ]);
-            }
+            $saved = $apiBadges->saveKeyForLowerLabel($slug, $presetLabels[$slug], $apiKey);
             if (!$saved) {
                 echo json_encode([ 'ok' => false, 'error' => 'Could not save the ' . $presetLabels[$slug] . ' API key.' ]);
                 exit;
@@ -621,8 +617,8 @@ echo '<section class="qs-section qs-header-card">
 // whitespace-only key counts as not saved.
 function synthQuickstartPresetKeyConfigured($db, string $slug): bool {
     try {
-        $result = $db->execQuery('SELECT api_key FROM core_api_badge WHERE lower(label) = $1 ORDER BY id LIMIT 1', [ $slug ]);
-        $row = $result ? pg_fetch_assoc($result) : false;
+        require_once dirname(__DIR__) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
+        $row = (new \Synth\Core\ApiBadgeRepository($db))->keyByLowerLabel($slug, true);
         return is_array($row) && trim(strval($row['api_key'] ?? '')) !== '';
     } catch (Throwable $_e) {
         return false;

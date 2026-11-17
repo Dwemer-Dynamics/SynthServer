@@ -375,24 +375,24 @@ class LLMRandomizer {
             return null;
         }
 
-        $row = $db->fetchOne("SELECT id FROM core_api_badge WHERE lower(label)='player2' LIMIT 1");
+        require_once dirname(__DIR__) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
+        $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
+        $row = $apiBadges->idByLowerLabel('player2');
         $badgeId = isset($row['id']) ? intval($row['id']) : 0;
         if ($badgeId > 0) {
-            $badgeRow = $db->fetchOne("SELECT api_key FROM core_api_badge WHERE id=" . $badgeId . " LIMIT 1");
+            $badgeRow = $apiBadges->keyById($badgeId);
             if (empty($badgeRow['api_key'])) {
-                $db->updateRow('core_api_badge', ['api_key' => 'SYNTH'], 'id=' . $badgeId);
+                $apiBadges->update($badgeId, ['api_key' => 'SYNTH']);
             }
             return $badgeId;
         }
 
-        $insertedBadgeId = $db->insert('core_api_badge', [
-            'label' => 'Player2',
-            'api_key' => 'SYNTH'
-        ]);
+        // add() reports only success, as the insert it replaced did: a created row reads as id 1 below.
+        $insertedBadgeId = $apiBadges->add('Player2', 'SYNTH');
 
         $badgeId = !empty($insertedBadgeId) ? intval($insertedBadgeId) : 0;
         if ($badgeId <= 0) {
-            $row = $db->fetchOne("SELECT id FROM core_api_badge WHERE lower(label)='player2' LIMIT 1");
+            $row = $apiBadges->idByLowerLabel('player2');
             $badgeId = isset($row['id']) ? intval($row['id']) : 0;
         }
 

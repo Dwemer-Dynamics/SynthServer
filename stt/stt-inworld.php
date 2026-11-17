@@ -27,7 +27,8 @@ function stt($filePath)
     $apiKey = trim((string)($cfg["API_KEY"] ?? ''));
     if ($apiKey === '') {
         try {
-            $row = $GLOBALS["db"]->fetchOne("SELECT api_key FROM core_api_badge WHERE lower(label)='inworld' LIMIT 1");
+            require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
+            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('inworld');
             if (is_array($row) && !empty($row['api_key'])) {
                 $apiKey = trim((string)$row['api_key']);
             }
