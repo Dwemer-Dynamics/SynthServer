@@ -822,6 +822,10 @@ See [HANDOFF.md](HANDOFF.md#write-only-credential-forms-candidate).
       Test returned HTTP 200 from the mock provider.
 - [ ] A 5 px horizontal overflow remains on the API Keys page at 390 px.
 - [ ] Browser keyboard, Save, Clear and confirm/cancel workflows. The evidence above is HTTP plus page inspection.
-- [ ] Custom-key Delete accepts a malformed id: the integer cast can name another custom row.
+- [x] Custom-key Delete id: on disposable PostgreSQL 17.11 in the same namespace setup, a valid custom id deletes
+      only that row; 15 malformed forms, a missing id and canonical or case-variant preset ids answer
+      `err=not_found` with the table unchanged; a foreign-key-referenced row answers `err=save_failed` and is
+      kept; token, array and GET refusals are unchanged; no PHP warnings. The same probe on the previous source
+      deleted another row for 8 malformed forms. Browser click-through of Delete is not checked.
 - [ ] Custom-key create computes its id in PHP (`max(100, highest id + 1)`); concurrent creates are unchecked.
 - [ ] Real provider keys, the installed runtime, hosted CI (Actions disabled), deploy and in-game use: none claimed.

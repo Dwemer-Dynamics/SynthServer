@@ -975,6 +975,7 @@ Save Keys refuses a form whose displayed provider row has changed (`err=stale`) 
 preset row is created only by Save Keys, never by viewing the page. No rows are deleted, relabelled or migrated.
 
 Known limits: a custom key created through the create action gets `max(100, highest id + 1)` computed in PHP,
-not a database-assigned id, so two concurrent creates can collide. Custom-key Delete casts the posted id to an
-integer, so a malformed id can name another custom row. Open checks are in
+not a database-assigned id, so two concurrent creates can collide. Custom-key Delete accepts only an exact positive
+row id of an existing custom row; a malformed, missing or preset id answers `err=not_found` and deletes nothing,
+and a failed delete (for example a row a connector still references) answers `err=save_failed`. Open checks are in
 [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#write-only-credential-forms).
