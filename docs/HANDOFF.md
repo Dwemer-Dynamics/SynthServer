@@ -178,6 +178,7 @@ The optional private narrator contract adds separate immutable definition revisi
 transcripts. Existing context snapshots capture opaque private-state IDs; SCTX and ordinary NPC receipts remain
 unchanged. Private data is excluded from NPC history and journal sources. See [PRIVATE-NARRATOR.md](PRIVATE-NARRATOR.md).
 The additive migration is `private_narrator_schema` 20261113001. No deployment or gameplay acceptance is included.
+Talking objects extend it with object-bound definitions; the contract is accepted and refused until storage lands. See [TALKING-OBJECTS.md](TALKING-OBJECTS.md).
 
 ## Installed gift screen and shared wording
 

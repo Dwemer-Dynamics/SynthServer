@@ -17,5 +17,29 @@
         "allow-plugins": {},
         "optimize-autoloader": true,
         "sort-packages": true
+    },
+    "autoload": {
+        "psr-4": {
+            "Synth\\Api\\": "api/",
+            "Synth\\Api\\V2\\": "api/v2/",
+            "Synth\\Core\\Contracts\\": "core/contracts/",
+            "Synth\\Core\\Entities\\": "core/entities/",
+            "Synth\\Core\\Entities\\Base\\": "core/entities/base/",
+            "Synth\\Core\\Entities\\System\\": "core/entities/system/",
+            "Synth\\Core\\DbManager\\": "core/dbmanager/",
+            "Synth\\Core\\DbManager\\Dao\\": "core/dbmanager/dao/",
+            "Synth\\Migrations\\": "core/dbmanager/migrations/",
+            "Synth\\Managers\\": "managers/",
+            "Synth\\Drivers\\Llm\\": "drivers/llm/",
+            "Synth\\Drivers\\Tts\\": "drivers/tts/",
+            "Synth\\Drivers\\Stt\\": "drivers/stt/",
+            "Synth\\Drivers\\Itt\\": "drivers/itt/",
+            "Synth\\Workers\\": "workers/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Synth\\Tests\\": "tests/"
+        }
     }
 }
