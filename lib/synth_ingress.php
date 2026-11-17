@@ -3,6 +3,7 @@ require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
 require_once dirname(__DIR__).'/managers/LocationManager/LocationCatalog.php';
+require_once dirname(__DIR__).'/managers/Narrator/NarratorObjectIdentity.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
