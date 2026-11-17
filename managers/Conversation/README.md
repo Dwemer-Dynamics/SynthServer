@@ -18,3 +18,15 @@ Conversation continuity and the uniform line lifecycle (`dialogue.conversation`)
 The id lives in the stored canonical events, so there is no table. `skipped` receipts are stored as `failed`
 utterances (the receipt event keeps the outcome); an `interrupted` line is kept in context marked ` [cut off]` by
 `ReceiptManager`. Legacy `lib/` code only calls into this class through thin hooks.
+
+## Cancel and receipts
+
+A receipt for a line of a request that a cancel revoked is refused (`receipt_owner_mismatch`, 409): nothing from a
+revoked origin enters history. So a line cut off by an explicit conversation cancel is not kept as ` [cut off]`; only a
+line interrupted without a cancel is. The client never retries a receipt, so the refusal is final.
+
+## History preference cost
+
+`rankSql` ranks only dialogue rows; other row types count as preferred so recent info, quest and memory rows are never
+displaced. The correlated `EXISTS` is evaluated per candidate row through two unique-index lookups (see the pull request
+for the measured plan).

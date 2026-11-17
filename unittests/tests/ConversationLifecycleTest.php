@@ -144,6 +144,7 @@ final class ConversationLifecycleTest extends TestCase
         $this->assertStringContainsString("canonical_event->'capabilities' ? 'dialogue.conversation'", $sql);
         $this->assertStringContainsString("UPDATE synth_meta.worker_jobs SET state='cancelled'", $sql);
         $this->assertStringContainsString('SET active_turn_id=NULL', $sql);
+        $this->assertStringContainsString('(active_turn_id, active_turn_sequence) IN', $sql, 'the turn is matched by id and sequence');
         // Completed player input stays as historical learning, exactly like a single-request cancel.
         $this->assertStringContainsString("WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete'", $sql);
         $other = $this->fixture('valid/cancel-conversation.json');
@@ -161,6 +162,8 @@ final class ConversationLifecycleTest extends TestCase
         $rank = \Synth\Managers\Conversation\ConversationManager::rankSql($db, $text);
         $this->assertStringContainsString("conv_e.canonical_event#>>'{payload,conversation_id}'='".$text['payload']['conversation_id']."'", $rank);
         $this->assertStringContainsString("conv_h.session_id='".$text['session_id']."'", $rank);
+        // Only dialogue rows are ranked; every other row type counts as preferred, so it is never crowded out.
+        $this->assertStringStartsWith("(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS", $rank);
         $this->assertNull(\Synth\Managers\Conversation\ConversationManager::rankSql($db, $this->fixture('valid/input-text-delivery-receipts.json')));
         $this->assertNull(\Synth\Managers\Conversation\ConversationManager::rankSql($db, null));
     }

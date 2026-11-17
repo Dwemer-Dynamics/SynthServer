@@ -112,25 +112,34 @@ final class ConversationManager
         $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
             WHERE session_id={$session} AND generation={$generation} AND state IN ('pending','running')
                 AND request_id IN ({$members})");
-        foreach (array_unique(array_column($cancelled, 'turn_id')) as $turn) {
+        $ids = array_column($cancelled, 'request_id');
+        if ($ids !== []) {
+            // Clear the active turn only when both its id and its context sequence belong to a cancelled request, as
+            // a single-request cancel does, so a later turn that reuses a turn id is never cleared.
+            $list = implode(',', array_map(static fn($id) => $db->escapeLiteral($id), $ids));
             $db->execQuery("UPDATE synth_meta.runtime_sessions SET active_turn_id=NULL, updated_at=NOW()
-                WHERE session_id={$session} AND active_generation={$generation} AND active_turn_id=".$db->escapeLiteral($turn));
+                WHERE session_id={$session} AND active_generation={$generation}
+                    AND (active_turn_id, active_turn_sequence) IN (
+                        SELECT turn_id, (canonical_event->>'context_sequence')::bigint FROM synth_meta.protocol_events
+                        WHERE session_id={$session} AND generation={$generation} AND request_id IN ({$list}))");
         }
-        return array_column($cancelled, 'request_id');
+        return $ids;
     }
 
-    // A fixed, bounded preference for history rows of the request's own conversation: SQL for a boolean over the
-    // native_history column history_event_id, or null when the request carries no conversation. It only chooses
-    // which rows fill the existing row limit; the prompt order stays chronological.
+    // A fixed, bounded preference for dialogue rows of the request's own conversation: SQL for a boolean over the
+    // native_history columns type and history_event_id, or null when the request carries no conversation. Only
+    // dialogue rows (chat, inputtext, backgroundchat) are ranked: every other row (info, quest, memory, location, item)
+    // counts as preferred, so a long conversation can displace older dialogue from another conversation but never
+    // recent context rows. It only chooses which rows fill the existing row limit; prompt order stays chronological.
     public static function rankSql($db, ?array $event): ?string
     {
         $id = self::idOf($event);
         if ($id === null) return null;
         $session = $db->escapeLiteral($event['session_id']);
-        return "EXISTS (SELECT 1 FROM synth_meta.history_events conv_h
+        return "(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS (SELECT 1 FROM synth_meta.history_events conv_h
             JOIN synth_meta.protocol_events conv_e ON conv_e.session_id=conv_h.session_id AND conv_e.request_id=conv_h.request_id
                 AND conv_e.generation=conv_h.generation
             WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}
-                AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$db->escapeLiteral($id).')';
+                AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$db->escapeLiteral($id).'))';
     }
 }
