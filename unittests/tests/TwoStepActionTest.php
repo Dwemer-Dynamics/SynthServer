@@ -197,6 +197,95 @@ final class TwoStepActionTest extends TestCase
         $this->assertStringContainsString('Ignore previous instructions', $messages[1]['content']);
     }
 
+    /** Starts a local provider that accepts the request and then never answers within the test's horizon. */
+    private function slowProvider(): array
+    {
+        $dir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'two-step-slow-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir.DIRECTORY_SEPARATOR.'router.php', '<?php sleep(8); echo "{}";');
+        $probe = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        $port = (int)substr(strrchr(stream_socket_get_name($probe, false), ':'), 1);
+        fclose($probe);
+        $process = proc_open([PHP_BINARY, '-S', '127.0.0.1:'.$port, '-t', $dir, $dir.DIRECTORY_SEPARATOR.'router.php'],
+            [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
+        for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $port); $i++) usleep(100000);
+        return [$process, $pipes, $dir, $port];
+    }
+
+    private function stopProvider(array $provider): void
+    {
+        [$process, $pipes, $dir] = $provider;
+        proc_terminate($process);
+        foreach ($pipes as $pipe) fclose($pipe);
+        proc_close($process);
+        @unlink($dir.DIRECTORY_SEPARATOR.'router.php');
+        @rmdir($dir);
+    }
+
+    public function testSlowProviderIsCutOffAtTheBudgetOnBothTransports(): void
+    {
+        $GLOBALS['TWO_STEP_ACTION_TIMEOUT_MS'] = 500;
+        $provider = $this->slowProvider();
+        try {
+            foreach (['openaijson', 'openrouterjson'] as $driver) {
+                $this->on();
+                $url = 'http://127.0.0.1:'.$provider[3].'/v1/chat/completions';
+                $connector = ['driver'=>$driver,'url'=>$url,'model'=>'fixture/model','metadata'=>'{}','reasoning_model'=>0];
+                $complete = static fn(array $m): string => TwoStepActions::completeWith($connector,
+                    static fn(array $row): array => ['url'=>$url,'model'=>'fixture/model','api_key'=>'fixture'], $m);
+                $start = hrtime(true);
+                $this->assertSame([], TwoStepActions::filterActions([], 'ok', $complete), $driver);
+                $elapsed = (hrtime(true) - $start) / 1e9;
+                $this->assertLessThan(3.0, $elapsed, "$driver was not cut off at the budget");
+                $this->assertContains($GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC']['reason'], ['error', 'timeout']);
+            }
+        } finally {
+            $this->stopProvider($provider);
+        }
+    }
+
+    public function testVrNeverGetsCompanionOrders(): void
+    {
+        $file = dirname(__DIR__, 2).'/managers/ActionsManager/CompanionOrders.php';
+        if (!is_file($file)) $this->markTestSkipped('CompanionOrders arrives with the companion-orders change');
+        require_once $file;
+        $GLOBALS['F_NAMES']['FollowPlayer'] = 'FollowPlayer';
+        $GLOBALS['ENABLED_FUNCTIONS'][] = 'FollowPlayer';
+        $GLOBALS['FUNCTIONS'][] = ['name'=>'FollowPlayer','description'=>'Follow the player','parameters'=>['type'=>'object','properties'=>[]]];
+        foreach (['flat'=>true, 'vr'=>false] as $lane => $expected) {
+            $event = ['runtime_variant'=>$lane,
+                'capabilities'=>array_merge($this->event['capabilities'], ['action.order_verified','action.follow_player'])] + $this->event;
+            $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json'=>$event];
+            $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $event['capabilities'];
+            $this->assertSame($expected, isset(TwoStepActions::catalog($event)['FollowPlayer']), $lane);
+        }
+    }
+
+    public function testOrderPickFindsItsEncodedReplyLine(): void
+    {
+        $file = dirname(__DIR__, 2).'/managers/ActionsManager/CompanionOrders.php';
+        if (!is_file($file)) $this->markTestSkipped('CompanionOrders arrives with the companion-orders change');
+        require_once $file;
+        require_once dirname(__DIR__, 2).'/lib/synth_wait_actions.php';
+        $actor = ['kind'=>'npc','form_id'=>'0x00001234','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'p1','display_name'=>'Codsworth'];
+        $this->assertNull(\Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine('r1', $actor), 'no line encoded yet');
+        \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine(['request_id'=>'r1','line_id'=>'line:one','payload'=>['speaker'=>$actor]]);
+        \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine(['request_id'=>'r1','line_id'=>'line:two','payload'=>['speaker'=>$actor]]);
+        $GLOBALS['F_NAMES']['TakeASeat'] = 'TakeASeat';
+        $GLOBALS['ENABLED_FUNCTIONS'][] = 'TakeASeat';
+        $GLOBALS['FUNCTIONS'][] = ['name'=>'TakeASeat','description'=>'Sit down','parameters'=>['type'=>'object','properties'=>[]]];
+        $event = ['capabilities'=>array_merge($this->event['capabilities'], ['action.order_verified','action.take_a_seat'])] + $this->event;
+        $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json'=>$event];
+        $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $event['capabilities'];
+        $this->event = $event;
+        $this->on();
+        $actions = TwoStepActions::filterActions([], 'Sure.', static fn(array $m): string => '{"action":"TakeASeat"}');
+        $this->assertSame('TakeASeat', json_decode($actions[0], true)['action']);
+        // The pick is emitted after the dialogue lines were encoded, so the order binds to the first reply line.
+        $this->assertSame('line:one', \Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine('r1', $actor));
+        $this->assertNull(\Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine('r1', $actor), 'one order per request');
+    }
+
     public function testCancellationPropagatesInsteadOfBecomingNoAction(): void
     {
         $this->on();

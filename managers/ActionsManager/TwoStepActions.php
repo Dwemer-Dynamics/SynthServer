@@ -91,7 +91,8 @@ final class TwoStepActions
                 || !in_array($code, $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
                 || !in_array(\synthActionCapabilityForCode($code), $event['capabilities'] ?? [], true)
                 || !\synthActionCodeIsNegotiated($code)
-                || !\synth_jev_action_code_allowed($code)) {
+                || !\synth_jev_action_code_allowed($code)
+                || !self::ordersAllow($event, $code)) {
                 continue;
             }
             $properties = [];
@@ -121,6 +122,25 @@ final class TwoStepActions
         }
 
         return $catalog;
+    }
+
+    /**
+     * True unless the code is a companion order the request does not support (flat, owned player turn, negotiated
+     * order capabilities); VR therefore never gets Follow, Stop Following or Sit from the second call.
+     *
+     * @param array<string, mixed> $event The wire event.
+     */
+    private static function ordersAllow(array $event, string $code): bool
+    {
+        $file = __DIR__ . '/CompanionOrders.php';
+        if (!class_exists(CompanionOrders::class, false) && is_file($file)) {
+            require_once $file;
+        }
+        if (!class_exists(CompanionOrders::class, false) || !in_array($code, CompanionOrders::codes(), true)) {
+            return true;
+        }
+
+        return CompanionOrders::supported($event, $code);
     }
 
     /**
@@ -241,8 +261,6 @@ final class TwoStepActions
      */
     public static function complete(array $messages): string
     {
-        require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
-        require_once dirname(__DIR__, 2) . '/drivers/llm/PlayerRewriteDriver.php';
         require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
         $id = intval($GLOBALS['CORE_CONNECTOR_TWO_STEP'] ?? 0);
         $connectors = new \LLMConnector();
@@ -250,6 +268,24 @@ final class TwoStepActions
         if (!is_array($connector)) {
             throw new \DomainException('not_configured');
         }
+
+        return self::completeWith($connector, static fn (array $row): array => $connectors->dialogueProviderConfig($row), $messages);
+    }
+
+    /**
+     * Sends the request to one connector row with a hard total deadline of budgetMs(). The deadline replaces the
+     * row's own timeout and the 30 s floor of the openrouterjson transport for this caller only.
+     *
+     * @param array<string, mixed> $connector The stored connector row.
+     * @param \Closure(array): array $config Returns url, model and api_key for the row.
+     * @param list<array{role: string, content: string}> $messages From messages().
+     * @throws \DomainException When the row is not supported.
+     * @throws \RuntimeException When the provider fails or the deadline passes.
+     */
+    public static function completeWith(array $connector, \Closure $config, array $messages): string
+    {
+        require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
+        require_once dirname(__DIR__, 2) . '/drivers/llm/PlayerRewriteDriver.php';
         $assertActive = static function (): void {
             \synth_protocol_assert_request_active();
         };
@@ -258,9 +294,10 @@ final class TwoStepActions
             static fn (array $row): array => [
                 'max_tokens' => self::MAX_TOKENS,
                 'temperature' => 0.0,
-                'http_timeout' => max(1, intdiv(self::budgetMs(), 1000)),
-            ] + $connectors->dialogueProviderConfig($row),
-            65536
+            ] + $config($row),
+            65536,
+            null,
+            self::budgetMs() / 1000
         );
         if (!$driver->supports($connector)) {
             throw new \DomainException('provider_unsupported');
