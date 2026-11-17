@@ -109,7 +109,7 @@ include(__DIR__.DIRECTORY_SEPARATOR."../tmpl/head.html");
  }
  .full-width-section { grid-column: 1 / -1; }
  @media (max-width: 900px) {
- .content-grid { grid-template-columns: 1fr; }
+ .content-grid { grid-template-columns: minmax(0, 1fr); }
  }
 
  /* Cards and grids styled like worldknowledge sections */
