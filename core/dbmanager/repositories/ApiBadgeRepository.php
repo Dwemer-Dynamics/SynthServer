@@ -39,6 +39,17 @@ class ApiBadgeRepository
         return $this->rows('SELECT * FROM core_api_badge WHERE TRUE', []);
     }
 
+    /** How many rows hold a non-empty key, counted by the database so no key is read; throws when unreadable. */
+    public function countWithKeys(): int
+    {
+        try {
+            return intval($this->connection()->executeQuery(
+                "SELECT COUNT(*) FROM core_api_badge WHERE btrim(COALESCE(api_key, '')) <> ''")->fetchOne());
+        } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
+            throw new \RuntimeException('Unable to count API keys', 0, $error);
+        }
+    }
+
     /** Id and label of every row, never the key. */
     public function labels(string $order): array
     {
