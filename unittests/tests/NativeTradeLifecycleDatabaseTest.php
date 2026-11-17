@@ -4,7 +4,7 @@ require_once __DIR__.'/DatabaseTestCase.php';
 require_once dirname(__DIR__, 2).'/lib/request.php';
 require_once dirname(__DIR__, 2).'/lib/response.php';
 require_once dirname(__DIR__, 2).'/lib/phpunit.class.php';
-require_once dirname(__DIR__, 2).'/lib/synth_trade_offer.php';
+require_once dirname(__DIR__, 2).'/managers/ActionsManager/TradeOffer.php';
 
 // Same single-connection owner lock the real native request uses, so the intent is written by the real code path.
 final class TradeFixtureDatabase extends sql

@@ -1059,8 +1059,8 @@ function synthActionCodeIsNegotiated(string $codeName): bool
     if ($codeName === 'TakeItemFromPlayer'
         && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'Barter') {
-        require_once dirname(__DIR__).'/lib/synth_trade_offer.php';
-        if (!function_exists('synth_protocol_supports_transfer') || !synth_trade_request_allowed($event)) return false;
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        if (!function_exists('synth_protocol_supports_transfer') || !\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return false;
     }
     if ($codeName === 'GiveItemTo'
         && (!function_exists('synth_protocol_supports_transfer') || !synth_protocol_supports_transfer($event))) return false;

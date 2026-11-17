@@ -1451,8 +1451,8 @@ function synth_protocol_persist_action_result($db, array $event, string $session
             if ($capability === 'action.take_item_from_player' && (!synth_protocol_supports_player_items($event)
                 || !synth_protocol_supports_player_items($parent))) throw new DomainException('action_inventory_capability_mismatch');
             if ($capability==='action.barter') {
-                require_once __DIR__.'/synth_trade_offer.php';
-                if (!synth_trade_supported($event) || !synth_trade_supported($parent) || !$transferReceipt)
+                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+                if (!\Synth\Managers\ActionsManager\TradeOffer::supported($event) || !\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !$transferReceipt)
                     throw new DomainException('action_inventory_capability_mismatch');
                 // A sale is never accepted after its offer expired; the client discards stale offers on its own.
                 if ($result['status']==='succeeded' && in_array($intent['expired'] ?? false,[true,'t','true',1,'1'],true))
@@ -1928,8 +1928,8 @@ function synth_protocol_record_action_intent($db, array $action): void
             }
             if ($giftMenu) synth_gift_menu_validate($event,$action,$context);
             if ($trade) {
-                require_once __DIR__.'/synth_trade_offer.php';
-                synth_trade_validate($event,$action,$context);
+                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+                \Synth\Managers\ActionsManager\TradeOffer::validate($event,$action,$context);
             }
             if ($playerItem) {
                 require_once __DIR__.'/synth_player_gifts.php';
@@ -2265,7 +2265,7 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
             ...(($gift=synth_player_gift_for_event($db,$wireEvent))===null ? [] : ['verified_gift'=>$gift])], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
     if ($boundContext !== null && $row['action_name'] === 'Barter' && ($row['capability'] ?? '') === 'action.barter') {
-        require_once __DIR__.'/synth_trade_offer.php';
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
         // The seller is told the verified outcome, never the client's free text.
         $tradeArguments = is_array($row['arguments'] ?? null) ? $row['arguments']
             : json_decode(strval($row['arguments'] ?? '{}'), true, flags: JSON_THROW_ON_ERROR);
@@ -2275,8 +2275,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         $before = synth_protocol_original_context($db,$wireEvent);
         $verification = ($result['status'] ?? '')!=='succeeded' || ($result['schema'] ?? '')!=='synth.action.transfer-result.v2' ? ['verified'=>false,'reason'=>'not_succeeded']
             : ($before===null ? ['verified'=>false,'reason'=>'before_inventory_unavailable']
-                : synth_trade_verify_receipt($tradeArguments,$before,$seller,$buyer,$result));
-        $result['detail'] = json_encode(synth_trade_outcome_detail($tradeArguments,$result,$verification),
+                : \Synth\Managers\ActionsManager\TradeOffer::verifyReceipt($tradeArguments,$before,$seller,$buyer,$result));
+        $result['detail'] = json_encode(\Synth\Managers\ActionsManager\TradeOffer::outcomeDetail($tradeArguments,$result,$verification),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (($result['status'] ?? '')==='succeeded' && !$verification['verified']) $result['status']='failed';
     }

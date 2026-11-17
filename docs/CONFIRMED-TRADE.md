@@ -6,7 +6,7 @@ SYNTH repository (`docs/CONFIRMED-TRADE.md`); the wire contract is in
 [protocol/v2/README.md](../protocol/v2/README.md) ("Confirmed NPC trade"). Flat only. Neither half has
 been exercised in the game; see [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#confirmed-npc-trade).
 
-Code: `lib/synth_trade_offer.php` (validation, receipt verification, the text the NPC is given) and
+Code: `managers/ActionsManager/TradeOffer.php` (validation, receipt verification, the text the NPC is given) and
 small hooks in `lib/response.php`, `lib/synth_protocol_state.php`, `lib/synth_action_inventory.php`,
 `lib/synth_ingress.php`, `functions/functions.php`, `functions/json_response.php`,
 `lib/synth_command_payload.php` and `lib/core/action_catalog.php`.
@@ -14,7 +14,7 @@ small hooks in `lib/response.php`, `lib/synth_protocol_state.php`, `lib/synth_ac
 ## Negotiation
 
 An init that lists `action.barter` and `action.trade_confirmation` over the player-payment contract
-gets `trade_confirmation: true` in its acknowledgement (`synth_trade_supported`). The ingress rejects
+gets `trade_confirmation: true` in its acknowledgement (`TradeOffer::supported`). The ingress rejects
 `action.trade_confirmation` on a v1, VR or incomplete init. The `Barter` tool is offered to the model
 only for a typed or spoken turn of such a session (never rechat, narrator or action-result turns).
 
@@ -22,7 +22,7 @@ only for a typed or spoken turn of such a session (never rechat, narrator or act
 
 The model's existing `Barter` action carries `target` (the player), `item` (exact name from its own
 inventory) and `amount` (the price in caps); one unit is sold. No model-schema field was added.
-`synth_trade_arguments` accepts it only when, in the admitted turn snapshot:
+`TradeOffer::arguments` accepts it only when, in the admitted turn snapshot:
 
 - the NPC's inventory observation is `complete` and holds exactly one unequipped stack of that name
   (a partial list cannot prove a name unique; caps are never sold);
@@ -32,7 +32,7 @@ inventory) and `amount` (the price in caps); one unit is sold. No model-schema f
 
 Anything else produces no action and no intent: the NPC's spoken line still plays, but no box is shown.
 An accepted offer is an ordinary `barter` action line (`barter-action.schema.json`) with a 60 second
-deadline, recorded as a normal action intent: `synth_trade_validate` rechecks everything against the
+deadline, recorded as a normal action intent: `TradeOffer::validate` rechecks everything against the
 snapshot inside the owner transaction before the row is written.
 
 ## The answer and the receipt

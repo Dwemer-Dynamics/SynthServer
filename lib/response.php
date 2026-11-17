@@ -281,8 +281,8 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         && (!synth_protocol_supports_player_caps($event) || synth_protocol_owns_rechat($event))) return null;
     if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event,$db)) return null;
     if ($capability==='action.barter') {
-        require_once __DIR__.'/synth_trade_offer.php';
-        if (!synth_trade_request_allowed($event)) return null;
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        if (!\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return null;
     }
     if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event,$db)) return null;
     $actor = synth_protocol_response_speaker(strval($line['speaker'] ?? ''));
@@ -396,7 +396,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         $captured=$captured ?? synth_protocol_current_context($db,$event);
         if (!is_array($captured) || !is_array($captured['player'] ?? null)) return null;
         $target=$captured['player'];
-        $arguments=synth_trade_arguments($captured,$actor,$target,$line);
+        $arguments=\Synth\Managers\ActionsManager\TradeOffer::arguments($captured,$actor,$target,$line);
         if ($arguments===null) return null;
     }
     $context = synth_protocol_response_context();
@@ -411,7 +411,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         'capability' => $capability,
         'actor' => $actor,
         'arguments' => (object)$arguments,
-        'deadline_ms' => $nativeTarget && $capability==='action.open_inventory' ? 120000 : ($nativeTarget && $capability==='action.attack' ? 5000 : ($capability==='action.barter' ? SYNTH_TRADE_DEADLINE_MS : 30000)),
+        'deadline_ms' => $nativeTarget && $capability==='action.open_inventory' ? 120000 : ($nativeTarget && $capability==='action.attack' ? 5000 : ($capability==='action.barter' ? \Synth\Managers\ActionsManager\TradeOffer::DEADLINE_MS : 30000)),
         'server_code' => $serverCode,
     ];
     if ($target !== null) {
@@ -519,8 +519,8 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     // Confirmed NPC sales: granted only to a flat init that negotiated the whole contract.
-    require_once __DIR__.'/synth_trade_offer.php';
-    if (($event['type'] ?? '')==='init' && synth_trade_supported($event)) $statusPayload['trade_confirmation'] = true;
+    require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+    if (($event['type'] ?? '')==='init' && \Synth\Managers\ActionsManager\TradeOffer::supported($event)) $statusPayload['trade_confirmation'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;
