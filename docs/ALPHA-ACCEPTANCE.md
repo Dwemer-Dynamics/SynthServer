@@ -796,6 +796,14 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       - Bare index GET and HEAD: `302` to Home. Configuration, logs, schema and the session store are unchanged.
       - Home GET and HEAD, and profile-loader pages: no log rotation (oversized sentinel logs kept), no
         worker start, and a deleted optional narrator row stays absent.
+      - The remaining bootstrapping pages (Config Hub, Control Panel, profiles, API badge, LLM/TTS/STT/ITT
+        connectors, Narrator, NPC master and report, Player, Global Settings, AI Response, Request and
+        Relationship logs, Response Queue, Server Plugins, Function Editor, Diaries, PipVision, World
+        Knowledge audit; GET and HEAD): with three oversized known logs, the four optional narrator rows
+        deleted and a malformed NPC JSON row present, a `pg_dump` digest of `synth` and `synth_meta`, the
+        table write counters and the log inodes are unchanged, except the first view of the TTS and STT
+        connector pages, which writes one default connector row. A POST save still seeds the narrator rows
+        and rotates the logs, and the NPC repair still persists on POST and in the CLI.
       - Without PHP's PostgreSQL extension (CLI `php -n`), Home renders the setup guidance.
       - Events/Memories, the index tables, the diary book, the adventure log and the event API: these render
         without the override.
@@ -818,8 +826,8 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       included helpers. The private narrator page keeps its own token.
 - [ ] GET writes were converted only on the pages named in the handoff. Other `ui/` scripts were not audited
       for GET writes. Existing POST forms without a token rely on the origin check.
-- [ ] Other bootstrapping pages (for example AI Response, Request Logs and the connector pages) keep the default
-      log rotation on GET.
+- [ ] Not covered: the `ui/tests/*` pages, and an append to an already oversized `synth.log` still rotates it.
+      The first view of the TTS and STT connector pages still writes a default connector row.
 - [ ] Fresh empty database: the index now lands on Home rather than Quickstart. Not checked against an
       uninitialised database.
 - [ ] DNS rebinding: `ui/` refuses a Host that is not loopback, an IP literal, this machine's name or listed in
