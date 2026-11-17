@@ -9,7 +9,7 @@ require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
-require_once __DIR__.'/synth_location_catalog.php';
+require_once dirname(__DIR__).'/managers/LocationManager/LocationCatalog.php';
 
 // An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
 function synth_protocol_response_context(?array $wire = null): array
@@ -460,7 +460,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $socialTasks=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && synth_social_supported($event) && in_array('context.location_identity',$event['capabilities'] ?? [],true);
     $locationAncestry=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_ancestry_supported($event);
-    $locationCatalog=$status==='init_accepted' && ($event['type'] ?? '')==='init' && synth_location_catalog_supported($event);
+    $locationCatalog=$status==='init_accepted' && ($event['type'] ?? '')==='init' && \Synth\Managers\LocationManager\LocationCatalog::isSupported($event);
     // First-observed vanilla dialogue is flat-only; VR and older clients never receive the acknowledgement.
     $observedDialogue=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
         && ($event['runtime_variant'] ?? '')==='flat' && in_array('context.observed_dialogue',$event['capabilities'] ?? [],true);
