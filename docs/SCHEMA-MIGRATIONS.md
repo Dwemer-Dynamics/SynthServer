@@ -260,7 +260,7 @@ change to an installed database is part of the steps before it.
    assumes the observable ChimServer pieces: a format-numbered manifest with per-migration hashes, a read-only
    `schema-check` and per-domain DBAL stores.
 2. Which PostgreSQL major the manifest should target. The baseline structure was generated on PostgreSQL 15; SYNTH
-   is validated on 17 (CI and the alpha checks). The drift check reports the server major and does not refuse
+   is validated on 17 by local disposable-cluster checks only (no hosted CI pass exists). The drift check reports the server major and does not refuse
    another one. ChimServer keeps one manifest per reviewed major; SYNTH has one.
 3. Acceptance of D2 (`synth_meta.<domain>_<noun>`). Until it is accepted, no new table should be created.
 
