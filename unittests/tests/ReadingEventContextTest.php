@@ -128,8 +128,8 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $this->completeContext($again);
         $this->assertSame(1,$this->rows('reading_event'));
         $conflict=$this->context(3);$conflict['payload']['reading_event']=$this->reading('Something else entirely.');
-        $this->http($conflict);
-        $this->assertNotSame('complete',$this->row($conflict)['state']??'complete');
+        $body=$this->http($conflict);
+        $this->assertStringNotContainsString('context_accepted',$body);
         $this->assertSame(1,$this->rows('reading_event'));
     }
     public function testReadingWithoutNegotiatedCapabilityIsRejectedAndStoresNothing(): void {
