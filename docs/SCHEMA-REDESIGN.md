@@ -1,7 +1,7 @@
 # Schema redesign (from scratch, on the CHIM Evolution persistence model)
 
-**Status: Phase 1, design only. Nothing here is implemented.** No migration, table, entity, DAO or caller changes
-with this document. Once approved it supersedes conventions D1, D2, D4 and D5 of
+**Status: design approved at `9bcdbdf`; Phase 2 in progress, step 0 (scaffolding) done.** Steps 1 and later are not started. This document stays the design of record; the answers to the owner questions are recorded in [section 13](#13-open-questions).
+It supersedes conventions D1, D2, D4 and D5 of
 [SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#schema-conventions); D6 is replaced by [snapshots](#9-snapshots).
 
 Decision behind it, quoted from the owner: "we can reorganize and rework tables from scratch it does not
@@ -400,7 +400,7 @@ Scratch under `D:\build\synth-schema-redesign`.
 
 ## 13. Open questions
 
-For Stu (CHIM 4 / chevo owner):
+For Stu (CHIM 4 / chevo owner). **Questions 1 to 8 are pending Stu.** Steps 2, 4 and 5 of the rollout wait for his answers to 2, 3, 4 and 8.
 
 1. **Is copying chevo's `core/dbmanager` layout and `Database` class right, or will they become a shared package?** (risk 7)
 2. **`core_context_event`:** may SYNTH extend it with the few columns it needs (`delivery_state`, `synth_*` correlation) or should they live in `context_metadata`?
@@ -411,15 +411,15 @@ For Stu (CHIM 4 / chevo owner):
 7. **Prompts:** does chevo store editable prompt text in a table anywhere? If not, is a `core_prompt` table acceptable?
 8. **Workers and relationships:** is chevo's derived-from-data `core_worker_unit` and narrower relationship model intended to replace SYNTH's `core_worker_job` leases and evaluation pipeline?
 
-For the owner:
+Answers from the owner (recorded for the approved design at `9bcdbdf`):
 
-9. **`ext/relationship_system` and its two queues:** still maintained? If not they join the drop list.
-10. **Snapshots:** keep a row-scoped snapshot design, or adopt chevo's save-point model and retire snapshots?
-11. **Retire the legacy `memory`, `memory_summary`, `diarylog` path now** (about 50 caller files)? This is a behaviour change, not a rename.
-12. **Approval to delete files** in step 8 (`debug/db_updates.php`, `lib/core/database_schema/*.sql`, `data/database_default.sql`, `SharedSessionDriver`). AGENTS.md forbids it without approval.
-13. **Confirm dropping** `moods_issued` and `audit_memory`.
-14. **Baseline id `Version20261117000000`** acceptable?
-15. **Edit API timing:** is a later separate PR for `/api/v1/edit` and UI conversion acceptable, with each step moving UI SQL into system classes meanwhile?
-16. **#62 facade contract (for the #62 session):** confirm the local custom-key table name and `integer` id, the shared `uuid` id, the opaque `store:id` reference, the per-key store marker, the `ApiBadge`/`ApiBadgeDAO` method names, and who runs `ConnectorReferences`, so step 1 can bind to a stable head.
+9. **`ext/relationship_system` and its queues: kept.** Nothing is dropped there; `core_relationship_eval_queue` and `core_relationship_init_queue` stay.
+10. **Snapshots: adopt chevo's save-point model and retire SYNTH's row snapshots.** The model is designed in step 8; snapshots stay paused until then, and `core_snapshot` (section 9) is no longer planned.
+11. **Legacy `memory`, `memory_summary`, `diarylog` path: retired,** as its own clearly separated commit within step 6, because it is a behaviour change.
+12. **Approved to delete in step 8:** `debug/db_updates.php`, `lib/core/database_schema/*.sql`, `data/database_default.sql` and `SharedSessionDriver`.
+13. **Approved to drop** `moods_issued` and `audit_memory`.
+14. **Baseline id `Version20261117000000` is approved** (and used by step 0).
+15. **The edit API and UI conversion go in a later, separate PR;** each step still moves its UI SQL into system-entity methods.
+16. **#62 facade contract:** the command centre settles it with the #62 session; step 1 waits for it.
 
 Out of scope and unchanged by this design: the installed database, deployments, services, the game, legacy snapshots (stay paused), PR #41, ChimServer, HerikaServer, Stobe, Dialectic and chevo.

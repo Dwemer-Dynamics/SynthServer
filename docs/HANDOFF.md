@@ -15,7 +15,7 @@ Doctrine Migrations now owns versioned schema changes through `core/dbmanager/Sc
 its own transaction-capable connection; the shared-session read adapter is unchanged. The bootstrap and
 the `debug/db_updates.php` compatibility entry both go through it under one session advisory lock. It
 refuses unknown migration records and open legacy transactions first. It runs the frozen chain only for a
-pre-ledger install below the frozen version floors, then records baseline `Version20261115000000` in the
+pre-ledger install below the frozen version floors, then records baseline `Version20261117000000` in the
 same transaction that verifies it. Verification covers a frozen copy of the baseline's gate contract
 (47 version floors and mandatory seeds, never the live runtime gate) and a generated structure
 manifest of the baseline's tables, columns, constraints and indexes. View and function bodies are not

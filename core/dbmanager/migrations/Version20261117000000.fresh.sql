@@ -1,5 +1,5 @@
 -- Generated data: the complete SYNTH application schema and stock seeds of the frozen legacy baseline, applied by
--- Version20261115000000 to an empty database in the migration owner's transaction. Do not edit; the migration checks
+-- Version20261117000000 to an empty database in the migration owner's transaction. Do not edit; the migration checks
 -- this file's SHA-256. Source: the legacy fresh install of 0f4fadccb25704a697662812f52544e6c2953141
 -- (data/database_default.sql, then the frozen debug/db_updates.php chain with conf/conf.sample.php) on disposable
 -- PostgreSQL 17, exported with pg_dump --schema=synth --schema=synth_meta --schema=plugins --no-owner --no-privileges

@@ -25,6 +25,8 @@ final class NamedGiftUpgradeTest extends DatabaseTestCase
         $before = $db->fetchAll($otherActions);
         self::assertNotEmpty($before);
         self::assertTrue(synthRuntimeNeedsDbUpdates());
+        // The fixture is a fresh baseline install with a ledger record; only a pre-ledger install gets the legacy upgrade.
+        self::assertNotFalse($db->execQuery('DELETE FROM synth_meta.doctrine_migration_versions'));
 
         require $root.'/debug/db_updates.php';
 

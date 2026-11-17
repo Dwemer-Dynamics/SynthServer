@@ -9,7 +9,7 @@ require_once __DIR__.'/DatabaseTestCase.php';
 // legacy schema, and concurrent, direct, transactional or killed runs stay consistent.
 final class SchemaMigrationOwnerTest extends DatabaseTestCase
 {
-    private const BASELINE = 'Synth\\Migrations\\Version20261115000000';
+    private const BASELINE = 'Synth\\Migrations\\Version20261117000000';
     private const LATER = 'Synth\\Migrations\\Version29990101000001';
     private const LOCK = "SELECT pg_advisory_lock(hashtextextended('synth-schema-migrations', 0))";
 
@@ -702,12 +702,12 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testOnlyADatabaseWithNothingInItIsInstalledFresh(): void
     {
         require_once dirname(__DIR__, 2).'/vendor/autoload.php';
-        require_once dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261115000000.php';
+        require_once dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261117000000.php';
         $connect = static fn (): \Doctrine\DBAL\Connection => \Doctrine\DBAL\DriverManager::getConnection(['driver' => 'pgsql',
             'host' => 'localhost', 'port' => 5432, 'dbname' => 'testdb', 'user' => 'dwemer', 'password' => 'dwemer']);
         $connection = $connect();
         try {
-            self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), 'A legacy install is not empty.');
+            self::assertFalse(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection), 'A legacy install is not empty.');
         } finally {
             $connection->close();
         }
@@ -715,14 +715,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->recreateEmptyDatabase();
         $connection = $connect();
         try {
-            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            self::assertTrue(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection));
             $connection->beginTransaction();
             foreach (['CREATE EXTENSION vector', 'CREATE EXTENSION pg_trgm', 'CREATE SCHEMA synth_meta',
                          'CREATE TABLE synth_meta.doctrine_migration_versions (version varchar(191) PRIMARY KEY, executed_at timestamp(0), execution_time integer)']
                      as $sql) {
                 $connection->executeStatement($sql);
             }
-            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            self::assertTrue(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection));
             foreach ([
                 'table' => 'CREATE TABLE public.stray (id integer)',
                 'view' => 'CREATE VIEW public.stray AS SELECT 1 AS id',
@@ -736,7 +736,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             ] as $case => $sql) {
                 $connection->executeStatement('SAVEPOINT stray');
                 $connection->executeStatement($sql);
-                self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), $case);
+                self::assertFalse(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection), $case);
                 $connection->executeStatement('ROLLBACK TO SAVEPOINT stray');
             }
             $connection->rollBack();
@@ -745,7 +745,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         }
         $this->assertDatabaseIsEmpty();
 
-        $statements = \Synth\Migrations\Version20261115000000::freshInstallStatements();
+        $statements = \Synth\Migrations\Version20261117000000::freshInstallStatements();
         self::assertCount(783, $statements);
         foreach ($statements as $statement) {
             self::assertStringEndsWith(';', rtrim($statement));

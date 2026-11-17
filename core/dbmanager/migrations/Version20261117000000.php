@@ -12,14 +12,14 @@ use Doctrine\Migrations\Exception\AbortMigration;
 
 // The frozen legacy bootstrap baseline: the schema data/database_default.sql plus debug/db_updates.php produce at
 // 42c7e0e. On an existing install it only recognizes that baseline and changes no schema and no row. On an empty
-// database it installs it: up() adds the statements of Version20261115000000.fresh.sql (generated data, see
+// database it installs it: up() adds the statements of Version20261117000000.fresh.sql (generated data, see
 // docs/SCHEMA-MIGRATIONS.md), so the complete schema and stock seeds are created in the owner's all-or-nothing
 // transaction without the legacy chain or a separate data/database_default.sql import. Either way postUp() verifies
 // inside that transaction, after the statements and before Doctrine records this version, so a failed, partial or
 // drifted install aborts and records nothing. Later schema changes are new migrations here, never new
 // debug/db_updates.php blocks.
 //
-// The structure check compares against Version20261115000000.structure.txt, generated from a disposable PostgreSQL 15
+// The structure check compares against Version20261117000000.structure.txt, generated from a disposable PostgreSQL 15
 // inventory of that commit: every baseline table and view by name, every column (type, nullability, default,
 // length), vector dimensions, and every primary key, foreign key, check and unique constraint and index by name and
 // definition. Objects not in the baseline are allowed. View and function bodies are not compared; the frozen seed check
@@ -27,7 +27,7 @@ use Doctrine\Migrations\Exception\AbortMigration;
 //
 // Migrations in this directory use addSql() only and never read the Schema argument: building it would make DBAL
 // introspect the whole database, and DBAL has no mapping for pgvector or tsvector columns.
-final class Version20261115000000 extends AbstractMigration
+final class Version20261117000000 extends AbstractMigration
 {
     // The frozen contract, copied from the readiness gate and settings list at 42c7e0e and never read from them: the
     // runtime gate states what the current code needs and will grow with later migrations, so the baseline must not
@@ -57,8 +57,8 @@ final class Version20261115000000 extends AbstractMigration
     ];
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
-    private const FRESH_INSTALL_FILE = 'Version20261115000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7';
+    private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
+    private const FRESH_INSTALL_SHA256 = '857186729db328d4225dac24a9dd044f6af7b458f6856d635d882dd28813cd5e';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -255,7 +255,7 @@ final class Version20261115000000 extends AbstractMigration
     /** @return list<string> baseline manifest entries absent from the database, sorted */
     private static function structureDifferences(Connection $connection): array
     {
-        $manifest = file(__DIR__.'/Version20261115000000.structure.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $manifest = file(__DIR__.'/Version20261117000000.structure.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($manifest === false) return ['the baseline structure manifest is unreadable'];
         // A CRLF checkout must not change the entries.
         $manifest = array_map(static fn (string $line): string => rtrim($line, "

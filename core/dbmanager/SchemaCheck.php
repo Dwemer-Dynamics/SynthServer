@@ -29,7 +29,7 @@ final class SchemaCheck
 
     /** State exactly what a match proves. Printed with every report. */
     public const LIMITS = [
-        'Compares only the structure manifest entries: tables and views by name and type, columns, vector column types, primary key, foreign key, check and unique constraints, and indexes, in the synth and synth_meta schemas. Objects the manifest does not list are allowed and only counted.',
+        'Compares only the structure manifest entries: tables and views by name and type, columns, vector column types, primary key, foreign key, check and unique constraints, and indexes, in the synth and synth_meta schemas and in public relations named core_*. Objects the manifest does not list are allowed and only counted.',
         'Does not compare view or function bodies, triggers, sequence state, ownership, privileges, extensions, database encoding or locale, or any row.',
         'The migration ledger is compared by version name only: a known migration that is not recorded, or a record this tree does not contain, is drift.',
         'Entries are rendered by the server under search_path synth, synth_meta, public and compared as exact strings, so equivalent SQL that PostgreSQL deparses differently may report drift. The baseline structure was generated on PostgreSQL 15 and the check is validated on PostgreSQL 17; a different major is reported, never refused.',
@@ -206,9 +206,10 @@ final class SchemaCheck
     }
 
     /**
-     * The same inventory the baseline migration verifies (Version20261115000000::structureDifferences), rendered the
-     * same way, so a clean fresh install matches. It is repeated here because that method is private and the baseline
-     * file is frozen.
+     * The same inventory the baseline migration verifies (Version20261117000000::structureDifferences), rendered the
+     * same way, so a clean fresh install matches, plus the public relations named core_* that the redesign's entity
+     * tables use (docs/SCHEMA-REDESIGN.md, section 8). It is repeated here because that method is private and the
+     * baseline file is frozen.
      *
      * @return list<string>
      */
@@ -216,23 +217,23 @@ final class SchemaCheck
     {
         return array_map('strval', $connection->fetchFirstColumn(<<<'SQL'
             SELECT concat_ws('|', 'table', table_schema, table_name, table_type)
-              FROM information_schema.tables WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.tables WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'column', table_schema, table_name, column_name, data_type, udt_name, is_nullable,
                              coalesce(column_default, ''), coalesce(character_maximum_length::text, ''))
-              FROM information_schema.columns WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.columns WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'constraint', n.nspname, t.relname, c.conname, c.contype,
                              CASE WHEN c.convalidated THEN 't' ELSE 'f' END, pg_get_constraintdef(c.oid))
               FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta')
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND t.relname LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'index', schemaname, tablename, indexname, indexdef)
-              FROM pg_indexes WHERE schemaname IN ('synth', 'synth_meta')
+              FROM pg_indexes WHERE (schemaname IN ('synth', 'synth_meta') OR (schemaname = 'public' AND tablename LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'typmod', n.nspname, c.relname, a.attname, format_type(a.atttypid, a.atttypmod))
               FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta') AND a.attnum > 0 AND NOT a.attisdropped
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND c.relname LIKE 'core\_%')) AND a.attnum > 0 AND NOT a.attisdropped
                AND a.atttypid = 'public.vector'::regtype
             SQL));
     }

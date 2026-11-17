@@ -1,7 +1,13 @@
 # Schema migration owner
 
 > A from-scratch redesign of the whole schema (one new baseline on the CHIM Evolution `core_*` entity, DAO model) is proposed in
-> [SCHEMA-REDESIGN.md](SCHEMA-REDESIGN.md). It is design only and changes nothing described below until approved.
+> [SCHEMA-REDESIGN.md](SCHEMA-REDESIGN.md). The design is approved and implemented step by step. Step 0 (scaffolding) has
+> landed: the baseline is renamed `Version20261117000000` with its DDL and companion file contents unchanged (the generated
+> comment line names the new id), so a database that recorded `Version20261115000000` is refused as an unknown record and is
+> recreated, not migrated (no upgrade path, by decision); `core/dbmanager/Database.php`, `Types/PreciseDateTimeType.php`,
+> `core/entities/{base,system}` and `core/dbmanager/dao` exist with no entity yet; the drift check also inspects `public`
+> relations named `core_*`; and the shared test fixture installs the baseline through `tools/bootstrap-database.php` instead of
+> importing the default SQL and running the legacy chain. Text below that names `Version20261115000000` means this baseline.
 
 Doctrine Migrations owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`.
 `debug/db_updates.php` is frozen as the legacy bootstrap baseline. The first migration recognizes that
@@ -21,9 +27,9 @@ transactions or ORM use.
   copy. A snapshot therefore does not carry its own migration version: restoring an older schema would
   keep a newer ledger, and Doctrine would skip migrations that copy never received. This baseline-only
   change alters no application schema, so no such gap exists yet (see Limits).
-- `core/dbmanager/migrations/Version20261115000000.php`: the frozen baseline, its fresh install and its
-  verification. `Version20261115000000.structure.txt` is generated data: the structure manifest of the
-  baseline. `Version20261115000000.fresh.sql` is generated data too: the statements that install the baseline
+- `core/dbmanager/migrations/Version20261117000000.php`: the frozen baseline, its fresh install and its
+  verification. `Version20261117000000.structure.txt` is generated data: the structure manifest of the
+  baseline. `Version20261117000000.fresh.sql` is generated data too: the statements that install the baseline
   on an empty database.
 - `lib/runtime_bootstrap.php` (`synthRuntimeApplySchemaMigrations`): the entry used by
   `tools/bootstrap-database.php` and by `debug/db_updates.php`. `synthRuntimeSchemaMigrationStatus` is the
@@ -85,12 +91,12 @@ An empty database is installed by the baseline migration, not by the legacy chai
 `data/database_default.sql`. Normal bootstrap (`tools/bootstrap-database.php`, every `debug/db_updates.php`
 caller) and `tools/create-synth-db-wsl.ps1` take this path; the provisioner no longer imports any SQL itself.
 
-- Empty means (`Version20261115000000::isEmptyDatabase()`): no schema besides `public` and `synth_meta`, and in
+- Empty means (`Version20261117000000::isEmptyDatabase()`): no schema besides `public` and `synth_meta`, and in
   those two no relation, function or standalone type that is not an extension member, apart from the Doctrine
   version table. Extensions may exist. Any other database, including one holding only an unrelated table in
   `public`, keeps the legacy path above. Nothing is reset or dropped automatically.
 - `up()` re-checks emptiness inside the transaction and adds the statements of
-  `Version20261115000000.fresh.sql` one by one. DBAL's `pgsql` driver reads only the first result of a
+  `Version20261117000000.fresh.sql` one by one. DBAL's `pgsql` driver reads only the first result of a
   multi-statement query, so a batch would hide a later failure. The file must match the SHA-256 recorded in
   the class (after CRLF to LF; the file holds no CR) or the migration aborts before any statement.
 - The statements set `SET LOCAL` session values, create `vector` in `public`, the `synth`, `synth_meta` and
@@ -102,7 +108,7 @@ caller) and `tools/create-synth-db-wsl.ps1` take this path; the provisioner no l
 
 ### Provenance and regeneration
 
-`Version20261115000000.fresh.sql` was exported from the legacy fresh install of unstable `0f4fadc`
+`Version20261117000000.fresh.sql` was exported from the legacy fresh install of unstable `0f4fadc`
 (`data/database_default.sql`, then the frozen chain via `applyLegacyChainWithoutLedger()` in a fresh child
 process with `conf/conf.sample.php`) on a disposable PostgreSQL 17.11 with pgvector 0.8.7, in a private
 namespace. The export was `pg_dump --schema=synth --schema=synth_meta --schema=plugins --no-owner
@@ -314,9 +320,10 @@ not replace the baseline's own verification.
   values are set in the UI after installing. Existing databases are unaffected.
 - A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
   a SYNTH install; such a database is usually refused by verification and is never reset.
-- `ui/cmd/install-db.php` (an explicit reset command, command line only; web requests are refused) and the shared `DatabaseTestCase` fixture still import
-  `data/database_default.sql` and run the chain, which stay as legacy-upgrade sources. The fixture therefore
-  does not exercise the fresh path; `SchemaMigrationOwnerTest` does.
+- `ui/cmd/install-db.php` (an explicit reset command, command line only; web requests are refused) still imports
+  `data/database_default.sql` and runs the chain, which stay as legacy-upgrade sources until rollout step 8 of the redesign.
+  The shared `DatabaseTestCase` fixture no longer does: it installs the baseline through `tools/bootstrap-database.php`
+  (the fresh path); `SchemaMigrationOwnerTest` still builds the legacy install as its comparison reference.
 - The fresh path was proven on disposable PostgreSQL 17.11 only, not on an installed database, through the WSL
   provisioner, or in hosted CI.
 - Every entry needs the root `vendor/`. `tools/create-synth-db-wsl.ps1` fails before touching the database

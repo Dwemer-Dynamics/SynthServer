@@ -100,30 +100,33 @@ abstract class DatabaseTestCase extends TestCase
         $db->close();
     }
 
+    // The shared fixture is the install a new deployment gets: an empty database installed by the baseline migration
+    // through the real tools/bootstrap-database.php, run in a child process so no per-process cache hides a step.
     public static function createTestDB(): void
     {
-        self::recreateTestDatabaseFromDefaultSql();
+        self::recreateEmptyTestDatabase();
         self::resetSharedTestConnection();
-        $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
+        self::bootstrapTestDatabase();
         self::loadTestRuntime();
-        $db = new sql();
-        $GLOBALS["db"] = $db;
-        // A true pre-ledger legacy install: the frozen chain under the migration lock, with no migration recorded.
-        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."db_connection_settings.php");
-        require_once($path.DIRECTORY_SEPARATOR."core".DIRECTORY_SEPARATOR."dbmanager".DIRECTORY_SEPARATOR."SchemaMigrations.php");
-        $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(
-            \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('testdb')));
-        try {
-            $owner->applyLegacyChainWithoutLedger();
-        } finally {
-            $owner->close();
-        }
-
-        $db->close();
-        unset($db);
-        unset($GLOBALS["db"]);
-
         self::snapshotTestDatabaseAsFixture();
+    }
+
+    // Runs tools/bootstrap-database.php against testdb (and nothing else) and fails the test on any error.
+    protected static function bootstrapTestDatabase(): void
+    {
+        $process = proc_open([PHP_BINARY, dirname(__DIR__, 2).'/tools/bootstrap-database.php'],
+            [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, null,
+            array_merge(getenv(), ['SYNTH_DB_HOST' => 'localhost', 'SYNTH_DB_PORT' => '5432', 'SYNTH_DB_NAME' => self::$testDatabaseName,
+                'SYNTH_DB_USER' => 'dwemer', 'SYNTH_DB_PASSWORD' => 'dwemer']));
+        if (!is_resource($process)) {
+            self::fail('Failed to start the test database bootstrap.');
+        }
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || str_contains($output, '[error]')) {
+            self::fail("The test database bootstrap failed (exit {$exit}): {$output}");
+        }
     }
 
     // The test sql adapter and the sample configuration the tests run with.
