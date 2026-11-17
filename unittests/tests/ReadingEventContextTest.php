@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 require_once __DIR__.'/DatabaseTestCase.php';
 require_once dirname(__DIR__,2).'/lib/request.php';
+require_once dirname(__DIR__,2).'/lib/synth_protocol_state.php';
 
 final class ReadingEventContextTest extends DatabaseTestCase
 {
