@@ -813,7 +813,9 @@ See [HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate).
       log rotation on GET.
 - [ ] Fresh empty database: the index now lands on Home rather than Quickstart. Not checked against an
       uninitialised database.
-- [ ] DNS rebinding: Host is not allowlisted, so a rebound name passes the origin match.
+- [ ] DNS rebinding: `ui/` refuses a Host that is not loopback, an IP literal, this machine's name or listed in
+      `SYNTH_ALLOWED_HOSTS` (HANDOFF, Dashboard request safety). Disposable HTTP evidence only; native endpoints
+      are not covered and no real LAN or rebinding browser check has run.
 - [ ] Deploy, installed Apache/PHP-FPM, and in-game plugin package flows: none claimed.
 
 ## Write-only credential forms

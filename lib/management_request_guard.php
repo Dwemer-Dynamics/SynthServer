@@ -2,7 +2,8 @@
 
 // Browser-origin guard for the management surface: web requests to scripts under ui/, plus web requests to the
 // CLI-only maintenance entries under debug/ and tools/. It is CSRF and cross-site read defence, not authentication:
-// the dashboard's only trust is the Apache loopback rule. Requiring this file enforces the policy once, before the
+// the dashboard's only trust is the Apache loopback rule plus a Host-header allowlist that blocks DNS rebinding.
+// Requiring this file enforces the policy once, before the
 // including page touches configuration, the database or the filesystem. CLI runs and native API scripts outside
 // these directories are never affected.
 
@@ -21,6 +22,98 @@ if (!function_exists('synthManagementOriginMatches')) {
             && preg_match("~^$authority$~iD", $host, $h) === 1
             && strtolower($o[1]) === $scheme && strtolower($o[2]) === strtolower($h[1])
             && ($originPort = $port($o, 3)) === $port($h, 2) && $originPort >= 1 && $originPort <= 65535;
+    }
+}
+
+if (!function_exists('synthManagementHostRefusalMessage')) {
+    // Generic answer for a Host the dashboard does not serve. It names no configured value.
+    function synthManagementHostRefusalMessage(): string
+    {
+        return 'This host name is not allowed for the SYNTH dashboard. Open it by 127.0.0.1, localhost, '
+            . 'this machine\'s IP address, or a name listed in SYNTH_ALLOWED_HOSTS (see docs/HANDOFF.md).';
+    }
+
+    // Splits a Host or Origin authority into a lowercase host (IPv6 keeps its brackets, trailing dot removed) and
+    // is null for anything that is not a plain hostname, IPv4 literal or bracketed IPv6 literal with an optional port.
+    function synthManagementHostName(mixed $authority): ?string
+    {
+        if (!is_string($authority) || strlen($authority) > 255
+            || preg_match('~^(\[[0-9a-f:.]+\]|[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.?)(?::([0-9]{1,5}))?$~iD', $authority, $m) !== 1) {
+            return null;
+        }
+        $host = strtolower(rtrim($m[1], '.'));
+        if ($host === '' || (isset($m[3]) && $m[3] !== '' && (int) $m[3] > 65535)) {
+            return null;
+        }
+        return $host;
+    }
+
+    // True for an IPv4 literal or a bracketed IPv6 literal. A literal cannot be DNS-rebound: the browser sends it
+    // only when the page itself was opened by that address, which is then a different origin from any attacker page.
+    function synthManagementHostIsIpLiteral(string $host): bool
+    {
+        if ($host !== '' && $host[0] === '[') {
+            return filter_var(substr($host, 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+        }
+        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+    }
+
+    // Operator hostnames (not IP literals, which are always allowed) from "a,b c;d". Ports are ignored, wildcards and
+    // anything that is not a plain hostname are dropped.
+    function synthManagementParseAllowedHosts(mixed $value): array
+    {
+        $tokens = is_array($value) ? $value : preg_split('~[\s,;]+~', is_string($value) ? $value : '', -1, PREG_SPLIT_NO_EMPTY);
+        $hosts = [];
+        foreach ($tokens as $token) {
+            $host = synthManagementHostName($token);
+            if ($host !== null && !synthManagementHostIsIpLiteral($host)) {
+                $hosts[$host] = true;
+            }
+        }
+        return array_keys($hosts);
+    }
+
+    // SYNTH_ALLOWED_HOSTS from the environment, else conf/conf.php. Read lazily, only for a non-loopback hostname.
+    function synthManagementConfiguredHosts(): array
+    {
+        $env = getenv('SYNTH_ALLOWED_HOSTS');
+        if (is_string($env) && trim($env) !== '') {
+            return synthManagementParseAllowedHosts($env);
+        }
+        $conf = dirname(__DIR__) . '/conf/conf.php';
+        if (!is_file($conf)) {
+            return [];
+        }
+        ob_start();
+        try {
+            $value = (static function (string $__file): mixed {
+                require $__file;
+                return $SYNTH_ALLOWED_HOSTS ?? null;
+            })($conf);
+        } catch (Throwable) {
+            $value = null;
+        } finally {
+            ob_end_clean();
+        }
+        return synthManagementParseAllowedHosts($value);
+    }
+
+    // DNS-rebinding defence: the request's Host must be loopback (localhost, *.localhost), an IP literal, this
+    // machine's own host name, or an operator-listed name. $extraHosts replaces the configured list (tests).
+    function synthManagementHostAllowed(array $server, ?array $extraHosts = null): bool
+    {
+        $host = synthManagementHostName($server['HTTP_HOST'] ?? null);
+        if ($host === null) {
+            return false;
+        }
+        if ($host === 'localhost' || str_ends_with($host, '.localhost') || synthManagementHostIsIpLiteral($host)) {
+            return true;
+        }
+        $own = gethostname();
+        if (is_string($own) && $own !== '' && $host === strtolower($own)) {
+            return true;
+        }
+        return in_array($host, $extraHosts ?? synthManagementConfiguredHosts(), true);
     }
 }
 
@@ -51,10 +144,13 @@ if (!function_exists('synthManagementRequestRefusal')) {
     // carrying no browser evidence at all is a native or operator HTTP client, except an unsafe request with a
     // browser User-Agent: older browsers can omit Origin on form posts and a page can suppress Referer.
     // $getHasEffect marks a GET that does outbound or persistent work; it is then judged like a POST.
-    function synthManagementRequestRefusal(array $server, string $scope = 'browser', bool $getHasEffect = false): ?string
+    function synthManagementRequestRefusal(array $server, string $scope = 'browser', bool $getHasEffect = false, ?array $extraHosts = null): ?string
     {
         if ($scope === 'cli-only') {
             return 'This maintenance entry runs only from the command line.';
+        }
+        if (!synthManagementHostAllowed($server, $extraHosts)) {
+            return synthManagementHostRefusalMessage();
         }
         $method = strtoupper(strval($server['REQUEST_METHOD'] ?? 'GET'));
         $site = $server['HTTP_SEC_FETCH_SITE'] ?? null;
@@ -205,8 +301,17 @@ if (PHP_SAPI !== 'cli' && !defined('SYNTH_MANAGEMENT_REQUEST_CHECKED')) {
         && str_ends_with($synthManagementPath, '/ui/quickstart.php');
     $synthManagementRefusal = $synthManagementScope === null ? null
         : synthManagementRequestRefusal($_SERVER, $synthManagementScope, $synthManagementGetEffect);
+    if ($synthManagementRefusal === synthManagementHostRefusalMessage()) {
+        // One structured line, no secrets: the Host value is control-character-stripped and truncated.
+        error_log(json_encode([
+            'event' => 'management_host_refused',
+            'host' => substr(preg_replace('#[^ -~]#', '?', strval($_SERVER['HTTP_HOST'] ?? '')), 0, 100),
+            'method' => substr(preg_replace('~[^A-Z]~', '', strtoupper(strval($_SERVER['REQUEST_METHOD'] ?? ''))), 0, 10),
+            'path' => substr(preg_replace('#[^!-~]#', '?', strtok(strval($_SERVER['REQUEST_URI'] ?? ''), '?')), 0, 200),
+        ], JSON_UNESCAPED_SLASHES));
+    }
     if ($synthManagementRefusal !== null) {
-        header('Vary: Origin, Referer, Sec-Fetch-Site');
+        header('Vary: Host, Origin, Referer, Sec-Fetch-Site');
         synthManagementRefuse(403, $synthManagementRefusal,
             preg_match('~/ui/(api|cmd)/~', $synthManagementPath) === 1 ? true : null);
     }

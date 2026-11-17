@@ -172,6 +172,29 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
         }
     }
 
+    public function testManagementGuardRefusesUnlistedHostNamesAgainstDnsRebinding(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/management_request_guard.php';
+        $extra=synthManagementParseAllowedHosts("Synth.Lan:8087, *.evil.test; 10.0.0.5 bad_name");
+        self::assertSame(['synth.lan'],$extra);
+        foreach ([
+            ['127.0.0.1:8087',true],['localhost',true],['LOCALHOST:8087',true],['app.localhost:8087',true],['[::1]:8087',true],
+            ['172.30.5.9:8087',true],['192.168.1.20',true],['synth.lan:8087',true],['synth.lan.',true],
+            ['evil.example:8087',false],['evil.example',false],['localhost.evil.example',false],['evil.localhost.example',false],
+            ['other.lan',false],['',false],['a b',false],['host:99999',false],['127.0.0.1@evil.example',false],
+        ] as [$hostHeader,$allowed]) {
+            $server=['HTTP_HOST'=>$hostHeader,'REQUEST_METHOD'=>'GET'];
+            self::assertSame($allowed,synthManagementHostAllowed($server,$extra),$hostHeader);
+        }
+        self::assertFalse(synthManagementHostAllowed(['REQUEST_METHOD'=>'GET'],$extra));
+        // A rebound name passes the same-origin comparison but is still refused, for GET and POST.
+        foreach (['GET','POST'] as $method) {
+            $rebound=['HTTP_HOST'=>'evil.example:8087','HTTP_ORIGIN'=>'http://evil.example:8087','HTTP_SEC_FETCH_SITE'=>'same-origin','REQUEST_METHOD'=>$method];
+            self::assertSame(synthManagementHostRefusalMessage(),synthManagementRequestRefusal($rebound,'browser',false,$extra));
+            self::assertNull(synthManagementRequestRefusal(['HTTP_HOST'=>'synth.lan:8087','HTTP_ORIGIN'=>'http://synth.lan:8087','HTTP_SEC_FETCH_SITE'=>'same-origin','REQUEST_METHOD'=>$method],'browser',false,$extra));
+        }
+    }
+
     public function testManagementGuardAcceptsOnlySameOriginBrowserEvidence(): void
     {
         require_once dirname(__DIR__,2).'/lib/management_request_guard.php';

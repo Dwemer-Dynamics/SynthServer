@@ -45,7 +45,9 @@ acceptance has not been performed.** See [docs/HANDOFF.md](docs/HANDOFF.md) and
 | Optional standalone dev launcher | Windows PHP, `start-dev.ps1` | `http://127.0.0.1:8085/Synthserver/` by default |
 
 The client's default `BaseUrl=http://127.0.0.1:8087/Synthserver/` matches the Apache site in
-`tools/apache/synthserver.conf`. Apache allows local requests only.
+`tools/apache/synthserver.conf`. Apache allows local requests only. The dashboard also refuses a `Host` header that
+is not loopback, an IP address or this machine's name; to open it by another name, list that name in
+`SYNTH_ALLOWED_HOSTS` (see [docs/HANDOFF.md](docs/HANDOFF.md), Dashboard request safety).
 
 ## Install
 
