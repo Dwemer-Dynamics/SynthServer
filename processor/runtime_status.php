@@ -69,6 +69,8 @@ try {
         "synth_profile_model" => $profileModel,
         "active_model_slot" => $profileModel,
         "model_slot_label" => $slotLabels[$profileModel] ?? "Standard",
+        "native_talk_model_slot" => 1,
+        "native_talk_ignores_model_slot" => true,
         "updated" => time(),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
 } catch (Throwable $e) {

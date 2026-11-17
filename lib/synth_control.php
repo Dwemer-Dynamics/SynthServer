@@ -84,6 +84,22 @@ function synth_control_audience_status($db, array $event): ?array
     });
 }
 
+// Native /talk always answers with the profile's primary (Standard, slot 1) connector and ignores the request's
+// model slot. Log that once each time the slot a /talk request carries changes to a non-Standard value; the last
+// seen slot is kept in conf_opts, so repeated turns on the same slot add nothing. Never affects the turn.
+function synth_control_note_talk_slot($db, array $event): void
+{
+    try {
+        $slot = $event['payload']['control']['model_slot'] ?? null;
+        if (!is_int($slot) || $slot < 1 || $slot > 4) return;
+        $last = ($db->fetchOne("SELECT value FROM conf_opts WHERE id='synth_talk_slot_seen'"))['value'] ?? '1';
+        if (strval($slot) === strval($last)) return;
+        if ($db->execQuery("INSERT INTO conf_opts (id,value) VALUES ('synth_talk_slot_seen','{$slot}') ON CONFLICT (id) DO UPDATE SET value=EXCLUDED.value") === false) return;
+        if ($slot !== 1) Logger::info("[talk] Model Slot {$slot} is selected, but native /talk ignores it and uses the profile's primary (Standard) connector");
+    } catch (Throwable) {
+    }
+}
+
 function synth_control_status($db): string
 {
     $mode = strval(($db->fetchOne("SELECT value FROM conf_opts WHERE id='synth_mode'"))['value'] ?? 'STANDARD');

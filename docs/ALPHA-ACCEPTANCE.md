@@ -481,6 +481,8 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
   action amounts, provider fallback, contention and fresh request ownership.
 - [x] Current-binary stub proves tool/context isolation; synthetic live checks
   exercise Codex, forced OpenRouter fallback and SYNTH driver parsing.
+- [x] Native `/talk` ignores the selected model slot (primary connector only); Home, runtime status and one
+  `[talk]` log line per slot change now say so. Routing is unchanged; disposable-stack evidence only.
 - [ ] Comparative in-game model-slot, latency, character quality, cancellation,
   fallback and sustained-load evidence. Backend/provider proof does not satisfy
   this gate. See [CODEX-LOCAL-PROVIDER.md](CODEX-LOCAL-PROVIDER.md).

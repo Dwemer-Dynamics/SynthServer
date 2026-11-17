@@ -906,8 +906,12 @@ Head fields, which the runtime applies before `extended_data`. Explicit Off and 
 `''` (and `[]` for NPCs) are skipped. Global-only settings are marked on the global page and cannot
 be overridden. The unmarked ordinary dialogue pipeline applies profile and NPC overrides from its
 next request. Native marked `/talk` uses only the profile's primary LLM and TTS connector; it ignores
-metadata overrides and the other model slots. The existing fallback to the default NPC profile is
-unchanged. Evidence is HTTP with a fake provider in a disposable database; there is no deployment,
+metadata overrides and the other model slots. This is now visible: Home shows a "Native /talk Model" row
+(Standard, fixed), `processor/runtime_status.php` adds `native_talk_model_slot` (1) and
+`native_talk_ignores_model_slot` (true), and the server logs one `[talk]` info line when the slot a `/talk`
+request carries changes to a non-Standard value (last seen slot kept in `conf_opts.synth_talk_slot_seen`; no
+per-turn line, no schema change). Routing is unchanged and the client receives no new notice.
+The existing fallback to the default NPC profile is unchanged. Evidence is HTTP with a fake provider in a disposable database; there is no deployment,
 game, flat or VR claim.
 
 ## Observed equipment and save identity
