@@ -247,7 +247,7 @@ The baseline, its manifest and every existing table stay as they are.
 | D2 | New tables are named `synth_meta.<domain>_<noun>` (for example `synth_meta.snapshot_versions`). |
 | D3 | The manifest has one entry per migration (`migrations/schema-manifest.json`), never a combined entry. |
 | D4 | The ORM pilot (`GeneralSetting`, see [DOCTRINE-SETTINGS-PILOT.md](DOCTRINE-SETTINGS-PILOT.md)) is frozen. No new ORM entities; new persistence code uses DBAL repositories. |
-| D5 | No shared `api_keys` table yet. Credential rows and IDs stay where they are. |
+| D5 | SYNTH is a consumer of the CHIM 4 server's shared `api_keys` table (database `dwemer`), see [Shared API keys](#shared-api-keys). `synth.core_api_badge` stays as the local binding table: its ids, labels and connector references never change and no credential row is removed. **Held:** the migration and the import need the owner's explicit go-ahead. |
 | D6 | The first future schema migration adds snapshot version metadata (see the paused snapshots under [Limits](#limits)). |
 
 Plan order: conventions docs, read-only tooling (the [drift check](#drift-check)), DBAL repositories, a review gate,
@@ -263,6 +263,107 @@ change to an installed database is part of the steps before it.
    is validated on 17 by local disposable-cluster checks only (no hosted CI pass exists). The drift check reports the server major and does not refuse
    another one. ChimServer keeps one manifest per reviewed major; SYNTH has one.
 3. Acceptance of D2 (`synth_meta.<domain>_<noun>`). Until it is accepted, no new table should be created.
+
+## Shared API keys
+
+**Status: held.** Nothing here is part of an installed database until the owner lifts the migration hold. The branch
+was proven on disposable PostgreSQL 17 only.
+
+The CHIM 4 server keeps provider API keys in one `api_keys` table of a separate shared PostgreSQL database
+(`dwemer`), so every product can use one key list. SYNTH adopts that store without changing what connectors
+reference. Reference implementation: ChimServer `Config/DBManager/Runtime/ApiKeyStore.php`, `Core/ApiKeyManager`,
+`Config/DBManager/Schema/shared-pg17.json` (read at `804e501`).
+
+### Design
+
+- **Connection.** The same variables ChimServer reads, no defaults: `CHIM_SHARED_DB_HOST`, `_PORT`, `_NAME`, `_USER`,
+  `_PASSWORD` (the shared runtime role). If any of host, port, name or user is unset, or the port is invalid, SYNTH has no
+  shared store (`SharedApiKeyStore::fromEnvironment()` is null) and works exactly as before. Migrations use
+  `CHIM_SHARED_DB_MIGRATION_USER` / `_PASSWORD`, as in ChimServer. SYNTH's own database stays `SYNTH_DB_*`. The store
+  has its own DBAL connection (never the legacy session), a 5 s statement timeout, a 1 s lock timeout and fixed error
+  messages: a database error's detail can repeat the failing row, so none is kept.
+- **Shared schema.** ChimServer owns it. `core/dbmanager/shared-migrations/` holds **byte-identical copies** of its four
+  shared migrations (hashes pinned in `core/dbmanager/shared-schema-manifest.json`, equal to `migration_hashes` of
+  `shared-pg17.json`). They keep the namespace `ChimServer\SharedMigrations` and the version table
+  `dwemer_shared_migration_versions` on purpose: the ledger stores fully qualified class names, so a SYNTH-named copy would
+  record a second, parallel history. Whichever product migrates first creates `api_keys`; the other finds every version
+  recorded and does nothing (proven for a rerun and against a store ChimServer-shaped data was added to). `core/dbmanager/shared-migrations.php`
+  and `shared-migrations-db.php` mirror ChimServer's configuration. A new shared migration is made in ChimServer, copied
+  here unchanged and pinned. No parallel table exists.
+- **Provider, label and origin.** A SYNTH label is free text; ChimServer pins each provider to one origin. The provider is
+  taken from the label, case-insensitively: `openrouter`, `openai`, `inworld`, `deepgram`, `google` (also `gemini`),
+  `elevenlabs`, `cartesia`, `nano-gpt`/`nano_gpt`, `groq`, `atlascloud`. The origin is that provider's fixed origin. The shared
+  `label` is the SYNTH label when it satisfies ChimServer's label rule, otherwise the provider name. Providers without a
+  fixed origin (`azure`, `replicate`, `deepl`, `ploofy`, `custom_openai`) and any other label are **not migrated**: SYNTH does
+  not know the endpoint. They stay local and unbound (open question 2). A value the shared table cannot hold (empty, or
+  anything but 1-4096 printable ASCII characters without spaces) also stays local.
+- **Connector references.** `core_api_badge` remains the stable binding table. The only schema change is
+  `Version20261116100000`: one nullable `uuid` column, `core_api_badge.shared_key_id`, plus a partial index. No foreign key
+  (another database), no default, no data change. Connector rows keep `api_badge_id` and are never rewritten. A bound
+  badge reads its key from `api_keys`; `api_key` stays as a mirror (below). Several badges may point at one shared key.
+  Rejected alternative: pointing connectors at shared key ids. It would rewrite four connector tables and their foreign
+  keys, lose ids, and make rollback destructive.
+- **Reads and writes (`ApiBadgeRepository`, callers unchanged).** A bound row's key comes from the shared row, in one
+  batched query per read. A key the store has revoked reads as empty. A key the store cannot answer for (unreachable, never
+  held, legacy sealed row) reads as the local mirror. Writes to a bound row go to the shared store first and fail closed when
+  it cannot be written (the mirror never gets ahead of the shared key); then the same local statement as before runs and
+  mirrors the value. A new key saved on an unbound, mappable row is promoted: it adopts an identical active key of the same
+  provider or creates one, then binds. Editing a key that another SYNTH badge shares gives the edited badge its own shared
+  key, so case variants stay independent. **SYNTH never deletes or tombstones a shared key**: Delete removes the local row,
+  Clear empties the key and unbinds. Another product may use the key, and ChimServer's delete-in-use scan cannot see SYNTH
+  references (open question 4). Binding follows ChimServer's lock order (shared row `FOR SHARE`, then the SYNTH statement,
+  committed before the lock is released). Creation takes ChimServer's advisory catalog lock (`4851020019`) and respects its
+  cap of 64 active keys.
+- **Migration of existing rows** (`php tools/shared-api-keys.php import [--apply]`, never from a request, bootstrap or
+  migration). It crosses two databases, so there is no cross-database transaction and no external call inside a
+  transaction. Per row: one short shared transaction under the catalog lock adopts an active plain-text key with the same
+  provider and value, or creates one; then one SYNTH statement binds the row (`WHERE shared_key_id IS NULL AND api_key = <value
+  read>`, so a concurrent edit is never overwritten) while the shared row is held `FOR SHARE`. Idempotent: bound rows are
+  skipped, and a run that stopped between the two steps adopts the key it created, so a rerun adds no duplicate (proven,
+  also with three concurrent runs). **Conflict rule:** when ChimServer already holds a key for the same provider with the
+  same value, SYNTH adopts it. A different value coexists: SYNTH adds its own key and never changes a ChimServer row. A
+  sealed legacy row cannot be compared (SYNTH has no installation key), so SYNTH adds its own. A full store (64) binds
+  nothing and exits 1. Local `api_key`, `id`, `label` and every connector reference are never changed. The default run is
+  a read-only plan.
+- **Shared store absent.** Not configured: no store object, no extra query, no log line, no warning, no connection.
+  Configured but unreachable, without `api_keys`, or before this migration: the same, falling back to local keys silently.
+  Bound rows then read their mirror; only a write to a bound row is refused. `tools/shared-api-keys.php status` reports
+  each state.
+- **#53/#54 semantics.** Keys stay write-only for pages. A blank field preserves the key and Clear is explicit (`update`
+  with an empty `api_key` is the only way to empty one). Saved-key Test resolves server-side through the repository. The
+  lowest-id case-insensitive canonical badge and independent variants are unchanged (editing a shared key is described
+  above), and Delete still takes a strict id. The credential harnesses were rerun without and with the store.
+- **Rollback.** `down()` drops only the index and the column. Every bound key also exists in `api_key`, so a rolled-back
+  install loses no key; shared keys are never touched. Applying the migration again and rerunning the import adopts every
+  key by provider and value (proven: created 0, adopted 9). Edits made while bound are mirrored, so the local copy is
+  current. Removing the `CHIM_SHARED_DB_*` variables returns SYNTH to local keys at any time.
+- **Origins.** SYNTH does not yet check the endpoint against the key's stored origin the way ChimServer's `resolveSecret`
+  does: its callers do not pass one (open question 3).
+- **Not in this change.** No UI, no change to the credential pages, no deletion of local `api_key` copies, no cleanup of
+  shared keys, no change to ChimServer, no deployment script.
+
+### Operator order (after the hold is lifted)
+
+1. `vendor/bin/doctrine-migrations migrate --configuration=core/dbmanager/shared-migrations.php --db-configuration=core/dbmanager/shared-migrations-db.php --no-interaction`
+   (a no-op when ChimServer already did it), then grant the runtime role as in ChimServer's `docs/s19-api-keys.md`.
+2. `php tools/bootstrap-database.php` (applies `Version20261116100000`).
+3. `php tools/shared-api-keys.php status`, then `import`, then `import --apply`.
+
+### Open questions
+
+1. **Hold.** The migration and the import wait for the owner's explicit approval; nothing merges before that.
+2. **Providers without a fixed origin** (Azure, Replicate, custom labels, Player2/SYNTH): should an operator command bind
+   them with an entered origin, or stay local?
+3. **Origin enforcement.** Should repository callers pass the endpoint origin so SYNTH refuses a key for another host, as
+   ChimServer does? Needs a signature change across connectors.
+4. **Delete and cross-product usage.** SYNTH never tombstones a shared key. Should ChimServer's delete scan learn about
+   SYNTH references (Distro consumer registry), and should SYNTH offer a delete of keys it created?
+5. **Dropping the local mirror.** When, if ever, should `api_key` of a bound row be blanked? Today it is the rollback copy
+   and the offline fallback.
+6. **Environment delivery.** Where do `CHIM_SHARED_DB_*` reach SYNTH's Apache/PHP and workers on a Distro install?
+7. **Sealed legacy rows** in ChimServer's store cannot be matched by value, so a SYNTH key identical to a sealed one is
+   added again.
+8. **Label sync.** SYNTH does not rename a shared key when a badge is renamed.
 
 ## Drift check
 
