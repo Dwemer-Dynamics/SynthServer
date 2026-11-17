@@ -41,8 +41,7 @@ tables and are **not** registry settings.
 
 ## 3. Registry format
 
-One PHP class, `ConfigManager` (chevo's name; it lives beside the other flat manager classes as
-`managers/ConfigManager.php`). Each setting is declared once in a `SETTINGS` constant, with a public string constant for the key:
+One PHP class, `Synth\Managers\ConfigManager\ConfigManager` (chevo's name and shape), in `managers/ConfigManager/` with a `README.md`, in chevo's style (file header comment, every method commented, `camelCase`). Until Composer PSR-4 autoload merges, callers `require_once` it explicitly. New code lives only in the new homes: `managers/`, `core/entities/{base,system}` and `core/dbmanager/dao` (`Synth\Core\Entities\...`, `Synth\Core\DbManager\Dao`), `api/` for routes. The frozen legacy dirs (`lib/`, `ui/` SQL, etc.) get only thin call-through hooks. Each setting is declared once in a `SETTINGS` constant, with a public string constant for the key:
 
 ```php
 public const CONTEXT_HISTORY = 'context.history';
