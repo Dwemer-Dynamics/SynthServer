@@ -140,7 +140,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
     public function testInworldChunksKeepOneFormatAndRejectCorruptAudio(): void
     {
         require_once dirname(__DIR__,2).'/tts/tts-inworld.php';
-        $wav=static fn(int $rate): string=>'RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,$rate,$rate*2,2,16).'data'.pack('V',2)."\1\0";
+        $wav=static fn(int $rate): string=>'RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,$rate,$rate*2,2,16).'data'.pack('V',2)."\0\0";
         $chunk=static fn(string $audio): string=>'data: '.json_encode(['result'=>['audioContent'=>base64_encode($audio)]])."\n";
         $decoded=synth_inworld_decode_audio_chunks($chunk($wav(24000)).$chunk($wav(24000)));
         $this->assertSame("\0\0\0\0",$decoded['audio']);
