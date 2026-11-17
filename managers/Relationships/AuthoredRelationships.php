@@ -34,6 +34,19 @@ final class AuthoredRelationships
         return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
     }
 
+    /**
+     * The one identity rule for fixture rows and live actors: the wire form id (`0x` and 8 hex digits, not 0 or
+     * all ones) and plugin (`*.esm|esp|esl`, no path) lower-cased and joined by `|`. Returns '' when either is invalid.
+     */
+    public static function identityKey(string $formId, string $plugin): string
+    {
+        if (!preg_match('/^0x[0-9A-Fa-f]{8}$/', $formId) || preg_match('/^0x(?:00000000|f{8})$/i', $formId)
+            || strlen($plugin) > 255 || !preg_match('/^[^\/\\\\]+\.(esm|esp|esl)$/i', $plugin)) {
+            return '';
+        }
+        return strtolower($formId . '|' . $plugin);
+    }
+
     /** Validates one directed pair row; every field is required and exact, nothing is trimmed or coerced. */
     public static function normalize(array $row): array
     {
@@ -49,9 +62,13 @@ final class AuthoredRelationships
                 throw new InvalidArgumentException('Invalid authored relationship identity');
             }
         }
-        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $row['playthrough_id'])
-            || !preg_match('/^[0-9a-f]{1,8}\|[a-z0-9_. -]{1,128}$/', $row['source'])
-            || !preg_match('/^[0-9a-f]{1,8}\|[a-z0-9_. -]{1,128}$/', $row['target']) || $row['source'] === $row['target']) {
+        // The playthrough id is the wire pattern, compared exactly (case-sensitive); identities use identityKey().
+        foreach (['source', 'target'] as $side) {
+            [$form, $plugin] = array_pad(explode('|', $row[$side], 2), 2, '');
+            $row[$side] = self::identityKey($form, $plugin);
+        }
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/', $row['playthrough_id'])
+            || $row['source'] === '' || $row['target'] === '' || $row['source'] === $row['target']) {
             throw new InvalidArgumentException('Invalid authored relationship identity');
         }
         foreach ($text as $key => $limit) {
@@ -290,19 +307,22 @@ final class AuthoredRelationships
     /** Assembles the prompt block from rows, the responder identity, the context payload and the request text. */
     public static function block(array $rows, array $responder, array $payload, string $text): string
     {
-        $playthrough = strtolower(strval($responder['playthrough_id'] ?? ''));
-        $source = strtolower(strval($responder['form_id'] ?? '') . '|' . strval($responder['origin_plugin'] ?? ''));
+        $playthrough = strval($responder['playthrough_id'] ?? '');
+        $source = self::identityKey(strval($responder['form_id'] ?? ''), strval($responder['origin_plugin'] ?? ''));
         $player = $payload['player'] ?? [];
-        $playerKey = strtolower(strval($player['form_id'] ?? '') . '|' . strval($player['origin_plugin'] ?? ''));
+        $playerKey = self::identityKey(strval($player['form_id'] ?? ''), strval($player['origin_plugin'] ?? ''));
         $present = [];
         foreach (array_merge([$payload['target'] ?? []], $payload['audience'] ?? []) as $actor) {
             if (!is_array($actor) || strval($actor['playthrough_id'] ?? '') !== strval($responder['playthrough_id'] ?? '')) {
                 continue;
             }
-            $key = strtolower(strval($actor['form_id'] ?? '') . '|' . strval($actor['origin_plugin'] ?? ''));
-            if ($key !== $source && $key !== $playerKey) {
+            $key = self::identityKey(strval($actor['form_id'] ?? ''), strval($actor['origin_plugin'] ?? ''));
+            if ($key !== '' && $key !== $source && $key !== $playerKey) {
                 $present[] = ['key' => $key, 'name' => strval($actor['display_name'] ?? '')];
             }
+        }
+        if ($source === '' || $playthrough === '') {
+            return '';
         }
         $targets = self::targets($rows, $playthrough, $source, $present, $text);
         return self::render(strval($responder['display_name'] ?? ''), self::pairs($rows, $playthrough, $source, $targets));

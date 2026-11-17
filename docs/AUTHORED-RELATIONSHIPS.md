@@ -99,7 +99,7 @@ block, so the two never claim to be the same number.
 - `$AUTHORED_RELATIONSHIPS_ENABLED` (default `false`). Off, the function returns before any database or file access.
 - `$AUTHORED_RELATIONSHIPS_FIXTURE`: absolute path of a JSON file, `synth.authored_relationships.fixture.v1`,
   up to 256 KiB, `{"schema": ..., "pairs": [ {row}, ... ]}`. A row has every field of the table above plus `playthrough_id`
-  (lowercase UUID), `source` and `target` (`formid|plugin`, lowercase, matching the context identities) and
+  (the wire pattern `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, e.g. `save:fo4:001`, compared exactly and case-sensitively), `source` and `target` (`<form_id>|<origin_plugin>` as on the wire, e.g. `0x0001A4D7|Fallout4.esm`, any case) and
   `target_name` (used for "mentioned"; storage resolves it from the NPC's canonical name). One invalid or duplicate
   row rejects the whole file.
 - Neither key is in `conf_schema.json`, so the dashboard does not expose a half-finished feature. They are set in the
@@ -134,7 +134,7 @@ New entity `RelationshipConfig` (`core_relationship_config`), chevo's three laye
 
 | Column | Type | Notes |
 |---|---|---|
-| `playthrough_id` | `guid` (or `text` per open question 4) | key part, lowercase |
+| `playthrough_id` | `guid` (or `text` per open question 4) | key part; storage keeps the wire string exactly |
 | `source_character_id`, `target_character_id` | `integer` | key parts, `core_npc.character_id`; `CHECK (source <> target)` |
 | `relation_detail` | `text` | `CHECK (char_length <= 512)` |
 | `custom_info`, `private_notes` | `text` | `CHECK (char_length <= 4096)` |
@@ -154,7 +154,15 @@ New entity `RelationshipConfig` (`core_relationship_config`), chevo's three laye
   `affinity_baseline_revision` and `type_baseline_revision` it saw, so [precedence](#precedence) rules 4 and 5 can be decided and
   stale work fenced. Pair-level lock is read by the dispatcher beside the actor-level control.
 - Identity mapping: the prompt path resolves the responder and each target from the context's actor identity to
-  `core_npc.character_id` through `core_npc_actor` (open question 3); the fixture keys by `formid|plugin` until then.
+  `core_npc.character_id` through `core_npc_actor` (open question 3); the fixture keys by the wire identity until then.
+
+### Identity rule
+
+One rule, `AuthoredRelationships::identityKey()`, builds the key for fixture rows and live actors alike: `form_id` must match
+the wire `^0x[0-9A-Fa-f]{8}$` (not `0x00000000` or `0xFFFFFFFF`), `origin_plugin` must match `^[^/\]+\.(esm|esp|esl)$` (at most 255
+characters), and the key is both lower-cased and joined with `|`, so `0x0001A4D7|Fallout4.esm` equals `0x0001a4d7|fallout4.esm`. An invalid
+form id or plugin gives no key, so no row matches. The playthrough id is never case-folded. Other features that key actors should
+use the same rule.
 - Fresh baseline only; no upgrade path is needed (owner decision). Reads and writes go through the system class only.
 
 ## Not in Phase A
