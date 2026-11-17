@@ -1,5 +1,7 @@
 <?php
 
+require_once dirname(__DIR__).'/managers/Narrator/NarratorObjectIdentity.php';
+
 // Private narrator save hook for the shared context claim. A context publication records the lane's applied private
 // narrator state by opaque ID only; a lane's first publication restores it from the exact loaded_context anchor
 // that publication names, never from the newest global state. The SCTX co-save and its anchor stay unchanged.
@@ -28,18 +30,28 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
 {
     $invalid = static fn(string $issue) => synth_protocol_fail('invalid_payload', 422, [['field' => 'payload', 'issue' => $issue]]);
     if ($type === 'narrator_command') {
-        $select = ($payload['action'] ?? null) === 'select';
-        synth_protocol_expect_exact_keys($payload, $select ? ['action', 'definition_id'] : ['action'],
-            ($payload['action'] ?? '') === 'transcript' ? ['cursor'] : [], 'payload');
-        if (!in_array($payload['action'], ['state', 'select', 'cancel', 'transcript'], true)
-            || ($select && !synth_private_narrator_valid_definition_id($payload['definition_id']))) $invalid('narrator_command_invalid');
+        $action = $payload['action'] ?? null;
+        $needsDefinition = $action === 'select' || $action === 'bind_object';
+        synth_protocol_expect_exact_keys($payload, $needsDefinition ? ['action', 'definition_id', ...($action === 'bind_object' ? ['object'] : [])] : ['action'],
+            $action === 'transcript' ? ['cursor', 'definition_id'] : [], 'payload');
+        if (!in_array($action, ['state', 'select', 'cancel', 'transcript', 'bind_object'], true)
+            || (($needsDefinition || array_key_exists('definition_id', $payload)) && !synth_private_narrator_valid_definition_id($payload['definition_id']))) $invalid('narrator_command_invalid');
+        if ($action === 'bind_object') $payload['object'] = \Synth\Managers\Narrator\NarratorObjectIdentity::validate($payload['object']);
         if (array_key_exists('cursor', $payload) && (!is_string($payload['cursor']) || preg_match('/^[0-9a-f]{64}$/D', $payload['cursor']) !== 1))
             $invalid('narrator_cursor_invalid');
     } elseif ($type === 'narrator_turn') {
         $kind = $payload['kind'] ?? null;
         $extra = ['typed' => ['text'], 'voice' => ['media'], 'scene' => []][$kind] ?? null;
         if ($extra === null) $invalid('narrator_turn_invalid');
-        synth_protocol_expect_exact_keys($payload, ['kind', 'definition_id', 'state_id', ...$extra], [], 'payload');
+        synth_protocol_expect_exact_keys($payload, ['kind', 'definition_id', 'state_id', ...$extra], ['object', 'object_name'], 'payload');
+        if (array_key_exists('object', $payload)) {
+            // Object turns are typed or push-to-talk only; scene commentary belongs to the selected narrator.
+            if ($kind === 'scene') $invalid('narrator_object_invalid');
+            $payload['object'] = \Synth\Managers\Narrator\NarratorObjectIdentity::validate($payload['object']);
+        }
+        if (array_key_exists('object_name', $payload) && (!array_key_exists('object', $payload) || !is_string($payload['object_name'])
+            || trim($payload['object_name']) === '' || mb_strlen($payload['object_name']) > 64 || str_contains($payload['object_name'], "\0")
+            || preg_match('//u', $payload['object_name']) !== 1)) $invalid('narrator_object_invalid');
         if (!synth_private_narrator_valid_definition_id($payload['definition_id'])
             || !synth_private_narrator_valid_record_id($payload['state_id'], 0)
             || ($kind === 'typed' && (!is_string($payload['text']) || trim($payload['text']) === ''

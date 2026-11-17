@@ -1049,6 +1049,10 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         require_once dirname(__DIR__).'/lib/synth_attack_actions.php';
         if (!synth_attack_supported($event)) return false;
     }
+    if (($event['protocol_version'] ?? 1)===2 && in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true)) {
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$codeName)) return false;
+    }
     if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat' && !synth_rechat_action_code_allowed($codeName)) return false;
@@ -1637,7 +1641,7 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
     $parameterValue = $parsedResponse["target"] ?? "";
     $missingRequired = [];
 
-    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         // Preserve every raw non-speech field; only shared exact-empty placeholders are not wait arguments.
         $parameterValue=array_diff_key($parsedResponse,array_flip(['action','character','listener','mood','message','lang','emotion','emotion_intensity']));
         foreach (['target','item','amount'] as $key) if (($parameterValue[$key] ?? null)==='') unset($parameterValue[$key]);
@@ -1736,7 +1740,7 @@ function synthPrepareActionsIssuedOriginalValue($originalValue)
 function buildFunctionExecutionParameter($functionCodeName, $parameter)
 {
     $functionCodeName = trim(strval($functionCodeName));
-    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory'],true)
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true)
         && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
         return synth_wait_action_parameters_empty($parameter) ? '{}'
@@ -1764,7 +1768,7 @@ function findFunctionByName($name)
         && ($event['payload']['kind'] ?? '')==='rechat'
         && !synth_rechat_action_code_allowed(strval(getFunctionCodeName($name) ?: $name))) return null;
     if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
-        && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'TakeItemFromPlayer', 'OpenInventory', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait'], true)) {
+        && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'TakeItemFromPlayer', 'OpenInventory', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait', 'FollowPlayer', 'StopFollowing', 'TakeASeat'], true)) {
         // Native contracts use the negotiated runtime definition; a legacy row
         // cannot restore caps fallbacks, broaden observation tools or add wait arguments.
         foreach ($GLOBALS['FUNCTIONS'] ?? [] as $function)
@@ -2005,6 +2009,17 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
     }
     
+    if (in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
+        $GLOBALS['FUNCTIONS'][$n]['description']=match($codeName) {
+            'FollowPlayer'=>'Only when the player explicitly asks you to follow or come with them now and you agree. A Talk promise does not make you follow. Leave every action parameter blank. The game applies the order.',
+            'StopFollowing'=>'Only when the player explicitly asks you to stop following and you agree. This ends only the follow order SYNTH gave you and does not dismiss a native follower. Leave every action parameter blank.',
+            default=>'Only when the player explicitly asks you to sit down and you agree. You never choose the seat; the game finds one. Leave every action parameter blank.',
+        };
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+    }
+
     if ($codeName==='OpenInventory' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         $GLOBALS['FUNCTIONS'][$n]['description']='If you accept a general gift offer without a named item, select this to open your inventory exchange with Player. Keep all action fields blank. The player chooses items in the menu. Merely opening the menu is not a received gift; wait for verified inventory changes after it closes. A named gift uses TakeItemFromPlayer instead.';
         $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
