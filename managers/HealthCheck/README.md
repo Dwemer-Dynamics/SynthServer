@@ -7,6 +7,6 @@ writes, migrates, locks or sends a provider request. Routes, status rules and ev
 
 - `live` needs no configuration or database.
 - `api-keys` asks the existing `ApiBadge` facade; `npcs` asks `CharacterRepository::availableCount()`.
-- `llm` only opens a bare TCP connection to at most five distinct endpoints, in parallel, within two seconds.
+- `llm` reads only connector url and model, and opens a bare TCP connection to at most five distinct local endpoints (IP literals and localhost), in parallel, within two seconds, one request at a time. Hosted host names are never resolved.
 
 Entry point: `health.php` (a thin dispatcher). Tests: `unittests/tests/HealthChecksTest.php`.

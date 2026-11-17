@@ -56,17 +56,11 @@ final class HealthCheckManager
         return [200, $body];
     }
 
-    /** Rows of core_api_badge holding a non-empty key, counted through the existing facade; never the keys. */
+    /** Rows of core_api_badge holding a non-empty key, counted by the database through the existing facade. */
     public static function apiKeyCount(): int
     {
         require_once dirname(__DIR__, 2) . '/lib/core/api_badge.class.php';
-        $count = 0;
-        foreach ((new \ApiBadge())->getAll() as $row) {
-            if (is_array($row) && trim(strval($row['api_key'] ?? '')) !== '') {
-                $count++;
-            }
-        }
-        return $count;
+        return (new \ApiBadge())->countWithKeys();
     }
 
     /** @return array{0:int,1:array} A count of zero is a warning, not an outage: local providers need no key. */
@@ -99,14 +93,16 @@ final class HealthCheckManager
     }
 
     /**
-     * Connectors that name both an http(s) endpoint and a model, and their distinct host:port endpoints (capped).
-     * Pure: takes stored rows, returns counts and endpoints, and never returns a key or a full URL.
-     * @return array{configured:int,endpoints:list<array{0:string,1:int}>}
+     * Connectors that name both an http(s) endpoint and a model, split into endpoints that can be probed without a
+     * DNS lookup (IP literals and localhost, distinct, capped) and the number of distinct hosted host names, which are
+     * never resolved or contacted. Pure: takes stored rows and never returns a key or a full URL.
+     * @return array{configured:int,endpoints:list<array{0:string,1:int}>,hosted:int}
      */
     public static function llmTargets(array $connectors): array
     {
         $configured = 0;
         $endpoints = [];
+        $hosted = [];
         foreach ($connectors as $row) {
             $url = is_array($row) ? trim(strval($row['url'] ?? '')) : '';
             $parts = $url === '' ? false : parse_url($url);
@@ -118,14 +114,19 @@ final class HealthCheckManager
             $configured++;
             $port = is_int($parts['port'] ?? null) ? $parts['port'] : ($scheme === 'https' ? 443 : 80);
             $host = trim($host, '[]');
-            $endpoints[strtolower($host) . ':' . $port] = [$host, $port];
+            if (strtolower($host) === 'localhost' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+                $endpoints[strtolower($host) . ':' . $port] = [$host, $port];
+            } else {
+                $hosted[strtolower($host) . ':' . $port] = true;
+            }
         }
         return ['configured' => $configured,
-            'endpoints' => array_slice(array_values($endpoints), 0, self::MAX_ENDPOINTS)];
+            'endpoints' => array_slice(array_values($endpoints), 0, self::MAX_ENDPOINTS), 'hosted' => count($hosted)];
     }
 
     /**
-     * Bare TCP connect to every endpoint at once, bounded by one shared deadline. Returns how many accepted.
+     * Bare TCP connect to every endpoint at once, bounded by one shared deadline. Endpoints must be IP literals or
+     * localhost, so no DNS lookup can run outside the deadline. Returns how many accepted.
      * @param list<array{0:string,1:int}> $endpoints
      */
     public static function probeEndpoints(array $endpoints, float $seconds = self::PROBE_SECONDS): int
@@ -163,30 +164,75 @@ final class HealthCheckManager
         return $reachable;
     }
 
-    /** LLM check: configured connectors and a bounded TCP connect to their endpoints. @return array{0:int,1:array} */
-    public static function llm(?callable $probe = null): array
+    /**
+     * Runs $work only when no other health request is probing endpoints, so polls cannot pile up behind a slow
+     * connect. The lock is a non-blocking flock on this source file: nothing is created or written.
+     * @return mixed what $work returns, or null when another probe holds the lock
+     */
+    public static function whenNoProbeRunning(callable $work): mixed
+    {
+        $handle = @fopen(__FILE__, 'rb');
+        if ($handle === false || !flock($handle, LOCK_EX | LOCK_NB)) {
+            if ($handle !== false) {
+                fclose($handle);
+            }
+            return null;
+        }
+        try {
+            return $work();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * LLM check. Only the connector url and model are read (one query, never a key). Local endpoints (IP literals and
+     * localhost) get a bounded TCP connect; hosted host names are counted but never resolved or contacted, because a
+     * DNS lookup cannot be bounded. No connector is a warning, as are local endpoints that refuse (when a hosted one
+     * exists) and a probe that is already running; only local endpoints that all refuse with nothing hosted is an error.
+     * @param callable|null $probe replaces the TCP probe (tests)
+     * @param array|null $rows replaces the stored connector rows (tests)
+     * @return array{0:int,1:array}
+     */
+    public static function llm(?callable $probe = null, ?array $rows = null): array
     {
         $body = ['check' => 'llm', 'status' => 'error', 'llm' => 'unavailable', 'llm_connectors_configured' => null,
-            'llm_endpoints_checked' => 0, 'llm_endpoints_reachable' => 0];
+            'llm_endpoints_checked' => 0, 'llm_endpoints_reachable' => 0, 'llm_hosted_unchecked' => 0];
         try {
-            require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
-            $targets = self::llmTargets((new \LLMConnector())->readAll());
+            if ($rows === null) {
+                require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
+                $rows = (new \LLMConnector())->endpointRows();
+            }
+            $targets = self::llmTargets($rows);
             $body['llm_connectors_configured'] = $targets['configured'];
             $body['llm_endpoints_checked'] = count($targets['endpoints']);
-            $body['llm_endpoints_reachable'] = $targets['endpoints'] === []
-                ? 0 : ($probe ?? [self::class, 'probeEndpoints'])($targets['endpoints']);
+            $body['llm_hosted_unchecked'] = $targets['hosted'];
+            if ($targets['endpoints'] !== []) {
+                $probe ??= [self::class, 'probeEndpoints'];
+                $reachable = self::whenNoProbeRunning(static fn() => $probe($targets['endpoints']));
+                if ($reachable === null) {
+                    return [200, $body + ['llm' => 'busy', 'status' => 'warning',
+                        'error' => 'Another health check is probing the LLM endpoints; try again shortly.']];
+                }
+                $body['llm_endpoints_reachable'] = intval($reachable);
+            }
         } catch (\Throwable) {
             return [503, $body + ['error' => 'SYNTH could not read its LLM connectors; see the web server error log.']];
         }
         if ($body['llm_connectors_configured'] === 0) {
-            $body['llm'] = 'not_configured';
-            return [503, $body + ['error' => 'No LLM connector with an http(s) URL and a model is configured; add one in the dashboard.']];
+            return [200, ['llm' => 'not_configured', 'status' => 'warning',
+                'error' => 'No LLM connector with an http(s) URL and a model is configured; add one in the dashboard.'] + $body];
         }
-        if ($body['llm_endpoints_reachable'] === 0) {
-            $body['llm'] = 'unreachable';
-            return [503, $body + ['error' => 'No configured LLM endpoint accepted a connection; start the provider or check its URL.']];
+        if ($body['llm_endpoints_checked'] > 0 && $body['llm_endpoints_reachable'] === 0) {
+            if ($body['llm_hosted_unchecked'] > 0) {
+                return [200, ['llm' => 'unreachable', 'status' => 'warning',
+                    'error' => 'No local LLM endpoint accepted a connection; hosted endpoints are not probed.'] + $body];
+            }
+            return [503, ['llm' => 'unreachable',
+                'error' => 'No configured LLM endpoint accepted a connection; start the provider or check its URL.'] + $body];
         }
-        $body['llm'] = 'ok';
+        $body['llm'] = $body['llm_endpoints_reachable'] > 0 ? 'ok' : 'unverified';
         $body['status'] = 'ok';
         return [200, $body];
     }

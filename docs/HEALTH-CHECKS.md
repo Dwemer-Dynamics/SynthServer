@@ -17,22 +17,22 @@ them. The Apache `Require local` rule still limits the client address.
 | `health.php` | Full readiness (database, UTF8 encoding, runtime schema, migration ledger, advisory background processor). Unchanged. | everything is ready | 503 with one `error` ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#readiness)) |
 | `health.php?check=live` | Liveness: the web server and PHP answer. Reads no configuration and opens no connection. The client polls this. | always | none |
 | `health.php?check=db` | The database accepts a query and uses a supported encoding. | yes | 503 |
-| `health.php?check=api-keys` | `api_keys_configured`: how many stored API keys are non-empty (a count, never a key). Asked of the existing `ApiBadge` facade, so it follows wherever keys are stored. | the store was read | 503 |
+| `health.php?check=api-keys` | `api_keys_configured`: how many stored API keys are non-empty (a count, never a key). Counted by the database through the existing `ApiBadge` facade (`countWithKeys()`), so no key is ever read into memory. | the store was read | 503 |
 | `health.php?check=npcs` | `npcs_available`: how many NPC profiles exist (`CharacterRepository::availableCount()`). | the table was read | 503 |
-| `health.php?check=llm` | `llm_connectors_configured` (connectors with an http(s) URL and a model), `llm_endpoints_checked` and `llm_endpoints_reachable`. Only a bare TCP connect to each distinct `host:port` (at most 5, in parallel, 2 s total): no key, prompt or token is sent. | at least one endpoint accepts a connection | 503 with `llm` = `not_configured` or `unreachable` |
+| `health.php?check=llm` | `llm_connectors_configured` (connectors with an http(s) URL and a model, from one query that reads only url and model), `llm_endpoints_checked`, `llm_endpoints_reachable` and `llm_hosted_unchecked`. Only a bare TCP connect, in parallel within 2 s, to each distinct local `host:port` (IP literal or `localhost`, at most 5): no key, prompt or token is sent. Hosted host names are counted but never resolved or contacted, because a DNS lookup cannot be bounded. Only one request probes at a time (a non-blocking lock); another gets `llm` = `busy`. | `llm` = `ok` (a local endpoint accepts), `unverified` (only hosted endpoints), `not_configured`, `busy` or a refusing local endpoint beside a hosted one (the last three are `warning`) | 503 with `llm` = `unreachable` when every configured endpoint is local and none accepts |
 | `health.php?check=all` | `db`, `api-keys`, `npcs` and `llm` in one request and one connection, as `checks`. Without a database the others are `skipped`. This feeds the status page. | overall `status` is `ok` or `warning` | 503 when any check is `error` |
 
 An unknown `check` answers 400.
 
 Every body has `check` and `status`: `ok`, `warning` or `error`. A count of zero keys or zero NPCs is a `warning`
-(HTTP 200): a local provider needs no key, and a new install has no characters yet. An unreachable database or provider
-is an `error` (HTTP 503). `api-keys` and `npcs` also answer 503 when their store cannot be read.
+(HTTP 200): a local provider needs no key, and a new install has no characters yet. No connector, or a provider that cannot be verified (hosted only, busy), is also a `warning`: a fresh install
+is not an outage. An unreachable database, or local providers that all refuse, is an `error` (HTTP 503). `api-keys` and `npcs` also answer 503 when their store cannot be read.
 
 ## Status page
 
 The Control Panel **Health** tab (`ui/system_health.php`) keeps its readiness cards and adds a compact table of the
 granular checks from `health.php?check=all`: Database, API keys, NPCs and LLM provider, each with a status badge and a
-one-line detail. It refreshes every ten seconds and shows `unreachable` if the server does not answer.
+one-line detail. It refreshes every ten seconds (never overlapping a request still in flight) and shows `unreachable` if the server does not answer.
 
 ## Client notice
 

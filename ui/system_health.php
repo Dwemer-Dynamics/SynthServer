@@ -65,7 +65,7 @@ main { padding: <?= $isEmbedded ? '18px' : '0 18px 24px' ?>; }
         if (name === 'db') return c.database_encoding_supported ? 'Connected, UTF-8 encoding.' : 'Connected.';
         if (name === 'api-keys') return c.api_keys_configured + ' key(s) saved' + (c.api_keys_configured ? '.' : '; fine for local providers, add one for hosted ones.');
         if (name === 'npcs') return c.npcs_available + ' NPC profile(s)' + (c.npcs_available ? '.' : '; none yet, register one in game or import one.');
-        if (name === 'llm') return c.llm_connectors_configured + ' connector(s); ' + c.llm_endpoints_reachable + ' of ' + c.llm_endpoints_checked + ' endpoint(s) accept a connection.';
+        if (name === 'llm') return c.llm_connectors_configured + ' connector(s); ' + c.llm_endpoints_reachable + ' of ' + c.llm_endpoints_checked + ' local endpoint(s) accept a connection' + (c.llm_hosted_unchecked ? '; ' + c.llm_hosted_unchecked + ' hosted not probed.' : '.');
         return '';
     }
 
@@ -146,7 +146,12 @@ main { padding: <?= $isEmbedded ? '18px' : '0 18px 24px' ?>; }
         }
     }
 
-    function refreshAll() { refresh(); refreshChecks(); }
+    let refreshing = false;
+    async function refreshAll() {
+        if (refreshing) return;
+        refreshing = true;
+        try { await Promise.all([refresh(), refreshChecks()]); } finally { refreshing = false; }
+    }
     document.getElementById('refresh-health').addEventListener('click', refreshAll);
     refreshAll();
     window.setInterval(refreshAll, 10000);
