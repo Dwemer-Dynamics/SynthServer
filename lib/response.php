@@ -9,6 +9,7 @@ require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
+require_once __DIR__.'/synth_conversation.php';
 
 // An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
 function synth_protocol_response_context(?array $wire = null): array
@@ -176,9 +177,13 @@ function synth_protocol_ndjson_headers(bool $streaming): void
 }
 
 // The configured server version, else 'source', opens every response.
-function synth_protocol_start_payload(): array
+function synth_protocol_start_payload(?array $event = null): array
 {
-    return ['server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source')];
+    $payload = ['server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source')];
+    // Every response to a request that carried a conversation_id echoes it unchanged, on both dialogue lanes.
+    $conversation = synth_conversation_id_of($event ?? ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null));
+    if ($conversation !== null) $payload['conversation_id'] = $conversation;
+    return $payload;
 }
 
 function synth_protocol_ensure_response_started(): void
@@ -496,7 +501,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
         elseif ($quests) $status = 'init_quest_events_accepted';
         elseif ($tracking) $status = 'init_quest_tracking_accepted';
     }
-    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload(), 'start', $wire);
+    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload($wire), 'start', $wire);
     $statusPayload = ['code' => $status];
     if ($rechatScene) $statusPayload['rechat_scene'] = true;
     if ($ambientNpc) $statusPayload['ambient_npc'] = true;
@@ -505,6 +510,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
+    if ($status === 'init_accepted' && synth_conversation_init_granted($event)) $statusPayload['conversation'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
@@ -576,7 +582,7 @@ function synth_protocol_encode_terminal_error(string $code, string $detail = '',
     if ($detail !== '') {
         $payload['detail'] = substr($detail, 0, 1024);
     }
-    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload(), 'start', $wire);
+    $body = synth_protocol_encode_response_line('response_start', synth_protocol_start_payload($wire), 'start', $wire);
     $body .= synth_protocol_encode_response_line('status', $payload, 'status', $wire);
     return $body . synth_protocol_encode_response_line('response_end', ['status' => 'error'], 'end', $wire);
 }

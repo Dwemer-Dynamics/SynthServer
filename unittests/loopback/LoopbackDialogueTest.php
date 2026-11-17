@@ -1290,4 +1290,231 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             'grunt'=>substr_count($prompt,'Hmm!')];
         if ($older) $this->script('Newer autochat load reply.');
     }
+
+    // ---- dialogue.conversation on both dialogue lanes (the compiled client's "conversation" scenario) ----
+    private array $conv=[];
+    private const CONV_UUID='/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
+
+    public function testCompiledClientConversationLifecycle(): void {
+        // Workers, so the scoped cancel reaches main.php while a request held at the provider still occupies one.
+        $this->address=$this->startServer(dirname(__DIR__).'/fixtures/context_ack_router.php',$this->environment+['PHP_CLI_SERVER_WORKERS'=>'4']);
+        $phases=$this->runDriver(['conversation'],$this->conversationPhase(...),function(string $line): void {
+            if (!str_starts_with($line,'LOOPBACK ')) return;
+            $evidence=json_decode(substr($line,9),true,32,JSON_THROW_ON_ERROR);
+            $this->driverEvidence[strval($evidence['kind'] ?? '')][]=$evidence;
+        });
+        $this->assertSame(['conv_context','conv_turn_a','conv_turn_b','conv_turn_c','conv_receipts','conv_followup_ordinary','conv_followup_native',
+            'conv_reset','conv_held','conv_cancelled','conv_after_cancel','conv_old_client','conv_old_followup'],$phases);
+        // Exactly three conversations for the capable session (A,B,C,D,E share one; the cell change and the cancel each started one).
+        $session=$this->conv['session'];
+        $ids=array_column($this->query("SELECT DISTINCT canonical_event#>>'{payload,conversation_id}' AS id FROM synth_meta.protocol_events
+            WHERE session_id=$1 AND event_type IN ('input_text','input_audio','trigger') AND canonical_event#>>'{payload,conversation_id}' IS NOT NULL",[$session]),'id');
+        sort($ids);$expected=[$this->conv['a'],$this->conv['f'],$this->conv['g']];sort($expected);
+        $this->assertSame($expected,$ids,'one conversation id per conversation');
+        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM synth_meta.protocol_events WHERE session_id=$1
+            AND canonical_event#>>'{payload,conversation_id}' IS NOT NULL",[$this->conv['old']])[0]['n'],'the older client never sent a conversation id');
+        $this->report('conversation',$this->conv);
+    }
+
+    private function conversationPhase(string $name,array $value): void {
+        match ($name) {
+            'conv_context'=>$this->convContext($value),
+            'conv_turn_a','conv_turn_b','conv_turn_c'=>$this->convTurn($name,$value),
+            'conv_receipts'=>$this->convReceipts($value),
+            'conv_followup_ordinary','conv_followup_native'=>$this->convFollowup($name,$value),
+            'conv_reset'=>$this->convReset($value),
+            'conv_held'=>$this->convHeld($value),
+            'conv_cancelled'=>$this->convCancelled($value),
+            'conv_after_cancel'=>$this->convAfterCancel($value),
+            'conv_old_client'=>$this->convOldClient($value),
+            'conv_old_followup'=>$this->convOldFollowup($value),
+            default=>$this->fail("unknown conversation phase $name"),
+        };
+    }
+
+    // The first scripted provider request since the previous call, as encoded messages; every earlier one is consumed.
+    private function convPrompt(string $label,string $text,bool $legacy): string {
+        $new=$this->newProviderRequests();
+        $this->assertNotEmpty($new,"$label made no provider call ".$this->tail());
+        $this->assertStringContainsString($text,$new[0],"$label prompt carries its player text");
+        if ($legacy) $this->assertStringContainsString(self::LEGACY_JSON,$new[0],"$label stays on the legacy route");
+        else $this->assertStringNotContainsString(self::LEGACY_JSON,$new[0],"$label is a native turn");
+        return $new[0];
+    }
+    private function convHistory(string $session): array {
+        return $this->query("SELECT e.delivery_state,e.data FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            WHERE h.session_id=$1 AND e.type='chat' ORDER BY h.id",[$session]);
+    }
+    private function convWaitNotLive(string $session,string $request): array {
+        $deadline=hrtime(true)+5_000_000_000;
+        do {
+            $row=$this->execution($session,$request)[0] ?? [];
+            if (!in_array($row['state'] ?? '',['claimed','streaming'],true)) break;
+            usleep(20000);
+        } while (hrtime(true)<$deadline);
+        return $row;
+    }
+
+    private function convContext(array $value): void {
+        $this->assertTrue($value['conversation_ready'],'the init acknowledged dialogue.conversation');
+        $session=$value['session'];
+        $this->completed($session,$value['context_request_id'],'context');
+        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session])[0]['c'],true);
+        foreach (['dialogue.conversation','dialogue.delivery_receipts','dialogue.turn_ownership','dialogue.native_turn'] as $capability) $this->assertContains($capability,$capabilities);
+        $this->conv=['session'=>$session,'playthrough'=>$value['playthrough_id'],'profile'=>$this->seedCompanionProfile(),'texts'=>[]];
+        $this->script($this->ordinaryReply('Turn A line CVA100.'));
+    }
+
+    // A turn of the conversation: its stored admitted bytes carry the id the response echoed, its line is enrolled as a
+    // generated utterance (not heard yet), and the route is the lane the turn asked for.
+    private function convTurn(string $name,array $value): void {
+        $key=substr($name,-1);$native=$key==='b';
+        $session=$this->conv['session'];
+        $this->assertMatchesRegularExpression(self::CONV_UUID,$value['conversation_id']);
+        $this->assertTrue($value['receipt_required']||$native,'an ordinary line is enrolled for its receipt');
+        $this->assertSame($native,$value['native_turn']);
+        $this->completed($session,$value['request_id'],'input_text');
+        $event=$this->canonical($session,$value['request_id']);
+        $this->assertSame($value['conversation_id'],$event['payload']['conversation_id'] ?? null,"$name stored its conversation id");
+        $this->assertContains('dialogue.conversation',$event['capabilities']);
+        $this->assertSame($native,($event['payload']['intent'] ?? null)==='conversation');
+        $utterances=$this->query("SELECT line_id,state FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND request_id=$2 AND line_id=$3",
+            [$session,$value['request_id'],$value['line_id']]);
+        $this->assertSame([['line_id'=>$value['line_id'],'state'=>'generated']],$utterances,"$name line is generated, not yet heard");
+        $this->convPrompt($name,$native ? 'Diamond City' : ($key==='a' ? 'settlement' : 'Minutemen'),!$native);
+        $this->conv[$key]=$value['conversation_id'];$this->conv['texts'][$key]=$value['text'];
+        if ($key!=='a') $this->assertSame($this->conv['a'],$value['conversation_id'],'one conversation across the turns');
+        $this->conv['lines'][$key]=['request'=>$value['request_id'],'line'=>$value['line_id']];
+        // The reply for the next turn: B is native (plain text), C and the first follow-up are ordinary (JSON).
+        $this->script(match ($key) {'a'=>'Turn B line CVB200.','b'=>$this->ordinaryReply('Turn C line CVC300.'),default=>$this->ordinaryReply('Turn D line CVD400.')});
+    }
+
+    // heard -> spoken and in context; interrupted -> interrupted, kept in context marked as cut off; skipped -> stored unheard
+    // like a failed line (its receipt event keeps the distinct outcome) and never in context.
+    private function convReceipts(array $value): void {
+        $session=$this->conv['session'];
+        $states=$this->query("SELECT request_id,state,receipt_request_id FROM synth_meta.dialogue_utterances WHERE session_id=$1 ORDER BY created_at",[$session]);
+        $byRequest=array_column($states,null,'request_id');
+        $this->assertSame('spoken',$byRequest[$this->conv['lines']['a']['request']]['state']);
+        $this->assertSame('interrupted',$byRequest[$this->conv['lines']['b']['request']]['state']);
+        $this->assertSame('failed',$byRequest[$this->conv['lines']['c']['request']]['state'],'a skipped line is stored unheard');
+        $skipped=$this->canonical($session,$byRequest[$this->conv['lines']['c']['request']]['receipt_request_id']);
+        $this->assertSame('skipped',$skipped['payload']['outcome'],'the receipt event keeps the distinct outcome');
+        $this->assertContains('dialogue.conversation',$skipped['capabilities']);
+        $history=$this->convHistory($session);
+        $this->assertSame(['spoken','interrupted'],array_column($history,'delivery_state'),'only the heard and the cut-off line reach history');
+        $this->assertStringContainsString('CVA100.',$history[0]['data']);
+        $this->assertStringNotContainsString('[cut off]',$history[0]['data']);
+        $this->assertStringContainsString('CVB200. [cut off] (talking to',$history[1]['data']);
+        $this->assertStringNotContainsString('CVC300',implode("\n",array_column($history,'data')),'a skipped line never counts as heard');
+        $this->conv['history']=$history;
+    }
+
+    // Both lanes: the prompt keeps the heard line, keeps the cut-off line with its mark, and never carries the skipped one.
+    private function convFollowup(string $name,array $value): void {
+        $native=$name==='conv_followup_native';
+        $session=$this->conv['session'];
+        $this->assertSame($this->conv['a'],$value['conversation_id'],'the follow-up stays in the conversation');
+        $this->completed($session,$value['request_id'],'input_text');
+        $prompt=$this->convPrompt($name,$native ? 'again' : 'one more thing',!$native);
+        $this->assertSame(1,substr_count($prompt,'CVA100'),"$name heard line");
+        $this->assertSame(1,substr_count($prompt,'CVB200'),"$name cut-off line is still context");
+        $this->assertStringContainsString('[cut off]',$prompt,"$name marks it as cut off");
+        $this->assertStringNotContainsString('CVC300',$prompt,"$name never carries the skipped line");
+        $this->conv['followup'][$native ? 'native' : 'ordinary']=['cut_off_marked'=>true,'heard'=>1,'skipped'=>0];
+        $this->script($native ? $this->ordinaryReply('Turn F line CVF600.') : 'Turn E line CVE500.');
+    }
+
+    private function convReset(array $value): void {
+        $session=$this->conv['session'];
+        $this->assertMatchesRegularExpression(self::CONV_UUID,$value['conversation_id']);
+        $this->assertNotSame($this->conv['a'],$value['conversation_id'],'a cell change starts a new conversation');
+        $this->assertSame($value['conversation_id'],$this->canonical($session,$value['request_id'])['payload']['conversation_id']);
+        // The same-conversation preference only chooses among the limited rows; the earlier conversation stays available.
+        $prompt=$this->convPrompt('conv_reset','Concord',true);
+        $this->assertStringContainsString('CVA100',$prompt,'earlier history is preferred against, not dropped');
+        $this->conv['f']=$value['conversation_id'];$this->conv['f_request']=$value['request_id'];
+        // Hold the next NPC provider call so the cancel arrives while it is in flight.
+        $this->script('');
+        unlink($this->llmDir.'/reply');
+        $this->assertTrue(posix_mkfifo($this->llmDir.'/reply',0600));
+    }
+
+    private function convHeld(array $value): void {
+        $session=$this->conv['session'];
+        $deadline=hrtime(true)+10_000_000_000;
+        while (count($this->providerRequests())<=$this->providerSeen && hrtime(true)<$deadline) usleep(10000);
+        $this->assertGreaterThan($this->providerSeen,count($this->providerRequests()),'the held request reached the provider '.$this->tail());
+        $live=$this->query("SELECT request_id,state FROM synth_meta.request_executions WHERE session_id=$1 AND event_type='input_text'
+            AND state IN ('claimed','streaming')",[$session]);
+        $this->assertCount(1,$live,'exactly one request is in flight');
+        $this->assertSame($this->conv['f'],$this->canonical($session,$live[0]['request_id'])['payload']['conversation_id']);
+        $this->conv['held']=$live[0]['request_id'];
+    }
+
+    // The scoped cancel is claimed and recorded with its reason, revoked the in-flight request of that conversation and
+    // nothing else, and what the provider returns afterwards is never delivered, recorded or remembered.
+    private function convCancelled(array $value): void {
+        $session=$this->conv['session'];
+        $held=$this->conv['held'];
+        $this->assertSame($held,$value['request_id']);
+        $this->completed($session,$value['cancel_request_id'],'cancel');
+        $cancel=$this->canonical($session,$value['cancel_request_id']);
+        $this->assertSame(['scope'=>'conversation','reason'=>'player_cancel','conversation_id'=>$this->conv['f']],$cancel['payload']);
+        $this->assertContains('dialogue.conversation',$cancel['capabilities']);
+        $atAck=$this->execution($session,$held)[0] ?? [];
+        $this->assertSame(['cancelled','request_cancelled'],[$atAck['state'] ?? null,$atAck['error_code'] ?? null],'the in-flight request was revoked at the ack');
+        // Only that conversation: the earlier conversation's completed requests are untouched, and the cancelled
+        // conversation's own completed player input stays as historical learning.
+        $this->completed($session,$this->conv['lines']['a']['request'],'input_text');
+        $this->assertSame([['event_type'=>'input_text','state'=>'complete','error_code'=>'request_cancelled']],
+            $this->execution($session,$this->conv['f_request']),'completed input stays complete; its delivery is revoked');
+        $released=$this->releaseFifo($this->llmDir.'/reply',$this->ordinaryReply('Too late CVL700.'));
+        $final=$this->convWaitNotLive($session,$held);
+        $this->assertSame(['cancelled','request_cancelled'],[$final['state'] ?? null,$final['error_code'] ?? null],'it stays cancelled after the provider answers');
+        $this->assertSame([],$this->utterances($session,$held),'a revoked request enrols no line');
+        $this->assertSame([],$this->query('SELECT line_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',[$session,$held]),'nothing was routed late');
+        $this->assertStringNotContainsString('CVL700',implode("\n",array_column($this->query("SELECT e.data FROM synth.eventlog e WHERE e.data LIKE '%CVL700%'"),'data')),'nothing late reached history');
+        $this->conv['cancel']=['request'=>$value['cancel_request_id'],'revoked_at_ack'=>$atAck,'final'=>$final,'provider_release_read'=>$released];
+        $this->newProviderRequests();
+        $this->script($this->ordinaryReply('Turn G line CVG800.'));
+    }
+
+    private function convAfterCancel(array $value): void {
+        $session=$this->conv['session'];
+        $this->assertMatchesRegularExpression(self::CONV_UUID,$value['conversation_id']);
+        $this->assertNotContains($value['conversation_id'],[$this->conv['a'],$this->conv['f']],'the next input after a cancel starts a new conversation');
+        $this->assertSame($value['conversation_id'],$this->canonical($session,$value['request_id'])['payload']['conversation_id']);
+        $this->completed($session,$value['request_id'],'input_text');
+        $this->conv['g']=$value['conversation_id'];
+        $this->newProviderRequests();
+        $this->script($this->ordinaryReply('Old A line CVO900.'));
+    }
+
+    // An older client: no capability, no id, and the released receipt behaviour (an interrupted line is never heard).
+    private function convOldClient(array $value): void {
+        $session=$value['session'];
+        $this->conv['old']=$session;
+        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session])[0]['c'],true);
+        $this->assertNotContains('dialogue.conversation',$capabilities);
+        $this->assertContains('dialogue.delivery_receipts',$capabilities);
+        $a=$value['a'];
+        $this->assertSame('',$a['conversation_id']);
+        $this->assertArrayNotHasKey('conversation_id',$this->canonical($session,$a['request_id'])['payload']);
+        $this->assertSame([['line_id'=>$a['line_id'],'state'=>'interrupted']],
+            $this->query('SELECT line_id,state FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND request_id=$2',[$session,$a['request_id']]));
+        $this->assertSame([],$this->convHistory($session),'released behaviour: an interrupted line never enters history for an older client');
+        $this->newProviderRequests();
+        $this->script($this->ordinaryReply('Old B line CVO901.'));
+    }
+
+    private function convOldFollowup(array $value): void {
+        $session=$value['session'];
+        $this->assertSame('',$value['conversation_id']);
+        $this->completed($session,$value['request_id'],'input_text');
+        $prompt=$this->convPrompt('conv_old_followup','one more thing',true);
+        $this->assertStringNotContainsString('CVO900',$prompt,'the older client\'s interrupted line is not context');
+        $this->assertStringNotContainsString('[cut off]',$prompt);
+        $this->assertArrayNotHasKey('conversation_id',$this->canonical($session,$value['request_id'])['payload']);
+    }
 }

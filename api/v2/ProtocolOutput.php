@@ -108,7 +108,7 @@ final class ProtocolOutput implements NarratorOutput
     private function start(): void
     {
         if ($this->started) return;
-        $this->line('response_start', synth_protocol_start_payload(), 'start');
+        $this->line('response_start', synth_protocol_start_payload($this->event), 'start');
     }
 
     private function line(string $type, array $payload, string $suffix, array $routeMetadata = []): void
@@ -135,7 +135,7 @@ final class ProtocolOutput implements NarratorOutput
     // The opening line when nothing has been sent yet.
     private function head(): string
     {
-        return $this->started ? '' : $this->encode('response_start', synth_protocol_start_payload(), 'start');
+        return $this->started ? '' : $this->encode('response_start', synth_protocol_start_payload($this->event), 'start');
     }
 
     private function cancellation(): string
