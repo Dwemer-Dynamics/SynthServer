@@ -410,6 +410,11 @@ if (!function_exists('synthRuntimeEnsureDbUpdates')) {
         }
 
         synthRuntimeApplySchemaMigrations($enginePath);
+        // The pinned baseline only seeds the managed settings that existed when it was cut. Insert any managed
+        // setting added since (schema default, ON CONFLICT upsert, existing rows untouched) so a newer entry in
+        // synthGetManagedGeneralSettingIds() cannot leave a fresh install with pending updates. A setting with
+        // no default and no seed fallback stays missing and fails the check below.
+        synthSeedMissingManagedGeneralSettings();
         if (synthRuntimeNeedsDbUpdates()) {
             throw new \RuntimeException("SYNTH database bootstrap completed with pending schema updates.");
         }
