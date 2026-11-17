@@ -790,3 +790,7 @@ dialogue line carries `receipt_required: true` when the server has stored its ex
 enrolled the placed NPC utterance. Its first accepted `audio_completed` or `text_presented` receipt
 inserts heard history at the receipt's save frontier. The stored route and original scene determine
 attribution and hearers. The v2 protocol README describes legacy fallback and continuation rules.
+
+## Conversation continuity and line lifecycle
+
+The optional `dialogue.conversation` capability (v2, with `dialogue.turn_ownership`; acknowledged by `conversation: true` on the init status) adds a client-created `conversation_id` to `input_text`, `input_audio` and every `trigger`. The server stores it with the admitted event, echoes it on every `response_start` on both dialogue lanes, prefers same-conversation history rows when history fills its row limit, and scopes an explicit cancel by it. With it a `speech_receipt` may report `skipped` (stored unheard) and an `interrupted` line stays in context marked ` [cut off]`, never heard. The `cancel` event gains `{"scope","reason","conversation_id"}`; `scope: conversation` revokes every in-flight or completed-undelivered request of that conversation. No schema migration: the id lives in the stored canonical events and `skipped` reuses the `failed` utterance state. The v2 protocol README is the normative text.

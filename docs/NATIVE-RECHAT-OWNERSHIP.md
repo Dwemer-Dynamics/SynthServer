@@ -272,3 +272,7 @@ audible interruption has been newly proven in game. Unit test counts are not tha
 The parent contract and durable routing/decision work must land as a coherent
 source milestone before enabling the native path. Do not call this complete
 from the diagnostic or replace it with a name-key patch.
+
+## Conversation id and rechat chains
+
+`dialogue.conversation` adds a client-created `conversation_id` that a rechat trigger carries like any other player-conversation request. It groups several rechat chains and the turns around them; it does not replace chain ownership, parent proof or any rechat gate. A cut-off (`interrupted`) parent never releases a child: only a heard parent does. An explicit cancel with `scope: conversation` revokes the in-flight requests of that conversation, rechat children included, by the same request-level revocation a single-request cancel uses.

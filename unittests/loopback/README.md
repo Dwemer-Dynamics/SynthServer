@@ -203,3 +203,15 @@ when the run ends.
 A pass proves the client/server HTTP and PostgreSQL contract only. The driver uses a POSIX test
 transport instead of WinHTTP, and it plays no audio. It proves no game thread, socket loss or
 flat/VR gameplay.
+
+## Conversation lifecycle
+
+`testCompiledClientConversationLifecycle` runs the driver's `conversation` scenario against a fixture companion (Piper, SYNTHETIC captured state) on both dialogue lanes with a held loopback provider. It checks:
+
+- Three turns (ordinary, `/talk`, ordinary) keep one `conversation_id`, stored in each admitted event and echoed by each response.
+- A heard, an interrupted and a skipped line reach `spoken`, `interrupted` and `failed` (the receipt keeps `skipped`). The next prompt on each lane keeps the heard line, keeps the interrupted line marked ` [cut off]` and never carries the skipped one.
+- A player cell change starts a new conversation. The driver calls `observe_cell` the way `ContextPublication` does, because the compiled driver has no context publication.
+- An explicit scoped cancel, sent while a request is held at the provider, records its reason, revokes only that conversation's in-flight request, and nothing the provider returns afterwards is delivered, routed or remembered. The next input starts a new conversation.
+- A client that never asked for the capability still works unchanged: no id, and an interrupted line is not context.
+
+Not covered: the `CancelConversation` hotkey and its local teardown, real audio, and a game thread.
