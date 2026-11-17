@@ -67,9 +67,10 @@ final class PlacedCharacter
     }
 }
 
-// Admitted turn: request, character and the profile's explicit speech inputs.
+// Admitted turn: request, character and the profile's explicit speech inputs; null when the profile has no
+// portable TTS connector, in which case every line is delivered as text only.
 final class AdmittedTurn
 {
     public function __construct(public readonly TurnRequest $request, public readonly PlacedCharacter $character,
-        public readonly array $speech) {}
+        public readonly ?array $speech) {}
 }
