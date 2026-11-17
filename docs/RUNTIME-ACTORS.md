@@ -424,7 +424,7 @@ separately as acceptance evidence** (`docs/ALPHA-ACCEPTANCE.md`).
 
 ## 8.1 Code placement (target structure)
 
-New code goes in the chevo-shaped homes; legacy directories (`lib/`, `processor/`, `connector/`, `ui/` SQL, `main.php`)
+New code goes in the chevo-shaped homes; legacy directories (`lib/`, `processor/`, `connector/`, `tts/`, `stt/`, `itt/`, `service/`, `main.php`)
 are frozen and get only thin call-through hooks. Nothing is moved.
 
 | Concern | Home | Namespace |
@@ -433,7 +433,9 @@ are frozen and get only thin call-through hooks. Nothing is moved.
 | Manifest sync, typed references, resolution statuses, deferred resolution | `managers/ReferenceResolver/` (with `README.md`, sections 3 and 4) | `Synth\Managers\ReferenceResolver` |
 | `core_npc_runtime_actor`, `core_plugin_manifest_revision`, `core_npc_actor` mappings and system classes | `core/entities/base`, `core/entities/system` | `Synth\Core\Entities\...` |
 | DAOs | `core/dbmanager/dao` | `Synth\Core\DbManager\Dao` |
-| Route handlers for `runtime_actor.*` and `session.plugin_manifest` | `api/` | |
+| HTTP endpoints for `runtime_actor.*` and `session.plugin_manifest`, calling the managers | `api/v<N>/<area>/` | `Synth\Api\*` |
+| Shared interfaces and value types (reference, resolution status, runtime-actor identity) | `core/contracts/` | `Synth\Core\Contracts\*` |
+| New tests | `tests/` (`unittests/` stays for existing suites) | `Synth\Tests\*` |
 
 The only edits in shared legacy files are the one identity-parsing accessor in `DialogueManager`/`dispatch.php`
 (section 5.1) and the eligibility gate (phase E). Until Composer PSR-4 autoload merges, new files are loaded with
