@@ -2,6 +2,7 @@
 require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
+require_once __DIR__.'/synth_location_catalog.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
@@ -959,6 +960,8 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
     } elseif (in_array($type,['narrator_command','narrator_turn','narrator_receipt'],true)) {
         require_once __DIR__.'/synth_private_narrator.php';
         $payload=synth_private_narrator_validate_payload($type,$payload);
+    } elseif ($type === 'location_catalog') {
+        $payload = synth_location_catalog_validate_payload($payload);
     } elseif ($type === 'cancel') {
         synth_protocol_expect_exact_keys($payload, ['cancel_request_id'], [], 'payload');
         if (!synth_protocol_valid_id($payload['cancel_request_id'] ?? null)) {
@@ -983,7 +986,7 @@ function synth_protocol_validate_event(array $event): array
 
     $types = ['init', 'input_text', 'input_audio', 'context', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result', 'cancel', 'halt'];
     if ($version === 2) array_push($types,'control','social_task_request','social_task_progress','speech_receipt',
-        'narrator_command','narrator_turn','narrator_receipt');
+        'narrator_command','narrator_turn','narrator_receipt','location_catalog');
     $valid = in_array($version, [1, 2], true)
         && $event['schema'] === 'synth.event.v' . $version
         && in_array($event['type'], $types, true)
@@ -1047,6 +1050,8 @@ function synth_protocol_validate_event(array $event): array
             $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_gift_menu_capability',422);
     if ((isset($seen['social.tasks.v1']) || in_array($event['type'],['social_task_request','social_task_progress'],true)) && !synth_social_supported($event))
         synth_protocol_fail('invalid_social_capability',422);
+    if ($event['type'] === 'location_catalog' && !synth_location_catalog_supported($event))
+        synth_protocol_fail('invalid_payload', 422, [['field' => 'capabilities', 'issue' => 'location_catalog_capability_required']]);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
     if ($event['type'] === 'action_result' && in_array($event['payload']['result']['schema'] ?? '',
         ['synth.action.result.v2', 'synth.action.transfer-result.v2'], true)) {

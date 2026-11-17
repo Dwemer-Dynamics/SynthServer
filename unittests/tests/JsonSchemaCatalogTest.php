@@ -2219,4 +2219,49 @@ PHP;
         $this->assertSame('response_end', $decoded[1]['type']);
         $this->assertSame('complete', $decoded[1]['payload']['status']);
     }
+
+    public function testLocationCatalogFixturesAreValidatedReviewedAndAcknowledged(): void
+    {
+        $root=dirname(__DIR__,2);
+        foreach (['batch','upsert'] as $mode) {
+            $event=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/location-catalog-'.$mode.'.json'),true,flags:JSON_THROW_ON_ERROR);
+            $this->assertSame($event,synth_protocol_validate_event($event));
+            $review=synth_location_catalog_review($event['payload']);
+            $this->assertSame([],$review['refused']);
+            $this->assertSame(count($event['payload']['locations']),$review['valid']);
+        }
+        $event=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/location-catalog-batch.json'),true,flags:JSON_THROW_ON_ERROR);
+        $this->assertSame(3,synth_location_catalog_review($event['payload'])['markers']);
+        // A repeated location, a self parent and a repeated marker are refused one by one; the others still count.
+        $payload=$event['payload'];
+        $payload['locations'][]=$payload['locations'][0];
+        $self=$payload['locations'][1];$self['ref']['local_form_id']='0x00AAAA';$self['parent_ref']=$self['ref'];$payload['locations'][]=$self;
+        $twice=$payload['locations'][0];$twice['ref']['local_form_id']='0x00BBBB';$twice['markers'][]=$twice['markers'][0];$payload['locations'][]=$twice;
+        $review=synth_location_catalog_review($payload);
+        $this->assertSame([['index'=>2,'reason'=>'duplicate_ref'],['index'=>3,'reason'=>'self_parent'],['index'=>4,'reason'=>'duplicate_marker']],$review['refused']);
+        $this->assertSame(2,$review['valid']);
+        $this->assertLessThanOrEqual(1024,strlen(synth_location_catalog_detail($review)));
+        $this->assertFalse(json_decode(synth_location_catalog_detail($review),true)['stored']);
+        // The init grant needs the capability, and either lane may hold it.
+        $saved=$GLOBALS['SYNTH_REQUEST_EVENT']??null;
+        try {
+            foreach (['flat','vr'] as $lane) foreach ([false,true] as $granted) {
+                $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['type'=>'init','protocol_version'=>2,'runtime_variant'=>$lane,'generation'=>1,
+                    'request_id'=>'locations-init','turn_id'=>'locations-turn','capabilities'=>$granted?['world.location_catalog']:[]]];
+                $lines=explode("
+",trim(synth_protocol_encode_ack('init_accepted')));
+                $this->assertSame($granted,json_decode($lines[1],true)['payload']['location_catalog']??false,$lane);
+            }
+        } finally {
+            if ($saved===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT']=$saved;
+        }
+        // Shape violations refuse the whole request.
+        $files=glob($root.'/protocol/v2/fixtures/invalid/location-catalog-*.json');
+        $this->assertGreaterThanOrEqual(12,count($files));
+        foreach ($files as $file) {
+            $script='require '.var_export($root.'/lib/request.php',true).'; synth_protocol_validate_event(json_decode(file_get_contents('.var_export($file,true).'),true)); echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,basename($file));
+        }
+    }
 }
