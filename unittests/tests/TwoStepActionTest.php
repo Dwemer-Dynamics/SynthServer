@@ -28,7 +28,7 @@ final class TwoStepActionTest extends TestCase
         restore_error_handler();
         $this->event = ['protocol_version'=>2,'type'=>'input_text','runtime_variant'=>'flat','session_id'=>'s1','request_id'=>'r1',
             'generation'=>1,'context_sequence'=>1,'payload'=>['text'=>'Codsworth, follow me.','control'=>['mode'=>'STANDARD']],
-            'capabilities'=>['dialogue.turn_ownership','action.follow','action.inspect_actor','action.attack','action.stop_following']];
+            'capabilities'=>['dialogue.turn_ownership','action.order_verified','action.follow','action.inspect_actor','action.attack','action.stop_following']];
         foreach (['Follow','Inspect','Attack','StopFollowing'] as $code) $GLOBALS['F_NAMES'][$code] = $code;
         $GLOBALS['FUNCTION_PARM_INSPECT'] = ['Wolf','Piper'];
         $GLOBALS['ENABLED_FUNCTIONS'] = ['Follow','Inspect','StopFollowing'];   // Attack exists but is not enabled
@@ -267,7 +267,7 @@ final class TwoStepActionTest extends TestCase
         if (!is_file($file)) $this->markTestSkipped('CompanionOrders arrives with the companion-orders change');
         require_once $file;
         require_once dirname(__DIR__, 2).'/lib/synth_wait_actions.php';
-        $actor = ['kind'=>'npc','form_id'=>'0x00001234','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'p1','display_name'=>'Codsworth'];
+        $actor = ['form_id'=>'0x00001234','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'p1','display_name'=>'Codsworth'];
         $this->assertNull(\Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine('r1', $actor), 'no line encoded yet');
         \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine(['request_id'=>'r1','line_id'=>'line:one','payload'=>['speaker'=>$actor]]);
         \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine(['request_id'=>'r1','line_id'=>'line:two','payload'=>['speaker'=>$actor]]);
