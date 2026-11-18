@@ -477,10 +477,9 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testKilledFreshBootstrapIsNeverFalselyBaselinedAndRerunConverges(): void
     {
         $legacySchema = $this->schemaFingerprint();
-        // The kill lands on a different step for each delay: the legacy chain at several points, then the baseline
-        // transaction and the settings seed. Whatever step it lands on, no baseline may exist without a complete
-        // schema, and the rerun must end with the same schema as an uninterrupted install (the interrupted chain's
-        // self-heal steps once added an index the uninterrupted run never creates).
+        // The kill lands on a different step for each delay: the baseline transaction, the settings seed, the narrator
+        // settings load. Whatever step it lands on, no baseline may exist without a complete schema, and the rerun
+        // must end with the same schema as an uninterrupted install.
         foreach ([200, 500, 800, 1100, 1500] as $milliseconds) {
             $this->recreateFreshDatabase();
             $run = $this->startBootstrap();
