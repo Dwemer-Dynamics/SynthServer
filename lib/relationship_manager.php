@@ -337,7 +337,7 @@ class RelationshipManager {
             $db = $GLOBALS["db"] ?? null;
             $row = $db && is_object($db) && method_exists($db, 'fetchOne') ? $db->fetchOne(
                 "SELECT COALESCE(custom_prompt, default_prompt) as prompt " .
-                "FROM prompts WHERE prompt_key = 'rel_tier_reference'"
+                "FROM core_prompt WHERE prompt_key = 'rel_tier_reference'"
             ) : null;
             if ($row && !empty($row['prompt'])) {
                 $cached = $row['prompt'];

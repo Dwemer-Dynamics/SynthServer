@@ -79,7 +79,7 @@ function synth_relationship_capture_interaction_evaluation($db, int $responseId,
 function synth_relationship_capture_configured_interaction($db, int $responseId, int $entryIndex): ?int
 {
     if (!synthRelationshipUsesDedicatedConnector()) return null;
-    $row=$db->fetchOne("SELECT custom_prompt,default_prompt FROM prompts WHERE prompt_key='rel_llm_npc_to_npc'");
+    $row=$db->fetchOne("SELECT custom_prompt,default_prompt FROM core_prompt WHERE prompt_key='rel_llm_npc_to_npc'");
     $prompt=!empty($row['custom_prompt']) ? $row['custom_prompt'] : ($row['default_prompt'] ?? '');
     if (!is_string($prompt) || trim($prompt)==='') throw new RuntimeException('NPC-to-NPC relationship prompt unavailable');
     return synth_relationship_capture_interaction_evaluation($db,$responseId,$entryIndex,$prompt);

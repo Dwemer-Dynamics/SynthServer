@@ -135,7 +135,7 @@ function synthSettingsPresetEnsureStorage(): void
     if (!$db) {
         throw new RuntimeException('Database connection is unavailable.');
     }
-    $row = $db->fetchOne("SELECT to_regclass('synth.global_settings_presets') AS relation");
+    $row = $db->fetchOne("SELECT to_regclass('public.core_config_preset') AS relation");
     if (empty($row['relation'])) {
         $schema = file_get_contents(__DIR__ . '/database_schema/global_settings_presets.sql');
         if ($schema === false || $db->execQuery($schema) === false) {
@@ -152,7 +152,7 @@ function synthSettingsPresetCatalog(): array
         unset($preset['snapshot']);
     }
     unset($preset);
-    foreach (synthSettingsDb()->fetchAll('SELECT id, name FROM synth.global_settings_presets ORDER BY lower(name), id LIMIT 50') as $row) {
+    foreach (synthSettingsDb()->fetchAll('SELECT id, name FROM public.core_config_preset ORDER BY lower(name), id LIMIT 50') as $row) {
         $presets[] = ['id' => 'custom:' . (int)$row['id'], 'name' => $row['name'],
             'description' => 'Saved global options. Profiles and connections stay unchanged.', 'built_in' => false];
     }
@@ -185,31 +185,31 @@ function synthSettingsPresetSave(string $name, array $snapshot, string $overwrit
     }
     try {
         // Serialize writers so the count cap and duplicate-name check remain true under concurrent saves.
-        if ($db->execQuery('LOCK TABLE synth.global_settings_presets IN SHARE ROW EXCLUSIVE MODE') === false) {
+        if ($db->execQuery('LOCK TABLE public.core_config_preset IN SHARE ROW EXCLUSIVE MODE') === false) {
             throw new RuntimeException('Could not lock preset storage.');
         }
         $data = ['snapshot' => json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)];
         if ($overwriteId !== '') {
             $id = synthSettingsPresetCustomId($overwriteId);
-            $row = $db->fetchOne('SELECT name FROM synth.global_settings_presets WHERE id = ' . $id);
+            $row = $db->fetchOne('SELECT name FROM public.core_config_preset WHERE id = ' . $id);
             if (!isset($row['name'])) {
                 throw new InvalidArgumentException('Preset not found.');
             }
             $name = $row['name'];
             $data['updated_at'] = date('Y-m-d H:i:s');
-            if ($db->updateRow('global_settings_presets', $data, 'id = ' . $id) === false) {
+            if ($db->updateRow('core_config_preset', $data, 'id = ' . $id) === false) {
                 throw new RuntimeException('Could not overwrite the preset.');
             }
         } else {
             $existing = $db->fetchOne('SELECT count(*) AS count, count(*) FILTER (WHERE lower(name) = lower('
-                . $db->escapeLiteral($name) . ')) AS duplicate FROM synth.global_settings_presets');
+                . $db->escapeLiteral($name) . ')) AS duplicate FROM public.core_config_preset');
             if ((int)$existing['duplicate'] > 0) {
                 throw new InvalidArgumentException('That name already exists. Select it and use Overwrite.');
             }
             if ((int)$existing['count'] >= 50) {
                 throw new InvalidArgumentException('The 50-preset limit has been reached. Overwrite an existing preset.');
             }
-            $id = $db->insertReturningId('global_settings_presets', ['name' => $name] + $data);
+            $id = $db->insertReturningId('core_config_preset', ['name' => $name] + $data);
             if ($id <= 0) {
                 throw new RuntimeException('Could not save the preset.');
             }
@@ -235,7 +235,7 @@ function synthSettingsPresetApply(string $presetId): array
     if ($preset === null) {
         $id = synthSettingsPresetCustomId($presetId);
         synthSettingsPresetEnsureStorage();
-        $row = $db->fetchOne('SELECT name, snapshot FROM synth.global_settings_presets WHERE id = ' . $id);
+        $row = $db->fetchOne('SELECT name, snapshot FROM public.core_config_preset WHERE id = ' . $id);
         if (!isset($row['name'])) {
             throw new InvalidArgumentException('Preset not found.');
         }

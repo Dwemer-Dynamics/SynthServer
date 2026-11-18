@@ -231,7 +231,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $parts = [];
         foreach (['public.core_catalog_version', 'synth.general_settings', 'public.core_profiles', 'synth.core_npc_master',
-                     'synth.prompts', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
+                     'public.core_prompt', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
         return implode(' ', $parts);
@@ -242,7 +242,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->rows("INSERT INTO synth.general_settings (id, value, description) VALUES ('SCHEMA_OWNER_FIXTURE', 'kept', 'test row')");
         $this->rows("INSERT INTO synth.eventlog (type, data, sess, gamets, localts, ts) VALUES ('inputtext', 'Sole Survivor: hello', 'pending', 7, 8, 9)");
         $this->rows("INSERT INTO synth.core_npc_master (npc_name, npc_static_bio) VALUES ('schema owner fixture', 'Kept verbatim.')");
-        $this->rows("UPDATE synth.prompts SET custom_prompt = 'Kept local prompt.' WHERE prompt_key = 'synth_system_prompt'");
+        $this->rows("UPDATE public.core_prompt SET custom_prompt = 'Kept local prompt.' WHERE prompt_key = 'synth_system_prompt'");
     }
 
     public function testPopulatedLegacyInstallIsRecognizedUnchangedAndConvergesWithFreshInstall(): void
@@ -585,7 +585,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         return array_column(self::rowsOn($pg, <<<SQL
             SELECT writer, count(*) AS objects FROM (
                 SELECT xmin::text AS writer FROM public.core_catalog_version
-                UNION ALL SELECT xmin::text FROM synth.prompts
+                UNION ALL SELECT xmin::text FROM public.core_prompt
                 UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM synth.core_action
                 UNION ALL SELECT xmin::text FROM public.core_profiles

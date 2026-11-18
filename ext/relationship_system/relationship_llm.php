@@ -112,7 +112,7 @@ class RelationshipLLM {
             if ($this->db) {
                 $escapedKey = $this->db->escape($promptKey);
                 $row = $this->db->fetchOne(
-                    "SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = '{$escapedKey}'"
+                    "SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = '{$escapedKey}'"
                 );
                 if ($row) {
                     // Use custom_prompt if set, otherwise default_prompt

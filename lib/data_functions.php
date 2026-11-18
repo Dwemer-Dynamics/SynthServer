@@ -601,7 +601,7 @@ function getHeightDescription(float $scale): string {
     if ($heightDescriptions === null) {
         try {
             global $db;
-            $result = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) as prompt FROM prompts WHERE prompt_key = 'height_descriptions'");
+            $result = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) as prompt FROM core_prompt WHERE prompt_key = 'height_descriptions'");
 
             if ($result && !empty($result['prompt'])) {
                 $data = json_decode($result['prompt'], true);

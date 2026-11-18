@@ -107,7 +107,7 @@ function aiProfileLoadPromptTemplate($db): string
 {
     $profilePrompt = null;
     try {
-        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'character_profile_generation'");
+        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'character_profile_generation'");
         if ($promptData) {
             $profilePrompt = !empty($promptData['custom_prompt']) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
         }

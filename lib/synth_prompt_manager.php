@@ -11,7 +11,7 @@ function synth_prompt_manager_get(object $db, string $promptKey, string $fallbac
             $escapedKey = synth_db_escape($db, $promptKey);
             $row = $db->fetchOne("
                 SELECT COALESCE(NULLIF(custom_prompt, ''), default_prompt) AS prompt
-                FROM synth.prompts
+                FROM public.core_prompt
                 WHERE prompt_key='{$escapedKey}'
                 LIMIT 1
             ");

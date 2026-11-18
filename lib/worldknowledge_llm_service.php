@@ -38,7 +38,7 @@ function LLMTopic($text, $language = 'ja') {
 
         try {
             global $db;
-            $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'custom_worldknowledge'");
+            $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'custom_worldknowledge'");
             if ($promptData) {
                 $systemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
                 error_log("[WORLDKNOWLEDGE LLM] Loaded prompt from database (custom: " . (!empty($promptData['custom_prompt']) ? 'yes' : 'no') . ")");

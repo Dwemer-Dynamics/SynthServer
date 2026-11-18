@@ -9,7 +9,7 @@ require_once __DIR__.'/synth_relationship_interaction_model.php';
 function synth_relationship_capture_configured_evaluation($db, int $responseId, bool $playerOnly=false): ?int
 {
     if (!synthRelationshipUsesDedicatedConnector()) return null;
-    $row=$db->fetchOne("SELECT custom_prompt,default_prompt FROM prompts WHERE prompt_key='rel_llm_evaluation'");
+    $row=$db->fetchOne("SELECT custom_prompt,default_prompt FROM core_prompt WHERE prompt_key='rel_llm_evaluation'");
     $prompt=!empty($row['custom_prompt']) ? $row['custom_prompt'] : ($row['default_prompt'] ?? '');
     if (!is_string($prompt) || trim($prompt)==='') throw new RuntimeException('Native relationship prompt unavailable');
     return synth_relationship_capture_evaluation($db,$responseId,$prompt,$playerOnly);

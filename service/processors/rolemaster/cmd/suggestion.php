@@ -64,7 +64,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         $directorSuggestionPrompt = null;
         try {
-            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'directorSuggestionSystem'");
+            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'directorSuggestionSystem'");
             if ($promptData) {
                 $directorSuggestionPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }

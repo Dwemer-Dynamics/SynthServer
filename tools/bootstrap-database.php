@@ -52,7 +52,7 @@ $seedRows = $db->fetchAll("
       FROM synth.core_action
     UNION ALL
     SELECT 'prompts', COUNT(*), COUNT(DISTINCT prompt_key)
-      FROM synth.prompts
+      FROM public.core_prompt
     UNION ALL
     SELECT 'bio_templates', COUNT(*), COUNT(DISTINCT lower(npc_name))
       FROM synth.bio_templates
