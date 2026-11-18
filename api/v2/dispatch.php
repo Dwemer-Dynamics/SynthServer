@@ -12,6 +12,7 @@ require_once __DIR__.'/ProtocolOutput.php';
 
 use Synth\Api\V2\ProtocolOutput;
 use Synth\Bootstrap;
+use Synth\Managers\LocationManager\LocationCatalog;
 
 // Claim, replay and pending semantics are the shared canonical ones. A conversation turn owns its own
 // terminal output; a receipt is acknowledged with its stored state or refused with a specific code.
@@ -24,6 +25,8 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
     // Request-wide only the start-line server version used by the shared frame encoders.
     if (array_key_exists('SYNTH_SERVER_VERSION', $app->config)) $GLOBALS['SYNTH_SERVER_VERSION'] = $app->config['SYNTH_SERVER_VERSION'];
     try {
+        // Validated and logged only until the catalog has storage: no row is written, so there is nothing to claim.
+        if ($route === 'location_catalog') { synth_api_v2_location_catalog($output, $event); return; }
         $legacy(synthPlayer2HealthMarkGameActivity(...));
         $claim = synth_protocol_claim_request($app->db, $event, true);
         if (($claim['status'] ?? '') === 'replay') { synth_protocol_emit_replay($claim); return; }
@@ -52,6 +55,15 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
         Logger::error('[request] backend_request_failed');
         $output->failed();
     }
+}
+
+// Location catalog export: the event is already shape-validated by ingress. Per-record refusals are reported in the
+// acknowledgement; nothing is stored yet (docs/LOCATION-CATALOG.md).
+function synth_api_v2_location_catalog(ProtocolOutput $output, array $event): void
+{
+    $review = LocationCatalog::review($event['payload']);
+    LocationCatalog::logRequest($event, $review);
+    $output->ack('location_catalog_accepted', ['detail' => LocationCatalog::detail($review)]);
 }
 
 // Legacy compatibility for one adapter call: the game-activity marker (player2 health options), the TTS
