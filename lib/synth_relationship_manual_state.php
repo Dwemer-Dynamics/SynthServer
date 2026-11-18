@@ -8,7 +8,7 @@ function synth_relationship_manual_state_cte(): string
         JOIN synth_meta.history_events h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=r.actor_identity_id AND h.id<=scope.cutoff
-        JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
+        JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.target_identity_id=r.actor_identity_id AND c.playthrough_id=h.playthrough_id
         JOIN synth.actor_identities actor ON actor.id=r.actor_identity_id AND actor.playthrough_id=c.playthrough_id AND actor.game='fo4'
             AND upper(actor.full_form_id)=upper(c.context_payload#>>'{target,form_id}')
@@ -46,7 +46,7 @@ function synth_relationship_manual_state_cte(): string
         SELECT h.history_event_id,h.actor_identity_id,h.subject_identity_id FROM relationship_reset_history h
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=h.actor_identity_id AND h.history_event_id<=scope.cutoff
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id AND origin.generation=h.generation
+        JOIN public.core_runtime_context origin ON origin.session_id=h.session_id AND origin.generation=h.generation
             AND origin.snapshot_sequence=h.context_sequence AND origin.target_identity_id=h.actor_identity_id AND origin.playthrough_id=h.playthrough_id
     ) ";
 }

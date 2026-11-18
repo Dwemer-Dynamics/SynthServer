@@ -272,7 +272,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
             public function fetchOne(string $sql): ?array {
                 if ($this->payload===null) return null;
-                if (str_contains($sql,'FROM synth_meta.action_intents')) {
+                if (str_contains($sql,'FROM public.core_action_intent')) {
                     $actor=$this->payload['audience'][0];
                     return ['full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],
                         'playthrough_id'=>$actor['playthrough_id']];
@@ -460,7 +460,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     $this->queries[]=$query;
                     if (str_contains($query,'synth_meta.request_executions')) return ['state'=>'streaming','error_code'=>null,
                         'runtime_state'=>'active','active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
-                    if (str_contains($query,'context_snapshots')) return ['context_payload'=>json_encode($this->context)];
+                    if (str_contains($query,'core_runtime_context')) return ['context_payload'=>json_encode($this->context)];
                     return str_contains($query,'core_llm_connector') ? $this->connector : null;
                 }
                 public function fetchAll(string $query, $log=false): array { $this->queries[]=$query; return []; }
@@ -792,7 +792,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
             public function fetchOne(string $sql): ?array {
                 if (str_contains($sql,'general_settings') || str_contains($sql,'conf_opts')) return null;
-                if (!str_contains($sql,'context_snapshots')) throw new LogicException('Global query forbidden');
+                if (!str_contains($sql,'core_runtime_context')) throw new LogicException('Global query forbidden');
                 return str_contains($sql,"c.session_id='session:one'") && str_contains($sql,'c.generation=2') && str_contains($sql,'c.snapshot_sequence=7')
                     ? ['context_payload'=>json_encode($this->payload)] : null;
             }
@@ -853,7 +853,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     'actor_name'=>$actor['display_name'],'actor_form_id'=>$actor['form_id'],
                     'actor_plugin'=>$actor['origin_plugin'],'actor_playthrough'=>$actor['playthrough_id'],
                     'target_name'=>'Private journal entry','target_form_id'=>null,'target_plugin'=>null,'target_playthrough'=>null];
-                if (!str_contains($sql,'context_snapshots')) throw new LogicException('Unexpected quest prompt query');
+                if (!str_contains($sql,'core_runtime_context')) throw new LogicException('Unexpected quest prompt query');
                 return str_contains($sql,"c.session_id='quest:owner'") && str_contains($sql,'c.generation=2')
                     && str_contains($sql,'c.snapshot_sequence=7') ? ['context_payload'=>json_encode($this->payload)] : null;
             }

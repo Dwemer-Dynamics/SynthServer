@@ -41,8 +41,8 @@ function synth_relationship_responder($db, array $event, array $context): ?array
 // Expressions are private SQL fragments supplied by readers, never client/model text.
 function synth_relationship_responder_context_sql(string $event): string
 {
-    return "(SELECT captured.context_payload FROM synth_meta.protocol_events context_owner
-        JOIN synth_meta.context_snapshots captured ON captured.session_id=context_owner.session_id
+    return "(SELECT captured.context_payload FROM public.core_protocol_event context_owner
+        JOIN public.core_runtime_context captured ON captured.session_id=context_owner.session_id
             AND captured.generation=context_owner.generation
             AND captured.snapshot_sequence=CASE WHEN ($event)->'capabilities' ? 'dialogue.rechat.scene'
                 AND ($event)->>'type'='trigger' AND ($event)#>>'{payload,kind}'='rechat'
@@ -59,24 +59,24 @@ function synth_relationship_responder_context_sql(string $event): string
 // Historical proof uses immutable prepared identities and captured membership, never live NPC profiles.
 function synth_relationship_responder_sql(string $event, string $actorId, string $context): string
 {
-    return "EXISTS (SELECT 1 FROM synth_meta.protocol_events responder_owner
+    return "EXISTS (SELECT 1 FROM public.core_protocol_event responder_owner
         JOIN synth_meta.request_executions responder_execution ON responder_execution.session_id=responder_owner.session_id
             AND responder_execution.request_id=responder_owner.request_id AND responder_execution.generation=responder_owner.generation
             AND responder_execution.turn_id=responder_owner.turn_id AND responder_execution.event_type=responder_owner.event_type
             AND responder_execution.request_sha256=responder_owner.event_sha256
-        JOIN synth_meta.runtime_sessions responder_runtime ON responder_runtime.session_id=responder_owner.session_id
+        JOIN public.core_runtime_session responder_runtime ON responder_runtime.session_id=responder_owner.session_id
             AND responder_runtime.runtime_variant=responder_owner.canonical_event->>'runtime_variant' AND responder_runtime.game='fo4'
-        JOIN synth_meta.context_snapshots responder_root ON responder_root.session_id=responder_owner.session_id
+        JOIN public.core_runtime_context responder_root ON responder_root.session_id=responder_owner.session_id
             AND responder_root.generation=responder_owner.generation AND responder_root.playthrough_id=responder_runtime.playthrough_id
             AND responder_root.snapshot_sequence=CASE WHEN ($event)->>'context_sequence' ~ '^[1-9][0-9]{0,15}$'
                 THEN (($event)->>'context_sequence')::bigint ELSE NULL END
         JOIN synth.actor_identities responder_actor ON responder_actor.id=($actorId) AND responder_actor.game='fo4'
             AND responder_actor.playthrough_id=responder_root.playthrough_id AND responder_actor.id<>responder_root.player_identity_id
-        LEFT JOIN synth_meta.rechat_selections responder_selection ON responder_selection.session_id=responder_owner.session_id
+        LEFT JOIN public.core_rechat_selection responder_selection ON responder_selection.session_id=responder_owner.session_id
             AND responder_selection.request_id=responder_owner.request_id
-        LEFT JOIN synth_meta.rechat_continuations responder_continuation ON responder_continuation.session_id=responder_owner.session_id
+        LEFT JOIN public.core_rechat_continuation responder_continuation ON responder_continuation.session_id=responder_owner.session_id
             AND responder_continuation.request_id=responder_owner.request_id
-        LEFT JOIN synth_meta.rechat_chains responder_chain ON responder_chain.id=responder_continuation.chain_id
+        LEFT JOIN public.core_rechat_chain responder_chain ON responder_chain.id=responder_continuation.chain_id
             AND responder_chain.session_id=responder_owner.session_id
         WHERE responder_owner.session_id=($event)->>'session_id' AND responder_owner.request_id=($event)->>'request_id'
             AND responder_owner.generation::text=($event)->>'generation' AND responder_owner.turn_id=($event)->>'turn_id'
@@ -114,7 +114,7 @@ function synth_relationship_responder_sql(string $event, string $actorId, string
                         jsonb_typeof(($context)->'snapshot_sequence')='number'
                         AND CASE WHEN ($context)->>'snapshot_sequence' ~ '^[1-9][0-9]{0,15}$'
                             THEN (($context)->>'snapshot_sequence')::bigint ELSE NULL END>responder_root.snapshot_sequence
-                        AND EXISTS(SELECT 1 FROM synth_meta.context_snapshots fresh
+                        AND EXISTS(SELECT 1 FROM public.core_runtime_context fresh
                             WHERE fresh.session_id=responder_owner.session_id AND fresh.generation=responder_owner.generation
                                 AND fresh.playthrough_id=responder_root.playthrough_id AND fresh.context_payload=($context)
                                 AND fresh.player_identity_id=responder_root.player_identity_id

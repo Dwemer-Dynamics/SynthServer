@@ -48,11 +48,11 @@ final class DiaryBrowserTest extends DatabaseTestCase
         $actor=(int)($existing[0]['id'] ?? $this->query("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name)
             VALUES('fo4',$1,'Fallout4.esm',$2,$3) RETURNING id",[$save,$reference,$author])[0]['id']);
         $session='diary-browser:'.$n;$request='diary:'.$n;
-        $this->query("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
+        $this->query("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
             VALUES($1,$2,'fo4','flat','fixture','fixture',1)",[$session,$save]);
         $this->query("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES($1,$2,'turn',1,$3,'diary_request','complete')",[$session,$request,str_repeat('a',64)]);
-        $this->query("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,context_payload)
+        $this->query("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,context_payload)
             VALUES($1,1,1,$2,$3,'{}')",[$session,$save,$actor]);
         $input=['schema'=>'synth.diary.input.v1','actor_identity_id'=>$actor,'diary_role'=>$role,
             'binding'=>['name'=>$author],'context'=>['player'=>['display_name'=>'Fixture Player'],'world'=>['location'=>'Sanctuary']]];

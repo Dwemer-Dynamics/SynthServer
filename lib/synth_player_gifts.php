@@ -196,13 +196,13 @@ function synth_player_gift_for_event($db, array $event): ?array
     $canonical=$db->escapeLiteral(synth_protocol_canonical_json($event));
     $row=$db->fetchOne("SELECT i.action_name,i.arguments,p.canonical_event,a.full_form_id,a.origin_plugin,a.playthrough_id,
             b.full_form_id AS player_form_id,b.origin_plugin AS player_plugin,b.playthrough_id AS player_playthrough
-        FROM synth_meta.action_intents i
-        JOIN synth_meta.action_terminal_results t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
+        FROM public.core_action_intent i
+        JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
             AND t.status='succeeded' AND t.result=".$db->escapeLiteral(synth_protocol_canonical_json($result))."::jsonb
-        JOIN synth_meta.protocol_events p ON p.session_id=i.session_id AND p.request_id=i.request_id AND p.generation=i.generation AND p.turn_id=i.turn_id
+        JOIN public.core_protocol_event p ON p.session_id=i.session_id AND p.request_id=i.request_id AND p.generation=i.generation AND p.turn_id=i.turn_id
         JOIN synth_meta.request_executions origin ON origin.session_id=p.session_id AND origin.request_id=p.request_id
             AND origin.request_sha256=p.event_sha256 AND origin.state='complete' AND origin.error_code IS NULL
-        JOIN synth_meta.protocol_events receipt ON receipt.session_id=i.session_id AND receipt.canonical_event=$canonical::jsonb
+        JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.canonical_event=$canonical::jsonb
         JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id
             AND accepted.request_sha256=receipt.event_sha256 AND accepted.state IN ('claimed','streaming','complete') AND accepted.error_code IS NULL
         JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'

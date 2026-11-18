@@ -122,10 +122,10 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             if (array_intersect_key($owner,$capture['owner'])!==$capture['owner'] || $owner!==$event) return;
             $result=@pg_query_params($connection,"SELECT c.target_identity_id,c.playthrough_id,p.canonical_event,p.event_sha256,
                     COALESCE((c.context_payload->'world'->>'game_time_ticks')::bigint,0) AS gamets
-                FROM synth_meta.request_executions r JOIN synth_meta.context_snapshots c ON c.session_id=r.session_id
+                FROM synth_meta.request_executions r JOIN public.core_runtime_context c ON c.session_id=r.session_id
                     AND c.generation=r.generation AND c.snapshot_sequence=$3
-                JOIN synth_meta.runtime_sessions s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
-                JOIN synth_meta.protocol_events p ON p.session_id=r.session_id AND p.request_id=r.request_id
+                JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
+                JOIN public.core_protocol_event p ON p.session_id=r.session_id AND p.request_id=r.request_id
                     AND p.generation=r.generation AND p.turn_id=r.turn_id AND p.event_type=r.event_type
                     AND p.event_sha256=r.request_sha256
                 JOIN synth.actor_identities a ON a.id=c.target_identity_id AND a.playthrough_id=c.playthrough_id
@@ -269,7 +269,7 @@ function synth_relationship_delivery_sql(string $history, string $payload, strin
             SELECT 1 FROM jsonb_array_elements($payload->'delivery_lines') dependency(value)
             WHERE jsonb_typeof(dependency.value)<>'string' OR NOT EXISTS (
                 SELECT 1 FROM synth_meta.history_events heard
-                JOIN synth_meta.context_snapshots heard_scene ON heard_scene.session_id=heard.session_id
+                JOIN public.core_runtime_context heard_scene ON heard_scene.session_id=heard.session_id
                     AND heard_scene.generation=heard.generation
                     AND heard_scene.snapshot_sequence=COALESCE(heard.scene_context_sequence,heard.context_sequence)
                     AND heard_scene.playthrough_id=heard.playthrough_id
@@ -313,7 +313,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
         JOIN $scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id
             AND (h.id<=scope.cutoff OR $current)
-        JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
+        JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
         JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id AND e.generation=h.generation
             AND ((e.state='complete' AND (encode(sha256(e.response_body),'hex')=i.response_sha256
@@ -323,7 +323,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                     AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff
                     AND EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations gift
                         JOIN synth_meta.relationship_results result ON result.evaluation_id=gift.id
-                        JOIN synth_meta.worker_jobs job ON job.id=result.job_id AND job.relationship_evaluation_id=gift.id
+                        JOIN public.core_worker_job job ON job.id=result.job_id AND job.relationship_evaluation_id=gift.id
                             AND job.job_type='relationship' AND job.state='ready' AND job.session_id=e.session_id
                             AND job.request_id=e.request_id AND job.generation=e.generation AND job.turn_id=e.turn_id
                             AND job.payload->>'schema'='synth.relationship.gift-job.v1'
@@ -346,7 +346,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                             AND gift.input_sha256=encode(sha256(convert_to(gift.input_payload::text,'UTF8')),'hex')
                             AND saved.event_payload->>'result_sha256'=encode(sha256(convert_to(result.result_payload::text,'UTF8')),'hex')
                             AND saved.id>h.id AND saved.id<=scope.cutoff)))
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
         WHERE h.event_payload->>'type'='relationship_response' AND h.event_payload->>'delivery_state'='derived'
             AND ".synth_relationship_responder_sql('p.canonical_event','i.actor_identity_id',synth_relationship_responder_context_sql('p.canonical_event'))."

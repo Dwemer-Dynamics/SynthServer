@@ -17,7 +17,7 @@ final class TradeOffer
 {
     // Confirmed NPC sale: the NPC offers one stack of one item it carries for caps, the player answers in a
     // client confirmation box, and nothing moves without that Yes. Contract: protocol/v2/README.md,
-    // "Confirmed NPC trade". The offer is an ordinary `barter` action intent (synth_meta.action_intents), and
+    // "Confirmed NPC trade". The offer is an ordinary `barter` action intent (public.core_action_intent), and
     // every outcome is the existing paired transfer receipt (synth.action.transfer-result.v2); no table is added.
 
     public const CAPS_FORM_ID = '0x0000000F';

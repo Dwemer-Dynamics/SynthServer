@@ -31,7 +31,7 @@ function synth_middleterm_owned_cte(string $historyCte): string
         WHERE EXISTS(SELECT 1 FROM native_history_scopes scope WHERE scope.session_id=i.session_id
             AND scope.generation=i.generation AND scope.playthrough_id=i.playthrough_id
             AND scope.reader_identity_id=i.actor_identity_id AND scope.cutoff>=h.id)
-        AND EXISTS(SELECT 1 FROM synth_meta.request_executions e JOIN synth_meta.protocol_events p
+        AND EXISTS(SELECT 1 FROM synth_meta.request_executions e JOIN public.core_protocol_event p
             ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation
                 AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
             WHERE e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
@@ -112,7 +112,7 @@ function synth_middleterm_history_cte($db, array $event, string $actor, ?int $jo
         JOIN synth_meta.middleterm_control_revisions c ON c.history_event_id=h.id
         JOIN middleterm_owned i ON i.history_event_id=c.narrative_id AND i.actor_identity_id=scope.reader_identity_id
     ), middleterm_control_candidates AS (
-        SELECT c.* FROM middleterm_scoped_controls c JOIN synth_meta.context_snapshots origin
+        SELECT c.* FROM middleterm_scoped_controls c JOIN public.core_runtime_context origin
             ON origin.session_id=c.session_id AND origin.generation=c.generation
                 AND origin.snapshot_sequence=c.context_sequence AND origin.playthrough_id=c.playthrough_id
         WHERE c.request_id IS NULL AND c.event_payload->>'type'='middleterm_control'
@@ -244,7 +244,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-middleterm:'||$1,0))",[$actor])) {
             throw new RuntimeException('Unable to lock narrative admission.');
         }
-        $pending=@pg_query_params($connection,"SELECT 1 FROM synth_meta.worker_jobs WHERE job_type='middleterm'
+        $pending=@pg_query_params($connection,"SELECT 1 FROM public.core_worker_job WHERE job_type='middleterm'
             AND actor_identity_id=$1 AND state IN ('pending','running') AND deadline_at>clock_timestamp() LIMIT 1",[$actor]);
         if (!$pending) throw new RuntimeException('Unable to check narrative admission.');
         if (pg_fetch_assoc($pending)) return null;
@@ -253,7 +253,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         // A published result must enter the next acknowledged snapshot before another chain can be admitted.
         $unobserved=@pg_query_params($connection,"SELECT 1 FROM synth_meta.middleterm_inputs i JOIN synth_meta.middleterm_results r ON r.input_id=i.id
             WHERE i.session_id=$1 AND i.generation=$2 AND i.actor_identity_id=$3 AND r.history_event_id>$4 LIMIT 1",
-            [$event['session_id'],$event['generation'],$actor,intval($db->fetchOne('SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id='
+            [$event['session_id'],$event['generation'],$actor,intval($db->fetchOne('SELECT history_event_id FROM public.core_runtime_context WHERE session_id='
                 .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['history_event_id'] ?? 0)]);
         if (!$unobserved) throw new RuntimeException('Unable to check narrative frontier.');
         if (pg_fetch_assoc($unobserved)) return null;
@@ -282,7 +282,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         if ($approvalId!==null && $approved===null) return null;
         if ($approved!==null) {
             // A management snapshot is not an owner: only verified, completed immutable ingress may adopt approval.
-            $owner=@pg_query_params($connection,"SELECT 1 FROM synth_meta.request_executions e JOIN synth_meta.protocol_events p
+            $owner=@pg_query_params($connection,"SELECT 1 FROM synth_meta.request_executions e JOIN public.core_protocol_event p
                 USING(session_id,request_id,generation,turn_id,event_type)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.state='complete'
                     AND p.event_sha256=e.request_sha256 AND p.event_sha256=$5 AND p.canonical_event=$4::jsonb",
@@ -340,7 +340,7 @@ function synth_middleterm_has_unsaved_control($db,array $event,int $actorId): bo
         JOIN synth_meta.middleterm_inputs i ON i.actor_identity_id=$actorId
         JOIN synth_meta.middleterm_results r ON r.input_id=i.id AND r.history_event_id=c.narrative_id
         JOIN synth_meta.history_events h ON h.id=c.history_event_id
-        JOIN synth_meta.context_snapshots snapshot ON snapshot.session_id=h.session_id AND snapshot.generation=h.generation
+        JOIN public.core_runtime_context snapshot ON snapshot.session_id=h.session_id AND snapshot.generation=h.generation
         WHERE h.session_id=".$db->escapeLiteral($event['session_id']).' AND h.generation='.intval($event['generation'])
         .' AND snapshot.snapshot_sequence='.intval($event['context_sequence'])
         ." AND h.id>COALESCE(snapshot.history_event_id,0)) AS pending");

@@ -733,7 +733,7 @@ final class NativeDialogueTurnTest extends TestCase
                     if ($this->race) { ($this->race)($this); $this->race=null; }
                     return ['pg_advisory_xact_lock'=>''];
                 }
-                if (str_contains($sql,'JOIN synth_meta.runtime_sessions')) return [
+                if (str_contains($sql,'JOIN public.core_runtime_session')) return [
                     'state'=>$this->row['state'],'error_code'=>$this->row['error_code'],'runtime_state'=>$this->session['state'],
                     'active_generation'=>$this->session['active_generation'],'active_turn_id'=>$this->session['active_turn_id'],
                     'active_turn_sequence'=>$this->session['active_turn_sequence']];

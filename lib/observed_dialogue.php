@@ -89,7 +89,7 @@ function synthPersistObservedDialogue($db,array $event): void
     $input=$observed;unset($input['witnesses']['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id'],$observed['observation_id']];
     $result=$db->execQuery("SELECT h.event_payload->'synth_witness_observation'->'input' AS input
-        FROM synth_meta.history_events h JOIN synth_meta.runtime_sessions s ON s.session_id=h.session_id
+        FROM synth_meta.history_events h JOIN public.core_runtime_session s ON s.session_id=h.session_id
         WHERE h.session_id=$1 AND h.generation=$2 AND h.playthrough_id=$3
           AND h.event_payload->'synth_witness_observation'->>'observation_id'=$4
           AND s.active_generation=h.generation AND s.state='active' LIMIT 1",$owner);
@@ -114,7 +114,7 @@ function synthPersistObservedDialogue($db,array $event): void
     // `people` stays empty: legacy name readers must not turn this row into a name-matched memory.
     $result=$db->execQuery("WITH captured AS (
         SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
-          FROM synth_meta.context_snapshots c JOIN synth_meta.runtime_sessions s USING(session_id)
+          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
          WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
            AND s.active_generation=c.generation AND s.state='active'
     ), publication AS (

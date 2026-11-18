@@ -25,7 +25,7 @@ class UtteranceRepository
     {
         $event = $this->owned($request);
         $this->db->withClaimedRequestLock($this->owner, static function ($connection) use ($event, $character, $lineId, $text): void {
-            $result = @pg_query_params($connection, "INSERT INTO synth_meta.dialogue_utterances
+            $result = @pg_query_params($connection, "INSERT INTO public.core_dialogue_utterance
                 (session_id,request_id,line_id,turn_id,generation,context_sequence,speaker_identity_id,character_id,text,text_sha256)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [$event['session_id'], $event['request_id'], $lineId,
                 $event['turn_id'], $event['generation'], $event['context_sequence'], $character->identityId,
@@ -77,19 +77,19 @@ class UtteranceRepository
             try { self::inheritedPolicy($connection, $event); } catch (\LogicException) { return false; }
         }
         $canonical = \synth_protocol_canonical_json($event);
-        $result = @pg_query_params($connection, "INSERT INTO synth_meta.dialogue_utterances
+        $result = @pg_query_params($connection, "INSERT INTO public.core_dialogue_utterance
                 (session_id,request_id,line_id,turn_id,generation,context_sequence,speaker_identity_id,character_id,text,text_sha256)
             SELECT rr.session_id,rr.request_id,rr.line_id,e.turn_id,rr.generation,rr.context_sequence,a.id,$7,$8,$9
-            FROM synth_meta.response_routes rr
+            FROM public.core_dialogue_route rr
             JOIN synth_meta.request_executions e ON e.session_id=rr.session_id AND e.request_id=rr.request_id
                 AND e.generation=rr.generation AND e.turn_id=$4 AND e.event_type=$10 AND e.state IN ('claimed','streaming')
-            JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+            JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                 AND p.event_sha256=e.request_sha256 AND p.event_sha256=$14 AND p.canonical_event=$13::jsonb
                 AND p.canonical_event->'capabilities' ? $15::text
-            JOIN synth_meta.context_snapshots c ON c.session_id=rr.session_id AND c.generation=rr.generation
+            JOIN public.core_runtime_context c ON c.session_id=rr.session_id AND c.generation=rr.generation
                 AND c.snapshot_sequence=rr.context_sequence
-            JOIN synth_meta.runtime_sessions s ON s.session_id=rr.session_id AND s.playthrough_id=c.playthrough_id
+            JOIN public.core_runtime_session s ON s.session_id=rr.session_id AND s.playthrough_id=c.playthrough_id
                 AND s.runtime_variant=$16
             JOIN synth.actor_identities a ON a.game='fo4' AND upper(a.full_form_id)=upper(rr.speaker->>'form_id')
                 AND lower(a.origin_plugin)=lower(rr.speaker->>'origin_plugin') AND a.playthrough_id=rr.speaker->>'playthrough_id'
@@ -97,10 +97,10 @@ class UtteranceRepository
                 AND rr.line_sha256=$11 AND rr.speaker=$12::jsonb
                 AND upper(COALESCE(c.context_payload#>>'{player,form_id}','')) <> upper(rr.speaker->>'form_id')
             ON CONFLICT (session_id,request_id,line_id) DO UPDATE SET text_sha256=EXCLUDED.text_sha256
-            WHERE dialogue_utterances.text_sha256=EXCLUDED.text_sha256 AND dialogue_utterances.turn_id=EXCLUDED.turn_id
-                AND dialogue_utterances.generation=EXCLUDED.generation AND dialogue_utterances.context_sequence=EXCLUDED.context_sequence
-                AND dialogue_utterances.speaker_identity_id=EXCLUDED.speaker_identity_id
-                AND dialogue_utterances.character_id=EXCLUDED.character_id
+            WHERE core_dialogue_utterance.text_sha256=EXCLUDED.text_sha256 AND core_dialogue_utterance.turn_id=EXCLUDED.turn_id
+                AND core_dialogue_utterance.generation=EXCLUDED.generation AND core_dialogue_utterance.context_sequence=EXCLUDED.context_sequence
+                AND core_dialogue_utterance.speaker_identity_id=EXCLUDED.speaker_identity_id
+                AND core_dialogue_utterance.character_id=EXCLUDED.character_id
             RETURNING 1", [$event['session_id'], $event['request_id'], $line['line_id'], $event['turn_id'], $event['generation'],
             $event['context_sequence'], $characterId, $text, hash('sha256', $text), $event['type'], hash('sha256', $wire),
             json_encode($speaker, JSON_THROW_ON_ERROR), $canonical, hash('sha256', $canonical), $capability,
@@ -108,7 +108,7 @@ class UtteranceRepository
         if (!$result) throw new \RuntimeException('Unable to enrol utterance');
         if (pg_num_rows($result) === 1) return true;
         // Only the unusual path pays a second lookup: an existing row that differs is a conflicting replay.
-        $existing = @pg_query_params($connection, 'SELECT 1 FROM synth_meta.dialogue_utterances
+        $existing = @pg_query_params($connection, 'SELECT 1 FROM public.core_dialogue_utterance
             WHERE session_id=$1 AND request_id=$2 AND line_id=$3', [$event['session_id'], $event['request_id'], $line['line_id']]);
         if (!$existing) throw new \RuntimeException('Unable to verify utterance enrolment');
         if (pg_num_rows($existing) !== 0) throw new \LogicException('dialogue_utterance_conflict');
@@ -151,23 +151,23 @@ class UtteranceRepository
                     CASE WHEN pu.line_id IS NOT NULL THEN CASE WHEN pu.generation=u.generation THEN pu.state END
                         WHEN pr.line_id IS NOT NULL THEN 'unmarked' END AS parent_state,
                     op.canonical_event#>>'{payload,control,mode}' AS origin_mode
-                FROM synth_meta.dialogue_utterances u
+                FROM public.core_dialogue_utterance u
                 JOIN synth.actor_identities a ON a.id=u.speaker_identity_id
-                JOIN synth_meta.runtime_sessions r ON r.session_id=u.session_id AND r.state='active' AND r.active_generation=u.generation
+                JOIN public.core_runtime_session r ON r.session_id=u.session_id AND r.state='active' AND r.active_generation=u.generation
                 LEFT JOIN synth_meta.request_executions o ON o.session_id=u.session_id AND o.request_id=u.request_id
                     AND o.generation=u.generation AND o.turn_id=u.turn_id
                     AND o.event_type IN ('input_text','input_audio','action_result','trigger')
                     AND o.state IN ('claimed','streaming','complete','failed')
                     AND COALESCE(o.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')
-                LEFT JOIN synth_meta.protocol_events op ON op.session_id=o.session_id AND op.request_id=o.request_id
+                LEFT JOIN public.core_protocol_event op ON op.session_id=o.session_id AND op.request_id=o.request_id
                     AND op.generation=o.generation AND op.turn_id=o.turn_id AND op.event_type=o.event_type
                     AND op.event_sha256=o.request_sha256
-                LEFT JOIN synth_meta.response_routes rr ON rr.session_id=u.session_id AND rr.request_id=u.request_id
+                LEFT JOIN public.core_dialogue_route rr ON rr.session_id=u.session_id AND rr.request_id=u.request_id
                     AND rr.line_id=u.line_id AND rr.generation=u.generation AND rr.context_sequence=u.context_sequence
-                LEFT JOIN synth_meta.dialogue_utterances pu ON o.event_type='trigger' AND pu.session_id=u.session_id
+                LEFT JOIN public.core_dialogue_utterance pu ON o.event_type='trigger' AND pu.session_id=u.session_id
                     AND pu.request_id=op.canonical_event#>>'{payload,reply_to_request_id}'
                     AND pu.line_id=op.canonical_event#>>'{payload,reply_to_line_id}'
-                LEFT JOIN synth_meta.response_routes pr ON o.event_type='trigger' AND pr.session_id=u.session_id
+                LEFT JOIN public.core_dialogue_route pr ON o.event_type='trigger' AND pr.session_id=u.session_id
                     AND pr.request_id=op.canonical_event#>>'{payload,reply_to_request_id}'
                     AND pr.line_id=op.canonical_event#>>'{payload,reply_to_line_id}' AND pr.generation=u.generation
                 WHERE u.session_id=$1 AND u.request_id=$2 AND u.line_id=$3 AND u.generation=$4 AND u.context_sequence=$5 AND u.turn_id=$6
@@ -214,7 +214,7 @@ class UtteranceRepository
                 || strcasecmp(strval($route['form_id'] ?? ''), $character['form_id']) !== 0
                 || strcasecmp(strval($route['origin_plugin'] ?? ''), $character['origin_plugin']) !== 0
                 || ($route['playthrough_id'] ?? null) !== $character['playthrough_id']) throw new \DomainException('receipt_owner_mismatch');
-            $update = @pg_query_params($connection, "UPDATE synth_meta.dialogue_utterances SET state=$4,receipt_request_id=$5,
+            $update = @pg_query_params($connection, "UPDATE public.core_dialogue_utterance SET state=$4,receipt_request_id=$5,
                 receipt_at=NOW() WHERE session_id=$1 AND request_id=$2 AND line_id=$3 AND state='generated'",
                 [$event['session_id'], $payload['dialogue_request_id'], $payload['line_id'], $state, $event['request_id']]);
             if (!$update || pg_affected_rows($update) !== 1) throw new \RuntimeException('Unable to record receipt');
@@ -281,7 +281,7 @@ class UtteranceRepository
     // origin's immutable snapshot resolved (the root's own snapshot, as root proof requires), never names.
     private static function whisperHearers($connection, array $origin): array
     {
-        $result = @pg_query_params($connection, 'SELECT player_identity_id,target_identity_id FROM synth_meta.context_snapshots
+        $result = @pg_query_params($connection, 'SELECT player_identity_id,target_identity_id FROM public.core_runtime_context
             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$origin['session_id'], $origin['generation'], $origin['context_sequence']]);
         $row = $result ? pg_fetch_assoc($result) : false;
@@ -309,7 +309,7 @@ class UtteranceRepository
         $data['synth_request_id'] = $dialogueRequestId;
         $columns = array_keys($data);
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
-        $snapshot = @pg_query_params($connection, 'SELECT playthrough_id,player_identity_id FROM synth_meta.context_snapshots
+        $snapshot = @pg_query_params($connection, 'SELECT playthrough_id,player_identity_id FROM public.core_runtime_context
             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3', [$event['session_id'], $event['generation'], $event['context_sequence']]);
         $snapshot = $snapshot ? pg_fetch_assoc($snapshot) : false;
         if (!$snapshot) throw new \RuntimeException('Native history context unavailable');

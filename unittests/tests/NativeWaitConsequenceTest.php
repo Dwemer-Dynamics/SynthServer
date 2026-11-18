@@ -38,7 +38,7 @@ final class WaitConsequenceFixtureDatabase
             $this->execQuery("SET LOCAL lock_timeout='2s'");
             $this->execQuery("SELECT set_config('statement_timeout',$1,true)",[(string)max(1,min(2000,$statementTimeoutMs ?: 2000))]);
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
-            $result=$this->execQuery("SELECT 1 FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING(session_id)
+            $result=$this->execQuery("SELECT 1 FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING(session_id)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$4
                   AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=e.generation
                   AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$5",
@@ -88,17 +88,17 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     private function json($value): string{return json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);}
     private function identity($form,$name): array {$identity=['form_id'=>$form,'origin_plugin'=>'Fallout4.esm','playthrough_id'=>'wait-recall-save','display_name'=>$name];synth_protocol_actor_identity_id($this->fixtureDb,$identity);return $identity;}
     private function caps(): array{return ['dialogue.turn_ownership','context.saved_anchor','action.wait_here','action.release_wait','action.wait_verified'];}
-    private function session($session,$generation): void {$this->fixtureDb->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation,capabilities) VALUES($1,'wait-recall-save','fo4','flat','fixture','fixture',$2,$3::jsonb)",[$session,$generation,$this->json($this->caps())]);}
+    private function session($session,$generation): void {$this->fixtureDb->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation,capabilities) VALUES($1,'wait-recall-save','fo4','flat','fixture','fixture',$2,$3::jsonb)",[$session,$generation,$this->json($this->caps())]);}
     private function snapshot($session,$generation,$sequence,$frontier,$target=null,$anchor=null,$clock=1000): void {
         $p=$this->payload;$p['target']=$target??$this->actor;$p['snapshot_sequence']=$sequence;$p['world']['game_time_ticks']=$clock;if($anchor)$p['loaded_context']=$anchor;
-        $this->fixtureDb->execQuery('INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload,history_event_id) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)',[$session,$generation,$sequence,'wait-recall-save',synth_protocol_actor_identity_id($this->fixtureDb,$this->player),synth_protocol_actor_identity_id($this->fixtureDb,$p['target']),$this->json([synth_protocol_actor_identity_id($this->fixtureDb,$this->actor),synth_protocol_actor_identity_id($this->fixtureDb,$this->other)]),$this->json($p),$frontier]);
+        $this->fixtureDb->execQuery('INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload,history_event_id) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)',[$session,$generation,$sequence,'wait-recall-save',synth_protocol_actor_identity_id($this->fixtureDb,$this->player),synth_protocol_actor_identity_id($this->fixtureDb,$p['target']),$this->json([synth_protocol_actor_identity_id($this->fixtureDb,$this->actor),synth_protocol_actor_identity_id($this->fixtureDb,$this->other)]),$this->json($p),$frontier]);
     }
     private function select($session,$generation,$sequence,$type,$payload,$turn=null,$caps=null): void {
         $request='wait-recall:'.(++$this->serial);$this->event=['schema'=>'synth.event.v2','protocol_version'=>2,'type'=>$type,'session_id'=>$session,'request_id'=>$request,'turn_id'=>$turn??'turn:'.$request,'generation'=>$generation,'context_sequence'=>$sequence,'game'=>'fo4','runtime_variant'=>'flat','client_version'=>'fixture','runtime_version'=>'fixture','capabilities'=>$caps??$this->caps(),'payload'=>$payload];
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,'claimed')",[$session,$request,$this->event['turn_id'],$generation,$hash,$type]);
-        $this->fixtureDb->execQuery('INSERT INTO synth_meta.protocol_events(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)',[$session,$request,$this->event['turn_id'],$generation,$type,$canonical,$hash]);
-        $this->fixtureDb->execQuery('UPDATE synth_meta.runtime_sessions SET active_turn_id=$2,active_turn_sequence=$3 WHERE session_id=$1',[$session,$this->event['turn_id'],$sequence]);
+        $this->fixtureDb->execQuery('INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)',[$session,$request,$this->event['turn_id'],$generation,$type,$canonical,$hash]);
+        $this->fixtureDb->execQuery('UPDATE public.core_runtime_session SET active_turn_id=$2,active_turn_sequence=$3 WHERE session_id=$1',[$session,$this->event['turn_id'],$sequence]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($this->event);$GLOBALS['SYNTH_NAME']='Settler';$GLOBALS['gameRequest']=[$type,time(),1000,'Synthetic request'];
     }
     private function finish(): void {$this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='complete' WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);}
@@ -117,11 +117,11 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     private function visible(): array{return $this->fixtureDb->fetchAll(synth_protocol_history_cte($this->fixtureDb,$this->event,'Settler')." SELECT history_event_id,data FROM native_history WHERE type='infoaction' ORDER BY history_event_id");}
     public function testWaitHistoryJoinsAreConditionalAndDoNotWidenQuestOrRelationshipProjection(): void {
         $ordinary=synth_protocol_history_rows_cte();
-        $this->assertStringContainsString("CASE WHEN h.event_payload ? 'synth_wait_consequence' THEN EXISTS(SELECT 1 FROM synth_meta.action_intents wi",$ordinary);
-        $this->assertStringContainsString("CASE WHEN original.type IN ('funcret','infoaction') THEN EXISTS(SELECT 1 FROM synth_meta.protocol_events raw_receipt",$ordinary);
+        $this->assertStringContainsString("CASE WHEN h.event_payload ? 'synth_wait_consequence' THEN EXISTS(SELECT 1 FROM public.core_action_intent wi",$ordinary);
+        $this->assertStringContainsString("CASE WHEN original.type IN ('funcret','infoaction') THEN EXISTS(SELECT 1 FROM public.core_protocol_event raw_receipt",$ordinary);
         foreach([synth_protocol_history_rows_cte(readerFirstVisibility:true),synth_protocol_history_rows_cte(relationshipGraph:true,relationshipSourceHistory:true)] as $projection) {
             $this->assertStringNotContainsString('synth_wait_consequence',$projection);
-            $this->assertStringNotContainsString('action_terminal_results',$projection);
+            $this->assertStringNotContainsString('core_action_result',$projection);
         }
     }
     public function testObservedHoldDoesNotRequireGenericRestraintAndReleasePreservesForeignRestraint(): void {
@@ -156,7 +156,7 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
             if($case==='wrong-actor')$proof['actor']=$this->other;if($case==='wrong-save')$proof['actor']['playthrough_id']='foreign';if($case==='wrong-action')$proof['action']='release_wait';if($case==='wrong-bool')$proof['stationary']=false;if($case==='wrong-package')$proof['owned_package']='0x01000800';if($case==='wrong-lease')$proof['lease_ms']=90001;if($case==='extra')$proof['invented_permission']=true;$result['detail']=$case==='malformed'?'queued':$this->json($proof);
             try{$this->receipt($intent,$result,$case==='wrong-turn'?'foreign-turn':null);$this->fail('Invalid receipt accepted: '.$case);}catch(DomainException $error){$this->assertContains($error->getMessage(),['invalid_wait_observation','wait_result_owner_mismatch']);}
         }
-        $this->assertSame([],$this->consequenceRows());$this->assertSame('0',$this->fixtureDb->fetchOne('SELECT count(*) AS n FROM synth_meta.action_terminal_results')['n']);
+        $this->assertSame([],$this->consequenceRows());$this->assertSame('0',$this->fixtureDb->fetchOne('SELECT count(*) AS n FROM public.core_action_result')['n']);
     }
     public function testUnverifiedLegacyQueuedSuccessRemainsReportOnlyAndDuplicateReceiptDoesNotDoubleRecord(): void {
         $this->select('wait-recall',1,1,'input_text',['text'=>'Wait here.'],null,array_values(array_diff($this->caps(),['action.wait_verified'])));$intent=$this->intent();$result=$this->terminalResult($intent);$result['detail']='wait command queued';$this->receipt($intent,$result);$this->finish();$this->receipt($intent,$result);$rows=$this->consequenceRows();$this->assertCount(1,$rows);$data=json_decode($rows[0]['event_payload'],true);$this->assertFalse($data['synth_wait_consequence']['verified']);$this->assertStringContainsString('No successful physical waiting or release was verified',$data['data']);
@@ -176,6 +176,6 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     }
     public function testLabelsCannotRedirectProofAndStaleGenerationCannotPublish(): void {
         $intent=$this->intent();$result=$this->terminalResult($intent);$proof=json_decode($result['detail'],true);$proof['actor']['display_name']='Forged label';$result['detail']=$this->json($proof);$this->receipt($intent,$result);$history=json_decode($this->consequenceRows()[0]['event_payload'],true);$this->assertStringNotContainsString('Forged label',$history['data']);$this->assertSame('Settler',synth_wait_result_context($this->fixtureDb,$this->event)['actor']['display_name']);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.runtime_sessions SET active_generation=2 WHERE session_id='wait-recall'");$this->snapshot('wait-recall',2,1,0);try{$this->receipt($intent,$result,null,2);$this->fail('Stale intent accepted');}catch(DomainException $e){$this->assertSame('unknown_or_stale_action',$e->getMessage());}
+        $this->fixtureDb->execQuery("UPDATE public.core_runtime_session SET active_generation=2 WHERE session_id='wait-recall'");$this->snapshot('wait-recall',2,1,0);try{$this->receipt($intent,$result,null,2);$this->fail('Stale intent accepted');}catch(DomainException $e){$this->assertSame('unknown_or_stale_action',$e->getMessage());}
     }
 }

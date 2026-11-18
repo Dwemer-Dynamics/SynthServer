@@ -12,22 +12,22 @@ function synth_relationship_pair_evidence_cte(): string
             c.context_payload AS owner_context,c.player_identity_id AS owner_player_identity_id,
             c.target_identity_id AS owner_target_identity_id,c.audience_identity_ids AS owner_audience_identity_ids
         FROM interaction_result_base i
-        JOIN synth_meta.worker_jobs j ON j.id=i.job_id AND j.relationship_interaction_id=i.interaction_id AND j.state='ready'
+        JOIN public.core_worker_job j ON j.id=i.job_id AND j.relationship_interaction_id=i.interaction_id AND j.state='ready'
             AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
             AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
             AND j.actor_identity_id=i.speaker_identity_id AND j.payload->>'context_sequence'=i.context_sequence::text
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
+        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.snapshot_sequence=i.context_sequence AND c.playthrough_id=i.playthrough_id
         JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
             AND owner.generation=i.generation AND owner.turn_id=j.turn_id
-        JOIN synth_meta.protocol_events protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
+        JOIN public.core_protocol_event protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.generation=i.generation AND protocol.turn_id=j.turn_id AND protocol.event_type=owner.event_type
             AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'
             AND ".synth_relationship_responder_sql('protocol.canonical_event','i.speaker_identity_id',"i.input_payload->'context'")."
     ), interaction_rechat_response AS MATERIALIZED (
         SELECT i.*,receipt.response_payload AS pair_response_payload,receipt.history_event_id AS owner_response_history_event_id
         FROM interaction_result_owners i
-        JOIN synth_meta.runtime_sessions runtime ON runtime.session_id=i.session_id AND runtime.playthrough_id=i.playthrough_id
+        JOIN public.core_runtime_session runtime ON runtime.session_id=i.session_id AND runtime.playthrough_id=i.playthrough_id
             AND runtime.game='fo4' AND runtime.runtime_variant=i.owner_event->>'runtime_variant'
         JOIN synth_meta.relationship_response_inputs receipt ON receipt.session_id=i.session_id
             AND receipt.request_id=i.request_id AND receipt.actor_identity_id=i.speaker_identity_id
@@ -48,7 +48,7 @@ function synth_relationship_pair_evidence_cte(): string
                     AND delivery_scope.playthrough_id=i.playthrough_id AND delivery_scope.reader_identity_id=i.speaker_identity_id
                     AND ".synth_relationship_delivery_sql('speech','receipt.response_payload','delivery_scope.cutoff','i.speaker_identity_id').")
             AND receipt.response_payload->'request'=i.owner_event
-            AND receipt.response_payload->>'request_sha256'=(SELECT p.event_sha256 FROM synth_meta.protocol_events p
+            AND receipt.response_payload->>'request_sha256'=(SELECT p.event_sha256 FROM public.core_protocol_event p
                 WHERE p.session_id=i.session_id AND p.request_id=i.request_id)
             AND receipt.response_payload->'input_events'='[]'::jsonb
             AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_response_sources source WHERE source.response_history_event_id=receipt.history_event_id)
@@ -58,13 +58,13 @@ function synth_relationship_pair_evidence_cte(): string
         SELECT i.*,selection.identity AS reply_identity,continuation.parent_request_id AS proven_parent_request_id,
             continuation.parent_line_id AS proven_parent_line_id,continuation.parent_response_sha256 AS proven_parent_response_sha256
         FROM interaction_rechat_response i
-        JOIN synth_meta.rechat_selections selection ON selection.session_id=i.session_id AND selection.request_id=i.request_id
+        JOIN public.core_rechat_selection selection ON selection.session_id=i.session_id AND selection.request_id=i.request_id
             AND selection.role='npc' AND selection.prepared_at IS NOT NULL AND selection.actor_identity_id=i.speaker_identity_id
-        JOIN synth_meta.rechat_continuations continuation ON continuation.session_id=selection.session_id
+        JOIN public.core_rechat_continuation continuation ON continuation.session_id=selection.session_id
             AND continuation.request_id=selection.request_id AND continuation.status='reserved'
             AND continuation.parent_request_id=i.owner_event#>>'{payload,reply_to_request_id}'
             AND continuation.parent_line_id=i.owner_event#>>'{payload,reply_to_line_id}'
-        JOIN synth_meta.rechat_chains chain ON chain.id=continuation.chain_id AND chain.session_id=i.session_id
+        JOIN public.core_rechat_chain chain ON chain.id=continuation.chain_id AND chain.session_id=i.session_id
             AND chain.generation=i.generation AND chain.context_sequence=i.context_sequence
             AND chain.turn_id=i.owner_event->>'turn_id' AND chain.runtime_variant=i.owner_event->>'runtime_variant'
             -- A later round may close the chain; the original reserved/public proof remains historical.
@@ -89,7 +89,7 @@ function synth_relationship_pair_evidence_cte(): string
         JOIN synth_meta.request_executions parent_owner ON parent_owner.session_id=i.session_id
             AND parent_owner.request_id=i.proven_parent_request_id AND parent_owner.generation=i.generation
             AND parent_owner.turn_id=i.owner_event->>'turn_id'
-        JOIN synth_meta.protocol_events parent ON parent.session_id=parent_owner.session_id AND parent.request_id=parent_owner.request_id
+        JOIN public.core_protocol_event parent ON parent.session_id=parent_owner.session_id AND parent.request_id=parent_owner.request_id
             AND parent.generation=parent_owner.generation AND parent.turn_id=parent_owner.turn_id
             AND parent.event_type=parent_owner.event_type AND parent.event_sha256=parent_owner.request_sha256
         WHERE parent.canonical_event->>'protocol_version'='2'
@@ -111,7 +111,7 @@ function synth_relationship_pair_evidence_cte(): string
             AND parent_speech.session_id=i.session_id AND parent_speech.generation=i.generation
             AND parent_speech.context_sequence=i.context_sequence AND parent_speech.request_id=i.proven_parent_request_id
             AND parent_speech.playthrough_id=i.playthrough_id AND parent_speech.id<i.owner_response_history_event_id
-        JOIN synth_meta.response_routes route ON route.session_id=i.session_id AND route.request_id=i.proven_parent_request_id
+        JOIN public.core_dialogue_route route ON route.session_id=i.session_id AND route.request_id=i.proven_parent_request_id
             AND route.generation=i.generation AND route.context_sequence=i.context_sequence AND route.line_id=i.proven_parent_line_id
         WHERE parent_speech.event_payload->>'type'='relationship_response' AND parent_speech.event_payload->>'delivery_state'='derived'
             AND ".synth_relationship_responder_sql('i.parent_event','parent_receipt.actor_identity_id',synth_relationship_responder_context_sql('i.parent_event'))."
@@ -163,7 +163,7 @@ function synth_relationship_pair_evidence_cte(): string
         LEFT JOIN interaction_rechat_provenance rechat ON rechat.history_event_id=i.history_event_id
         LEFT JOIN relationship_graph_responses response ON response.history_event_id=i.response_history_event_id
             AND response.actor_identity_id=i.speaker_identity_id
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
+        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.playthrough_id=i.playthrough_id AND c.player_identity_id=i.owner_player_identity_id
             AND c.snapshot_sequence=CASE WHEN i.owner_state='complete' AND response.history_event_id IS NOT NULL
                 AND i.input_payload->'context'=i.owner_context THEN i.context_sequence ELSE CASE WHEN rechat.history_event_id IS NOT NULL
@@ -172,7 +172,7 @@ function synth_relationship_pair_evidence_cte(): string
                     AND i.owner_event#>>'{payload,scene_context_sequence}' ~ '^[1-9][0-9]{0,15}$'
                     THEN (i.owner_event#>>'{payload,scene_context_sequence}')::bigint ELSE NULL END
                 ELSE i.context_sequence END END
-        LEFT JOIN synth_meta.context_snapshots previous ON previous.session_id=c.session_id AND previous.generation=c.generation
+        LEFT JOIN public.core_runtime_context previous ON previous.session_id=c.session_id AND previous.generation=c.generation
             AND previous.playthrough_id=c.playthrough_id AND previous.player_identity_id=c.player_identity_id
             AND previous.snapshot_sequence=CASE WHEN rechat.parent_event->'payload' ? 'scene_context_sequence' THEN
                 CASE WHEN jsonb_typeof(rechat.parent_event#>'{payload,scene_context_sequence}')='number'

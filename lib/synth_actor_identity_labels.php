@@ -14,8 +14,8 @@ function synthNpcActorSaveLabels($db, array $actorIds): array
     // Session state and actor last_seen also change without an accepted scene.
     // A timestamp labels the latest recorded save, not a promise it is still running.
     $latest = $db->fetchOne("SELECT c.playthrough_id, c.received_at
-        FROM synth_meta.context_snapshots c
-        JOIN synth_meta.runtime_sessions s ON s.session_id=c.session_id
+        FROM public.core_runtime_context c
+        JOIN public.core_runtime_session s ON s.session_id=c.session_id
             AND s.playthrough_id=c.playthrough_id
         JOIN synth.actor_identities p ON p.id=c.player_identity_id
             AND p.playthrough_id=c.playthrough_id AND p.game=s.game

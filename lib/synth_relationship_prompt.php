@@ -16,7 +16,7 @@ function synth_relationship_prompt_context($db, string $npcName): string
             SELECT actor.id,actor.full_form_id,actor.origin_plugin,actor.playthrough_id,
                 state.history_event_id,state.affinity,state.relationship_type,state.details
             FROM native_ancestry current
-            JOIN synth_meta.context_snapshots c ON c.session_id=current.session_id AND c.generation=current.generation
+            JOIN public.core_runtime_context c ON c.session_id=current.session_id AND c.generation=current.generation
                 AND c.snapshot_sequence=current.snapshot_sequence
             JOIN synth.actor_identities actor ON actor.game='fo4' AND actor.playthrough_id=c.playthrough_id
                 AND (actor.id=c.player_identity_id OR actor.id=c.target_identity_id

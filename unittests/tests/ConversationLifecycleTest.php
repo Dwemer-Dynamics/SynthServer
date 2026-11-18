@@ -142,7 +142,7 @@ final class ConversationLifecycleTest extends TestCase
         $this->assertStringContainsString("state IN ('claimed','streaming','complete')", $sql);
         $this->assertStringContainsString("error_code='request_cancelled'", $sql);
         $this->assertStringContainsString("canonical_event->'capabilities' ? 'dialogue.conversation'", $sql);
-        $this->assertStringContainsString("UPDATE synth_meta.worker_jobs SET state='cancelled'", $sql);
+        $this->assertStringContainsString("UPDATE public.core_worker_job SET state='cancelled'", $sql);
         $this->assertStringContainsString('SET active_turn_id=NULL', $sql);
         $this->assertStringContainsString('(active_turn_id, active_turn_sequence) IN', $sql, 'the turn is matched by id and sequence');
         // Completed player input stays as historical learning, exactly like a single-request cancel.

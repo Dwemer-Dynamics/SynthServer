@@ -72,7 +72,7 @@ function synth_middleterm_assert_lease($db): void
 {
     $lease=$GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE'];$event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
     if (microtime(true)<($lease['renew_after'] ?? 0)) return;
-    $row=$db->fetchOne("UPDATE synth_meta.worker_jobs SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '15 seconds')
+    $row=$db->fetchOne("UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '15 seconds')
         WHERE id=".intval($lease['id'])." AND job_type='middleterm' AND payload->>'schema'='synth.middleterm.job.v1'
             AND session_id=".$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
         .' AND generation='.intval($event['generation']).' AND turn_id='.$db->escapeLiteral($event['turn_id'])
@@ -115,8 +115,8 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Narrative worker requires an idle database connection.');
     $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256,e.event_type,j.payload->>'context_sequence' AS context_sequence
-        FROM synth_meta.worker_jobs j JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
-        JOIN synth_meta.protocol_events p USING(session_id,request_id,generation,turn_id,event_type)
+        FROM public.core_worker_job j JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
+        JOIN public.core_protocol_event p USING(session_id,request_id,generation,turn_id,event_type)
         JOIN synth_meta.middleterm_inputs i ON i.id=j.middleterm_input_id AND i.actor_identity_id=j.actor_identity_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
             AND i.context_sequence::text=j.payload->>'context_sequence'
@@ -132,12 +132,12 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                 throw new RuntimeException('Unable to lock narrative claim.');
             }
             if ($row['regeneration_approval_id']!==null && synth_middleterm_regeneration_budget($db,intval($row['regeneration_approval_id']))['state']!=='ready') {
-                $db->execQuery("UPDATE synth_meta.worker_jobs SET state='failed',last_error='regeneration_budget_closed'
+                $db->execQuery("UPDATE public.core_worker_job SET state='failed',last_error='regeneration_budget_closed'
                     WHERE id=$jobId AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
                 return null;
             }
             synth_middleterm_validate_input($db,$row);
-            $claimed=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='running',attempts=attempts+1,
+            $claimed=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='running',attempts=attempts+1,
                 lease_token=$2,lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '15 seconds'),updated_at=clock_timestamp()
                 WHERE id=$1 AND attempts<3 AND available_at<=clock_timestamp() AND deadline_at>clock_timestamp()
                     AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) RETURNING id",[$jobId,$token]);
@@ -157,7 +157,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                 synth_middleterm_validate_input($db,$row);
                 $context=synth_protocol_current_context($db,$event);
                 $result=@pg_query_params($connection,"WITH accepted AS (
-                    UPDATE synth_meta.worker_jobs SET state='ready',lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp()
+                    UPDATE public.core_worker_job SET state='ready',lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp()
                     WHERE id=$1 AND state='running' AND lease_token=$2 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id
                 ), publication AS (
                     INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
@@ -186,7 +186,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
         } catch (Throwable $error) {
             $terminal=$error instanceof LogicException || $error instanceof SYNTHProtocolCancelled;
             $readmit=$row['regeneration_approval_id']!==null && $error instanceof SYNTHProtocolCancelled;
-            $db->execQuery("UPDATE synth_meta.worker_jobs SET state=CASE WHEN ".($readmit?'TRUE':'FALSE')." AND deadline_at>clock_timestamp() THEN 'stale'
+            $db->execQuery("UPDATE public.core_worker_job SET state=CASE WHEN ".($readmit?'TRUE':'FALSE')." AND deadline_at>clock_timestamp() THEN 'stale'
                 WHEN ".($terminal?'TRUE':'FALSE')." OR attempts>=3
                 OR deadline_at<=clock_timestamp() THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,
                 available_at=clock_timestamp()+INTERVAL '10 seconds',last_error='middleterm_attempt_failed',updated_at=clock_timestamp()
@@ -203,10 +203,10 @@ function synth_middleterm_enqueue($db,?int $approvalId=null): ?int
         $inputId=synth_middleterm_capture($db,$approvalId);
         if ($inputId===null) return null;
         $payload=json_encode(['schema'=>'synth.middleterm.job.v1','context_sequence'=>$event['context_sequence']],JSON_THROW_ON_ERROR);
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs(job_type,session_id,request_id,turn_id,generation,
+        $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job(job_type,session_id,request_id,turn_id,generation,
             actor_identity_id,middleterm_input_id,payload,deadline_at)
             SELECT 'middleterm',i.session_id,i.request_id,$2,i.generation,i.actor_identity_id,i.id,$3::jsonb,
-                COALESCE((SELECT MIN(prior.deadline_at) FROM synth_meta.worker_jobs prior JOIN synth_meta.middleterm_inputs previous ON previous.id=prior.middleterm_input_id
+                COALESCE((SELECT MIN(prior.deadline_at) FROM public.core_worker_job prior JOIN synth_meta.middleterm_inputs previous ON previous.id=prior.middleterm_input_id
                     WHERE previous.regeneration_approval_id=i.regeneration_approval_id),clock_timestamp()+INTERVAL '120 seconds')
             FROM synth_meta.middleterm_inputs i WHERE i.id=$1 ON CONFLICT(middleterm_input_id) WHERE middleterm_input_id IS NOT NULL
             DO UPDATE SET middleterm_input_id=EXCLUDED.middleterm_input_id RETURNING id",[$inputId,$event['turn_id'],$payload]);
@@ -219,17 +219,17 @@ function synth_middleterm_enqueue($db,?int $approvalId=null): ?int
 function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Narrative dispatch requires an idle database connection.');
-    if ($db->execQuery("UPDATE synth_meta.worker_jobs j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
+    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
         THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
         WHERE job_type='middleterm' AND state IN ('pending','running') AND (deadline_at<=clock_timestamp()
             OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp())) OR NOT EXISTS(
-                SELECT 1 FROM synth_meta.runtime_sessions r JOIN synth_meta.request_executions e USING(session_id)
+                SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
                 WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                     AND r.active_turn_id=j.turn_id AND r.active_turn_sequence::text=j.payload->>'context_sequence'
                     AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'))")===false) {
         throw new RuntimeException('Unable to retire narrative jobs.');
     }
-    $due=$db->fetchOne("SELECT id FROM synth_meta.worker_jobs WHERE job_type='middleterm' AND available_at<=clock_timestamp()
+    $due=$db->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
         AND deadline_at>clock_timestamp() AND attempts<3 AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
         ORDER BY available_at,id LIMIT 1");
     $jobId=$due ? intval($due['id']) : null;
@@ -241,9 +241,9 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
                 $result=$db->execQuery("WITH candidate AS (
                     SELECT r.session_id,o.request_id,o.turn_id,o.generation,o.event_type,o.canonical_event,o.event_sha256,
                         r.active_turn_sequence AS context_sequence
-                    FROM synth_meta.runtime_sessions r CROSS JOIN LATERAL (
+                    FROM public.core_runtime_session r CROSS JOIN LATERAL (
                         SELECT e.*,p.canonical_event,p.event_sha256 FROM synth_meta.request_executions e
-                        JOIN synth_meta.protocol_events p USING(session_id,request_id,generation,turn_id,event_type)
+                        JOIN public.core_protocol_event p USING(session_id,request_id,generation,turn_id,event_type)
                         WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.turn_id=r.active_turn_id
                             AND e.state='complete' AND p.event_sha256=e.request_sha256
                             AND p.canonical_event->>'protocol_version'='2'
@@ -256,7 +256,7 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
                     ) o WHERE r.state='active' AND (r.middleterm_dispatch_after IS NULL OR r.middleterm_dispatch_after<=clock_timestamp())
                     ORDER BY r.middleterm_dispatch_after NULLS FIRST,r.session_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED
                 ), reserved AS (
-                    UPDATE synth_meta.runtime_sessions r SET middleterm_dispatch_after=clock_timestamp()+INTERVAL '30 seconds'
+                    UPDATE public.core_runtime_session r SET middleterm_dispatch_after=clock_timestamp()+INTERVAL '30 seconds'
                     FROM candidate c WHERE r.session_id=c.session_id RETURNING r.session_id
                 ) SELECT c.* FROM candidate c JOIN reserved USING(session_id)");
                 if (!$result) throw new RuntimeException('Unable to discover narrative owner.');
@@ -269,7 +269,7 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
         return $jobId===null ? null : synth_middleterm_run_job($db,$jobId,$generate);
     } catch (LogicException|SYNTHProtocolCancelled $error) {
         // Invalid frozen inputs must not remain pending forever; do not overwrite another live attempt.
-        if ($jobId!==null) $db->execQuery("UPDATE synth_meta.worker_jobs j SET state=CASE WHEN ".($error instanceof SYNTHProtocolCancelled?'TRUE':'FALSE')."
+        if ($jobId!==null) $db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN ".($error instanceof SYNTHProtocolCancelled?'TRUE':'FALSE')."
             AND EXISTS(SELECT 1 FROM synth_meta.middleterm_inputs i WHERE i.id=j.middleterm_input_id AND i.regeneration_approval_id IS NOT NULL)
             THEN 'stale' ELSE 'failed' END,last_error='middleterm_input_invalid'
             WHERE id=$jobId AND job_type='middleterm' AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");

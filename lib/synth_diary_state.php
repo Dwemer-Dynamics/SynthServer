@@ -6,7 +6,7 @@ require_once __DIR__.'/synth_profile_state.php';
 function synth_diary_assert_owner($connection, array $event, bool $complete=false): void
 {
     $canonical=synth_protocol_canonical_json($event);
-    $result=@pg_query_params($connection,"SELECT 1 FROM synth_meta.request_executions e JOIN synth_meta.protocol_events p
+    $result=@pg_query_params($connection,"SELECT 1 FROM synth_meta.request_executions e JOIN public.core_protocol_event p
         ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation AND p.turn_id=e.turn_id
             AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
         WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.event_type='diary_request'
@@ -74,7 +74,7 @@ function synth_diary_player_owned_binding($db,array $event,string $role): array
     }
     $context=synth_protocol_current_context($db,$event);
     if (!$context) throw new LogicException('Player-owned diary context unavailable.');
-    $row=$db->fetchOne("SELECT c.player_identity_id FROM synth_meta.context_snapshots c JOIN synth.actor_identities a
+    $row=$db->fetchOne("SELECT c.player_identity_id FROM public.core_runtime_context c JOIN synth.actor_identities a
         ON a.id=c.player_identity_id AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
             AND upper(a.full_form_id)=upper(c.context_payload#>>'{player,form_id}')
             AND lower(a.origin_plugin)=lower(c.context_payload#>>'{player,origin_plugin}')
@@ -161,7 +161,7 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
             AND h.event_payload->>'diary_input_sha256'=i.input_sha256
         JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
             AND e.event_type='diary_request' AND e.state='complete'
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation
             AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
             AND p.canonical_event=i.input_payload->'owner' AND p.canonical_event->>'protocol_version'='2'
             AND p.canonical_event->>'context_sequence'=i.context_sequence::text
@@ -170,7 +170,7 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
                 AND p.canonical_event->'capabilities' @> jsonb_build_array('diary.automatic.'||(p.canonical_event#>>'{payload,reason}'))
                 AND i.input_payload#>'{automation,enabled}'='true'::jsonb
                 AND jsonb_typeof(i.input_payload#>'{automation,cooldown_seconds}')='number'))
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=i.session_id AND origin.generation=i.generation
+        JOIN public.core_runtime_context origin ON origin.session_id=i.session_id AND origin.generation=i.generation
             AND origin.snapshot_sequence=i.context_sequence AND origin.playthrough_id=h.playthrough_id
         JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4' AND a.playthrough_id=h.playthrough_id
         WHERE r.result_sha256=encode(sha256(convert_to(r.result_payload::text,'UTF8')),'hex')
@@ -190,7 +190,7 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
         JOIN diary_chain d ON d.history_event_id=r.diary_id AND d.actor_identity_id=scope.reader_identity_id
     ), diary_control_candidates AS (
         SELECT c.* FROM diary_scoped_controls c
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=c.session_id AND origin.generation=c.generation
+        JOIN public.core_runtime_context origin ON origin.session_id=c.session_id AND origin.generation=c.generation
             AND origin.snapshot_sequence=c.context_sequence AND origin.playthrough_id=c.playthrough_id
         WHERE c.request_id IS NULL AND c.event_payload->>'type'='diary_control'
             AND c.event_payload->>'delivery_state'='derived'
@@ -451,7 +451,7 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
         if (intval($visible['n'])!==count($input['history']) || intval($visible['total'])!==count($input['history'])) throw new LogicException('Diary source evidence unavailable.');
         $context=synth_protocol_current_context($db,$event);$playthrough=$context['player']['playthrough_id'];
         $pending=$db->fetchOne('SELECT 1 FROM synth_meta.diary_inputs i JOIN synth_meta.diary_results r ON r.input_id=i.id
-            JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
+            JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             WHERE i.session_id='.$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
             .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.$binding['actor_identity_id']
             ." AND i.diary_role='$role' AND r.history_event_id>c.history_event_id");

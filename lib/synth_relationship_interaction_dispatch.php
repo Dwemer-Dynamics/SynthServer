@@ -14,26 +14,26 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
             $context=synth_protocol_current_context($db,$event);
             $responder=$context ? synth_relationship_responder($db,$event,$context) : null;
             if (!$responder) return [];
-            $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='cancelled',lease_token=NULL,lease_until=NULL,
+            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='cancelled',lease_token=NULL,lease_until=NULL,
                 last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_interaction_id IS NOT NULL
                     AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR relationship_evaluation_id IS NOT NULL OR memory_batch_id IS NOT NULL
                         OR NOT EXISTS(SELECT 1 FROM synth_meta.relationship_interaction_evaluations i
                             JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                                 AND e.generation=i.generation AND e.turn_id=j.turn_id AND e.state='complete'
-                            JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+                            JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
                             WHERE i.id=j.relationship_interaction_id AND i.session_id=j.session_id AND i.request_id=j.request_id
                                 AND i.generation=j.generation AND i.context_sequence::text=j.payload->>'context_sequence'
                                 AND i.speaker_identity_id=j.actor_identity_id AND i.input_payload->'owner'=p.canonical_event
                                 AND ".synth_relationship_responder_sql('p.canonical_event','i.speaker_identity_id',"i.input_payload->'context'")."))",$params);
             if (!$result) throw new RuntimeException('Unable to retire obsolete interaction owner');
-            $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
+            $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
                 last_error='lease_expired',updated_at=clock_timestamp() WHERE relationship_interaction_id IS NOT NULL
                     AND session_id=$1 AND state IN ('pending','running')
                     AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$event['session_id']]);
             if (!$result) throw new RuntimeException('Unable to retire expired interaction dispatch');
-            $result=@pg_query_params($connection,"SELECT id FROM synth_meta.worker_jobs WHERE job_type='relationship'
+            $result=@pg_query_params($connection,"SELECT id FROM public.core_worker_job WHERE job_type='relationship'
                 AND relationship_interaction_id IS NOT NULL AND relationship_evaluation_id IS NULL AND memory_batch_id IS NULL
                 AND session_id=$1 AND generation=$2 AND turn_id=$3 AND payload->>'context_sequence'=$4
                 AND available_at<=clock_timestamp() AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
@@ -45,10 +45,10 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 FROM synth_meta.relationship_interaction_evaluations i
                 JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
-                JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+                JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                     AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
                 WHERE i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$4 AND i.input_payload->'owner'=p.canonical_event
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs j WHERE j.relationship_interaction_id=i.id)
+                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job j WHERE j.relationship_interaction_id=i.id)
                 ORDER BY i.id LIMIT 1",$params);
             if (!$result) throw new RuntimeException('Unable to recover frozen interaction');
             if ($row=pg_fetch_assoc($result)) return ['input'=>$row];
@@ -58,9 +58,9 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 SELECT response.history_event_id,listener.id AS listener_id,MIN(entry.ordinality-1) AS entry_index
                 FROM relationship_response_evidence response
                 JOIN native_ancestry current ON current.depth=1
-                JOIN synth_meta.context_snapshots c ON c.session_id=current.session_id AND c.generation=current.generation AND c.snapshot_sequence=current.snapshot_sequence
-                JOIN synth_meta.protocol_events owner ON owner.session_id=$1 AND owner.request_id=$5 AND owner.generation=$2 AND owner.turn_id=$3
-                JOIN synth_meta.protocol_events source ON source.session_id=response.session_id AND source.request_id=response.request_id
+                JOIN public.core_runtime_context c ON c.session_id=current.session_id AND c.generation=current.generation AND c.snapshot_sequence=current.snapshot_sequence
+                JOIN public.core_protocol_event owner ON owner.session_id=$1 AND owner.request_id=$5 AND owner.generation=$2 AND owner.turn_id=$3
+                JOIN public.core_protocol_event source ON source.session_id=response.session_id AND source.request_id=response.request_id
                 JOIN synth.actor_identities replying ON replying.id=$6::bigint AND replying.game='fo4' AND replying.playthrough_id=c.playthrough_id
                 CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(response.response_payload->'entries')='array'
                     THEN response.response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)

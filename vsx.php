@@ -25,7 +25,7 @@ function synthVsxCheckSession(array $metadata): void
     if ($metadata['schema'] !== 'synth.voice_sample.v2') return;
     $db = $GLOBALS['db'];
     $session = $db->escapeLiteral($metadata['session_id']);
-    $row = $db->fetchOne("SELECT active_generation, state FROM synth_meta.runtime_sessions WHERE session_id={$session}");
+    $row = $db->fetchOne("SELECT active_generation, state FROM public.core_runtime_session WHERE session_id={$session}");
     if (!$row || $row['state'] !== 'active' || intval($row['active_generation']) !== $metadata['generation']) {
         throw new RuntimeException('Voice session is missing, halted or stale', 409);
     }

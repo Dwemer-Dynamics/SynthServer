@@ -97,7 +97,7 @@ final class ConversationManager
     {
         $conversation = $db->escapeLiteral($event['payload']['conversation_id']);
         $own = $db->escapeLiteral($event['request_id']);
-        $members = "SELECT request_id FROM synth_meta.protocol_events WHERE session_id={$session}
+        $members = "SELECT request_id FROM public.core_protocol_event WHERE session_id={$session}
             AND generation={$generation} AND request_id<>{$own}
             AND event_type IN ('input_text','input_audio','trigger')
             AND canonical_event->'capabilities' ? '".self::CAPABILITY."'
@@ -109,7 +109,7 @@ final class ConversationManager
             WHERE session_id={$session} AND generation={$generation} AND state IN ('claimed','streaming','complete')
                 AND request_id IN ({$members}) RETURNING request_id,turn_id");
         $cancelled = is_array($cancelled) ? $cancelled : [];
-        $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+        $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
             WHERE session_id={$session} AND generation={$generation} AND state IN ('pending','running')
                 AND request_id IN ({$members})");
         $ids = array_column($cancelled, 'request_id');
@@ -117,10 +117,10 @@ final class ConversationManager
             // Clear the active turn only when both its id and its context sequence belong to a cancelled request, as
             // a single-request cancel does, so a later turn that reuses a turn id is never cleared.
             $list = implode(',', array_map(static fn($id) => $db->escapeLiteral($id), $ids));
-            $db->execQuery("UPDATE synth_meta.runtime_sessions SET active_turn_id=NULL, updated_at=NOW()
+            $db->execQuery("UPDATE public.core_runtime_session SET active_turn_id=NULL, updated_at=NOW()
                 WHERE session_id={$session} AND active_generation={$generation}
                     AND (active_turn_id, active_turn_sequence) IN (
-                        SELECT turn_id, (canonical_event->>'context_sequence')::bigint FROM synth_meta.protocol_events
+                        SELECT turn_id, (canonical_event->>'context_sequence')::bigint FROM public.core_protocol_event
                         WHERE session_id={$session} AND generation={$generation} AND request_id IN ({$list}))");
         }
         return $ids;
@@ -137,7 +137,7 @@ final class ConversationManager
         if ($id === null) return null;
         $session = $db->escapeLiteral($event['session_id']);
         return "(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS (SELECT 1 FROM synth_meta.history_events conv_h
-            JOIN synth_meta.protocol_events conv_e ON conv_e.session_id=conv_h.session_id AND conv_e.request_id=conv_h.request_id
+            JOIN public.core_protocol_event conv_e ON conv_e.session_id=conv_h.session_id AND conv_e.request_id=conv_h.request_id
                 AND conv_e.generation=conv_h.generation
             WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}
                 AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$db->escapeLiteral($id).'))';

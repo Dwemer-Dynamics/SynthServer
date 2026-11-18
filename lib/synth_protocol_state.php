@@ -149,7 +149,7 @@ function synth_protocol_assert_request_active(): void
         $jobId = intval($lease['id']);
         $token = $db->escapeLiteral($lease['token']);
         $sequence = intval($event['context_sequence']);
-        $job = $db->fetchOne("SELECT 1 AS active FROM synth_meta.worker_jobs
+        $job = $db->fetchOne("SELECT 1 AS active FROM public.core_worker_job
             WHERE id={$jobId} AND job_type='memory' AND session_id={$session} AND request_id={$request}
                 AND generation={$generation} AND payload->>'context_sequence'='{$sequence}'
                 AND state='running' AND lease_token={$token} AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
@@ -159,7 +159,7 @@ function synth_protocol_assert_request_active(): void
     if (is_array($relationshipLease)) {
         $jobId=intval($relationshipLease['id']); $token=$db->escapeLiteral($relationshipLease['token']);
         $sequence=intval($event['context_sequence']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM synth_meta.worker_jobs WHERE id=$jobId AND job_type='relationship'
+        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job WHERE id=$jobId AND job_type='relationship'
             AND relationship_evaluation_id IS NOT NULL AND session_id=$session AND request_id=$request AND generation=$generation
             AND payload->>'context_sequence'='$sequence' AND state='running' AND lease_token=$token
             AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
@@ -169,7 +169,7 @@ function synth_protocol_assert_request_active(): void
     if (is_array($profileLease)) {
         $jobId=intval($profileLease['id']);$token=$db->escapeLiteral($profileLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM synth_meta.worker_jobs WHERE id=$jobId AND job_type='profile'
+        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job WHERE id=$jobId AND job_type='profile'
             AND payload->>'schema'='synth.profile.job.v1' AND session_id=$session AND request_id=$request
             AND generation=$generation AND turn_id=$turn AND payload->>'context_sequence'='$sequence'
             AND state='running' AND lease_token=$token AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
@@ -179,7 +179,7 @@ function synth_protocol_assert_request_active(): void
     if (is_array($diaryLease)) {
         $jobId=intval($diaryLease['id']);$token=$db->escapeLiteral($diaryLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 FROM synth_meta.worker_jobs j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
+        $job=$db->fetchOne("SELECT 1 FROM public.core_worker_job j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation AND i.actor_identity_id=j.actor_identity_id
             WHERE j.id=$jobId AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1'
                 AND j.session_id=$session AND j.request_id=$request AND j.generation=$generation AND j.turn_id=$turn
@@ -191,7 +191,7 @@ function synth_protocol_assert_request_active(): void
     if (is_array($interactionLease)) {
         $jobId=intval($interactionLease['id']);$token=$db->escapeLiteral($interactionLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM synth_meta.worker_jobs j
+        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job j
             JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
                 AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
                 AND i.speaker_identity_id=j.actor_identity_id AND i.context_sequence::text=j.payload->>'context_sequence'
@@ -212,7 +212,7 @@ function synth_protocol_assert_owner_active($db, array $event, bool $mayRetainGi
     $generation = intval($event['generation']);
     $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
             r.active_turn_id, r.active_turn_sequence
-        FROM synth_meta.request_executions e JOIN synth_meta.runtime_sessions r USING (session_id)
+        FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING (session_id)
         WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
     // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
     $retainedGift=$mayRetainGift && ($row['state'] ?? '')==='complete'
@@ -304,7 +304,7 @@ function synth_protocol_loaded_context($db, array $event): ?array
     $generation = intval($anchor['generation']);
     $sequence = intval($anchor['context_sequence']);
     return $db->fetchOne("SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
-        FROM synth_meta.context_snapshots c JOIN synth_meta.runtime_sessions r USING (session_id)
+        FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
         WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}
             AND c.playthrough_id={$playthrough} AND r.runtime_variant={$variant}") ?: null;
 }
@@ -401,7 +401,7 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id,c.history_event_id,c.context_payload,
             {$readerSql} AS reader_identity_id,c.player_identity_id AS reader_player_id,
             1 AS depth, ARRAY[c.session_id||'/'||c.generation||'/'||c.snapshot_sequence] AS path
-        FROM synth_meta.context_snapshots c JOIN synth_meta.runtime_sessions r USING (session_id) {$readerJoin}
+        FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id) {$readerJoin}
         WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}
             AND r.state='active' AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id
             AND r.runtime_variant={$variant} AND c.history_event_id IS NOT NULL
@@ -412,12 +412,12 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         SELECT p.session_id,p.generation,p.snapshot_sequence,p.playthrough_id,p.history_event_id,p.context_payload,
             n.reader_identity_id,n.reader_player_id,
             n.depth+1,n.path||(p.session_id||'/'||p.generation||'/'||p.snapshot_sequence)
-        FROM native_ancestry n JOIN synth_meta.context_snapshots p
+        FROM native_ancestry n JOIN public.core_runtime_context p
             ON p.session_id=n.context_payload->'loaded_context'->>'session_id'
             AND p.generation=({$parentGeneration}) AND p.snapshot_sequence=({$parentSequence})
             AND p.playthrough_id=n.playthrough_id
             AND p.playthrough_id=n.context_payload->'loaded_context'->>'playthrough_id'
-        JOIN synth_meta.runtime_sessions r ON r.session_id=p.session_id AND r.runtime_variant={$variant}
+        JOIN public.core_runtime_session r ON r.session_id=p.session_id AND r.runtime_variant={$variant}
         WHERE n.depth<64 AND p.history_event_id IS NOT NULL
             AND NOT (p.session_id||'/'||p.generation||'/'||p.snapshot_sequence)=ANY(n.path)
     ), native_history_scopes AS (
@@ -440,16 +440,16 @@ function synth_protocol_receipt_speech_join(string $history='h', string $scene='
         FROM (
             SELECT u.line_id,u.speaker_identity_id,rr.speaker,rr.listener_state,rr.listener,listener.id AS listener_identity_id,
                 COUNT(*) OVER () AS candidates
-            FROM synth_meta.response_routes rr
-            JOIN synth_meta.dialogue_utterances u ON u.session_id=rr.session_id AND u.request_id=rr.request_id
+            FROM public.core_dialogue_route rr
+            JOIN public.core_dialogue_utterance u ON u.session_id=rr.session_id AND u.request_id=rr.request_id
                 AND u.line_id=rr.line_id AND u.generation=rr.generation AND u.context_sequence=rr.context_sequence
             JOIN synth_meta.request_executions execution ON execution.session_id=u.session_id
                 AND execution.request_id=u.request_id AND execution.generation=u.generation AND execution.turn_id=u.turn_id
-            JOIN synth_meta.protocol_events ingress ON ingress.session_id=execution.session_id
+            JOIN public.core_protocol_event ingress ON ingress.session_id=execution.session_id
                 AND ingress.request_id=execution.request_id AND ingress.generation=execution.generation
                 AND ingress.turn_id=execution.turn_id AND ingress.event_type=execution.event_type
                 AND ingress.event_sha256=execution.request_sha256
-            JOIN synth_meta.protocol_events receipt ON receipt.session_id=u.session_id AND receipt.request_id=u.receipt_request_id
+            JOIN public.core_protocol_event receipt ON receipt.session_id=u.session_id AND receipt.request_id=u.receipt_request_id
                 AND receipt.generation=u.generation AND receipt.turn_id=u.turn_id
                 AND receipt.canonical_event->>'context_sequence'=u.context_sequence::text
                 AND receipt.event_type='speech_receipt'
@@ -524,11 +524,11 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
     $roleColumns=$responseRoles ? ',response_owner.role AS response_role,response_owner.actor_identity_id AS response_actor_identity_id' : '';
     $roleJoin=$responseRoles ? "LEFT JOIN LATERAL (
             SELECT selected.role,selected.actor_identity_id
-            FROM synth_meta.rechat_selections selected
-            JOIN synth_meta.rechat_continuations continuation USING(session_id,request_id)
-            JOIN synth_meta.rechat_chains chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
+            FROM public.core_rechat_selection selected
+            JOIN public.core_rechat_continuation continuation USING(session_id,request_id)
+            JOIN public.core_rechat_chain chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
             JOIN synth_meta.request_executions execution ON execution.session_id=selected.session_id AND execution.request_id=selected.request_id
-            JOIN synth_meta.protocol_events ingress ON ingress.session_id=selected.session_id AND ingress.request_id=selected.request_id
+            JOIN public.core_protocol_event ingress ON ingress.session_id=selected.session_id AND ingress.request_id=selected.request_id
             WHERE selected.session_id=h.session_id AND selected.request_id=h.request_id
                 AND selected.prepared_at IS NOT NULL AND selected.role IN ('npc','narrator') AND continuation.status='reserved'
                 AND chain.generation=h.generation AND chain.context_sequence=h.context_sequence
@@ -591,7 +591,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
         FROM $scopes s JOIN $historyEvents h
             ON h.session_id=s.session_id AND h.generation=s.generation AND h.playthrough_id=s.playthrough_id
             AND h.id<=s.cutoff {$sourceFilter}
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id
+        JOIN public.core_runtime_context origin ON origin.session_id=h.session_id
             AND origin.generation=h.generation AND origin.snapshot_sequence=COALESCE(h.scene_context_sequence,h.context_sequence)
             AND origin.playthrough_id=h.playthrough_id
         CROSS JOIN LATERAL jsonb_to_record(h.event_payload) AS original(
@@ -654,12 +654,12 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
     $playthroughId = $db->escapeLiteral($payload['playthrough_id']);
     $latest = ($event['protocol_version'] ?? 1) === 2 ? $db->fetchOne(
         "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
-           FROM synth_meta.context_snapshots
+           FROM public.core_runtime_context
           WHERE session_id={$session} AND generation={$generation}
           ORDER BY snapshot_sequence DESC LIMIT 1"
     ) : $db->fetchOne(
         "SELECT MAX(snapshot_sequence) AS latest
-           FROM synth_meta.context_snapshots
+           FROM public.core_runtime_context
           WHERE session_id={$session} AND generation={$generation}
             AND playthrough_id={$playthroughId}"
     );
@@ -696,7 +696,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
               WHERE session_id={$session} AND generation={$generation} AND playthrough_id={$playthroughId})"
         : 'NULL';
     if ($db->execQuery(
-        "INSERT INTO synth_meta.context_snapshots
+        "INSERT INTO public.core_runtime_context
             (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
              target_identity_id, audience_identity_ids, context_payload, history_event_id)
          VALUES ({$session}, {$generation}, {$sequence}, {$playthroughId}, {$playerId},
@@ -706,7 +706,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         throw new RuntimeException('Unable to persist acknowledged context and history frontier');
     }
     $db->execQuery(
-        "UPDATE synth_meta.runtime_sessions
+        "UPDATE public.core_runtime_session
             SET playthrough_id={$playthroughId}, updated_at=NOW()
           WHERE session_id={$session}"
     );
@@ -736,7 +736,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
-        if ($db->execQuery("UPDATE synth_meta.context_snapshots c
+        if ($db->execQuery("UPDATE public.core_runtime_context c
             SET history_event_id=GREATEST(c.history_event_id,COALESCE((
                 SELECT MAX(h.id) FROM synth_meta.history_events h
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
@@ -1048,9 +1048,9 @@ function synth_protocol_persist_quest_events($db, array $event): void
             throw new DomainException('quest_event_visibility_sequence_invalid');
         }
         if (!array_key_exists($sequence, $witnesses)) {
-            $result = $db->execQuery("SELECT context_payload FROM synth_meta.context_snapshots
+            $result = $db->execQuery("SELECT context_payload FROM public.core_runtime_context
                 WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$4
-                  AND player_identity_id=(SELECT player_identity_id FROM synth_meta.context_snapshots
+                  AND player_identity_id=(SELECT player_identity_id FROM public.core_runtime_context
                     WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$5)",
                 [...$owner, $sequence, $payload['snapshot_sequence']]);
             if ($result === false) throw new RuntimeException('Unable to read native quest visibility witness.');
@@ -1160,7 +1160,7 @@ function synth_protocol_persist_observation_history(
     }
     $result = $db->execQuery("WITH captured AS (
         SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
-          FROM synth_meta.context_snapshots c JOIN synth_meta.runtime_sessions s USING(session_id)
+          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
          WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
            AND s.active_generation=c.generation AND s.state='active'
     ), publication AS (
@@ -1334,12 +1334,12 @@ function synth_protocol_persist_activation($db, array $event, string $sessionId)
     $generation = intval($event['generation']);
     $source = $db->escapeLiteral($event['payload']['source']);
     $db->execQuery(
-        "INSERT INTO synth_meta.active_agents
+        "INSERT INTO public.core_actor_activation
             (session_id, generation, actor_identity_id, source, state)
          VALUES ({$session}, {$generation}, {$actorId}, {$source}, 'active')
          ON CONFLICT (session_id, generation, actor_identity_id) DO UPDATE SET
             source = CASE
-                WHEN synth_meta.active_agents.source='manual' THEN 'manual'
+                WHEN public.core_actor_activation.source='manual' THEN 'manual'
                 ELSE EXCLUDED.source
             END,
             state='active', last_seen_at=NOW()"
@@ -1356,7 +1356,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     $generation = intval($event['generation']);
     $intent = $db->fetchOne(
         "SELECT action_id, idempotency_key, state, action_name, (deadline_at + INTERVAL '5 minutes' < NOW()) AS expired
-           FROM synth_meta.action_intents
+           FROM public.core_action_intent
           WHERE action_id={$actionId} AND session_id={$session} AND generation={$generation}
           FOR UPDATE"
     );
@@ -1367,8 +1367,8 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         $origin = $db->fetchOne(
             "SELECT e.canonical_event->>'context_sequence' AS context_sequence,
                     e.canonical_event->>'protocol_version' AS protocol_version
-               FROM synth_meta.action_intents i
-               JOIN synth_meta.protocol_events e
+               FROM public.core_action_intent i
+               JOIN public.core_protocol_event e
                  ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
               WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}"
         );
@@ -1389,12 +1389,12 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 a.full_form_id, a.origin_plugin, a.playthrough_id, e.canonical_event,
                 t.full_form_id AS recipient_form_id, t.origin_plugin AS recipient_plugin,
                 t.playthrough_id AS recipient_playthrough_id
-            FROM synth_meta.action_intents i
+            FROM public.core_action_intent i
             JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
             LEFT JOIN synth.actor_identities t ON t.id=i.target_identity_id AND t.game='fo4'
-            JOIN synth_meta.protocol_events e ON e.session_id=i.session_id AND e.request_id=i.request_id
+            JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
                 AND e.generation=i.generation AND e.turn_id=i.turn_id
-            JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+            JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
             WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}
                 AND i.state IN ('pending','dispatched','complete')
                 AND r.state='active' AND r.active_generation={$generation} AND r.active_turn_id=i.turn_id
@@ -1478,7 +1478,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 throw new DomainException('action_inventory_capability_mismatch');
     }
     $existing = $db->fetchOne(
-        "SELECT result FROM synth_meta.action_terminal_results WHERE action_id={$actionId} FOR UPDATE"
+        "SELECT result FROM public.core_action_result WHERE action_id={$actionId} FOR UPDATE"
     );
     $resultJson = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     if ($existing) {
@@ -1497,11 +1497,11 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     $status = $db->escapeLiteral($result['status']);
     $resultSql = $db->escapeLiteral($resultJson);
     if ($db->execQuery(
-        "INSERT INTO synth_meta.action_terminal_results (action_id, idempotency_key, status, result)
+        "INSERT INTO public.core_action_result (action_id, idempotency_key, status, result)
          VALUES ({$actionId}, {$idempotencyKey}, {$status}, {$resultSql}::jsonb)"
     ) === false) throw new RuntimeException('Unable to persist action terminal result.');
     if ($db->execQuery(
-        "UPDATE synth_meta.action_intents SET state='complete' WHERE action_id={$actionId}"
+        "UPDATE public.core_action_intent SET state='complete' WHERE action_id={$actionId}"
     ) === false) throw new RuntimeException('Unable to complete action intent.');
     if($waitOutcome!==null){
         synth_wait_record_consequence($db,$event,$waitOutcome);
@@ -1582,10 +1582,10 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             "SELECT r.active_generation, r.state, r.playthrough_id, r.capabilities, r.runtime_variant,
                     r.active_turn_id, r.active_turn_sequence,
                     COALESCE((SELECT e.canonical_event->>'protocol_version'
-                                FROM synth_meta.protocol_events e
+                                FROM public.core_protocol_event e
                                WHERE e.session_id=r.session_id AND e.generation=r.active_generation
                                  AND e.event_type='init' LIMIT 1), '1') AS protocol_version
-               FROM synth_meta.runtime_sessions r WHERE r.session_id={$session} FOR UPDATE"
+               FROM public.core_runtime_session r WHERE r.session_id={$session} FOR UPDATE"
         );
         // A retirement can overtake init processing after the client loses its HTTP acknowledgement.
         // Persist the halted session in this same transaction so a late same-generation init loses.
@@ -1604,13 +1604,13 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             // A new generation of a negotiated session returns to Normal and advances the audience epoch, so no
             // earlier acknowledgement survives it. Without the migration Everyone is not acknowledged (fail closed).
             $audienceReset = $event['type'] === 'init' && synth_control_everyone_supported($event)
-                && $db->fetchOne("SELECT 1 AS ready FROM pg_attribute WHERE attrelid='synth_meta.runtime_sessions'::regclass
+                && $db->fetchOne("SELECT 1 AS ready FROM pg_attribute WHERE attrelid='public.core_runtime_session'::regclass
                     AND attname='audience_reset_epoch' AND NOT attisdropped");
             $audienceSql = $audienceReset ? ", audience_intent='normal',
-                     audience_reset_epoch=synth_meta.runtime_sessions.audience_reset_epoch+1" : '';
+                     audience_reset_epoch=public.core_runtime_session.audience_reset_epoch+1" : '';
             $audienceReturning = $audienceReset ? ' RETURNING audience_intent, audience_reset_epoch' : '';
             $upsert =
-                "INSERT INTO synth_meta.runtime_sessions
+                "INSERT INTO public.core_runtime_session
                     (session_id, playthrough_id, game, runtime_variant, client_version, runtime_version,
                      active_generation, capabilities, state)
                  VALUES ({$session}, {$playthrough}, 'fo4', {$variant}, {$clientVersion}, {$runtimeVersion},
@@ -1638,7 +1638,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     response_body=NULL, error_code='stale_generation', completed_at=NOW()
                 WHERE session_id={$session} AND generation<{$generation}
                   AND state IN ('claimed','streaming')");
-            $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+            $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                 WHERE session_id={$session} AND generation<{$generation} AND state IN ('pending','running')");
         } else {
             if (!$sessionRow || strval($sessionRow['state']) !== 'active') {
@@ -1692,7 +1692,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             if (synth_protocol_owns_dialogue_turn($event)) {
                 if (in_array('dialogue.turn_cancel', $event['capabilities'], true)) {
                     $sequence = intval($event['context_sequence']);
-                    $cancelledAnchor = $db->fetchOne("SELECT 1 AS cancelled FROM synth_meta.protocol_events p
+                    $cancelledAnchor = $db->fetchOne("SELECT 1 AS cancelled FROM public.core_protocol_event p
                         JOIN synth_meta.request_executions e USING (session_id, request_id)
                         WHERE p.session_id={$session} AND p.generation={$generation} AND p.event_type='context'
                           AND p.canonical_event->'payload'->>'snapshot_sequence'='{$sequence}'
@@ -1708,7 +1708,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     if ($continuation || $sequence <= intval($sessionRow['active_turn_sequence'] ?? 0)) {
                         throw new DomainException('superseded_turn');
                     }
-                    $db->execQuery("UPDATE synth_meta.runtime_sessions
+                    $db->execQuery("UPDATE public.core_runtime_session
                         SET active_turn_id={$turnId}, active_turn_sequence={$sequence}, updated_at=NOW()
                         WHERE session_id={$session} AND active_generation={$generation}");
                     // A new context supersedes the old owner even when its turn ID is reused.
@@ -1716,20 +1716,20 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                             response_body=NULL, error_code='superseded_turn', completed_at=NOW()
                         WHERE session_id={$session} AND generation={$generation}
                           AND (turn_id<>{$turnId} OR EXISTS (
-                            SELECT 1 FROM synth_meta.protocol_events owner
+                            SELECT 1 FROM public.core_protocol_event owner
                             WHERE owner.session_id={$session} AND owner.generation={$generation}
                               AND owner.request_id=request_executions.request_id
                               AND owner.event_sha256=request_executions.request_sha256
                               AND owner.canonical_event->>'context_sequence' IS DISTINCT FROM '{$sequence}'))
                           AND (event_type IN ('input_text','input_audio','trigger','action_result','narrator_turn')
                             OR (event_type='social_task_progress' AND request_id IN (
-                                SELECT p.request_id FROM synth_meta.protocol_events p
+                                SELECT p.request_id FROM public.core_protocol_event p
                                 WHERE p.session_id={$session} AND p.generation={$generation}
                                     AND p.event_type='social_task_progress'
                                     AND p.canonical_event->'payload'->>'phase'='arrived'
                                     AND p.event_sha256=request_executions.request_sha256)))
                           AND state IN ('claimed','streaming')");
-                    $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+                    $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                         WHERE session_id={$session} AND generation={$generation}
                           AND (turn_id<>{$turnId} OR COALESCE(payload->'protocol_event'->>'context_sequence',
                             payload->>'context_sequence') IS DISTINCT FROM '{$sequence}')
@@ -1747,7 +1747,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
              VALUES ({$session}, {$requestId}, {$turnId}, {$generation}, {$hashSql}, {$eventType}, 'claimed')"
         );
         $db->execQuery(
-            "INSERT INTO synth_meta.protocol_events
+            "INSERT INTO public.core_protocol_event
                 (session_id, request_id, turn_id, generation, event_type, canonical_event, event_sha256)
              VALUES ({$session}, {$requestId}, {$turnId}, {$generation}, {$eventType},
                      {$canonicalSql}::jsonb, {$hashSql})"
@@ -1763,10 +1763,10 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             synth_protocol_persist_action_result($db, $event, $sessionId);
         } elseif ($event['type'] === 'halt') {
             $db->execQuery(
-                "UPDATE synth_meta.runtime_sessions SET state='halted', updated_at=NOW() WHERE session_id={$session}"
+                "UPDATE public.core_runtime_session SET state='halted', updated_at=NOW() WHERE session_id={$session}"
             );
             $db->execQuery(
-                "UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+                "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                   WHERE session_id={$session} AND generation <= {$generation} AND state IN ('pending', 'running')"
             );
             $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
@@ -1774,7 +1774,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 WHERE session_id={$session} AND generation <= {$generation} AND request_id<>{$requestId}
                   AND state IN ('claimed','streaming')");
             $db->execQuery(
-                "UPDATE synth_meta.active_agents SET state='stale', last_seen_at=NOW()
+                "UPDATE public.core_actor_activation SET state='stale', last_seen_at=NOW()
                   WHERE session_id={$session} AND generation <= {$generation} AND state='active'"
             );
         } elseif ($event['type'] === 'cancel' && ($event['payload']['scope'] ?? '') === 'conversation') {
@@ -1786,7 +1786,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 && in_array('dialogue.turn_cancel', $event['capabilities'], true)
                 && in_array('dialogue.turn_ownership', $event['capabilities'], true)
                 ? $db->fetchOne("SELECT turn_id, canonical_event
-                    FROM synth_meta.protocol_events WHERE session_id={$session} AND generation={$generation}
+                    FROM public.core_protocol_event WHERE session_id={$session} AND generation={$generation}
                       AND request_id={$cancelRequest}") : null;
             if ($anchor) {
                 $anchoredEvent=json_decode($anchor['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
@@ -1810,13 +1810,13 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     WHERE session_id={$session} AND generation={$generation}
                       AND state IN ('claimed','streaming','complete')
                       AND (request_id={$cancelRequest} OR request_id IN (
-                        SELECT request_id FROM synth_meta.protocol_events WHERE session_id={$session}
+                        SELECT request_id FROM public.core_protocol_event WHERE session_id={$session}
                           AND generation={$generation} AND turn_id={$cancelTurn}
                           AND canonical_event->>'context_sequence'='{$cancelSequence}'))");
-                $db->execQuery("UPDATE synth_meta.runtime_sessions SET active_turn_id=NULL, updated_at=NOW()
+                $db->execQuery("UPDATE public.core_runtime_session SET active_turn_id=NULL, updated_at=NOW()
                     WHERE session_id={$session} AND active_generation={$generation}
                       AND active_turn_id={$cancelTurn} AND active_turn_sequence={$cancelSequence}");
-                $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+                $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                     WHERE session_id={$session} AND generation={$generation} AND turn_id={$cancelTurn}
                       AND COALESCE(payload->'protocol_event'->>'context_sequence',payload->>'context_sequence')='{$cancelSequence}'
                       AND state IN ('pending','running')");
@@ -1829,7 +1829,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                   WHERE session_id={$session} AND request_id={$cancelRequest}
                     AND generation={$generation} AND state IN ('claimed', 'streaming', 'complete')"
             );
-            $db->execQuery("UPDATE synth_meta.worker_jobs SET state='cancelled', updated_at=NOW()
+            $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                 WHERE session_id={$session} AND generation={$generation} AND request_id={$cancelRequest}
                   AND state IN ('pending','running')");
         }
@@ -1969,7 +1969,7 @@ require_once __DIR__.'/synth_gift_menu.php';
         $deadlineMs = intval($action['deadline_ms']);
         $generation = intval($event['generation']);
         if ($db->execQuery(
-            "INSERT INTO synth_meta.action_intents
+            "INSERT INTO public.core_action_intent
                 (action_id, idempotency_key, session_id, request_id, turn_id, generation,
                  action_name, capability, actor_identity_id, target_identity_id, arguments, deadline_at)
              VALUES ({$actionId}, {$idempotency}, {$session}, {$requestId}, {$turnId}, {$generation},
@@ -2023,7 +2023,7 @@ function synth_protocol_last_actions_issued($db, array $event, string $actor): a
         FROM native_history_scopes s
         JOIN synth_meta.history_events h ON h.session_id=s.session_id AND h.generation=s.generation
             AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
-        JOIN synth_meta.action_intents i ON i.action_id=h.event_payload->>'data'
+        JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
             AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
             AND i.actor_identity_id=s.reader_identity_id
         WHERE h.id<=s.cutoff OR (h.session_id={$session} AND h.generation={$generation}
@@ -2064,10 +2064,10 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
         $idempotency = $db->escapeLiteral($result['idempotency_key']);
         $row = $db->fetchOne(
             "SELECT i.action_name, e.canonical_event
-               FROM synth_meta.action_intents i
-               JOIN synth_meta.protocol_events e ON e.session_id=i.session_id
+               FROM public.core_action_intent i
+               JOIN public.core_protocol_event e ON e.session_id=i.session_id
                 AND e.request_id=i.request_id AND e.generation=i.generation AND e.turn_id=i.turn_id
-               JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id
+               JOIN public.core_runtime_session r ON r.session_id=i.session_id
               WHERE i.action_id={$action} AND i.idempotency_key={$idempotency}
                 AND i.session_id={$session} AND i.generation={$generation} AND i.turn_id={$turn}
                 AND r.state='active' AND r.active_generation={$generation} AND r.runtime_variant={$variant}"
@@ -2188,7 +2188,7 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
                 COALESCE(a.display_name, '') AS actor_name,
                 a.full_form_id AS actor_form_id, a.origin_plugin AS actor_plugin, a.playthrough_id AS actor_playthrough,
                 t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin, t.playthrough_id AS target_playthrough
-           FROM synth_meta.action_intents i
+           FROM public.core_action_intent i
            JOIN synth.actor_identities a ON a.id=i.actor_identity_id
            LEFT JOIN synth.actor_identities t ON t.id=i.target_identity_id
           WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}"
@@ -2484,11 +2484,11 @@ function synth_protocol_response_actor_identity($db, array $event, array $contex
     $action=$db->escapeLiteral($result['action_id']);
     $key=$db->escapeLiteral($result['idempotency_key']);
     $row=$db->fetchOne("SELECT a.full_form_id,a.origin_plugin,a.playthrough_id
-        FROM synth_meta.action_intents i
-        JOIN synth_meta.protocol_events e ON e.session_id=i.session_id AND e.request_id=i.request_id
+        FROM public.core_action_intent i
+        JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
             AND e.generation=i.generation AND e.turn_id=i.turn_id
         JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+        JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
         WHERE i.action_id=$action AND i.idempotency_key=$key AND i.session_id=$session
             AND i.turn_id=$turn AND i.generation=$generation
             AND r.state='active' AND r.active_generation=$generation AND r.runtime_variant=$variant
@@ -2574,7 +2574,7 @@ function synth_protocol_resolve_speaker_identity($db, string $speaker): ?array
     $row = $db->fetchOne(
         "SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
            FROM synth.actor_identities a
-           JOIN synth_meta.runtime_sessions s ON s.playthrough_id=a.playthrough_id
+           JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
           WHERE s.session_id={$session} AND lower(a.display_name)=lower({$speakerSql})
           ORDER BY a.last_seen_at DESC LIMIT 1"
     );
@@ -2700,8 +2700,8 @@ function synth_protocol_original_context($db, array $event): ?array
         if ($sequence < 1) return null;
         $row = $db->fetchOne(
             "SELECT c.context_payload
-               FROM synth_meta.context_snapshots c
-               JOIN synth_meta.runtime_sessions r ON r.session_id=c.session_id
+               FROM public.core_runtime_context c
+               JOIN public.core_runtime_session r ON r.session_id=c.session_id
                 AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id AND r.state='active'
               WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}"
         );
@@ -2717,7 +2717,7 @@ function synth_protocol_original_context($db, array $event): ?array
                 p.playthrough_id, p.display_name AS player_name,
                 t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
                 t.display_name AS target_name
-           FROM synth_meta.context_snapshots c
+           FROM public.core_runtime_context c
            JOIN synth.actor_identities p ON p.id=c.player_identity_id
            LEFT JOIN synth.actor_identities t ON t.id=c.target_identity_id
           WHERE c.session_id={$session} AND c.generation={$generation}
@@ -3105,7 +3105,7 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
         return true;
     }
     $runtime = $db->fetchOne(
-        'SELECT playthrough_id FROM synth_meta.runtime_sessions WHERE session_id=' .
+        'SELECT playthrough_id FROM public.core_runtime_session WHERE session_id=' .
         $db->escapeLiteral(synth_protocol_session_id($wireEvent)) . ' LIMIT 1'
     );
     $playthroughId = strval($runtime['playthrough_id'] ?? '');

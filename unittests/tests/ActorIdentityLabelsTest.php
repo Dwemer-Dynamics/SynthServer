@@ -18,9 +18,9 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
         $db = $this->db();
         $sessionSql = $db->escapeLiteral($session);
         $saveSql = $db->escapeLiteral($save);
-        $db->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation,state,updated_at)
+        $db->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation,state,updated_at)
             VALUES($sessionSql,$saveSql,'fo4','flat','test','1.11.240',1,'active',NOW())");
-        $db->execQuery("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,context_payload,received_at)
+        $db->execQuery("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,context_payload,received_at)
             VALUES($sessionSql,1,1,$saveSql,$player,'{}',".$db->escapeLiteral($receivedAt).")");
     }
 
@@ -33,7 +33,7 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
         $latestSturges = $this->actor('label-save-latest', '0x0001A4D8', 'Sturges');
         $this->context('label-session-old', 'label-save-old', $oldPlayer, '2026-10-06 00:00:00+00');
         $this->context('label-session-latest', 'label-save-latest', $latestPlayer, '2026-10-07 00:00:00+00');
-        $db->execQuery("UPDATE synth_meta.runtime_sessions SET updated_at='2026-10-09 00:00:00+00' WHERE session_id='label-session-old'");
+        $db->execQuery("UPDATE public.core_runtime_session SET updated_at='2026-10-09 00:00:00+00' WHERE session_id='label-session-old'");
         $db->execQuery("UPDATE synth.actor_identities SET last_seen_at='2026-10-09 00:00:00+00' WHERE id=$oldSturges");
         $db->execQuery("UPDATE synth.actor_identities SET last_seen_at='2026-10-01 00:00:00+00' WHERE id=$latestSturges");
         $before = $db->fetchAll('SELECT * FROM synth.actor_identities ORDER BY id');

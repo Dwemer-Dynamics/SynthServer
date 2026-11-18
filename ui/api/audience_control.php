@@ -86,7 +86,7 @@ try {
             $rows = pg_fetch_all(synth_audience_query($connection,
                 "SELECT session_id, active_generation, runtime_variant, playthrough_id, client_version,
                         audience_intent, audience_reset_epoch
-                   FROM synth_meta.runtime_sessions
+                   FROM public.core_runtime_session
                   WHERE state='active' AND capabilities ? 'dialogue.everyone'
                   ORDER BY session_id LIMIT 17", []));
             return [$mode ? $mode['value'] : 'STANDARD', $rows];

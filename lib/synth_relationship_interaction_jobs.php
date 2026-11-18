@@ -9,9 +9,9 @@ function synth_relationship_interaction_inputs($connection, $db, array $event, i
     if (!$interaction) return null;
     $canonical=synth_protocol_canonical_json($event);
     $result=@pg_query_params($connection,"SELECT p.id AS owner_event_id,origin.id AS response_event_id,i.response_payload
-        FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e USING(session_id,request_id)
+        FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
         CROSS JOIN synth_meta.relationship_response_inputs i
-        JOIN synth_meta.protocol_events origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
+        JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
         WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4
             AND e.request_sha256=p.event_sha256 AND e.state='complete' AND i.history_event_id=$5
             AND i.session_id=p.session_id AND i.request_id=p.request_id",

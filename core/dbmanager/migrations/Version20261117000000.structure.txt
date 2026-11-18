@@ -1,71 +1,71 @@
 # Generated from the disposable PostgreSQL 15 inventory of the frozen legacy baseline (source 42c7e0e) and
 # the vector dimensions in its schema source. Do not edit; later schema changes are new migrations.
-column|synth_meta|action_intents|action_id|text|text|NO||
-column|synth_meta|action_intents|action_name|text|text|NO||
-column|synth_meta|action_intents|actor_identity_id|bigint|int8|NO||
-column|synth_meta|action_intents|arguments|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth_meta|action_intents|capability|text|text|NO||
-column|synth_meta|action_intents|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|action_intents|deadline_at|timestamp with time zone|timestamptz|NO||
-column|synth_meta|action_intents|generation|bigint|int8|NO||
-column|synth_meta|action_intents|idempotency_key|text|text|NO||
-column|synth_meta|action_intents|request_id|text|text|NO||
-column|synth_meta|action_intents|session_id|text|text|NO||
-column|synth_meta|action_intents|state|text|text|NO|'pending'::text|
-column|synth_meta|action_intents|target_identity_id|bigint|int8|YES||
-column|synth_meta|action_intents|turn_id|text|text|NO||
-column|synth_meta|action_terminal_results|action_id|text|text|NO||
-column|synth_meta|action_terminal_results|completed_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|action_terminal_results|idempotency_key|text|text|NO||
-column|synth_meta|action_terminal_results|result|jsonb|jsonb|NO||
-column|synth_meta|action_terminal_results|status|text|text|NO||
-column|synth_meta|active_agents|activated_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|active_agents|actor_identity_id|bigint|int8|NO||
-column|synth_meta|active_agents|generation|bigint|int8|NO||
-column|synth_meta|active_agents|last_seen_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|active_agents|session_id|text|text|NO||
-column|synth_meta|active_agents|source|text|text|NO||
-column|synth_meta|active_agents|state|text|text|NO|'active'::text|
-column|synth_meta|actor_event_batches|batch_id|text|text|NO||
-column|synth_meta|actor_event_batches|capture_age_ms|bigint|int8|NO||
-column|synth_meta|actor_event_batches|context_sequence|bigint|int8|NO||
-column|synth_meta|actor_event_batches|generation|bigint|int8|NO||
-column|synth_meta|actor_event_batches|input_payload|jsonb|jsonb|NO||
-column|synth_meta|actor_event_batches|player_payload|jsonb|jsonb|NO||
-column|synth_meta|actor_event_batches|playthrough_id|text|text|NO||
-column|synth_meta|actor_event_batches|recorded_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|actor_event_batches|request_id|text|text|NO||
-column|synth_meta|actor_event_batches|session_id|text|text|NO||
-column|synth_meta|context_snapshots|audience_identity_ids|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth_meta|context_snapshots|context_payload|jsonb|jsonb|NO||
-column|synth_meta|context_snapshots|generation|bigint|int8|NO||
-column|synth_meta|context_snapshots|history_event_id|bigint|int8|YES||
-column|synth_meta|context_snapshots|player_identity_id|bigint|int8|NO||
-column|synth_meta|context_snapshots|playthrough_id|text|text|NO||
-column|synth_meta|context_snapshots|received_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|context_snapshots|session_id|text|text|NO||
-column|synth_meta|context_snapshots|snapshot_sequence|bigint|int8|NO||
-column|synth_meta|context_snapshots|target_identity_id|bigint|int8|YES||
-column|synth_meta|dialogue_origin_policies|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|dialogue_origin_policies|execution_mode|text|text|NO||
-column|synth_meta|dialogue_origin_policies|input_text|text|text|YES||
-column|synth_meta|dialogue_origin_policies|policy|jsonb|jsonb|NO||
-column|synth_meta|dialogue_origin_policies|request_id|text|text|NO||
-column|synth_meta|dialogue_origin_policies|session_id|text|text|NO||
-column|synth_meta|dialogue_utterances|character_id|text|text|NO||
-column|synth_meta|dialogue_utterances|context_sequence|bigint|int8|NO||
-column|synth_meta|dialogue_utterances|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|dialogue_utterances|generation|bigint|int8|NO||
-column|synth_meta|dialogue_utterances|line_id|text|text|NO||
-column|synth_meta|dialogue_utterances|receipt_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|dialogue_utterances|receipt_request_id|text|text|YES||
-column|synth_meta|dialogue_utterances|request_id|text|text|NO||
-column|synth_meta|dialogue_utterances|session_id|text|text|NO||
-column|synth_meta|dialogue_utterances|speaker_identity_id|bigint|int8|NO||
-column|synth_meta|dialogue_utterances|state|text|text|NO|'generated'::text|
-column|synth_meta|dialogue_utterances|text_sha256|character|bpchar|NO||64
-column|synth_meta|dialogue_utterances|text|text|text|NO||
-column|synth_meta|dialogue_utterances|turn_id|text|text|NO||
+column|public|core_action_intent|action_id|text|text|NO||
+column|public|core_action_intent|action_name|text|text|NO||
+column|public|core_action_intent|actor_identity_id|bigint|int8|NO||
+column|public|core_action_intent|arguments|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_action_intent|capability|text|text|NO||
+column|public|core_action_intent|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_action_intent|deadline_at|timestamp with time zone|timestamptz|NO||
+column|public|core_action_intent|generation|bigint|int8|NO||
+column|public|core_action_intent|idempotency_key|text|text|NO||
+column|public|core_action_intent|request_id|text|text|NO||
+column|public|core_action_intent|session_id|text|text|NO||
+column|public|core_action_intent|state|text|text|NO|'pending'::text|
+column|public|core_action_intent|target_identity_id|bigint|int8|YES||
+column|public|core_action_intent|turn_id|text|text|NO||
+column|public|core_action_result|action_id|text|text|NO||
+column|public|core_action_result|completed_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_action_result|idempotency_key|text|text|NO||
+column|public|core_action_result|result|jsonb|jsonb|NO||
+column|public|core_action_result|status|text|text|NO||
+column|public|core_actor_activation|activated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_actor_activation|actor_identity_id|bigint|int8|NO||
+column|public|core_actor_activation|generation|bigint|int8|NO||
+column|public|core_actor_activation|last_seen_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_actor_activation|session_id|text|text|NO||
+column|public|core_actor_activation|source|text|text|NO||
+column|public|core_actor_activation|state|text|text|NO|'active'::text|
+column|public|core_actor_event_batch|batch_id|text|text|NO||
+column|public|core_actor_event_batch|capture_age_ms|bigint|int8|NO||
+column|public|core_actor_event_batch|context_sequence|bigint|int8|NO||
+column|public|core_actor_event_batch|generation|bigint|int8|NO||
+column|public|core_actor_event_batch|input_payload|jsonb|jsonb|NO||
+column|public|core_actor_event_batch|player_payload|jsonb|jsonb|NO||
+column|public|core_actor_event_batch|playthrough_id|text|text|NO||
+column|public|core_actor_event_batch|recorded_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_actor_event_batch|request_id|text|text|NO||
+column|public|core_actor_event_batch|session_id|text|text|NO||
+column|public|core_runtime_context|audience_identity_ids|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_runtime_context|context_payload|jsonb|jsonb|NO||
+column|public|core_runtime_context|generation|bigint|int8|NO||
+column|public|core_runtime_context|history_event_id|bigint|int8|YES||
+column|public|core_runtime_context|player_identity_id|bigint|int8|NO||
+column|public|core_runtime_context|playthrough_id|text|text|NO||
+column|public|core_runtime_context|received_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_runtime_context|session_id|text|text|NO||
+column|public|core_runtime_context|snapshot_sequence|bigint|int8|NO||
+column|public|core_runtime_context|target_identity_id|bigint|int8|YES||
+column|public|core_dialogue_origin_policy|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_dialogue_origin_policy|execution_mode|text|text|NO||
+column|public|core_dialogue_origin_policy|input_text|text|text|YES||
+column|public|core_dialogue_origin_policy|policy|jsonb|jsonb|NO||
+column|public|core_dialogue_origin_policy|request_id|text|text|NO||
+column|public|core_dialogue_origin_policy|session_id|text|text|NO||
+column|public|core_dialogue_utterance|character_id|text|text|NO||
+column|public|core_dialogue_utterance|context_sequence|bigint|int8|NO||
+column|public|core_dialogue_utterance|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_dialogue_utterance|generation|bigint|int8|NO||
+column|public|core_dialogue_utterance|line_id|text|text|NO||
+column|public|core_dialogue_utterance|receipt_at|timestamp with time zone|timestamptz|YES||
+column|public|core_dialogue_utterance|receipt_request_id|text|text|YES||
+column|public|core_dialogue_utterance|request_id|text|text|NO||
+column|public|core_dialogue_utterance|session_id|text|text|NO||
+column|public|core_dialogue_utterance|speaker_identity_id|bigint|int8|NO||
+column|public|core_dialogue_utterance|state|text|text|NO|'generated'::text|
+column|public|core_dialogue_utterance|text_sha256|character|bpchar|NO||64
+column|public|core_dialogue_utterance|text|text|text|NO||
+column|public|core_dialogue_utterance|turn_id|text|text|NO||
 column|synth_meta|diary_control_revisions|control_payload|jsonb|jsonb|NO||
 column|synth_meta|diary_control_revisions|control_sha256|character|bpchar|NO||64
 column|synth_meta|diary_control_revisions|diary_id|bigint|int8|NO||
@@ -315,48 +315,48 @@ column|synth_meta|profile_revisions|request_id|text|text|NO||
 column|synth_meta|profile_revisions|result_fields|jsonb|jsonb|NO||
 column|synth_meta|profile_revisions|result_sha256|character|bpchar|NO||64
 column|synth_meta|profile_revisions|session_id|text|text|NO||
-column|synth_meta|protocol_events|canonical_event|jsonb|jsonb|NO||
-column|synth_meta|protocol_events|event_sha256|character|bpchar|NO||64
-column|synth_meta|protocol_events|event_type|text|text|NO||
-column|synth_meta|protocol_events|generation|bigint|int8|NO||
-column|synth_meta|protocol_events|id|bigint|int8|NO|nextval('protocol_events_id_seq'::regclass)|
-column|synth_meta|protocol_events|received_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|protocol_events|request_id|text|text|NO||
-column|synth_meta|protocol_events|session_id|text|text|NO||
-column|synth_meta|protocol_events|turn_id|text|text|NO||
-column|synth_meta|rechat_chains|budget|bigint|int8|NO||
-column|synth_meta|rechat_chains|context_sequence|bigint|int8|NO||
-column|synth_meta|rechat_chains|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|rechat_chains|generation|bigint|int8|NO||
-column|synth_meta|rechat_chains|id|bigint|int8|NO|nextval('rechat_chains_id_seq'::regclass)|
-column|synth_meta|rechat_chains|mode|text|text|NO||
-column|synth_meta|rechat_chains|policy|jsonb|jsonb|NO||
-column|synth_meta|rechat_chains|root_request_id|text|text|NO||
-column|synth_meta|rechat_chains|runtime_variant|text|text|NO||
-column|synth_meta|rechat_chains|session_id|text|text|NO||
-column|synth_meta|rechat_chains|terminal_reason|text|text|YES||
-column|synth_meta|rechat_chains|turn_id|text|text|NO||
-column|synth_meta|rechat_chains|used_rounds|bigint|int8|NO|0|
-column|synth_meta|rechat_continuations|chain_id|bigint|int8|NO||
-column|synth_meta|rechat_continuations|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|rechat_continuations|parent_line_id|text|text|NO||
-column|synth_meta|rechat_continuations|parent_request_id|text|text|NO||
-column|synth_meta|rechat_continuations|parent_response_sha256|character|bpchar|NO||64
-column|synth_meta|rechat_continuations|request_id|text|text|NO||
-column|synth_meta|rechat_continuations|round_number|bigint|int8|YES||
-column|synth_meta|rechat_continuations|session_id|text|text|NO||
-column|synth_meta|rechat_continuations|status|text|text|NO||
-column|synth_meta|rechat_continuations|terminal_reason|text|text|YES||
-column|synth_meta|rechat_selections|actor_identity_id|bigint|int8|YES||
-column|synth_meta|rechat_selections|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|rechat_selections|identity|jsonb|jsonb|YES||
-column|synth_meta|rechat_selections|npc_id|integer|int4|YES||
-column|synth_meta|rechat_selections|prepared_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|rechat_selections|profile_id|integer|int4|YES||
-column|synth_meta|rechat_selections|request_id|text|text|NO||
-column|synth_meta|rechat_selections|role|text|text|NO||
-column|synth_meta|rechat_selections|session_id|text|text|NO||
-column|synth_meta|rechat_selections|terminal_reason|text|text|YES||
+column|public|core_protocol_event|canonical_event|jsonb|jsonb|NO||
+column|public|core_protocol_event|event_sha256|character|bpchar|NO||64
+column|public|core_protocol_event|event_type|text|text|NO||
+column|public|core_protocol_event|generation|bigint|int8|NO||
+column|public|core_protocol_event|id|bigint|int8|NO|nextval('protocol_events_id_seq'::regclass)|
+column|public|core_protocol_event|received_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_protocol_event|request_id|text|text|NO||
+column|public|core_protocol_event|session_id|text|text|NO||
+column|public|core_protocol_event|turn_id|text|text|NO||
+column|public|core_rechat_chain|budget|bigint|int8|NO||
+column|public|core_rechat_chain|context_sequence|bigint|int8|NO||
+column|public|core_rechat_chain|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_rechat_chain|generation|bigint|int8|NO||
+column|public|core_rechat_chain|id|bigint|int8|NO|nextval('rechat_chains_id_seq'::regclass)|
+column|public|core_rechat_chain|mode|text|text|NO||
+column|public|core_rechat_chain|policy|jsonb|jsonb|NO||
+column|public|core_rechat_chain|root_request_id|text|text|NO||
+column|public|core_rechat_chain|runtime_variant|text|text|NO||
+column|public|core_rechat_chain|session_id|text|text|NO||
+column|public|core_rechat_chain|terminal_reason|text|text|YES||
+column|public|core_rechat_chain|turn_id|text|text|NO||
+column|public|core_rechat_chain|used_rounds|bigint|int8|NO|0|
+column|public|core_rechat_continuation|chain_id|bigint|int8|NO||
+column|public|core_rechat_continuation|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_rechat_continuation|parent_line_id|text|text|NO||
+column|public|core_rechat_continuation|parent_request_id|text|text|NO||
+column|public|core_rechat_continuation|parent_response_sha256|character|bpchar|NO||64
+column|public|core_rechat_continuation|request_id|text|text|NO||
+column|public|core_rechat_continuation|round_number|bigint|int8|YES||
+column|public|core_rechat_continuation|session_id|text|text|NO||
+column|public|core_rechat_continuation|status|text|text|NO||
+column|public|core_rechat_continuation|terminal_reason|text|text|YES||
+column|public|core_rechat_selection|actor_identity_id|bigint|int8|YES||
+column|public|core_rechat_selection|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_rechat_selection|identity|jsonb|jsonb|YES||
+column|public|core_rechat_selection|npc_id|integer|int4|YES||
+column|public|core_rechat_selection|prepared_at|timestamp with time zone|timestamptz|YES||
+column|public|core_rechat_selection|profile_id|integer|int4|YES||
+column|public|core_rechat_selection|request_id|text|text|NO||
+column|public|core_rechat_selection|role|text|text|NO||
+column|public|core_rechat_selection|session_id|text|text|NO||
+column|public|core_rechat_selection|terminal_reason|text|text|YES||
 column|synth_meta|relationship_actor_control_events|actor_identity_id|bigint|int8|NO||
 column|synth_meta|relationship_actor_control_events|barrier_event_id|bigint|int8|NO||
 column|synth_meta|relationship_actor_control_events|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
@@ -443,57 +443,57 @@ column|synth_meta|request_executions|response_content_type|text|text|YES||
 column|synth_meta|request_executions|session_id|text|text|NO||
 column|synth_meta|request_executions|state|text|text|NO|'claimed'::text|
 column|synth_meta|request_executions|turn_id|text|text|NO||
-column|synth_meta|response_routes|context_sequence|bigint|int8|NO||
-column|synth_meta|response_routes|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|response_routes|generation|bigint|int8|NO||
-column|synth_meta|response_routes|line_id|text|text|NO||
-column|synth_meta|response_routes|line_sha256|character|bpchar|NO||64
-column|synth_meta|response_routes|listener_state|text|text|NO||
-column|synth_meta|response_routes|listener|jsonb|jsonb|YES||
-column|synth_meta|response_routes|request_id|text|text|NO||
-column|synth_meta|response_routes|session_id|text|text|NO||
-column|synth_meta|response_routes|speaker|jsonb|jsonb|NO||
-column|synth_meta|response_routes|utterance_id|text|text|YES||
-column|synth_meta|runtime_sessions|active_generation|bigint|int8|NO||
-column|synth_meta|runtime_sessions|active_turn_id|text|text|YES||
-column|synth_meta|runtime_sessions|active_turn_sequence|bigint|int8|NO|0|
-column|synth_meta|runtime_sessions|audience_intent|text|text|NO|'normal'::text|
-column|synth_meta|runtime_sessions|audience_reset_epoch|bigint|int8|NO|0|
-column|synth_meta|runtime_sessions|capabilities|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth_meta|runtime_sessions|client_version|text|text|NO||
-column|synth_meta|runtime_sessions|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|runtime_sessions|game|text|text|NO||
-column|synth_meta|runtime_sessions|interaction_dispatch_after|timestamp with time zone|timestamptz|YES||
-column|synth_meta|runtime_sessions|memory_dispatch_after|timestamp with time zone|timestamptz|YES||
-column|synth_meta|runtime_sessions|middleterm_dispatch_after|timestamp with time zone|timestamptz|YES||
-column|synth_meta|runtime_sessions|playthrough_id|text|text|NO||
-column|synth_meta|runtime_sessions|relationship_dispatch_after|timestamp with time zone|timestamptz|YES||
-column|synth_meta|runtime_sessions|runtime_variant|text|text|NO||
-column|synth_meta|runtime_sessions|runtime_version|text|text|NO||
-column|synth_meta|runtime_sessions|session_id|text|text|NO||
-column|synth_meta|runtime_sessions|state|text|text|NO|'active'::text|
-column|synth_meta|runtime_sessions|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_dialogue_route|context_sequence|bigint|int8|NO||
+column|public|core_dialogue_route|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_dialogue_route|generation|bigint|int8|NO||
+column|public|core_dialogue_route|line_id|text|text|NO||
+column|public|core_dialogue_route|line_sha256|character|bpchar|NO||64
+column|public|core_dialogue_route|listener_state|text|text|NO||
+column|public|core_dialogue_route|listener|jsonb|jsonb|YES||
+column|public|core_dialogue_route|request_id|text|text|NO||
+column|public|core_dialogue_route|session_id|text|text|NO||
+column|public|core_dialogue_route|speaker|jsonb|jsonb|NO||
+column|public|core_dialogue_route|utterance_id|text|text|YES||
+column|public|core_runtime_session|active_generation|bigint|int8|NO||
+column|public|core_runtime_session|active_turn_id|text|text|YES||
+column|public|core_runtime_session|active_turn_sequence|bigint|int8|NO|0|
+column|public|core_runtime_session|audience_intent|text|text|NO|'normal'::text|
+column|public|core_runtime_session|audience_reset_epoch|bigint|int8|NO|0|
+column|public|core_runtime_session|capabilities|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_runtime_session|client_version|text|text|NO||
+column|public|core_runtime_session|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_runtime_session|game|text|text|NO||
+column|public|core_runtime_session|interaction_dispatch_after|timestamp with time zone|timestamptz|YES||
+column|public|core_runtime_session|memory_dispatch_after|timestamp with time zone|timestamptz|YES||
+column|public|core_runtime_session|middleterm_dispatch_after|timestamp with time zone|timestamptz|YES||
+column|public|core_runtime_session|playthrough_id|text|text|NO||
+column|public|core_runtime_session|relationship_dispatch_after|timestamp with time zone|timestamptz|YES||
+column|public|core_runtime_session|runtime_variant|text|text|NO||
+column|public|core_runtime_session|runtime_version|text|text|NO||
+column|public|core_runtime_session|session_id|text|text|NO||
+column|public|core_runtime_session|state|text|text|NO|'active'::text|
+column|public|core_runtime_session|updated_at|timestamp with time zone|timestamptz|NO|now()|
 column|synth_meta|settings|key|text|text|NO||
 column|synth_meta|settings|value|text|text|YES||
-column|synth_meta|social_task_claims|deadline_at|timestamp with time zone|timestamptz|NO||
-column|synth_meta|social_task_claims|execution_id|text|text|NO||
-column|synth_meta|social_task_claims|generation|bigint|int8|NO||
-column|synth_meta|social_task_claims|session_id|text|text|NO||
-column|synth_meta|social_task_claims|task_id|text|text|NO||
-column|synth_meta|social_task_events|event_payload|jsonb|jsonb|NO||
-column|synth_meta|social_task_events|event_sha256|character|bpchar|NO||64
-column|synth_meta|social_task_events|execution_id|text|text|YES||
-column|synth_meta|social_task_events|history_event_id|bigint|int8|NO||
-column|synth_meta|social_task_events|prior_revision|bigint|int8|YES||
-column|synth_meta|social_task_events|status|text|text|NO||
-column|synth_meta|social_task_events|task_id|text|text|NO||
-column|synth_meta|social_task_inputs|history_event_id|bigint|int8|NO||
-column|synth_meta|social_task_inputs|input_payload|jsonb|jsonb|NO||
-column|synth_meta|social_task_inputs|input_sha256|character|bpchar|NO||64
-column|synth_meta|social_task_inputs|performer_identity_id|bigint|int8|NO||
-column|synth_meta|social_task_inputs|player_identity_id|bigint|int8|NO||
-column|synth_meta|social_task_inputs|recipient_identity_id|bigint|int8|NO||
-column|synth_meta|social_task_inputs|task_id|text|text|NO||
+column|public|core_social_task_claim|deadline_at|timestamp with time zone|timestamptz|NO||
+column|public|core_social_task_claim|execution_id|text|text|NO||
+column|public|core_social_task_claim|generation|bigint|int8|NO||
+column|public|core_social_task_claim|session_id|text|text|NO||
+column|public|core_social_task_claim|task_id|text|text|NO||
+column|public|core_social_task_event|event_payload|jsonb|jsonb|NO||
+column|public|core_social_task_event|event_sha256|character|bpchar|NO||64
+column|public|core_social_task_event|execution_id|text|text|YES||
+column|public|core_social_task_event|history_event_id|bigint|int8|NO||
+column|public|core_social_task_event|prior_revision|bigint|int8|YES||
+column|public|core_social_task_event|status|text|text|NO||
+column|public|core_social_task_event|task_id|text|text|NO||
+column|public|core_social_task_input|history_event_id|bigint|int8|NO||
+column|public|core_social_task_input|input_payload|jsonb|jsonb|NO||
+column|public|core_social_task_input|input_sha256|character|bpchar|NO||64
+column|public|core_social_task_input|performer_identity_id|bigint|int8|NO||
+column|public|core_social_task_input|player_identity_id|bigint|int8|NO||
+column|public|core_social_task_input|recipient_identity_id|bigint|int8|NO||
+column|public|core_social_task_input|task_id|text|text|NO||
 column|public|core_visual_description_revision|actor_identity_id|bigint|int8|NO||
 column|public|core_visual_description_revision|capture_id|text|text|NO||
 column|public|core_visual_description_revision|description|text|text|YES||
@@ -509,30 +509,30 @@ column|public|core_visual_result|request_id|text|text|NO||
 column|public|core_visual_result|result_payload|jsonb|jsonb|NO||
 column|public|core_visual_result|result_sha256|character|bpchar|NO||64
 column|public|core_visual_result|session_id|text|text|NO||
-column|synth_meta|worker_jobs|actor_identity_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|attempts|integer|int4|NO|0|
-column|synth_meta|worker_jobs|available_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|worker_jobs|cache_key|text|text|YES||
-column|synth_meta|worker_jobs|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|worker_jobs|deadline_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|worker_jobs|diary_input_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|generation|bigint|int8|NO||
-column|synth_meta|worker_jobs|id|bigint|int8|NO|nextval('worker_jobs_id_seq'::regclass)|
-column|synth_meta|worker_jobs|job_type|text|text|NO||
-column|synth_meta|worker_jobs|last_error|text|text|YES||
-column|synth_meta|worker_jobs|lease_token|text|text|YES||
-column|synth_meta|worker_jobs|lease_until|timestamp with time zone|timestamptz|YES||
-column|synth_meta|worker_jobs|memory_batch_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|middleterm_input_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|payload|jsonb|jsonb|NO||
-column|synth_meta|worker_jobs|relationship_evaluation_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|relationship_interaction_id|bigint|int8|YES||
-column|synth_meta|worker_jobs|request_id|text|text|NO||
-column|synth_meta|worker_jobs|session_id|text|text|YES||
-column|synth_meta|worker_jobs|state|text|text|NO|'pending'::text|
-column|synth_meta|worker_jobs|turn_id|text|text|NO||
-column|synth_meta|worker_jobs|updated_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|worker_jobs|utterance_id|text|text|YES||
+column|public|core_worker_job|actor_identity_id|bigint|int8|YES||
+column|public|core_worker_job|attempts|integer|int4|NO|0|
+column|public|core_worker_job|available_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_worker_job|cache_key|text|text|YES||
+column|public|core_worker_job|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_worker_job|deadline_at|timestamp with time zone|timestamptz|YES||
+column|public|core_worker_job|diary_input_id|bigint|int8|YES||
+column|public|core_worker_job|generation|bigint|int8|NO||
+column|public|core_worker_job|id|bigint|int8|NO|nextval('worker_jobs_id_seq'::regclass)|
+column|public|core_worker_job|job_type|text|text|NO||
+column|public|core_worker_job|last_error|text|text|YES||
+column|public|core_worker_job|lease_token|text|text|YES||
+column|public|core_worker_job|lease_until|timestamp with time zone|timestamptz|YES||
+column|public|core_worker_job|memory_batch_id|bigint|int8|YES||
+column|public|core_worker_job|middleterm_input_id|bigint|int8|YES||
+column|public|core_worker_job|payload|jsonb|jsonb|NO||
+column|public|core_worker_job|relationship_evaluation_id|bigint|int8|YES||
+column|public|core_worker_job|relationship_interaction_id|bigint|int8|YES||
+column|public|core_worker_job|request_id|text|text|NO||
+column|public|core_worker_job|session_id|text|text|YES||
+column|public|core_worker_job|state|text|text|NO|'pending'::text|
+column|public|core_worker_job|turn_id|text|text|NO||
+column|public|core_worker_job|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_worker_job|utterance_id|text|text|YES||
 column|synth|actions_issued|action|text|text|YES||
 column|synth|actions_issued|actorname|text|text|YES||
 column|synth|actions_issued|fullcall|text|text|YES||
@@ -1117,57 +1117,57 @@ column|synth|worldknowledge|topic_desc|character varying|varchar|YES||
 column|synth|worldknowledge|topic|character varying|varchar|NO||
 column|synth|worldknowledge|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
 column|synth|worldknowledge|vector384|USER-DEFINED|vector|YES||
-constraint|synth_meta|action_intents|action_intents_action_id_check|c|t|CHECK ((action_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|action_intents|action_intents_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|action_intents|action_intents_arguments_check|c|t|CHECK ((jsonb_typeof(arguments) = 'object'::text))
-constraint|synth_meta|action_intents|action_intents_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|action_intents|action_intents_idempotency_key_key|u|t|UNIQUE (idempotency_key)
-constraint|synth_meta|action_intents|action_intents_pkey|p|t|PRIMARY KEY (action_id)
-constraint|synth_meta|action_intents|action_intents_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
-constraint|synth_meta|action_intents|action_intents_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'dispatched'::text, 'complete'::text, 'cancelled'::text, 'stale'::text])))
-constraint|synth_meta|action_intents|action_intents_target_identity_id_fkey|f|t|FOREIGN KEY (target_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|action_terminal_results|action_terminal_results_action_id_fkey|f|t|FOREIGN KEY (action_id) REFERENCES action_intents(action_id) ON DELETE CASCADE
-constraint|synth_meta|action_terminal_results|action_terminal_results_idempotency_key_key|u|t|UNIQUE (idempotency_key)
-constraint|synth_meta|action_terminal_results|action_terminal_results_pkey|p|t|PRIMARY KEY (action_id)
-constraint|synth_meta|action_terminal_results|action_terminal_results_status_check|c|t|CHECK ((status = ANY (ARRAY['succeeded'::text, 'rejected'::text, 'unavailable'::text, 'timed_out'::text, 'cancelled'::text, 'failed'::text, 'unsupported_without_esp'::text, 'unsupported_runtime'::text])))
-constraint|synth_meta|active_agents|active_agents_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE CASCADE
-constraint|synth_meta|active_agents|active_agents_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|active_agents|active_agents_pkey|p|t|PRIMARY KEY (session_id, generation, actor_identity_id)
-constraint|synth_meta|active_agents|active_agents_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
-constraint|synth_meta|active_agents|active_agents_source_check|c|t|CHECK ((source = ANY (ARRAY['manual'::text, 'automatic'::text])))
-constraint|synth_meta|active_agents|active_agents_state_check|c|t|CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'stale'::text])))
-constraint|synth_meta|actor_event_batches|actor_event_batches_batch_id_check|c|t|CHECK ((batch_id ~ '^actor:[1-9][0-9]{0,15}$'::text))
-constraint|synth_meta|actor_event_batches|actor_event_batches_capture_age_ms_check|c|t|CHECK (((capture_age_ms >= 0) AND (capture_age_ms <= '9007199254740991'::bigint)))
-constraint|synth_meta|actor_event_batches|actor_event_batches_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|actor_event_batches|actor_event_batches_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|actor_event_batches|actor_event_batches_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|actor_event_batches|actor_event_batches_pkey|p|t|PRIMARY KEY (session_id, generation, playthrough_id, batch_id)
-constraint|synth_meta|actor_event_batches|actor_event_batches_player_payload_check|c|t|CHECK ((jsonb_typeof(player_payload) = 'object'::text))
-constraint|synth_meta|actor_event_batches|actor_event_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
-constraint|synth_meta|actor_event_batches|actor_event_batches_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|context_snapshots|context_snapshots_audience_identity_ids_check|c|t|CHECK ((jsonb_typeof(audience_identity_ids) = 'array'::text))
-constraint|synth_meta|context_snapshots|context_snapshots_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|context_snapshots|context_snapshots_history_event_id_check|c|t|CHECK ((history_event_id >= 0))
-constraint|synth_meta|context_snapshots|context_snapshots_pkey|p|t|PRIMARY KEY (session_id, generation, snapshot_sequence)
-constraint|synth_meta|context_snapshots|context_snapshots_player_identity_id_fkey|f|t|FOREIGN KEY (player_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|context_snapshots|context_snapshots_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
-constraint|synth_meta|context_snapshots|context_snapshots_snapshot_sequence_check|c|t|CHECK ((snapshot_sequence > 0))
-constraint|synth_meta|context_snapshots|context_snapshots_target_identity_id_fkey|f|t|FOREIGN KEY (target_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|dialogue_origin_policies|dialogue_origin_policies_pkey|p|t|PRIMARY KEY (session_id, request_id)
-constraint|synth_meta|dialogue_origin_policies|dialogue_origin_policies_policy_check|c|t|CHECK ((jsonb_typeof(policy) = 'object'::text))
-constraint|synth_meta|dialogue_origin_policies|dialogue_origin_policies_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_character_id_check|c|t|CHECK ((character_id ~ '^chr:[0-9a-f]{40}$'::text))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_check|c|t|CHECK (((state = 'generated'::text) = (receipt_request_id IS NULL)))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_line_id_check|c|t|CHECK (((length(line_id) >= 1) AND (length(line_id) <= 160)))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_pkey|p|t|PRIMARY KEY (session_id, request_id, line_id)
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_state_check|c|t|CHECK ((state = ANY (ARRAY['generated'::text, 'spoken'::text, 'presented'::text, 'interrupted'::text, 'failed'::text])))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_text_check|c|t|CHECK (((length(text) >= 1) AND (length(text) <= 4096)))
-constraint|synth_meta|dialogue_utterances|dialogue_utterances_text_sha256_check|c|t|CHECK ((text_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_action_intent|action_intents_action_id_check|c|t|CHECK ((action_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_action_intent|action_intents_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_action_intent|action_intents_arguments_check|c|t|CHECK ((jsonb_typeof(arguments) = 'object'::text))
+constraint|public|core_action_intent|action_intents_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_action_intent|action_intents_idempotency_key_key|u|t|UNIQUE (idempotency_key)
+constraint|public|core_action_intent|action_intents_pkey|p|t|PRIMARY KEY (action_id)
+constraint|public|core_action_intent|action_intents_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
+constraint|public|core_action_intent|action_intents_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'dispatched'::text, 'complete'::text, 'cancelled'::text, 'stale'::text])))
+constraint|public|core_action_intent|action_intents_target_identity_id_fkey|f|t|FOREIGN KEY (target_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_action_result|action_terminal_results_action_id_fkey|f|t|FOREIGN KEY (action_id) REFERENCES core_action_intent(action_id) ON DELETE CASCADE
+constraint|public|core_action_result|action_terminal_results_idempotency_key_key|u|t|UNIQUE (idempotency_key)
+constraint|public|core_action_result|action_terminal_results_pkey|p|t|PRIMARY KEY (action_id)
+constraint|public|core_action_result|action_terminal_results_status_check|c|t|CHECK ((status = ANY (ARRAY['succeeded'::text, 'rejected'::text, 'unavailable'::text, 'timed_out'::text, 'cancelled'::text, 'failed'::text, 'unsupported_without_esp'::text, 'unsupported_runtime'::text])))
+constraint|public|core_actor_activation|active_agents_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE CASCADE
+constraint|public|core_actor_activation|active_agents_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_actor_activation|active_agents_pkey|p|t|PRIMARY KEY (session_id, generation, actor_identity_id)
+constraint|public|core_actor_activation|active_agents_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
+constraint|public|core_actor_activation|active_agents_source_check|c|t|CHECK ((source = ANY (ARRAY['manual'::text, 'automatic'::text])))
+constraint|public|core_actor_activation|active_agents_state_check|c|t|CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'stale'::text])))
+constraint|public|core_actor_event_batch|actor_event_batches_batch_id_check|c|t|CHECK ((batch_id ~ '^actor:[1-9][0-9]{0,15}$'::text))
+constraint|public|core_actor_event_batch|actor_event_batches_capture_age_ms_check|c|t|CHECK (((capture_age_ms >= 0) AND (capture_age_ms <= '9007199254740991'::bigint)))
+constraint|public|core_actor_event_batch|actor_event_batches_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_actor_event_batch|actor_event_batches_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_actor_event_batch|actor_event_batches_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_actor_event_batch|actor_event_batches_pkey|p|t|PRIMARY KEY (session_id, generation, playthrough_id, batch_id)
+constraint|public|core_actor_event_batch|actor_event_batches_player_payload_check|c|t|CHECK ((jsonb_typeof(player_payload) = 'object'::text))
+constraint|public|core_actor_event_batch|actor_event_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_actor_event_batch|actor_event_batches_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_runtime_context|context_snapshots_audience_identity_ids_check|c|t|CHECK ((jsonb_typeof(audience_identity_ids) = 'array'::text))
+constraint|public|core_runtime_context|context_snapshots_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_runtime_context|context_snapshots_history_event_id_check|c|t|CHECK ((history_event_id >= 0))
+constraint|public|core_runtime_context|context_snapshots_pkey|p|t|PRIMARY KEY (session_id, generation, snapshot_sequence)
+constraint|public|core_runtime_context|context_snapshots_player_identity_id_fkey|f|t|FOREIGN KEY (player_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_runtime_context|context_snapshots_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
+constraint|public|core_runtime_context|context_snapshots_snapshot_sequence_check|c|t|CHECK ((snapshot_sequence > 0))
+constraint|public|core_runtime_context|context_snapshots_target_identity_id_fkey|f|t|FOREIGN KEY (target_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_dialogue_origin_policy|dialogue_origin_policies_pkey|p|t|PRIMARY KEY (session_id, request_id)
+constraint|public|core_dialogue_origin_policy|dialogue_origin_policies_policy_check|c|t|CHECK ((jsonb_typeof(policy) = 'object'::text))
+constraint|public|core_dialogue_origin_policy|dialogue_origin_policies_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_dialogue_utterance|dialogue_utterances_character_id_check|c|t|CHECK ((character_id ~ '^chr:[0-9a-f]{40}$'::text))
+constraint|public|core_dialogue_utterance|dialogue_utterances_check|c|t|CHECK (((state = 'generated'::text) = (receipt_request_id IS NULL)))
+constraint|public|core_dialogue_utterance|dialogue_utterances_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_dialogue_utterance|dialogue_utterances_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_dialogue_utterance|dialogue_utterances_line_id_check|c|t|CHECK (((length(line_id) >= 1) AND (length(line_id) <= 160)))
+constraint|public|core_dialogue_utterance|dialogue_utterances_pkey|p|t|PRIMARY KEY (session_id, request_id, line_id)
+constraint|public|core_dialogue_utterance|dialogue_utterances_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_dialogue_utterance|dialogue_utterances_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_dialogue_utterance|dialogue_utterances_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_dialogue_utterance|dialogue_utterances_state_check|c|t|CHECK ((state = ANY (ARRAY['generated'::text, 'spoken'::text, 'presented'::text, 'interrupted'::text, 'failed'::text])))
+constraint|public|core_dialogue_utterance|dialogue_utterances_text_check|c|t|CHECK (((length(text) >= 1) AND (length(text) <= 4096)))
+constraint|public|core_dialogue_utterance|dialogue_utterances_text_sha256_check|c|t|CHECK ((text_sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|synth_meta|diary_control_revisions|diary_control_revisions_check1|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < history_event_id)))
 constraint|synth_meta|diary_control_revisions|diary_control_revisions_check|c|t|CHECK ((diary_id < history_event_id))
 constraint|synth_meta|diary_control_revisions|diary_control_revisions_control_payload_check|c|t|CHECK (((jsonb_typeof(control_payload) = 'object'::text) AND (COALESCE((control_payload ->> 'schema'::text), ''::text) = ANY (ARRAY['synth.diary.control.v1'::text, 'synth.diary.control.v2'::text]))))
@@ -1189,12 +1189,12 @@ constraint|synth_meta|diary_inputs|diary_inputs_input_sha256_check|c|t|CHECK ((i
 constraint|synth_meta|diary_inputs|diary_inputs_pkey|p|t|PRIMARY KEY (id)
 constraint|synth_meta|diary_inputs|diary_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
 constraint|synth_meta|diary_inputs|diary_inputs_profile_revision_id_fkey|f|t|FOREIGN KEY (profile_revision_id) REFERENCES profile_revisions(history_event_id)
-constraint|synth_meta|diary_inputs|diary_inputs_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|diary_inputs|diary_inputs_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|diary_inputs|diary_inputs_session_id_request_id_actor_identity_id_diary__key|u|t|UNIQUE (session_id, request_id, actor_identity_id, diary_role)
 constraint|synth_meta|diary_inputs|diary_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|synth_meta|diary_job_results|diary_job_results_embedding_text_sha256_check|c|t|CHECK ((embedding_text_sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|synth_meta|diary_job_results|diary_job_results_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_job_results|diary_job_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES worker_jobs(id)
+constraint|synth_meta|diary_job_results|diary_job_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
 constraint|synth_meta|diary_job_results|diary_job_results_pkey|p|t|PRIMARY KEY (job_id)
 constraint|synth_meta|diary_job_results|diary_job_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
 constraint|synth_meta|diary_job_results|diary_job_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
@@ -1210,9 +1210,9 @@ constraint|synth_meta|history_events|history_events_event_payload_check|c|t|CHEC
 constraint|synth_meta|history_events|history_events_eventlog_rowid_key|u|t|UNIQUE (eventlog_rowid)
 constraint|synth_meta|history_events|history_events_generation_check|c|t|CHECK ((generation > 0))
 constraint|synth_meta|history_events|history_events_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|history_events|history_events_scene_context_fkey|f|t|FOREIGN KEY (session_id, generation, scene_context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|history_events|history_events_scene_context_fkey|f|t|FOREIGN KEY (session_id, generation, scene_context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|history_events|history_events_scene_context_sequence_check|c|t|CHECK ((scene_context_sequence > 0))
-constraint|synth_meta|history_events|history_events_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|history_events|history_events_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|history_events|history_events_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|synth_meta|history_events|history_request_or_manual|c|t|CHECK (((request_id IS NOT NULL) OR ((COALESCE((event_payload ->> 'type'::text), ''::text) = ANY (ARRAY['relationship_manual'::text, 'visual_manual'::text, 'diary_control'::text, 'middleterm_control'::text, 'middleterm_regeneration'::text])) AND (NOT ((event_payload ->> 'delivery_state'::text) IS DISTINCT FROM 'derived'::text)))))
 constraint|public|core_media_object|media_objects_byte_length_check|c|t|CHECK (((byte_length >= 1) AND (byte_length <= 16777216)))
@@ -1253,10 +1253,10 @@ constraint|synth_meta|memory_batches|memory_batches_first_gamets_check|c|t|CHECK
 constraint|synth_meta|memory_batches|memory_batches_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
 constraint|synth_meta|memory_batches|memory_batches_packed_message_check|c|t|CHECK (((octet_length(packed_message) >= 1) AND (octet_length(packed_message) <= 65536)))
 constraint|synth_meta|memory_batches|memory_batches_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|memory_batches|memory_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|memory_batches|memory_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|memory_batches|memory_batches_source_hash_check|c|t|CHECK ((source_hash ~ '^[0-9a-f]{64}$'::text))
 constraint|synth_meta|memory_summaries|memory_summaries_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_summaries|memory_summaries_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES worker_jobs(id)
+constraint|synth_meta|memory_summaries|memory_summaries_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
 constraint|synth_meta|memory_summaries|memory_summaries_job_id_key|u|t|UNIQUE (job_id)
 constraint|synth_meta|memory_summaries|memory_summaries_pkey|p|t|PRIMARY KEY (id)
 constraint|synth_meta|memory_summaries|memory_summaries_summary_check|c|t|CHECK (((octet_length(summary) >= 1) AND (octet_length(summary) <= 65536)))
@@ -1280,7 +1280,7 @@ constraint|synth_meta|middleterm_inputs|middleterm_inputs_input_sha256_check|c|t
 constraint|synth_meta|middleterm_inputs|middleterm_inputs_pkey|p|t|PRIMARY KEY (id)
 constraint|synth_meta|middleterm_inputs|middleterm_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
 constraint|synth_meta|middleterm_inputs|middleterm_inputs_regeneration_approval_id_fkey|f|t|FOREIGN KEY (regeneration_approval_id) REFERENCES middleterm_regeneration_approvals(history_event_id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id)
+constraint|synth_meta|middleterm_inputs|middleterm_inputs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
 constraint|synth_meta|middleterm_inputs|middleterm_inputs_session_id_request_id_generation_actor_id_key|u|t|UNIQUE (session_id, request_id, generation, actor_identity_id, input_sha256)
 constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_appro_session_id_generation_actor_i_key|u|t|UNIQUE (session_id, generation, actor_identity_id, approval_token)
 constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
@@ -1293,14 +1293,14 @@ constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_
 constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
 constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_narrative_id_fkey|f|t|FOREIGN KEY (narrative_id) REFERENCES middleterm_results(history_event_id)
 constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id)
+constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_approval_id_fkey|f|t|FOREIGN KEY (approval_id) REFERENCES middleterm_regeneration_approvals(history_event_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_approval_id_key|u|t|UNIQUE (approval_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_check|c|t|CHECK (((history_event_id > target_history_event_id) AND (history_event_id > approval_id)))
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_generation_check|c|t|CHECK ((generation > 0))
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES middleterm_results(history_event_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id)
+constraint|synth_meta|middleterm_replacements|middleterm_replacements_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_target_history_event_id_fkey|f|t|FOREIGN KEY (target_history_event_id) REFERENCES middleterm_results(history_event_id)
 constraint|synth_meta|middleterm_replacements|middleterm_replacements_target_history_event_id_session_id__key|u|t|UNIQUE (target_history_event_id, session_id, generation)
 constraint|synth_meta|middleterm_results|middleterm_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
@@ -1317,7 +1317,7 @@ constraint|synth_meta|middleterm_sources|middleterm_sources_source_sha256_check|
 constraint|synth_meta|middleterm_sources|middleterm_sources_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES memory_summaries(id)
 constraint|synth_meta|middleterm_sources|middleterm_sources_summary_revision_check|c|t|CHECK ((summary_revision >= 0))
 constraint|synth_meta|narrator_context_states|narrator_context_states_pkey|p|t|PRIMARY KEY (session_id, generation, snapshot_sequence)
-constraint|synth_meta|narrator_context_states|narrator_context_states_session_id_generation_snapshot_seq_fkey|f|t|FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence) ON DELETE CASCADE
+constraint|synth_meta|narrator_context_states|narrator_context_states_session_id_generation_snapshot_seq_fkey|f|t|FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence) ON DELETE CASCADE
 constraint|synth_meta|narrator_context_states|narrator_context_states_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES narrator_states(state_id)
 constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_background_check|c|t|CHECK ((char_length(background) <= 4000))
 constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_check|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < revision_id)))
@@ -1333,7 +1333,7 @@ constraint|synth_meta|narrator_definitions|narrator_definitions_definition_id_ch
 constraint|synth_meta|narrator_definitions|narrator_definitions_pkey|p|t|PRIMARY KEY (definition_id)
 constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_generation_check|c|t|CHECK ((generation > 0))
 constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_pkey|p|t|PRIMARY KEY (session_id, generation)
-constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
+constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
 constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES narrator_states(state_id)
 constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_check|c|t|CHECK (((state <> ALL (ARRAY['generated'::text, 'spoken'::text])) OR (text IS NOT NULL)))
 constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
@@ -1385,7 +1385,7 @@ constraint|synth_meta|profile_job_fields|profile_job_fields_result_sha256_check|
 constraint|synth_meta|profile_job_fields|profile_job_fields_result_text_check|c|t|CHECK (((octet_length(result_text) >= 1) AND (octet_length(result_text) <= 16384)))
 constraint|synth_meta|profile_job_inputs|profile_job_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.profile.input.v1'::text))))
 constraint|synth_meta|profile_job_inputs|profile_job_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_job_inputs|profile_job_inputs_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES worker_jobs(id)
+constraint|synth_meta|profile_job_inputs|profile_job_inputs_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
 constraint|synth_meta|profile_job_inputs|profile_job_inputs_pkey|p|t|PRIMARY KEY (job_id)
 constraint|synth_meta|profile_revisions|profile_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|profile_revisions|profile_revisions_check|c|t|CHECK (((prior_history_event_id IS NULL) OR (prior_history_event_id < history_event_id)))
@@ -1399,43 +1399,43 @@ constraint|synth_meta|profile_revisions|profile_revisions_prior_history_event_id
 constraint|synth_meta|profile_revisions|profile_revisions_profile_role_check|c|t|CHECK ((profile_role = ANY (ARRAY['npc'::text, 'narrator'::text])))
 constraint|synth_meta|profile_revisions|profile_revisions_result_fields_check|c|t|CHECK ((jsonb_typeof(result_fields) = 'object'::text))
 constraint|synth_meta|profile_revisions|profile_revisions_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_revisions|profile_revisions_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|profile_revisions|profile_revisions_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|profile_revisions|profile_revisions_session_id_request_id_actor_identity_id_p_key|u|t|UNIQUE (session_id, request_id, actor_identity_id, profile_role)
 constraint|synth_meta|profile_revisions|profile_revisions_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|protocol_events|protocol_events_event_sha256_check|c|t|CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|protocol_events|protocol_events_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|protocol_events|protocol_events_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
-constraint|synth_meta|protocol_events|protocol_events_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|protocol_events|protocol_events_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
-constraint|synth_meta|rechat_chains|rechat_chains_budget_check|c|t|CHECK ((budget >= 0))
-constraint|synth_meta|rechat_chains|rechat_chains_check|c|t|CHECK (((used_rounds >= 0) AND (used_rounds <= budget)))
-constraint|synth_meta|rechat_chains|rechat_chains_id_session_id_key|u|t|UNIQUE (id, session_id)
-constraint|synth_meta|rechat_chains|rechat_chains_mode_check|c|t|CHECK ((mode = ANY (ARRAY['tight'::text, 'conversational'::text, 'group'::text])))
-constraint|synth_meta|rechat_chains|rechat_chains_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|rechat_chains|rechat_chains_policy_check|c|t|CHECK ((jsonb_typeof(policy) = 'object'::text))
-constraint|synth_meta|rechat_chains|rechat_chains_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
-constraint|synth_meta|rechat_chains|rechat_chains_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
-constraint|synth_meta|rechat_chains|rechat_chains_session_id_root_request_id_fkey|f|t|FOREIGN KEY (session_id, root_request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|rechat_chains|rechat_chains_session_id_root_request_id_key|u|t|UNIQUE (session_id, root_request_id)
-constraint|synth_meta|rechat_chains|rechat_chains_terminal_reason_check|c|t|CHECK ((terminal_reason = ANY (ARRAY['budget_exhausted'::text, 'private'::text, 'no_candidate'::text, 'ineligible'::text])))
-constraint|synth_meta|rechat_continuations|rechat_continuations_chain_id_round_number_key|u|t|UNIQUE (chain_id, round_number)
-constraint|synth_meta|rechat_continuations|rechat_continuations_chain_id_session_id_fkey|f|t|FOREIGN KEY (chain_id, session_id) REFERENCES rechat_chains(id, session_id) ON DELETE CASCADE
-constraint|synth_meta|rechat_continuations|rechat_continuations_check|c|t|CHECK ((((status = 'reserved'::text) AND (round_number IS NOT NULL) AND (round_number > 0) AND (terminal_reason IS NULL)) OR ((status = 'terminal'::text) AND (round_number IS NULL) AND (terminal_reason IS NOT NULL))))
-constraint|synth_meta|rechat_continuations|rechat_continuations_parent_response_sha256_check|c|t|CHECK ((parent_response_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|rechat_continuations|rechat_continuations_pkey|p|t|PRIMARY KEY (session_id, request_id)
-constraint|synth_meta|rechat_continuations|rechat_continuations_session_id_parent_request_id_fkey|f|t|FOREIGN KEY (session_id, parent_request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|rechat_continuations|rechat_continuations_session_id_parent_request_id_key|u|t|UNIQUE (session_id, parent_request_id)
-constraint|synth_meta|rechat_continuations|rechat_continuations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|rechat_continuations|rechat_continuations_status_check|c|t|CHECK ((status = ANY (ARRAY['reserved'::text, 'terminal'::text])))
-constraint|synth_meta|rechat_selections|rechat_selections_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|rechat_selections|rechat_selections_check|c|t|CHECK ((((role = 'npc'::text) AND (actor_identity_id IS NOT NULL) AND (npc_id IS NOT NULL) AND (profile_id IS NOT NULL) AND (identity IS NOT NULL) AND (jsonb_typeof(identity) = 'object'::text) AND (terminal_reason IS NULL)) OR ((role = 'narrator'::text) AND (actor_identity_id IS NULL) AND (npc_id IS NULL) AND (profile_id IS NOT NULL) AND (identity IS NULL) AND (terminal_reason IS NULL)) OR ((role = 'terminal'::text) AND (actor_identity_id IS NULL) AND (npc_id IS NULL) AND (profile_id IS NULL) AND (identity IS NULL) AND (terminal_reason IS NOT NULL))))
-constraint|synth_meta|rechat_selections|rechat_selections_npc_id_check|c|t|CHECK ((npc_id > 0))
-constraint|synth_meta|rechat_selections|rechat_selections_pkey|p|t|PRIMARY KEY (session_id, request_id)
-constraint|synth_meta|rechat_selections|rechat_selections_profile_id_check|c|t|CHECK ((profile_id > 0))
-constraint|synth_meta|rechat_selections|rechat_selections_role_check|c|t|CHECK ((role = ANY (ARRAY['npc'::text, 'narrator'::text, 'terminal'::text])))
-constraint|synth_meta|rechat_selections|rechat_selections_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES rechat_continuations(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|rechat_selections|rechat_selections_terminal_reason_check|c|t|CHECK ((terminal_reason = ANY (ARRAY['no_candidate'::text, 'ineligible'::text, 'private'::text, 'budget_exhausted'::text])))
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_ev_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|public|core_protocol_event|protocol_events_event_sha256_check|c|t|CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_protocol_event|protocol_events_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_protocol_event|protocol_events_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
+constraint|public|core_protocol_event|protocol_events_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_protocol_event|protocol_events_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
+constraint|public|core_rechat_chain|rechat_chains_budget_check|c|t|CHECK ((budget >= 0))
+constraint|public|core_rechat_chain|rechat_chains_check|c|t|CHECK (((used_rounds >= 0) AND (used_rounds <= budget)))
+constraint|public|core_rechat_chain|rechat_chains_id_session_id_key|u|t|UNIQUE (id, session_id)
+constraint|public|core_rechat_chain|rechat_chains_mode_check|c|t|CHECK ((mode = ANY (ARRAY['tight'::text, 'conversational'::text, 'group'::text])))
+constraint|public|core_rechat_chain|rechat_chains_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_rechat_chain|rechat_chains_policy_check|c|t|CHECK ((jsonb_typeof(policy) = 'object'::text))
+constraint|public|core_rechat_chain|rechat_chains_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
+constraint|public|core_rechat_chain|rechat_chains_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_rechat_chain|rechat_chains_session_id_root_request_id_fkey|f|t|FOREIGN KEY (session_id, root_request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_rechat_chain|rechat_chains_session_id_root_request_id_key|u|t|UNIQUE (session_id, root_request_id)
+constraint|public|core_rechat_chain|rechat_chains_terminal_reason_check|c|t|CHECK ((terminal_reason = ANY (ARRAY['budget_exhausted'::text, 'private'::text, 'no_candidate'::text, 'ineligible'::text])))
+constraint|public|core_rechat_continuation|rechat_continuations_chain_id_round_number_key|u|t|UNIQUE (chain_id, round_number)
+constraint|public|core_rechat_continuation|rechat_continuations_chain_id_session_id_fkey|f|t|FOREIGN KEY (chain_id, session_id) REFERENCES core_rechat_chain(id, session_id) ON DELETE CASCADE
+constraint|public|core_rechat_continuation|rechat_continuations_check|c|t|CHECK ((((status = 'reserved'::text) AND (round_number IS NOT NULL) AND (round_number > 0) AND (terminal_reason IS NULL)) OR ((status = 'terminal'::text) AND (round_number IS NULL) AND (terminal_reason IS NOT NULL))))
+constraint|public|core_rechat_continuation|rechat_continuations_parent_response_sha256_check|c|t|CHECK ((parent_response_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_rechat_continuation|rechat_continuations_pkey|p|t|PRIMARY KEY (session_id, request_id)
+constraint|public|core_rechat_continuation|rechat_continuations_session_id_parent_request_id_fkey|f|t|FOREIGN KEY (session_id, parent_request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_rechat_continuation|rechat_continuations_session_id_parent_request_id_key|u|t|UNIQUE (session_id, parent_request_id)
+constraint|public|core_rechat_continuation|rechat_continuations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_rechat_continuation|rechat_continuations_status_check|c|t|CHECK ((status = ANY (ARRAY['reserved'::text, 'terminal'::text])))
+constraint|public|core_rechat_selection|rechat_selections_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_rechat_selection|rechat_selections_check|c|t|CHECK ((((role = 'npc'::text) AND (actor_identity_id IS NOT NULL) AND (npc_id IS NOT NULL) AND (profile_id IS NOT NULL) AND (identity IS NOT NULL) AND (jsonb_typeof(identity) = 'object'::text) AND (terminal_reason IS NULL)) OR ((role = 'narrator'::text) AND (actor_identity_id IS NULL) AND (npc_id IS NULL) AND (profile_id IS NOT NULL) AND (identity IS NULL) AND (terminal_reason IS NULL)) OR ((role = 'terminal'::text) AND (actor_identity_id IS NULL) AND (npc_id IS NULL) AND (profile_id IS NULL) AND (identity IS NULL) AND (terminal_reason IS NOT NULL))))
+constraint|public|core_rechat_selection|rechat_selections_npc_id_check|c|t|CHECK ((npc_id > 0))
+constraint|public|core_rechat_selection|rechat_selections_pkey|p|t|PRIMARY KEY (session_id, request_id)
+constraint|public|core_rechat_selection|rechat_selections_profile_id_check|c|t|CHECK ((profile_id > 0))
+constraint|public|core_rechat_selection|rechat_selections_role_check|c|t|CHECK ((role = ANY (ARRAY['npc'::text, 'narrator'::text, 'terminal'::text])))
+constraint|public|core_rechat_selection|rechat_selections_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES core_rechat_continuation(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_rechat_selection|rechat_selections_terminal_reason_check|c|t|CHECK ((terminal_reason = ANY (ARRAY['no_candidate'::text, 'ineligible'::text, 'private'::text, 'budget_exhausted'::text])))
+constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_ev_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_barrier_event_id_check|c|t|CHECK ((barrier_event_id > 0))
 constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_legacy_profile_id_check|c|t|CHECK ((legacy_profile_id > 0))
@@ -1455,7 +1455,7 @@ constraint|synth_meta|relationship_evaluations|relationship_evaluations_pkey|p|t
 constraint|synth_meta|relationship_evaluations|relationship_evaluations_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES relationship_response_inputs(history_event_id)
 constraint|synth_meta|relationship_evaluations|relationship_evaluations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|synth_meta|relationship_evaluations|relationship_evaluations_session_id_request_id_response_his_key|u|t|UNIQUE (session_id, request_id, response_history_event_id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_request_id_respons_key|u|t|UNIQUE (session_id, request_id, response_history_event_id, listener_identity_id)
 constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluat_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES relationship_response_inputs(history_event_id)
 constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_check|c|t|CHECK ((speaker_identity_id <> listener_identity_id))
@@ -1477,7 +1477,7 @@ constraint|synth_meta|relationship_interaction_result_priors|relationship_intera
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_interaction_id_fkey|f|t|FOREIGN KEY (interaction_id) REFERENCES relationship_interaction_evaluations(id)
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_interaction_id_key|u|t|UNIQUE (interaction_id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES worker_jobs(id)
+constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_key|u|t|UNIQUE (job_id)
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_pkey|p|t|PRIMARY KEY (history_event_id)
 constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
@@ -1499,7 +1499,7 @@ constraint|synth_meta|relationship_result_priors|relationship_result_priors_resu
 constraint|synth_meta|relationship_results|relationship_results_evaluation_id_fkey|f|t|FOREIGN KEY (evaluation_id) REFERENCES relationship_evaluations(id)
 constraint|synth_meta|relationship_results|relationship_results_evaluation_id_key|u|t|UNIQUE (evaluation_id)
 constraint|synth_meta|relationship_results|relationship_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_results|relationship_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES worker_jobs(id)
+constraint|synth_meta|relationship_results|relationship_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
 constraint|synth_meta|relationship_results|relationship_results_job_id_key|u|t|UNIQUE (job_id)
 constraint|synth_meta|relationship_results|relationship_results_pkey|p|t|PRIMARY KEY (history_event_id)
 constraint|synth_meta|relationship_results|relationship_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
@@ -1527,57 +1527,57 @@ constraint|synth_meta|request_executions|request_executions_generation_check|c|t
 constraint|synth_meta|request_executions|request_executions_pkey|p|t|PRIMARY KEY (session_id, request_id)
 constraint|synth_meta|request_executions|request_executions_request_id_check|c|t|CHECK ((request_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 constraint|synth_meta|request_executions|request_executions_request_sha256_check|c|t|CHECK ((request_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|request_executions|request_executions_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE CASCADE
+constraint|synth_meta|request_executions|request_executions_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
 constraint|synth_meta|request_executions|request_executions_state_check|c|t|CHECK ((state = ANY (ARRAY['claimed'::text, 'streaming'::text, 'complete'::text, 'cancelled'::text, 'failed'::text])))
 constraint|synth_meta|request_executions|request_executions_turn_id_check|c|t|CHECK ((turn_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|response_routes|response_routes_check|c|t|CHECK ((((listener_state = 'addressed'::text) AND (listener IS NOT NULL) AND (jsonb_typeof(listener) = 'object'::text)) OR ((listener_state <> 'addressed'::text) AND (listener IS NULL))))
-constraint|synth_meta|response_routes|response_routes_line_id_check|c|t|CHECK (((length(line_id) >= 1) AND (length(line_id) <= 160)))
-constraint|synth_meta|response_routes|response_routes_line_sha256_check|c|t|CHECK ((line_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|response_routes|response_routes_listener_state_check|c|t|CHECK ((listener_state = ANY (ARRAY['addressed'::text, 'unavailable'::text, 'ambiguous'::text])))
-constraint|synth_meta|response_routes|response_routes_pkey|p|t|PRIMARY KEY (session_id, request_id, line_id)
-constraint|synth_meta|response_routes|response_routes_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
-constraint|synth_meta|response_routes|response_routes_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
-constraint|synth_meta|response_routes|response_routes_speaker_check|c|t|CHECK ((jsonb_typeof(speaker) = 'object'::text))
-constraint|synth_meta|response_routes|response_routes_utterance_id_check|c|t|CHECK ((utterance_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|runtime_sessions|runtime_sessions_active_generation_check|c|t|CHECK ((active_generation > 0))
-constraint|synth_meta|runtime_sessions|runtime_sessions_active_turn_sequence_check|c|t|CHECK ((active_turn_sequence >= 0))
-constraint|synth_meta|runtime_sessions|runtime_sessions_audience_intent_check|c|t|CHECK ((audience_intent = ANY (ARRAY['normal'::text, 'everyone'::text])))
-constraint|synth_meta|runtime_sessions|runtime_sessions_audience_reset_epoch_check|c|t|CHECK ((audience_reset_epoch >= 0))
-constraint|synth_meta|runtime_sessions|runtime_sessions_capabilities_check|c|t|CHECK ((jsonb_typeof(capabilities) = 'array'::text))
-constraint|synth_meta|runtime_sessions|runtime_sessions_game_check|c|t|CHECK ((game = 'fo4'::text))
-constraint|synth_meta|runtime_sessions|runtime_sessions_pkey|p|t|PRIMARY KEY (session_id)
-constraint|synth_meta|runtime_sessions|runtime_sessions_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|runtime_sessions|runtime_sessions_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
-constraint|synth_meta|runtime_sessions|runtime_sessions_session_id_check|c|t|CHECK ((session_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|runtime_sessions|runtime_sessions_state_check|c|t|CHECK ((state = ANY (ARRAY['active'::text, 'halted'::text, 'expired'::text])))
+constraint|public|core_dialogue_route|response_routes_check|c|t|CHECK ((((listener_state = 'addressed'::text) AND (listener IS NOT NULL) AND (jsonb_typeof(listener) = 'object'::text)) OR ((listener_state <> 'addressed'::text) AND (listener IS NULL))))
+constraint|public|core_dialogue_route|response_routes_line_id_check|c|t|CHECK (((length(line_id) >= 1) AND (length(line_id) <= 160)))
+constraint|public|core_dialogue_route|response_routes_line_sha256_check|c|t|CHECK ((line_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_dialogue_route|response_routes_listener_state_check|c|t|CHECK ((listener_state = ANY (ARRAY['addressed'::text, 'unavailable'::text, 'ambiguous'::text])))
+constraint|public|core_dialogue_route|response_routes_pkey|p|t|PRIMARY KEY (session_id, request_id, line_id)
+constraint|public|core_dialogue_route|response_routes_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_dialogue_route|response_routes_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id) ON DELETE CASCADE
+constraint|public|core_dialogue_route|response_routes_speaker_check|c|t|CHECK ((jsonb_typeof(speaker) = 'object'::text))
+constraint|public|core_dialogue_route|response_routes_utterance_id_check|c|t|CHECK ((utterance_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_runtime_session|runtime_sessions_active_generation_check|c|t|CHECK ((active_generation > 0))
+constraint|public|core_runtime_session|runtime_sessions_active_turn_sequence_check|c|t|CHECK ((active_turn_sequence >= 0))
+constraint|public|core_runtime_session|runtime_sessions_audience_intent_check|c|t|CHECK ((audience_intent = ANY (ARRAY['normal'::text, 'everyone'::text])))
+constraint|public|core_runtime_session|runtime_sessions_audience_reset_epoch_check|c|t|CHECK ((audience_reset_epoch >= 0))
+constraint|public|core_runtime_session|runtime_sessions_capabilities_check|c|t|CHECK ((jsonb_typeof(capabilities) = 'array'::text))
+constraint|public|core_runtime_session|runtime_sessions_game_check|c|t|CHECK ((game = 'fo4'::text))
+constraint|public|core_runtime_session|runtime_sessions_pkey|p|t|PRIMARY KEY (session_id)
+constraint|public|core_runtime_session|runtime_sessions_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_runtime_session|runtime_sessions_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
+constraint|public|core_runtime_session|runtime_sessions_session_id_check|c|t|CHECK ((session_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_runtime_session|runtime_sessions_state_check|c|t|CHECK ((state = ANY (ARRAY['active'::text, 'halted'::text, 'expired'::text])))
 constraint|synth_meta|settings|settings_pkey|p|t|PRIMARY KEY (key)
-constraint|synth_meta|social_task_claims|social_task_claims_execution_id_check|c|t|CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|social_task_claims|social_task_claims_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|social_task_claims|social_task_claims_pkey|p|t|PRIMARY KEY (task_id, session_id, generation)
-constraint|synth_meta|social_task_claims|social_task_claims_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id)
-constraint|synth_meta|social_task_claims|social_task_claims_session_id_generation_execution_id_key|u|t|UNIQUE (session_id, generation, execution_id)
-constraint|synth_meta|social_task_claims|social_task_claims_task_id_fkey|f|t|FOREIGN KEY (task_id) REFERENCES social_task_inputs(task_id)
-constraint|synth_meta|social_task_events|social_task_events_check|c|t|CHECK (((prior_revision IS NULL) OR (prior_revision < history_event_id)))
-constraint|synth_meta|social_task_events|social_task_events_event_payload_check|c|t|CHECK ((jsonb_typeof(event_payload) = 'object'::text))
-constraint|synth_meta|social_task_events|social_task_events_event_sha256_check|c|t|CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|social_task_events|social_task_events_execution_id_check|c|t|CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|social_task_events|social_task_events_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|social_task_events|social_task_events_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|social_task_events|social_task_events_prior_revision_fkey|f|t|FOREIGN KEY (prior_revision) REFERENCES social_task_events(history_event_id)
-constraint|synth_meta|social_task_events|social_task_events_status_check|c|t|CHECK ((status = ANY (ARRAY['waiting_departure'::text, 'waiting_return'::text, 'ready'::text, 'travelling'::text, 'arrived'::text, 'conversing'::text, 'completed'::text, 'cancelled'::text, 'failed'::text])))
-constraint|synth_meta|social_task_events|social_task_events_task_id_fkey|f|t|FOREIGN KEY (task_id) REFERENCES social_task_inputs(task_id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_check1|c|t|CHECK ((player_identity_id <> performer_identity_id))
-constraint|synth_meta|social_task_inputs|social_task_inputs_check2|c|t|CHECK ((player_identity_id <> recipient_identity_id))
-constraint|synth_meta|social_task_inputs|social_task_inputs_check|c|t|CHECK ((performer_identity_id <> recipient_identity_id))
-constraint|synth_meta|social_task_inputs|social_task_inputs_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_history_event_id_key|u|t|UNIQUE (history_event_id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|social_task_inputs|social_task_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|social_task_inputs|social_task_inputs_performer_identity_id_fkey|f|t|FOREIGN KEY (performer_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_pkey|p|t|PRIMARY KEY (task_id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_player_identity_id_fkey|f|t|FOREIGN KEY (player_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_recipient_identity_id_fkey|f|t|FOREIGN KEY (recipient_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|social_task_inputs|social_task_inputs_task_id_check|c|t|CHECK ((task_id ~ '^social:[0-9a-f]{32}$'::text))
+constraint|public|core_social_task_claim|social_task_claims_execution_id_check|c|t|CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_social_task_claim|social_task_claims_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_social_task_claim|social_task_claims_pkey|p|t|PRIMARY KEY (task_id, session_id, generation)
+constraint|public|core_social_task_claim|social_task_claims_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
+constraint|public|core_social_task_claim|social_task_claims_session_id_generation_execution_id_key|u|t|UNIQUE (session_id, generation, execution_id)
+constraint|public|core_social_task_claim|social_task_claims_task_id_fkey|f|t|FOREIGN KEY (task_id) REFERENCES core_social_task_input(task_id)
+constraint|public|core_social_task_event|social_task_events_check|c|t|CHECK (((prior_revision IS NULL) OR (prior_revision < history_event_id)))
+constraint|public|core_social_task_event|social_task_events_event_payload_check|c|t|CHECK ((jsonb_typeof(event_payload) = 'object'::text))
+constraint|public|core_social_task_event|social_task_events_event_sha256_check|c|t|CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_social_task_event|social_task_events_execution_id_check|c|t|CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_social_task_event|social_task_events_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_social_task_event|social_task_events_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_social_task_event|social_task_events_prior_revision_fkey|f|t|FOREIGN KEY (prior_revision) REFERENCES core_social_task_event(history_event_id)
+constraint|public|core_social_task_event|social_task_events_status_check|c|t|CHECK ((status = ANY (ARRAY['waiting_departure'::text, 'waiting_return'::text, 'ready'::text, 'travelling'::text, 'arrived'::text, 'conversing'::text, 'completed'::text, 'cancelled'::text, 'failed'::text])))
+constraint|public|core_social_task_event|social_task_events_task_id_fkey|f|t|FOREIGN KEY (task_id) REFERENCES core_social_task_input(task_id)
+constraint|public|core_social_task_input|social_task_inputs_check1|c|t|CHECK ((player_identity_id <> performer_identity_id))
+constraint|public|core_social_task_input|social_task_inputs_check2|c|t|CHECK ((player_identity_id <> recipient_identity_id))
+constraint|public|core_social_task_input|social_task_inputs_check|c|t|CHECK ((performer_identity_id <> recipient_identity_id))
+constraint|public|core_social_task_input|social_task_inputs_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_social_task_input|social_task_inputs_history_event_id_key|u|t|UNIQUE (history_event_id)
+constraint|public|core_social_task_input|social_task_inputs_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_social_task_input|social_task_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_social_task_input|social_task_inputs_performer_identity_id_fkey|f|t|FOREIGN KEY (performer_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_social_task_input|social_task_inputs_pkey|p|t|PRIMARY KEY (task_id)
+constraint|public|core_social_task_input|social_task_inputs_player_identity_id_fkey|f|t|FOREIGN KEY (player_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_social_task_input|social_task_inputs_recipient_identity_id_fkey|f|t|FOREIGN KEY (recipient_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_social_task_input|social_task_inputs_task_id_check|c|t|CHECK ((task_id ~ '^social:[0-9a-f]{32}$'::text))
 constraint|public|core_visual_description_revision|visual_description_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|public|core_visual_description_revision|visual_description_revisions_capture_id_fkey|f|t|FOREIGN KEY (capture_id) REFERENCES core_visual_result(capture_id)
 constraint|public|core_visual_description_revision|visual_description_revisions_description_check|c|t|CHECK (((description IS NULL) OR ((octet_length(description) <= 12000) AND (btrim(description) <> ''::text))))
@@ -1594,22 +1594,22 @@ constraint|public|core_visual_result|visual_results_history_event_id_fkey|f|t|FO
 constraint|public|core_visual_result|visual_results_pkey|p|t|PRIMARY KEY (history_event_id)
 constraint|public|core_visual_result|visual_results_result_payload_check|c|t|CHECK (((jsonb_typeof(result_payload) = 'object'::text) AND (NOT ((result_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.result.v1'::text))))
 constraint|public|core_visual_result|visual_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|public|core_visual_result|visual_results_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|public|core_visual_result|visual_results_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|public|core_visual_result|visual_results_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|public|core_visual_result|visual_results_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
-constraint|synth_meta|worker_jobs|worker_jobs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|worker_jobs|worker_jobs_attempts_check|c|t|CHECK ((attempts >= 0))
-constraint|synth_meta|worker_jobs|worker_jobs_check|c|t|CHECK (((relationship_interaction_id IS NULL) OR ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NULL) AND (memory_batch_id IS NULL) AND (session_id IS NOT NULL) AND (actor_identity_id IS NOT NULL))))
-constraint|synth_meta|worker_jobs|worker_jobs_diary_input_id_fkey|f|t|FOREIGN KEY (diary_input_id) REFERENCES diary_inputs(id)
-constraint|synth_meta|worker_jobs|worker_jobs_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|worker_jobs|worker_jobs_job_type_check|c|t|CHECK ((job_type = ANY (ARRAY['memory'::text, 'relationship'::text, 'profile'::text, 'diary'::text, 'tts'::text, 'middleterm'::text])))
-constraint|synth_meta|worker_jobs|worker_jobs_memory_batch_id_fkey|f|t|FOREIGN KEY (memory_batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|worker_jobs|worker_jobs_middleterm_input_id_fkey|f|t|FOREIGN KEY (middleterm_input_id) REFERENCES middleterm_inputs(id)
-constraint|synth_meta|worker_jobs|worker_jobs_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|worker_jobs|worker_jobs_relationship_evaluation_id_fkey|f|t|FOREIGN KEY (relationship_evaluation_id) REFERENCES relationship_evaluations(id)
-constraint|synth_meta|worker_jobs|worker_jobs_relationship_interaction_id_fkey|f|t|FOREIGN KEY (relationship_interaction_id) REFERENCES relationship_interaction_evaluations(id)
-constraint|synth_meta|worker_jobs|worker_jobs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id)
-constraint|synth_meta|worker_jobs|worker_jobs_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text, 'failed'::text, 'cancelled'::text, 'stale'::text])))
+constraint|public|core_worker_job|worker_jobs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_worker_job|worker_jobs_attempts_check|c|t|CHECK ((attempts >= 0))
+constraint|public|core_worker_job|worker_jobs_check|c|t|CHECK (((relationship_interaction_id IS NULL) OR ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NULL) AND (memory_batch_id IS NULL) AND (session_id IS NOT NULL) AND (actor_identity_id IS NOT NULL))))
+constraint|public|core_worker_job|worker_jobs_diary_input_id_fkey|f|t|FOREIGN KEY (diary_input_id) REFERENCES diary_inputs(id)
+constraint|public|core_worker_job|worker_jobs_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_worker_job|worker_jobs_job_type_check|c|t|CHECK ((job_type = ANY (ARRAY['memory'::text, 'relationship'::text, 'profile'::text, 'diary'::text, 'tts'::text, 'middleterm'::text])))
+constraint|public|core_worker_job|worker_jobs_memory_batch_id_fkey|f|t|FOREIGN KEY (memory_batch_id) REFERENCES memory_batches(id)
+constraint|public|core_worker_job|worker_jobs_middleterm_input_id_fkey|f|t|FOREIGN KEY (middleterm_input_id) REFERENCES middleterm_inputs(id)
+constraint|public|core_worker_job|worker_jobs_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_worker_job|worker_jobs_relationship_evaluation_id_fkey|f|t|FOREIGN KEY (relationship_evaluation_id) REFERENCES relationship_evaluations(id)
+constraint|public|core_worker_job|worker_jobs_relationship_interaction_id_fkey|f|t|FOREIGN KEY (relationship_interaction_id) REFERENCES relationship_interaction_evaluations(id)
+constraint|public|core_worker_job|worker_jobs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
+constraint|public|core_worker_job|worker_jobs_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text, 'failed'::text, 'cancelled'::text, 'stale'::text])))
 constraint|synth|actor_identities|actor_identities_full_form_id_check|c|t|CHECK (((full_form_id)::text ~ '^0x[0-9A-Fa-f]{8}$'::text))
 constraint|synth|actor_identities|actor_identities_game_check|c|t|CHECK ((game = 'fo4'::text))
 constraint|synth|actor_identities|actor_identities_origin_plugin_check|c|t|CHECK ((origin_plugin ~* '^[^/\\]+\.(esm|esp|esl)$'::text))
@@ -1676,7 +1676,7 @@ constraint|public|core_visual_context|visual_context_media_id_fkey|f|t|FOREIGN K
 constraint|public|core_visual_context|visual_context_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_visual_context|visual_context_request_sha256_check|c|t|CHECK (((request_sha256 IS NULL) OR (request_sha256 ~ '^[0-9a-f]{64}$'::text)))
 constraint|public|core_visual_context|visual_context_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
-constraint|public|core_visual_context|visual_context_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE SET NULL
+constraint|public|core_visual_context|visual_context_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE SET NULL
 constraint|public|core_worldknowledge_audit|worldknowledge_audit_pkey|p|t|PRIMARY KEY (audit_id)
 constraint|public|core_worldknowledge_audit|worldknowledge_audit_status_check|c|t|CHECK ((status = ANY (ARRAY['grounded'::text, 'no_match'::text, 'fallback_succeeded'::text, 'fallback_unresolved'::text, 'fallback_failed'::text, 'fallback_disabled'::text, 'fallback_unconfigured'::text, 'disabled'::text, 'ineligible'::text, 'unavailable'::text, 'not_run'::text, 'legacy'::text])))
 constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_checksum_format|c|t|CHECK (((checksum_sha256)::text ~ '^[a-f0-9]{64}$'::text))
@@ -1687,17 +1687,17 @@ constraint|synth|worldknowledge|worldknowledge_content_hash_check|c|t|CHECK (((c
 constraint|synth|worldknowledge|worldknowledge_ownership_check|c|t|CHECK ((((source_kind = 'factory'::text) AND (catalog_id IS NOT NULL) AND (catalog_version IS NOT NULL)) OR ((source_kind = 'custom'::text) AND (catalog_id IS NULL) AND (catalog_version IS NULL))))
 constraint|synth|worldknowledge|worldknowledge_pkey|p|t|PRIMARY KEY (entry_id)
 constraint|synth|worldknowledge|worldknowledge_source_kind_check|c|t|CHECK ((source_kind = ANY (ARRAY['factory'::text, 'custom'::text])))
-index|synth_meta|action_intents|action_intents_dispatch|CREATE INDEX action_intents_dispatch ON synth_meta.action_intents USING btree (session_id, generation, state, deadline_at)
-index|synth_meta|action_intents|action_intents_idempotency_key_key|CREATE UNIQUE INDEX action_intents_idempotency_key_key ON synth_meta.action_intents USING btree (idempotency_key)
-index|synth_meta|action_intents|action_intents_pkey|CREATE UNIQUE INDEX action_intents_pkey ON synth_meta.action_intents USING btree (action_id)
-index|synth_meta|action_terminal_results|action_terminal_results_idempotency_key_key|CREATE UNIQUE INDEX action_terminal_results_idempotency_key_key ON synth_meta.action_terminal_results USING btree (idempotency_key)
-index|synth_meta|action_terminal_results|action_terminal_results_pkey|CREATE UNIQUE INDEX action_terminal_results_pkey ON synth_meta.action_terminal_results USING btree (action_id)
-index|synth_meta|active_agents|active_agents_dispatch|CREATE INDEX active_agents_dispatch ON synth_meta.active_agents USING btree (session_id, generation, state, last_seen_at DESC)
-index|synth_meta|active_agents|active_agents_pkey|CREATE UNIQUE INDEX active_agents_pkey ON synth_meta.active_agents USING btree (session_id, generation, actor_identity_id)
-index|synth_meta|actor_event_batches|actor_event_batches_pkey|CREATE UNIQUE INDEX actor_event_batches_pkey ON synth_meta.actor_event_batches USING btree (session_id, generation, playthrough_id, batch_id)
-index|synth_meta|context_snapshots|context_snapshots_pkey|CREATE UNIQUE INDEX context_snapshots_pkey ON synth_meta.context_snapshots USING btree (session_id, generation, snapshot_sequence)
-index|synth_meta|dialogue_origin_policies|dialogue_origin_policies_pkey|CREATE UNIQUE INDEX dialogue_origin_policies_pkey ON synth_meta.dialogue_origin_policies USING btree (session_id, request_id)
-index|synth_meta|dialogue_utterances|dialogue_utterances_pkey|CREATE UNIQUE INDEX dialogue_utterances_pkey ON synth_meta.dialogue_utterances USING btree (session_id, request_id, line_id)
+index|public|core_action_intent|action_intents_dispatch|CREATE INDEX action_intents_dispatch ON public.core_action_intent USING btree (session_id, generation, state, deadline_at)
+index|public|core_action_intent|action_intents_idempotency_key_key|CREATE UNIQUE INDEX action_intents_idempotency_key_key ON public.core_action_intent USING btree (idempotency_key)
+index|public|core_action_intent|action_intents_pkey|CREATE UNIQUE INDEX action_intents_pkey ON public.core_action_intent USING btree (action_id)
+index|public|core_action_result|action_terminal_results_idempotency_key_key|CREATE UNIQUE INDEX action_terminal_results_idempotency_key_key ON public.core_action_result USING btree (idempotency_key)
+index|public|core_action_result|action_terminal_results_pkey|CREATE UNIQUE INDEX action_terminal_results_pkey ON public.core_action_result USING btree (action_id)
+index|public|core_actor_activation|active_agents_dispatch|CREATE INDEX active_agents_dispatch ON public.core_actor_activation USING btree (session_id, generation, state, last_seen_at DESC)
+index|public|core_actor_activation|active_agents_pkey|CREATE UNIQUE INDEX active_agents_pkey ON public.core_actor_activation USING btree (session_id, generation, actor_identity_id)
+index|public|core_actor_event_batch|actor_event_batches_pkey|CREATE UNIQUE INDEX actor_event_batches_pkey ON public.core_actor_event_batch USING btree (session_id, generation, playthrough_id, batch_id)
+index|public|core_runtime_context|context_snapshots_pkey|CREATE UNIQUE INDEX context_snapshots_pkey ON public.core_runtime_context USING btree (session_id, generation, snapshot_sequence)
+index|public|core_dialogue_origin_policy|dialogue_origin_policies_pkey|CREATE UNIQUE INDEX dialogue_origin_policies_pkey ON public.core_dialogue_origin_policy USING btree (session_id, request_id)
+index|public|core_dialogue_utterance|dialogue_utterances_pkey|CREATE UNIQUE INDEX dialogue_utterances_pkey ON public.core_dialogue_utterance USING btree (session_id, request_id, line_id)
 index|synth_meta|diary_control_revisions|diary_control_revisions_owner|CREATE INDEX diary_control_revisions_owner ON synth_meta.diary_control_revisions USING btree (diary_id, history_event_id DESC)
 index|synth_meta|diary_control_revisions|diary_control_revisions_pkey|CREATE UNIQUE INDEX diary_control_revisions_pkey ON synth_meta.diary_control_revisions USING btree (history_event_id)
 index|synth_meta|diary_input_sources|diary_input_sources_pkey|CREATE UNIQUE INDEX diary_input_sources_pkey ON synth_meta.diary_input_sources USING btree (input_id, history_event_id)
@@ -1769,16 +1769,16 @@ index|synth_meta|profile_job_inputs|profile_job_inputs_pkey|CREATE UNIQUE INDEX 
 index|synth_meta|profile_revisions|profile_revisions_actor_history|CREATE INDEX profile_revisions_actor_history ON synth_meta.profile_revisions USING btree (actor_identity_id, profile_role, history_event_id DESC)
 index|synth_meta|profile_revisions|profile_revisions_pkey|CREATE UNIQUE INDEX profile_revisions_pkey ON synth_meta.profile_revisions USING btree (history_event_id)
 index|synth_meta|profile_revisions|profile_revisions_session_id_request_id_actor_identity_id_p_key|CREATE UNIQUE INDEX profile_revisions_session_id_request_id_actor_identity_id_p_key ON synth_meta.profile_revisions USING btree (session_id, request_id, actor_identity_id, profile_role)
-index|synth_meta|protocol_events|protocol_events_pkey|CREATE UNIQUE INDEX protocol_events_pkey ON synth_meta.protocol_events USING btree (id)
-index|synth_meta|protocol_events|protocol_events_session_id_request_id_key|CREATE UNIQUE INDEX protocol_events_session_id_request_id_key ON synth_meta.protocol_events USING btree (session_id, request_id)
-index|synth_meta|protocol_events|protocol_events_turn_generation|CREATE INDEX protocol_events_turn_generation ON synth_meta.protocol_events USING btree (session_id, turn_id, generation, received_at)
-index|synth_meta|rechat_chains|rechat_chains_id_session_id_key|CREATE UNIQUE INDEX rechat_chains_id_session_id_key ON synth_meta.rechat_chains USING btree (id, session_id)
-index|synth_meta|rechat_chains|rechat_chains_pkey|CREATE UNIQUE INDEX rechat_chains_pkey ON synth_meta.rechat_chains USING btree (id)
-index|synth_meta|rechat_chains|rechat_chains_session_id_root_request_id_key|CREATE UNIQUE INDEX rechat_chains_session_id_root_request_id_key ON synth_meta.rechat_chains USING btree (session_id, root_request_id)
-index|synth_meta|rechat_continuations|rechat_continuations_chain_id_round_number_key|CREATE UNIQUE INDEX rechat_continuations_chain_id_round_number_key ON synth_meta.rechat_continuations USING btree (chain_id, round_number)
-index|synth_meta|rechat_continuations|rechat_continuations_pkey|CREATE UNIQUE INDEX rechat_continuations_pkey ON synth_meta.rechat_continuations USING btree (session_id, request_id)
-index|synth_meta|rechat_continuations|rechat_continuations_session_id_parent_request_id_key|CREATE UNIQUE INDEX rechat_continuations_session_id_parent_request_id_key ON synth_meta.rechat_continuations USING btree (session_id, parent_request_id)
-index|synth_meta|rechat_selections|rechat_selections_pkey|CREATE UNIQUE INDEX rechat_selections_pkey ON synth_meta.rechat_selections USING btree (session_id, request_id)
+index|public|core_protocol_event|protocol_events_pkey|CREATE UNIQUE INDEX protocol_events_pkey ON public.core_protocol_event USING btree (id)
+index|public|core_protocol_event|protocol_events_session_id_request_id_key|CREATE UNIQUE INDEX protocol_events_session_id_request_id_key ON public.core_protocol_event USING btree (session_id, request_id)
+index|public|core_protocol_event|protocol_events_turn_generation|CREATE INDEX protocol_events_turn_generation ON public.core_protocol_event USING btree (session_id, turn_id, generation, received_at)
+index|public|core_rechat_chain|rechat_chains_id_session_id_key|CREATE UNIQUE INDEX rechat_chains_id_session_id_key ON public.core_rechat_chain USING btree (id, session_id)
+index|public|core_rechat_chain|rechat_chains_pkey|CREATE UNIQUE INDEX rechat_chains_pkey ON public.core_rechat_chain USING btree (id)
+index|public|core_rechat_chain|rechat_chains_session_id_root_request_id_key|CREATE UNIQUE INDEX rechat_chains_session_id_root_request_id_key ON public.core_rechat_chain USING btree (session_id, root_request_id)
+index|public|core_rechat_continuation|rechat_continuations_chain_id_round_number_key|CREATE UNIQUE INDEX rechat_continuations_chain_id_round_number_key ON public.core_rechat_continuation USING btree (chain_id, round_number)
+index|public|core_rechat_continuation|rechat_continuations_pkey|CREATE UNIQUE INDEX rechat_continuations_pkey ON public.core_rechat_continuation USING btree (session_id, request_id)
+index|public|core_rechat_continuation|rechat_continuations_session_id_parent_request_id_key|CREATE UNIQUE INDEX rechat_continuations_session_id_parent_request_id_key ON public.core_rechat_continuation USING btree (session_id, parent_request_id)
+index|public|core_rechat_selection|rechat_selections_pkey|CREATE UNIQUE INDEX rechat_selections_pkey ON public.core_rechat_selection USING btree (session_id, request_id)
 index|synth_meta|relationship_actor_control_events|relationship_actor_control_events_pkey|CREATE UNIQUE INDEX relationship_actor_control_events_pkey ON synth_meta.relationship_actor_control_events USING btree (actor_identity_id, revision)
 index|synth_meta|relationship_actor_controls|relationship_actor_controls_pkey|CREATE UNIQUE INDEX relationship_actor_controls_pkey ON synth_meta.relationship_actor_controls USING btree (actor_identity_id)
 index|synth_meta|relationship_evaluation_sources|relationship_evaluation_sources_pkey|CREATE UNIQUE INDEX relationship_evaluation_sources_pkey ON synth_meta.relationship_evaluation_sources USING btree (evaluation_id, history_event_id)
@@ -1804,33 +1804,33 @@ index|synth_meta|relationship_revisions|relationship_revisions_pair|CREATE INDEX
 index|synth_meta|relationship_revisions|relationship_revisions_pkey|CREATE UNIQUE INDEX relationship_revisions_pkey ON synth_meta.relationship_revisions USING btree (history_event_id)
 index|synth_meta|request_executions|request_executions_pkey|CREATE UNIQUE INDEX request_executions_pkey ON synth_meta.request_executions USING btree (session_id, request_id)
 index|synth_meta|request_executions|request_executions_turn_generation|CREATE INDEX request_executions_turn_generation ON synth_meta.request_executions USING btree (session_id, turn_id, generation, claimed_at)
-index|synth_meta|response_routes|response_routes_pkey|CREATE UNIQUE INDEX response_routes_pkey ON synth_meta.response_routes USING btree (session_id, request_id, line_id)
-index|synth_meta|response_routes|response_routes_utterance_unique|CREATE UNIQUE INDEX response_routes_utterance_unique ON synth_meta.response_routes USING btree (session_id, request_id, utterance_id) WHERE (utterance_id IS NOT NULL)
-index|synth_meta|runtime_sessions|runtime_sessions_memory_dispatch|CREATE INDEX runtime_sessions_memory_dispatch ON synth_meta.runtime_sessions USING btree (memory_dispatch_after, session_id) WHERE (state = 'active'::text)
-index|synth_meta|runtime_sessions|runtime_sessions_pkey|CREATE UNIQUE INDEX runtime_sessions_pkey ON synth_meta.runtime_sessions USING btree (session_id)
-index|synth_meta|runtime_sessions|runtime_sessions_playthrough_state|CREATE INDEX runtime_sessions_playthrough_state ON synth_meta.runtime_sessions USING btree (playthrough_id, state, updated_at DESC)
+index|public|core_dialogue_route|response_routes_pkey|CREATE UNIQUE INDEX response_routes_pkey ON public.core_dialogue_route USING btree (session_id, request_id, line_id)
+index|public|core_dialogue_route|response_routes_utterance_unique|CREATE UNIQUE INDEX response_routes_utterance_unique ON public.core_dialogue_route USING btree (session_id, request_id, utterance_id) WHERE (utterance_id IS NOT NULL)
+index|public|core_runtime_session|runtime_sessions_memory_dispatch|CREATE INDEX runtime_sessions_memory_dispatch ON public.core_runtime_session USING btree (memory_dispatch_after, session_id) WHERE (state = 'active'::text)
+index|public|core_runtime_session|runtime_sessions_pkey|CREATE UNIQUE INDEX runtime_sessions_pkey ON public.core_runtime_session USING btree (session_id)
+index|public|core_runtime_session|runtime_sessions_playthrough_state|CREATE INDEX runtime_sessions_playthrough_state ON public.core_runtime_session USING btree (playthrough_id, state, updated_at DESC)
 index|synth_meta|settings|settings_pkey|CREATE UNIQUE INDEX settings_pkey ON synth_meta.settings USING btree (key)
-index|synth_meta|social_task_claims|social_task_claims_pkey|CREATE UNIQUE INDEX social_task_claims_pkey ON synth_meta.social_task_claims USING btree (task_id, session_id, generation)
-index|synth_meta|social_task_claims|social_task_claims_session_id_generation_execution_id_key|CREATE UNIQUE INDEX social_task_claims_session_id_generation_execution_id_key ON synth_meta.social_task_claims USING btree (session_id, generation, execution_id)
-index|synth_meta|social_task_events|social_task_events_pkey|CREATE UNIQUE INDEX social_task_events_pkey ON synth_meta.social_task_events USING btree (history_event_id)
-index|synth_meta|social_task_events|social_task_events_task|CREATE INDEX social_task_events_task ON synth_meta.social_task_events USING btree (task_id, history_event_id DESC)
-index|synth_meta|social_task_inputs|social_task_inputs_history_event_id_key|CREATE UNIQUE INDEX social_task_inputs_history_event_id_key ON synth_meta.social_task_inputs USING btree (history_event_id)
-index|synth_meta|social_task_inputs|social_task_inputs_pkey|CREATE UNIQUE INDEX social_task_inputs_pkey ON synth_meta.social_task_inputs USING btree (task_id)
+index|public|core_social_task_claim|social_task_claims_pkey|CREATE UNIQUE INDEX social_task_claims_pkey ON public.core_social_task_claim USING btree (task_id, session_id, generation)
+index|public|core_social_task_claim|social_task_claims_session_id_generation_execution_id_key|CREATE UNIQUE INDEX social_task_claims_session_id_generation_execution_id_key ON public.core_social_task_claim USING btree (session_id, generation, execution_id)
+index|public|core_social_task_event|social_task_events_pkey|CREATE UNIQUE INDEX social_task_events_pkey ON public.core_social_task_event USING btree (history_event_id)
+index|public|core_social_task_event|social_task_events_task|CREATE INDEX social_task_events_task ON public.core_social_task_event USING btree (task_id, history_event_id DESC)
+index|public|core_social_task_input|social_task_inputs_history_event_id_key|CREATE UNIQUE INDEX social_task_inputs_history_event_id_key ON public.core_social_task_input USING btree (history_event_id)
+index|public|core_social_task_input|social_task_inputs_pkey|CREATE UNIQUE INDEX social_task_inputs_pkey ON public.core_social_task_input USING btree (task_id)
 index|public|core_visual_description_revision|visual_description_capture_history|CREATE INDEX visual_description_capture_history ON public.core_visual_description_revision USING btree (capture_id, actor_identity_id, history_event_id DESC)
 index|public|core_visual_description_revision|visual_description_revisions_pkey|CREATE UNIQUE INDEX visual_description_revisions_pkey ON public.core_visual_description_revision USING btree (history_event_id)
 index|public|core_visual_result|visual_results_actor_history|CREATE INDEX visual_results_actor_history ON public.core_visual_result USING btree (actor_identity_id, history_event_id DESC)
 index|public|core_visual_result|visual_results_capture_id_key|CREATE UNIQUE INDEX visual_results_capture_id_key ON public.core_visual_result USING btree (capture_id)
 index|public|core_visual_result|visual_results_pkey|CREATE UNIQUE INDEX visual_results_pkey ON public.core_visual_result USING btree (history_event_id)
 index|public|core_visual_result|visual_results_session_id_request_id_key|CREATE UNIQUE INDEX visual_results_session_id_request_id_key ON public.core_visual_result USING btree (session_id, request_id)
-index|synth_meta|worker_jobs|worker_jobs_active_memory_batch|CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON synth_meta.worker_jobs USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
-index|synth_meta|worker_jobs|worker_jobs_active_relationship_evaluation|CREATE UNIQUE INDEX worker_jobs_active_relationship_evaluation ON synth_meta.worker_jobs USING btree (relationship_evaluation_id) WHERE ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
-index|synth_meta|worker_jobs|worker_jobs_diary_input|CREATE UNIQUE INDEX worker_jobs_diary_input ON synth_meta.worker_jobs USING btree (diary_input_id) WHERE (diary_input_id IS NOT NULL)
-index|synth_meta|worker_jobs|worker_jobs_dispatch|CREATE INDEX worker_jobs_dispatch ON synth_meta.worker_jobs USING btree (job_type, state, available_at, generation)
-index|synth_meta|worker_jobs|worker_jobs_middleterm_input|CREATE UNIQUE INDEX worker_jobs_middleterm_input ON synth_meta.worker_jobs USING btree (middleterm_input_id) WHERE (middleterm_input_id IS NOT NULL)
-index|synth_meta|worker_jobs|worker_jobs_native_profile_owner|CREATE UNIQUE INDEX worker_jobs_native_profile_owner ON synth_meta.worker_jobs USING btree (session_id, request_id, actor_identity_id, ((payload ->> 'profile_role'::text))) WHERE ((job_type = 'profile'::text) AND ((payload ->> 'schema'::text) = 'synth.profile.job.v1'::text))
-index|synth_meta|worker_jobs|worker_jobs_pkey|CREATE UNIQUE INDEX worker_jobs_pkey ON synth_meta.worker_jobs USING btree (id)
-index|synth_meta|worker_jobs|worker_jobs_relationship_interaction|CREATE UNIQUE INDEX worker_jobs_relationship_interaction ON synth_meta.worker_jobs USING btree (relationship_interaction_id) WHERE (relationship_interaction_id IS NOT NULL)
-index|synth_meta|worker_jobs|worker_jobs_session_generation|CREATE INDEX worker_jobs_session_generation ON synth_meta.worker_jobs USING btree (session_id, generation) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]))
+index|public|core_worker_job|worker_jobs_active_memory_batch|CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON public.core_worker_job USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
+index|public|core_worker_job|worker_jobs_active_relationship_evaluation|CREATE UNIQUE INDEX worker_jobs_active_relationship_evaluation ON public.core_worker_job USING btree (relationship_evaluation_id) WHERE ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
+index|public|core_worker_job|worker_jobs_diary_input|CREATE UNIQUE INDEX worker_jobs_diary_input ON public.core_worker_job USING btree (diary_input_id) WHERE (diary_input_id IS NOT NULL)
+index|public|core_worker_job|worker_jobs_dispatch|CREATE INDEX worker_jobs_dispatch ON public.core_worker_job USING btree (job_type, state, available_at, generation)
+index|public|core_worker_job|worker_jobs_middleterm_input|CREATE UNIQUE INDEX worker_jobs_middleterm_input ON public.core_worker_job USING btree (middleterm_input_id) WHERE (middleterm_input_id IS NOT NULL)
+index|public|core_worker_job|worker_jobs_native_profile_owner|CREATE UNIQUE INDEX worker_jobs_native_profile_owner ON public.core_worker_job USING btree (session_id, request_id, actor_identity_id, ((payload ->> 'profile_role'::text))) WHERE ((job_type = 'profile'::text) AND ((payload ->> 'schema'::text) = 'synth.profile.job.v1'::text))
+index|public|core_worker_job|worker_jobs_pkey|CREATE UNIQUE INDEX worker_jobs_pkey ON public.core_worker_job USING btree (id)
+index|public|core_worker_job|worker_jobs_relationship_interaction|CREATE UNIQUE INDEX worker_jobs_relationship_interaction ON public.core_worker_job USING btree (relationship_interaction_id) WHERE (relationship_interaction_id IS NOT NULL)
+index|public|core_worker_job|worker_jobs_session_generation|CREATE INDEX worker_jobs_session_generation ON public.core_worker_job USING btree (session_id, generation) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]))
 index|synth|actor_identities|actor_identities_canonical_key|CREATE UNIQUE INDEX actor_identities_canonical_key ON synth.actor_identities USING btree (game, upper((full_form_id)::text), lower(origin_plugin), playthrough_id)
 index|synth|actor_identities|actor_identities_display_name|CREATE INDEX actor_identities_display_name ON synth.actor_identities USING btree (lower(display_name)) WHERE (display_name IS NOT NULL)
 index|synth|actor_identities|actor_identities_pkey|CREATE UNIQUE INDEX actor_identities_pkey ON synth.actor_identities USING btree (id)
@@ -1925,13 +1925,13 @@ index|synth|worldknowledge|worldknowledge_custom_topic_unique_idx|CREATE UNIQUE 
 index|synth|worldknowledge|worldknowledge_effective_lookup_idx|CREATE INDEX worldknowledge_effective_lookup_idx ON synth.worldknowledge USING btree (canonical_topic, source_kind, is_active)
 index|synth|worldknowledge|worldknowledge_factory_topic_unique_idx|CREATE UNIQUE INDEX worldknowledge_factory_topic_unique_idx ON synth.worldknowledge USING btree (catalog_id, catalog_version, canonical_topic) WHERE (source_kind = 'factory'::text)
 index|synth|worldknowledge|worldknowledge_pkey|CREATE UNIQUE INDEX worldknowledge_pkey ON synth.worldknowledge USING btree (entry_id)
-table|synth_meta|action_intents|BASE TABLE
-table|synth_meta|action_terminal_results|BASE TABLE
-table|synth_meta|active_agents|BASE TABLE
-table|synth_meta|actor_event_batches|BASE TABLE
-table|synth_meta|context_snapshots|BASE TABLE
-table|synth_meta|dialogue_origin_policies|BASE TABLE
-table|synth_meta|dialogue_utterances|BASE TABLE
+table|public|core_action_intent|BASE TABLE
+table|public|core_action_result|BASE TABLE
+table|public|core_actor_activation|BASE TABLE
+table|public|core_actor_event_batch|BASE TABLE
+table|public|core_runtime_context|BASE TABLE
+table|public|core_dialogue_origin_policy|BASE TABLE
+table|public|core_dialogue_utterance|BASE TABLE
 table|synth_meta|diary_control_revisions|BASE TABLE
 table|synth_meta|diary_input_sources|BASE TABLE
 table|synth_meta|diary_inputs|BASE TABLE
@@ -1965,10 +1965,10 @@ table|synth_meta|playthrough_profiles|BASE TABLE
 table|synth_meta|profile_job_fields|BASE TABLE
 table|synth_meta|profile_job_inputs|BASE TABLE
 table|synth_meta|profile_revisions|BASE TABLE
-table|synth_meta|protocol_events|BASE TABLE
-table|synth_meta|rechat_chains|BASE TABLE
-table|synth_meta|rechat_continuations|BASE TABLE
-table|synth_meta|rechat_selections|BASE TABLE
+table|public|core_protocol_event|BASE TABLE
+table|public|core_rechat_chain|BASE TABLE
+table|public|core_rechat_continuation|BASE TABLE
+table|public|core_rechat_selection|BASE TABLE
 table|synth_meta|relationship_actor_control_events|BASE TABLE
 table|synth_meta|relationship_actor_controls|BASE TABLE
 table|synth_meta|relationship_evaluation_sources|BASE TABLE
@@ -1984,15 +1984,15 @@ table|synth_meta|relationship_results|BASE TABLE
 table|synth_meta|relationship_revision_sources|BASE TABLE
 table|synth_meta|relationship_revisions|BASE TABLE
 table|synth_meta|request_executions|BASE TABLE
-table|synth_meta|response_routes|BASE TABLE
-table|synth_meta|runtime_sessions|BASE TABLE
+table|public|core_dialogue_route|BASE TABLE
+table|public|core_runtime_session|BASE TABLE
 table|synth_meta|settings|BASE TABLE
-table|synth_meta|social_task_claims|BASE TABLE
-table|synth_meta|social_task_events|BASE TABLE
-table|synth_meta|social_task_inputs|BASE TABLE
+table|public|core_social_task_claim|BASE TABLE
+table|public|core_social_task_event|BASE TABLE
+table|public|core_social_task_input|BASE TABLE
 table|public|core_visual_description_revision|BASE TABLE
 table|public|core_visual_result|BASE TABLE
-table|synth_meta|worker_jobs|BASE TABLE
+table|public|core_worker_job|BASE TABLE
 table|synth|actions_issued|BASE TABLE
 table|synth|actor_identities|BASE TABLE
 table|synth|audit_memory|BASE TABLE

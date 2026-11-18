@@ -84,7 +84,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
             }
             public function execQuery($query): mixed {
                 if (str_contains($query,'WITH candidate AS (')) return $this->inner->execQuery('SELECT 1 WHERE FALSE');
-                if (str_contains($query,'UPDATE synth_meta.worker_jobs')) return true;
+                if (str_contains($query,'UPDATE public.core_worker_job')) return true;
                 return $this->inner->execQuery($query);
             }
             public function __call(string $name,array $args): mixed {return $this->inner->$name(...$args);}

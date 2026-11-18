@@ -1756,7 +1756,7 @@ CREATE SEQUENCE synth.worldknowledge_entry_id_seq
 -- end-statement
 ALTER SEQUENCE synth.worldknowledge_entry_id_seq OWNED BY synth.worldknowledge.entry_id;
 -- end-statement
-CREATE TABLE synth_meta.action_intents (
+CREATE TABLE public.core_action_intent (
     action_id text NOT NULL,
     idempotency_key text NOT NULL,
     session_id text NOT NULL,
@@ -1777,7 +1777,7 @@ CREATE TABLE synth_meta.action_intents (
     CONSTRAINT action_intents_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'dispatched'::text, 'complete'::text, 'cancelled'::text, 'stale'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.action_terminal_results (
+CREATE TABLE public.core_action_result (
     action_id text NOT NULL,
     idempotency_key text NOT NULL,
     status text NOT NULL,
@@ -1786,7 +1786,7 @@ CREATE TABLE synth_meta.action_terminal_results (
     CONSTRAINT action_terminal_results_status_check CHECK ((status = ANY (ARRAY['succeeded'::text, 'rejected'::text, 'unavailable'::text, 'timed_out'::text, 'cancelled'::text, 'failed'::text, 'unsupported_without_esp'::text, 'unsupported_runtime'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.active_agents (
+CREATE TABLE public.core_actor_activation (
     session_id text NOT NULL,
     generation bigint NOT NULL,
     actor_identity_id bigint NOT NULL,
@@ -1799,7 +1799,7 @@ CREATE TABLE synth_meta.active_agents (
     CONSTRAINT active_agents_state_check CHECK ((state = ANY (ARRAY['active'::text, 'inactive'::text, 'stale'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.actor_event_batches (
+CREATE TABLE public.core_actor_event_batch (
     session_id text NOT NULL,
     generation bigint NOT NULL,
     playthrough_id text NOT NULL,
@@ -1818,7 +1818,7 @@ CREATE TABLE synth_meta.actor_event_batches (
     CONSTRAINT actor_event_batches_player_payload_check CHECK ((jsonb_typeof(player_payload) = 'object'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.context_snapshots (
+CREATE TABLE public.core_runtime_context (
     session_id text NOT NULL,
     generation bigint NOT NULL,
     snapshot_sequence bigint NOT NULL,
@@ -1835,7 +1835,7 @@ CREATE TABLE synth_meta.context_snapshots (
     CONSTRAINT context_snapshots_snapshot_sequence_check CHECK ((snapshot_sequence > 0))
 );
 -- end-statement
-CREATE TABLE synth_meta.dialogue_origin_policies (
+CREATE TABLE public.core_dialogue_origin_policy (
     session_id text NOT NULL,
     request_id text NOT NULL,
     execution_mode text NOT NULL,
@@ -1845,7 +1845,7 @@ CREATE TABLE synth_meta.dialogue_origin_policies (
     CONSTRAINT dialogue_origin_policies_policy_check CHECK ((jsonb_typeof(policy) = 'object'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.dialogue_utterances (
+CREATE TABLE public.core_dialogue_utterance (
     session_id text NOT NULL,
     request_id text NOT NULL,
     line_id text NOT NULL,
@@ -2406,7 +2406,7 @@ CREATE TABLE synth_meta.profile_revisions (
     CONSTRAINT profile_revisions_result_sha256_check CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.protocol_events (
+CREATE TABLE public.core_protocol_event (
     id bigint NOT NULL,
     session_id text NOT NULL,
     request_id text NOT NULL,
@@ -2419,16 +2419,16 @@ CREATE TABLE synth_meta.protocol_events (
     CONSTRAINT protocol_events_event_sha256_check CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
 );
 -- end-statement
-CREATE SEQUENCE synth_meta.protocol_events_id_seq
+CREATE SEQUENCE public.protocol_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth_meta.protocol_events_id_seq OWNED BY synth_meta.protocol_events.id;
+ALTER SEQUENCE public.protocol_events_id_seq OWNED BY public.core_protocol_event.id;
 -- end-statement
-CREATE TABLE synth_meta.rechat_chains (
+CREATE TABLE public.core_rechat_chain (
     id bigint NOT NULL,
     session_id text NOT NULL,
     root_request_id text NOT NULL,
@@ -2450,16 +2450,16 @@ CREATE TABLE synth_meta.rechat_chains (
     CONSTRAINT rechat_chains_terminal_reason_check CHECK ((terminal_reason = ANY (ARRAY['budget_exhausted'::text, 'private'::text, 'no_candidate'::text, 'ineligible'::text])))
 );
 -- end-statement
-CREATE SEQUENCE synth_meta.rechat_chains_id_seq
+CREATE SEQUENCE public.rechat_chains_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth_meta.rechat_chains_id_seq OWNED BY synth_meta.rechat_chains.id;
+ALTER SEQUENCE public.rechat_chains_id_seq OWNED BY public.core_rechat_chain.id;
 -- end-statement
-CREATE TABLE synth_meta.rechat_continuations (
+CREATE TABLE public.core_rechat_continuation (
     session_id text NOT NULL,
     request_id text NOT NULL,
     chain_id bigint NOT NULL,
@@ -2475,7 +2475,7 @@ CREATE TABLE synth_meta.rechat_continuations (
     CONSTRAINT rechat_continuations_status_check CHECK ((status = ANY (ARRAY['reserved'::text, 'terminal'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.rechat_selections (
+CREATE TABLE public.core_rechat_selection (
     session_id text NOT NULL,
     request_id text NOT NULL,
     role text NOT NULL,
@@ -2674,7 +2674,7 @@ CREATE TABLE synth_meta.request_executions (
     CONSTRAINT request_executions_turn_id_check CHECK ((turn_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.response_routes (
+CREATE TABLE public.core_dialogue_route (
     session_id text NOT NULL,
     request_id text NOT NULL,
     line_id text NOT NULL,
@@ -2694,7 +2694,7 @@ CREATE TABLE synth_meta.response_routes (
     CONSTRAINT response_routes_utterance_id_check CHECK ((utterance_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.runtime_sessions (
+CREATE TABLE public.core_runtime_session (
     session_id text NOT NULL,
     playthrough_id text NOT NULL,
     game text NOT NULL,
@@ -2731,7 +2731,7 @@ CREATE TABLE synth_meta.settings (
     value text
 );
 -- end-statement
-CREATE TABLE synth_meta.social_task_claims (
+CREATE TABLE public.core_social_task_claim (
     task_id text NOT NULL,
     session_id text NOT NULL,
     generation bigint NOT NULL,
@@ -2741,7 +2741,7 @@ CREATE TABLE synth_meta.social_task_claims (
     CONSTRAINT social_task_claims_generation_check CHECK ((generation > 0))
 );
 -- end-statement
-CREATE TABLE synth_meta.social_task_events (
+CREATE TABLE public.core_social_task_event (
     history_event_id bigint NOT NULL,
     task_id text NOT NULL,
     prior_revision bigint,
@@ -2756,7 +2756,7 @@ CREATE TABLE synth_meta.social_task_events (
     CONSTRAINT social_task_events_status_check CHECK ((status = ANY (ARRAY['waiting_departure'::text, 'waiting_return'::text, 'ready'::text, 'travelling'::text, 'arrived'::text, 'conversing'::text, 'completed'::text, 'cancelled'::text, 'failed'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.social_task_inputs (
+CREATE TABLE public.core_social_task_input (
     task_id text NOT NULL,
     history_event_id bigint NOT NULL,
     player_identity_id bigint NOT NULL,
@@ -2801,7 +2801,7 @@ CREATE TABLE public.core_visual_result (
     CONSTRAINT visual_results_result_sha256_check CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.worker_jobs (
+CREATE TABLE public.core_worker_job (
     id bigint NOT NULL,
     job_type text NOT NULL,
     request_id text NOT NULL,
@@ -2833,14 +2833,14 @@ CREATE TABLE synth_meta.worker_jobs (
     CONSTRAINT worker_jobs_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text, 'failed'::text, 'cancelled'::text, 'stale'::text])))
 );
 -- end-statement
-CREATE SEQUENCE synth_meta.worker_jobs_id_seq
+CREATE SEQUENCE public.worker_jobs_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth_meta.worker_jobs_id_seq OWNED BY synth_meta.worker_jobs.id;
+ALTER SEQUENCE public.worker_jobs_id_seq OWNED BY public.core_worker_job.id;
 -- end-statement
 ALTER TABLE ONLY synth.actions_issued ALTER COLUMN rowid SET DEFAULT nextval('synth.actions_issued_rowid_seq'::regclass);
 -- end-statement
@@ -2916,15 +2916,15 @@ ALTER TABLE ONLY synth_meta.narrator_transcript_entries ALTER COLUMN entry_id SE
 -- end-statement
 ALTER TABLE ONLY synth_meta.playthrough_profiles ALTER COLUMN id SET DEFAULT nextval('synth_meta.playthrough_profiles_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth_meta.protocol_events ALTER COLUMN id SET DEFAULT nextval('synth_meta.protocol_events_id_seq'::regclass);
+ALTER TABLE ONLY public.core_protocol_event ALTER COLUMN id SET DEFAULT nextval('public.protocol_events_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains ALTER COLUMN id SET DEFAULT nextval('synth_meta.rechat_chains_id_seq'::regclass);
+ALTER TABLE ONLY public.core_rechat_chain ALTER COLUMN id SET DEFAULT nextval('public.rechat_chains_id_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_evaluations ALTER COLUMN id SET DEFAULT nextval('synth_meta.relationship_evaluations_id_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_interaction_evaluations ALTER COLUMN id SET DEFAULT nextval('synth_meta.relationship_interaction_evaluations_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs ALTER COLUMN id SET DEFAULT nextval('synth_meta.worker_jobs_id_seq'::regclass);
+ALTER TABLE ONLY public.core_worker_job ALTER COLUMN id SET DEFAULT nextval('public.worker_jobs_id_seq'::regclass);
 -- end-statement
 INSERT INTO synth.bio_template_actor_map VALUES
 	(1, 'creature_brahmin', 'Fallout4.esm', '00020480', NULL, NULL, 'Brahmin', true),
@@ -4353,15 +4353,15 @@ SELECT pg_catalog.setval('synth_meta.narrator_transcript_entries_entry_id_seq', 
 -- end-statement
 SELECT pg_catalog.setval('synth_meta.playthrough_profiles_id_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth_meta.protocol_events_id_seq', 1, false);
+SELECT pg_catalog.setval('public.protocol_events_id_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth_meta.rechat_chains_id_seq', 1, false);
+SELECT pg_catalog.setval('public.rechat_chains_id_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth_meta.relationship_evaluations_id_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth_meta.relationship_interaction_evaluations_id_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth_meta.worker_jobs_id_seq', 1, false);
+SELECT pg_catalog.setval('public.worker_jobs_id_seq', 1, false);
 -- end-statement
 ALTER TABLE ONLY synth.actor_identities
     ADD CONSTRAINT actor_identities_pkey PRIMARY KEY (id);
@@ -4477,31 +4477,31 @@ ALTER TABLE ONLY synth.worldknowledge_catalogs
 ALTER TABLE ONLY synth.worldknowledge
     ADD CONSTRAINT worldknowledge_pkey PRIMARY KEY (entry_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_intents
+ALTER TABLE ONLY public.core_action_intent
     ADD CONSTRAINT action_intents_idempotency_key_key UNIQUE (idempotency_key);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_intents
+ALTER TABLE ONLY public.core_action_intent
     ADD CONSTRAINT action_intents_pkey PRIMARY KEY (action_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_terminal_results
+ALTER TABLE ONLY public.core_action_result
     ADD CONSTRAINT action_terminal_results_idempotency_key_key UNIQUE (idempotency_key);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_terminal_results
+ALTER TABLE ONLY public.core_action_result
     ADD CONSTRAINT action_terminal_results_pkey PRIMARY KEY (action_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.active_agents
+ALTER TABLE ONLY public.core_actor_activation
     ADD CONSTRAINT active_agents_pkey PRIMARY KEY (session_id, generation, actor_identity_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.actor_event_batches
+ALTER TABLE ONLY public.core_actor_event_batch
     ADD CONSTRAINT actor_event_batches_pkey PRIMARY KEY (session_id, generation, playthrough_id, batch_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.context_snapshots
+ALTER TABLE ONLY public.core_runtime_context
     ADD CONSTRAINT context_snapshots_pkey PRIMARY KEY (session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_origin_policies
+ALTER TABLE ONLY public.core_dialogue_origin_policy
     ADD CONSTRAINT dialogue_origin_policies_pkey PRIMARY KEY (session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_utterances
+ALTER TABLE ONLY public.core_dialogue_utterance
     ADD CONSTRAINT dialogue_utterances_pkey PRIMARY KEY (session_id, request_id, line_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_control_revisions
@@ -4657,31 +4657,31 @@ ALTER TABLE ONLY synth_meta.profile_revisions
 ALTER TABLE ONLY synth_meta.profile_revisions
     ADD CONSTRAINT profile_revisions_session_id_request_id_actor_identity_id_p_key UNIQUE (session_id, request_id, actor_identity_id, profile_role);
 -- end-statement
-ALTER TABLE ONLY synth_meta.protocol_events
+ALTER TABLE ONLY public.core_protocol_event
     ADD CONSTRAINT protocol_events_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.protocol_events
+ALTER TABLE ONLY public.core_protocol_event
     ADD CONSTRAINT protocol_events_session_id_request_id_key UNIQUE (session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains
+ALTER TABLE ONLY public.core_rechat_chain
     ADD CONSTRAINT rechat_chains_id_session_id_key UNIQUE (id, session_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains
+ALTER TABLE ONLY public.core_rechat_chain
     ADD CONSTRAINT rechat_chains_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains
+ALTER TABLE ONLY public.core_rechat_chain
     ADD CONSTRAINT rechat_chains_session_id_root_request_id_key UNIQUE (session_id, root_request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
+ALTER TABLE ONLY public.core_rechat_continuation
     ADD CONSTRAINT rechat_continuations_chain_id_round_number_key UNIQUE (chain_id, round_number);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
+ALTER TABLE ONLY public.core_rechat_continuation
     ADD CONSTRAINT rechat_continuations_pkey PRIMARY KEY (session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
+ALTER TABLE ONLY public.core_rechat_continuation
     ADD CONSTRAINT rechat_continuations_session_id_parent_request_id_key UNIQUE (session_id, parent_request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_selections
+ALTER TABLE ONLY public.core_rechat_selection
     ADD CONSTRAINT rechat_selections_pkey PRIMARY KEY (session_id, request_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_actor_control_events
@@ -4750,28 +4750,28 @@ ALTER TABLE ONLY synth_meta.relationship_revisions
 ALTER TABLE ONLY synth_meta.request_executions
     ADD CONSTRAINT request_executions_pkey PRIMARY KEY (session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.response_routes
+ALTER TABLE ONLY public.core_dialogue_route
     ADD CONSTRAINT response_routes_pkey PRIMARY KEY (session_id, request_id, line_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.runtime_sessions
+ALTER TABLE ONLY public.core_runtime_session
     ADD CONSTRAINT runtime_sessions_pkey PRIMARY KEY (session_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.settings
     ADD CONSTRAINT settings_pkey PRIMARY KEY (key);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_claims
+ALTER TABLE ONLY public.core_social_task_claim
     ADD CONSTRAINT social_task_claims_pkey PRIMARY KEY (task_id, session_id, generation);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_claims
+ALTER TABLE ONLY public.core_social_task_claim
     ADD CONSTRAINT social_task_claims_session_id_generation_execution_id_key UNIQUE (session_id, generation, execution_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_events
+ALTER TABLE ONLY public.core_social_task_event
     ADD CONSTRAINT social_task_events_pkey PRIMARY KEY (history_event_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_history_event_id_key UNIQUE (history_event_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_pkey PRIMARY KEY (task_id);
 -- end-statement
 ALTER TABLE ONLY public.core_visual_description_revision
@@ -4786,7 +4786,7 @@ ALTER TABLE ONLY public.core_visual_result
 ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_session_id_request_id_key UNIQUE (session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_pkey PRIMARY KEY (id);
 -- end-statement
 CREATE UNIQUE INDEX actor_identities_canonical_key ON synth.actor_identities USING btree (game, upper((full_form_id)::text), lower(origin_plugin), playthrough_id);
@@ -4901,9 +4901,9 @@ CREATE UNIQUE INDEX worldknowledge_factory_topic_unique_idx ON synth.worldknowle
 -- end-statement
 CREATE UNIQUE INDEX worldknowledge_one_active_catalog_idx ON synth.worldknowledge_catalogs USING btree (is_active) WHERE is_active;
 -- end-statement
-CREATE INDEX action_intents_dispatch ON synth_meta.action_intents USING btree (session_id, generation, state, deadline_at);
+CREATE INDEX action_intents_dispatch ON public.core_action_intent USING btree (session_id, generation, state, deadline_at);
 -- end-statement
-CREATE INDEX active_agents_dispatch ON synth_meta.active_agents USING btree (session_id, generation, state, last_seen_at DESC);
+CREATE INDEX active_agents_dispatch ON public.core_actor_activation USING btree (session_id, generation, state, last_seen_at DESC);
 -- end-statement
 CREATE INDEX diary_control_revisions_owner ON synth_meta.diary_control_revisions USING btree (diary_id, history_event_id DESC);
 -- end-statement
@@ -4945,7 +4945,7 @@ CREATE INDEX narrator_pending_outputs_open ON synth_meta.narrator_pending_output
 -- end-statement
 CREATE INDEX profile_revisions_actor_history ON synth_meta.profile_revisions USING btree (actor_identity_id, profile_role, history_event_id DESC);
 -- end-statement
-CREATE INDEX protocol_events_turn_generation ON synth_meta.protocol_events USING btree (session_id, turn_id, generation, received_at);
+CREATE INDEX protocol_events_turn_generation ON public.core_protocol_event USING btree (session_id, turn_id, generation, received_at);
 -- end-statement
 CREATE INDEX relationship_interaction_listener ON synth_meta.relationship_interaction_evaluations USING btree (listener_identity_id, id);
 -- end-statement
@@ -4953,33 +4953,33 @@ CREATE INDEX relationship_revisions_pair ON synth_meta.relationship_revisions US
 -- end-statement
 CREATE INDEX request_executions_turn_generation ON synth_meta.request_executions USING btree (session_id, turn_id, generation, claimed_at);
 -- end-statement
-CREATE UNIQUE INDEX response_routes_utterance_unique ON synth_meta.response_routes USING btree (session_id, request_id, utterance_id) WHERE (utterance_id IS NOT NULL);
+CREATE UNIQUE INDEX response_routes_utterance_unique ON public.core_dialogue_route USING btree (session_id, request_id, utterance_id) WHERE (utterance_id IS NOT NULL);
 -- end-statement
-CREATE INDEX runtime_sessions_memory_dispatch ON synth_meta.runtime_sessions USING btree (memory_dispatch_after, session_id) WHERE (state = 'active'::text);
+CREATE INDEX runtime_sessions_memory_dispatch ON public.core_runtime_session USING btree (memory_dispatch_after, session_id) WHERE (state = 'active'::text);
 -- end-statement
-CREATE INDEX runtime_sessions_playthrough_state ON synth_meta.runtime_sessions USING btree (playthrough_id, state, updated_at DESC);
+CREATE INDEX runtime_sessions_playthrough_state ON public.core_runtime_session USING btree (playthrough_id, state, updated_at DESC);
 -- end-statement
-CREATE INDEX social_task_events_task ON synth_meta.social_task_events USING btree (task_id, history_event_id DESC);
+CREATE INDEX social_task_events_task ON public.core_social_task_event USING btree (task_id, history_event_id DESC);
 -- end-statement
 CREATE INDEX visual_description_capture_history ON public.core_visual_description_revision USING btree (capture_id, actor_identity_id, history_event_id DESC);
 -- end-statement
 CREATE INDEX visual_results_actor_history ON public.core_visual_result USING btree (actor_identity_id, history_event_id DESC);
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON synth_meta.worker_jobs USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])));
+CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON public.core_worker_job USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])));
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_active_relationship_evaluation ON synth_meta.worker_jobs USING btree (relationship_evaluation_id) WHERE ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])));
+CREATE UNIQUE INDEX worker_jobs_active_relationship_evaluation ON public.core_worker_job USING btree (relationship_evaluation_id) WHERE ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])));
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_diary_input ON synth_meta.worker_jobs USING btree (diary_input_id) WHERE (diary_input_id IS NOT NULL);
+CREATE UNIQUE INDEX worker_jobs_diary_input ON public.core_worker_job USING btree (diary_input_id) WHERE (diary_input_id IS NOT NULL);
 -- end-statement
-CREATE INDEX worker_jobs_dispatch ON synth_meta.worker_jobs USING btree (job_type, state, available_at, generation);
+CREATE INDEX worker_jobs_dispatch ON public.core_worker_job USING btree (job_type, state, available_at, generation);
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_middleterm_input ON synth_meta.worker_jobs USING btree (middleterm_input_id) WHERE (middleterm_input_id IS NOT NULL);
+CREATE UNIQUE INDEX worker_jobs_middleterm_input ON public.core_worker_job USING btree (middleterm_input_id) WHERE (middleterm_input_id IS NOT NULL);
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_native_profile_owner ON synth_meta.worker_jobs USING btree (session_id, request_id, actor_identity_id, ((payload ->> 'profile_role'::text))) WHERE ((job_type = 'profile'::text) AND ((payload ->> 'schema'::text) = 'synth.profile.job.v1'::text));
+CREATE UNIQUE INDEX worker_jobs_native_profile_owner ON public.core_worker_job USING btree (session_id, request_id, actor_identity_id, ((payload ->> 'profile_role'::text))) WHERE ((job_type = 'profile'::text) AND ((payload ->> 'schema'::text) = 'synth.profile.job.v1'::text));
 -- end-statement
-CREATE UNIQUE INDEX worker_jobs_relationship_interaction ON synth_meta.worker_jobs USING btree (relationship_interaction_id) WHERE (relationship_interaction_id IS NOT NULL);
+CREATE UNIQUE INDEX worker_jobs_relationship_interaction ON public.core_worker_job USING btree (relationship_interaction_id) WHERE (relationship_interaction_id IS NOT NULL);
 -- end-statement
-CREATE INDEX worker_jobs_session_generation ON synth_meta.worker_jobs USING btree (session_id, generation) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]));
+CREATE INDEX worker_jobs_session_generation ON public.core_worker_job USING btree (session_id, generation) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]));
 -- end-statement
 ALTER TABLE ONLY public.core_itt_connector
     ADD CONSTRAINT core_itt_connector_api_badge_id_fkey FOREIGN KEY (api_badge_id) REFERENCES public.core_api_badge(id);
@@ -5036,54 +5036,54 @@ ALTER TABLE ONLY public.core_visual_context
     ADD CONSTRAINT visual_context_media_id_fkey FOREIGN KEY (media_id) REFERENCES public.core_media_object(media_id) ON DELETE RESTRICT;
 -- end-statement
 ALTER TABLE ONLY public.core_visual_context
-    ADD CONSTRAINT visual_context_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE SET NULL;
+    ADD CONSTRAINT visual_context_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE SET NULL;
 -- end-statement
 ALTER TABLE ONLY synth.worldknowledge
     ADD CONSTRAINT worldknowledge_catalog_foreign_key FOREIGN KEY (catalog_id, catalog_version) REFERENCES synth.worldknowledge_catalogs(catalog_id, catalog_version) ON DELETE RESTRICT;
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_intents
+ALTER TABLE ONLY public.core_action_intent
     ADD CONSTRAINT action_intents_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_intents
-    ADD CONSTRAINT action_intents_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_action_intent
+    ADD CONSTRAINT action_intents_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_intents
+ALTER TABLE ONLY public.core_action_intent
     ADD CONSTRAINT action_intents_target_identity_id_fkey FOREIGN KEY (target_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.action_terminal_results
-    ADD CONSTRAINT action_terminal_results_action_id_fkey FOREIGN KEY (action_id) REFERENCES synth_meta.action_intents(action_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_action_result
+    ADD CONSTRAINT action_terminal_results_action_id_fkey FOREIGN KEY (action_id) REFERENCES public.core_action_intent(action_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.active_agents
+ALTER TABLE ONLY public.core_actor_activation
     ADD CONSTRAINT active_agents_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.active_agents
-    ADD CONSTRAINT active_agents_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_actor_activation
+    ADD CONSTRAINT active_agents_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.actor_event_batches
-    ADD CONSTRAINT actor_event_batches_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+ALTER TABLE ONLY public.core_actor_event_batch
+    ADD CONSTRAINT actor_event_batches_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.actor_event_batches
+ALTER TABLE ONLY public.core_actor_event_batch
     ADD CONSTRAINT actor_event_batches_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.context_snapshots
+ALTER TABLE ONLY public.core_runtime_context
     ADD CONSTRAINT context_snapshots_player_identity_id_fkey FOREIGN KEY (player_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.context_snapshots
-    ADD CONSTRAINT context_snapshots_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_runtime_context
+    ADD CONSTRAINT context_snapshots_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.context_snapshots
+ALTER TABLE ONLY public.core_runtime_context
     ADD CONSTRAINT context_snapshots_target_identity_id_fkey FOREIGN KEY (target_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_origin_policies
+ALTER TABLE ONLY public.core_dialogue_origin_policy
     ADD CONSTRAINT dialogue_origin_policies_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_utterances
-    ADD CONSTRAINT dialogue_utterances_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+ALTER TABLE ONLY public.core_dialogue_utterance
+    ADD CONSTRAINT dialogue_utterances_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_utterances
+ALTER TABLE ONLY public.core_dialogue_utterance
     ADD CONSTRAINT dialogue_utterances_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.dialogue_utterances
+ALTER TABLE ONLY public.core_dialogue_utterance
     ADD CONSTRAINT dialogue_utterances_speaker_identity_id_fkey FOREIGN KEY (speaker_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_control_revisions
@@ -5111,13 +5111,13 @@ ALTER TABLE ONLY synth_meta.diary_inputs
     ADD CONSTRAINT diary_inputs_profile_revision_id_fkey FOREIGN KEY (profile_revision_id) REFERENCES synth_meta.profile_revisions(history_event_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_inputs
-    ADD CONSTRAINT diary_inputs_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT diary_inputs_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_inputs
     ADD CONSTRAINT diary_inputs_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_job_results
-    ADD CONSTRAINT diary_job_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.worker_jobs(id);
+    ADD CONSTRAINT diary_job_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.core_worker_job(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_results
     ADD CONSTRAINT diary_results_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
@@ -5126,10 +5126,10 @@ ALTER TABLE ONLY synth_meta.diary_results
     ADD CONSTRAINT diary_results_input_id_fkey FOREIGN KEY (input_id) REFERENCES synth_meta.diary_inputs(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.history_events
-    ADD CONSTRAINT history_events_scene_context_fkey FOREIGN KEY (session_id, generation, scene_context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT history_events_scene_context_fkey FOREIGN KEY (session_id, generation, scene_context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.history_events
-    ADD CONSTRAINT history_events_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT history_events_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.history_events
     ADD CONSTRAINT history_events_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
@@ -5171,13 +5171,13 @@ ALTER TABLE ONLY synth_meta.memory_batches
     ADD CONSTRAINT memory_batches_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_batches
-    ADD CONSTRAINT memory_batches_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT memory_batches_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_summaries
     ADD CONSTRAINT memory_summaries_batch_id_fkey FOREIGN KEY (batch_id) REFERENCES synth_meta.memory_batches(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_summaries
-    ADD CONSTRAINT memory_summaries_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.worker_jobs(id);
+    ADD CONSTRAINT memory_summaries_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.core_worker_job(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_summary_revisions
     ADD CONSTRAINT memory_summary_revisions_summary_id_fkey FOREIGN KEY (summary_id) REFERENCES synth_meta.memory_summaries(id);
@@ -5201,7 +5201,7 @@ ALTER TABLE ONLY synth_meta.middleterm_inputs
     ADD CONSTRAINT middleterm_inputs_regeneration_approval_id_fkey FOREIGN KEY (regeneration_approval_id) REFERENCES synth_meta.middleterm_regeneration_approvals(history_event_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_inputs
-    ADD CONSTRAINT middleterm_inputs_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id);
+    ADD CONSTRAINT middleterm_inputs_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_regeneration_approvals
     ADD CONSTRAINT middleterm_regeneration_approvals_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
@@ -5213,7 +5213,7 @@ ALTER TABLE ONLY synth_meta.middleterm_regeneration_approvals
     ADD CONSTRAINT middleterm_regeneration_approvals_narrative_id_fkey FOREIGN KEY (narrative_id) REFERENCES synth_meta.middleterm_results(history_event_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_regeneration_approvals
-    ADD CONSTRAINT middleterm_regeneration_approvals_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id);
+    ADD CONSTRAINT middleterm_regeneration_approvals_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_replacements
     ADD CONSTRAINT middleterm_replacements_approval_id_fkey FOREIGN KEY (approval_id) REFERENCES synth_meta.middleterm_regeneration_approvals(history_event_id);
@@ -5222,7 +5222,7 @@ ALTER TABLE ONLY synth_meta.middleterm_replacements
     ADD CONSTRAINT middleterm_replacements_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.middleterm_results(history_event_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_replacements
-    ADD CONSTRAINT middleterm_replacements_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id);
+    ADD CONSTRAINT middleterm_replacements_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.middleterm_replacements
     ADD CONSTRAINT middleterm_replacements_target_history_event_id_fkey FOREIGN KEY (target_history_event_id) REFERENCES synth_meta.middleterm_results(history_event_id);
@@ -5240,7 +5240,7 @@ ALTER TABLE ONLY synth_meta.middleterm_sources
     ADD CONSTRAINT middleterm_sources_summary_id_fkey FOREIGN KEY (summary_id) REFERENCES synth_meta.memory_summaries(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.narrator_context_states
-    ADD CONSTRAINT narrator_context_states_session_id_generation_snapshot_seq_fkey FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence) ON DELETE CASCADE;
+    ADD CONSTRAINT narrator_context_states_session_id_generation_snapshot_seq_fkey FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence) ON DELETE CASCADE;
 -- end-statement
 ALTER TABLE ONLY synth_meta.narrator_context_states
     ADD CONSTRAINT narrator_context_states_state_id_fkey FOREIGN KEY (state_id) REFERENCES synth_meta.narrator_states(state_id);
@@ -5252,7 +5252,7 @@ ALTER TABLE ONLY synth_meta.narrator_definition_revisions
     ADD CONSTRAINT narrator_definition_revisions_prior_revision_id_fkey FOREIGN KEY (prior_revision_id) REFERENCES synth_meta.narrator_definition_revisions(revision_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.narrator_lane_heads
-    ADD CONSTRAINT narrator_lane_heads_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+    ADD CONSTRAINT narrator_lane_heads_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
 ALTER TABLE ONLY synth_meta.narrator_lane_heads
     ADD CONSTRAINT narrator_lane_heads_state_id_fkey FOREIGN KEY (state_id) REFERENCES synth_meta.narrator_states(state_id);
@@ -5300,7 +5300,7 @@ ALTER TABLE ONLY synth_meta.profile_job_fields
     ADD CONSTRAINT profile_job_fields_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.profile_job_inputs(job_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.profile_job_inputs
-    ADD CONSTRAINT profile_job_inputs_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.worker_jobs(id);
+    ADD CONSTRAINT profile_job_inputs_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.core_worker_job(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.profile_revisions
     ADD CONSTRAINT profile_revisions_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
@@ -5312,40 +5312,40 @@ ALTER TABLE ONLY synth_meta.profile_revisions
     ADD CONSTRAINT profile_revisions_prior_history_event_id_fkey FOREIGN KEY (prior_history_event_id) REFERENCES synth_meta.profile_revisions(history_event_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.profile_revisions
-    ADD CONSTRAINT profile_revisions_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT profile_revisions_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.profile_revisions
     ADD CONSTRAINT profile_revisions_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.protocol_events
-    ADD CONSTRAINT protocol_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_protocol_event
+    ADD CONSTRAINT protocol_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.protocol_events
+ALTER TABLE ONLY public.core_protocol_event
     ADD CONSTRAINT protocol_events_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains
-    ADD CONSTRAINT rechat_chains_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+ALTER TABLE ONLY public.core_rechat_chain
+    ADD CONSTRAINT rechat_chains_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_chains
+ALTER TABLE ONLY public.core_rechat_chain
     ADD CONSTRAINT rechat_chains_session_id_root_request_id_fkey FOREIGN KEY (session_id, root_request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
-    ADD CONSTRAINT rechat_continuations_chain_id_session_id_fkey FOREIGN KEY (chain_id, session_id) REFERENCES synth_meta.rechat_chains(id, session_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_rechat_continuation
+    ADD CONSTRAINT rechat_continuations_chain_id_session_id_fkey FOREIGN KEY (chain_id, session_id) REFERENCES public.core_rechat_chain(id, session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
+ALTER TABLE ONLY public.core_rechat_continuation
     ADD CONSTRAINT rechat_continuations_session_id_parent_request_id_fkey FOREIGN KEY (session_id, parent_request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_continuations
+ALTER TABLE ONLY public.core_rechat_continuation
     ADD CONSTRAINT rechat_continuations_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_selections
+ALTER TABLE ONLY public.core_rechat_selection
     ADD CONSTRAINT rechat_selections_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.rechat_selections
-    ADD CONSTRAINT rechat_selections_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.rechat_continuations(session_id, request_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.core_rechat_selection
+    ADD CONSTRAINT rechat_selections_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES public.core_rechat_continuation(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_actor_control_events
-    ADD CONSTRAINT relationship_actor_control_ev_session_id_generation_contex_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT relationship_actor_control_ev_session_id_generation_contex_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_actor_control_events
     ADD CONSTRAINT relationship_actor_control_events_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
@@ -5369,7 +5369,7 @@ ALTER TABLE ONLY synth_meta.relationship_evaluations
     ADD CONSTRAINT relationship_evaluations_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_interaction_evaluations
-    ADD CONSTRAINT relationship_interaction_eval_session_id_generation_contex_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT relationship_interaction_eval_session_id_generation_contex_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_interaction_evaluations
     ADD CONSTRAINT relationship_interaction_evaluat_response_history_event_id_fkey FOREIGN KEY (response_history_event_id) REFERENCES synth_meta.relationship_response_inputs(history_event_id);
@@ -5408,7 +5408,7 @@ ALTER TABLE ONLY synth_meta.relationship_interaction_results
     ADD CONSTRAINT relationship_interaction_results_interaction_id_fkey FOREIGN KEY (interaction_id) REFERENCES synth_meta.relationship_interaction_evaluations(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_interaction_results
-    ADD CONSTRAINT relationship_interaction_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.worker_jobs(id);
+    ADD CONSTRAINT relationship_interaction_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.core_worker_job(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_response_inputs
     ADD CONSTRAINT relationship_response_inputs_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
@@ -5438,7 +5438,7 @@ ALTER TABLE ONLY synth_meta.relationship_results
     ADD CONSTRAINT relationship_results_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_results
-    ADD CONSTRAINT relationship_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES synth_meta.worker_jobs(id);
+    ADD CONSTRAINT relationship_results_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.core_worker_job(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.relationship_revision_sources
     ADD CONSTRAINT relationship_revision_sources_relationship_history_event_i_fkey FOREIGN KEY (relationship_history_event_id) REFERENCES synth_meta.relationship_revisions(history_event_id);
@@ -5465,39 +5465,39 @@ ALTER TABLE ONLY synth_meta.relationship_revisions
     ADD CONSTRAINT relationship_revisions_subject_identity_id_fkey FOREIGN KEY (subject_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.request_executions
-    ADD CONSTRAINT request_executions_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE CASCADE;
+    ADD CONSTRAINT request_executions_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.response_routes
-    ADD CONSTRAINT response_routes_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+ALTER TABLE ONLY public.core_dialogue_route
+    ADD CONSTRAINT response_routes_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.response_routes
+ALTER TABLE ONLY public.core_dialogue_route
     ADD CONSTRAINT response_routes_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id) ON DELETE CASCADE;
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_claims
-    ADD CONSTRAINT social_task_claims_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id);
+ALTER TABLE ONLY public.core_social_task_claim
+    ADD CONSTRAINT social_task_claims_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_claims
-    ADD CONSTRAINT social_task_claims_task_id_fkey FOREIGN KEY (task_id) REFERENCES synth_meta.social_task_inputs(task_id);
+ALTER TABLE ONLY public.core_social_task_claim
+    ADD CONSTRAINT social_task_claims_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.core_social_task_input(task_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_events
+ALTER TABLE ONLY public.core_social_task_event
     ADD CONSTRAINT social_task_events_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_events
-    ADD CONSTRAINT social_task_events_prior_revision_fkey FOREIGN KEY (prior_revision) REFERENCES synth_meta.social_task_events(history_event_id);
+ALTER TABLE ONLY public.core_social_task_event
+    ADD CONSTRAINT social_task_events_prior_revision_fkey FOREIGN KEY (prior_revision) REFERENCES public.core_social_task_event(history_event_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_events
-    ADD CONSTRAINT social_task_events_task_id_fkey FOREIGN KEY (task_id) REFERENCES synth_meta.social_task_inputs(task_id);
+ALTER TABLE ONLY public.core_social_task_event
+    ADD CONSTRAINT social_task_events_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.core_social_task_input(task_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_performer_identity_id_fkey FOREIGN KEY (performer_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_player_identity_id_fkey FOREIGN KEY (player_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.social_task_inputs
+ALTER TABLE ONLY public.core_social_task_input
     ADD CONSTRAINT social_task_inputs_recipient_identity_id_fkey FOREIGN KEY (recipient_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
 ALTER TABLE ONLY public.core_visual_description_revision
@@ -5516,29 +5516,29 @@ ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
 ALTER TABLE ONLY public.core_visual_result
-    ADD CONSTRAINT visual_results_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
+    ADD CONSTRAINT visual_results_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES public.core_runtime_context(session_id, generation, snapshot_sequence);
 -- end-statement
 ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_diary_input_id_fkey FOREIGN KEY (diary_input_id) REFERENCES synth_meta.diary_inputs(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_memory_batch_id_fkey FOREIGN KEY (memory_batch_id) REFERENCES synth_meta.memory_batches(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_middleterm_input_id_fkey FOREIGN KEY (middleterm_input_id) REFERENCES synth_meta.middleterm_inputs(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_relationship_evaluation_id_fkey FOREIGN KEY (relationship_evaluation_id) REFERENCES synth_meta.relationship_evaluations(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
+ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_relationship_interaction_id_fkey FOREIGN KEY (relationship_interaction_id) REFERENCES synth_meta.relationship_interaction_evaluations(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.worker_jobs
-    ADD CONSTRAINT worker_jobs_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id);
+ALTER TABLE ONLY public.core_worker_job
+    ADD CONSTRAINT worker_jobs_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
 -- end-statement

@@ -48,9 +48,9 @@ function synth_diary_automation_available($db,array $event,array $binding,string
 {
     if (!$policy['enabled']) return false;
     if ($event['payload']['reason']==='manual') return true;
-    $pending=$db->fetchOne("SELECT 1 FROM synth_meta.diary_inputs i JOIN synth_meta.worker_jobs j ON j.diary_input_id=i.id
+    $pending=$db->fetchOne("SELECT 1 FROM synth_meta.diary_inputs i JOIN public.core_worker_job j ON j.diary_input_id=i.id
         LEFT JOIN synth_meta.diary_results r ON r.input_id=i.id
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
+        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
         WHERE i.session_id=".$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
         .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.intval($binding['actor_identity_id'])
         ." AND i.diary_role='$role' AND ((j.state IN ('pending','running') AND j.deadline_at>clock_timestamp()
@@ -156,13 +156,13 @@ function synth_diary_enqueue_character($db, ?array $identity, string $role): ?in
             'player'=>synth_diary_prepare_player($db), default=>throw new LogicException('Invalid diary admission role.')
         };
         if ($inputId===null) return null;
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
+        $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
             (job_type,session_id,request_id,turn_id,generation,actor_identity_id,diary_input_id,payload,deadline_at)
             SELECT 'diary',session_id,request_id,$2,generation,actor_identity_id,id,
                 jsonb_build_object('schema','synth.diary.job.v1','context_sequence',context_sequence),clock_timestamp()+INTERVAL '30 minutes'
             FROM synth_meta.diary_inputs WHERE id=$1 ON CONFLICT DO NOTHING",[$inputId,$event['turn_id']]);
         if (!$result) throw new RuntimeException('Unable to admit diary job.');
-        return intval($db->fetchOne('SELECT id FROM synth_meta.worker_jobs WHERE diary_input_id='.$inputId)['id']);
+        return intval($db->fetchOne('SELECT id FROM public.core_worker_job WHERE diary_input_id='.$inputId)['id']);
     },2000);
 }
 
@@ -245,7 +245,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary worker requires an idle database connection.');
     $job=$db->fetchOne("SELECT j.*,i.input_payload,i.input_sha256,i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid
-        FROM synth_meta.worker_jobs j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
+        FROM public.core_worker_job j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
         WHERE j.id=".intval($jobId)." AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')");
     if (!$job) return false;
     if ($job['valid']!=='t') throw new LogicException('Frozen diary input hash mismatch.');
@@ -261,11 +261,11 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             if (synth_protocol_canonical_json($binding)!==synth_protocol_canonical_json($input['binding'])) throw new LogicException('Diary job binding changed.');
             synth_diary_lock_binding($db,$binding);
             if (!@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtext($1))',['synth.diary.actor:'.$job['actor_identity_id']])) throw new RuntimeException('Unable to lock diary actor.');
-            $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='running',attempts=attempts+1,lease_token=$2,
+            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=$2,
                 lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
                 WHERE j.id=$1 AND attempts<3 AND deadline_at>clock_timestamp() AND available_at<=clock_timestamp()
                     AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs other WHERE other.id<>j.id AND other.job_type='diary'
+                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job other WHERE other.id<>j.id AND other.job_type='diary'
                         AND other.actor_identity_id=j.actor_identity_id AND other.state='running'
                         AND other.lease_until>clock_timestamp() AND other.deadline_at>clock_timestamp()) RETURNING lease_token",[$jobId,bin2hex(random_bytes(16))]);
             if (!$result) throw new RuntimeException('Unable to claim diary job.');
@@ -317,7 +317,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
                                 AND (c.embedding_text_sha256 IS NULL OR c.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex'))))
                     RETURNING r.history_event_id",[$revision,$jobId,$job['diary_input_id']]);
                 if (!$attached || pg_num_rows($attached)!==1) throw new RuntimeException('Unable to publish diary embedding.');
-                if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',last_error=NULL,
+                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',last_error=NULL,
                     lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to complete diary job.');
             },2000);
             return true;
@@ -325,7 +325,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             unset($GLOBALS['SYNTH_DIARY_JOB_LEASE']);
             $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof LengthException;
-                if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state=CASE WHEN $3::boolean OR attempts>=3 OR deadline_at<=clock_timestamp()
+                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN $3::boolean OR attempts>=3 OR deadline_at<=clock_timestamp()
                     THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
                     last_error=$4,updated_at=clock_timestamp() WHERE id=$1 AND state='running' AND lease_token=$2",
                     [$jobId,$token,$terminal ? 't' : 'f',$terminal ? 'input_or_result_invalid' : 'attempt_failed'])) throw new RuntimeException('Unable to retain diary failure.');
@@ -340,21 +340,21 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
 function synth_diary_dispatch_jobs($db, ?callable $generate=null): int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary dispatch requires an idle database connection.');
-    if ($db->execQuery("UPDATE synth_meta.worker_jobs j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
+    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
         lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM synth_meta.runtime_sessions r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.state IN ('claimed','streaming','complete')))")===false) throw new RuntimeException('Unable to retire diary work.');
-    $jobs=$db->fetchAll("SELECT j.id FROM synth_meta.worker_jobs j JOIN synth_meta.request_executions e
+    $jobs=$db->fetchAll("SELECT j.id FROM public.core_worker_job j JOIN synth_meta.request_executions e
         ON e.session_id=j.session_id AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'
         WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.available_at<=clock_timestamp()
             AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp())) ORDER BY j.available_at,j.id LIMIT 5");
     $done=0;
     foreach ($jobs as $job) try { if (synth_diary_run_job($db,intval($job['id']),$generate)) ++$done; }
     catch (Throwable $error) {
-        if ($error instanceof LogicException) $db->execQuery("UPDATE synth_meta.worker_jobs SET state='failed',last_error='input_or_owner_invalid',
+        if ($error instanceof LogicException) $db->execQuery("UPDATE public.core_worker_job SET state='failed',last_error='input_or_owner_invalid',
             lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=".intval($job['id'])."
             AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
         Logger::warn('Native diary job unavailable; durable diagnostic retained.');

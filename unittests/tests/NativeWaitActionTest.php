@@ -17,7 +17,7 @@ final class NativeWaitFixtureDatabase extends sql
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
             synth_protocol_assert_request_active();
             $canonical=synth_protocol_canonical_json($event);
-            $result=$this->execQuery('SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
             if (!pg_fetch_assoc($result)) throw new LogicException('wait_fixture_canonical_owner_changed');
@@ -61,12 +61,12 @@ final class NativeWaitActionTest extends DatabaseTestCase
             'client_version'=>'fixture','runtime_version'=>'fixture','capabilities'=>['dialogue.turn_ownership','action.wait_here','action.release_wait'],
             'payload'=>['text'=>'wait here']];
         $caps=json_encode($this->event['capabilities'],JSON_THROW_ON_ERROR);
-        $this->database->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,
+        $this->database->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,
             runtime_version,active_generation,capabilities,state,active_turn_id,active_turn_sequence)
             VALUES('wait-session','wait-fixture','fo4','flat','fixture','fixture',1,$1::jsonb,'active','wait-turn',1)",[$caps]);
         $payload=['playthrough_id'=>'wait-fixture','snapshot_sequence'=>1,'player'=>$this->player,'target'=>$this->actor,
             'audience'=>[$this->actor],'audience_observation'=>'complete','world'=>['location'=>'Synthetic Sanctuary','game_time_ticks'=>1000]];
-        $this->database->execQuery("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,
+        $this->database->execQuery("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,
             player_identity_id,target_identity_id,audience_identity_ids,context_payload)
             VALUES('wait-session',1,1,'wait-fixture',$1,$2,$3::jsonb,$4::jsonb)",[$playerId,$actorId,json_encode([$actorId]),json_encode($payload)]);
         $this->persistOwner();
@@ -91,7 +91,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES('wait-session','wait-request','wait-turn',1,$1,$2,'claimed')
             ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$1,event_type=$2",[$hash,$this->event['type']]);
-        $this->database->execQuery("INSERT INTO synth_meta.protocol_events(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
+        $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
             VALUES('wait-session','wait-request','wait-turn',1,$1,$2::jsonb,$3)
             ON CONFLICT(session_id,request_id) DO UPDATE SET canonical_event=$2::jsonb,event_sha256=$3,event_type=$1",[$this->event['type'],$canonical,$hash]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($this->event);
@@ -192,7 +192,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $this->assertEquals($this->actor, $action['actor']);
         $this->assertSame([], get_object_vars($action['arguments']));
         $this->assertNull(synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'WaitHere']));
-        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
         $this->assertSame($canonical, synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']));
     }
 
@@ -238,7 +238,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
             $this->assertNull(synth_jev_action_policy());
             $this->assertTrue(synth_jev_action_code_allowed('ReleaseWait'));
         }
-        $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 
     public function testJevDoesNotSwallowStopDuringDecision(): void
@@ -254,7 +254,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
                 });
         } finally {
             $this->assertNull(synth_jev_action_policy());
-            $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+            $this->assertSame('0', $this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
         }
     }
 
@@ -299,7 +299,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $action = synth_protocol_action_from_legacy_line(['speaker'=>'Codsworth','command_name'=>'Follow','target'=>'Nora']);
         $this->assertSame('follow', $action['name']);
         $this->assertEquals($this->player, $action['target']);
-        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('1', $this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 
     public function testJevSettingsPersistAndDedicatedConnectorDoesNotMutateDialogueConfiguration(): void
@@ -339,7 +339,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $this->assertNotNull($action);$this->assertEquals($this->actor,$action['actor']);
         $this->assertInstanceOf(stdClass::class,$action['arguments']);$this->assertSame([],get_object_vars($action['arguments']));
         $this->assertArrayNotHasKey('target',$action);
-        $row=$this->database->fetchOne('SELECT action_name,state,target_identity_id,arguments::text FROM synth_meta.action_intents');
+        $row=$this->database->fetchOne('SELECT action_name,state,target_identity_id,arguments::text FROM public.core_action_intent');
         $this->assertSame($code,$row['action_name']);$this->assertSame('pending',$row['state']);
         $this->assertNull($row['target_identity_id']);$this->assertSame('{}',$row['arguments']);
     }
@@ -390,9 +390,9 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $this->assertEquals($this->actor,$action['actor']);$this->assertSame([],$action['arguments']);
         $this->assertArrayNotHasKey('target',$action);
         $this->assertSame('wait-request',$lines[1]['request_id']);$this->assertSame('wait-turn',$lines[1]['turn_id']);
-        $row=$this->database->fetchOne('SELECT action_name,actor_identity_id,target_identity_id,arguments::text FROM synth_meta.action_intents');
+        $row=$this->database->fetchOne('SELECT action_name,actor_identity_id,target_identity_id,arguments::text FROM public.core_action_intent');
         $this->assertSame($code,$row['action_name']);$this->assertNull($row['target_identity_id']);$this->assertSame('{}',$row['arguments']);
-        $this->assertSame('1',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('1',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
         $this->assertSame($canonical,synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json']));
     }
 
@@ -412,7 +412,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
                 $this->assertSame([],$commands);$this->assertSame([],$sent);
             }
         }
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 
     public function testExplicitDisabledOrConfiguredReleaseRowWinsOverFallback(): void
@@ -428,7 +428,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
     public function testWaitCommandNeverDropsNonemptyOrConflictingModelArguments(array $extra): void
     {
         $this->assertNull(synth_protocol_action_from_legacy_line(array_replace(['speaker'=>'Codsworth','command_name'=>'WaitHere'],$extra)));
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 
     public static function invalidWaitLineProvider(): array
@@ -460,7 +460,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
             try {synth_protocol_record_action_intent($this->database,$intent);$this->fail('Foreign wait actor was accepted');}
             catch (DomainException $error) {$this->assertSame('wait_actor_not_owned',$error->getMessage());}
         }
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 
     public function testDirectIntentRetainsCancellationAndCanonicalOwnershipChecks(): void
@@ -480,6 +480,6 @@ final class NativeWaitActionTest extends DatabaseTestCase
         $GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['text']='A different input';
         try {synth_protocol_record_action_intent($this->database,$this->intent());$this->fail('Changed canonical input emitted an action');}
         catch (LogicException $error) {$this->assertSame('wait_fixture_canonical_owner_changed',$error->getMessage());}
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 }

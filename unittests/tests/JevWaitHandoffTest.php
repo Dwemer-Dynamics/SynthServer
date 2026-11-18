@@ -106,7 +106,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
         $this->assertSame('complete',$rows[0]['state']);$this->assertSame($body,synth_protocol_decode_bytea($rows[0]['response_body']));return $lines;
     }
     private function intents(array $event): array {
-        return $this->query('SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id FROM synth_meta.action_intents i JOIN synth.actor_identities a ON a.id=i.actor_identity_id WHERE i.session_id=$1 AND i.request_id=$2',[$event['session_id'],$event['request_id']]);
+        return $this->query('SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id FROM public.core_action_intent i JOIN synth.actor_identities a ON a.id=i.actor_identity_id WHERE i.session_id=$1 AND i.request_id=$2',[$event['session_id'],$event['request_id']]);
     }
 
     #[PHPUnit\Framework\Attributes\DataProvider('handoffCases')]
@@ -185,7 +185,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
     }
     public function testAgedContextCannotAuthorizeDirectFollowerExecution(): void {
         $this->init();$this->context();
-        $this->query("UPDATE synth_meta.context_snapshots SET received_at=clock_timestamp()-INTERVAL '6 seconds' WHERE session_id='jev-wait-http'");
+        $this->query("UPDATE public.core_runtime_context SET received_at=clock_timestamp()-INTERVAL '6 seconds' WHERE session_id='jev-wait-http'");
         $event=$this->input();$this->assertCompleteStored($event,$this->http($event));$this->assertSame([],$this->intents($event));
         $this->assertSame(1,$this->calls('JEV_FIXTURE_LLM_FALLBACK'));
     }

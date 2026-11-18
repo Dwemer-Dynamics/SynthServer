@@ -196,7 +196,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         return $rows[0];
     }
     private function canonical(string $session,string $requestId): array {
-        $rows=$this->query('SELECT canonical_event FROM synth_meta.protocol_events WHERE session_id=$1 AND request_id=$2',[$session,$requestId]);
+        $rows=$this->query('SELECT canonical_event FROM public.core_protocol_event WHERE session_id=$1 AND request_id=$2',[$session,$requestId]);
         $this->assertCount(1,$rows,"canonical $requestId");
         return json_decode($rows[0]['canonical_event'],true,64,JSON_THROW_ON_ERROR);
     }
@@ -207,8 +207,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     // client's saved ancestry. So the capability is widened for this one request only and the exact set is restored.
     private function refresh(string $session,int $sequence): array {
         $runtime=$this->query('SELECT capabilities::text AS capabilities,active_generation,runtime_variant,client_version,runtime_version
-            FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session])[0];
-        $target=$this->query("SELECT context_payload->'target' AS target FROM synth_meta.context_snapshots
+            FROM public.core_runtime_session WHERE session_id=$1',[$session])[0];
+        $target=$this->query("SELECT context_payload->'target' AS target FROM public.core_runtime_context
             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3",[$session,$runtime['active_generation'],$sequence]);
         $this->assertCount(1,$target,"snapshot $session/$sequence");
         $declared=json_decode($runtime['capabilities'],true,8,JSON_THROW_ON_ERROR);
@@ -219,16 +219,16 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             'turn_id'=>$id,'generation'=>intval($runtime['active_generation']),'game'=>'fo4','runtime_variant'=>$runtime['runtime_variant'],
             'client_version'=>$runtime['client_version'],'runtime_version'=>$runtime['runtime_version'],'capabilities'=>$capabilities,
             'payload'=>['actors'=>[json_decode($target[0]['target'],true)],'include_narrator'=>false],'context_sequence'=>$sequence];
-        $this->query('UPDATE synth_meta.runtime_sessions SET capabilities=$2::jsonb WHERE session_id=$1',[$session,json_encode($capabilities)]);
+        $this->query('UPDATE public.core_runtime_session SET capabilities=$2::jsonb WHERE session_id=$1',[$session,json_encode($capabilities)]);
         try {
             $body=file_get_contents('http://'.$this->sideAddress.'/main.php',false,stream_context_create(['http'=>['method'=>'POST',
                 'ignore_errors'=>true,'timeout'=>10,'header'=>"Content-Type: application/json\r\nAccept: application/x-ndjson",
                 'content'=>json_encode($event,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)]]));
         } finally {
-            $this->query('UPDATE synth_meta.runtime_sessions SET capabilities=$2::jsonb WHERE session_id=$1',[$session,$runtime['capabilities']]);
+            $this->query('UPDATE public.core_runtime_session SET capabilities=$2::jsonb WHERE session_id=$1',[$session,$runtime['capabilities']]);
         }
         $this->assertSame([['capabilities'=>$runtime['capabilities']]],$this->query('SELECT capabilities::text AS capabilities
-            FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session]),'declared capabilities restored');
+            FROM public.core_runtime_session WHERE session_id=$1',[$session]),'declared capabilities restored');
         $this->assertIsString($body,$this->tail());
         $state=$this->query('SELECT state FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$session,$id]);
         $this->assertSame([['state'=>'complete']],$state,$body.$this->tail());
@@ -259,7 +259,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         file_put_contents($this->llmDir.'/profile_prefix',$prefix);
         $this->runPhp(['-d','disable_functions=pcntl_fork','service/manager.php','dynamicprofile'],'profile_worker');
         $diagnostic=strval(file_get_contents($this->llmDir.'/profile_worker.out')).json_encode($this->query("SELECT state,attempts,last_error
-            FROM synth_meta.worker_jobs WHERE job_type='profile' AND session_id=$1 AND request_id=$2",[$refresh['session_id'],$refresh['request_id']]));
+            FROM public.core_worker_job WHERE job_type='profile' AND session_id=$1 AND request_id=$2",[$refresh['session_id'],$refresh['request_id']]));
         $rows=$this->query('SELECT history_event_id,prior_history_event_id,actor_identity_id,profile_role,context_sequence,result_fields
             FROM synth_meta.profile_revisions WHERE session_id=$1 AND request_id=$2',[$refresh['session_id'],$refresh['request_id']]);
         $this->assertCount(1,$rows,'one accepted revision '.$diagnostic);
@@ -341,7 +341,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         return is_file($file) ? array_map(static fn($l)=>json_decode($l,true),array_values(array_filter(explode("\n",file_get_contents($file))))) : [];
     }
     private function frontier(array $anchor): int {
-        $rows=$this->query('SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
+        $rows=$this->query('SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$anchor['session_id'],$anchor['generation'],$anchor['context_sequence']]);
         $this->assertCount(1,$rows,'snapshot '.json_encode($anchor));
         return intval($rows[0]['history_event_id']);
@@ -441,7 +441,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
                 WHERE h.session_id=$1 AND e.type='chat' AND strpos(e.data,$2)>0 ORDER BY h.id",[$session,self::TOKEN]);
             $this->report('heard_rows',$heard);
             $this->assertCount(1,$heard,'exactly one heard row after two accepted receipts');
-            $utterance=$this->query('SELECT state,receipt_request_id,request_id FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND line_id=$2',
+            $utterance=$this->query('SELECT state,receipt_request_id,request_id FROM public.core_dialogue_utterance WHERE session_id=$1 AND line_id=$2',
                 [$session,$value['line_id']]);
             $this->report('utterance',$utterance);
             $this->assertCount(1,$utterance);$this->assertSame('spoken',$utterance[0]['state']);
@@ -535,7 +535,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->assertSame('receipt',$name);
             $session=$value['session'];
             $this->assertSame(self::VOICELESS,$value['heard_text'],'the stored reply reached the client unchanged');
-            $utterance=$this->query('SELECT state,receipt_request_id,request_id FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND line_id=$2',
+            $utterance=$this->query('SELECT state,receipt_request_id,request_id FROM public.core_dialogue_utterance WHERE session_id=$1 AND line_id=$2',
                 [$session,$value['line_id']]);
             $this->report('voiceless_utterance',$utterance);
             $this->assertCount(1,$utterance);
@@ -544,7 +544,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $heard=$this->query("SELECT h.id FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
                 WHERE h.session_id=$1 AND e.type='chat' AND strpos(e.data,$2)>0",[$session,'LVT5512']);
             $this->assertCount(1,$heard,'exactly one heard row for the text-only line');
-            $this->assertSame(0,intval($this->query("SELECT count(*) AS n FROM synth_meta.worker_jobs WHERE job_type='tts'")[0]['n']),'no speech job without a connector');
+            $this->assertSame(0,intval($this->query("SELECT count(*) AS n FROM public.core_worker_job WHERE job_type='tts'")[0]['n']),'no speech job without a connector');
             $this->assertSame(1,intval($this->query("SELECT count(*) AS n FROM synth_meta.request_executions WHERE session_id=$1 AND event_type='speech_receipt' AND state='complete'",[$session])[0]['n']));
         });
         $this->assertSame(['context','receipt'],$phases);
@@ -626,10 +626,10 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private function neverClaimed(string $session,string $request,string $label): void {
         $this->assertNotSame('',$request,"$label request id");
         $this->assertSame([],$this->execution($session,$request),"$label was never claimed");
-        $this->assertSame([],$this->query('SELECT id FROM synth_meta.protocol_events WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+        $this->assertSame([],$this->query('SELECT id FROM public.core_protocol_event WHERE session_id=$1 AND request_id=$2',[$session,$request]));
     }
     private function utterances(string $session,?string $request=null): array {
-        return $this->query('SELECT request_id,line_id,generation,context_sequence,speaker_identity_id,text FROM synth_meta.dialogue_utterances
+        return $this->query('SELECT request_id,line_id,generation,context_sequence,speaker_identity_id,text FROM public.core_dialogue_utterance
             WHERE session_id=$1 AND ($2::text IS NULL OR request_id=$2) ORDER BY created_at,request_id',[$session,$request]);
     }
     private function evidenceOf(string $kind): array {
@@ -680,7 +680,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $session=$value['session'];$playthrough=$value['playthrough_id'];
         $this->assertSame([1,strtoupper(self::PIPER),'Piper'],[$value['generation'],strtoupper($value['target_form']),$value['target_name']]);
         $this->completed($session,$value['context_request_id'],'context');
-        $runtime=$this->query('SELECT active_generation,runtime_variant,state,capabilities::text AS capabilities FROM synth_meta.runtime_sessions
+        $runtime=$this->query('SELECT active_generation,runtime_variant,state,capabilities::text AS capabilities FROM public.core_runtime_session
             WHERE session_id=$1',[$session]);
         $this->assertSame(['1','flat','active'],[$runtime[0]['active_generation'],$runtime[0]['runtime_variant'],$runtime[0]['state']]);
         $capabilities=json_decode($runtime[0]['capabilities'],true,8,JSON_THROW_ON_ERROR);
@@ -694,7 +694,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertCount(1,$identity,'Piper identity');
         $this->assertSame('Piper',$identity[0]['display_name']);
         $piper=intval($identity[0]['id']);$key=[strtoupper(self::PIPER),'fallout4.esm',$playthrough];
-        $snapshot=$this->query('SELECT target_identity_id,playthrough_id,context_payload FROM synth_meta.context_snapshots
+        $snapshot=$this->query('SELECT target_identity_id,playthrough_id,context_payload FROM public.core_runtime_context
             WHERE session_id=$1 AND generation=1 AND snapshot_sequence=$2',[$session,intval($value['sequence'])]);
         $this->assertCount(1,$snapshot);
         $this->assertSame([strval($piper),$playthrough],[$snapshot[0]['target_identity_id'],$snapshot[0]['playthrough_id']]);
@@ -727,7 +727,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $activation=$this->canonical($session,$value['activate_request_id']);
         $this->assertSame(['manual',$key],[$activation['payload']['source'] ?? null,self::actorKey($activation['payload']['actor'] ?? null)]);
         $this->assertSame([['generation'=>'1','actor_identity_id'=>strval($piper),'source'=>'manual','state'=>'active']],
-            $this->query('SELECT generation,actor_identity_id,source,state FROM synth_meta.active_agents WHERE session_id=$1',[$session]));
+            $this->query('SELECT generation,actor_identity_id,source,state FROM public.core_actor_activation WHERE session_id=$1',[$session]));
         // The ordinary route created Piper's NPC row, bound to her identity with the default profile.
         $npc=$this->query('SELECT id,npc_name,profile_id FROM synth.core_npc_master WHERE actor_identity_id=$1',[$piper]);
         $this->assertCount(1,$npc,'server-created Piper NPC row '.$this->tail());
@@ -791,11 +791,11 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame([],$this->utterances($session,$value['request_id']),'the legacy route records no native utterance');
         $intents=$this->query('SELECT action_id,idempotency_key,request_id,turn_id,generation,action_name,capability,actor_identity_id,
                 target_identity_id,arguments::text AS arguments,state,deadline_at>created_at AS deadline
-            FROM synth_meta.action_intents WHERE session_id=$1',[$session]);
+            FROM public.core_action_intent WHERE session_id=$1',[$session]);
         $this->assertSame([['action_id'=>$value['action_id'],'idempotency_key'=>$value['idempotency_key'],'request_id'=>$value['request_id'],
             'turn_id'=>$value['turn_id'],'generation'=>'1','action_name'=>'WaitHere','capability'=>'action.wait_here',
             'actor_identity_id'=>strval($piper),'target_identity_id'=>null,'arguments'=>'{}','state'=>'pending','deadline'=>'t']],$intents,$this->tail());
-        $this->assertSame([],$this->query('SELECT action_id FROM synth_meta.action_terminal_results'));
+        $this->assertSame([],$this->query('SELECT action_id FROM public.core_action_result'));
         // The scripted model Wait answer, prompted with the Wait observer's reading of the captured wait_held=false.
         $prompt=$this->scriptedRequest('command',self::COMMAND,true);
         $this->assertStringContainsString(self::WAIT_OBSERVED,$prompt,'the Wait prompt observer consumed the captured state');
@@ -826,9 +826,9 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->neverClaimed($session,$value['conflict_request_id'],'conflicting result');
         // One terminal result, the intent complete, and one unverified Wait consequence: no physical Wait is claimed.
         $this->assertSame([['status'=>'unavailable','reported'=>'unavailable','detail'=>self::SIMULATED]],
-            $this->query("SELECT status,result->>'status' AS reported,result->>'detail' AS detail FROM synth_meta.action_terminal_results
+            $this->query("SELECT status,result->>'status' AS reported,result->>'detail' AS detail FROM public.core_action_result
                 WHERE action_id=$1",[$action['action_id']]));
-        $this->assertSame([['state'=>'complete']],$this->query('SELECT state FROM synth_meta.action_intents WHERE action_id=$1',[$action['action_id']]));
+        $this->assertSame([['state'=>'complete']],$this->query('SELECT state FROM public.core_action_intent WHERE action_id=$1',[$action['action_id']]));
         $consequence=$this->query("SELECT request_id,event_payload#>>'{synth_wait_consequence,verified}' AS verified,
                 event_payload#>>'{synth_wait_consequence,result,status}' AS status,
                 (event_payload->'synth_wait_consequence') ? 'proof' AS proof,event_payload->>'data' AS message
@@ -882,10 +882,10 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame('2',$this->query('SELECT generation FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',
             [$session,$value['reinit_request_id']])[0]['generation']);
         $this->assertSame([['active_generation'=>'2','state'=>'active']],
-            $this->query('SELECT active_generation,state FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session]));
+            $this->query('SELECT active_generation,state FROM public.core_runtime_session WHERE session_id=$1',[$session]));
         // Nothing after the result changed the intent, its one terminal result or the one unverified consequence.
-        $this->assertSame([[$action['action_id'],'complete']],array_map('array_values',$this->query('SELECT action_id,state FROM synth_meta.action_intents')));
-        $this->assertSame([['status'=>'unavailable']],$this->query('SELECT status FROM synth_meta.action_terminal_results'));
+        $this->assertSame([[$action['action_id'],'complete']],array_map('array_values',$this->query('SELECT action_id,state FROM public.core_action_intent')));
+        $this->assertSame([['status'=>'unavailable']],$this->query('SELECT status FROM public.core_action_result'));
         $this->assertSame('1',$this->query("SELECT count(*) AS n FROM synth_meta.history_events WHERE event_payload ? 'synth_wait_consequence'")[0]['n']);
         $this->assertSame([strval($piper),strval($piper)],array_column($this->utterances($session),'speaker_identity_id'),'two native Piper turns');
         // Request accounting: 16 claims; only the cancelled context anchor is not complete.
@@ -895,7 +895,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame([['request_id'=>$value['cancelled_context_request_id'],'state'=>'cancelled']],
             $this->query("SELECT request_id,state FROM synth_meta.request_executions WHERE state<>'complete'"));
         $this->companion['accounting']=['requests'=>$counts,'refused_before_claim'=>3,
-            'active_agents'=>$this->query('SELECT generation,source,state FROM synth_meta.active_agents WHERE session_id=$1',[$session])];
+            'active_agents'=>$this->query('SELECT generation,source,state FROM public.core_actor_activation WHERE session_id=$1',[$session])];
     }
 
     // ---- Auto Chat scenario: an independent run of the same driver with the second argument "autochat" ----
@@ -1038,7 +1038,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             WHERE h.session_id=$1 AND h.request_id=$2 AND e.type LIKE 'inputtext%'",[$session,$request]);
     }
     private function autochatRoutes(string $session,string $request): array {
-        return $this->query('SELECT speaker,listener_state,listener,utterance_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',
+        return $this->query('SELECT speaker,listener_state,listener,utterance_id FROM public.core_dialogue_route WHERE session_id=$1 AND request_id=$2',
             [$session,$request]);
     }
     private function rootEvidence(string $kind,string $key,string $value): array {
@@ -1086,7 +1086,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         } else $event=$this->autochatAudioEvent($value);
         $this->assertArrayNotHasKey('intent',$event['payload']);
         $this->assertSame([['input_text'=>$intent,'execution_mode'=>'AUTOCHAT']],$this->query('SELECT input_text,execution_mode
-            FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+            FROM public.core_dialogue_origin_policy WHERE session_id=$1 AND request_id=$2',[$session,$request]));
         [$rewrite,$npc]=$this->autochatCalls();
         $this->assertCount(1,$rewrite,'exactly one rewrite call');
         $this->assertCount(1,$npc,'exactly one NPC call');
@@ -1212,7 +1212,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->autochatTranscribed($this->autochatUpload($value,'voice_empty'));
             $this->autochatAudioEvent($value);
             $this->assertSame([['input_text'=>self::AUTOCHAT_REFUSED_TRANSCRIPT,'execution_mode'=>'AUTOCHAT']],$this->query('SELECT input_text,execution_mode
-                FROM synth_meta.dialogue_origin_policies WHERE session_id=$1 AND request_id=$2',[$session,$request]));
+                FROM public.core_dialogue_origin_policy WHERE session_id=$1 AND request_id=$2',[$session,$request]));
         } else $this->assertSame($value['intent'],$this->canonical($session,$request)['payload']['text']);
         $detail=['voice_empty'=>'provider_output_empty','empty'=>'provider_output_empty','incomplete'=>'provider_output_incomplete','provider'=>'provider_failed',
             'oversized'=>'provider_output_oversized'][$case];
@@ -1345,11 +1345,11 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             'conv_reset','conv_held','conv_cancelled','conv_after_cancel','conv_old_client','conv_old_followup'],$phases);
         // Exactly three conversations for the capable session (A,B,C,D,E share one; the cell change and the cancel each started one).
         $session=$this->conv['session'];
-        $ids=array_column($this->query("SELECT DISTINCT canonical_event#>>'{payload,conversation_id}' AS id FROM synth_meta.protocol_events
+        $ids=array_column($this->query("SELECT DISTINCT canonical_event#>>'{payload,conversation_id}' AS id FROM public.core_protocol_event
             WHERE session_id=$1 AND event_type IN ('input_text','input_audio','trigger') AND canonical_event#>>'{payload,conversation_id}' IS NOT NULL",[$session]),'id');
         sort($ids);$expected=[$this->conv['a'],$this->conv['f'],$this->conv['g']];sort($expected);
         $this->assertSame($expected,$ids,'one conversation id per conversation');
-        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM synth_meta.protocol_events WHERE session_id=$1
+        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM public.core_protocol_event WHERE session_id=$1
             AND canonical_event#>>'{payload,conversation_id}' IS NOT NULL",[$this->conv['old']])[0]['n'],'the older client never sent a conversation id');
         $this->report('conversation',$this->conv);
     }
@@ -1397,7 +1397,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertTrue($value['conversation_ready'],'the init acknowledged dialogue.conversation');
         $session=$value['session'];
         $this->completed($session,$value['context_request_id'],'context');
-        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session])[0]['c'],true);
+        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM public.core_runtime_session WHERE session_id=$1',[$session])[0]['c'],true);
         foreach (['dialogue.conversation','dialogue.delivery_receipts','dialogue.turn_ownership','dialogue.native_turn'] as $capability) $this->assertContains($capability,$capabilities);
         $this->conv=['session'=>$session,'playthrough'=>$value['playthrough_id'],'profile'=>$this->seedCompanionProfile(),'texts'=>[]];
         $this->script($this->ordinaryReply('Turn A line CVA100.'));
@@ -1416,7 +1416,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame($value['conversation_id'],$event['payload']['conversation_id'] ?? null,"$name stored its conversation id");
         $this->assertContains('dialogue.conversation',$event['capabilities']);
         $this->assertSame($native,($event['payload']['intent'] ?? null)==='conversation');
-        $utterances=$this->query("SELECT line_id,state FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND request_id=$2 AND line_id=$3",
+        $utterances=$this->query("SELECT line_id,state FROM public.core_dialogue_utterance WHERE session_id=$1 AND request_id=$2 AND line_id=$3",
             [$session,$value['request_id'],$value['line_id']]);
         $this->assertSame([['line_id'=>$value['line_id'],'state'=>'generated']],$utterances,"$name line is generated, not yet heard");
         $this->convPrompt($name,$native ? 'Diamond City' : ($key==='a' ? 'settlement' : 'Minutemen'),!$native);
@@ -1431,7 +1431,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     // like a failed line (its receipt event keeps the distinct outcome) and never in context.
     private function convReceipts(array $value): void {
         $session=$this->conv['session'];
-        $states=$this->query("SELECT request_id,state,receipt_request_id FROM synth_meta.dialogue_utterances WHERE session_id=$1 ORDER BY created_at",[$session]);
+        $states=$this->query("SELECT request_id,state,receipt_request_id FROM public.core_dialogue_utterance WHERE session_id=$1 ORDER BY created_at",[$session]);
         $byRequest=array_column($states,null,'request_id');
         $this->assertSame('spoken',$byRequest[$this->conv['lines']['a']['request']]['state']);
         $this->assertSame('interrupted',$byRequest[$this->conv['lines']['b']['request']]['state']);
@@ -1513,7 +1513,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame([],$this->utterances($session,$held),'a revoked request enrols no line');
         // The legacy stream may still record its route before its next liveness check; the line is never enrolled, so it
         // can never be receipted or heard, and the client had already abandoned the response.
-        $routes=count($this->query('SELECT line_id FROM synth_meta.response_routes WHERE session_id=$1 AND request_id=$2',[$session,$held]));
+        $routes=count($this->query('SELECT line_id FROM public.core_dialogue_route WHERE session_id=$1 AND request_id=$2',[$session,$held]));
         $this->assertStringNotContainsString('CVL700',implode("\n",array_column($this->query("SELECT e.data FROM synth.eventlog e WHERE e.data LIKE '%CVL700%'"),'data')),'nothing late reached history');
         $this->conv['cancel']=['request'=>$value['cancel_request_id'],'revoked_at_ack'=>$atAck,'final'=>$final,'late_routes'=>$routes,'provider_release_read'=>$released];
         $this->newProviderRequests();
@@ -1535,14 +1535,14 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private function convOldClient(array $value): void {
         $session=$value['session'];
         $this->conv['old']=$session;
-        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM synth_meta.runtime_sessions WHERE session_id=$1',[$session])[0]['c'],true);
+        $capabilities=json_decode($this->query('SELECT capabilities::text AS c FROM public.core_runtime_session WHERE session_id=$1',[$session])[0]['c'],true);
         $this->assertNotContains('dialogue.conversation',$capabilities);
         $this->assertContains('dialogue.delivery_receipts',$capabilities);
         $a=$value['a'];
         $this->assertSame('',$a['conversation_id']);
         $this->assertArrayNotHasKey('conversation_id',$this->canonical($session,$a['request_id'])['payload']);
         $this->assertSame([['line_id'=>$a['line_id'],'state'=>'interrupted']],
-            $this->query('SELECT line_id,state FROM synth_meta.dialogue_utterances WHERE session_id=$1 AND request_id=$2',[$session,$a['request_id']]));
+            $this->query('SELECT line_id,state FROM public.core_dialogue_utterance WHERE session_id=$1 AND request_id=$2',[$session,$a['request_id']]));
         $this->assertSame([],$this->convHistory($session),'released behaviour: an interrupted line never enters history for an older client');
         $this->newProviderRequests();
         $this->script($this->ordinaryReply('Old B line CVO901.'));

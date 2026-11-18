@@ -37,7 +37,7 @@ function synth_profile_enqueue_batch($db, string $queueId, array $queue): void
                 synth_profile_assert_write_target($db,$name);
                 $binding=$queue['native_bindings'][$name];
                 $narrator=$name==='The Narrator';
-                $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM synth_meta.context_snapshots WHERE session_id='
+                $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='
                     .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation'])
                     .' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
                     : $queue['native_bindings'][$name]['actor_identity_id'];
@@ -47,7 +47,7 @@ function synth_profile_enqueue_batch($db, string $queueId, array $queue): void
                 $payload=['schema'=>'synth.profile.job.v1','context_sequence'=>$event['context_sequence'],
                     'profile_role'=>$narrator ? 'narrator' : 'npc','native_owner'=>$event,'npcs'=>[$label],
                     'native_bindings'=>[$label=>$binding],'gameRequest'=>$queue['gameRequest']];
-                $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
+                $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
                     (job_type,session_id,request_id,turn_id,generation,actor_identity_id,payload,deadline_at)
                     VALUES('profile',$1,$2,$3,$4,$5,$6::jsonb,clock_timestamp()+INTERVAL '30 minutes')
                     ON CONFLICT DO NOTHING",[$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
@@ -108,7 +108,7 @@ function synth_profile_generate_field($db, array $input, string $field): string
 function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callable $generate=null): bool
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile worker requires an idle database connection.');
-    $job=$db->fetchOne("SELECT * FROM synth_meta.worker_jobs WHERE id=".intval($jobId)
+    $job=$db->fetchOne("SELECT * FROM public.core_worker_job WHERE id=".intval($jobId)
         ." AND job_type='profile' AND payload->>'schema'='synth.profile.job.v1' AND state IN ('pending','running')");
     if (!$job) return false;
     $queue=json_decode($job['payload'],true,flags:JSON_THROW_ON_ERROR);$done=false;
@@ -119,17 +119,17 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 || $queue['context_sequence']!==$event['context_sequence']) throw new LogicException('Profile job owner mismatch.');
             if (count($queue['npcs'])!==1) throw new LogicException('Profile job requires exactly one actor.');
             $name=$queue['npcs'][0];$narrator=$name==='The Narrator';
-            $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM synth_meta.context_snapshots WHERE session_id='
+            $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='
                 .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation'])
                 .' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
                 : $GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['actor_identity_id'];
             if (intval($job['actor_identity_id'])!==$actor || $queue['profile_role']!==($narrator ? 'narrator' : 'npc')) throw new LogicException('Profile job actor mismatch.');
             if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtext($1))",['synth.profile.actor:'.$job['actor_identity_id']])) throw new RuntimeException('Unable to lock profile actor.');
-            $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='running',attempts=attempts+1,lease_token=$2,
+            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=$2,
                 lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
                 WHERE j.id=$1 AND j.attempts<3 AND j.deadline_at>clock_timestamp() AND j.available_at<=clock_timestamp()
                     AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs other WHERE other.id<>j.id AND other.job_type='profile'
+                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job other WHERE other.id<>j.id AND other.job_type='profile'
                         AND other.payload->>'schema'='synth.profile.job.v1' AND other.actor_identity_id=j.actor_identity_id
                         AND other.state='running' AND other.lease_until>clock_timestamp() AND other.deadline_at>clock_timestamp())
                 RETURNING lease_token",[$jobId,bin2hex(random_bytes(16))]);
@@ -148,7 +148,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 : ($prepare ? $prepare($name,$queue['gameRequest']) : processSingleDynamicProfile($name,$queue['gameRequest'],true));
             if ($input===false) {
                 $db->withNativeRequestLock(static function($connection) use($jobId) {
-                    if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',last_error='profile_disabled',
+                    if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',last_error='profile_disabled',
                         lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to finish disabled profile job.');
                 },2000);
                 return;
@@ -179,7 +179,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                     $updates[$field]=$checkpoint['result_text'];continue;
                 }
                 $db->withNativeRequestLock(static function($connection) use($jobId) {
-                    if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes') WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to renew profile attempt.');
+                    if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes') WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to renew profile attempt.');
                 },2000);
                 $text=$generate ? $generate($input,$field) : synth_profile_generate_field($db,$input,$field);
                 if (!is_string($text) || trim($text)==='') throw new RuntimeException('Empty profile field output.');
@@ -193,7 +193,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             }
             $db->withNativeRequestLock(static function($connection) use($db,$name,$updates,$jobId) {
                 if (!synth_profile_record_result($db,$name,$updates)) throw new RuntimeException('Unable to publish complete profile.');
-                if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',lease_token=NULL,lease_until=NULL,
+                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_token=NULL,lease_until=NULL,
                     last_error=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to finish profile job.');
             },2000);
             $done=true;
@@ -202,7 +202,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             // A late attempt cannot change a replacement token. Persist only fixed, non-sensitive error codes.
             $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof InvalidArgumentException || $error instanceof LengthException;
-                if (!@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state=CASE WHEN $3::boolean OR attempts>=3
+                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN $3::boolean OR attempts>=3
                     OR deadline_at<=clock_timestamp() THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,
                     available_at=clock_timestamp()+INTERVAL '10 seconds',last_error=$4,updated_at=clock_timestamp()
                     WHERE id=$1 AND state='running' AND lease_token=$2",[$jobId,$token,$terminal ? 't' : 'f',
@@ -218,20 +218,20 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
 function synth_profile_dispatch_jobs($db, ?callable $prepare=null, ?callable $generate=null): int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile dispatch requires an idle database connection.');
-    if ($db->execQuery("UPDATE synth_meta.worker_jobs j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
+    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
         lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE j.job_type='profile' AND j.payload->>'schema'='synth.profile.job.v1' AND j.state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM synth_meta.runtime_sessions r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'))")===false) throw new RuntimeException('Unable to retire old profile work.');
-    $jobs=$db->fetchAll("SELECT id FROM synth_meta.worker_jobs WHERE job_type='profile' AND payload->>'schema'='synth.profile.job.v1'
+    $jobs=$db->fetchAll("SELECT id FROM public.core_worker_job WHERE job_type='profile' AND payload->>'schema'='synth.profile.job.v1'
         AND available_at<=clock_timestamp() AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) ORDER BY available_at,id LIMIT 5");
     $done=0;
     foreach ($jobs as $job) try { if (synth_profile_run_job($db,intval($job['id']),$prepare,$generate)) ++$done; }
     catch (Throwable $error) {
         if (synth_profile_origin_rejected($error) || $error instanceof LogicException) {
-            $db->execQuery("UPDATE synth_meta.worker_jobs SET state='stale',last_error='origin_unavailable',lease_token=NULL,lease_until=NULL,
+            $db->execQuery("UPDATE public.core_worker_job SET state='stale',last_error='origin_unavailable',lease_token=NULL,lease_until=NULL,
                 updated_at=clock_timestamp() WHERE id=".intval($job['id'])." AND job_type='profile' AND payload->>'schema'='synth.profile.job.v1'
                     AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
         }

@@ -17,10 +17,10 @@ function synth_relationship_write_allowed($connection, array $event, int $actorI
 {
     $control=synth_relationship_control_lock($connection,$actorId);
     if ($control['locked']==='t') return false;
-    $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.protocol_events p
+    $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p
         WHERE p.session_id=$1 AND p.request_id=$2 AND p.id>$3
             AND ($4::bigint IS NULL OR EXISTS(SELECT 1 FROM synth_meta.relationship_response_inputs i
-                JOIN synth_meta.protocol_events origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
+                JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
                 WHERE i.history_event_id=$4 AND i.actor_identity_id=$5 AND origin.id>$3))',
         [$event['session_id'],$event['request_id'],$control['barrier_event_id'],$responseId,$actorId]);
     if (!$result) throw new RuntimeException('Unable to verify relationship control boundary.');

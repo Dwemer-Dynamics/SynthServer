@@ -30,7 +30,7 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
         $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_npc_master n
             JOIN public.core_profiles p ON p.id=n.profile_id
             JOIN synth.actor_identities a ON a.id=n.actor_identity_id AND a.game='fo4'
-            JOIN synth_meta.runtime_sessions r ON r.session_id=$1 AND r.playthrough_id=a.playthrough_id
+            JOIN public.core_runtime_session r ON r.session_id=$1 AND r.playthrough_id=a.playthrough_id
             WHERE n.id=$2 AND n.actor_identity_id=$3 AND p.id=$4
                 AND upper(a.full_form_id)=upper($5) AND lower(a.origin_plugin)=lower($6) AND a.playthrough_id=$7
                 AND r.runtime_variant=$8 FOR SHARE OF n,p",
@@ -80,9 +80,9 @@ function synth_rechat_prepare_continuation($db, array $event): array
                     throw new LogicException('rechat_parent_reservation_missing');
                 }
                 $originCanonical=synth_protocol_canonical_json($origin);
-                $result=@pg_query_params($connection,"SELECT d.policy FROM synth_meta.dialogue_origin_policies d
+                $result=@pg_query_params($connection,"SELECT d.policy FROM public.core_dialogue_origin_policy d
                     JOIN synth_meta.request_executions e USING(session_id,request_id)
-                    JOIN synth_meta.protocol_events p USING(session_id,request_id)
+                    JOIN public.core_protocol_event p USING(session_id,request_id)
                     WHERE d.session_id=$1 AND d.request_id=$2 AND e.state='complete'
                         AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256",
                     [$event['session_id'],$origin['request_id'],$originCanonical,hash('sha256',$originCanonical)]);
@@ -120,7 +120,7 @@ function synth_rechat_prepare_continuation($db, array $event): array
             $reservation=synth_rechat_reserve_continuation($db,$event,$chain===null ? $serverPolicy : [],$initialTerminal);
             $selection=synth_rechat_select_responder($db,$event);
             synth_rechat_assert_live_selection($connection,$event,$selection);
-            $result=@pg_query_params($connection,'UPDATE synth_meta.rechat_selections
+            $result=@pg_query_params($connection,'UPDATE public.core_rechat_selection
                 SET prepared_at=COALESCE(prepared_at,clock_timestamp()) WHERE session_id=$1 AND request_id=$2 RETURNING prepared_at',
                 [$event['session_id'],$event['request_id']]);
             if (!$result || !($receipt=pg_fetch_assoc($result))) throw new RuntimeException('rechat_prepare_receipt_failed');
@@ -144,8 +144,8 @@ function synth_rechat_prepared_selection($db, array $event): array
         if ($proof===null) throw new LogicException('rechat_prepared_parent_unavailable');
         $result=@pg_query_params($connection,"SELECT s.*,d.status,d.parent_request_id,d.parent_line_id,d.parent_response_sha256,
                 d.round_number,d.chain_id,c.budget,c.policy,c.terminal_reason AS chain_terminal
-            FROM synth_meta.rechat_selections s JOIN synth_meta.rechat_continuations d USING(session_id,request_id)
-            JOIN synth_meta.rechat_chains c ON c.id=d.chain_id AND c.session_id=d.session_id
+            FROM public.core_rechat_selection s JOIN public.core_rechat_continuation d USING(session_id,request_id)
+            JOIN public.core_rechat_chain c ON c.id=d.chain_id AND c.session_id=d.session_id
             WHERE s.session_id=$1 AND s.request_id=$2 AND s.prepared_at IS NOT NULL
                 AND c.generation=$3 AND c.context_sequence=$4 AND c.turn_id=$5 AND c.runtime_variant=$6",
             [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$event['turn_id'],$event['runtime_variant']]);
