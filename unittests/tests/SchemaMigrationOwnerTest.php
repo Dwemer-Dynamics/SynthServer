@@ -208,16 +208,16 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             SELECT md5(string_agg(line, E'\n' ORDER BY line)) FROM (
               SELECT format('rel %s.%s %s', n.nspname, c.relname, c.relkind) AS line
                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE n.nspname IN ('synth', 'synth_meta') AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+               WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND (c.relname LIKE 'core\_%' OR c.relkind = 'S'))) AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
               UNION ALL
               SELECT format('col %s.%s.%s %s %s %s', table_schema, table_name, column_name, udt_name, is_nullable,
                             coalesce(column_default, '')) FROM information_schema.columns
-               WHERE table_schema IN ('synth', 'synth_meta')
+               WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
               UNION ALL
               SELECT format('con %s %s %s', conrelid::regclass, conname, pg_get_constraintdef(oid)) FROM pg_constraint
-               WHERE connamespace IN ('synth'::regnamespace, 'synth_meta'::regnamespace)
+               WHERE (connamespace IN ('synth'::regnamespace, 'synth_meta'::regnamespace) OR (connamespace = 'public'::regnamespace AND conrelid::regclass::text LIKE 'core\_%'))
               UNION ALL
-              SELECT format('idx %s %s', schemaname, indexdef) FROM pg_indexes WHERE schemaname IN ('synth', 'synth_meta')
+              SELECT format('idx %s %s', schemaname, indexdef) FROM pg_indexes WHERE (schemaname IN ('synth', 'synth_meta') OR (schemaname = 'public' AND tablename LIKE 'core\_%'))
               UNION ALL
               SELECT format('fn %s.%s(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
                 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('synth', 'synth_meta')
@@ -519,7 +519,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $fingerprint = [];
         foreach (self::rowsOn($pg, "SELECT table_schema, table_name FROM information_schema.tables
-                WHERE table_schema IN ('synth', 'synth_meta') AND table_type = 'BASE TABLE'
+                WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%')) AND table_type = 'BASE TABLE'
                   AND table_name <> 'doctrine_migration_versions' AND table_name <> 'core_api_badge' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
             $columns = array_column(self::rowsOn($pg, "SELECT quote_ident(column_name) AS name FROM information_schema.columns
                 WHERE table_schema = $1 AND table_name = $2 AND data_type NOT LIKE 'timestamp%'
@@ -532,7 +532,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         }
         foreach (self::rowsOn($pg, <<<'SQL'
                 SELECT 'sequence ' || schemaname || '.' || sequencename AS name, coalesce(last_value::text, 'unused') AS definition
-                  FROM pg_sequences WHERE schemaname IN ('synth', 'synth_meta')
+                  FROM pg_sequences WHERE schemaname IN ('synth', 'synth_meta', 'public')
                 UNION ALL
                 SELECT 'view ' || c.oid::regclass, pg_get_viewdef(c.oid) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE n.nspname IN ('synth', 'synth_meta') AND c.relkind IN ('v', 'm')
