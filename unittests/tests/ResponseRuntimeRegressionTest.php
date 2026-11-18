@@ -1055,13 +1055,13 @@ final class ResponseRuntimeRegressionTest extends TestCase
 
             public function fetchOne(string $query): array
             {
-                if (str_contains($query, "id = 'profile_id'")) {
+                if (str_contains($query, "config_key = 'profile_id'")) {
                     return ['value' => '7'];
                 }
                 if (str_contains($query, 'FROM core_profiles WHERE id = 7')) {
                     return ['id' => 7, 'tts_connector_id' => 0];
                 }
-                if (str_contains($query, "id = 'voiceid'")) {
+                if (str_contains($query, "config_key = 'voiceid'")) {
                     return ['value' => 'maleadult02'];
                 }
                 return [];
