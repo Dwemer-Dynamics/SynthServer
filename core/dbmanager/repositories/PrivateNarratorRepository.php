@@ -107,8 +107,8 @@ class PrivateNarratorRepository
     // The authored player background is read live, like provider settings and profile contents.
     public function playerBackground(): string
     {
-        $row = $this->one("SELECT value FROM public.core_player WHERE id IN ('background','bio') AND btrim(value)<>''
-            ORDER BY CASE id WHEN 'background' THEN 0 ELSE 1 END LIMIT 1", []);
+        $row = $this->one("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key IN ('background','bio') AND btrim(config_value)<>''
+            ORDER BY CASE config_key WHEN 'background' THEN 0 ELSE 1 END LIMIT 1", []);
         return trim(strval($row['value'] ?? ''));
     }
 

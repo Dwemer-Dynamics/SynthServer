@@ -833,16 +833,6 @@ CREATE TABLE public.core_llm_connector (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE TABLE synth.core_narrator (
-    id text NOT NULL,
-    value text
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
-COMMENT ON COLUMN synth.core_narrator.id IS 'Narrator setting key (e.g., enabled, welcome_enabled, random_enabled, random_chance, random_cooldown, hide_from_context)';
--- end-statement
-COMMENT ON COLUMN synth.core_narrator.value IS 'Value for the setting';
--- end-statement
 CREATE TABLE synth.core_npc_master (
     id integer NOT NULL,
     npc_name text NOT NULL,
@@ -925,16 +915,6 @@ CREATE SEQUENCE synth.core_npc_master_history_history_id_seq
     CACHE 1;
 -- end-statement
 ALTER SEQUENCE synth.core_npc_master_history_history_id_seq OWNED BY synth.core_npc_master_history.history_id;
--- end-statement
-CREATE TABLE public.core_player (
-    id text NOT NULL,
-    value text
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
-COMMENT ON COLUMN public.core_player.id IS 'Key name (e.g., player_name, appearance, speech_style, or Fallout stats)';
--- end-statement
-COMMENT ON COLUMN public.core_player.value IS 'Value for the key';
 -- end-statement
 CREATE TABLE public.core_profiles (
     id integer NOT NULL,
@@ -3456,20 +3436,20 @@ INSERT INTO public.core_llm_connector VALUES
 	(6, 'Ministral 8B', '{}', 'https://openrouter.ai/api/v1/chat/completions', 'mistralai/ministral-8b-2512', 'openrouter', 'openrouterjson', NULL, 750, 1, 0, 1, 1, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'openrouter'),
 	(7, 'Gemma 3N E4B', '{}', 'https://openrouter.ai/api/v1/chat/completions', 'google/gemma-3n-e4b-it', 'openrouter', 'openrouterjson', NULL, 128, 1, 0, 1, 1, 0.2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'openrouter');
 -- end-statement
-INSERT INTO synth.core_narrator VALUES
-	('roleplay_name', 'The Narrator'),
-	('enabled', '1'),
-	('welcome_enabled', ''),
-	('random_enabled', ''),
-	('random_chance', '15'),
-	('random_cooldown', '2'),
-	('hide_from_context', ''),
-	('diary_enabled', '0'),
-	('auto_diary_enabled', '0');
+INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES
+	('narrator', 'roleplay_name', 'The Narrator'),
+	('narrator', 'enabled', '1'),
+	('narrator', 'welcome_enabled', ''),
+	('narrator', 'random_enabled', ''),
+	('narrator', 'random_chance', '15'),
+	('narrator', 'random_cooldown', '2'),
+	('narrator', 'hide_from_context', ''),
+	('narrator', 'diary_enabled', '0'),
+	('narrator', 'auto_diary_enabled', '0');
 -- end-statement
-INSERT INTO public.core_player VALUES
-	('auto_diary_enabled', '0'),
-	('auto_diary_wait_enabled', '0');
+INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES
+	('player', 'auto_diary_enabled', '0'),
+	('player', 'auto_diary_wait_enabled', '0');
 -- end-statement
 INSERT INTO public.core_profiles VALUES
 	(1, 'Default Profile', '1', '1', 1, 1, 2, 3, 4, 6, NULL, '{"RECHAT_H": "4", "RECHAT_P": "100", "DIARY_PROMPT": "Please write a short summary of #PLAYER_NAME# and #SYNTH_NAME#''s recent dialogues and events into #SYNTH_NAME#''s diary. WRITE AS IF YOU WERE #SYNTH_NAME#. Start the diary entry with the current date and time.", "RPG_COMMENTS": ["levelup", "combat_end", "lockpick", "sleep", "location_changed", "quest_updated"], "DIARY_COOLDOWN": 120, "AUTO_DIARY_ENABLED": false, "RPG_COMMENTS_CHANCE": 20, "COMBAT_BARK_COOLDOWN": 30, "LLM_FALLBACK_ENABLED": true, "RECHAT_ALLOW_ACTIONS": true, "CONTEXT_HISTORY_DIARY": 100, "DYNAMIC_PROFILE_FIELDS": ["personality", "speechstyle", "goals"], "AUTO_DIARY_WAIT_ENABLED": true, "SALUTATION_AFTER_A_WHILE": false}', 1, 1, NULL);
@@ -4352,14 +4332,8 @@ ALTER TABLE ONLY public.core_api_badge
 ALTER TABLE ONLY public.core_itt_connector
     ADD CONSTRAINT core_itt_connector_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth.core_narrator
-    ADD CONSTRAINT core_narrator_pkey PRIMARY KEY (id);
--- end-statement
 ALTER TABLE ONLY synth.core_npc_master_history
     ADD CONSTRAINT core_npc_master_history_pkey PRIMARY KEY (history_id);
--- end-statement
-ALTER TABLE ONLY public.core_player
-    ADD CONSTRAINT core_player_pkey PRIMARY KEY (id);
 -- end-statement
 ALTER TABLE ONLY public.core_tts_pronunciation
     ADD CONSTRAINT core_tts_pronunciation_pkey PRIMARY KEY (id);

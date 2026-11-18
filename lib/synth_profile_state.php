@@ -151,7 +151,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
             return true;
         }
         // Narrator settings can be absent rows; a short table lock also excludes concurrent insertions.
-        if ($narrator && !@pg_query($connection,'LOCK TABLE synth.core_narrator IN SHARE MODE')) throw new RuntimeException('Unable to lock narrator baseline.');
+        if ($narrator && !@pg_query($connection,'LOCK TABLE public.core_config_setting IN SHARE MODE')) throw new RuntimeException('Unable to lock narrator baseline.');
         $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM synth.core_npc_master WHERE id='.intval($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['npc_id']));
         if (synth_profile_fields($current)!==synth_profile_fields($input['baseline_fields'])) throw new LogicException('Base profile changed during generation.');
         $visible=synth_profile_visible($db,$event,$actor,$narrator);

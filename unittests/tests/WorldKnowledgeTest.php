@@ -280,7 +280,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
 
         $testDb = new sql();
         $this->assertNotFalse($testDb->execQuery("UPDATE public.core_worldknowledge_article SET knowledge_class='medicine',knowledge_class_basic='commonwealth' WHERE canonical_topic='stimpack_seller' AND source_kind='custom'"));
-        $this->assertNotFalse($testDb->execQuery("INSERT INTO synth.core_narrator(id,value) VALUES('worldknowledge','medicine') ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value"));
+        $this->assertNotFalse($testDb->execQuery("INSERT INTO public.core_config_setting(scope,config_key,config_value) VALUES('narrator','worldknowledge','medicine') ON CONFLICT(scope,config_key) DO UPDATE SET config_value=EXCLUDED.config_value"));
         $testDb->insert(
             'conf_opts',
             array(

@@ -21,8 +21,8 @@ function synth_diary_lock_binding($db, array $binding): array
 {
     if (($binding['player'] ?? false)===true) {
         $settings=[];
-        foreach ($db->fetchAll("SELECT id,value FROM public.core_player WHERE id IN
-            ('player_name','diary_enabled','auto_diary_enabled','auto_diary_wait_enabled','diary_connector_id','appearance','background','bio','speech_style') ORDER BY id FOR SHARE") ?: [] as $row) $settings[$row['id']]=$row['value'];
+        foreach ($db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key IN
+            ('player_name','diary_enabled','auto_diary_enabled','auto_diary_wait_enabled','diary_connector_id','appearance','background','bio','speech_style') ORDER BY config_key FOR SHARE") ?: [] as $row) $settings[$row['id']]=$row['value'];
         return $settings+['npc_static_bio'=>trim($settings['background'] ?? '')!=='' ? $settings['background'] : ($settings['bio'] ?? ''),
             'speechstyle'=>$settings['speech_style'] ?? ''];
     }
@@ -30,7 +30,7 @@ function synth_diary_lock_binding($db, array $binding): array
         require_once __DIR__.'/core/narrator.class.php';
         $settings=[];
         // One statement freezes the Narrator configuration without creating an NPC row or changing globals.
-        foreach ($db->fetchAll('SELECT id,value FROM synth.core_narrator ORDER BY id FOR SHARE') ?: [] as $row) $settings[$row['id']]=$row['value'];
+        foreach ($db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'narrator' ORDER BY config_key FOR SHARE") ?: [] as $row) $settings[$row['id']]=$row['value'];
         try { $alias=Narrator::normalizeRoleplayName($settings['roleplay_name'] ?? null); }
         catch (InvalidArgumentException $error) { $alias=Narrator::DEFAULT_ROLEPLAY_NAME; }
         return array_replace($settings,['roleplay_name'=>$alias,'npc_static_bio'=>$settings['background'] ?? '']);

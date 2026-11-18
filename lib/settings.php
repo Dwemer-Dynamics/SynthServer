@@ -1200,7 +1200,7 @@ if (!function_exists('synthResolvePreferredTtsConnectorRow')) {
 
         $playerConnectorId = 0;
         try {
-            $playerRow = $GLOBALS["db"]->fetchOne("SELECT value FROM core_player WHERE id = 'tts_connector_id' LIMIT 1");
+            $playerRow = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
             if (is_array($playerRow)) {
                 $playerConnectorId = intval($playerRow['value'] ?? 0);
             }
