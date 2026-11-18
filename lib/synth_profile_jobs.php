@@ -142,7 +142,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             synth_profile_assert_write_target($db,$name);
             $GLOBALS['SYNTH_NAME']=$name;$GLOBALS['gameRequest']=$queue['gameRequest'];
             $row=$db->fetchOne("SELECT input_payload,input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS valid
-                FROM synth_meta.profile_job_inputs WHERE job_id=$jobId");
+                FROM public.core_character_generation WHERE job_id=$jobId");
             if ($row && !synthPostgresBoolean($row['valid'])) throw new LogicException('Frozen profile input hash mismatch.');
             $input=$row ? json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR)
                 : ($prepare ? $prepare($name,$queue['gameRequest']) : processSingleDynamicProfile($name,$queue['gameRequest'],true));
@@ -156,7 +156,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             synth_profile_validate_input($input,$queue['native_owner'],intval($job['actor_identity_id']),$queue['profile_role']);
             if (!$row) $db->withNativeRequestLock(static function($connection) use($jobId,$input) {
                 $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-                if (!@pg_query_params($connection,"INSERT INTO synth_meta.profile_job_inputs(job_id,input_payload,input_sha256)
+                if (!@pg_query_params($connection,"INSERT INTO public.core_character_generation(job_id,input_payload,input_sha256)
                     VALUES($1,$2::jsonb,encode(sha256(convert_to(($2::jsonb)::text,'UTF8')),'hex'))",[$jobId,$json])) throw new RuntimeException('Unable to freeze native profile job input.');
             },2000);
             $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]=$input;$updates=[];
@@ -173,7 +173,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             },2000);
             foreach ($input['fields'] as $field) {
                 $checkpoint=$db->fetchOne('SELECT result_text,result_sha256=encode(sha256(convert_to(result_text,\'UTF8\')),\'hex\') AS valid
-                    FROM synth_meta.profile_job_fields WHERE job_id='.$jobId.' AND field='.$db->escapeLiteral($field));
+                    FROM public.core_character_generation_field WHERE job_id='.$jobId.' AND field='.$db->escapeLiteral($field));
                 if ($checkpoint) {
                     if (!synthPostgresBoolean($checkpoint['valid'])) throw new LogicException('Profile field checkpoint hash mismatch.');
                     $updates[$field]=$checkpoint['result_text'];continue;
@@ -186,7 +186,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 $text=trim($text);synth_profile_fields([$field=>$text]);
                 $db->withNativeRequestLock(static function($connection) use($db,$name,$jobId,$field,$text) {
                     synth_profile_assert_write_target($db,$name);
-                    if (!@pg_query_params($connection,"INSERT INTO synth_meta.profile_job_fields(job_id,field,result_text,result_sha256)
+                    if (!@pg_query_params($connection,"INSERT INTO public.core_character_generation_field(job_id,field,result_text,result_sha256)
                         VALUES($1,$2,$3,encode(sha256(convert_to($3,'UTF8')),'hex'))",[$jobId,$field,$text])) throw new RuntimeException('Unable to checkpoint profile field.');
                 },2000);
                 $updates[$field]=$text;

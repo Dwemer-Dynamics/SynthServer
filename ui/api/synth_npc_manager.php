@@ -347,7 +347,7 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
         $row = $GLOBALS['db']->fetchOne(
             "SELECT name, formid, worldspace, " .
             "CASE WHEN lower(name) = lower('{$escapedLocation}') THEN 1.0 ELSE similarity(name, '{$escapedLocation}') END AS score " .
-            "FROM locations WHERE COALESCE(name, '') <> '' " .
+            "FROM core_location WHERE COALESCE(name, '') <> '' " .
             "ORDER BY CASE WHEN lower(name) = lower('{$escapedLocation}') THEN 1 ELSE 0 END DESC, score DESC, name ASC LIMIT 1"
         );
         $score = floatval($row['score'] ?? 0);
@@ -375,7 +375,7 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
         : " AND lower(COALESCE(worldspace, '')) = lower('" . $db->escape($worldspace) . "')";
     $point = $db->escape("({$x},{$y})");
     $row = $db->fetchOne(
-        "SELECT name, formid, worldspace FROM locations " .
+        "SELECT name, formid, worldspace FROM core_location " .
         "WHERE coords IS NOT NULL{$worldspaceClause} " .
         "ORDER BY coords <-> '{$point}'::point LIMIT 1"
     );

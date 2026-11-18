@@ -23,7 +23,7 @@ function synth_profile_history_cte($db, array $event, int $actorId, bool $narrat
     $cte=synth_protocol_history_cte($db,$event,'',$narrator || $narratorJournals || $journalInspection ? null : $actorId,
         $narrator,$narratorJournals,$journalInspection ? $actorId : null);
     return $cte.", profile_candidates AS (
-        SELECT v.* FROM native_history_scopes scope JOIN synth_meta.profile_revisions v
+        SELECT v.* FROM native_history_scopes scope JOIN public.core_character_generation_revision v
             ON v.session_id=scope.session_id AND v.generation=scope.generation
                 AND v.actor_identity_id=scope.reader_identity_id AND ($actorId=0 OR v.actor_identity_id=$actorId) AND v.profile_role='$role'
         JOIN synth_meta.history_events h ON h.id=v.history_event_id AND h.id<=scope.cutoff
@@ -142,7 +142,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         if (synth_protocol_canonical_json($event)!==synth_protocol_canonical_json($input['owner'])) throw new RuntimeException('Native profile result owner changed.');
         $actor=$input['actor_identity_id'];$role=$input['profile_role'];$narrator=$role==='narrator';
         $result=@pg_query_params($connection,'SELECT input_sha256=encode(sha256(convert_to(($4::jsonb)::text,\'UTF8\')),\'hex\')
-                AND result_fields=$5::jsonb AS identical FROM synth_meta.profile_revisions
+                AND result_fields=$5::jsonb AS identical FROM public.core_character_generation_revision
             WHERE session_id=$1 AND request_id=$2 AND actor_identity_id=$3 AND profile_role=$6',
             [$event['session_id'],$event['request_id'],$actor,$inputJson,$fieldsJson,$role]);
         if (!$result) throw new RuntimeException('Unable to check native profile replay.');
@@ -156,7 +156,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         if (synth_profile_fields($current)!==synth_profile_fields($input['baseline_fields'])) throw new LogicException('Base profile changed during generation.');
         $visible=synth_profile_visible($db,$event,$actor,$narrator);
         if (($visible['revision'] ?? null)!==$input['prior_revision']) throw new LogicException('Saved profile input changed.');
-        $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.profile_revisions v JOIN synth_meta.history_events h ON h.id=v.history_event_id
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_character_generation_revision v JOIN synth_meta.history_events h ON h.id=v.history_event_id
             JOIN public.core_runtime_context c ON c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
             WHERE v.session_id=c.session_id AND v.generation=c.generation AND v.actor_identity_id=$4 AND v.profile_role=$5 AND h.id>c.history_event_id',
             [$event['session_id'],$event['generation'],$event['context_sequence'],$actor,$role]);
@@ -172,7 +172,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
                 ||jsonb_build_object('profile_input_sha256',encode(sha256(convert_to(value.input::text,'UTF8')),'hex'),
                     'profile_result',value.fields,'profile_result_sha256',encode(sha256(convert_to(value.fields::text,'UTF8')),'hex'))
             FROM publication CROSS JOIN value RETURNING id
-        ) INSERT INTO synth_meta.profile_revisions(history_event_id,session_id,request_id,generation,context_sequence,actor_identity_id,profile_role,
+        ) INSERT INTO public.core_character_generation_revision(history_event_id,session_id,request_id,generation,context_sequence,actor_identity_id,profile_role,
             prior_history_event_id,input_payload,input_sha256,result_fields,result_sha256)
             SELECT history.id,$6,$9,$7,$8,$10,$11,$12,value.input,encode(sha256(convert_to(value.input::text,'UTF8')),'hex'),value.fields,
                 encode(sha256(convert_to(value.fields::text,'UTF8')),'hex') FROM history CROSS JOIN value",

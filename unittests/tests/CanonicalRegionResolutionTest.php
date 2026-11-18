@@ -87,7 +87,7 @@ final class CanonicalRegionResolutionTest extends DatabaseTestCase
         $this->assertNotFalse($connection);
         pg_query_params(
             $connection,
-            "INSERT INTO locations (name, formid, worldspace) VALUES ($1, $2, $3)",
+            "INSERT INTO core_location (name, formid, worldspace) VALUES ($1, $2, $3)",
             [$name, $formId, $worldspace]
         );
         pg_close($connection);

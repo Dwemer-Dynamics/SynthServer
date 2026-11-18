@@ -71,18 +71,18 @@ function _relQueueEvaluation($evalData) {
         // - If neither has player action: Replace with new data (latest NPC-initiated)
         // This prevents NPC chatter from overwriting pending Player relationship evaluations
         $GLOBALS['db']->query(
-            "INSERT INTO relationship_eval_queue (npc_id, eval_data, created_at)
+            "INSERT INTO core_relationship_eval_queue (npc_id, eval_data, created_at)
              VALUES ({$escapedNpcId}, '{$escapedJson}', NOW())
              ON CONFLICT (npc_id) DO UPDATE SET
                 eval_data = CASE
                     WHEN {$hasPlayerActionSql} THEN '{$escapedJson}'
-                    WHEN (relationship_eval_queue.eval_data->>'has_player_action')::boolean IS NOT TRUE THEN '{$escapedJson}'
-                    ELSE relationship_eval_queue.eval_data
+                    WHEN (core_relationship_eval_queue.eval_data->>'has_player_action')::boolean IS NOT TRUE THEN '{$escapedJson}'
+                    ELSE core_relationship_eval_queue.eval_data
                 END,
                 created_at = CASE
                     WHEN {$hasPlayerActionSql} THEN NOW()
-                    WHEN (relationship_eval_queue.eval_data->>'has_player_action')::boolean IS NOT TRUE THEN NOW()
-                    ELSE relationship_eval_queue.created_at
+                    WHEN (core_relationship_eval_queue.eval_data->>'has_player_action')::boolean IS NOT TRUE THEN NOW()
+                    ELSE core_relationship_eval_queue.created_at
                 END"
         );
 
@@ -114,7 +114,7 @@ function _relProcessQueue($limit = 5) {
         // Get pending evaluations (oldest first, prioritize items with fewer retries)
         $rows = $GLOBALS['db']->fetchAll(
             "SELECT id, npc_id, eval_data, COALESCE(retry_count, 0) as retry_count
-             FROM relationship_eval_queue
+             FROM core_relationship_eval_queue
              ORDER BY COALESCE(retry_count, 0) ASC, created_at ASC
              LIMIT {$limit}"
         );
@@ -239,13 +239,13 @@ function _relProcessQueue($limit = 5) {
         // Delete successfully processed entries
         if (!empty($successIds)) {
             $idList = implode(',', array_map('intval', $successIds));
-            $GLOBALS['db']->query("DELETE FROM relationship_eval_queue WHERE id IN ({$idList})");
+            $GLOBALS['db']->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
         }
 
         // Delete abandoned entries (exceeded max retries)
         if (!empty($abandonIds)) {
             $idList = implode(',', array_map('intval', $abandonIds));
-            $GLOBALS['db']->query("DELETE FROM relationship_eval_queue WHERE id IN ({$idList})");
+            $GLOBALS['db']->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
         }
 
         // Increment retry count for failed entries (will try again later)
@@ -253,7 +253,7 @@ function _relProcessQueue($limit = 5) {
             $id = intval($retry['id']);
             $escapedError = $GLOBALS['db']->escape($retry['error']);
             $GLOBALS['db']->query(
-                "UPDATE relationship_eval_queue
+                "UPDATE core_relationship_eval_queue
                  SET retry_count = COALESCE(retry_count, 0) + 1,
                      last_error = '{$escapedError}'
                  WHERE id = {$id}"
@@ -275,7 +275,7 @@ define('REL_QUEUE_MAX_RETRIES', 3);
 function _relGetQueueStatus() {
     try {
         $count = $GLOBALS['db']->fetchOne(
-            "SELECT COUNT(*) as cnt FROM relationship_eval_queue"
+            "SELECT COUNT(*) as cnt FROM core_relationship_eval_queue"
         );
         return ['pending' => intval($count['cnt'] ?? 0)];
     } catch (Exception $e) {
@@ -310,7 +310,7 @@ function _relQueueNpcInit($npcId, $npcName) {
 
         // Use relationship_init_queue for init requests (separate from eval queue)
         $GLOBALS['db']->query(
-            "INSERT INTO relationship_init_queue (npc_id, init_data, created_at)
+            "INSERT INTO core_relationship_init_queue (npc_id, init_data, created_at)
              VALUES ({$escapedNpcId}, '{$escapedJson}', NOW())
              ON CONFLICT (npc_id) DO NOTHING"  // Don't replace - first request wins
         );
@@ -339,7 +339,7 @@ function _relProcessInitQueue($limit = 5) {
     try {
         $rows = $GLOBALS['db']->fetchAll(
             "SELECT id, npc_id, init_data, COALESCE(retry_count, 0) as retry_count
-             FROM relationship_init_queue
+             FROM core_relationship_init_queue
              ORDER BY COALESCE(retry_count, 0) ASC, created_at ASC
              LIMIT {$limit}"
         );
@@ -394,19 +394,19 @@ function _relProcessInitQueue($limit = 5) {
 
         if (!empty($successIds)) {
             $idList = implode(',', array_map('intval', $successIds));
-            $GLOBALS['db']->query("DELETE FROM relationship_init_queue WHERE id IN ({$idList})");
+            $GLOBALS['db']->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
         }
 
         if (!empty($abandonIds)) {
             $idList = implode(',', array_map('intval', $abandonIds));
-            $GLOBALS['db']->query("DELETE FROM relationship_init_queue WHERE id IN ({$idList})");
+            $GLOBALS['db']->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
         }
 
         foreach ($retryIds as $retry) {
             $id = intval($retry['id']);
             $escapedError = $GLOBALS['db']->escape($retry['error']);
             $GLOBALS['db']->query(
-                "UPDATE relationship_init_queue
+                "UPDATE core_relationship_init_queue
                  SET retry_count = COALESCE(retry_count, 0) + 1,
                      last_error = '{$escapedError}'
                  WHERE id = {$id}"
