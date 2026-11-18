@@ -105,6 +105,15 @@ PHP;
         }
     }
 
+    private function copyTree(string $from,string $to): void
+    {
+        mkdir($to,0700,true);
+        foreach (new FilesystemIterator($from,FilesystemIterator::SKIP_DOTS) as $entry) {
+            $target=$to.'/'.$entry->getFilename();
+            if ($entry->isDir()) $this->copyTree($entry->getPathname(),$target); else copy($entry->getPathname(),$target);
+        }
+    }
+
     /** Synthetic WAV, fake loopback HTTP, real connector/media pipeline/response emitters and production audio branch. */
     private function runAudio(int $status,string $body,bool $cancel=false,bool $other=false): array
     {
@@ -112,6 +121,7 @@ PHP;
         $fixture=sys_get_temp_dir().'/synth-stt-outcome-'.bin2hex(random_bytes(8));
         mkdir($fixture.'/lib',0700,true);mkdir($fixture.'/stt');mkdir($fixture.'/soundcache');
         foreach (['lib/synth_stt_pipeline.php','stt/stt-localwhisper.php'] as $file) copy($root.'/'.$file,$fixture.'/'.$file);
+        $this->copyTree($root.'/drivers/stt',$fixture.'/drivers/stt');
         foreach (['media_store.php','provider_stream.php'] as $file) file_put_contents($fixture.'/lib/'.$file,'<?php require_once '.var_export($root.'/lib/'.$file,true).';');
         file_put_contents($fixture.'/lib/runtime_bootstrap.php','<?php function synthRuntimeBootstrapIfNeeded(...$args): void {}');
         if ($other) file_put_contents($fixture.'/stt/stt-fixture.php','<?php function stt($file) { return ""; }');

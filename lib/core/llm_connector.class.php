@@ -478,8 +478,8 @@ class LLMConnector
             throw new \Exception("Invalid connector data: missing or empty 'driver' key");
         }
 
-        require_once($GLOBALS["ENGINE_PATH"] . "/connector" . DIRECTORY_SEPARATOR . "{$currentConnectorData["driver"]}.php");
-        $connector = new $currentConnectorData["driver"]();
+        require_once(dirname(__DIR__, 2) . '/drivers/llm/LlmWrapper.php');
+        $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), $GLOBALS["ENGINE_PATH"] ?? null);
 
         $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
         $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";

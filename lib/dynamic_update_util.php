@@ -127,9 +127,8 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
         $GLOBALS["gameRequest"] = [0 => "diary", 1 => time(), 2 => $gameRequest[2], 3 => "Auto diary for " . $npcName];
         
         // Generate diary entry using LLM
-        require_once(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."connector".DIRECTORY_SEPARATOR."{$NPC_CONF["CONNECTORS_DIARY"]}.php");
-        
-        $connectionHandler = new $resolvedDiaryConnector();
+        require_once(__DIR__ . '/../drivers/llm/LlmWrapper.php');
+        $connectionHandler = \Synth\Drivers\Llm\LlmWrapper::legacyConnector($resolvedDiaryConnector);
         // Prefer connector's configured max_tokens; fallback to memory max token config; then a sane default
         $maxTokens = null;
         if (isset($GLOBALS["CONNECTOR"][$resolvedDiaryConnector]["max_tokens"]) && $GLOBALS["CONNECTOR"][$resolvedDiaryConnector]["max_tokens"] !== '') {
@@ -501,7 +500,7 @@ function generatePlayerDiary($gameRequest, $eventType)
             }
 
             Logger::warn("PLAYER_DIARY: Falling back to configured diary connector '{$diaryConnector}'");
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "{$diaryConnector}.php");
+            require_once(__DIR__ . '/../drivers/llm/LlmWrapper.php');
 
             $maxTokens = null;
             if (isset($GLOBALS["CONNECTOR"][$diaryConnector]["max_tokens"]) && $GLOBALS["CONNECTOR"][$diaryConnector]["max_tokens"] !== '') {
@@ -512,7 +511,7 @@ function generatePlayerDiary($gameRequest, $eventType)
                 $maxTokens = 2048;
             }
 
-            $connectionHandler = new $diaryConnector();
+            $connectionHandler = \Synth\Drivers\Llm\LlmWrapper::legacyConnector($diaryConnector);
             $connectionHandler->open($contextData, ["MAX_TOKENS" => $maxTokens]);
 
             while (true) {
