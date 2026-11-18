@@ -1222,7 +1222,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create_import_rule"])
     ];
 
     $importRules->create($data);
-    $last = $GLOBALS['db']->fetchOne("SELECT id FROM import_rules ORDER BY id DESC LIMIT 1");
+    $last = $GLOBALS['db']->fetchOne("SELECT id FROM core_npc_profile_rule ORDER BY id DESC LIMIT 1");
     $newId = $last['id'] ?? '';
     echo json_encode(['ok' => true, 'id' => $newId]);
     exit;

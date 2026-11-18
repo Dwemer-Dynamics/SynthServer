@@ -152,9 +152,9 @@ if (!function_exists('synthRollbackPruneFutureData')) {
         synthRollbackDelete('memory', "gamets>{$targetGamets}", $stats);
 
         synthRollbackDelete('responselog', "1=1", $stats);
-        synthRollbackDelete('rolemaster', "1=1", $stats);
-        synthRollbackDelete('relationship_eval_queue', "1=1", $stats);
-        synthRollbackDelete('relationship_init_queue', "1=1", $stats);
+        synthRollbackDelete('core_director_note', "1=1", $stats);
+        synthRollbackDelete('core_relationship_eval_queue', "1=1", $stats);
+        synthRollbackDelete('core_relationship_init_queue', "1=1", $stats);
 
         synthRollbackClearConfOpt('COMBAT_BARK_LAST_TIMESTAMP', $stats);
         synthRollbackClearConfOpt('last_narrator_welcome', $stats);

@@ -403,7 +403,7 @@ function handleWorldLocationsUpdate(array $data): array
 
     $replace = filter_var($data['replace'] ?? false, FILTER_VALIDATE_BOOLEAN);
     if ($replace) {
-        $db->execQuery("TRUNCATE TABLE synth.locations");
+        $db->execQuery("TRUNCATE TABLE public.core_location");
     }
 
     $saved = 0;
@@ -430,10 +430,10 @@ function handleWorldLocationsUpdate(array $data): array
         $tagsSql = synth_db_escape($db, $tags);
         $refsSql = synth_db_escape($db, $refs);
 
-        $exists = $db->fetchOne("SELECT 1 FROM synth.locations WHERE formid={$formid} LIMIT 1");
+        $exists = $db->fetchOne("SELECT 1 FROM public.core_location WHERE formid={$formid} LIMIT 1");
         if ($exists) {
             $db->execQuery(
-                "UPDATE synth.locations SET " .
+                "UPDATE public.core_location SET " .
                 "name='{$nameSql}', worldspace='{$worldspaceSql}', tags='{$tagsSql}', " .
                 "is_interior={$isInterior}, coords={$coordsSql}, " .
                 "refs='{$refsSql}', cleared={$cleared}, updated_at=now() " .
@@ -441,7 +441,7 @@ function handleWorldLocationsUpdate(array $data): array
             );
         } else {
             $db->execQuery(
-                "INSERT INTO synth.locations " .
+                "INSERT INTO public.core_location " .
                 "(name, formid, worldspace, tags, is_interior, coords, refs, cleared, updated_at) VALUES " .
                 "('{$nameSql}', {$formid}, '{$worldspaceSql}', '{$tagsSql}', " .
                 "{$isInterior}, {$coordsSql}, '{$refsSql}', {$cleared}, now())"
@@ -611,7 +611,7 @@ function synthResolveNearestExteriorLocationName(string $location, string $world
         $escapedWorldspace = $db->escape($worldspace);
         $rows = $db->fetchAll(
             "SELECT name, coords
-               FROM locations
+               FROM core_location
               WHERE COALESCE(is_interior, 0)=0
                 AND coords IS NOT NULL
                 AND (worldspace IS NULL OR worldspace='' OR worldspace='{$escapedWorldspace}')
@@ -1772,7 +1772,7 @@ function synthApplyActorProfileRules(array $currentData, array $data, NpcMaster 
     $npcBase = $db->escape((string)($currentData['base'] ?? ''));
     $rules = $db->fetchAll("
         SELECT *
-          FROM synth.import_rules r
+          FROM public.core_npc_profile_rule r
          WHERE r.enabled = TRUE
            AND (NULLIF(BTRIM(r.match_name), '') IS NULL OR '{$npcName}' ~ r.match_name)
            AND (NULLIF(BTRIM(r.match_race), '') IS NULL OR '{$npcRace}' ~ r.match_race)

@@ -1,7 +1,7 @@
 <?php
 
 class ImportRules {
-    private $table = "import_rules";
+    private $table = "core_npc_profile_rule";
     private $db;
 
     public function __construct() {

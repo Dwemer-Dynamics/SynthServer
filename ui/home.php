@@ -249,8 +249,8 @@ $hasMemorySummary = synth_home_table_exists($db, 'memory_summary');
 $hasConfOpts = synth_home_table_exists($db, 'conf_opts');
 $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
 $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
-$hasLocations = synth_home_table_exists($db, 'locations');
-$hasGamePlugins = synth_home_table_exists($db, 'game_plugins');
+$hasLocations = synth_home_table_exists($db, 'core_location');
+$hasGamePlugins = synth_home_table_exists($db, 'core_plugins');
 $hasQuests = synth_home_table_exists($db, 'core_quest');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
 $hasBioTemplates = synth_home_table_exists($db, 'bio_templates');
@@ -344,7 +344,7 @@ if ($hasAuditRequest) {
 $locationRows = [];
 $locationCount = 0;
 if ($hasLocations) {
-    $locationColumns = synth_home_table_columns($db, 'locations');
+    $locationColumns = synth_home_table_columns($db, 'core_location');
     $locationSelect = ['name', 'formid'];
     if (in_array('worldspace', $locationColumns, true)) {
         $locationSelect[] = 'worldspace';
@@ -352,13 +352,13 @@ if ($hasLocations) {
     if (in_array('updated_at', $locationColumns, true)) {
         $locationSelect[] = 'updated_at';
     }
-    $locationCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM locations", 'total', 0);
-    $locationRows = synth_home_rows($db, "SELECT " . implode(', ', $locationSelect) . " FROM locations ORDER BY name ASC LIMIT 250");
+    $locationCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_location", 'total', 0);
+    $locationRows = synth_home_rows($db, "SELECT " . implode(', ', $locationSelect) . " FROM core_location ORDER BY name ASC LIMIT 250");
 }
 $gamePluginRows = [];
 $gamePluginCount = 0;
 if ($hasGamePlugins) {
-    $gamePluginColumns = synth_home_table_columns($db, 'game_plugins');
+    $gamePluginColumns = synth_home_table_columns($db, 'core_plugins');
     $gamePluginSelect = [];
     foreach (['plugin_name', 'is_light', 'compile_index', 'small_file_compile_index', 'formid_prefix'] as $columnName) {
         if (in_array($columnName, $gamePluginColumns, true)) {
@@ -368,9 +368,9 @@ if ($hasGamePlugins) {
     if (empty($gamePluginSelect)) {
         $gamePluginSelect[] = '*';
     }
-    $gamePluginCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM game_plugins", 'total', 0);
+    $gamePluginCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_plugins", 'total', 0);
     $gamePluginOrder = in_array('plugin_name', $gamePluginColumns, true) ? " ORDER BY plugin_name ASC" : "";
-    $gamePluginRows = synth_home_rows($db, "SELECT " . implode(', ', $gamePluginSelect) . " FROM game_plugins" . $gamePluginOrder . " LIMIT 250");
+    $gamePluginRows = synth_home_rows($db, "SELECT " . implode(', ', $gamePluginSelect) . " FROM core_plugins" . $gamePluginOrder . " LIMIT 250");
 }
 
 $playerName = isset($GLOBALS['PLAYER_NAME']) && trim((string)$GLOBALS['PLAYER_NAME']) !== '' ? (string)$GLOBALS['PLAYER_NAME'] : 'Player';

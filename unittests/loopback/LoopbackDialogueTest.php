@@ -261,7 +261,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $diagnostic=strval(file_get_contents($this->llmDir.'/profile_worker.out')).json_encode($this->query("SELECT state,attempts,last_error
             FROM public.core_worker_job WHERE job_type='profile' AND session_id=$1 AND request_id=$2",[$refresh['session_id'],$refresh['request_id']]));
         $rows=$this->query('SELECT history_event_id,prior_history_event_id,actor_identity_id,profile_role,context_sequence,result_fields
-            FROM synth_meta.profile_revisions WHERE session_id=$1 AND request_id=$2',[$refresh['session_id'],$refresh['request_id']]);
+            FROM public.core_character_generation_revision WHERE session_id=$1 AND request_id=$2',[$refresh['session_id'],$refresh['request_id']]);
         $this->assertCount(1,$rows,'one accepted revision '.$diagnostic);
         $this->assertSame([],$this->query("SELECT id FROM synth.conf_opts WHERE id LIKE 'dynamic_profiles_queue_%'"),'the worker drained the batch');
         $this->assertSame([strval($this->identities['target']),'npc',strval($refresh['context_sequence'])],
@@ -407,7 +407,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertSame(['context'=>5,'init'=>3,'input_text'=>3,'profile_refresh'=>3,'speech_receipt'=>2],
             array_map('intval',array_column($requests,'n','event_type')));
         // Exactly the three published revisions, one chain, two provider calls each; base rows never written.
-        $revisions=$this->query('SELECT history_event_id,prior_history_event_id,request_id FROM synth_meta.profile_revisions ORDER BY history_event_id');
+        $revisions=$this->query('SELECT history_event_id,prior_history_event_id,request_id FROM public.core_character_generation_revision ORDER BY history_event_id');
         $this->assertSame([[strval($this->revisions['older']['id']),null,$this->revisions['older']['request_id']],
             [strval($this->revisions['newer']['id']),strval($this->revisions['older']['id']),$this->revisions['newer']['request_id']],
             [strval($this->revisions['unacknowledged']['id']),strval($this->revisions['newer']['id']),$this->revisions['unacknowledged']['request_id']]],

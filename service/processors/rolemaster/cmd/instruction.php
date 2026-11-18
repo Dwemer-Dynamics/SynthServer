@@ -75,7 +75,7 @@ if (!isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]) ) {
             $historyData .= $nearbySceneContext . PHP_EOL . PHP_EOL;
         }
         
-        $recap=$GLOBALS["db"]->fetchOne("SELECT * FROM rolemaster where type='story_summary' ORDER BY rowid DESC LIMIT 1");
+        $recap=$GLOBALS["db"]->fetchOne("SELECT * FROM core_director_note where type='story_summary' ORDER BY rowid DESC LIMIT 1");
         if (isset($recap["data"])) {
             $historyData=$recap["data"]."\n".$historyData;
 

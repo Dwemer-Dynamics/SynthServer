@@ -33,7 +33,7 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
     public function testUnscopedWildcardAndCurrentLoadedRuntimeIdsCannotFillMissingStableDescription(): void
     {
         $db = $this->db();
-        $db->execQuery("INSERT INTO synth.game_plugins(plugin_name,formid_prefix) VALUES('EquipmentFallback.esp','03')
+        $db->execQuery("INSERT INTO public.core_plugins(plugin_name,formid_prefix) VALUES('EquipmentFallback.esp','03')
             ON CONFLICT(plugin_name) DO UPDATE SET formid_prefix=EXCLUDED.formid_prefix");
         $this->description('descriptions_custom', '', '02004822', 'Bare observed runtime-ID guess');
         $this->description('descriptions_custom', '', 'XX004822', 'Wildcard guess');

@@ -184,7 +184,7 @@ if (!function_exists('synthGetLoadedGamePluginByName')) {
         $escapedPluginName = $db->escape($pluginName);
         $pluginRow = $db->fetchOne("
             SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix, updated_at
-            FROM synth.game_plugins
+            FROM public.core_plugins
             WHERE LOWER(plugin_name) = LOWER('{$escapedPluginName}')
             LIMIT 1
         ");
@@ -217,7 +217,7 @@ if (!function_exists('synthGetLoadedGamePluginByFormIdPrefix')) {
         $escapedFormIdPrefix = $db->escape($formIdPrefix);
         $pluginRow = $db->fetchOne("
             SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix, updated_at
-            FROM synth.game_plugins
+            FROM public.core_plugins
             WHERE formid_prefix = '{$escapedFormIdPrefix}'
             LIMIT 1
         ");
@@ -396,7 +396,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
 
         $rows = $db->fetchAll("
             SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix
-            FROM synth.game_plugins
+            FROM public.core_plugins
             ORDER BY LOWER(plugin_name)
         ");
         if (!is_array($rows) || empty($rows)) {
@@ -467,7 +467,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
             return count($normalizedPlugins);
         }
 
-        $db->execQuery('DELETE FROM synth.game_plugins');
+        $db->execQuery('DELETE FROM public.core_plugins');
 
         foreach ($normalizedPlugins as $pluginRow) {
             $escapedPluginName = $db->escape($pluginRow['plugin_name']);
@@ -478,7 +478,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
             $partialIndex = intval($pluginRow['partial_index']);
 
             $db->execQuery("
-                INSERT INTO synth.game_plugins (
+                INSERT INTO public.core_plugins (
                     plugin_name,
                     is_light,
                     compile_index,

@@ -296,25 +296,25 @@ column|synth_meta|playthrough_profiles|schema_name|text|text|YES||
 column|synth_meta|playthrough_profiles|size_bytes|bigint|int8|NO||
 column|synth_meta|playthrough_profiles|storage_type|text|text|YES|'schema'::text|
 column|synth_meta|playthrough_profiles|worldknowledge_count|bigint|int8|YES||
-column|synth_meta|profile_job_fields|field|text|text|NO||
-column|synth_meta|profile_job_fields|job_id|bigint|int8|NO||
-column|synth_meta|profile_job_fields|result_sha256|character|bpchar|NO||64
-column|synth_meta|profile_job_fields|result_text|text|text|NO||
-column|synth_meta|profile_job_inputs|input_payload|jsonb|jsonb|NO||
-column|synth_meta|profile_job_inputs|input_sha256|character|bpchar|NO||64
-column|synth_meta|profile_job_inputs|job_id|bigint|int8|NO||
-column|synth_meta|profile_revisions|actor_identity_id|bigint|int8|NO||
-column|synth_meta|profile_revisions|context_sequence|bigint|int8|NO||
-column|synth_meta|profile_revisions|generation|bigint|int8|NO||
-column|synth_meta|profile_revisions|history_event_id|bigint|int8|NO||
-column|synth_meta|profile_revisions|input_payload|jsonb|jsonb|NO||
-column|synth_meta|profile_revisions|input_sha256|character|bpchar|NO||64
-column|synth_meta|profile_revisions|prior_history_event_id|bigint|int8|YES||
-column|synth_meta|profile_revisions|profile_role|text|text|NO||
-column|synth_meta|profile_revisions|request_id|text|text|NO||
-column|synth_meta|profile_revisions|result_fields|jsonb|jsonb|NO||
-column|synth_meta|profile_revisions|result_sha256|character|bpchar|NO||64
-column|synth_meta|profile_revisions|session_id|text|text|NO||
+column|public|core_character_generation_field|field|text|text|NO||
+column|public|core_character_generation_field|job_id|bigint|int8|NO||
+column|public|core_character_generation_field|result_sha256|character|bpchar|NO||64
+column|public|core_character_generation_field|result_text|text|text|NO||
+column|public|core_character_generation|input_payload|jsonb|jsonb|NO||
+column|public|core_character_generation|input_sha256|character|bpchar|NO||64
+column|public|core_character_generation|job_id|bigint|int8|NO||
+column|public|core_character_generation_revision|actor_identity_id|bigint|int8|NO||
+column|public|core_character_generation_revision|context_sequence|bigint|int8|NO||
+column|public|core_character_generation_revision|generation|bigint|int8|NO||
+column|public|core_character_generation_revision|history_event_id|bigint|int8|NO||
+column|public|core_character_generation_revision|input_payload|jsonb|jsonb|NO||
+column|public|core_character_generation_revision|input_sha256|character|bpchar|NO||64
+column|public|core_character_generation_revision|prior_history_event_id|bigint|int8|YES||
+column|public|core_character_generation_revision|profile_role|text|text|NO||
+column|public|core_character_generation_revision|request_id|text|text|NO||
+column|public|core_character_generation_revision|result_fields|jsonb|jsonb|NO||
+column|public|core_character_generation_revision|result_sha256|character|bpchar|NO||64
+column|public|core_character_generation_revision|session_id|text|text|NO||
 column|public|core_protocol_event|canonical_event|jsonb|jsonb|NO||
 column|public|core_protocol_event|event_sha256|character|bpchar|NO||64
 column|public|core_protocol_event|event_type|text|text|NO||
@@ -840,13 +840,13 @@ column|public|core_faction|name|text|text|YES||
 column|public|core_faction|player_rank|numeric|numeric|YES||
 column|public|core_faction|stock|jsonb|jsonb|YES||
 column|public|core_faction|vendor_cont|text|text|YES||
-column|synth|game_plugins|compile_index|integer|int4|NO|0|
-column|synth|game_plugins|formid_prefix|text|text|NO|''::text|
-column|synth|game_plugins|is_light|boolean|bool|NO|false|
-column|synth|game_plugins|partial_index|integer|int4|NO|0|
-column|synth|game_plugins|plugin_name|text|text|NO||
-column|synth|game_plugins|small_file_compile_index|integer|int4|NO|0|
-column|synth|game_plugins|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_plugins|compile_index|integer|int4|NO|0|
+column|public|core_plugins|formid_prefix|text|text|NO|''::text|
+column|public|core_plugins|is_light|boolean|bool|NO|false|
+column|public|core_plugins|partial_index|integer|int4|NO|0|
+column|public|core_plugins|plugin_name|text|text|NO||
+column|public|core_plugins|small_file_compile_index|integer|int4|NO|0|
+column|public|core_plugins|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
 column|synth|general_settings|description|text|text|YES|''::text|
 column|synth|general_settings|id|text|text|NO||
 column|synth|general_settings|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
@@ -856,28 +856,28 @@ column|public|core_config_preset|id|integer|int4|NO||
 column|public|core_config_preset|name|character varying|varchar|NO||60
 column|public|core_config_preset|snapshot|jsonb|jsonb|NO||
 column|public|core_config_preset|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|import_rules|action|jsonb|jsonb|YES||
-column|synth|import_rules|description|text|text|NO||
-column|synth|import_rules|enabled|boolean|bool|YES|true|
-column|synth|import_rules|id|integer|int4|NO|nextval('import_rules_id_seq'::regclass)|
-column|synth|import_rules|match_base|text|text|YES||
-column|synth|import_rules|match_faction|text|text|YES||
-column|synth|import_rules|match_gender|text|text|YES||
-column|synth|import_rules|match_mods|ARRAY|_text|YES||
-column|synth|import_rules|match_name|text|text|YES||
-column|synth|import_rules|match_race|text|text|YES||
-column|synth|import_rules|priority|integer|int4|YES|0|
-column|synth|import_rules|profile|integer|int4|YES||
-column|synth|locations|cleared|boolean|bool|YES||
-column|synth|locations|coords|point|point|YES||
-column|synth|locations|formid|bigint|int8|YES||
-column|synth|locations|is_interior|integer|int4|YES||
-column|synth|locations|name|text|text|YES||
-column|synth|locations|refs|text|text|YES||
-column|synth|locations|tags|text|text|YES||
-column|synth|locations|updated_at|timestamp without time zone|timestamp|YES||
-column|synth|locations|vanilla_location|boolean|bool|YES||
-column|synth|locations|worldspace|text|text|YES||
+column|public|core_npc_profile_rule|action|jsonb|jsonb|YES||
+column|public|core_npc_profile_rule|description|text|text|NO||
+column|public|core_npc_profile_rule|enabled|boolean|bool|YES|true|
+column|public|core_npc_profile_rule|id|integer|int4|NO|nextval('import_rules_id_seq'::regclass)|
+column|public|core_npc_profile_rule|match_base|text|text|YES||
+column|public|core_npc_profile_rule|match_faction|text|text|YES||
+column|public|core_npc_profile_rule|match_gender|text|text|YES||
+column|public|core_npc_profile_rule|match_mods|ARRAY|_text|YES||
+column|public|core_npc_profile_rule|match_name|text|text|YES||
+column|public|core_npc_profile_rule|match_race|text|text|YES||
+column|public|core_npc_profile_rule|priority|integer|int4|YES|0|
+column|public|core_npc_profile_rule|profile|integer|int4|YES||
+column|public|core_location|cleared|boolean|bool|YES||
+column|public|core_location|coords|point|point|YES||
+column|public|core_location|formid|bigint|int8|YES||
+column|public|core_location|is_interior|integer|int4|YES||
+column|public|core_location|name|text|text|YES||
+column|public|core_location|refs|text|text|YES||
+column|public|core_location|tags|text|text|YES||
+column|public|core_location|updated_at|timestamp without time zone|timestamp|YES||
+column|public|core_location|vanilla_location|boolean|bool|YES||
+column|public|core_location|worldspace|text|text|YES||
 column|synth|log|localts|bigint|int8|NO||
 column|synth|log|prompt|text|text|YES||
 column|synth|log|response|text|text|YES||
@@ -947,18 +947,18 @@ column|public|core_quest|stage|integer|int4|YES||
 column|public|core_quest|status|text|text|YES||
 column|public|core_quest|target_id|text|text|YES||
 column|public|core_quest|ts|text|text|NO||
-column|synth|relationship_eval_queue|created_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|relationship_eval_queue|eval_data|jsonb|jsonb|NO||
-column|synth|relationship_eval_queue|id|integer|int4|NO|nextval('relationship_eval_queue_id_seq'::regclass)|
-column|synth|relationship_eval_queue|last_error|text|text|YES||
-column|synth|relationship_eval_queue|npc_id|integer|int4|NO||
-column|synth|relationship_eval_queue|retry_count|integer|int4|YES|0|
-column|synth|relationship_init_queue|created_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|relationship_init_queue|id|integer|int4|NO|nextval('relationship_init_queue_id_seq'::regclass)|
-column|synth|relationship_init_queue|init_data|jsonb|jsonb|NO||
-column|synth|relationship_init_queue|last_error|text|text|YES||
-column|synth|relationship_init_queue|npc_id|integer|int4|NO||
-column|synth|relationship_init_queue|retry_count|integer|int4|YES|0|
+column|public|core_relationship_eval_queue|created_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_relationship_eval_queue|eval_data|jsonb|jsonb|NO||
+column|public|core_relationship_eval_queue|id|integer|int4|NO|nextval('relationship_eval_queue_id_seq'::regclass)|
+column|public|core_relationship_eval_queue|last_error|text|text|YES||
+column|public|core_relationship_eval_queue|npc_id|integer|int4|NO||
+column|public|core_relationship_eval_queue|retry_count|integer|int4|YES|0|
+column|public|core_relationship_init_queue|created_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_relationship_init_queue|id|integer|int4|NO|nextval('relationship_init_queue_id_seq'::regclass)|
+column|public|core_relationship_init_queue|init_data|jsonb|jsonb|NO||
+column|public|core_relationship_init_queue|last_error|text|text|YES||
+column|public|core_relationship_init_queue|npc_id|integer|int4|NO||
+column|public|core_relationship_init_queue|retry_count|integer|int4|YES|0|
 column|synth|responselog|action|text|text|YES||
 column|synth|responselog|actor|text|text|YES||
 column|synth|responselog|localts|bigint|int8|NO||
@@ -966,11 +966,11 @@ column|synth|responselog|rowid|bigint|int8|NO|nextval('responselog_rowid_seq'::r
 column|synth|responselog|sent|bigint|int8|NO||
 column|synth|responselog|tag|character varying|varchar|YES||256
 column|synth|responselog|text|text|text|YES||
-column|synth|rolemaster|data|text|text|YES||
-column|synth|rolemaster|localts|bigint|int8|NO||
-column|synth|rolemaster|rowid|bigint|int8|NO|nextval('rolemaster_rowid_seq'::regclass)|
-column|synth|rolemaster|ttl|bigint|int8|NO||
-column|synth|rolemaster|type|character varying|varchar|YES||128
+column|public|core_director_note|data|text|text|YES||
+column|public|core_director_note|localts|bigint|int8|NO||
+column|public|core_director_note|rowid|bigint|int8|NO|nextval('rolemaster_rowid_seq'::regclass)|
+column|public|core_director_note|ttl|bigint|int8|NO||
+column|public|core_director_note|type|character varying|varchar|YES||128
 column|synth|speech|audios|text|text|YES||
 column|synth|speech|companions|text|text|YES||
 column|synth|speech|emotion_intensity|text|text|YES||
@@ -1188,7 +1188,7 @@ constraint|public|core_diary_input|diary_inputs_input_payload_check|c|t|CHECK ((
 constraint|public|core_diary_input|diary_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|public|core_diary_input|diary_inputs_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_diary_input|diary_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
-constraint|public|core_diary_input|diary_inputs_profile_revision_id_fkey|f|t|FOREIGN KEY (profile_revision_id) REFERENCES profile_revisions(history_event_id)
+constraint|public|core_diary_input|diary_inputs_profile_revision_id_fkey|f|t|FOREIGN KEY (profile_revision_id) REFERENCES core_character_generation_revision(history_event_id)
 constraint|public|core_diary_input|diary_inputs_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
 constraint|public|core_diary_input|diary_inputs_session_id_request_id_actor_identity_id_diary__key|u|t|UNIQUE (session_id, request_id, actor_identity_id, diary_role)
 constraint|public|core_diary_input|diary_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
@@ -1378,30 +1378,30 @@ constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_spe
 constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_text_check|c|t|CHECK (((char_length(text) >= 1) AND (char_length(text) <= 4096)))
 constraint|synth_meta|playthrough_profiles|playthrough_profiles_name_key|u|t|UNIQUE (name)
 constraint|synth_meta|playthrough_profiles|playthrough_profiles_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|profile_job_fields|profile_job_fields_field_check|c|t|CHECK ((field = ANY (ARRAY['personality'::text, 'occupation'::text, 'skills'::text, 'speechstyle'::text, 'goals'::text])))
-constraint|synth_meta|profile_job_fields|profile_job_fields_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES profile_job_inputs(job_id)
-constraint|synth_meta|profile_job_fields|profile_job_fields_pkey|p|t|PRIMARY KEY (job_id, field)
-constraint|synth_meta|profile_job_fields|profile_job_fields_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_job_fields|profile_job_fields_result_text_check|c|t|CHECK (((octet_length(result_text) >= 1) AND (octet_length(result_text) <= 16384)))
-constraint|synth_meta|profile_job_inputs|profile_job_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.profile.input.v1'::text))))
-constraint|synth_meta|profile_job_inputs|profile_job_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_job_inputs|profile_job_inputs_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
-constraint|synth_meta|profile_job_inputs|profile_job_inputs_pkey|p|t|PRIMARY KEY (job_id)
-constraint|synth_meta|profile_revisions|profile_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|profile_revisions|profile_revisions_check|c|t|CHECK (((prior_history_event_id IS NULL) OR (prior_history_event_id < history_event_id)))
-constraint|synth_meta|profile_revisions|profile_revisions_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|profile_revisions|profile_revisions_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|profile_revisions|profile_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|profile_revisions|profile_revisions_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.profile.input.v1'::text))))
-constraint|synth_meta|profile_revisions|profile_revisions_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_revisions|profile_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|profile_revisions|profile_revisions_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES profile_revisions(history_event_id)
-constraint|synth_meta|profile_revisions|profile_revisions_profile_role_check|c|t|CHECK ((profile_role = ANY (ARRAY['npc'::text, 'narrator'::text])))
-constraint|synth_meta|profile_revisions|profile_revisions_result_fields_check|c|t|CHECK ((jsonb_typeof(result_fields) = 'object'::text))
-constraint|synth_meta|profile_revisions|profile_revisions_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|profile_revisions|profile_revisions_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
-constraint|synth_meta|profile_revisions|profile_revisions_session_id_request_id_actor_identity_id_p_key|u|t|UNIQUE (session_id, request_id, actor_identity_id, profile_role)
-constraint|synth_meta|profile_revisions|profile_revisions_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_character_generation_field|profile_job_fields_field_check|c|t|CHECK ((field = ANY (ARRAY['personality'::text, 'occupation'::text, 'skills'::text, 'speechstyle'::text, 'goals'::text])))
+constraint|public|core_character_generation_field|profile_job_fields_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_character_generation(job_id)
+constraint|public|core_character_generation_field|profile_job_fields_pkey|p|t|PRIMARY KEY (job_id, field)
+constraint|public|core_character_generation_field|profile_job_fields_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_character_generation_field|profile_job_fields_result_text_check|c|t|CHECK (((octet_length(result_text) >= 1) AND (octet_length(result_text) <= 16384)))
+constraint|public|core_character_generation|profile_job_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.profile.input.v1'::text))))
+constraint|public|core_character_generation|profile_job_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_character_generation|profile_job_inputs_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
+constraint|public|core_character_generation|profile_job_inputs_pkey|p|t|PRIMARY KEY (job_id)
+constraint|public|core_character_generation_revision|profile_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_character_generation_revision|profile_revisions_check|c|t|CHECK (((prior_history_event_id IS NULL) OR (prior_history_event_id < history_event_id)))
+constraint|public|core_character_generation_revision|profile_revisions_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_character_generation_revision|profile_revisions_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_character_generation_revision|profile_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_character_generation_revision|profile_revisions_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.profile.input.v1'::text))))
+constraint|public|core_character_generation_revision|profile_revisions_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_character_generation_revision|profile_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_character_generation_revision|profile_revisions_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES core_character_generation_revision(history_event_id)
+constraint|public|core_character_generation_revision|profile_revisions_profile_role_check|c|t|CHECK ((profile_role = ANY (ARRAY['npc'::text, 'narrator'::text])))
+constraint|public|core_character_generation_revision|profile_revisions_result_fields_check|c|t|CHECK ((jsonb_typeof(result_fields) = 'object'::text))
+constraint|public|core_character_generation_revision|profile_revisions_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_character_generation_revision|profile_revisions_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_character_generation_revision|profile_revisions_session_id_request_id_actor_identity_id_p_key|u|t|UNIQUE (session_id, request_id, actor_identity_id, profile_role)
+constraint|public|core_character_generation_revision|profile_revisions_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|public|core_protocol_event|protocol_events_event_sha256_check|c|t|CHECK ((event_sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|public|core_protocol_event|protocol_events_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_protocol_event|protocol_events_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
@@ -1656,18 +1656,18 @@ constraint|public|core_tts_pronunciation|core_tts_pronunciation_spoken_not_blank
 constraint|synth|descriptions_custom|descriptions_custom_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|synth|descriptions|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|public|core_faction|factions_pkey|p|t|PRIMARY KEY (formid)
-constraint|synth|game_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
+constraint|public|core_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
 constraint|synth|general_settings|general_settings_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_config_preset|global_settings_presets_name_check|c|t|CHECK ((length(btrim((name)::text)) > 0))
 constraint|public|core_config_preset|global_settings_presets_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_config_preset|global_settings_presets_snapshot_check|c|t|CHECK ((jsonb_typeof(snapshot) = 'object'::text))
-constraint|synth|import_rules|import_rules_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|import_rules|import_rules_profile_fkey|f|t|FOREIGN KEY (profile) REFERENCES core_profiles(id)
+constraint|public|core_npc_profile_rule|import_rules_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_npc_profile_rule|import_rules_profile_fkey|f|t|FOREIGN KEY (profile) REFERENCES core_profiles(id)
 constraint|public|core_prompt|prompts_pkey|p|t|PRIMARY KEY (prompt_key)
-constraint|synth|relationship_eval_queue|relationship_eval_queue_npc_id_key|u|t|UNIQUE (npc_id)
-constraint|synth|relationship_eval_queue|relationship_eval_queue_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|relationship_init_queue|relationship_init_queue_npc_id_key|u|t|UNIQUE (npc_id)
-constraint|synth|relationship_init_queue|relationship_init_queue_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_relationship_eval_queue|relationship_eval_queue_npc_id_key|u|t|UNIQUE (npc_id)
+constraint|public|core_relationship_eval_queue|relationship_eval_queue_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_relationship_init_queue|relationship_init_queue_npc_id_key|u|t|UNIQUE (npc_id)
+constraint|public|core_relationship_init_queue|relationship_init_queue_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_visual_context|visual_context_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
 constraint|public|core_visual_context|visual_context_capture_id_key|u|t|UNIQUE (capture_id)
 constraint|public|core_visual_context|visual_context_generation_check|c|t|CHECK (((generation IS NULL) OR (generation > 0)))
@@ -1764,11 +1764,11 @@ index|public|core_narrator_transcript_entry|narrator_transcript_entries_pkey|CRE
 index|public|core_narrator_transcript_entry|narrator_transcript_entries_session_id_request_id_role_key|CREATE UNIQUE INDEX narrator_transcript_entries_session_id_request_id_role_key ON public.core_narrator_transcript_entry USING btree (session_id, request_id, role)
 index|synth_meta|playthrough_profiles|playthrough_profiles_name_key|CREATE UNIQUE INDEX playthrough_profiles_name_key ON synth_meta.playthrough_profiles USING btree (name)
 index|synth_meta|playthrough_profiles|playthrough_profiles_pkey|CREATE UNIQUE INDEX playthrough_profiles_pkey ON synth_meta.playthrough_profiles USING btree (id)
-index|synth_meta|profile_job_fields|profile_job_fields_pkey|CREATE UNIQUE INDEX profile_job_fields_pkey ON synth_meta.profile_job_fields USING btree (job_id, field)
-index|synth_meta|profile_job_inputs|profile_job_inputs_pkey|CREATE UNIQUE INDEX profile_job_inputs_pkey ON synth_meta.profile_job_inputs USING btree (job_id)
-index|synth_meta|profile_revisions|profile_revisions_actor_history|CREATE INDEX profile_revisions_actor_history ON synth_meta.profile_revisions USING btree (actor_identity_id, profile_role, history_event_id DESC)
-index|synth_meta|profile_revisions|profile_revisions_pkey|CREATE UNIQUE INDEX profile_revisions_pkey ON synth_meta.profile_revisions USING btree (history_event_id)
-index|synth_meta|profile_revisions|profile_revisions_session_id_request_id_actor_identity_id_p_key|CREATE UNIQUE INDEX profile_revisions_session_id_request_id_actor_identity_id_p_key ON synth_meta.profile_revisions USING btree (session_id, request_id, actor_identity_id, profile_role)
+index|public|core_character_generation_field|profile_job_fields_pkey|CREATE UNIQUE INDEX profile_job_fields_pkey ON public.core_character_generation_field USING btree (job_id, field)
+index|public|core_character_generation|profile_job_inputs_pkey|CREATE UNIQUE INDEX profile_job_inputs_pkey ON public.core_character_generation USING btree (job_id)
+index|public|core_character_generation_revision|profile_revisions_actor_history|CREATE INDEX profile_revisions_actor_history ON public.core_character_generation_revision USING btree (actor_identity_id, profile_role, history_event_id DESC)
+index|public|core_character_generation_revision|profile_revisions_pkey|CREATE UNIQUE INDEX profile_revisions_pkey ON public.core_character_generation_revision USING btree (history_event_id)
+index|public|core_character_generation_revision|profile_revisions_session_id_request_id_actor_identity_id_p_key|CREATE UNIQUE INDEX profile_revisions_session_id_request_id_actor_identity_id_p_key ON public.core_character_generation_revision USING btree (session_id, request_id, actor_identity_id, profile_role)
 index|public|core_protocol_event|protocol_events_pkey|CREATE UNIQUE INDEX protocol_events_pkey ON public.core_protocol_event USING btree (id)
 index|public|core_protocol_event|protocol_events_session_id_request_id_key|CREATE UNIQUE INDEX protocol_events_session_id_request_id_key ON public.core_protocol_event USING btree (session_id, request_id)
 index|public|core_protocol_event|protocol_events_turn_generation|CREATE INDEX protocol_events_turn_generation ON public.core_protocol_event USING btree (session_id, turn_id, generation, received_at)
@@ -1891,17 +1891,17 @@ index|synth|eventlog|idx_eventlog_people_trgm2|CREATE INDEX idx_eventlog_people_
 index|synth|eventlog|idx_eventlog_people_trgm|CREATE INDEX idx_eventlog_people_trgm ON synth.eventlog USING gin (people gin_trgm_ops)
 index|synth|eventlog|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utterance_id ON synth.eventlog USING btree (utterance_id)
 index|public|core_faction|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON public.core_faction USING btree (formid)
-index|synth|game_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON synth.game_plugins USING btree (plugin_name)
+index|public|core_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON public.core_plugins USING btree (plugin_name)
 index|synth|general_settings|general_settings_pkey|CREATE UNIQUE INDEX general_settings_pkey ON synth.general_settings USING btree (id)
 index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
 index|public|core_config_preset|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON public.core_config_preset USING btree (id)
-index|synth|import_rules|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON synth.import_rules USING btree (id)
+index|public|core_npc_profile_rule|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON public.core_npc_profile_rule USING btree (id)
 index|synth|memory_summary|memory_summary_tsv_idx|CREATE INDEX memory_summary_tsv_idx ON synth.memory_summary USING gin (native_vec)
 index|public|core_prompt|prompts_pkey|CREATE UNIQUE INDEX prompts_pkey ON public.core_prompt USING btree (prompt_key)
-index|synth|relationship_eval_queue|relationship_eval_queue_npc_id_key|CREATE UNIQUE INDEX relationship_eval_queue_npc_id_key ON synth.relationship_eval_queue USING btree (npc_id)
-index|synth|relationship_eval_queue|relationship_eval_queue_pkey|CREATE UNIQUE INDEX relationship_eval_queue_pkey ON synth.relationship_eval_queue USING btree (id)
-index|synth|relationship_init_queue|relationship_init_queue_npc_id_key|CREATE UNIQUE INDEX relationship_init_queue_npc_id_key ON synth.relationship_init_queue USING btree (npc_id)
-index|synth|relationship_init_queue|relationship_init_queue_pkey|CREATE UNIQUE INDEX relationship_init_queue_pkey ON synth.relationship_init_queue USING btree (id)
+index|public|core_relationship_eval_queue|relationship_eval_queue_npc_id_key|CREATE UNIQUE INDEX relationship_eval_queue_npc_id_key ON public.core_relationship_eval_queue USING btree (npc_id)
+index|public|core_relationship_eval_queue|relationship_eval_queue_pkey|CREATE UNIQUE INDEX relationship_eval_queue_pkey ON public.core_relationship_eval_queue USING btree (id)
+index|public|core_relationship_init_queue|relationship_init_queue_npc_id_key|CREATE UNIQUE INDEX relationship_init_queue_npc_id_key ON public.core_relationship_init_queue USING btree (npc_id)
+index|public|core_relationship_init_queue|relationship_init_queue_pkey|CREATE UNIQUE INDEX relationship_init_queue_pkey ON public.core_relationship_init_queue USING btree (id)
 index|synth|speech|idx_speech_gamets_pos|CREATE INDEX idx_speech_gamets_pos ON synth.speech USING btree (gamets) WHERE (gamets > 0)
 index|synth|speech|idx_speech_listener_trgm|CREATE INDEX idx_speech_listener_trgm ON synth.speech USING gin (listener gin_trgm_ops)
 index|synth|speech|idx_speech_speaker_trgm|CREATE INDEX idx_speech_speaker_trgm ON synth.speech USING gin (speaker gin_trgm_ops)
@@ -1962,9 +1962,9 @@ table|public|core_narrator_state|BASE TABLE
 table|public|core_narrator_transcript_cursor|BASE TABLE
 table|public|core_narrator_transcript_entry|BASE TABLE
 table|synth_meta|playthrough_profiles|BASE TABLE
-table|synth_meta|profile_job_fields|BASE TABLE
-table|synth_meta|profile_job_inputs|BASE TABLE
-table|synth_meta|profile_revisions|BASE TABLE
+table|public|core_character_generation_field|BASE TABLE
+table|public|core_character_generation|BASE TABLE
+table|public|core_character_generation_revision|BASE TABLE
 table|public|core_protocol_event|BASE TABLE
 table|public|core_rechat_chain|BASE TABLE
 table|public|core_rechat_continuation|BASE TABLE
@@ -2022,11 +2022,11 @@ table|synth|descriptions|BASE TABLE
 table|synth|diarylog|BASE TABLE
 table|synth|eventlog|BASE TABLE
 table|public|core_faction|BASE TABLE
-table|synth|game_plugins|BASE TABLE
+table|public|core_plugins|BASE TABLE
 table|synth|general_settings|BASE TABLE
 table|public|core_config_preset|BASE TABLE
-table|synth|import_rules|BASE TABLE
-table|synth|locations|BASE TABLE
+table|public|core_npc_profile_rule|BASE TABLE
+table|public|core_location|BASE TABLE
 table|synth|log|BASE TABLE
 table|synth|memory_summary|BASE TABLE
 table|synth|memory_v|VIEW
@@ -2034,10 +2034,10 @@ table|synth|memory|BASE TABLE
 table|synth|moods_issued|BASE TABLE
 table|public|core_prompt|BASE TABLE
 table|public|core_quest|BASE TABLE
-table|synth|relationship_eval_queue|BASE TABLE
-table|synth|relationship_init_queue|BASE TABLE
+table|public|core_relationship_eval_queue|BASE TABLE
+table|public|core_relationship_init_queue|BASE TABLE
 table|synth|responselog|BASE TABLE
-table|synth|rolemaster|BASE TABLE
+table|public|core_director_note|BASE TABLE
 table|synth|speech|BASE TABLE
 table|synth|synthnpcs|VIEW
 table|public|core_visual_context|BASE TABLE
