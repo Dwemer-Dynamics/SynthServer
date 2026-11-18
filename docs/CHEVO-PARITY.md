@@ -27,24 +27,24 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 
 | chevo area | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-| Router and versioned routes | `api/v2/dispatch.php`, `routes.php`; root entry points (`main.php`, `gamedata.php`) | in progress | TBD |
-| `books/read` | none | in progress (reading session) | TBD |
+| Router and versioned routes | `api/index.php` -> `api/routes.php` -> `api/v1/<area>/` (thin adapters over the root entry points, which stay as they are); `api/v2/dispatch.php`, `routes.php` | parity (entry shape); handlers move behind managers as domains move | this PR |
+| `books/read` | `api/v1/books/read.php`: a `context` event carrying `reading_event`, via `main.php` | parity (adapter) | this PR |
 | `config` (`index`, `player-tts`) | `ui/global_settings.php`, `conf/` | in progress | #65 |
-| `context/event` | `gamedata.php` / `processor/` | missing in `api/` | TBD |
-| `dialogue` (`request`, `spoken`, `cancel`) | `main.php`, `processor/request.php`, `api/v2` conversation | in progress | TBD (conversation lifecycle) |
-| `editing` (generic edit API) | none | missing | TBD |
-| `extensions` | none | in progress (draft PR: `talk-awareness` reference; `ext/relationship_system` kept) | TBD |
-| `health` | root `health.php` (read-only readiness, 503 contract) | in progress | TBD (health notice) |
-| `locations/save` | none | in progress (locations session) | TBD |
-| `messages` (response queue delivery) | `processor/`, `ui/response_queue.php` | in progress | TBD |
+| `context/event` | `api/v1/context/event.php` (`context` event via `main.php`) | parity (adapter) | this PR |
+| `dialogue` (`request`, `spoken`, `cancel`) | `api/v1/dialogue/*` adapters over `main.php` (`api/v2` conversation dispatch behind it) | parity (adapter); lifecycle work continues | this PR; TBD (conversation lifecycle) |
+| `editing` (generic edit API) | `/api/v1/edit` answers 501 (`api/v1/editing/index.php`) | missing (501 stub) | TBD (edit API PR) |
+| `extensions` | `/api/v1/extensions` answers 501 (`api/v1/extensions.php`); draft PR: `talk-awareness` reference; `ext/relationship_system` kept | in progress (501 stub) | TBD |
+| `health` | `api/v1/health.php` over root `health.php` (read-only readiness, 503 contract; `health/{live,db,api-keys-configured,npcs-available,llm}`) | parity (adapter) | this PR; TBD (health notice) |
+| `locations/save` | `api/v1/locations/save.php` (`location_catalog` event via `main.php`; no storage yet) | parity (adapter) | this PR; TBD (locations) |
+| `messages` (response queue delivery) | `GET /api/v1/messages/<id>` over `tts_status.php` (id is the TTS cache key); `processor/`, `ui/response_queue.php` | parity (adapter, delivery state only) | this PR |
 | `narrator/checkpoint` | `api/v2` narrator routes, `PrivateNarratorManager` | in progress | TBD |
-| `npc/add` | `gamedata.php`, runtime actor design | in progress | #66 |
-| `plugins/manifest` | `ui/server_plugins.php`, `data/plugin_packages/` | in progress | TBD |
-| `save/created`, `save/loaded` | `SaveState`, `SessionManager` | in progress | TBD |
-| `speech/transcribe` | `stt.php`, `stt/` | in progress | TBD |
+| `npc/add` | `api/v1/npc/add.php` (`actor_profile` record via `gamedata.php`); runtime actor design | parity (adapter); runtime actors in progress | this PR; #66 |
+| `plugins/manifest` | `api/v1/plugins/manifest.php` (`loaded_plugins` record via `gamedata.php`); `ui/server_plugins.php`, `data/plugin_packages/` | parity (adapter) | this PR |
+| `save/created`, `save/loaded` | `save/loaded`: `init` event via `main.php`; `save/created`: 501, the client sends no save-created signal; `SaveState`, `SessionManager` | `save/loaded` parity (adapter); `save/created` missing (501 stub) | this PR; TBD (save signal) |
+| `speech/transcribe` | `api/v1/speech/transcribe.php` over `stt.php`; `stt/` | parity (adapter) | this PR |
 | `tts` (`studio`, `voice-preview`, `voice-sample`, `voice-samples`) | `ui/api`, `tts/`, voice catalog tools | in progress | TBD (voice samples, optional voice) |
-| `user/input` | `main.php`, `player_rewrite.php` | in progress | TBD |
-| `vision/describe` | `itt.php`, `itt/` | in progress | TBD |
+| `user/input` | `api/v1/user/input.php` (`input_text`, `input_audio` via `main.php`); `player_rewrite.php` is a CLI worker, not an entry point | parity (adapter) | this PR |
+| `vision/describe` | `api/v1/vision/describe.php` over `itt.php`; `itt/` | parity (adapter) | this PR |
 
 ## Managers (`managers/<Name>/`)
 
@@ -103,7 +103,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | --- | --- | --- | --- |
 | `config/config.inc.tmpl.php` | `conf/` (`conf_loader.php`, `conf_schema.json`) | in progress (moves last) | TBD |
 | `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | in progress (draft PR; reference is `talk-awareness`) | TBD |
-| Health route (`/api/v1/health`) | `health.php` returns 200 or 503 | in progress | TBD (health notice) |
+| Health route (`/api/v1/health`) | `api/v1/health.php` over `health.php`, 200 or 503 | parity (adapter) | this PR; TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
 | `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |
 | PSR-4 autoload | added in this PR; `require_once` lists still used | in progress | this PR |

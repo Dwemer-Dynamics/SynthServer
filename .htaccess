@@ -1,2 +1,10 @@
 # No CORS grant: native and plugin clients are not browsers and need none, and the dashboard calls itself
 # same-origin. Management scripts also refuse cross-origin browser requests (lib/management_request_guard.php).
+
+# The version one API: /api/v1/<route> is answered by api/index.php unless it names a real script
+# (api/v1/voice/*.php). Without mod_rewrite the same routes work as /api/index.php/v1/<route>.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^api/v1(/.*)?$ api/index.php [L,QSA]
+</IfModule>

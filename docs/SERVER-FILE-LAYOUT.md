@@ -46,7 +46,7 @@ Rules:
 
 | Directory | Role | May call | Namespace | Legacy code lives in |
 | --- | --- | --- | --- | --- |
-| `api/` | HTTP router and versioned routes (`api/v2/*` today; new areas are `api/v<N>/<area>/*`). Validate, dispatch, shape the response. | `managers/`, `core/entities/system`, `core/contracts` | `Synth\Api\*` | Root entry points (`main.php`, `gamedata.php`, `stt.php`, `vsx.php`, `health.php`) and `api/v2/` |
+| `api/` | HTTP router and versioned routes (`api/index.php` -> `api/routes.php` -> `api/v1/<area>/*`; `api/v2/*` is native dialogue dispatch from `main.php`; new areas are `api/v<N>/<area>/*`). Validate, dispatch, shape the response. | `managers/`, `core/entities/system`, `core/contracts` | `Synth\Api\*` | Root entry points (`main.php`, `gamedata.php`, `stt.php`, `vsx.php`, `health.php`) and `api/v2/` |
 | `managers/<Name>/` | One domain per PascalCase folder, each with a `README.md` (and `PLAN.md` for architectural work). Orchestration, policy, lifecycle. | `core/entities/system`, `core/contracts`, `drivers/`, other managers | `Synth\Managers\<Name>\*` | Flat files `managers/*.php` (`Synth\Managers\*`), `processor/`, `lib/synth_*.php` |
 | `drivers/<kind>/` | `llm`, `tts`, `stt`, `itt`. Each has `<Kind>DriverInterface`, `<Kind>Wrapper` and `Drivers/` (one class per provider). | `core/contracts` only | `Synth\Drivers\<Kind>\*` (`Llm`, `Tts`, `Stt`, `Itt`) | `connector/` (LLM), `tts/`, `stt/`, `itt/`; the flat classes in `drivers/{llm,tts}/` |
 | `core/entities/` | `base/`: mapped `Abstract*` classes. `system/`: the classes the rest of the code uses. | `core/dbmanager` (from `system` only) | `Synth\Core\Entities\Base\*`, `Synth\Core\Entities\System\*` | `core/entities/dialogue.php`, `lib/core/*.class.php`, raw `$db->` calls in `lib/`, `processor/`, `ui/` |
@@ -69,7 +69,7 @@ autoloader follows PSR-4: its file path below the mapped root equals its namespa
 
 | Prefix | Directory |
 | --- | --- |
-| `Synth\Api\`, `Synth\Api\V2\` | `api/`, `api/v2/` (a new `api/v<N>/` needs its own mapping) |
+| `Synth\Api\`, `Synth\Api\V1\`, `Synth\Api\V2\` | `api/`, `api/v1/`, `api/v2/` (a new `api/v<N>/` needs its own mapping) |
 | `Synth\Core\Contracts\` | `core/contracts/` |
 | `Synth\Core\Entities\` (`Base\`, `System\`) | `core/entities/` (`base/`, `system/`: lowercase dirs, explicit mappings) |
 | `Synth\Core\DbManager\` (`Dao\`) | `core/dbmanager/` (`dao/`) |
