@@ -417,6 +417,8 @@ For Stu (CHIM 4 / chevo owner). **Questions 1 to 8: user decision (2026-11-17), 
 7. **A `core_prompt` table is acceptable.**
 8. **Keep SYNTH's `core_worker_job` leases and evaluation pipeline; do not adopt `core_worker_unit` yet.** A parallel session builds a storage-agnostic `workers/` framework, so the worker tables stay behind a seam.
 
+**Legacy upgrade chain (decided 2026-11-17): retire per step.** When a step moves a table out of `synth`/`synth_meta`, the legacy-chain tests that exercise upgrades through that table are retired in the same commit (there is no upgrade path, owner decision). The frozen `debug/db_updates.php` itself is deleted in step 8; until then it is not run against converted tables.
+
 The original questions follow for the record.
 
 1. **Is copying chevo's `core/dbmanager` layout and `Database` class right, or will they become a shared package?** (risk 7)
