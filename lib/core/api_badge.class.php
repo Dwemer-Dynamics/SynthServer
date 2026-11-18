@@ -67,6 +67,11 @@ class ApiBadge {
         return $this->repository->byLabel(strval($label));
     }
 
+    // Count of keys (global and SYNTH-only) with a saved secret, without returning any key (read-only health check)
+    public function countWithKeys() {
+        return $this->repository->countWithKeys();
+    }
+
     // Read all keys, global first
     public function getAll() {
         return $this->repository->all();

@@ -72,6 +72,12 @@ class ApiBadgeRepository
         return $this->withSecrets(null);
     }
 
+    /** How many keys, global and SYNTH-only, hold a saved secret; no secret is read into the result (read-only health check). */
+    public function countWithKeys(): int
+    {
+        return count(array_filter($this->dao->listAll(), static fn($badge) => $badge->hasKey()));
+    }
+
     /** Id and label of every key, never the key. $order is id, label or lower_label. */
     public function labels(string $order): array
     {
