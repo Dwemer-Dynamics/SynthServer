@@ -557,7 +557,7 @@ CREATE TABLE synth.audit_request (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE TABLE synth.bio_template_actor_map (
+CREATE TABLE public.core_npc_biography_template_actor (
     id bigint NOT NULL,
     template_name character varying(128) NOT NULL,
     base_plugin text,
@@ -573,16 +573,16 @@ CREATE TABLE synth.bio_template_actor_map (
     CONSTRAINT bio_template_actor_map_reference_pair_check CHECK (((reference_plugin IS NULL) = (reference_local_formid IS NULL)))
 );
 -- end-statement
-CREATE SEQUENCE synth.bio_template_actor_map_id_seq
+CREATE SEQUENCE public.bio_template_actor_map_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.bio_template_actor_map_id_seq OWNED BY synth.bio_template_actor_map.id;
+ALTER SEQUENCE public.bio_template_actor_map_id_seq OWNED BY public.core_npc_biography_template_actor.id;
 -- end-statement
-CREATE TABLE synth.bio_templates (
+CREATE TABLE public.core_npc_biography_template (
     npc_name character varying(128) NOT NULL,
     worldknowledge_tags text,
     core text,
@@ -600,7 +600,7 @@ CREATE TABLE synth.bio_templates (
     refid text
 );
 -- end-statement
-CREATE TABLE synth.bio_templates_custom (
+CREATE TABLE public.core_npc_biography_template_custom (
     npc_name character varying(128) NOT NULL,
     worldknowledge_tags text,
     core text,
@@ -634,7 +634,7 @@ CREATE VIEW synth.combined_bio_templates AS
     c.gender,
     c.race,
     c.refid
-   FROM synth.bio_templates_custom c
+   FROM public.core_npc_biography_template_custom c
 UNION ALL
  SELECT b.npc_name,
     b.worldknowledge_tags,
@@ -651,8 +651,8 @@ UNION ALL
     b.gender,
     b.race,
     b.refid
-   FROM (synth.bio_templates b
-     LEFT JOIN synth.bio_templates_custom c ON (((b.npc_name)::text = (c.npc_name)::text)))
+   FROM (public.core_npc_biography_template b
+     LEFT JOIN public.core_npc_biography_template_custom c ON (((b.npc_name)::text = (c.npc_name)::text)))
   WHERE (c.npc_name IS NULL);
 -- end-statement
 CREATE TABLE public.core_action (
@@ -2812,7 +2812,7 @@ ALTER TABLE ONLY synth.actions_issued ALTER COLUMN rowid SET DEFAULT nextval('sy
 -- end-statement
 ALTER TABLE ONLY synth.actor_identities ALTER COLUMN id SET DEFAULT nextval('synth.actor_identities_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.bio_template_actor_map ALTER COLUMN id SET DEFAULT nextval('synth.bio_template_actor_map_id_seq'::regclass);
+ALTER TABLE ONLY public.core_npc_biography_template_actor ALTER COLUMN id SET DEFAULT nextval('public.bio_template_actor_map_id_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_api_badge ALTER COLUMN id SET DEFAULT nextval('public.api_badge_id_seq'::regclass);
 -- end-statement
@@ -2890,7 +2890,7 @@ ALTER TABLE ONLY public.core_relationship_interaction_evaluation ALTER COLUMN id
 -- end-statement
 ALTER TABLE ONLY public.core_worker_job ALTER COLUMN id SET DEFAULT nextval('public.worker_jobs_id_seq'::regclass);
 -- end-statement
-INSERT INTO synth.bio_template_actor_map VALUES
+INSERT INTO public.core_npc_biography_template_actor VALUES
 	(1, 'creature_brahmin', 'Fallout4.esm', '00020480', NULL, NULL, 'Brahmin', true),
 	(2, 'creature_deathclaw', 'Fallout4.esm', '0001DB4C', NULL, NULL, 'Deathclaw', true),
 	(3, 'creature_deathclaw', 'Fallout4.esm', '001423A7', NULL, NULL, 'Alpha Deathclaw', true),
@@ -2992,7 +2992,7 @@ INSERT INTO synth.bio_template_actor_map VALUES
 	(99, 'fo4_virgil', 'Fallout4.esm', '00168B89', NULL, NULL, 'Brian Virgil', false),
 	(100, 'fo4_madison_li', 'Fallout4.esm', '0005E63F', NULL, NULL, 'Madison Li', false);
 -- end-statement
-INSERT INTO synth.bio_template_actor_map VALUES
+INSERT INTO public.core_npc_biography_template_actor VALUES
 	(101, 'fo4_allie_filmore', 'Fallout4.esm', '0005E557', NULL, NULL, 'Allie Filmore', false),
 	(102, 'fo4_travis_miles', 'Fallout4.esm', '00002F26', NULL, NULL, 'Travis Miles', false),
 	(103, 'fo4_ellie_perkins', 'Fallout4.esm', '000222A2', NULL, NULL, 'Ellie Perkins', false),
@@ -3094,7 +3094,7 @@ INSERT INTO synth.bio_template_actor_map VALUES
 	(199, 'fo4_solomon', 'Fallout4.esm', '00002CBB', NULL, NULL, 'Solomon', false),
 	(200, 'fo4_geneva', 'Fallout4.esm', '00002F0A', NULL, NULL, 'Geneva', false);
 -- end-statement
-INSERT INTO synth.bio_template_actor_map VALUES
+INSERT INTO public.core_npc_biography_template_actor VALUES
 	(201, 'fo4_danny_sullivan', 'Fallout4.esm', '000190BF', NULL, NULL, 'Danny Sullivan', false),
 	(202, 'fo4_sheffield', 'Fallout4.esm', '00002F06', NULL, NULL, 'Sheffield', false),
 	(203, 'fo4_joe_savoldi', 'Fallout4.esm', '00019983', NULL, NULL, 'Joe Savoldi', false),
@@ -3173,7 +3173,7 @@ INSERT INTO synth.bio_template_actor_map VALUES
 	(276, 'fo4_deacon_cover_memoryden', 'Fallout4.esm', '001A041E', NULL, NULL, 'Drifter', false),
 	(277, 'fo4_deacon_cover_goodneighbor', 'Fallout4.esm', '001A0422', NULL, NULL, 'Drifter', false);
 -- end-statement
-INSERT INTO synth.bio_templates VALUES
+INSERT INTO public.core_npc_biography_template VALUES
 	('creature_brahmin', 'brahmin,creature,animal,commonwealth', 'A domesticated two-headed brahmin.', 'Brahmin are hardy pack animals and livestock used throughout the Commonwealth.', 'A large irradiated bovine with two heads.', 'Placidity, herd instinct, and alarm around danger shape its interpreted reactions.', '', 'Pack animal and livestock.', 'Carrying loads, grazing, and sensing nearby threats.', 'Communicates through lowing, movement, and interpreted animal intent.', 'Stay near safety, food, and familiar handlers.', NULL, '', 'BrahminRace', NULL),
 	('creature_deathclaw', 'deathclaw,creature,predator,commonwealth', 'A powerful deathclaw predator.', 'Deathclaws are fast, territorial apex predators capable of tearing through armored prey.', 'A towering reptilian mutant with claws, horns, and heavy musculature.', 'Territorial, aggressive, alert, and driven by predatory instinct.', '', 'Apex predator.', 'Tracking prey, ambush, intimidation, and devastating melee attacks.', 'Communicates through roars, posture, and interpreted instinct rather than human speech.', 'Defend territory, hunt, and survive.', NULL, '', 'DeathclawRace', NULL),
 	('creature_mirelurk', 'mirelurk,creature,aquatic,commonwealth', 'A territorial mirelurk.', 'Mirelurks are heavily armored mutated crustaceans found near water and nesting grounds.', 'A hunched shell-armored creature with powerful claws.', 'Territorial, colony-oriented, defensive of nests, and quick to attack intruders.', '', 'Aquatic scavenger and nest defender.', 'Armored defense, claw attacks, burrowing, and aquatic movement.', 'Communicates through clicks, hisses, posture, and interpreted creature intent.', 'Protect the nest, feed, and drive away threats.', NULL, '', 'MirelurkRace', NULL),
@@ -3275,7 +3275,7 @@ INSERT INTO synth.bio_templates VALUES
 	('fo4_rei_nakano', 'commonwealth', 'The mother of Kasumi and wife of Kenji in the coastal Nakano household.', 'The family grew strained after Taichi’s death. Rei noticed Kasumi spending more time in her grandfather’s boathouse and worries about the distance between them.', 'Adult woman.', 'Concerned, perceptive and more willing than Kenji to consider her daughter’s independence.', NULL, 'Member of the Nakano household and parent.', 'Recognizing family tensions and describing Kasumi’s habits.', 'Measured, worried and quietly insistent.', 'Know that Kasumi is safe and restore understanding within her family.', NULL, NULL, NULL, NULL),
 	('fo4_captain_avery', 'far_harbor,far_harbor_lore', 'The captain and civic leader of Far Harbor.', 'Coordinates the town’s response to the encroaching Fog and tries to keep relations with Acadia and the Children of Atom from becoming open conflict.', 'Woman with white hair; original signature outfit: black vest and slacks.', 'Pragmatic, patient, protective and inclined toward peaceful solutions.', NULL, 'Captain of the Harbormen and community organizer.', 'Leadership, mediation and organizing community defenses and supplies.', 'Plain, steady explanations and firm instructions when tempers rise.', 'Keep Far Harbor alive and maintain peace on the Island.', NULL, NULL, NULL, NULL);
 -- end-statement
-INSERT INTO synth.bio_templates VALUES
+INSERT INTO public.core_npc_biography_template VALUES
 	('fo4_allen_lee', 'far_harbor,far_harbor_lore', 'Far Harbor’s weapons merchant and an outspoken defender of Harborman independence.', 'An Island native whose family lost its inland home to the expanding Fog. Established a weapons shop on the harbor boardwalk and helps defend the Hull.', 'Man with light brown hair and a beard.', 'Proud, confrontational and distrustful of outsiders; values self-reliance.', NULL, 'Weapons merchant and town defender.', 'Weapons trade, arming Harbormen and defending the Hull.', 'Blunt, suspicious and combative, with colloquial Island phrasing.', 'Protect Far Harbor and preserve the Harbormen’s control of their home.', NULL, NULL, NULL, NULL),
 	('fo4_small_bertha', 'far_harbor', 'A determined young Harborman who speaks for Far Harbor’s displaced people.', 'The Fog forced her family into Far Harbor; the deaths of her parents left her and her brother Tony on their own. She believes the refugees can reclaim an inland home with proper protection.', 'Young girl.', 'Resourceful, stubborn, hopeful and unwilling to be dismissed because of her age.', NULL, 'Refugee and informal advocate for displaced Harbormen.', 'Rallying refugees and forming practical plans for shelter.', 'Insistent, direct and energetic.', 'Give the displaced Harbormen a safe home and a reason to stay on the Island.', NULL, NULL, NULL, NULL),
 	('fo4_savoy', 'nuka_world', 'One of Nisha’s principal Disciple enforcers.', 'A high-ranking Disciple at Fizztop Mountain whose willingness to fight and threaten supports Nisha’s authority.', 'Man with dark hair and a beard, wearing Disciple gear.', 'Aggressive, menacing and openly eager for violence.', NULL, 'Disciple enforcer.', 'Armed enforcement and intimidation.', 'Short threats, coarse anger and blunt declarations.', 'Enforce Nisha’s authority and preserve the Disciples’ strength.', NULL, NULL, NULL, NULL),
@@ -3377,7 +3377,7 @@ INSERT INTO synth.bio_templates VALUES
 	('fo4_mechanist', 'commonwealth,robotics,robot_workbench_knowledge,comic_lore,automatron_lore', 'An armored, theatrical champion commanding a robot army.', 'Works from a hidden robotics facility and presents the Mechanist as a heroic protector of the Commonwealth. Builds robots to defend innocent people against the wasteland''s dangers and relies heavily on their reports.', 'Enclosed metal armor and helmet conceal the person behind the Mechanist persona.', 'Earnest, idealistic and isolated; views conflict through the language of heroes and villains.', NULL, 'Robotics engineer and self-appointed wasteland protector.', 'Robot design, programming, repair and coordinating automated defenses.', 'Amplified, dramatic declarations in character; technical explanations become more personal when trust is earned.', 'Protect the Commonwealth''s innocent inhabitants through robotics.', NULL, NULL, NULL, NULL),
 	('fo4_ivey', 'commonwealth,automatron_lore,robotics,robot_workbench_knowledge', 'The Rust Devil leader based in Fort Hagen hangar.', 'Commands a raider gang that scavenges, rebuilds and weaponizes robots. Her group holds Jezebel''s Robobrain head and seeks information useful to its machines.', 'Raider woman equipped with Tesla T-60 power armor; facial appearance follows the actual actor.', 'Aggressive, controlling and ruthless toward captives.', NULL, 'Rust Devil leader and robot raider.', 'Raider leadership, robot modification, power armor combat and use of a Tesla rifle.', 'Forceful raider language; demands obedience and useful results.', 'Strengthen her gang''s robot arsenal and defend its base.', NULL, NULL, NULL, NULL);
 -- end-statement
-INSERT INTO synth.bio_templates VALUES
+INSERT INTO public.core_npc_biography_template VALUES
 	('fo4_sparks', 'automatron_observed', 'The Mechanist''s Eyebot assistant.', 'A small hovering robot closely associated with the Mechanist and the operations of the robotics lair. Communicates through tones and beeps rather than spoken sentences.', 'Compact spherical Eyebot with antennas and a hovering chassis.', 'Responsive and attentive to the Mechanist; no fluent human persona is established.', NULL, 'Robotic assistant.', 'Flight, assisting its creator and electronic signaling.', 'Differently pitched mechanical beeps only; never articulate English words or narrated inner thoughts.', 'Assist the Mechanist and respond to immediate conditions.', NULL, NULL, NULL, NULL),
 	('fo4_jackson_automatron', 'commonwealth,caravan_trade,trader,mechanic,robotics,robot_workbench_knowledge', 'The mechanic and leader of Ada''s traveling caravan.', 'Led a group making its living from mechanical repairs, scavenged parts and trade. Built Ada and treated her as a companion, enabling her personality rather than limiting her to a servant''s role.', 'Human man with gray hair and facial hair; original clothing includes a black vest and slacks.', 'Remembered by Ada as technically capable and considerate toward her.', NULL, 'Caravan leader, merchant and robot mechanic.', 'Salvage, mechanical repairs, robot construction and organizing caravan travel.', 'Colloquial and candid in his holotape; mixes technical assessment with occasional profanity.', 'His caravan''s work centered on sustaining its members through repair and trade.', NULL, NULL, NULL, NULL),
 	('fo4_zoe_automatron', 'commonwealth,caravan_trade', 'A member of Jackson''s caravan who helped organize its defenses.', 'Traveled with the caravan''s merchants and modified robots. Worked with Ada on temporary defenses when the group stopped to scavenge and left a diary recording concerns about their journey.', 'Human woman; original equipment includes utility coveralls and road goggles.', 'Practical and concerned about the caravan''s safety, as reflected in her diary.', NULL, 'Caravan merchant and defense organizer.', 'Placing defensive robots and preparing safer caravan stopping points.', 'Her written diary is chatty, irreverent and informal; a living conversational voice is undocumented.', 'Her recorded concerns centered on keeping the caravan safe during its travels.', NULL, NULL, NULL, NULL),
@@ -4239,7 +4239,7 @@ SELECT pg_catalog.setval('public.api_badge_id_seq', 12, true);
 -- end-statement
 SELECT pg_catalog.setval('synth.audit_request_rowid_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.bio_template_actor_map_id_seq', 484, true);
+SELECT pg_catalog.setval('public.bio_template_actor_map_id_seq', 484, true);
 -- end-statement
 SELECT pg_catalog.setval('public.core_action_custom_id_seq', 1, false);
 -- end-statement
@@ -4326,13 +4326,13 @@ SELECT pg_catalog.setval('public.worker_jobs_id_seq', 1, false);
 ALTER TABLE ONLY synth.actor_identities
     ADD CONSTRAINT actor_identities_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth.bio_template_actor_map
+ALTER TABLE ONLY public.core_npc_biography_template_actor
     ADD CONSTRAINT bio_template_actor_map_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth.bio_templates_custom
+ALTER TABLE ONLY public.core_npc_biography_template_custom
     ADD CONSTRAINT bio_templates_custom_pkey PRIMARY KEY (npc_name);
 -- end-statement
-ALTER TABLE ONLY synth.bio_templates
+ALTER TABLE ONLY public.core_npc_biography_template
     ADD CONSTRAINT bio_templates_pkey PRIMARY KEY (npc_name);
 -- end-statement
 ALTER TABLE ONLY synth.conf_opts
@@ -4753,11 +4753,11 @@ CREATE UNIQUE INDEX actor_identities_canonical_key ON synth.actor_identities USI
 -- end-statement
 CREATE INDEX actor_identities_display_name ON synth.actor_identities USING btree (lower(display_name)) WHERE (display_name IS NOT NULL);
 -- end-statement
-CREATE UNIQUE INDEX bio_template_actor_map_base_identity_uidx ON synth.bio_template_actor_map USING btree (lower(base_plugin), upper((base_local_formid)::text));
+CREATE UNIQUE INDEX bio_template_actor_map_base_identity_uidx ON public.core_npc_biography_template_actor USING btree (lower(base_plugin), upper((base_local_formid)::text));
 -- end-statement
-CREATE UNIQUE INDEX bio_template_actor_map_reference_identity_uidx ON synth.bio_template_actor_map USING btree (lower(reference_plugin), upper((reference_local_formid)::text)) WHERE ((reference_plugin IS NOT NULL) AND (reference_local_formid IS NOT NULL));
+CREATE UNIQUE INDEX bio_template_actor_map_reference_identity_uidx ON public.core_npc_biography_template_actor USING btree (lower(reference_plugin), upper((reference_local_formid)::text)) WHERE ((reference_plugin IS NOT NULL) AND (reference_local_formid IS NOT NULL));
 -- end-statement
-CREATE INDEX bio_template_actor_map_template_idx ON synth.bio_template_actor_map USING btree (lower((template_name)::text));
+CREATE INDEX bio_template_actor_map_template_idx ON public.core_npc_biography_template_actor USING btree (lower((template_name)::text));
 -- end-statement
 CREATE INDEX core_itt_connector_label_idx ON public.core_itt_connector USING btree (lower(label));
 -- end-statement

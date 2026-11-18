@@ -12,7 +12,7 @@ final class FalloutReferenceContentPackTestAdapter
     public function execQuery(string $query,array $parameters=[])
     {
         $this->queries[]=$query;
-        if (str_starts_with($query,'INSERT INTO synth.bio_template_actor_map(')
+        if (str_starts_with($query,'INSERT INTO public.core_npc_biography_template_actor(')
             && ++$this->maps===$this->failureMap) return false;
         return $this->db->execQuery($query,$parameters);
     }
@@ -52,10 +52,10 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
     private function snapshot(): array
     {
         return [
-            'templates'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.bio_templates t ORDER BY body'),
-            'maps'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.bio_template_actor_map t ORDER BY body'),
+            'templates'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template t ORDER BY body'),
+            'maps'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template_actor t ORDER BY body'),
             'columns'=>$this->db()->fetchAll("SELECT column_name,is_nullable FROM information_schema.columns WHERE table_schema='synth' AND table_name='bio_template_actor_map' ORDER BY column_name"),
-            'constraints'=>$this->db()->fetchAll("SELECT conname,pg_get_constraintdef(oid) AS body FROM pg_constraint WHERE conrelid='synth.bio_template_actor_map'::regclass ORDER BY conname"),
+            'constraints'=>$this->db()->fetchAll("SELECT conname,pg_get_constraintdef(oid) AS body FROM pg_constraint WHERE conrelid='public.core_npc_biography_template_actor'::regclass ORDER BY conname"),
             'indexes'=>$this->db()->fetchAll("SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='synth' AND tablename='bio_template_actor_map' ORDER BY indexname"),
         ];
     }
@@ -64,8 +64,8 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
     {
         // A pre-upgrade installation could contain only maps with a base.
         // Final packaged reference seeds exist only in the disposable test DB.
-        self::assertNotFalse($this->db()->execQuery('DELETE FROM synth.bio_template_actor_map WHERE base_plugin IS NULL OR base_local_formid IS NULL'));
-        self::assertNotFalse($this->db()->execQuery('ALTER TABLE synth.bio_template_actor_map
+        self::assertNotFalse($this->db()->execQuery('DELETE FROM public.core_npc_biography_template_actor WHERE base_plugin IS NULL OR base_local_formid IS NULL'));
+        self::assertNotFalse($this->db()->execQuery('ALTER TABLE public.core_npc_biography_template_actor
             DROP CONSTRAINT IF EXISTS bio_template_actor_map_base_pair_check,
             DROP CONSTRAINT IF EXISTS bio_template_actor_map_identity_present_check,
             ALTER COLUMN base_plugin SET NOT NULL,
@@ -81,7 +81,7 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
             $this->restoreLegacySchema();$before=$this->snapshot();
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
-            $maps=$this->db()->fetchAll("SELECT base_plugin,base_local_formid,reference_plugin,reference_local_formid FROM synth.bio_template_actor_map WHERE template_name='fo4_fixture_andersen'");
+            $maps=$this->db()->fetchAll("SELECT base_plugin,base_local_formid,reference_plugin,reference_local_formid FROM public.core_npc_biography_template_actor WHERE template_name='fo4_fixture_andersen'");
             self::assertSame([['base_plugin'=>null,'base_local_formid'=>null,
                 'reference_plugin'=>'DLCworkshop03.esm','reference_local_formid'=>'00F00501']],$maps);
             $after=$this->snapshot();
@@ -198,14 +198,14 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
                 "NULL,NULL,NULL,'00F00599'","NULL,NULL,'DLCworkshop03.esm','bad-id'"] as $values) {
                 self::assertNotFalse($this->db()->execQuery("DO \$\$ BEGIN
                     BEGIN
-                        INSERT INTO synth.bio_template_actor_map(template_name,base_plugin,base_local_formid,reference_plugin,reference_local_formid)
+                        INSERT INTO public.core_npc_biography_template_actor(template_name,base_plugin,base_local_formid,reference_plugin,reference_local_formid)
                         VALUES('fo4_fixture_orphan',".$values.");
                         RAISE EXCEPTION 'Malformed map accepted';
                     EXCEPTION WHEN check_violation THEN NULL;
                     END;
                 END; \$\$"));
             }
-            self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.bio_template_actor_map WHERE template_name='fo4_fixture_orphan'")['n']);
+            self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_npc_biography_template_actor WHERE template_name='fo4_fixture_orphan'")['n']);
         } finally { $this->removeFixture($root); }
     }
 }

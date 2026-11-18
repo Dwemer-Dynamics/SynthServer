@@ -95,20 +95,20 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
             $assignments=[];$parameters=[];
             foreach (SYNTH_FALLOUT_CONTENT_FIELDS as $field) { $parameters[]=$fields[$field];$assignments[]=$field.'=$'.count($parameters); }
             $parameters[]=$repair['npc_name'];
-            self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET '.implode(',',$assignments).' WHERE npc_name=$'.count($parameters),$parameters));
+            self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET '.implode(',',$assignments).' WHERE npc_name=$'.count($parameters),$parameters));
         }
         $first=$pack['factory_appearance_repairs'][0];$second=$pack['factory_appearance_repairs'][1];
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET core=$1 WHERE npc_name=$2',['Operator edited core.',$first['npc_name']]));
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET appearance=$1 WHERE npc_name=$2',['Operator edited appearance.',$second['npc_name']]));
-        $customBefore=$db->fetchAll('SELECT to_jsonb(row) AS row FROM synth.bio_templates_custom row ORDER BY npc_name');
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET core=$1 WHERE npc_name=$2',['Operator edited core.',$first['npc_name']]));
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET appearance=$1 WHERE npc_name=$2',['Operator edited appearance.',$second['npc_name']]));
+        $customBefore=$db->fetchAll('SELECT to_jsonb(row) AS row FROM public.core_npc_biography_template_custom row ORDER BY npc_name');
         synthInstallFalloutCatalogueSql($db,$this->root());
         foreach ($pack['factory_appearance_repairs'] as $repair) {
-            $actual=$db->fetchOne('SELECT appearance FROM synth.bio_templates WHERE npc_name='.$db->escapeLiteral($repair['npc_name']));
+            $actual=$db->fetchOne('SELECT appearance FROM public.core_npc_biography_template WHERE npc_name='.$db->escapeLiteral($repair['npc_name']));
             $expected=$repair['npc_name']===$first['npc_name'] ? $first['previous_appearance']
                 : ($repair['npc_name']===$second['npc_name'] ? 'Operator edited appearance.' : $rows[$repair['npc_name']]['fields']['appearance']);
             self::assertSame($expected,$actual['appearance']);
         }
-        self::assertSame($customBefore,$db->fetchAll('SELECT to_jsonb(row) AS row FROM synth.bio_templates_custom row ORDER BY npc_name'));
+        self::assertSame($customBefore,$db->fetchAll('SELECT to_jsonb(row) AS row FROM public.core_npc_biography_template_custom row ORDER BY npc_name'));
         $before=$this->snapshot();synthInstallFalloutCatalogueSql($db,$this->root());self::assertSame($before,$this->snapshot());
     }
 
@@ -164,11 +164,11 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     public function testEmptyTablesSeedAllKeysAndStableReferenceAndAliases(): void
     {
         $this->clearFactoryCatalogue();
-        self::assertNotFalse($this->db()->execQuery('TRUNCATE synth.bio_templates,synth.bio_templates_custom,synth.bio_template_actor_map,public.core_item_description,public.core_item_description_custom'));
+        self::assertNotFalse($this->db()->execQuery('TRUNCATE public.core_npc_biography_template,public.core_npc_biography_template_custom,public.core_npc_biography_template_actor,public.core_item_description,public.core_item_description_custom'));
         $report=synthInstallFalloutCatalogueSql($this->db(),$this->root());
         self::assertSame(0,$report['profiles_filled']);
-        self::assertSame('204',$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_templates')['n']);
-        self::assertSame('207',$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_template_actor_map')['n']);
+        self::assertSame('204',$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template')['n']);
+        self::assertSame('207',$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template_actor')['n']);
         self::assertSame('201',$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_item_description')['n']);
         $pack=synthLoadFalloutContentPack($this->root());$references=0;$aliases=0;
         foreach ($pack['npcs'] as $row) {
@@ -191,15 +191,15 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     {
         $this->clearFactoryCatalogue();$db=$this->db();
         $pack=synthLoadFalloutContentPack($this->root());$npc=$pack['npcs'][0]['npc_name'];$item=$pack['items'][0];
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET personality=$1 WHERE npc_name=$2',['Operator standard edit.',$npc]));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_templates_custom(npc_name,npc_static_bio) VALUES($1,$2) ON CONFLICT(npc_name) DO UPDATE SET npc_static_bio=EXCLUDED.npc_static_bio',[$npc,'Operator custom biography.']));
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET personality=$1 WHERE npc_name=$2',['Operator standard edit.',$npc]));
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc_biography_template_custom(npc_name,npc_static_bio) VALUES($1,$2) ON CONFLICT(npc_name) DO UPDATE SET npc_static_bio=EXCLUDED.npc_static_bio',[$npc,'Operator custom biography.']));
         self::assertNotFalse($db->execQuery('UPDATE public.core_item_description SET description=$1 WHERE plugin=$2 AND baseid=$3',['Operator standard item.',$item['plugin'],$item['baseid']]));
         self::assertNotFalse($db->execQuery('INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description',[$item['plugin'],$item['baseid'],'Custom item','Operator custom item.']));
         foreach ([['tato',true],['catalogue_inactive_custom',false]] as [$topic,$active])
             self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES($1,$2,$3,\'custom\',$4)',[$topic,$topic,'Operator lore retained.',$active ? 'true' : 'false']));
         // Deliberate remapping is an existing operator choice; the source identity must still exist.
         $base=$pack['npcs'][0];
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_template_actor_map SET exact_name=$1 WHERE lower(base_plugin)=lower($2) AND base_local_formid=$3',['Operator mapping label.',$base['plugin'],$base['baseid']]));
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template_actor SET exact_name=$1 WHERE lower(base_plugin)=lower($2) AND base_local_formid=$3',['Operator mapping label.',$base['plugin'],$base['baseid']]));
         $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','catalogue-sql-fixture','Fallout4.esm','0x00F00901','Catalogue fixture') RETURNING id");
         $actor=intval($identity['id']);
         self::assertNotFalse($db->execQuery("INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,npc_static_bio,personality,voiceid,relationships,lock_profile) VALUES('Catalogue fixture',$1,NULL,'Operator profile.','fixture_voice','Operator relationship.',1)",[$actor]));
@@ -276,8 +276,8 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     public function testVersionFailureRollsBackImportedLoreAndSchemaUpgrade(): void
     {
         $this->clearFactoryCatalogue();$db=$this->db();
-        self::assertNotFalse($db->execQuery('DELETE FROM synth.bio_template_actor_map WHERE base_plugin IS NULL'));
-        self::assertNotFalse($db->execQuery('ALTER TABLE synth.bio_template_actor_map ALTER COLUMN base_plugin SET NOT NULL,ALTER COLUMN base_local_formid SET NOT NULL'));
+        self::assertNotFalse($db->execQuery('DELETE FROM public.core_npc_biography_template_actor WHERE base_plugin IS NULL'));
+        self::assertNotFalse($db->execQuery('ALTER TABLE public.core_npc_biography_template_actor ALTER COLUMN base_plugin SET NOT NULL,ALTER COLUMN base_local_formid SET NOT NULL'));
         $before=$this->snapshot();$adapter=new FalloutCatalogueSqlTestAdapter($db,'UPDATE public.core_catalog_version SET version=GREATEST');
         try { synthInstallFalloutCatalogueSql($adapter,$this->root());self::fail('Late version failure must fail'); }
         catch (RuntimeException $error) { self::assertStringContainsString('migration version',$error->getMessage()); }
@@ -319,20 +319,20 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
             $assignments=[];$parameters=[];
             foreach (SYNTH_FALLOUT_CONTENT_FIELDS as $field) { $parameters[]=$fields[$field];$assignments[]=$field.'=$'.count($parameters); }
             $parameters[]=$name;
-            self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET '.implode(',',$assignments).' WHERE npc_name=$'.count($parameters),$parameters));
+            self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET '.implode(',',$assignments).' WHERE npc_name=$'.count($parameters),$parameters));
         }
         synthInstallFalloutCatalogueSql($db,$this->root());
         foreach ($rows as $name=>$row) {
-            $actual=$db->fetchOne('SELECT '.implode(',',SYNTH_FALLOUT_CONTENT_FIELDS).' FROM synth.bio_templates WHERE npc_name='.$db->escapeLiteral($name));
+            $actual=$db->fetchOne('SELECT '.implode(',',SYNTH_FALLOUT_CONTENT_FIELDS).' FROM public.core_npc_biography_template WHERE npc_name='.$db->escapeLiteral($name));
             self::assertEquals($row['fields'],$actual,$name.' must receive only the factory tag correction');
         }
         // Custom tags or a changed core stop the same old-tag repair.
         $pearl=$rows['fo4_pearl'];$maxwell=$rows['fo4_maxwell'];
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET worldknowledge_tags=$1 WHERE npc_name=$2',
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET worldknowledge_tags=$1 WHERE npc_name=$2',
             ['prewar,'.$pearl['fields']['worldknowledge_tags'].',operator_tag','fo4_pearl']));
-        self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET worldknowledge_tags=$1,core=$2 WHERE npc_name=$3',
+        self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template SET worldknowledge_tags=$1,core=$2 WHERE npc_name=$3',
             ['prewar,'.$maxwell['fields']['worldknowledge_tags'],'Operator authored caretaker core.','fo4_maxwell']));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_templates_custom(npc_name,core,worldknowledge_tags) VALUES($1,$2,$3) ON CONFLICT(npc_name) DO UPDATE SET core=EXCLUDED.core,worldknowledge_tags=EXCLUDED.worldknowledge_tags',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc_biography_template_custom(npc_name,core,worldknowledge_tags) VALUES($1,$2,$3) ON CONFLICT(npc_name) DO UPDATE SET core=EXCLUDED.core,worldknowledge_tags=EXCLUDED.worldknowledge_tags',
             ['fo4_bert_riggs','Operator custom roboticist.','prewar,operator_robotics']));
         $before=$this->snapshot();
         synthInstallFalloutCatalogueSql($db,$this->root());

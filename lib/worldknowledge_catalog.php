@@ -361,7 +361,7 @@ function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): 
     $existingRows = $db->fetchAll(
         $seedSql . ' SELECT template.npc_name, template.worldknowledge_tags, seed.tags AS seed_tags,'
         . ' seed.prior_seed_sha256'
-        . ' FROM synth.bio_templates AS template JOIN seed ON template.npc_name=seed.npc_name'
+        . ' FROM public.core_npc_biography_template AS template JOIN seed ON template.npc_name=seed.npc_name'
     );
     if (!is_array($existingRows)) {
         throw new RuntimeException('Unable to inspect existing Fallout NPC World Knowledge tags');
@@ -413,7 +413,7 @@ function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): 
     }
     $result = $db->fetchOne(
         'WITH seed(npc_name,tags) AS (VALUES ' . implode(',', $updatesSql) . '), updated AS ('
-        . 'UPDATE synth.bio_templates AS template SET worldknowledge_tags=seed.tags FROM seed'
+        . 'UPDATE public.core_npc_biography_template AS template SET worldknowledge_tags=seed.tags FROM seed'
         . ' WHERE template.npc_name=seed.npc_name RETURNING 1) SELECT count(*) AS updated FROM updated'
     );
     if (!is_array($result) || !array_key_exists('updated', $result)) {

@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
  . ".</p>";
  } elseif (!empty($npc_name) && !empty($core)) {
  $query = "
- INSERT INTO {$schema}.bio_templates_custom
+ INSERT INTO public.core_npc_biography_template_custom
  (npc_name, core, worldknowledge_tags, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, voiceid, gender, race, refid)
  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
  ON CONFLICT (npc_name)
@@ -306,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 
  // Insert into database
  $query = "
- INSERT INTO $schema.bio_templates_custom
+ INSERT INTO public.core_npc_biography_template_custom
  (npc_name, core, worldknowledge_tags, npc_static_bio, personality, appearance,
  relationships, occupation, skills, speechstyle, goals, voiceid, gender, race, refid)
  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
@@ -403,7 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 //
 //
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['truncate_npc'])) {
- $truncateQuery = "TRUNCATE TABLE $schema.bio_templates_custom RESTART IDENTITY CASCADE";
+ $truncateQuery = "TRUNCATE TABLE public.core_npc_biography_template_custom RESTART IDENTITY CASCADE";
  $truncateResult = pg_query($conn, $truncateQuery);
 
  if ($truncateResult) {
@@ -452,7 +452,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom_npcs') {
  npc_static_bio, personality, appearance,
  relationships, occupation, skills,
  speechstyle, goals, voiceid, gender, race, refid
- FROM {$schema}.bio_templates_custom
+ FROM public.core_npc_biography_template_custom
  ORDER BY npc_name ASC
  ";
 

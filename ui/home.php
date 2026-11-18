@@ -253,7 +253,7 @@ $hasLocations = synth_home_table_exists($db, 'core_location');
 $hasGamePlugins = synth_home_table_exists($db, 'core_plugins');
 $hasQuests = synth_home_table_exists($db, 'core_quest');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
-$hasBioTemplates = synth_home_table_exists($db, 'bio_templates');
+$hasBioTemplates = synth_home_table_exists($db, 'core_npc_biography_template');
 $hasWorldKnowledge = synth_home_table_exists($db, 'core_worldknowledge_article');
 $hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_catalog');
 
@@ -265,9 +265,9 @@ $memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS tot
 
 // Installed libraries are separate from the NPCs already encountered in a save.
 $characterTemplateCount = null;
-if ($hasBioTemplates && in_array('npc_name', synth_home_table_columns($db, 'bio_templates'), true)) {
+if ($hasBioTemplates && in_array('npc_name', synth_home_table_columns($db, 'core_npc_biography_template'), true)) {
     $characterTemplateCount = synth_home_value($db,
-        "SELECT COUNT(*) AS total FROM synth.bio_templates WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1",
+        "SELECT COUNT(*) AS total FROM public.core_npc_biography_template WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1",
         'total');
 }
 $worldLoreCount = null;

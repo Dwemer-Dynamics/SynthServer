@@ -105,7 +105,7 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
         $pack=synthLoadFalloutContentPack(dirname(__DIR__,2));
         $pack['npcs']=[$this->row('DLCCoast.esm','fo4_fixture_island')];$pack['items']=[];
         $db=$GLOBALS['db'] ??= new sql();
-        $before=$db->fetchOne('SELECT count(*) AS n FROM synth.bio_templates');
+        $before=$db->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template');
         foreach (['unknown_plugin','runtime_prefix','duplicate_actor','unsupported_field','duplicate_item'] as $kind) {
             $invalid=$pack;
             if ($kind==='unknown_plugin') $invalid['npcs'][0]['plugin']='OtherMod.esp';
@@ -121,7 +121,7 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
             $root=$this->fixtureRoot($invalid);
             try {
                 try { synthInstallFalloutContentPack($db,$root,true);self::fail('Invalid '.$kind.' must fail'); }
-                catch (RuntimeException) { self::assertSame($before,$db->fetchOne('SELECT count(*) AS n FROM synth.bio_templates')); }
+                catch (RuntimeException) { self::assertSame($before,$db->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template')); }
             } finally { $this->removeFixture($root); }
         }
     }

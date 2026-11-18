@@ -115,8 +115,8 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
                     md5(string_agg(npc_name || COALESCE(core, ''), '|' ORDER BY npc_name)
                         FILTER (WHERE npc_name NOT LIKE 'creature\\_%')) AS ordinary_hash,
                     count(*) FILTER (WHERE npc_name LIKE 'creature\\_%') AS creature_count,
-                    (SELECT count(*) FROM synth.bio_template_actor_map) AS mapping_count
-                FROM synth.bio_templates
+                    (SELECT count(*) FROM public.core_npc_biography_template_actor) AS mapping_count
+                FROM public.core_npc_biography_template
             ");
             return pg_fetch_assoc($result);
         };
@@ -130,19 +130,19 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
         self::assertGreaterThanOrEqual(70, intval($after['mapping_count']));
 
         $beforeCore = pg_fetch_result(
-            pg_query($connection, "SELECT core FROM synth.bio_templates WHERE npc_name='creature_deathclaw'"),
+            pg_query($connection, "SELECT core FROM public.core_npc_biography_template WHERE npc_name='creature_deathclaw'"),
             0,
             0
         );
         $failingSeed = str_replace(
             'COMMIT;',
-            "UPDATE synth.bio_templates SET core='rollback marker' WHERE npc_name='creature_deathclaw';\nSELECT 1/0;\nCOMMIT;",
+            "UPDATE public.core_npc_biography_template SET core='rollback marker' WHERE npc_name='creature_deathclaw';\nSELECT 1/0;\nCOMMIT;",
             $seed
         );
         self::assertFalse(@pg_query($connection, $failingSeed));
         pg_query($connection, 'ROLLBACK');
         $afterCore = pg_fetch_result(
-            pg_query($connection, "SELECT core FROM synth.bio_templates WHERE npc_name='creature_deathclaw'"),
+            pg_query($connection, "SELECT core FROM public.core_npc_biography_template WHERE npc_name='creature_deathclaw'"),
             0,
             0
         );

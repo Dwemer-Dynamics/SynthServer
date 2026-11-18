@@ -26,14 +26,14 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
         foreach ($pack['npcs'] as $row) {
             $fields=['npc_name'=> $row['npc_name']]+$row['fields'];
             $placeholders=array_map(static fn($position)=>'$'.$position,range(1,count($fields)));
-            if ($db->execQuery('INSERT INTO synth.bio_templates ('.implode(',',array_keys($fields)).') VALUES ('.implode(',',$placeholders).') ON CONFLICT(npc_name) DO NOTHING',array_values($fields))===false)
+            if ($db->execQuery('INSERT INTO public.core_npc_biography_template ('.implode(',',array_keys($fields)).') VALUES ('.implode(',',$placeholders).') ON CONFLICT(npc_name) DO NOTHING',array_values($fields))===false)
                 throw new RuntimeException('Unable to import NPC template');
             $reference=($row['mapping_kind'] ?? 'base')==='reference';
             $mappingColumns=$reference ? 'reference_plugin,reference_local_formid' : 'base_plugin,base_local_formid';
             $mappingIds=$reference ? [$row['reference_local_formid']]
                 : array_merge([$row['baseid']],$row['base_aliases'] ?? []);
             foreach ($mappingIds as $mappingId)
-                if ($db->execQuery('INSERT INTO synth.bio_template_actor_map(template_name,'.$mappingColumns.',exact_name,is_nonverbal_creature) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
+                if ($db->execQuery('INSERT INTO public.core_npc_biography_template_actor(template_name,'.$mappingColumns.',exact_name,is_nonverbal_creature) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
                     [$row['npc_name'],$row['plugin'],$mappingId,$row['display_name'],$row['is_nonverbal_creature'] ? 'true' : 'false'])===false)
                     throw new RuntimeException('Unable to import NPC stable mapping');
         }

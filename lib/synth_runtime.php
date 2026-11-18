@@ -456,7 +456,7 @@ function synth_fetch_bio_template(
         $formidColumn = $reference ? 'reference_local_formid' : 'base_local_formid';
         $row = $db->fetchOne("
             SELECT t.*, m.is_nonverbal_creature
-            FROM synth.bio_template_actor_map m
+            FROM public.core_npc_biography_template_actor m
             JOIN synth.combined_bio_templates t ON lower(t.npc_name) = lower(m.template_name)
             WHERE lower(m.{$pluginColumn}) = lower('{$plugin}')
               AND upper(m.{$formidColumn}) = upper('{$localFormid}')
@@ -490,7 +490,7 @@ function synth_fetch_bio_template(
             FROM synth.combined_bio_templates
             WHERE regexp_replace(lower(COALESCE(refid, '')), '[^0-9a-fx]+', '', 'g') = '{$escapedRefid}'
               AND NOT EXISTS (
-                  SELECT 1 FROM synth.bio_template_actor_map mapped
+                  SELECT 1 FROM public.core_npc_biography_template_actor mapped
                   WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
               )
             LIMIT 1
@@ -513,7 +513,7 @@ function synth_fetch_bio_template(
         WHERE (lower(npc_name) = lower('{$escapedCodename}')
            OR lower(npc_name) = lower('{$escapedName}'))
           AND NOT EXISTS (
-              SELECT 1 FROM synth.bio_template_actor_map mapped
+              SELECT 1 FROM public.core_npc_biography_template_actor mapped
               WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
           )
         ORDER BY CASE WHEN lower(npc_name) = lower('{$escapedCodename}') THEN 0 ELSE 1 END
@@ -528,7 +528,7 @@ function synth_fetch_bio_template(
         FROM synth.combined_bio_templates t
         WHERE lower(t.npc_name) LIKE lower('{$escapedCodename}') || '\\_%'
           AND NOT EXISTS (
-              SELECT 1 FROM synth.bio_template_actor_map m
+              SELECT 1 FROM public.core_npc_biography_template_actor m
               WHERE lower(m.template_name) = lower(t.npc_name)
           )
         ORDER BY length(t.npc_name) ASC, t.npc_name ASC

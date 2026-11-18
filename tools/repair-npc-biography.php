@@ -22,7 +22,7 @@ $fetch=static function(string $sql,array $params) use ($connection): array {
     return pg_fetch_all($result) ?: [];
 };
     // Keep identity mappings/custom overlays stable; profile updates lock only rows that still match the candidate.
-    if ($apply && @pg_query($connection,'LOCK TABLE synth.bio_template_actor_map,synth.bio_templates_custom IN SHARE MODE')===false)
+    if ($apply && @pg_query($connection,'LOCK TABLE public.core_npc_biography_template_actor,public.core_npc_biography_template_custom IN SHARE MODE')===false)
         throw new RuntimeException('Unable to lock biography mappings');
     $rows=$fetch('SELECT n.id,n.actor_identity_id,n.npc_name,n.refid,n.base,n.lock_profile,n.npc_static_bio,n.skills,n.metadata::text AS metadata,
         n.extended_data::text AS extended_data,a.origin_plugin,a.full_form_id,a.game
@@ -40,14 +40,14 @@ $fetch=static function(string $sql,array $params) use ($connection): array {
             $base=is_array($stable) || $basePlugin!==''
                 ? synth_resolve_actor_form_identity($db,strval($row['base'] ?? ''),$basePlugin) : null;
             $reference=synth_resolve_actor_form_identity($db,strval($row['full_form_id'] ?? ''),strval($row['origin_plugin'] ?? ''));
-            $matches=$fetch('SELECT DISTINCT template_name FROM synth.bio_template_actor_map
+            $matches=$fetch('SELECT DISTINCT template_name FROM public.core_npc_biography_template_actor
                 WHERE (lower(base_plugin)=lower($1) AND upper(base_local_formid)=$2)
                    OR (lower(reference_plugin)=lower($3) AND upper(reference_local_formid)=$4)',
                 [$base['plugin'] ?? '',$base['local_formid'] ?? '',$reference['plugin'] ?? '',$reference['local_formid'] ?? '']);
             if (count($matches)===1) $resolved=strval($matches[0]['template_name']);
         }
         $result=synth_biography_repair_classify($row,$factory,$resolved);
-        if ($factory!==null && $result['status']!=='locked' && $fetch('SELECT npc_name FROM synth.bio_templates_custom WHERE npc_name=$1',[$template])!==[])
+        if ($factory!==null && $result['status']!=='locked' && $fetch('SELECT npc_name FROM public.core_npc_biography_template_custom WHERE npc_name=$1',[$template])!==[])
             $result=['status'=>'customized','reason'=>'custom_template'];
         ++$counts[$result['status']];
         if ($result['status']!=='no_expertise' && $result['status']!=='already_repaired')
