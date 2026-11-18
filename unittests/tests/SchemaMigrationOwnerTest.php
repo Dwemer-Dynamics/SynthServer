@@ -230,7 +230,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function dataChecksum(): string
     {
         $parts = [];
-        foreach (['public.core_catalog_version', 'synth.general_settings', 'synth.core_profiles', 'synth.core_npc_master',
+        foreach (['public.core_catalog_version', 'synth.general_settings', 'public.core_profiles', 'synth.core_npc_master',
                      'synth.prompts', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
@@ -588,7 +588,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 UNION ALL SELECT xmin::text FROM synth.prompts
                 UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM synth.core_action
-                UNION ALL SELECT xmin::text FROM synth.core_profiles
+                UNION ALL SELECT xmin::text FROM public.core_profiles
                 UNION ALL SELECT xmin::text FROM synth.worldknowledge
                 UNION ALL SELECT xmin::text FROM pg_namespace WHERE nspname IN ('synth', 'plugins')
                 UNION ALL SELECT c.xmin::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

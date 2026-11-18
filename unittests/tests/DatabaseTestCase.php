@@ -113,7 +113,7 @@ abstract class DatabaseTestCase extends TestCase
     {
         $db = new sql();
         $this->useSharedKeyStoreFixture($db);
-        $db->execQuery('UPDATE synth.core_profiles SET tts_connector_id = NULL');
+        $db->execQuery('UPDATE public.core_profiles SET tts_connector_id = NULL');
         $db->upsertRowOnConflict('general_settings', [
             'id' => 'SCENE_CLASSIFIER_ENABLED',
             'value' => 'false',

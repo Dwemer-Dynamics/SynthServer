@@ -2,7 +2,7 @@
 
 require_once dirname(__DIR__, 2) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
 
-// Long-standing entry point for API keys. Keys are global (the shared dwemer store) or SYNTH-only (synth.core_api_badge);
+// Long-standing entry point for API keys. Keys are global (the shared dwemer store) or SYNTH-only (public.core_api_badge);
 // Synth\Core\DbManager\Dao\ApiBadgeDao presents both. A key's id here is its reference string, "shared:<uuid>" or
 // "local:<integer>"; '' / null means "no key chosen".
 class ApiBadge {

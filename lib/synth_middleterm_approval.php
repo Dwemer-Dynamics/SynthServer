@@ -65,7 +65,7 @@ function synth_middleterm_approval_cte(string $prefix='WITH',bool $savedScope=fa
 function synth_middleterm_regeneration_enabled($db,int $actorId): bool
 {
     $npc=$db->fetchOne('SELECT n.extended_data,p.metadata FROM synth.core_npc_master n
-        LEFT JOIN synth.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
+        LEFT JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
     if (!$npc) return false;
     $extended=json_decode($npc['extended_data']??'{}',true,512,JSON_THROW_ON_ERROR);
     $metadata=json_decode($npc['metadata']??'{}',true,512,JSON_THROW_ON_ERROR);

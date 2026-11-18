@@ -14,7 +14,7 @@ class CharacterRepository
     {
         return $this->one("SELECT a.id AS identity_id, n.id AS npc_id, p.id AS profile_id, c.*
             FROM synth.actor_identities a JOIN synth.core_npc_master n ON n.actor_identity_id=a.id
-            JOIN synth.core_profiles p ON p.id=n.profile_id JOIN core_llm_connector c ON c.id=p.llm_primary_id
+            JOIN public.core_profiles p ON p.id=n.profile_id JOIN core_llm_connector c ON c.id=p.llm_primary_id
             WHERE a.game='fo4' AND upper(a.full_form_id)=upper($1) AND lower(a.origin_plugin)=lower($2)
                 AND a.playthrough_id=$3 LIMIT 1", [$fullFormId, $originPlugin, $playthroughId]);
     }
@@ -35,7 +35,7 @@ class CharacterRepository
 
     public function profile(int $id): ?array
     {
-        return $this->one('SELECT * FROM synth.core_profiles WHERE id=$1', [$id]);
+        return $this->one('SELECT * FROM public.core_profiles WHERE id=$1', [$id]);
     }
 
     /** Latest dynamic NPC profile revision visible to the admitted event's save for exactly this identity: null

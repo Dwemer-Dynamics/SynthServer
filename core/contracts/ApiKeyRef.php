@@ -1,7 +1,7 @@
 <?php
 
 // A reference to one API key in one store: a shared key of the CHIM 4 server's api_keys table, or a SYNTH-only key of
-// synth.core_api_badge. It is the one handle the application passes around; a connector row keeps it as two typed columns.
+// public.core_api_badge. It is the one handle the application passes around; a connector row keeps it as two typed columns.
 
 declare(strict_types=1);
 

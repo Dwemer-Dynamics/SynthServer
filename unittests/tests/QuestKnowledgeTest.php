@@ -1459,9 +1459,9 @@ final class QuestKnowledgeTest extends DatabaseTestCase
                 [$parent['session_id'],$parent['request_id'],$lineId,hash('sha256',$lines['dialogue']),
                     $parent['generation'],$parent['context_sequence'],$this->json($payload['target']),$this->json($identity)]);
             $binding=$this->fixtureDb->fetchOne('SELECT n.id AS npc_id,p.id AS profile_id FROM synth.core_npc_master n
-                JOIN synth.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
+                JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
             if (!$binding) {
-                $result=$this->fixtureDb->execQuery('INSERT INTO synth.core_profiles(label) VALUES($1) RETURNING id',['Quest continuation fixture']);
+                $result=$this->fixtureDb->execQuery('INSERT INTO public.core_profiles(label) VALUES($1) RETURNING id',['Quest continuation fixture']);
                 $profileId=(int)pg_fetch_assoc($result)['id'];
                 $result=$this->fixtureDb->execQuery('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
                     [$identity['display_name'],$profileId,$actorId]);

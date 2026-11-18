@@ -52,7 +52,7 @@ function get_connector_id($s_driver='', $s_model='', $s_url='') {
     }
     if ($i_res < 0) {
         if ((strlen($s_model) > 0) && (strlen($s_url) > 0)  && (strlen($s_driver) > 0)) {
-            $query = "SELECT id FROM synth.core_llm_connector WHERE (url='{$s_url}') AND (model='{$s_model}') AND (driver='{$s_driver}') LIMIT 1 ";
+            $query = "SELECT id FROM public.core_llm_connector WHERE (url='{$s_url}') AND (model='{$s_model}') AND (driver='{$s_driver}') LIMIT 1 ";
             $ret = $GLOBALS["db"]->fetchAll($query);
             if ($ret) {
                 $i_res = intval($ret[0]['id'] ?? -1);
