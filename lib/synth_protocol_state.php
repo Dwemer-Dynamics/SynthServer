@@ -2219,6 +2219,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
     $result = $wireEvent['payload']['result'];
     if (($wireEvent['protocol_version']??1)===2 && in_array($row['action_name'],['WaitHere','wait_here','ReleaseWait','release_wait'],true))
         $result['detail']=synth_wait_result_context($db,$wireEvent)['message'];
+    // This path can run before anything has registered the Composer autoloader; load the class the way the other callers do.
+    require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
     if (($wireEvent['protocol_version']??1)===2 && \Synth\Managers\ActionsManager\CompanionOrders::isIntent(['name'=>$row['action_name'],'server_code'=>$row['action_name'],'capability'=>$row['capability']??'']))
         $result['detail']=\Synth\Managers\ActionsManager\CompanionOrders::boundResultDetail($wireEvent,$row);
     if (($wireEvent['protocol_version'] ?? 1)===2
