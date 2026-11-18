@@ -2,14 +2,15 @@
 
 namespace Synth\Drivers\Tts;
 
-use Synth\Core\SpeechDriver;
 
-require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
+require_once __DIR__.'/TtsDriverInterface.php';
 
 // Explicit profile speech planning and the durable TTS queue edge. Plans carry only the profile connector's
 // own provider block and the resolved NPC voice, never another provider or per-turn prompt globals.
-final class ProfileSpeechDriver implements SpeechDriver
+final class ProfileSpeechDriver implements TtsDriverInterface
 {
+    public const NAME = 'profile-speech';
+
     // Drivers whose existing speech plan is portable to the durable TTS worker.
     private const PORTABLE = ['xtts-fastapi', 'chatterbox', 'pockettts', 'cartesia', 'inworld'];
 
@@ -20,6 +21,8 @@ final class ProfileSpeechDriver implements SpeechDriver
      */
     public function __construct(private $db, private string $root, private array $serverConfig,
         private \SYNTHClaimedRequest $owner, private \Closure $legacy) {}
+
+    public function getName(): string { return self::NAME; }
 
     public function settings(array $npcRow, array $profile): ?array
     {

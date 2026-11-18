@@ -9,9 +9,11 @@ use Synth\Core\SaveRepository;
 use Synth\Core\SettingsRepository;
 use Synth\Core\TurnOutput;
 use Synth\Core\UtteranceRepository;
+use Synth\Drivers\Llm\LlmWrapper;
 use Synth\Drivers\Llm\OpenAiCompatibleDriver;
 use Synth\Drivers\Tts\NarratorSpeechDriver;
 use Synth\Drivers\Tts\ProfileSpeechDriver;
+use Synth\Drivers\Tts\TtsWrapper;
 use Synth\Managers\CharacterManager;
 use Synth\Managers\ContextManager;
 use Synth\Managers\DialogueManager;
@@ -31,7 +33,9 @@ require_once __DIR__.'/managers/PrivateNarratorManager.php';
 require_once __DIR__.'/managers/ReceiptManager.php';
 require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
 require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
+require_once __DIR__.'/drivers/llm/LlmWrapper.php';
 require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
+require_once __DIR__.'/drivers/tts/TtsWrapper.php';
 require_once __DIR__.'/drivers/tts/ProfileSpeechDriver.php';
 
 // Composition root of the native dialogue API: server configuration, the shared PostgreSQL connection and the
@@ -68,9 +72,9 @@ final class Bootstrap
         $connectors = new \LLMConnector();
         return new DialogueManager(new SessionManager($saves), new CharacterManager(new CharacterRepository($this->db)),
             new ContextManager($saves, $this->db, $owner), new PromptManager(),
-            new OpenAiCompatibleDriver($output->assertActive(...),
-                static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row))),
-            new SpeechManager(new ProfileSpeechDriver($this->db, $this->root, $this->speechConfig(), $owner, $legacy)),
+            new LlmWrapper([new OpenAiCompatibleDriver($output->assertActive(...),
+                static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row)))]),
+            new SpeechManager(new TtsWrapper(new ProfileSpeechDriver($this->db, $this->root, $this->speechConfig(), $owner, $legacy))),
             new UtteranceRepository($this->db, $owner, UtteranceRepository::DELIVERY_RECEIPTS), $output,
             new WorldKnowledgeManager($this->db, $this->config, new SettingsRepository($this->db)));
     }
@@ -88,8 +92,8 @@ final class Bootstrap
         $connectors = new \LLMConnector();
         $event = $owner->event;
         return new PrivateNarratorManager(new PrivateNarratorRepository($this->db, $owner),
-            new OpenAiCompatibleDriver($output->assertActive(...),
-                static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row))),
+            new LlmWrapper([new OpenAiCompatibleDriver($output->assertActive(...),
+                static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row)))]),
             new NarratorSpeechDriver($this->db, $this->root, $this->speechConfig(), $legacy),
             $output, fn(array $media): string => $legacy(fn() => $this->transcribe($media)),
             fn(): array => synth_protocol_original_context($this->db, $event) ?? []);

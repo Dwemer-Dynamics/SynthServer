@@ -1,8 +1,8 @@
 <?php
 
-require_once dirname(__DIR__) . '/lib/provider_stream.php';
-
+// Thin hook: resolves region, language and key, then the SttWrapper "azure" driver does the call.
 // API-DOC https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-speech-to-text-short
+require_once dirname(__DIR__) . '/drivers/stt/SttWrapper.php';
 
 $localPath = dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 require_once($localPath . "lib".DIRECTORY_SEPARATOR."runtime_bootstrap.php");
@@ -17,7 +17,6 @@ function stt($file)
 {
     global $localPath;
 
-    $region = trim(strval($GLOBALS["STT"]["AZURE"]["region"] ?? 'eastus'));
     // Resolve API key: prefer STT conf, fallback to API Badge 'Azure'
     $apiKey = trim($GLOBALS["STT"]["AZURE"]["API_KEY"] ?? '');
     if ($apiKey === '') {
@@ -29,45 +28,10 @@ function stt($file)
             if (is_array($row) && !empty($row['api_key'])) $apiKey = $row['api_key'];
         } catch (Throwable $_e) {}
     }
-    $lang = trim(strval($GLOBALS["STT"]["AZURE"]["LANG"] ?? 'en-US')) ?: 'en-US';
-    $profanity = trim(strval($GLOBALS["STT"]["AZURE"]["profanity"] ?? 'masked')) ?: 'masked';
 
-
-
-    $url = "https://$region.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=$lang";
-    $fileData = file_get_contents($file);
-
-
-    $headers = array(
-        'Content-Type: audio/wav',
-        "Ocp-Apim-Subscription-Key: $apiKey"
-    );
-
-
-    $contextOptions = array(
-        'http' => array(
-            'method' => 'POST',
-            'header' => implode("\r\n", $headers),
-            'content' => $fileData
-        )
-    );
-
-    $context = stream_context_create($contextOptions);
-
-
-    $response = synth_speech_fetch($url, $context, $http_response_header);
-
-
-    if ($response === false) {
-        // Error handling
-    } else {
-
-
-    }
-    $reponseParsed=json_decode($response, true);
-
-
-    return $reponseParsed["DisplayText"];
-
-
+    return \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('azure', [
+        'region' => strval($GLOBALS["STT"]["AZURE"]["region"] ?? 'eastus'),
+        'language' => strval($GLOBALS["STT"]["AZURE"]["LANG"] ?? 'en-US'),
+        'api_key' => $apiKey,
+    ], new \Synth\Drivers\Stt\SttRequest($file));
 }

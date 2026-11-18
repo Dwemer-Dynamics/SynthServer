@@ -2,9 +2,8 @@
 
 namespace Synth\Drivers\Llm;
 
-use Synth\Core\LlmDriver;
 
-require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
+require_once __DIR__.'/LlmDriverInterface.php';
 require_once __DIR__.'/OpenAiCompatibleDriver.php';
 
 // Auto Chat's player connector (CORE_CONNECTOR_PLAYER) as one bounded plain-text completion. Unlike
@@ -16,8 +15,9 @@ require_once __DIR__.'/OpenAiCompatibleDriver.php';
 // enabled extra parameters and unknown or malformed metadata fail closed before config or network; there is no legacy
 // fast_request or other fallback.
 // It reads no globals: the legacy HTTP_TIMEOUT arrives as the caller's transient config 'http_timeout' entry.
-final class PlayerRewriteDriver implements LlmDriver
+final class PlayerRewriteDriver implements LlmDriverInterface
 {
+    public const NAME = 'player-rewrite';
     // SynthPlayerRewrite::MAX_OUTPUT_BYTES: the lib/response.php payload.text byte cut; longer text is refused, not shortened.
     public const MAX_TEXT_BYTES = 4096;
     public const DEFAULT_HTTP_TIMEOUT = 30;
@@ -54,6 +54,8 @@ final class PlayerRewriteDriver implements LlmDriver
      */
     public function __construct(private \Closure $assertActive, private \Closure $config,
         private int $maxBytes = 2 * 1024 * 1024, private ?\Closure $open = null, private ?float $deadlineSeconds = null) {}
+
+    public function getName(): string { return self::NAME; }
 
     public function supports(array $connector): bool
     {

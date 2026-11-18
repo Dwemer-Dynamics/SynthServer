@@ -2,20 +2,22 @@
 
 namespace Synth\Drivers\Llm;
 
-use Synth\Core\LlmDriver;
 
-require_once dirname(__DIR__, 2).'/core/contracts/dialogue.php';
+require_once __DIR__.'/LlmDriverInterface.php';
 require_once dirname(__DIR__, 2).'/lib/provider_stream.php';
 
 // Plain OpenAI-compatible chat streaming from the stored connector; credentials stay in memory. Reasoning,
 // quickstart-managed and other drivers keep their legacy connector semantics and are not supported here.
-final class OpenAiCompatibleDriver implements LlmDriver
+final class OpenAiCompatibleDriver implements LlmDriverInterface
 {
+    public const NAME = 'openai-compatible';
     /**
      * @param \Closure():void $assertActive liveness check before connecting, during provider waits and at every line
      * @param \Closure(array):array $config url, model, api_key and sampling options of one stored connector
      */
     public function __construct(private \Closure $assertActive, private \Closure $config, private int $maxBytes = 2 * 1024 * 1024) {}
+
+    public function getName(): string { return self::NAME; }
 
     public function supports(array $connector): bool
     {

@@ -20,10 +20,21 @@ Turning a provider-neutral request into one provider's call and back. A driver m
 `core/contracts`. It never reads game state, settings or entities: the caller passes everything in. It
 never writes to the database.
 
+## Status
+
+Every kind now has an Interface and a Wrapper (class names follow the PHP casing used here: `SttWrapper`,
+`IttWrapper`, `LlmWrapper`, `TtsWrapper`).
+
+- `stt/` and `itt/`: one driver per provider under `Drivers/`. They take plain config (URL, model, key) and a request
+  value, and throw `SttException` / `IttException`. The wrapper creates the driver from the connector's `driver` value.
+  The caller resolves settings and the API key through `ApiBadge` and the shared key store; drivers never do.
+- `llm/`: `LlmWrapper` is the `SynthCorelmdriver` the managers receive and streams through the first driver that
+  supports the stored connector row. `LlmWrapper::legacyConnector()` loads a `connector/*` class by plain name.
+- `tts/`: `TtsWrapper` forwards to a `TtsDriverInterface` driver (`ProfileSpeechDriver`).
+
 ## Legacy
 
-`connector/` (LLM connectors), `tts/`, `stt/` and `itt/` are frozen for new features. The existing
-classes `drivers/llm/OpenAiCompatibleDriver.php`, `PlayerRewriteDriver.php` and
-`drivers/tts/NarratorSpeechDriver.php`, `ProfileSpeechDriver.php` stay until the Interface and Wrapper
-exist for their kind. New providers go to `drivers/<kind>/Drivers/`.
+`connector/` (LLM connectors), `tts/`, `stt/` and `itt/` are frozen for new features; `stt/stt-*.php` and
+`itt/itt-*.php` are thin hooks into the wrappers. `connector/*` and `tts/tts-*.php` still hold their provider logic
+and `NarratorSpeechDriver` keeps its own contract. New providers go to `drivers/<kind>/Drivers/`.
 See [docs/SERVER-FILE-LAYOUT.md](../docs/SERVER-FILE-LAYOUT.md).
