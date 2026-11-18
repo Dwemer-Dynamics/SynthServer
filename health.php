@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Read-only readiness answer. It loads configuration, connects and inspects. The connect timeout is capped at
-// HEALTH_CONNECT_TIMEOUT seconds unless the environment sets SYNTH_DB_CONNECT_TIMEOUT. It never migrates, takes the migration lock, creates schema objects, loads settings or calls providers, and it
+// HEALTH_CONNECT_TIMEOUT seconds unless the environment sets SYNTH_DB_CONNECT_TIMEOUT. It never migrates, takes the migration lock, creates schema objects, loads settings or sends a provider request (the llm check only opens a bare TCP connection), and it
 // writes no SYNTH log file (warnings go to the web server error log). 200 only when the database, its encoding, the
 // runtime schema gate and the migration ledger are all ready; otherwise 503 with one fixed, actionable error. The
 // background processor is advisory and never changes the status code.
@@ -34,7 +34,7 @@ const HEALTH_CONNECT_TIMEOUT = 5;
 $bufferLevel = ob_get_level();
 ob_start();
 
-$answer = static function (array $response, bool $ready) use (&$answered, $bufferLevel): void {
+$answer = static function (array $response, bool $ready, ?int $code = null) use (&$answered, $bufferLevel): void {
     $answered = true;
     // Only the buffers this script opened (and any opened inside them); stop at one that cannot be removed.
     while (ob_get_level() > $bufferLevel) {
@@ -43,7 +43,7 @@ $answer = static function (array $response, bool $ready) use (&$answered, $buffe
         }
     }
     if (!headers_sent()) {
-        http_response_code($ready ? 200 : 503);
+        http_response_code($code ?? ($ready ? 200 : 503));
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');
     }
@@ -57,6 +57,60 @@ register_shutdown_function(static function () use (&$response, &$answered, $answ
     $response['error'] = 'The health check stopped before it finished; see the web server error log.';
     $answer($response, false);
 });
+
+// Granular checks: health.php?check=live|db|api-keys|npcs|llm|all. Without ?check= the full readiness answer below
+// is unchanged. "live" answers before any configuration, database or provider is touched.
+if (isset($_GET['check'])) {
+    require_once $root . DIRECTORY_SEPARATOR . 'managers' . DIRECTORY_SEPARATOR . 'HealthCheck' . DIRECTORY_SEPARATOR . 'HealthCheckManager.php';
+    $check = is_string($_GET['check']) ? $_GET['check'] : '';
+    if (!in_array($check, \Synth\Managers\HealthCheck\HealthCheckManager::checkNames(), true)) {
+        $answer(['status' => 'error', 'error' => 'Unknown check. Use one of: ' . implode(', ', \Synth\Managers\HealthCheck\HealthCheckManager::checkNames()) . '.'],
+            false, 400);
+        exit;
+    }
+    if ($check === 'live') {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::live($response['service'], $response['version']);
+        $answer($body, true, $code);
+        exit;
+    }
+    $failure = 'SYNTH could not load its runtime files; redeploy the server.';
+    $db = null;
+    try {
+        require_once $root . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
+        Logger::suspendFileWrites();
+        $failure = 'The PHP PostgreSQL extension (pgsql) is not loaded; install it for the PHP that serves SYNTH and restart that PHP.';
+        if (!function_exists('pg_connect')) {
+            throw new RuntimeException('pgsql');
+        }
+        $failure = 'SYNTH cannot connect to PostgreSQL. Check that PostgreSQL 17 is running and that the SYNTH_DB_* '
+            . 'values in conf/conf.php are correct.';
+        $db = synthRuntimeConnectDatabase($root, HEALTH_CONNECT_TIMEOUT);
+        $failure = null;
+        if (!is_file($root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php') && $check !== 'db') {
+            $failure = 'SYNTH production dependencies are missing; run composer install --no-dev in the server root.';
+            $db = null;
+        }
+    } catch (Throwable $e) {
+        $db = null;
+    }
+    // api-keys, npcs and llm need the database and the Composer autoloader; the db check needs only the connection.
+    if ($check === 'all') {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::all($db, $failure);
+    } elseif ($check === 'db') {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::database($db, $failure);
+    } elseif ($db === null) {
+        $code = 503;
+        $body = ['check' => $check, 'status' => 'error', 'error' => $failure ?? 'SYNTH cannot connect to PostgreSQL.'];
+    } elseif ($check === 'api-keys') {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::apiKeys();
+    } elseif ($check === 'npcs') {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::npcs($db);
+    } else {
+        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::llm();
+    }
+    $answer($body, $code === 200, $code);
+    exit;
+}
 
 $failure = 'SYNTH could not load its runtime files; redeploy the server.';
 try {

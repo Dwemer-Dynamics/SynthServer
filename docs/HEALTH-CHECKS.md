@@ -1,0 +1,48 @@
+# Health checks and the status page
+
+`health.php` answers one readiness question and several granular ones. All answers are JSON, read-only and safe to poll: no check writes,
+migrates, takes the migration lock, loads settings or sends a provider request, and `Logger::suspendFileWrites()` keeps
+every one from writing or rotating a SYNTH log file. Failures are one fixed, actionable sentence; driver and
+configuration text (which can carry connection details) goes only to the web server error log. Optional pieces that are
+absent (no keys, no NPCs, no connector, no `vendor/`) are a normal answer, never a PHP warning.
+
+`health.php` and its checks live outside `ui/`, so the dashboard Host allowlist
+([HANDOFF.md](HANDOFF.md#dashboard-request-safety-candidate)) does not apply and the plugin can always reach
+them. The Apache `Require local` rule still limits the client address.
+
+## Routes
+
+| Request | Meaning | 200 when | Otherwise |
+| --- | --- | --- | --- |
+| `health.php` | Full readiness (database, UTF8 encoding, runtime schema, migration ledger, advisory background processor). Unchanged. | everything is ready | 503 with one `error` ([SCHEMA-MIGRATIONS.md](SCHEMA-MIGRATIONS.md#readiness)) |
+| `health.php?check=live` | Liveness: the web server and PHP answer. Reads no configuration and opens no connection. The client polls this. | always | none |
+| `health.php?check=db` | The database accepts a query and uses a supported encoding. | yes | 503 |
+| `health.php?check=api-keys` | `api_keys_configured`: how many stored API keys are non-empty (a count, never a key). Counted by the database through the existing `ApiBadge` facade (`countWithKeys()`), so no key is ever read into memory. | the store was read | 503 |
+| `health.php?check=npcs` | `npcs_available`: how many NPC profiles exist (`CharacterRepository::availableCount()`). | the table was read | 503 |
+| `health.php?check=llm` | `llm_connectors_configured` (connectors with an http(s) URL and a model, from one query that reads only url and model), `llm_endpoints_checked`, `llm_endpoints_reachable` and `llm_hosted_unchecked`. Only a bare TCP connect, in parallel within 2 s, to each distinct local `host:port` (IP literal or `localhost`, at most 5): no key, prompt or token is sent. Hosted host names are counted but never resolved or contacted, because a DNS lookup cannot be bounded. Only one request probes at a time (a non-blocking lock); another gets `llm` = `busy`. | `llm` = `ok` (a local endpoint accepts), `unverified` (only hosted endpoints), `not_configured`, `busy` or a refusing local endpoint beside a hosted one (the last three are `warning`) | 503 with `llm` = `unreachable` when every configured endpoint is local and none accepts |
+| `health.php?check=all` | `db`, `api-keys`, `npcs` and `llm` in one request and one connection, as `checks`. Without a database the others are `skipped`. This feeds the status page. | overall `status` is `ok` or `warning` | 503 when any check is `error` |
+
+An unknown `check` answers 400.
+
+Every body has `check` and `status`: `ok`, `warning` or `error`. A count of zero keys or zero NPCs is a `warning`
+(HTTP 200): a local provider needs no key, and a new install has no characters yet. No connector, or a provider that cannot be verified (hosted only, busy), is also a `warning`: a fresh install
+is not an outage. An unreachable database, or local providers that all refuse, is an `error` (HTTP 503). `api-keys` and `npcs` also answer 503 when their store cannot be read.
+
+## Status page
+
+The Control Panel **Health** tab (`ui/system_health.php`) keeps its readiness cards and adds a compact table of the
+granular checks from `health.php?check=all`: Database, API keys, NPCs and LLM provider, each with a status badge and a
+one-line detail. It refreshes every ten seconds (never overlapping a request still in flight) and shows `unreachable` if the server does not answer.
+
+## Client notice
+
+The SYNTH client polls `health.php?check=live` (every 20 seconds while the server answers, 5 seconds after a failure
+doubling to 60 seconds) and shows one in-game notice when the server stops answering, one when it returns, and one
+reminder after a game load if it is still down. See the client repository's `docs/HANDOFF.md`. The `[Server]
+ConnectionNotice` setting in `SYNTH.ini` turns it off; polling stops with it.
+
+## Evidence
+
+HTTP probes of every route on a disposable PostgreSQL 17 database (healthy, no keys, no NPCs, LLM down, LLM not
+configured, database down) with a `pg_dump` digest before and after each scenario proving no write; a provider
+stand-in received zero bytes. No deployment, installed database, game or in-headset run is involved.

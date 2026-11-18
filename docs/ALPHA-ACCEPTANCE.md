@@ -191,6 +191,16 @@ See [QUEST-AWARE-KNOWLEDGE.md](QUEST-AWARE-KNOWLEDGE.md). Disposable loopback an
   provider call at both 7950230 and this candidate; native turns succeed.
 - [ ] Flat in game, then VR independently: an informed NPC recalls the report on a native turn; another does not.
 
+## Actor condition
+
+See [PROTOCOL.md](PROTOCOL.md#actor-condition-radiation-addictions-effects-limbs). Off-game evidence only.
+
+- [ ] Flat in game: with radiation, a chem, an addiction and a crippled limb on the player, compare the
+  captured values with the Pip-Boy and the next provider request's condition line; confirm the radiation
+  ratio, limb rule and addiction recognition; then confirm an NPC in power armor or at low health.
+- [ ] VR in headset, separately: the capability is negotiated, the active-effect list is not read yet and
+  the line must not claim there are none.
+
 ## NPC biography and actor stats
 
 - [ ] Flat in game: compare all seven SPECIAL base/current values with the next provider request, including an older-save load.
@@ -316,6 +326,21 @@ See [the feature note](COMPANION-COMBAT-COMMENTS.md). No deployment or gameplay 
 - [ ] Named offers including "I have a gift for you, X" continue to use the direct
   exact observed Player-to-NPC transfer without opening the generic gift screen.
 
+
+## Confirmed NPC trade
+
+Contract and boundaries: [CONFIRMED-TRADE.md](CONFIRMED-TRADE.md). Server checks use a disposable PostgreSQL and synthetic
+receipts only; nothing below has been seen in the game or with a live model.
+
+- [ ] A paired flat client/server: a model-chosen `Barter` for an item the NPC really carries produces one box with the NPC,
+  item, price and the player's caps; an item the NPC does not carry, a price above the ceiling or one the player cannot
+  pay produces no box and no claim of a sale in the NPC's line.
+- [ ] Yes moves one item and the price once and the NPC's follow-up acknowledges a completed sale; both inventories and the
+  stored paired receipt agree.
+- [ ] Cancel, a stale answer (cell change, load, spent caps) and an expired box move nothing; the NPC accepts the refusal
+  or lapse without re-offering and never claims the sale happened.
+- [ ] A late Yes after Cancel or after the deadline is refused and does not change the stored result.
+- [ ] VR and a client without `action.trade_confirmation` never receive the `Barter` tool.
 
 ## Player-pack follow-up wording
 
@@ -661,9 +686,13 @@ evidence. In-game flat and VR checks are listed in the SYNTH client's `docs/ALPH
       connector page, a legacy game turn, `/talk`, the Quickstart saves (blank API keys, TTS `none`
       and a keyless TTS and STT choice) and the service manager tasks. The run logged 6 warnings
       and deprecations from web requests and 25 from the CLI before the fix, and 0 and 0 after.
-      `/talk` without a usable TTS connector ends with `native_turn_ineligible` /
-      `tts_profile_unsupported` and one `[native-turn]` warn line per request. Not covered: live
-      providers, a real recall service, and a native turn that completes with speech.
+      Before the voice-optional change `/talk` without a usable TTS connector ended with
+      `native_turn_ineligible` / `tts_profile_unsupported`; it now completes as text (see the
+      voice-optional item below). Not covered: live providers and a real recall service.
+- [x] Voice optional on `/talk`: a profile with no TTS connector, a TTS provider that fails, and a
+      provider that returns silent audio each deliver every line as text with a correct
+      `text_presented` receipt, history and no PHP warnings; working TTS is unchanged. Disposable
+      PostgreSQL 17, mock providers only. In game: unverified (see the client acceptance list).
 - [ ] The STT diagnostic shows a clear message when no local sample is present and
       transcribes a locally supplied WAV.
 - [ ] Theme: headings and monospace text render with the system fallback fonts.
