@@ -55,7 +55,7 @@ Rules:
 | `workers/<Name>/` | Background workers, one folder each, plus the worker interface and registry. | managers, `core/entities/system`, drivers | `Synth\Workers\<Name>\*` | `service/`, `processor/*_worker.php`, `service/processors/` |
 | `bin/` | CLI entry points: `worker.php`, `worker-supervisor.php`, notify and maintenance scripts. Thin: parse arguments, call a worker or manager. | `workers/`, `managers/` | none (scripts) | `service/manager.php`, `service/start.sh` (deployment helpers stay in `tools/`) |
 | `config/` | Configuration samples and loader. Never real credentials. | nothing | none | `conf/` (moves last; `conf/conf.php` stays ignored) |
-| `extensions/` | **Reserved.** One folder per extension with an `extension.json`, once an ExtensionManager exists. No code yet. | extension hooks only | `Synth\Extensions\<Id>\*` | `ext/` |
+| `extensions/` | One folder per extension with an `extension.json`, loaded by `managers/ExtensionManager`. Enabled state: `conf/extensions.json`. | extension hooks only | `Synth\Extensions\<Id>\*` | `ext/` |
 | `ui/` | Management pages. They move onto `api/` and the entity layer as domains move. | `api/` contracts, managers, `core/entities/system` | none (pages) | `ui/` itself, with raw SQL until each page moves |
 | `tests/` | **Target** for new PHPUnit tests (chevo layout). | anything | `Synth\Tests\*` | see [Tests](#tests) |
 | `unittests/` | **Stays for now**: existing suites, fixtures, loopback harness and its own `vendor/`. | anything | none (legacy) | unchanged |

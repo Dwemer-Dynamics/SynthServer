@@ -86,7 +86,7 @@ This supersedes the old rule against `config/` and `workers/` roots.
 | Background job | `workers/<Name>/`, started from `bin/` | `Synth\Workers\<Name>\*` |
 | CLI or long-running process | `bin/` (thin script) | none |
 | Configuration sample | `config/` | none |
-| Extension | `extensions/<id>/` (reserved; wait for the ExtensionManager) | `Synth\Extensions\<Id>\*` |
+| Extension | `extensions/<id>/` (see `managers/ExtensionManager/README.md`) | `Synth\Extensions\<Id>\*` |
 | New automated test | `tests/` (`unittests/` stays for existing suites) | `Synth\Tests\*` |
 
 ## Working method
