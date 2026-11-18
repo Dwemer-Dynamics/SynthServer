@@ -103,7 +103,7 @@ function sttCreateDefaultConnector(STTConnector $connector): int
  'driver' => $defaultDriver,
  'label' => 'Global STT Connector',
  'metadata' => json_encode([], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_badge_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
+ 'api_key_id' => $connector->getDefaultApiBadgeIdForDriver($defaultDriver),
  'url' => $connector->getDefaultUrlForDriver($defaultDriver),
  ]);
 }
@@ -242,11 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 
  $apiBadgeId = null;
  if ($connector->driverUsesApiBadge($driver)) {
- $postedApiBadgeId = intval($_POST['api_badge_id'] ?? 0);
- $apiBadgeId = $postedApiBadgeId > 0 ? $postedApiBadgeId : $connector->getDefaultApiBadgeIdForDriver($driver);
- if ($apiBadgeId <= 0) {
- $apiBadgeId = null;
- }
+ $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($_POST['api_key_id'] ?? null) ?? $connector->getDefaultApiBadgeIdForDriver($driver);
  }
 
  $url = null;
@@ -261,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
  'driver' => $driver,
  'label' => $label,
  'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
- 'api_badge_id' => $apiBadgeId,
+ 'api_key_id' => $apiBadgeId,
  'url' => $url,
  ];
 
@@ -353,8 +349,8 @@ h1.api-title { margin: 0 0 20px 0; font-family: 'Gothic821', serif; word-spacing
  </div><div class="list-wrap" id="stt_driver_list"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><div class="group-title"><?php echo h($groupLabel); ?></div><?php foreach ($groupDrivers as $driverValue): ?><div class="conn-card<?php echo $currentDriver === $driverValue ? ' active' : ''; ?>" data-driver-card="<?php echo h($driverValue); ?>"><div class="conn-head"><div class="conn-name"><?php echo h($connector->getDisplayName($driverValue)); ?></div><div class="conn-badge"><?php echo h($connector->getProviderKeyFromDriver($driverValue) ?: 'SYSTEM'); ?></div></div><div class="conn-sub"><?php echo h($connector->getProviderTitle($driverValue)); ?></div></div><?php endforeach; ?><?php endforeach; ?></div></div>
 <div class="right-col"><?php if (!$editingRow): ?><div class="settings-empty-note">No STT connector is configured yet.</div><?php else: ?><form method="post" action="<?php echo h(sttPageUrl()); ?>" id="stt_connector_form"><input type="hidden" name="id" value="<?php echo h($editingRow['id'] ?? ''); ?>"><input type="hidden" name="save_connector" value="1"><div class="btn-row"><button type="submit" class="btn-save">Save</button><button type="button" class="btn-primary" id="btn_test_connector_inline">Test</button><button type="button" class="btn-secondary" id="btn_google_free_stt_inline">Google Free STT</button></div><div class="orm-note">Testing saves the current connector first so the modal uses the latest settings.</div><div class="editor-grid"><div class="field-block"><label for="label">Name</label><input type="text" id="label" name="label" value="<?php echo h($editingRow['label'] ?? ''); ?>"><div class="field-help">This label is kept for migration and internal reference, even though only one STT connector is used globally.</div></div>
 <div class="field-block"><label for="driver">Service</label><select id="driver" name="driver"><?php foreach ($groupedDriverOptions as $groupLabel => $groupDrivers): ?><?php if (empty($groupDrivers)) { continue; } ?><optgroup label="<?php echo h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverValue): ?><option value="<?php echo h($driverValue); ?>" <?php echo $currentDriver === $driverValue ? 'selected' : ''; ?>><?php echo h($connector->getDisplayName($driverValue)); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">Choose the speech-to-text backend SYNTH Server should load globally.</div></div>
-<div class="field-block" id="url_block" style="<?php echo $connector->driverSupportsEditableUrl($currentDriver) ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editingRow['url'] ?? $connector->getDefaultUrlForDriver($currentDriver)); ?>"><div class="field-help">Used for local or remote STT endpoints such as Local Whisper.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $connector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_badge_id">API Badge</label><?php
- $selectedApi = $editingRow['api_badge_id'] ?? '';
+<div class="field-block" id="url_block" style="<?php echo $connector->driverSupportsEditableUrl($currentDriver) ? '' : 'display:none;'; ?>"><label for="url">URL</label><input type="url" id="url" name="url" value="<?php echo h($editingRow['url'] ?? $connector->getDefaultUrlForDriver($currentDriver)); ?>"><div class="field-help">Used for local or remote STT endpoints such as Local Whisper.</div></div><div class="field-block" id="api_badge_block" style="<?php echo $connector->driverUsesApiBadge($currentDriver) ? '' : 'display:none;'; ?>"><label for="api_key_id">API Badge</label><?php
+ $selectedApi = $editingRow['api_key_id'] ?? '';
  $withKey = [];
  $noKey = [];
  foreach ($apiRows as $apiRow) {
@@ -364,7 +360,7 @@ h1.api-title { margin: 0 0 20px 0; font-family: 'Gothic821', serif; word-spacing
  $noKey[] = $apiRow;
  }
  }
- ?><select id="api_badge_id" name="api_badge_id"><option value="">-- None --</option><?php foreach ($withKey as $apiRow): ?><?php
+ ?><select id="api_key_id" name="api_key_id"><option value="">-- Default: the global key for this provider --</option><?php foreach ($withKey as $apiRow): ?><?php
  $apiRowId = intval($apiRow['id'] ?? 0);
  $selected = strval($selectedApi) === strval($apiRowId) ? 'selected' : '';
  $labelText = ' ' . strval($apiRow['label'] ?? ('Key #' . $apiRowId));
@@ -393,7 +389,7 @@ h1.api-title { margin: 0 0 20px 0; font-family: 'Gothic821', serif; word-spacing
  const driverSelect = document.getElementById('driver');
  const driverCards = document.querySelectorAll('[data-driver-card]');
  const apiBadgeBlock = document.getElementById('api_badge_block');
- const apiBadgeSelect = document.getElementById('api_badge_id');
+ const apiBadgeSelect = document.getElementById('api_key_id');
  const apiKeyNotice = document.getElementById('api_key_notice');
  const urlBlock = document.getElementById('url_block');
  const urlInput = document.getElementById('url');

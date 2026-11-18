@@ -46,7 +46,7 @@ if (synthRuntimeNeedsDbUpdates()) {
     exit(1);
 }
 
-$versionRows = $db->fetchAll("SELECT COUNT(*) AS count FROM synth.database_versioning");
+$versionRows = $db->fetchAll("SELECT COUNT(*) AS count FROM public.core_catalog_version");
 $seedRows = $db->fetchAll("
     SELECT 'core_action' AS seed_name, COUNT(*) AS row_count, COUNT(DISTINCT code_name) AS unique_count
       FROM synth.core_action
@@ -96,13 +96,13 @@ $versionCount = intval($versionRows[0]["count"] ?? 0);
 // The owner records the frozen legacy baseline before any later migration; a bootstrap without it is incomplete.
 $migrationRows = $db->fetchAll("SELECT version FROM synth_meta.doctrine_migration_versions ORDER BY version");
 $migrationVersions = array_map(static fn(array $row): string => strval($row['version'] ?? ''), is_array($migrationRows) ? $migrationRows : []);
-if (!in_array('Synth\\Migrations\\Version20261115000000', $migrationVersions, true)) {
+if (!in_array('Synth\\Migrations\\Version20261117000000', $migrationVersions, true)) {
     fwrite(STDERR, "SYNTH database bootstrap failed: the legacy schema baseline is not recorded.\n");
     exit(1);
 }
 
 echo "SYNTH database bootstrap complete.\n";
-echo "database_versioning rows: {$versionCount}\n";
+echo "core_catalog_version rows: {$versionCount}\n";
 echo "schema verification: complete\n";
 echo "schema migrations recorded: " . count($migrationVersions) . " (latest " . end($migrationVersions) . ")\n";
 foreach ($seedCounts as $seedName => $seedCount) {

@@ -1120,7 +1120,7 @@ if ($checkVersion("core_llm_connector") < 20260423001) {
                 "service" => "openrouter"
             ];
             if ($openRouterBadgeId > 0) {
-                $insertPayload["api_badge_id"] = $openRouterBadgeId;
+                $insertPayload["local_api_key_id"] = $openRouterBadgeId;
             }
 
             $db->insert("core_llm_connector", $insertPayload);
@@ -1167,7 +1167,7 @@ if ($checkVersion("core_llm_connector") < 20260423002) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_badge_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -1215,7 +1215,7 @@ if ($checkVersion("core_llm_connector") < 20260423003) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_badge_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -3311,7 +3311,8 @@ if ($checkVersion("core_stt_connector") < 20260502002) {
     }
 
     try {
-        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS api_badge_id integer;");
+        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS local_api_key_id integer;");
+        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS api_key_id uuid;");
         $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS url text;");
     } catch (Exception $e) {
         $b_ok = false;
@@ -3329,7 +3330,7 @@ if ($checkVersion("core_stt_connector") < 20260502002) {
             $db->execQuery("
                 ALTER TABLE synth.core_stt_connector
                 ADD CONSTRAINT stt_connector_api_badge_id_fkey
-                FOREIGN KEY (api_badge_id) REFERENCES synth.core_api_badge(id)
+                FOREIGN KEY (local_api_key_id) REFERENCES synth.core_api_badge(id)
             ");
         }
     } catch (Exception $e) {
@@ -3826,7 +3827,7 @@ if ($checkVersion("core_tts_connector_omnivoice") < 20260708001) {
     $b_ok = true;
     try {
         $db->execQuery("
-            INSERT INTO synth.core_tts_connector (driver, label, metadata, api_badge_id, url, voice_field)
+            INSERT INTO synth.core_tts_connector (driver, label, metadata, local_api_key_id, url, voice_field)
             SELECT
                 'omnivoice',
                 'OmniVoice Default',
@@ -4987,7 +4988,7 @@ if ($checkVersion('itt_connector_defaults') < 20260731002) {
                 'driver' => 'openrouter',
                 'label' => 'Global ITT Connector',
                 'metadata' => $ittConnector->getDefaultMetadataForDriver('openrouter'),
-                'api_badge_id' => $ittConnector->getDefaultApiBadgeIdForDriver('openrouter'),
+                'api_key_ref' => null,
                 'url' => $ittConnector->getDefaultUrlForDriver('openrouter'),
             ]);
             if ($activeId < 1) {

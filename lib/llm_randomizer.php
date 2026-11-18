@@ -279,7 +279,7 @@ class LLMRandomizer {
                 'enforce_json' => 1,
                 'prefill_json' => 0,
                 'json_schema' => 1,
-                'api_badge_id' => $player2ApiBadgeId,
+                'api_key_id' => $player2ApiBadgeId,
                 'temperature' => 1,
                 'presence_penalty' => 0,
                 'frequency_penalty' => 0,
@@ -300,9 +300,9 @@ class LLMRandomizer {
                 $connectorId = isset($row['id']) ? intval($row['id']) : 0;
             }
         } elseif (!empty($player2ApiBadgeId)) {
-            $connectorRow = $db->fetchOne("SELECT api_badge_id FROM core_llm_connector WHERE id=" . intval($connectorId) . " LIMIT 1");
-            if (empty($connectorRow['api_badge_id'])) {
-                $db->updateRow('core_llm_connector', ['api_badge_id' => $player2ApiBadgeId], 'id=' . intval($connectorId));
+            $connectorRow = $db->fetchOne("SELECT api_key_id FROM core_llm_connector WHERE id=" . intval($connectorId) . " LIMIT 1");
+            if (empty($connectorRow['api_key_id'])) {
+                $db->updateRow('core_llm_connector', ['api_key_id' => $player2ApiBadgeId], 'id=' . intval($connectorId));
             }
         }
 
@@ -369,33 +369,9 @@ class LLMRandomizer {
         return $db->insert('conf_opts', ['id' => $id, 'value' => (string)$value]);
     }
 
+    // Player2 needs no stored key: the connector sends its fixed game key when it has none, and the shared key store holds
+    // only real provider keys. The connector is created without a key reference.
     private static function ensurePlayer2ApiBadgeId() {
-        $db = $GLOBALS['db'] ?? null;
-        if (!$db) {
-            return null;
-        }
-
-        require_once dirname(__DIR__) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
-        $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
-        $row = $apiBadges->idByLowerLabel('player2');
-        $badgeId = isset($row['id']) ? intval($row['id']) : 0;
-        if ($badgeId > 0) {
-            $badgeRow = $apiBadges->keyById($badgeId);
-            if (empty($badgeRow['api_key'])) {
-                $apiBadges->update($badgeId, ['api_key' => 'SYNTH']);
-            }
-            return $badgeId;
-        }
-
-        // add() reports only success, as the insert it replaced did: a created row reads as id 1 below.
-        $insertedBadgeId = $apiBadges->add('Player2', 'SYNTH');
-
-        $badgeId = !empty($insertedBadgeId) ? intval($insertedBadgeId) : 0;
-        if ($badgeId <= 0) {
-            $row = $apiBadges->idByLowerLabel('player2');
-            $badgeId = isset($row['id']) ? intval($row['id']) : 0;
-        }
-
-        return !empty($badgeId) ? (int)$badgeId : null;
+        return null;
     }
 }

@@ -1,0 +1,23 @@
+{
+  "id": "talk-awareness",
+  "name": "Talk Awareness",
+  "version": "1.0.0",
+  "description": "Tells a companion whether this is their first talk with the player and where they last spoke.",
+  "authors": [{"name": "SYNTH team"}],
+  "license": "MIT",
+
+  "api": "^1.0",
+
+  "entry": "Synth\\Extensions\\TalkAwareness\\TalkAwarenessExtension",
+  "autoload": {"psr-4": {"Synth\\Extensions\\TalkAwareness\\": "src/"}},
+
+  "hooks": ["dialogue.context.sections", "dialogue.reply.completed"],
+
+  "settings": {
+    "mention_first_meeting": {
+      "type": "boolean",
+      "default": true,
+      "label": "Say when this is the first talk"
+    }
+  }
+}

@@ -708,8 +708,8 @@ if (isset($_GET["export"]) && is_numeric($_GET["export"])) {
         $conn = $llmConnector->readOne($llmId);
         if ($conn) {
             // Track API badge IDs
-            if (!empty($conn['api_badge_id'])) {
-                $apiBadgeIds[] = $conn['api_badge_id'];
+            if (!empty($conn['api_key_id'])) {
+                $apiBadgeIds[] = $conn['api_key_id'];
             }
             $llmConnectors[] = $conn;
         }
@@ -719,8 +719,8 @@ if (isset($_GET["export"]) && is_numeric($_GET["export"])) {
     $ttsConn = null;
     if (!empty($profileRow['tts_connector_id'])) {
         $ttsConn = $ttsConnector->readOne($profileRow['tts_connector_id']);
-        if ($ttsConn && !empty($ttsConn['api_badge_id'])) {
-            $apiBadgeIds[] = $ttsConn['api_badge_id'];
+        if ($ttsConn && !empty($ttsConn['api_key_id'])) {
+            $apiBadgeIds[] = $ttsConn['api_key_id'];
         }
     }
 
@@ -767,7 +767,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inline_update_connect
         if ($id <= 0) { echo json_encode(["ok"=>false, "error"=>"Invalid id"]); exit; }
 
         $allowed = [
-            'label','service','url','model','provider','driver','max_tokens','temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','top_k','min_p','top_a','enforce_json','prefill_json','reasoning_model','json_schema','api_badge_id','extra_parameters_yaml','extra_parameters_enabled','disable_streaming'
+            'label','service','url','model','provider','driver','max_tokens','temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','top_k','min_p','top_a','enforce_json','prefill_json','reasoning_model','json_schema','api_key_id','extra_parameters_yaml','extra_parameters_enabled','disable_streaming'
         ];
         $data = [];
         $readConnectorMetadata = function() use (&$data, $llm, $id) {
@@ -793,8 +793,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inline_update_connect
                 $data[$k] = ($v === '' ? null : intval($v));
             } else if (in_array($k, ['temperature','presence_penalty','frequency_penalty','repetition_penalty','top_p','min_p','top_a'], true)) {
                 $data[$k] = ($v === '' ? null : floatval($v));
-            } else if ($k === 'api_badge_id') {
-                $data[$k] = ($v === '' ? null : intval($v));
+            } else if ($k === 'api_key_id') {
+                $data[$k] = \Synth\Core\Contracts\ApiKeyRef::normalize($v);
             } else if ($k === 'extra_parameters_yaml') {
                 // Parse YAML and store as metadata.extra_parameters
                 require_once __DIR__ . '/../../connector/parse_simple_yaml.php';
@@ -1002,17 +1002,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
             $existing = $apiBadgeObj->getByLabel($label);
             if ($existing) {
                 $apiBadgeIdMap[$oldId] = $existing['id'];
-            } else {
-                // Create new badge (without API key - user must set it manually)
-                $newBadgeId = $apiBadgeObj->create([
-                    'label' => $label,
-                    'api_key' => '' // Empty, user must fill in
-                ]);
-                if (!$newBadgeId) {
-                    throw new Exception($apiBadgeObj->getLastError() ?: "Could not import API key entry '{$label}'");
-                }
-                $apiBadgeIdMap[$oldId] = $newBadgeId;
             }
+            // A key that is not saved here is not created: a key cannot be empty, so the imported connector has no key
+            // until one is saved on the API Keys page.
         }
 
         // Step 2: Create or match LLM connectors
@@ -1036,10 +1028,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
                 // Remap API badge ID if present
                 $connData = $conn;
                 unset($connData['id']); // Remove old ID
-                if (!empty($connData['api_badge_id']) && isset($apiBadgeIdMap[$connData['api_badge_id']])) {
-                    $connData['api_badge_id'] = $apiBadgeIdMap[$connData['api_badge_id']];
+                if (!empty($connData['api_key_id']) && isset($apiBadgeIdMap[$connData['api_key_id']])) {
+                    $connData['api_key_id'] = $apiBadgeIdMap[$connData['api_key_id']];
                 } else {
-                    $connData['api_badge_id'] = null;
+                    $connData['api_key_id'] = null;
                 }
 
                 // Create new connector
@@ -1067,10 +1059,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
             } else {
                 $ttsData = $ttsConnector;
                 unset($ttsData['id']);
-                if (!empty($ttsData['api_badge_id']) && isset($apiBadgeIdMap[$ttsData['api_badge_id']])) {
-                    $ttsData['api_badge_id'] = $apiBadgeIdMap[$ttsData['api_badge_id']];
+                if (!empty($ttsData['api_key_id']) && isset($apiBadgeIdMap[$ttsData['api_key_id']])) {
+                    $ttsData['api_key_id'] = $apiBadgeIdMap[$ttsData['api_key_id']];
                 } else {
-                    $ttsData['api_badge_id'] = null;
+                    $ttsData['api_key_id'] = null;
                 }
 
                 $ttsConnectorId = $ttsConn->create($ttsData);
@@ -1316,9 +1308,15 @@ if (isset($_GET["edit"])) {
     $editItem = $profiles->getById($_GET["edit"]);
 }
 // Preload connector details for left list and editors
-$llmRows = $GLOBALS["db"]->fetchAll("SELECT c.*, b.label AS api_badge_label FROM core_llm_connector c LEFT JOIN core_api_badge b ON b.id=c.api_badge_id ORDER BY LOWER(COALESCE(NULLIF(c.label,''), c.model)) ASC");
-$ttsRows = $GLOBALS["db"]->fetchAll("SELECT t.*, b.label AS api_badge_label FROM core_tts_connector t LEFT JOIN core_api_badge b ON b.id=t.api_badge_id ORDER BY t.id ASC");
+$llmRows = $GLOBALS["db"]->fetchAll("SELECT c.* FROM core_llm_connector c ORDER BY LOWER(COALESCE(NULLIF(c.label,''), c.model)) ASC");
+$ttsRows = $GLOBALS["db"]->fetchAll("SELECT t.* FROM core_tts_connector t ORDER BY t.id ASC");
 $apiBadgeRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('id');
+// Key labels come from the shared key store; a connector whose key is missing there shows none.
+$apiBadgeLabels = array_column($apiBadgeRows, 'label', 'id');
+foreach ($llmRows as $i => $r) $llmRows[$i] = \Synth\Core\Contracts\ApiKeyRef::decorateRow($r);
+foreach ($ttsRows as $i => $r) $ttsRows[$i] = \Synth\Core\Contracts\ApiKeyRef::decorateRow($r);
+foreach ($llmRows as $i => $r) $llmRows[$i]['api_badge_label'] = $apiBadgeLabels[$r['api_key_id'] ?? ''] ?? null;
+foreach ($ttsRows as $i => $r) $ttsRows[$i]['api_badge_label'] = $apiBadgeLabels[$r['api_key_id'] ?? ''] ?? null;
 
 $byId = function($rows){
     $out = [];
@@ -2401,7 +2399,7 @@ const saveAllBtn = document.getElementById('btn_save_all');
                     <div>Driver</div><input name=\"driver\" value=\"${escapeHtml(val('driver'))}\">
                     <div>URL</div><input name=\"url\" value=\"${escapeHtml(val('url'))}\">
                     <div>Voice Field</div><input name=\"voice_field\" value=\"${escapeHtml(val('voice_field'))}\">
-                    <div>API Badge</div>${renderApiBadgeSelect('api_badge_id', val('api_badge_id'))}
+                    <div>API Badge</div>${renderApiBadgeSelect('api_key_id', val('api_key_id'))}
                 </div>
                 <div style=\"margin-top:8px; display:flex; gap:8px;\">
                     <button type=\"button\" class=\"btn-save save\">Save</button>

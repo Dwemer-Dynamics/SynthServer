@@ -33,7 +33,7 @@ class ITTConnector
         $rows = $GLOBALS['db']->fetchAll(
             "SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label, ''), driver)), id"
         );
-        return is_array($rows) ? $rows : [];
+        return is_array($rows) ? array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $rows) : [];
     }
 
     public function readOne($id): ?array
@@ -41,7 +41,7 @@ class ITTConnector
         $row = $GLOBALS['db']->fetchOne(
             "SELECT * FROM {$this->table} WHERE id=" . intval($id) . ' LIMIT 1'
         );
-        return is_array($row) && $row ? $row : null;
+        return is_array($row) && $row ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : null;
     }
 
     public function getById($id): ?array
@@ -52,15 +52,16 @@ class ITTConnector
     public function create(array $data): int
     {
         $normalized = $this->normalize($data);
-        $row = $GLOBALS['db']->fetchOne(
-            "INSERT INTO {$this->table} (driver, label, metadata, api_badge_id, url) VALUES (" .
+        $row = ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->fetchOne(
+            "INSERT INTO {$this->table} (driver, label, metadata, local_api_key_id, api_key_id, url) VALUES (" .
             $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
             $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
-            ($normalized['api_badge_id'] > 0 ? $normalized['api_badge_id'] : 'NULL') . ', ' .
+            ($normalized['local_api_key_id'] !== null ? intval($normalized['local_api_key_id']) : 'NULL') . ', ' .
+            ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             ') RETURNING id'
-        );
+        ), null);
         return intval($row['id'] ?? 0);
     }
 
@@ -72,15 +73,16 @@ class ITTConnector
         }
 
         $normalized = $this->normalize($data);
-        return $GLOBALS['db']->execQuery(
+        return ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->execQuery(
             "UPDATE {$this->table} SET " .
             'driver=' . $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
             'label=' . $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
             'metadata=' . $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
-            'api_badge_id=' . ($normalized['api_badge_id'] > 0 ? $normalized['api_badge_id'] : 'NULL') . ', ' .
+            'local_api_key_id=' . ($normalized['local_api_key_id'] !== null ? intval($normalized['local_api_key_id']) : 'NULL') . ', ' .
+            'api_key_id=' . ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
             'url=' . ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
             " WHERE id={$id}"
-        ) !== false;
+        ) !== false, false);
     }
 
     public function delete($id): bool
@@ -144,14 +146,11 @@ class ITTConnector
         return isset(self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)]);
     }
 
-    public function getDefaultApiBadgeIdForDriver($driver): int
+    // A connector that names no key uses the global key of its provider when it is used; nothing is bound or stored for it, so this
+    // is always null (a page shows "default (global)" for it).
+    public function getDefaultApiBadgeIdForDriver($driver): ?string
     {
-        $label = self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)] ?? '';
-        if ($label === '') {
-            return 0;
-        }
-        $badge = (new ApiBadge())->getByLabel($label);
-        return intval($badge['id'] ?? 0);
+        return null;
     }
 
     public function driverSupportsEditableUrl($driver): bool
@@ -264,13 +263,9 @@ class ITTConnector
             $metadata['URL'] = $url;
         }
 
-        $badgeId = intval($row['api_badge_id'] ?? 0);
-        if ($badgeId > 0) {
-            $badge = (new ApiBadge())->getById($badgeId);
-            $apiKey = trim(strval($badge['api_key'] ?? ''));
-            if ($apiKey !== '') {
-                $metadata['API_KEY'] = $apiKey;
-            }
+        $apiKey = trim(ApiBadge::keyForConnector($row, self::API_BADGE_LABELS[$this->normalizeDriverValue($driver)] ?? '', strval($row['url'] ?? '')));
+        if ($apiKey !== '') {
+            $metadata['API_KEY'] = $apiKey;
         }
 
         $GLOBALS['ITTFUNCTION'] = $driver;
@@ -279,6 +274,12 @@ class ITTConnector
             $GLOBALS['ITT'] = [];
         }
         $GLOBALS['ITT'][$driver] = $metadata;
+    }
+
+    // The two typed key columns for the key the data names (a reference in api_key_id), or none.
+    private function keyColumns($driver, array $data): array
+    {
+        return $this->driverUsesApiBadge($driver) ? \Synth\Core\Contracts\ApiKeyRef::toColumns(\Synth\Core\Contracts\ApiKeyRef::fromAny($data)) : [];
     }
 
     private function normalize(array $data): array
@@ -303,7 +304,9 @@ class ITTConnector
             'driver' => $driver,
             'label' => substr($label, 0, 200),
             'metadata' => $metadataJson !== false ? $metadataJson : '{}',
-            'api_badge_id' => $this->driverUsesApiBadge($driver) ? intval($data['api_badge_id'] ?? 0) : 0,
+            'api_key_id' => null,
+            'local_api_key_id' => null,
+            ...$this->keyColumns($driver, $data),
             'url' => $url,
         ];
     }

@@ -1,0 +1,11 @@
+{
+    "format": 1,
+    "provenance": "The shared dwemer database's api_keys schema is owned by ChimServer. SYNTH carries byte-identical copies of the shared migrations it consumes, so the version names recorded in dwemer_shared_migration_versions are the same fully qualified ChimServer names. Hashes are SHA-256 of the file bytes and equal migration_hashes in ChimServer's Config/DBManager/Schema/shared-pg17.json at the commit below. tools/shared-api-keys.php status verifies them; never edit a copy here.",
+    "chimserver_commit": "804e501154de8353da50c05872700809499a0f31",
+    "shared_migrations": {
+        "Version20261019100001.php": "7c6be3513ac894d8c7d3932143e5e4d4c6bd9b39b735c9a2e66850c07cc4b0c5",
+        "Version20261024100001.php": "29e89aec49a3b79a441e74654badeda4a352a4ff649207437a25e8c34609ad56",
+        "Version20261109100001.php": "21ad880a3c0d3e4c922a1b6a9d9f2a7942c6241d843b0c249c84936d80367327",
+        "Version20261109100002.php": "ac7e30900bf2f42be143be829649bde7b8fb361eb46cafc73ca241807ac10f7f"
+    }
+}

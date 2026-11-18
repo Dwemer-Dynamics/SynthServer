@@ -68,7 +68,7 @@ The payload contains no top-level transaction commands. Migration and
 catalogue locks serialize application. An installed newer migration version
 rejects this older release before its SQL can change catalogue selection.
 Version recording supports older databases without a unique key on
-`database_versioning`.
+`public.core_catalog_version`.
 
 Pre-commit failures roll back the release and its version record together.
 If the database does not acknowledge COMMIT, the installer reports an

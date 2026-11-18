@@ -252,9 +252,9 @@ function synthInstallFalloutCatalogueSql(object $db,string $root): array
         if ($db->execQuery("SET LOCAL statement_timeout='30s'")===false
             || $db->execQuery("SET LOCAL lock_timeout='5s'")===false)
             throw new RuntimeException('Unable to bound Fallout catalogue SQL migration');
-        if ($db->execQuery('LOCK TABLE synth.database_versioning IN SHARE ROW EXCLUSIVE MODE')===false)
+        if ($db->execQuery('LOCK TABLE public.core_catalog_version IN SHARE ROW EXCLUSIVE MODE')===false)
             throw new RuntimeException('Unable to lock Fallout catalogue migration state');
-        $installed=$db->fetchOne("SELECT max(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'");
+        $installed=$db->fetchOne("SELECT max(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'");
         if (!is_array($installed) || !array_key_exists('version',$installed))
             throw new RuntimeException('Unable to inspect Fallout catalogue migration version');
         if ($installed['version']!==null && intval($installed['version'])>SYNTH_FALLOUT_CATALOGUE_SQL_VERSION)
@@ -272,9 +272,9 @@ function synthInstallFalloutCatalogueSql(object $db,string $root): array
             || ($activeAfter['catalog_version'] ?? null)!==$release['manifest']['catalog']['catalog_version']) {
             throw new RuntimeException('Fallout catalogue release was not activated');
         }
-        if ($db->execQuery('INSERT INTO synth.database_versioning(tablename,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM synth.database_versioning WHERE tablename=$1)',
+        if ($db->execQuery('INSERT INTO public.core_catalog_version(catalog_key,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM public.core_catalog_version WHERE catalog_key=$1)',
                 ['fallout4_catalogue_sql',SYNTH_FALLOUT_CATALOGUE_SQL_VERSION])===false
-            || $db->execQuery('UPDATE synth.database_versioning SET version=GREATEST(version,$2) WHERE tablename=$1',
+            || $db->execQuery('UPDATE public.core_catalog_version SET version=GREATEST(version,$2) WHERE catalog_key=$1',
                 ['fallout4_catalogue_sql',SYNTH_FALLOUT_CATALOGUE_SQL_VERSION])===false)
             throw new RuntimeException('Unable to record Fallout catalogue SQL migration version');
         $db->assertTransactionCurrent();

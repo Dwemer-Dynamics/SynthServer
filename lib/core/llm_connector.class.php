@@ -73,7 +73,8 @@ class LLMConnector
             $data["url"] = $normalizedUrl;
         }
 
-        return $data;
+        // Rows read from the database show the key as one reference; data headed for it becomes the two typed columns.
+        return $forWrite ? \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data) : \Synth\Core\Contracts\ApiKeyRef::decorateRow($data);
     }
 
     private function normalizeConnectorRecords(array $rows): array
@@ -87,19 +88,17 @@ class LLMConnector
         return $rows;
     }
 
-    private function getApiKeyForBadge($apiBadgeId): string
+    // The key a connector uses: the key it names (a missing or deleted one is no key, never another), else the global key of its
+    // service (openrouter, openai, google, groq, nanogpt). A SYNTH-only key is used only when the connector names it.
+    private function getApiKeyForBadge($apiBadgeId, ?array $connector = null): string
     {
-        if (empty($apiBadgeId)) {
-            return "";
+        $row = is_array($connector) ? $connector : [];
+        if ($apiBadgeId !== null) {
+            $row['api_key_id'] = $apiBadgeId;
         }
-
-        $apiBadge = new ApiBadge();
-        $apiKeyData = $apiBadge->getById($apiBadgeId);
-        if (!is_array($apiKeyData)) {
-            return "";
-        }
-
-        return (string)($apiKeyData["api_key"] ?? "");
+        $service = strtolower(trim(strval($row['service'] ?? '')));
+        $label = ['openrouter' => 'OpenRouter', 'openai' => 'OpenAI', 'google' => 'Google', 'groq' => 'Groq', 'nanogpt' => 'Nano-GPT'][$service] ?? '';
+        return ApiBadge::keyForConnector($row, $label, strval($row['url'] ?? ''));
     }
     public function create($data)
     {
@@ -115,7 +114,8 @@ class LLMConnector
             "max_tokens",
             "enforce_json",
             "prefill_json",
-            "api_badge_id",
+            "api_key_id",
+            "local_api_key_id",
             "json_schema",
             "temperature",
             "presence_penalty",
@@ -136,7 +136,7 @@ class LLMConnector
         }
 
         $filtered = array_intersect_key($data, array_flip($fields));
-        return $GLOBALS["db"]->insertReturningId($this->table, $filtered);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->insertReturningId($this->table, $filtered), 0);
     }
 
     public function readAll()
@@ -183,7 +183,8 @@ class LLMConnector
             "max_tokens",
             "enforce_json",
             "prefill_json",
-            "api_badge_id",
+            "api_key_id",
+            "local_api_key_id",
             "json_schema",
             "temperature",
             "presence_penalty",
@@ -206,7 +207,7 @@ class LLMConnector
         $id = intval($id);
         $where = "id = {$id}";
         $filtered = array_intersect_key($data, array_flip($fields));
-        return $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, $where), false);
     }
 
     public function delete($id)
@@ -234,7 +235,7 @@ class LLMConnector
     public function getAllFk($fieldName)
     {
         // The API key list is the only supported foreign key.
-        if ($fieldName !== "api_badge_id") {
+        if ($fieldName !== "api_key_id") {
             return []; // Unknown FK
         }
 
@@ -266,7 +267,7 @@ class LLMConnector
         return [
             'url' => $url,
             'model' => $model,
-            'api_key' => $this->getApiKeyForBadge($row['api_badge_id'] ?? null),
+            'api_key' => $this->getApiKeyForBadge($row['api_key_id'] ?? null, $row),
             'max_tokens' => intval($row['max_tokens'] ?? 1024),
             'temperature' => floatval($row['temperature'] ?? 1.0),
             'top_p' => floatval($row['top_p'] ?? 1.0),
@@ -304,7 +305,7 @@ class LLMConnector
             }
             unset($GLOBALS["CONNECTOR"]["openaijson"]["quickstart_managed"], $GLOBALS["CONNECTOR"]["openaijson"]["quickstart_timeout"]);
 
-            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_badge_id"] ?? null);
+            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
             $GLOBALS["CONNECTOR"]["openaijson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
             $GLOBALS["CONNECTOR"]["openaijson"]["model"] = $currentConnectorData["model"] ?? 'google/gemini-2.5-flash';
@@ -337,13 +338,13 @@ class LLMConnector
                 if (isset($currentConnectorData[$key])) $settings[$key] = $currentConnectorData[$key];
             }
             if (isset($currentConnectorData['repetition_penalty'])) $settings['rep_pen'] = $currentConnectorData['repetition_penalty'];
-            $settings['API_KEY'] = $this->getApiKeyForBadge($currentConnectorData['api_badge_id'] ?? null);
+            $settings['API_KEY'] = $this->getApiKeyForBadge($currentConnectorData['api_key_id'] ?? null, $currentConnectorData);
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
             $GLOBALS['CONNECTOR']['koboldcppjson'] = array_replace($settings, is_array($metadata) ? $metadata : []);
 
         } else if ($currentConnectorData["driver"] == "openrouterjson") {
 
-            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_badge_id"] ?? null);
+            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
             $GLOBALS["CONNECTOR"]["openrouterjson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
             $GLOBALS["CONNECTOR"]["openrouterjson"]["model"] = $currentConnectorData["model"] ?? 'z-ai/glm-4.7';
@@ -373,7 +374,7 @@ class LLMConnector
 
         } else if ($currentConnectorData["driver"] == "google_openaijson") {
 
-            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_badge_id"] ?? null);
+            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
             $GLOBALS["CONNECTOR"]["google_openaijson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
             $GLOBALS["CONNECTOR"]["google_openaijson"]["model"] = $currentConnectorData["model"] ?? 'google/gemini-2.5-flash';
@@ -403,7 +404,7 @@ class LLMConnector
 
         } else if ($currentConnectorData["driver"] == "groqjson") {
 
-            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_badge_id"] ?? null);
+            $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR groqjson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
             $GLOBALS["CONNECTOR"]["groqjson"]["url"] = $currentConnectorData["url"] ?? 'https://api.groq.com/openai/v1/chat/completions';
             $GLOBALS["CONNECTOR"]["groqjson"]["model"] = $currentConnectorData["model"] ?? 'llama-3.3-70b-versatile';
@@ -433,8 +434,8 @@ class LLMConnector
         } else if ($currentConnectorData["driver"] == "player2json") {
 
             $gameKey = "SYNTH";
-            if (!empty($currentConnectorData["api_badge_id"])) {
-                $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_badge_id"] ?? null);
+            if (!empty($currentConnectorData["api_key_id"])) {
+                $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
                 if (!empty($apiKey)) {
                     $gameKey = $apiKey;
                 }
