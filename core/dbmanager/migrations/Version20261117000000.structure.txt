@@ -557,44 +557,44 @@ column|synth|audit_request|result|text|text|YES||
 column|synth|audit_request|rowid|bigint|int8|NO|nextval('audit_request_rowid_seq'::regclass)|
 column|synth|audit_request|url|text|text|YES||
 column|synth|audit_request|usage|jsonb|jsonb|YES||
-column|synth|bio_template_actor_map|base_local_formid|character varying|varchar|YES||8
-column|synth|bio_template_actor_map|base_plugin|text|text|YES||
-column|synth|bio_template_actor_map|exact_name|text|text|YES||
-column|synth|bio_template_actor_map|id|bigint|int8|NO|nextval('bio_template_actor_map_id_seq'::regclass)|
-column|synth|bio_template_actor_map|is_nonverbal_creature|boolean|bool|NO|false|
-column|synth|bio_template_actor_map|reference_local_formid|character varying|varchar|YES||8
-column|synth|bio_template_actor_map|reference_plugin|text|text|YES||
-column|synth|bio_template_actor_map|template_name|character varying|varchar|NO||128
-column|synth|bio_templates_custom|appearance|text|text|YES||
-column|synth|bio_templates_custom|core|text|text|YES||
-column|synth|bio_templates_custom|gender|text|text|YES||
-column|synth|bio_templates_custom|goals|text|text|YES||
-column|synth|bio_templates_custom|npc_name|character varying|varchar|NO||128
-column|synth|bio_templates_custom|npc_static_bio|text|text|YES||
-column|synth|bio_templates_custom|occupation|text|text|YES||
-column|synth|bio_templates_custom|personality|text|text|YES||
-column|synth|bio_templates_custom|race|text|text|YES||
-column|synth|bio_templates_custom|refid|text|text|YES||
-column|synth|bio_templates_custom|relationships|text|text|YES||
-column|synth|bio_templates_custom|skills|text|text|YES||
-column|synth|bio_templates_custom|speechstyle|text|text|YES||
-column|synth|bio_templates_custom|voiceid|text|text|YES||
-column|synth|bio_templates_custom|worldknowledge_tags|text|text|YES||
-column|synth|bio_templates|appearance|text|text|YES||
-column|synth|bio_templates|core|text|text|YES||
-column|synth|bio_templates|gender|text|text|YES||
-column|synth|bio_templates|goals|text|text|YES||
-column|synth|bio_templates|npc_name|character varying|varchar|NO||128
-column|synth|bio_templates|npc_static_bio|text|text|YES||
-column|synth|bio_templates|occupation|text|text|YES||
-column|synth|bio_templates|personality|text|text|YES||
-column|synth|bio_templates|race|text|text|YES||
-column|synth|bio_templates|refid|text|text|YES||
-column|synth|bio_templates|relationships|text|text|YES||
-column|synth|bio_templates|skills|text|text|YES||
-column|synth|bio_templates|speechstyle|text|text|YES||
-column|synth|bio_templates|voiceid|text|text|YES||
-column|synth|bio_templates|worldknowledge_tags|text|text|YES||
+column|public|core_npc_biography_template_actor|base_local_formid|character varying|varchar|YES||8
+column|public|core_npc_biography_template_actor|base_plugin|text|text|YES||
+column|public|core_npc_biography_template_actor|exact_name|text|text|YES||
+column|public|core_npc_biography_template_actor|id|bigint|int8|NO|nextval('bio_template_actor_map_id_seq'::regclass)|
+column|public|core_npc_biography_template_actor|is_nonverbal_creature|boolean|bool|NO|false|
+column|public|core_npc_biography_template_actor|reference_local_formid|character varying|varchar|YES||8
+column|public|core_npc_biography_template_actor|reference_plugin|text|text|YES||
+column|public|core_npc_biography_template_actor|template_name|character varying|varchar|NO||128
+column|public|core_npc_biography_template_custom|appearance|text|text|YES||
+column|public|core_npc_biography_template_custom|core|text|text|YES||
+column|public|core_npc_biography_template_custom|gender|text|text|YES||
+column|public|core_npc_biography_template_custom|goals|text|text|YES||
+column|public|core_npc_biography_template_custom|npc_name|character varying|varchar|NO||128
+column|public|core_npc_biography_template_custom|npc_static_bio|text|text|YES||
+column|public|core_npc_biography_template_custom|occupation|text|text|YES||
+column|public|core_npc_biography_template_custom|personality|text|text|YES||
+column|public|core_npc_biography_template_custom|race|text|text|YES||
+column|public|core_npc_biography_template_custom|refid|text|text|YES||
+column|public|core_npc_biography_template_custom|relationships|text|text|YES||
+column|public|core_npc_biography_template_custom|skills|text|text|YES||
+column|public|core_npc_biography_template_custom|speechstyle|text|text|YES||
+column|public|core_npc_biography_template_custom|voiceid|text|text|YES||
+column|public|core_npc_biography_template_custom|worldknowledge_tags|text|text|YES||
+column|public|core_npc_biography_template|appearance|text|text|YES||
+column|public|core_npc_biography_template|core|text|text|YES||
+column|public|core_npc_biography_template|gender|text|text|YES||
+column|public|core_npc_biography_template|goals|text|text|YES||
+column|public|core_npc_biography_template|npc_name|character varying|varchar|NO||128
+column|public|core_npc_biography_template|npc_static_bio|text|text|YES||
+column|public|core_npc_biography_template|occupation|text|text|YES||
+column|public|core_npc_biography_template|personality|text|text|YES||
+column|public|core_npc_biography_template|race|text|text|YES||
+column|public|core_npc_biography_template|refid|text|text|YES||
+column|public|core_npc_biography_template|relationships|text|text|YES||
+column|public|core_npc_biography_template|skills|text|text|YES||
+column|public|core_npc_biography_template|speechstyle|text|text|YES||
+column|public|core_npc_biography_template|voiceid|text|text|YES||
+column|public|core_npc_biography_template|worldknowledge_tags|text|text|YES||
 column|synth|combined_bio_templates|appearance|text|text|YES||
 column|synth|combined_bio_templates|core|text|text|YES||
 column|synth|combined_bio_templates|gender|text|text|YES||
@@ -1598,14 +1598,14 @@ constraint|synth|actor_identities|actor_identities_game_check|c|t|CHECK ((game =
 constraint|synth|actor_identities|actor_identities_origin_plugin_check|c|t|CHECK ((origin_plugin ~* '^[^/\\]+\.(esm|esp|esl)$'::text))
 constraint|synth|actor_identities|actor_identities_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|actor_identities|actor_identities_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth|bio_template_actor_map|bio_template_actor_map_base_formid_check|c|t|CHECK (((base_local_formid)::text ~ '^[0-9A-F]{8}$'::text))
-constraint|synth|bio_template_actor_map|bio_template_actor_map_base_pair_check|c|t|CHECK (((base_plugin IS NULL) = (base_local_formid IS NULL)))
-constraint|synth|bio_template_actor_map|bio_template_actor_map_identity_present_check|c|t|CHECK (((base_plugin IS NOT NULL) OR (reference_plugin IS NOT NULL)))
-constraint|synth|bio_template_actor_map|bio_template_actor_map_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|bio_template_actor_map|bio_template_actor_map_reference_formid_check|c|t|CHECK (((reference_local_formid IS NULL) OR ((reference_local_formid)::text ~ '^[0-9A-F]{8}$'::text)))
-constraint|synth|bio_template_actor_map|bio_template_actor_map_reference_pair_check|c|t|CHECK (((reference_plugin IS NULL) = (reference_local_formid IS NULL)))
-constraint|synth|bio_templates_custom|bio_templates_custom_pkey|p|t|PRIMARY KEY (npc_name)
-constraint|synth|bio_templates|bio_templates_pkey|p|t|PRIMARY KEY (npc_name)
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_base_formid_check|c|t|CHECK (((base_local_formid)::text ~ '^[0-9A-F]{8}$'::text))
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_base_pair_check|c|t|CHECK (((base_plugin IS NULL) = (base_local_formid IS NULL)))
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_identity_present_check|c|t|CHECK (((base_plugin IS NOT NULL) OR (reference_plugin IS NOT NULL)))
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_reference_formid_check|c|t|CHECK (((reference_local_formid IS NULL) OR ((reference_local_formid)::text ~ '^[0-9A-F]{8}$'::text)))
+constraint|public|core_npc_biography_template_actor|bio_template_actor_map_reference_pair_check|c|t|CHECK (((reference_plugin IS NULL) = (reference_local_formid IS NULL)))
+constraint|public|core_npc_biography_template_custom|bio_templates_custom_pkey|p|t|PRIMARY KEY (npc_name)
+constraint|public|core_npc_biography_template|bio_templates_pkey|p|t|PRIMARY KEY (npc_name)
 constraint|synth|conf_opts|conf_opts_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE (code_name)
 constraint|public|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
@@ -1817,12 +1817,12 @@ index|public|core_worker_job|worker_jobs_session_generation|CREATE INDEX worker_
 index|synth|actor_identities|actor_identities_canonical_key|CREATE UNIQUE INDEX actor_identities_canonical_key ON synth.actor_identities USING btree (game, upper((full_form_id)::text), lower(origin_plugin), playthrough_id)
 index|synth|actor_identities|actor_identities_display_name|CREATE INDEX actor_identities_display_name ON synth.actor_identities USING btree (lower(display_name)) WHERE (display_name IS NOT NULL)
 index|synth|actor_identities|actor_identities_pkey|CREATE UNIQUE INDEX actor_identities_pkey ON synth.actor_identities USING btree (id)
-index|synth|bio_template_actor_map|bio_template_actor_map_base_identity_uidx|CREATE UNIQUE INDEX bio_template_actor_map_base_identity_uidx ON synth.bio_template_actor_map USING btree (lower(base_plugin), upper((base_local_formid)::text))
-index|synth|bio_template_actor_map|bio_template_actor_map_pkey|CREATE UNIQUE INDEX bio_template_actor_map_pkey ON synth.bio_template_actor_map USING btree (id)
-index|synth|bio_template_actor_map|bio_template_actor_map_reference_identity_uidx|CREATE UNIQUE INDEX bio_template_actor_map_reference_identity_uidx ON synth.bio_template_actor_map USING btree (lower(reference_plugin), upper((reference_local_formid)::text)) WHERE ((reference_plugin IS NOT NULL) AND (reference_local_formid IS NOT NULL))
-index|synth|bio_template_actor_map|bio_template_actor_map_template_idx|CREATE INDEX bio_template_actor_map_template_idx ON synth.bio_template_actor_map USING btree (lower((template_name)::text))
-index|synth|bio_templates_custom|bio_templates_custom_pkey|CREATE UNIQUE INDEX bio_templates_custom_pkey ON synth.bio_templates_custom USING btree (npc_name)
-index|synth|bio_templates|bio_templates_pkey|CREATE UNIQUE INDEX bio_templates_pkey ON synth.bio_templates USING btree (npc_name)
+index|public|core_npc_biography_template_actor|bio_template_actor_map_base_identity_uidx|CREATE UNIQUE INDEX bio_template_actor_map_base_identity_uidx ON public.core_npc_biography_template_actor USING btree (lower(base_plugin), upper((base_local_formid)::text))
+index|public|core_npc_biography_template_actor|bio_template_actor_map_pkey|CREATE UNIQUE INDEX bio_template_actor_map_pkey ON public.core_npc_biography_template_actor USING btree (id)
+index|public|core_npc_biography_template_actor|bio_template_actor_map_reference_identity_uidx|CREATE UNIQUE INDEX bio_template_actor_map_reference_identity_uidx ON public.core_npc_biography_template_actor USING btree (lower(reference_plugin), upper((reference_local_formid)::text)) WHERE ((reference_plugin IS NOT NULL) AND (reference_local_formid IS NOT NULL))
+index|public|core_npc_biography_template_actor|bio_template_actor_map_template_idx|CREATE INDEX bio_template_actor_map_template_idx ON public.core_npc_biography_template_actor USING btree (lower((template_name)::text))
+index|public|core_npc_biography_template_custom|bio_templates_custom_pkey|CREATE UNIQUE INDEX bio_templates_custom_pkey ON public.core_npc_biography_template_custom USING btree (npc_name)
+index|public|core_npc_biography_template|bio_templates_pkey|CREATE UNIQUE INDEX bio_templates_pkey ON public.core_npc_biography_template USING btree (npc_name)
 index|synth|conf_opts|conf_opts_pkey|CREATE UNIQUE INDEX conf_opts_pkey ON synth.conf_opts USING btree (id)
 index|public|core_action_custom|core_action_custom_code_name_key|CREATE UNIQUE INDEX core_action_custom_code_name_key ON public.core_action_custom USING btree (code_name)
 index|public|core_action_custom|core_action_custom_pkey|CREATE UNIQUE INDEX core_action_custom_pkey ON public.core_action_custom USING btree (id)
@@ -1979,9 +1979,9 @@ table|public|core_worker_job|BASE TABLE
 table|synth|actions_issued|BASE TABLE
 table|synth|actor_identities|BASE TABLE
 table|synth|audit_request|BASE TABLE
-table|synth|bio_template_actor_map|BASE TABLE
-table|synth|bio_templates_custom|BASE TABLE
-table|synth|bio_templates|BASE TABLE
+table|public|core_npc_biography_template_actor|BASE TABLE
+table|public|core_npc_biography_template_custom|BASE TABLE
+table|public|core_npc_biography_template|BASE TABLE
 table|synth|combined_bio_templates|VIEW
 table|synth|combined_core_action|VIEW
 table|synth|combined_descriptions|VIEW

@@ -94,11 +94,11 @@ final class FalloutContentBundleTest extends DatabaseTestCase
     {
         $db=$this->db();
         $existing=$pack['npcs'][0];
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_templates(npc_name,npc_static_bio,personality,worldknowledge_tags) VALUES($1,$2,$3,$4)',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc_biography_template(npc_name,npc_static_bio,personality,worldknowledge_tags) VALUES($1,$2,$3,$4)',
             [$existing['npc_name'],'Operator-authored standard background.','Operator-authored standard personality.','commonwealth,bundle_authored_tag']));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_templates_custom(npc_name,npc_static_bio) VALUES($1,$2)',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc_biography_template_custom(npc_name,npc_static_bio) VALUES($1,$2)',
             [$existing['npc_name'],'Operator-authored custom background.']));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_template_actor_map(template_name,base_plugin,base_local_formid,exact_name,is_nonverbal_creature) VALUES($1,$2,$3,$4,false)',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc_biography_template_actor(template_name,base_plugin,base_local_formid,exact_name,is_nonverbal_creature) VALUES($1,$2,$3,$4,false)',
             [$existing['npc_name'],$existing['plugin'],$existing['baseid'],$existing['display_name']]));
         self::assertNotFalse($db->execQuery("INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored item','Authored standard description.')"));
         self::assertNotFalse($db->execQuery("INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored custom item','Authored custom description.')"));
@@ -128,10 +128,16 @@ final class FalloutContentBundleTest extends DatabaseTestCase
     private function snapshot(): array
     {
         $result=[];
+        $relations=[
+            'bio_templates'=>'public.core_npc_biography_template','bio_templates_custom'=>'public.core_npc_biography_template_custom',
+            'bio_template_actor_map'=>'public.core_npc_biography_template_actor','descriptions'=>'public.core_item_description',
+            'descriptions_custom'=>'public.core_item_description_custom','worldknowledge'=>'public.core_worldknowledge_article',
+            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'synth.core_npc_master',
+            'core_npc_master_history'=>'synth.core_npc_master_history','actor_identities'=>'synth.actor_identities',
+            'core_catalog_version'=>'public.core_catalog_version'];
         foreach (['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom',
             'core_npc_master','worldknowledge','worldknowledge_catalogs','core_catalog_version'] as $table) {
-            $schema=$table==='core_catalog_version'?'public':'synth';
-            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM '.$schema.'.'.$table.' t ORDER BY body');
+            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM '.$relations[$table].' t ORDER BY body');
         }
         return $result;
     }
@@ -190,7 +196,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             $after=$this->snapshot();
             self::assertSame($before['bio_templates_custom'],$after['bio_templates_custom']);
             self::assertSame($before['descriptions_custom'],$after['descriptions_custom']);
-            $template=$this->db()->fetchOne("SELECT personality,worldknowledge_tags FROM synth.bio_templates WHERE npc_name='fo4_bundle_existing'");
+            $template=$this->db()->fetchOne("SELECT personality,worldknowledge_tags FROM public.core_npc_biography_template WHERE npc_name='fo4_bundle_existing'");
             self::assertSame('Operator-authored standard personality.',$template['personality']);
             self::assertSame('commonwealth,bundle_authored_tag',$template['worldknowledge_tags']);
             self::assertSame('Authored standard description.',$this->db()->fetchOne("SELECT description FROM public.core_item_description WHERE baseid='00F00301'")['description']);
@@ -206,7 +212,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
                     $pack['npcs'][1]['fields']['skills']),null],[$profile['npc_static_bio'],$profile['skills']]);
                 else self::assertNull($profile['npc_static_bio']);
             }
-            self::assertSame('2',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.bio_template_actor_map WHERE template_name LIKE 'fo4_bundle_%'")['n']);
+            self::assertSame('2',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_npc_biography_template_actor WHERE template_name LIKE 'fo4_bundle_%'")['n']);
         } finally { $this->removeFixture($root); }
     }
 

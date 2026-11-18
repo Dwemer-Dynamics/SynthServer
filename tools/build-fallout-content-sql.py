@@ -115,7 +115,7 @@ def build(root):
 -- The versioned PHP installer owns the transaction and version marker.
 SET LOCAL standard_conforming_strings = on;
 '''+schema+'\n'
-    sql+='INSERT INTO synth.bio_templates (npc_name,'+','.join(FIELDS)+') VALUES\n'+values(npc_rows)+'\nON CONFLICT (npc_name) DO NOTHING;\n\n'
+    sql+='INSERT INTO public.core_npc_biography_template (npc_name,'+','.join(FIELDS)+') VALUES\n'+values(npc_rows)+'\nON CONFLICT (npc_name) DO NOTHING;\n\n'
     # Repair only untouched copies of the six earlier factory templates. Any
     # operator edit to a seeded field, including the old tag list, is preserved.
     sql+='-- Correct the exclusive era tag on unchanged earlier Vault 118 templates.\n'
@@ -126,7 +126,7 @@ SET LOCAL standard_conforming_strings = on;
         assert 'prewar' not in fields['worldknowledge_tags'].split(',')
         predicates=[('npc_name',npc['npc_name'])]
         predicates += [(field, 'prewar,'+fields[field] if field=='worldknowledge_tags' else fields[field]) for field in FIELDS]
-        sql+='UPDATE synth.bio_templates SET worldknowledge_tags='+literal(fields['worldknowledge_tags'])+'\nWHERE '
+        sql+='UPDATE public.core_npc_biography_template SET worldknowledge_tags='+literal(fields['worldknowledge_tags'])+'\nWHERE '
         sql+=' AND '.join(field+'='+literal(value) for field,value in predicates)+';\n'
     sql+='\n'
     # Refine only exact untouched earlier factory rows; all nine authored fields guard the update.
@@ -136,10 +136,10 @@ SET LOCAL standard_conforming_strings = on;
         name=repair['npc_name'];fields=npc_by_name[name]['fields']
         assert isinstance(repair['previous_appearance'],str) and repair['previous_appearance']!=fields['appearance']
         predicates=[('npc_name',name)]+[(field,repair['previous_appearance'] if field=='appearance' else fields[field]) for field in FIELDS]
-        sql+='UPDATE synth.bio_templates SET appearance='+literal(fields['appearance'])+'\nWHERE '
+        sql+='UPDATE public.core_npc_biography_template SET appearance='+literal(fields['appearance'])+'\nWHERE '
         sql+=' AND '.join(field+'='+literal(value) for field,value in predicates)+';\n'
     sql+='\n'
-    sql+='INSERT INTO synth.bio_template_actor_map (template_name,base_plugin,base_local_formid,reference_plugin,reference_local_formid,exact_name,is_nonverbal_creature) VALUES\n'+values(map_rows)+'\nON CONFLICT DO NOTHING;\n\n'
+    sql+='INSERT INTO public.core_npc_biography_template_actor (template_name,base_plugin,base_local_formid,reference_plugin,reference_local_formid,exact_name,is_nonverbal_creature) VALUES\n'+values(map_rows)+'\nON CONFLICT DO NOTHING;\n\n'
     sql+='INSERT INTO public.core_item_description (plugin,baseid,name,description) VALUES\n'+values(item_rows)+'\nON CONFLICT (plugin,baseid) DO NOTHING;\n\n'
     metadata=[catalog_id,catalog_version,manifest['display_name'],manifest['checksum_sha256'],125,compact(manifest)]
     sql+='INSERT INTO public.core_worldknowledge_catalog (catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest) VALUES\n'+values([metadata])+'''

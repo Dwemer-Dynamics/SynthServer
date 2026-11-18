@@ -161,7 +161,7 @@ function synthHandleBiographyImport($csvData, $timestamp, $game_timestamp): bool
             }
 
             $ok = $db->upsertRowOnConflict(
-                'bio_templates_custom',
+                'core_npc_biography_template_custom',
                 [
                     'npc_name' => $npc_name,
                     'core' => $core,

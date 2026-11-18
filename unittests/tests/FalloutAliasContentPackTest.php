@@ -11,7 +11,7 @@ final class FalloutAliasContentPackTestAdapter
     public function execQuery(string $query,array $parameters=[])
     {
         $this->queries[]=$query;
-        if (str_starts_with($query,'INSERT INTO synth.bio_template_actor_map(')
+        if (str_starts_with($query,'INSERT INTO public.core_npc_biography_template_actor(')
             && ++$this->maps===$this->failureMap) return false;
         return $this->db->execQuery($query,$parameters);
     }
@@ -51,8 +51,8 @@ final class FalloutAliasContentPackTest extends DatabaseTestCase
     private function snapshot(): array
     {
         return [
-            $this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.bio_templates t ORDER BY body'),
-            $this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.bio_template_actor_map t ORDER BY body'),
+            $this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template t ORDER BY body'),
+            $this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template_actor t ORDER BY body'),
         ];
     }
 
@@ -62,8 +62,8 @@ final class FalloutAliasContentPackTest extends DatabaseTestCase
         try {
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
-            self::assertSame('1',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.bio_templates WHERE npc_name='fo4_fixture_continuing_character'")['n']);
-            self::assertSame('3',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.bio_template_actor_map WHERE template_name='fo4_fixture_continuing_character'")['n']);
+            self::assertSame('1',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_npc_biography_template WHERE npc_name='fo4_fixture_continuing_character'")['n']);
+            self::assertSame('3',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_npc_biography_template_actor WHERE template_name='fo4_fixture_continuing_character'")['n']);
             foreach (array_merge([$row['baseid']],$row['base_aliases']) as $id) {
                 $template=synth_fetch_bio_template($this->db(),'Renamed fixture','','Fallout4.esm|'.$id);
                 self::assertSame($row['npc_name'],$template['npc_name'] ?? null);

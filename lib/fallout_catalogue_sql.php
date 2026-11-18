@@ -212,8 +212,8 @@ function synthFalloutCatalogueSqlAssertInstalled(object $db,array $release): voi
     }
     foreach ($release['pack']['items'] as $row) $items[]='('.$literal($row['plugin']).','.$literal($row['baseid']).')';
     $queries=[];
-    if ($names!==[]) $queries['npcs']='WITH expected(npc_name) AS (VALUES '.implode(',',$names).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.bio_templates installed WHERE installed.npc_name=expected.npc_name)';
-    if ($maps!==[]) $queries['mappings']='WITH expected(kind,plugin,formid) AS (VALUES '.implode(',',$maps).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.bio_template_actor_map installed WHERE (expected.kind=\'base\' AND lower(installed.base_plugin)=lower(expected.plugin) AND upper(installed.base_local_formid)=expected.formid) OR (expected.kind=\'reference\' AND lower(installed.reference_plugin)=lower(expected.plugin) AND upper(installed.reference_local_formid)=expected.formid))';
+    if ($names!==[]) $queries['npcs']='WITH expected(npc_name) AS (VALUES '.implode(',',$names).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM public.core_npc_biography_template installed WHERE installed.npc_name=expected.npc_name)';
+    if ($maps!==[]) $queries['mappings']='WITH expected(kind,plugin,formid) AS (VALUES '.implode(',',$maps).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM public.core_npc_biography_template_actor installed WHERE (expected.kind=\'base\' AND lower(installed.base_plugin)=lower(expected.plugin) AND upper(installed.base_local_formid)=expected.formid) OR (expected.kind=\'reference\' AND lower(installed.reference_plugin)=lower(expected.plugin) AND upper(installed.reference_local_formid)=expected.formid))';
     if ($items!==[]) $queries['items']='WITH expected(plugin,baseid) AS (VALUES '.implode(',',$items).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM public.core_item_description installed WHERE installed.plugin=expected.plugin AND installed.baseid=expected.baseid)';
     foreach ($queries as $key=>$query) {
         $result=$db->fetchOne($query);

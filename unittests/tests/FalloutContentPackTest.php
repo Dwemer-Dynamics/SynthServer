@@ -26,13 +26,13 @@ final class FalloutContentPackTest extends DatabaseTestCase
     public function testImportIsIdempotentAndPreservesCustomDescriptionsAndAuthoredTemplates(): void
     {
         $db=$this->db();$root=dirname(__DIR__,2);
-        $db->execQuery("UPDATE synth.bio_templates SET personality='Operator-authored character.' WHERE npc_name=(SELECT template_name FROM synth.bio_template_actor_map WHERE base_plugin='Fallout4.esm' AND base_local_formid='000179FF')");
+        $db->execQuery("UPDATE public.core_npc_biography_template SET personality='Operator-authored character.' WHERE npc_name=(SELECT template_name FROM public.core_npc_biography_template_actor WHERE base_plugin='Fallout4.esm' AND base_local_formid='000179FF')");
         $db->execQuery("INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00004822','My pistol','My custom description.') ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description");
-        $before=$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM public.core_item_description) AS items');
+        $before=$db->fetchOne('SELECT (SELECT count(*) FROM public.core_npc_biography_template) AS bios,(SELECT count(*) FROM public.core_item_description) AS items');
         synthInstallFalloutContentPack($db,$root,true);
         $report=synthInstallFalloutContentPack($db,$root,true);
         self::assertSame(0,$report['profiles_filled']);
-        self::assertSame($before,$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM public.core_item_description) AS items'));
+        self::assertSame($before,$db->fetchOne('SELECT (SELECT count(*) FROM public.core_npc_biography_template) AS bios,(SELECT count(*) FROM public.core_item_description) AS items'));
         $robot=synth_fetch_bio_template($db,'Codsworth','','Fallout4.esm|000179FF');
         self::assertSame('Operator-authored character.',$robot['personality']);
         self::assertSame('My custom description.',$db->fetchOne("SELECT description FROM synth.combined_descriptions WHERE plugin='Fallout4.esm' AND baseid='00004822'")['description']);
@@ -100,12 +100,12 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $pack=synthLoadFalloutContentPack(dirname(__DIR__,2));
         $pack['npcs'][0]['fields']['voiceid']='Unexpected voice replacement';
         file_put_contents($root.'/data/fallout4_content_pack.json',json_encode($pack,JSON_THROW_ON_ERROR));
-        $before=$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_templates');
+        $before=$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template');
         try {
             synthInstallFalloutContentPack($this->db(),$root,true);
             self::fail('Unsupported authored field must be rejected');
         } catch (RuntimeException $expected) {
-            self::assertSame($before,$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_templates'));
+            self::assertSame($before,$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_npc_biography_template'));
         } finally {
             unlink($root.'/data/fallout4_content_pack.json');rmdir($root.'/data');rmdir($root);
         }
@@ -123,7 +123,7 @@ final class FalloutContentPackTest extends DatabaseTestCase
             self::assertSame($merged,synth_biography_background($merged,$skills),$npc['npc_name']);
         }
         $db=$this->db();
-        $factory=$db->fetchOne("SELECT t.npc_name,t.npc_static_bio,t.skills FROM synth.bio_templates t JOIN synth.bio_template_actor_map m ON m.template_name=t.npc_name WHERE m.base_plugin='Fallout4.esm' AND m.base_local_formid='000179FF'");
+        $factory=$db->fetchOne("SELECT t.npc_name,t.npc_static_bio,t.skills FROM public.core_npc_biography_template t JOIN public.core_npc_biography_template_actor m ON m.template_name=t.npc_name WHERE m.base_plugin='Fallout4.esm' AND m.base_local_formid='000179FF'");
         $merged=synth_biography_background($factory['npc_static_bio'],$factory['skills']);
         $rows=[];
         foreach (['fresh','legacy','edited','ambiguous','locked','unbound','conflicting','edited_personality'] as $index=>$case) {
@@ -142,7 +142,7 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $set('edited_personality',"personality='Operator personality.'");
         $conflict=$rows['conflicting'];
         $db->execQuery("UPDATE synth.actor_identities SET full_form_id='0x0001CA7E' WHERE id=(SELECT actor_identity_id FROM synth.core_npc_master WHERE id=$conflict)");
-        $db->execQuery("INSERT INTO synth.bio_template_actor_map(template_name,reference_plugin,reference_local_formid) VALUES('fo4_piper','Fallout4.esm','0001CA7E')");
+        $db->execQuery("INSERT INTO public.core_npc_biography_template_actor(template_name,reference_plugin,reference_local_formid) VALUES('fo4_piper','Fallout4.esm','0001CA7E')");
         $snapshot=static fn()=>$db->fetchAll('SELECT id,npc_static_bio,skills,lock_profile FROM synth.core_npc_master WHERE id IN ('.implode(',',$rows).') ORDER BY id');
         // Run the operator CLI in its own process so it loads the production sql class and its pinned transaction.
         $run=static function(array $args): array {

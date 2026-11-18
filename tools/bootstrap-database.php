@@ -55,7 +55,7 @@ $seedRows = $db->fetchAll("
       FROM public.core_prompt
     UNION ALL
     SELECT 'bio_templates', COUNT(*), COUNT(DISTINCT lower(npc_name))
-      FROM synth.bio_templates
+      FROM public.core_npc_biography_template
     UNION ALL
     SELECT 'descriptions', COUNT(*), COUNT(DISTINCT lower(plugin || ':' || baseid))
       FROM public.core_item_description

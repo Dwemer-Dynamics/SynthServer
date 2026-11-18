@@ -231,7 +231,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $parts = [];
         foreach (['public.core_catalog_version', 'synth.general_settings', 'public.core_profiles', 'synth.core_npc_master',
-                     'public.core_prompt', 'public.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
+                     'public.core_prompt', 'public.core_action', 'synth.eventlog', 'public.core_npc_biography_template'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
         return implode(' ', $parts);
