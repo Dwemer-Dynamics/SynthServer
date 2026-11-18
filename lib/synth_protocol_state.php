@@ -5,6 +5,7 @@ require_once __DIR__.'/synth_gift_menu.php';
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php';
 require_once __DIR__.'/synth_wait_actions.php';
+require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 // Converts the database BYTEA text representation used for deterministic response replay.
 function synth_protocol_decode_bytea($value): string
@@ -1776,6 +1777,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 "UPDATE synth_meta.active_agents SET state='stale', last_seen_at=NOW()
                   WHERE session_id={$session} AND generation <= {$generation} AND state='active'"
             );
+        } elseif ($event['type'] === 'cancel' && ($event['payload']['scope'] ?? '') === 'conversation') {
+            \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $session, $generation);
         } elseif ($event['type'] === 'cancel') {
             $cancelRequest = $db->escapeLiteral($event['payload']['cancel_request_id']);
             // A context anchors admission; an owned reply anchors the same conversation after descendants start.

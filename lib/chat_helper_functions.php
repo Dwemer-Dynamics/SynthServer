@@ -4396,7 +4396,8 @@ function extractCoreUtteranceFromChatEvent($eventData)
 function synthGetVisibleChatDeliveryStates()
 {
     // presented: a native-turn line with a receipt-confirmed text presentation.
-    return ['emitted', 'spoken', 'presented'];
+    // interrupted: a line the player only partly heard (dialogue.conversation), kept in context marked as cut off.
+    return ['emitted', 'spoken', 'presented', 'interrupted'];
 }
 
 function synthGetInFlightChatDeliveryStates()
