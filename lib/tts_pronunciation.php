@@ -29,11 +29,11 @@ function synthEnsureTtsPronunciationDictionary(): bool
         $spoken = $GLOBALS['db']->escapeLiteral($entry['spoken_text']);
         $tags = $GLOBALS['db']->escapeLiteral($entry['oghma_tags']);
         $inserted = $GLOBALS['db']->execQuery(
-            "INSERT INTO synth.core_tts_pronunciation
+            "INSERT INTO public.core_tts_pronunciation
                 (source_text, spoken_text, npc_names, races, oghma_tags, is_builtin, enabled, updated_at)
              SELECT {$source}, {$spoken}, '', '', {$tags}, TRUE,
                  NOT EXISTS (
-                     SELECT 1 FROM synth.core_tts_pronunciation existing
+                     SELECT 1 FROM public.core_tts_pronunciation existing
                      WHERE LOWER(existing.source_text) = LOWER({$source})
                        AND existing.is_builtin = FALSE AND existing.enabled = FALSE
                        AND BTRIM(existing.npc_names) = '' AND BTRIM(existing.races) = ''
@@ -69,7 +69,7 @@ final class SynthTtsPronunciationDictionary
         $row = $GLOBALS['db']->fetchOne(
             "SELECT 1 AS present
              FROM information_schema.tables
-             WHERE table_schema = 'synth' AND table_name = {$table}
+             WHERE table_schema = 'public' AND table_name = {$table}
              LIMIT 1"
         );
 
@@ -93,7 +93,7 @@ final class SynthTtsPronunciationDictionary
         $rows = $GLOBALS['db']->fetchAll(
             'SELECT id, source_text, spoken_text, npc_names, races, oghma_tags,
                     is_builtin, enabled, created_at, updated_at
-             FROM synth.' . self::TABLE . '
+             FROM public.' . self::TABLE . '
              ORDER BY is_builtin DESC, LOWER(source_text), id
              LIMIT 1024'
         );
@@ -181,7 +181,7 @@ final class SynthTtsPronunciationDictionary
         }
 
         return $GLOBALS['db']->execQuery(
-            'UPDATE synth.' . self::TABLE . '
+            'UPDATE public.' . self::TABLE . '
              SET enabled = ' . ($enabled ? 'TRUE' : 'FALSE') . ', updated_at = CURRENT_TIMESTAMP
              WHERE id = ' . intval($id)
         ) !== false;
@@ -194,7 +194,7 @@ final class SynthTtsPronunciationDictionary
         }
 
         return $GLOBALS['db']->execQuery(
-            'DELETE FROM synth.' . self::TABLE . '
+            'DELETE FROM public.' . self::TABLE . '
              WHERE id = ' . intval($id) . ' AND is_builtin = FALSE'
         ) !== false;
     }

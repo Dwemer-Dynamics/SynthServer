@@ -97,8 +97,8 @@ class PrivateNarratorRepository
     /** The definition's own profile, else the server's default narrator profile; with its primary LLM connector. */
     public function profile(?int $profileId): ?array
     {
-        $profile = $profileId !== null ? $this->one('SELECT * FROM synth.core_profiles WHERE id=$1', [$profileId])
-            : $this->one("SELECT * FROM synth.core_profiles WHERE default_narrator='1' ORDER BY id LIMIT 1", []);
+        $profile = $profileId !== null ? $this->one('SELECT * FROM public.core_profiles WHERE id=$1', [$profileId])
+            : $this->one("SELECT * FROM public.core_profiles WHERE default_narrator='1' ORDER BY id LIMIT 1", []);
         if ($profile === null) return null;
         $connector = $this->one('SELECT * FROM core_llm_connector WHERE id=$1', [intval($profile['llm_primary_id'] ?? 0)]);
         return $connector === null ? null : ['profile' => $profile, 'connector' => $connector];
@@ -107,7 +107,7 @@ class PrivateNarratorRepository
     // The authored player background is read live, like provider settings and profile contents.
     public function playerBackground(): string
     {
-        $row = $this->one("SELECT value FROM synth.core_player WHERE id IN ('background','bio') AND btrim(value)<>''
+        $row = $this->one("SELECT value FROM public.core_player WHERE id IN ('background','bio') AND btrim(value)<>''
             ORDER BY CASE id WHEN 'background' THEN 0 ELSE 1 END LIMIT 1", []);
         return trim(strval($row['value'] ?? ''));
     }

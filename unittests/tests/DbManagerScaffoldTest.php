@@ -115,7 +115,7 @@ final class DbManagerScaffoldTest extends TestCase
                 $listed .= file_get_contents($root.'/core/dbmanager/migrations/'.$entry['structure']['file'])."\n";
             }
         }
-        self::assertStringContainsString('table|synth|core_api_badge|BASE TABLE', $structure, 'The structure file is the one inspected.');
+        self::assertStringContainsString('table|public|core_api_badge|BASE TABLE', $structure, 'The structure file is the one inspected.');
         foreach (glob($root.'/core/entities/base/*.php') ?: [] as $file) {
             if (preg_match("/#\\[ORM\\\\Table\\(name: '(core_[a-z0-9_]+)'/", file_get_contents($file), $match) !== 1) {
                 continue;

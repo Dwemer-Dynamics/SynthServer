@@ -171,13 +171,13 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $rows=$this->query("SELECT id FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1) AND playthrough_id=$2",
             [$actor['form_id'],$actor['playthrough_id']]);
         $this->assertCount(1,$rows,'identity for '.$actor['form_id']);
-        $llm=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+        $llm=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback llm','{}',$1,'loopback-model','openaijson',0,300,0.3,0.8) RETURNING id",[$this->llmUrl])[0]['id'];
-        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url) VALUES('xtts-fastapi','loopback tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
+        $tts=$this->query("INSERT INTO public.core_tts_connector(driver,label,metadata,url) VALUES('xtts-fastapi','loopback tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
         // Dynamic profiles on for this profile only, with its own connector on the JSON provider.
-        $profile=$this->query("INSERT INTO synth.core_profiles(label,tts_connector_id,llm_primary_id,metadata) VALUES('loopback profile',$1,$2,$3) RETURNING id",
+        $profile=$this->query("INSERT INTO public.core_profiles(label,tts_connector_id,llm_primary_id,metadata) VALUES('loopback profile',$1,$2,$3) RETURNING id",
             [$tts,$llm,json_encode(['DYNAMIC_PROFILE_ENABLED'=>1,'DYNAMIC_PROFILE_FIELDS'=>['personality','speechstyle']])])[0]['id'];
-        $profiles=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+        $profiles=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback profile llm','{}',$1,'loopback-profile-model','openaijson',0,200,0.3,0.8) RETURNING id",[$this->profileUrl])[0]['id'];
         $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES('CORE_CONNECTOR_PROFILES',$1,'loopback')
             ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[strval($profiles)]);
@@ -523,9 +523,9 @@ final class LoopbackDialogueTest extends DatabaseTestCase
                 $identity=$this->query("SELECT id FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1) AND playthrough_id=$2",
                     [$value['target_form'],$value['playthrough_id']]);
                 $this->assertCount(1,$identity);
-                $llm=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+                $llm=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
                     VALUES('loopback llm','{}',$1,'loopback-model','openaijson',0,300,0.3,0.8) RETURNING id",[$this->llmUrl])[0]['id'];
-                $profile=$this->query("INSERT INTO synth.core_profiles(label,tts_connector_id,llm_primary_id,metadata) VALUES('voiceless profile',NULL,$1,'{}') RETURNING id",
+                $profile=$this->query("INSERT INTO public.core_profiles(label,tts_connector_id,llm_primary_id,metadata) VALUES('voiceless profile',NULL,$1,'{}') RETURNING id",
                     [$llm])[0]['id'];
                 $this->query("INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,profile_id,personality,voiceid)
                     VALUES('Settler',$1,$2,$3,'')",[$identity[0]['id'],$profile,self::BASE]);
@@ -664,14 +664,14 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     // Loopback connectors and one default_npc profile only. No NPC row is inserted for Piper: the server's ordinary
     // route must create it from her captured identity and this default profile.
     private function seedCompanionProfile(): int {
-        $llm=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+        $llm=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback companion llm','{}',$1,'loopback-model','openaijson',0,300,0.3,0.8) RETURNING id",[$this->llmUrl])[0]['id'];
-        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url)
+        $tts=$this->query("INSERT INTO public.core_tts_connector(driver,label,metadata,url)
             VALUES('xtts-fastapi','loopback companion tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
-        $this->query("UPDATE synth.core_profiles SET default_npc='0' WHERE default_npc='1'");
-        $profile=intval($this->query("INSERT INTO synth.core_profiles(label,default_npc,tts_connector_id,llm_primary_id,metadata)
+        $this->query("UPDATE public.core_profiles SET default_npc='0' WHERE default_npc='1'");
+        $profile=intval($this->query("INSERT INTO public.core_profiles(label,default_npc,tts_connector_id,llm_primary_id,metadata)
             VALUES('loopback companion default','1',$1,$2,'{}') RETURNING id",[$tts,$llm])[0]['id']);
-        $this->assertSame([['id'=>strval($profile)]],$this->query("SELECT id FROM synth.core_profiles WHERE default_npc='1'"));
+        $this->assertSame([['id'=>strval($profile)]],$this->query("SELECT id FROM public.core_profiles WHERE default_npc='1'"));
         return $profile;
     }
 
@@ -1028,8 +1028,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     }
     private function playerRows(array $values): void {
         foreach ($values as $id=>$value) {
-            $this->query('DELETE FROM synth.core_player WHERE id=$1',[$id]);
-            if ($value!==null) $this->query('INSERT INTO synth.core_player(id,value) VALUES($1,$2)',[$id,strval($value)]);
+            $this->query('DELETE FROM public.core_player WHERE id=$1',[$id]);
+            if ($value!==null) $this->query('INSERT INTO public.core_player(id,value) VALUES($1,$2)',[$id,strval($value)]);
         }
     }
     // The root's player history rows (the generated stage is type inputtext).
@@ -1056,7 +1056,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     private function autochatContext(array $value): void {
         $this->registerActor(['form_id'=>$value['target_form'],'playthrough_id'=>$value['playthrough_id']]);
         $this->assertSame([],$this->providerRequests(),'no provider call before the first root');
-        $this->assertCount(1,$this->query("UPDATE synth.core_llm_connector SET url=$1 WHERE id=2 AND driver='openrouterjson' AND model=$2
+        $this->assertCount(1,$this->query("UPDATE public.core_llm_connector SET url=$1 WHERE id=2 AND driver='openrouterjson' AND model=$2
             AND reasoning_model IS NULL RETURNING id",[$this->autochat['rewrite_url'],self::AUTOCHAT_MODEL]),'the default player connector row');
         // The default player connector, and no legacy in-process rechat, so every provider call is counted exactly.
         foreach (['CORE_CONNECTOR_PLAYER'=>'2','RECHAT_H'=>'0','RECHAT_P'=>'0'] as $id=>$setting) {
@@ -1122,7 +1122,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->autochatReplay('typed',$value['session'],$value['request_id']);
         $this->autochat['history']['typed']=$root['history'];
         // The next root uses the player's configured voice; its loopback TTS endpoint refuses connections.
-        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url) VALUES('xtts-fastapi','loopback player tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
+        $tts=$this->query("INSERT INTO public.core_tts_connector(driver,label,metadata,url) VALUES('xtts-fastapi','loopback player tts','{}','http://127.0.0.1:9') RETURNING id")[0]['id'];
         $this->playerRows(['tts_connector_id'=>$tts,'tts_voice_override'=>'loopback_player_voice']);
         $this->rewriteScript('ok','Hmm!');
         $this->script($this->ordinaryReply('Something wrong LNR202?','','Settler'));
@@ -1140,13 +1140,13 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->autochat['history']['grunt']=$root['history'];
         // The voice root: the server's configured localwhisper STT connector and the player's configured mimic3 voice
         // (direct WAV, no converter), both on the fake provider.
-        $stt=$this->query("INSERT INTO synth.core_stt_connector(driver,label,metadata,url) VALUES('localwhisper','loopback stt','{}',$1) RETURNING id",
+        $stt=$this->query("INSERT INTO public.core_stt_connector(driver,label,metadata,url) VALUES('localwhisper','loopback stt','{}',$1) RETURNING id",
             [$this->autochat['fake_base'].'/stt'])[0]['id'];
         $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES('GLOBAL_STT_CONNECTOR_ID',$1,'loopback autochat')
             ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[strval($stt)]);
         file_put_contents($this->llmDir.'/stt_text',self::AUTOCHAT_TRANSCRIPT);
         file_put_contents($this->llmDir.'/tts.wav',self::autochatWave());
-        $tts=$this->query("INSERT INTO synth.core_tts_connector(driver,label,metadata,url) VALUES('mimic3','loopback player voice','{}',$1) RETURNING id",
+        $tts=$this->query("INSERT INTO public.core_tts_connector(driver,label,metadata,url) VALUES('mimic3','loopback player voice','{}',$1) RETURNING id",
             [$this->autochat['fake_base']])[0]['id'];
         $this->playerRows(['tts_connector_id'=>$tts,'tts_voice_override'=>self::AUTOCHAT_VOICE]);
         $this->rewriteScript('ok','The generator hums again LGV250.');
@@ -1178,7 +1178,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->playerRows(['tts_connector_id'=>null,'tts_voice_override'=>null]);
         file_put_contents($this->llmDir.'/stt_text',self::AUTOCHAT_REFUSED_TRANSCRIPT);
         // Every later root uses an official Quickstart-managed openaijson player row, non-streamed, on the same route.
-        $quickstart=$this->query("INSERT INTO synth.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
+        $quickstart=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback quickstart player',$1,$2,'loopback-quickstart-rewrite','openaijson',0,300,0.3,0.8) RETURNING id",
             [json_encode(['quickstart_managed'=>true,'disable_streaming'=>true]),$this->autochat['rewrite_url']])[0]['id'];
         $this->query("UPDATE synth.general_settings SET value=$1 WHERE id='CORE_CONNECTOR_PLAYER'",[strval($quickstart)]);

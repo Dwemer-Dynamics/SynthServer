@@ -33,7 +33,7 @@ if (!function_exists('synthRollbackTableExists')) {
             }
 
             $escaped = $db->escape($table);
-            $rows = $db->fetchAll("SELECT 1 FROM information_schema.tables WHERE table_schema='synth' AND table_name='{$escaped}' LIMIT 1");
+            $rows = $db->fetchAll("SELECT 1 FROM information_schema.tables WHERE table_schema IN ('synth','public') AND table_name='{$escaped}' LIMIT 1");
             $cache[$table] = is_array($rows) && count($rows) > 0;
             return $cache[$table];
         } catch (Throwable $e) {

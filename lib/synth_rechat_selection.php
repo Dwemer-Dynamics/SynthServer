@@ -101,7 +101,7 @@ function synth_rechat_load_candidates($connection, $db, array $event): array
             AND a.playthrough_id=captured.actor->>'playthrough_id'
         JOIN synth_meta.runtime_sessions s ON s.session_id=$2 AND s.playthrough_id=a.playthrough_id
         JOIN synth.core_npc_master n ON n.actor_identity_id=a.id
-        JOIN synth.core_profiles p ON p.id=n.profile_id
+        JOIN public.core_profiles p ON p.id=n.profile_id
         ORDER BY captured.ordinal FOR SHARE OF n,p",
         [json_encode(array_values($actors),JSON_THROW_ON_ERROR),$event['session_id']]);
     if (!$result) throw new RuntimeException('rechat_selection_candidates_query_failed');
@@ -197,7 +197,7 @@ function synth_rechat_select_responder($db, array $event): array
                         }
                         if ($policy['random_narration'] && $lastRole!=='narrator'
                             && $sinceNarrator>=max(0,$policy['narration_cooldown']) && random_int(1,100)<=$policy['narration_chance']) {
-                            $result=@pg_query($connection,"SELECT p.id FROM synth.core_profiles p JOIN synth.core_narrator n
+                            $result=@pg_query($connection,"SELECT p.id FROM public.core_profiles p JOIN synth.core_narrator n
                                 ON n.id='profile_id' AND n.value=p.id::text FOR SHARE OF p,n");
                             if (!$result) throw new RuntimeException('rechat_selection_narrator_query_failed');
                             $narrator=pg_fetch_assoc($result);

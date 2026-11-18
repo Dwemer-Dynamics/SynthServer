@@ -5,9 +5,9 @@
         "Version20261117000000": {
             "class": "Synth\\Migrations\\Version20261117000000",
             "files": {
-                "Version20261117000000.fresh.sql": "539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4",
-                "Version20261117000000.php": "eabd86b2e3cc5ca05d528fbb17c56180924592504cff8c5c332e68e733417a91",
-                "Version20261117000000.structure.txt": "ca17137d0072f48a28d61d0a46f78379ee50042ec13d65af528aaefde63da439"
+                "Version20261117000000.fresh.sql": "fef1fee16687f2b17514ccffd3766b47a6e22602db550027cf93d8c8309545f2",
+                "Version20261117000000.php": "f3bbffa81339f241d5e24f01ce360d03f76386c008588524605c6a2f8c41cd7b",
+                "Version20261117000000.structure.txt": "058dcd8ad304f3bd41bf63842acf1e56a161d52bbe3cf1c6ef1e971c770daf80"
             },
             "structure": {
                 "file": "Version20261117000000.structure.txt",
@@ -17,8 +17,8 @@
         "Version20261117100000": {
             "class": "Synth\\Migrations\\Version20261117100000",
             "files": {
-                "Version20261117100000.php": "1593047faa31f6c9bfa3f7f8cd97bd3ffde8144f8bf29dbd7ae8a54210ac9791",
-                "Version20261117100000.structure.txt": "70d64db70c20c72a99758e1b667c68bcf2e5b1ea21ace5f1f64e647f8f186f67"
+                "Version20261117100000.php": "aa529547b2d057e9ce23c8fc8014b892d42ccf6adeb8f1a21d79cb78268e9cf1",
+                "Version20261117100000.structure.txt": "fab12e08198e2c1daa868d2bd890568710f282d795087c94b7fa009157d7f9c0"
             },
             "structure": {
                 "file": "Version20261117100000.structure.txt",

@@ -1,7 +1,7 @@
 <?php
 
 // The one data-access point for API keys. A key is global (the shared dwemer store, the CHIM 4 server's api_keys table, shared
-// with other Dwemer mods) or SYNTH-only (synth.core_api_badge: id, label, api_key, UNIQUE label). The two stores are presented
+// with other Dwemer mods) or SYNTH-only (public.core_api_badge: id, label, api_key, UNIQUE label). The two stores are presented
 // as one list; every key records which store it lives in through its ApiKeyRef, and nothing ever falls back from one store to
 // the other. Without a usable shared store only SYNTH-only keys exist, and a global key reads as missing.
 
