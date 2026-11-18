@@ -97,31 +97,31 @@ function synth_ensure_profile_defaults(object $db): void
     }
     $done = true;
 
-    $profileRow = $db->fetchOne("SELECT id FROM synth.core_profiles ORDER BY id ASC LIMIT 1");
+    $profileRow = $db->fetchOne("SELECT id FROM public.core_profiles ORDER BY id ASC LIMIT 1");
     if (!is_array($profileRow) || empty($profileRow['id'])) {
         return;
     }
 
     $firstProfileId = intval($profileRow['id']);
 
-    $defaultNpcRow = $db->fetchOne("SELECT id FROM synth.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
+    $defaultNpcRow = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
     if (!is_array($defaultNpcRow) || empty($defaultNpcRow['id'])) {
-        $db->execQuery("UPDATE synth.core_profiles SET default_npc = '1' WHERE id = {$firstProfileId}");
+        $db->execQuery("UPDATE public.core_profiles SET default_npc = '1' WHERE id = {$firstProfileId}");
         $defaultNpcId = $firstProfileId;
     } else {
         $defaultNpcId = intval($defaultNpcRow['id']);
     }
 
-    $defaultNarratorRow = $db->fetchOne("SELECT id FROM synth.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1");
+    $defaultNarratorRow = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1");
     if (!is_array($defaultNarratorRow) || empty($defaultNarratorRow['id'])) {
-        $db->execQuery("UPDATE synth.core_profiles SET default_narrator = '1' WHERE id = {$firstProfileId}");
+        $db->execQuery("UPDATE public.core_profiles SET default_narrator = '1' WHERE id = {$firstProfileId}");
     }
 
     $db->execQuery("
         WITH npc_default AS (
-            SELECT id FROM synth.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1
+            SELECT id FROM public.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1
         )
-        UPDATE synth.core_profiles p
+        UPDATE public.core_profiles p
         SET default_npc = CASE WHEN p.id = (SELECT id FROM npc_default) THEN '1' ELSE '0' END
         WHERE p.default_npc = '1'
            OR p.id = (SELECT id FROM npc_default)
@@ -129,9 +129,9 @@ function synth_ensure_profile_defaults(object $db): void
 
     $db->execQuery("
         WITH narrator_default AS (
-            SELECT id FROM synth.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1
+            SELECT id FROM public.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1
         )
-        UPDATE synth.core_profiles p
+        UPDATE public.core_profiles p
         SET default_narrator = CASE WHEN p.id = (SELECT id FROM narrator_default) THEN '1' ELSE '0' END
         WHERE p.default_narrator = '1'
            OR p.id = (SELECT id FROM narrator_default)
@@ -144,7 +144,7 @@ function synth_ensure_profile_defaults(object $db): void
           AND (
               profile_id IS NULL
               OR NOT EXISTS (
-                  SELECT 1 FROM synth.core_profiles p WHERE p.id = synth.core_npc_master.profile_id
+                  SELECT 1 FROM public.core_profiles p WHERE p.id = synth.core_npc_master.profile_id
               )
           )
     ");
@@ -356,9 +356,9 @@ function synth_default_npc_profile_id(object $db): ?int
         return null;
     }
 
-    $row = $db->fetchOne("SELECT id FROM synth.core_profiles WHERE default_npc='1' ORDER BY id ASC LIMIT 1");
+    $row = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_npc='1' ORDER BY id ASC LIMIT 1");
     if (!is_array($row) || empty($row['id'])) {
-        $row = $db->fetchOne("SELECT id FROM synth.core_profiles ORDER BY id ASC LIMIT 1");
+        $row = $db->fetchOne("SELECT id FROM public.core_profiles ORDER BY id ASC LIMIT 1");
     }
 
     return (is_array($row) && !empty($row['id'])) ? intval($row['id']) : null;

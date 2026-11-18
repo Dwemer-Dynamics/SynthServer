@@ -58,7 +58,7 @@ ALTER TABLE ONLY synth.import_rules
 --
 
 ALTER TABLE ONLY synth.import_rules
-    ADD CONSTRAINT import_rules_profile_fkey FOREIGN KEY (profile) REFERENCES synth.core_profiles(id);
+    ADD CONSTRAINT import_rules_profile_fkey FOREIGN KEY (profile) REFERENCES public.core_profiles(id);
 
 
 --

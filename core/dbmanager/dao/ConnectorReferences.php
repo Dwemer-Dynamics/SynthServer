@@ -38,7 +38,7 @@ final class ConnectorReferences
         $column = $ref->isShared() ? 'api_key_id = ?::uuid' : 'local_api_key_id = ?::integer';
         $used = [];
         foreach (self::TABLES as $table) {
-            $rows = $this->connection()->executeQuery("SELECT id, coalesce(nullif(label, ''), driver) AS label FROM synth.{$table} WHERE {$column} ORDER BY id LIMIT 129", [$ref->id()])
+            $rows = $this->connection()->executeQuery("SELECT id, coalesce(nullif(label, ''), driver) AS label FROM public.{$table} WHERE {$column} ORDER BY id LIMIT 129", [$ref->id()])
                 ->fetchAllAssociative();
             foreach ($rows as $row) {
                 $used[] = ['table' => $table, 'id' => (int) $row['id'], 'label' => (string) $row['label']];

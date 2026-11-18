@@ -360,16 +360,16 @@ if (!function_exists('synthGetSelectOptionsForOverrideSetting')) {
 
         $definitions = [
             'GLOBAL_STT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM synth.core_stt_connector ORDER BY id ASC",
+                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_stt_connector ORDER BY id ASC",
             ],
             'GLOBAL_ITT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM synth.core_itt_connector ORDER BY id ASC",
+                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_itt_connector ORDER BY id ASC",
             ],
         ];
 
         if (strpos($flatId, 'CORE_CONNECTOR_') === 0 || $flatId === 'RELLLM_CONNECTOR') {
             $definitions[$flatId] = [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(model, ''), CAST(id AS text)) AS option_label FROM synth.core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label, ''), model)) ASC",
+                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(model, ''), CAST(id AS text)) AS option_label FROM public.core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label, ''), model)) ASC",
             ];
         }
 

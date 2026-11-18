@@ -317,7 +317,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
 
     private function dispatchBinding(int $actorId,string $name): array
     {
-        $profile=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_profiles(label) VALUES($1) RETURNING id',
+        $profile=(int)pg_fetch_assoc($this->query('INSERT INTO public.core_profiles(label) VALUES($1) RETURNING id',
             ['Memory dispatch fixture '.$name]))['id'];
         $npc=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id)
             VALUES($1,$2,$3) RETURNING id',[$name,$profile,$actorId]))['id'];

@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4';
+    private const FRESH_INSTALL_SHA256 = 'fef1fee16687f2b17514ccffd3766b47a6e22602db550027cf93d8c8309545f2';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -228,8 +228,8 @@ final class Version20261117000000 extends AbstractMigration
     {
         $state = $connection->fetchAssociative(<<<'SQL'
             SELECT (SELECT count(DISTINCT prompt_key) FROM synth.prompts WHERE prompt_key IN (?)) AS prompts,
-                   (SELECT count(*) FROM synth.core_profiles WHERE default_npc = '1') AS npc_defaults,
-                   (SELECT count(*) FROM synth.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
+                   (SELECT count(*) FROM public.core_profiles WHERE default_npc = '1') AS npc_defaults,
+                   (SELECT count(*) FROM public.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
                    (SELECT count(DISTINCT id) FROM synth.general_settings WHERE id IN (?)) AS general_settings,
                    (SELECT count(DISTINCT p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                      WHERE n.nspname = 'synth_meta' AND p.proname IN ('clone_schema', 'drop_schema_safe', 'get_schema_size'))

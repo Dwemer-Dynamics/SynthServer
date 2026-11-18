@@ -28,7 +28,7 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
     if ($selection['role']==='npc') {
         $identity=$selection['identity'];
         $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_npc_master n
-            JOIN synth.core_profiles p ON p.id=n.profile_id
+            JOIN public.core_profiles p ON p.id=n.profile_id
             JOIN synth.actor_identities a ON a.id=n.actor_identity_id AND a.game='fo4'
             JOIN synth_meta.runtime_sessions r ON r.session_id=$1 AND r.playthrough_id=a.playthrough_id
             WHERE n.id=$2 AND n.actor_identity_id=$3 AND p.id=$4
@@ -37,7 +37,7 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
             [$event['session_id'],$selection['npc_id'],$selection['actor_identity_id'],$selection['profile_id'],
              $identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id'],$event['runtime_variant']]);
     } elseif ($selection['role']==='narrator') {
-        $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_narrator n JOIN synth.core_profiles p
+        $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_narrator n JOIN public.core_profiles p
             ON n.id='profile_id' AND n.value=p.id::text WHERE p.id=$1 FOR SHARE OF n,p",[$selection['profile_id']]);
     } else throw new LogicException('rechat_selection_role_invalid');
     if (!$result) throw new RuntimeException('rechat_selection_binding_query_failed');

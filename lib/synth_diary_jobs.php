@@ -75,12 +75,12 @@ function synth_diary_prepare_npc($db, array $identity): ?int
             .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='npc'");
         if ($existing) return intval($existing['id']);
         $npc=synth_diary_lock_binding($db,$binding);
-        $profile=$db->fetchOne('SELECT * FROM synth.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
+        $profile=$db->fetchOne('SELECT * FROM public.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
         if (!$profile) throw new LogicException('Diary profile unavailable.');
         $automation=synth_diary_resolve_automation('npc',$event['payload']['reason'],$npc,$profile,$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'npc',$automation)) return null;
         $settings=synth_diary_resolve_settings('npc',$npc,$profile,$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM synth.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
             static fn()=>null,intval(LLMRandomizer::getConnectorIdForField($profile,'diary_connector_id')));
         if ($settings===null) return null;
         return synth_diary_capture_npc($db,$identity,$settings['prompt'],$settings['connector_id'],
@@ -113,10 +113,10 @@ function synth_diary_prepare_narrator($db): ?int
         $narrator=synth_diary_lock_binding($db,$binding);
         $automation=synth_diary_resolve_automation('narrator',$event['payload']['reason'],$narrator,[],$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'narrator',$automation)) return null;
-        $profile=$db->fetchOne('SELECT * FROM synth.core_profiles WHERE id='.intval($narrator['profile_id'] ?? 0));
+        $profile=$db->fetchOne('SELECT * FROM public.core_profiles WHERE id='.intval($narrator['profile_id'] ?? 0));
         if (!$profile) throw new LogicException('Narrator diary profile unavailable.');
         $settings=synth_diary_resolve_settings('narrator',$narrator,$profile,$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM synth.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
             static fn()=>null,intval(LLMRandomizer::getConnectorIdForField($profile,'diary_connector_id')));
         if ($settings===null) return null;
         return synth_diary_capture_narrator($db,$settings['prompt'],$settings['connector_id'],
@@ -139,7 +139,7 @@ function synth_diary_prepare_player($db): ?int
         $automation=synth_diary_resolve_automation('player',$event['payload']['reason'],$player,[],$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'player',$automation)) return null;
         $settings=synth_diary_resolve_settings('player',$player,[],$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM synth.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
             static fn()=>synthResolveDiaryConnectorName($GLOBALS['CONNECTORS_DIARY'] ?? null,false));
         if ($settings===null) return null;
         return synth_diary_capture_character($db,null,$settings['prompt'],$settings['connector_id'],$settings['max_tokens'],

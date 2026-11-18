@@ -120,10 +120,10 @@ final class SharedApiKeysTest extends DatabaseTestCase
         foreach (\Synth\Migrations\Version20261117100000::statements() as $statement) {
             $db->execQuery($statement);
         }
-        $db->execQuery("INSERT INTO synth.core_llm_connector (label, url, model, api_key_id) VALUES ('Uses global', 'https://openrouter.ai/api/v1/chat/completions', 'm', "
+        $db->execQuery("INSERT INTO public.core_llm_connector (label, url, model, api_key_id) VALUES ('Uses global', 'https://openrouter.ai/api/v1/chat/completions', 'm', "
             . $db->escapeLiteral($global->id()) . "::uuid)");
-        $db->execQuery("INSERT INTO synth.core_llm_connector (label, url, model, local_api_key_id) VALUES ('Uses local', 'https://lab.example.test/v1', 'm', " . (int) $local->id() . ")");
-        $db->execQuery("INSERT INTO synth.core_llm_connector (label, url, model) VALUES ('Uses none', 'https://x.example.test/v1', 'm')");
+        $db->execQuery("INSERT INTO public.core_llm_connector (label, url, model, local_api_key_id) VALUES ('Uses local', 'https://lab.example.test/v1', 'm', " . (int) $local->id() . ")");
+        $db->execQuery("INSERT INTO public.core_llm_connector (label, url, model) VALUES ('Uses none', 'https://x.example.test/v1', 'm')");
         $rows = [];
         $result = $db->execQuery('SELECT kind, label, shared_key_id::text AS shared_key_id FROM public.synth_key_references ORDER BY label');
         while ($row = pg_fetch_assoc($result)) {
