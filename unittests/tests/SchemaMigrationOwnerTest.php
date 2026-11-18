@@ -477,18 +477,22 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testKilledFreshBootstrapIsNeverFalselyBaselinedAndRerunConverges(): void
     {
         $legacySchema = $this->schemaFingerprint();
-        $this->recreateFreshDatabase();
-        $run = $this->startBootstrap();
-        // The kill point is not controlled; whatever step it lands on, no baseline may exist without a complete schema.
-        usleep(1500000);
-        proc_terminate($run[0], 9);
-        $this->finish($run);
-        if ($this->recorded() !== []) {
-            self::assertSame($legacySchema, $this->schemaFingerprint(), 'A recorded baseline must describe a complete schema.');
-        }
+        // The kill lands on a different step for each delay: the baseline transaction, the settings seed, the narrator
+        // settings load. Whatever step it lands on, no baseline may exist without a complete schema, and the rerun
+        // must end with the same schema as an uninterrupted install.
+        foreach ([200, 500, 800, 1100, 1500] as $milliseconds) {
+            $this->recreateFreshDatabase();
+            $run = $this->startBootstrap();
+            usleep($milliseconds * 1000);
+            proc_terminate($run[0], 9);
+            $this->finish($run);
+            if ($this->recorded() !== []) {
+                self::assertSame($legacySchema, $this->schemaFingerprint(), "A recorded baseline must describe a complete schema (killed after {$milliseconds} ms).");
+            }
 
-        $this->assertBootstrapSucceeds();
-        self::assertSame($legacySchema, $this->schemaFingerprint());
+            $this->assertBootstrapSucceeds();
+            self::assertSame($legacySchema, $this->schemaFingerprint(), "The rerun must converge (killed after {$milliseconds} ms).");
+        }
     }
 
     // A new, empty UTF-8 database: what the WSL provisioner hands the bootstrap, minus the extensions it pre-creates.
