@@ -183,8 +183,8 @@ final class FalloutContentPackTest extends DatabaseTestCase
     {
         global $argv;
         $db=$this->db();
-        $db->execQuery('ALTER TABLE synth.database_versioning DROP CONSTRAINT IF EXISTS database_versioning_pkey');
-        $db->execQuery("DELETE FROM synth.database_versioning WHERE tablename='fallout4_content_pack'");
+        $db->execQuery('ALTER TABLE public.core_catalog_version DROP CONSTRAINT IF EXISTS core_catalog_version_pkey');
+        $db->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_content_pack'");
         $saved=$GLOBALS['argv'] ?? null;
         $GLOBALS['argv']=['install-fallout-content.php','--apply','--fill-empty-profiles'];
         try {
@@ -197,7 +197,7 @@ final class FalloutContentPackTest extends DatabaseTestCase
                 self::assertSame(count($pack['npcs']),$report['npc_templates']);
                 self::assertSame(count($pack['items']),$report['item_descriptions']);
             }
-            $version=$db->fetchOne("SELECT count(*) AS n,max(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_content_pack'");
+            $version=$db->fetchOne("SELECT count(*) AS n,max(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_content_pack'");
             self::assertSame('1',$version['n']);
             self::assertSame(strval(SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION),$version['version']);
         } finally {

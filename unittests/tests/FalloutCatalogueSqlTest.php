@@ -65,10 +65,11 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     private function snapshot(): array
     {
         $tables=['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom',
-            'worldknowledge','worldknowledge_catalogs','core_npc_master','core_npc_master_history','actor_identities','database_versioning'];
+            'worldknowledge','worldknowledge_catalogs','core_npc_master','core_npc_master_history','actor_identities','core_catalog_version'];
         $state=[];
         foreach ($tables as $table)
-            $state[$table]=$this->db()->fetchAll('SELECT to_jsonb(row) AS row FROM synth.'.$table.' row ORDER BY to_jsonb(row)::text');
+            $schema=$table==='core_catalog_version'?'public':'synth';
+            $state[$table]=$this->db()->fetchAll('SELECT to_jsonb(row) AS row FROM '.$schema.'.'.$table.' row ORDER BY to_jsonb(row)::text');
         return $state;
     }
 
@@ -81,7 +82,7 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     {
         self::assertNotFalse($this->db()->execQuery("DELETE FROM synth.worldknowledge WHERE source_kind='factory'"));
         self::assertNotFalse($this->db()->execQuery('DELETE FROM synth.worldknowledge_catalogs'));
-        self::assertNotFalse($this->db()->execQuery("DELETE FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'"));
+        self::assertNotFalse($this->db()->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"));
     }
 
     public function testAppearanceRefinementUpdatesOnlyExactEarlierFactoryRows(): void
@@ -115,7 +116,7 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     {
         $release=synthLoadFalloutCatalogueSql($this->root());
         self::assertEquals(['npcs'=>204,'mappings'=>207,'items'=>201,'lore'=>125],$release['manifest']['counts']);
-        $version=$this->db()->fetchOne("SELECT min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'");
+        $version=$this->db()->fetchOne("SELECT min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'");
         self::assertSame(strval(SYNTH_FALLOUT_CATALOGUE_SQL_VERSION),$version['version']);
         synthFalloutCatalogueSqlAssertInstalled($this->db(),$release);
     }
@@ -137,25 +138,25 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
             WHERE npc_name <> 'The Narrator'
             SQL));
         self::assertNotFalse($db->execQuery(
-            "INSERT INTO synth.database_versioning SELECT 'synthnpcs_view',20260713002 "
-            ."WHERE NOT EXISTS (SELECT 1 FROM synth.database_versioning WHERE tablename='synthnpcs_view')"
+            "INSERT INTO public.core_catalog_version SELECT 'synthnpcs_view',20260713002 "
+            ."WHERE NOT EXISTS (SELECT 1 FROM public.core_catalog_version WHERE catalog_key='synthnpcs_view')"
         ));
         self::assertNotFalse($db->execQuery(
-            "UPDATE synth.database_versioning SET version=20260713002 WHERE tablename='synthnpcs_view'"
+            "UPDATE public.core_catalog_version SET version=20260713002 WHERE catalog_key='synthnpcs_view'"
         ));
         self::assertFalse(synthRuntimeNeedsDbUpdates(), 'A fully migrated disposable fixture must be current.');
         self::assertNotFalse($db->execQuery(
-            "UPDATE synth.database_versioning SET version=20261009001 WHERE tablename='fallout4_catalogue_sql'"
+            "UPDATE public.core_catalog_version SET version=20261009001 WHERE catalog_key='fallout4_catalogue_sql'"
         ));
         self::assertSame('20261009001', $db->fetchOne(
-            "SELECT min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'"
+            "SELECT min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"
         )['version']);
         self::assertTrue(synthRuntimeNeedsDbUpdates(), 'The earlier catalogue must schedule the new migration.');
 
         $installed=synthInstallFalloutCatalogueSql($db,$this->root());
         self::assertSame(20261009002,$installed['migration_version']);
         self::assertSame('20261009002', $db->fetchOne(
-            "SELECT min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'"
+            "SELECT min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"
         )['version']);
         self::assertFalse(synthRuntimeNeedsDbUpdates(), 'The installed release must not schedule another migration.');
     }
@@ -277,7 +278,7 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         $this->clearFactoryCatalogue();$db=$this->db();
         self::assertNotFalse($db->execQuery('DELETE FROM synth.bio_template_actor_map WHERE base_plugin IS NULL'));
         self::assertNotFalse($db->execQuery('ALTER TABLE synth.bio_template_actor_map ALTER COLUMN base_plugin SET NOT NULL,ALTER COLUMN base_local_formid SET NOT NULL'));
-        $before=$this->snapshot();$adapter=new FalloutCatalogueSqlTestAdapter($db,'UPDATE synth.database_versioning SET version=GREATEST');
+        $before=$this->snapshot();$adapter=new FalloutCatalogueSqlTestAdapter($db,'UPDATE public.core_catalog_version SET version=GREATEST');
         try { synthInstallFalloutCatalogueSql($adapter,$this->root());self::fail('Late version failure must fail'); }
         catch (RuntimeException $error) { self::assertStringContainsString('migration version',$error->getMessage()); }
         self::assertSame(['BEGIN','ROLLBACK'],$this->transactions($adapter));
@@ -288,16 +289,16 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     public function testLegacyVersionTableWithoutUniqueKeyRemainsIdempotent(): void
     {
         $db=$this->db();
-        self::assertNotFalse($db->execQuery('ALTER TABLE synth.database_versioning DROP CONSTRAINT IF EXISTS database_versioning_pkey'));
-        self::assertNotFalse($db->execQuery("DELETE FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'"));
+        self::assertNotFalse($db->execQuery('ALTER TABLE public.core_catalog_version DROP CONSTRAINT IF EXISTS core_catalog_version_pkey'));
+        self::assertNotFalse($db->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"));
         for ($i=0;$i<2;++$i) synthInstallFalloutCatalogueSql($db,$this->root());
-        self::assertSame(['n'=>'1','version'=>strval(SYNTH_FALLOUT_CATALOGUE_SQL_VERSION)],$db->fetchOne("SELECT count(*) AS n,min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'"));
+        self::assertSame(['n'=>'1','version'=>strval(SYNTH_FALLOUT_CATALOGUE_SQL_VERSION)],$db->fetchOne("SELECT count(*) AS n,min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"));
     }
 
     public function testNewerInstalledVersionRejectsPayloadWithoutChangingCatalogueSelection(): void
     {
         $db=$this->db();
-        self::assertNotFalse($db->execQuery("UPDATE synth.database_versioning SET version=$1 WHERE tablename='fallout4_catalogue_sql'",[SYNTH_FALLOUT_CATALOGUE_SQL_VERSION+1]));
+        self::assertNotFalse($db->execQuery("UPDATE public.core_catalog_version SET version=$1 WHERE catalog_key='fallout4_catalogue_sql'",[SYNTH_FALLOUT_CATALOGUE_SQL_VERSION+1]));
         $before=$this->snapshot();$adapter=new FalloutCatalogueSqlTestAdapter($db);
         try { synthInstallFalloutCatalogueSql($adapter,$this->root());self::fail('Older release must not overwrite newer state'); }
         catch (RuntimeException $error) { self::assertStringContainsString('newer',$error->getMessage()); }
@@ -424,6 +425,6 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         catch (RuntimeException $error) { self::assertStringContainsString('outcome is uncertain',$error->getMessage()); }
         self::assertSame(['BEGIN','COMMIT'],$this->transactions($adapter));
         self::assertTrue($this->db()->isTransactionIdle());
-        self::assertSame(strval(SYNTH_FALLOUT_CATALOGUE_SQL_VERSION),$this->db()->fetchOne("SELECT min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_catalogue_sql'")['version']);
+        self::assertSame(strval(SYNTH_FALLOUT_CATALOGUE_SQL_VERSION),$this->db()->fetchOne("SELECT min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'")['version']);
     }
 }

@@ -12,14 +12,14 @@ use Doctrine\Migrations\Exception\AbortMigration;
 
 // The frozen legacy bootstrap baseline: the schema data/database_default.sql plus debug/db_updates.php produce at
 // 42c7e0e. On an existing install it only recognizes that baseline and changes no schema and no row. On an empty
-// database it installs it: up() adds the statements of Version20261115000000.fresh.sql (generated data, see
+// database it installs it: up() adds the statements of Version20261117000000.fresh.sql (generated data, see
 // docs/SCHEMA-MIGRATIONS.md), so the complete schema and stock seeds are created in the owner's all-or-nothing
 // transaction without the legacy chain or a separate data/database_default.sql import. Either way postUp() verifies
 // inside that transaction, after the statements and before Doctrine records this version, so a failed, partial or
 // drifted install aborts and records nothing. Later schema changes are new migrations here, never new
 // debug/db_updates.php blocks.
 //
-// The structure check compares against Version20261115000000.structure.txt, generated from a disposable PostgreSQL 15
+// The structure check compares against Version20261117000000.structure.txt, generated from a disposable PostgreSQL 15
 // inventory of that commit: every baseline table and view by name, every column (type, nullability, default,
 // length), vector dimensions, and every primary key, foreign key, check and unique constraint and index by name and
 // definition. Objects not in the baseline are allowed. View and function bodies are not compared; the frozen seed check
@@ -27,11 +27,11 @@ use Doctrine\Migrations\Exception\AbortMigration;
 //
 // Migrations in this directory use addSql() only and never read the Schema argument: building it would make DBAL
 // introspect the whole database, and DBAL has no mapping for pgvector or tsvector columns.
-final class Version20261115000000 extends AbstractMigration
+final class Version20261117000000 extends AbstractMigration
 {
     // The frozen contract, copied from the readiness gate and settings list at 42c7e0e and never read from them: the
     // runtime gate states what the current code needs and will grow with later migrations, so the baseline must not
-    // call it. Minimum version per database_versioning entry the legacy chain wrote.
+    // call it. Minimum version per core_catalog_version entry (the legacy database_versioning rows).
     private const FROZEN_VERSIONS = [
         'fallout4_content_pack' => 20261008003, 'conf_opts' => 20260626001, 'core_action' => 20261106001,
         'core_player' => 20260707001, 'general_settings' => 20260722001, 'global_settings_presets' => 20260828001,
@@ -57,8 +57,8 @@ final class Version20261115000000 extends AbstractMigration
     ];
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
-    private const FRESH_INSTALL_FILE = 'Version20261115000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7';
+    private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
+    private const FRESH_INSTALL_SHA256 = '539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -169,12 +169,12 @@ final class Version20261115000000 extends AbstractMigration
     }
 
     /**
-     * True when database_versioning already claims every frozen legacy version. Such an install gets no legacy chain:
+     * True when core_catalog_version already claims every frozen legacy version. Such an install gets no legacy chain:
      * it is verified as it stands, so damage is refused instead of being half-repaired by version-gated steps.
      */
     public static function legacyVersionsClaimCurrent(Connection $connection): bool
     {
-        return self::relationExists($connection, 'synth', 'database_versioning') && self::versionShortfalls($connection) === [];
+        return self::relationExists($connection, 'public', 'core_catalog_version') && self::versionShortfalls($connection) === [];
     }
 
     /**
@@ -214,8 +214,8 @@ final class Version20261115000000 extends AbstractMigration
     /** @return list<string> */
     private static function versionShortfalls(Connection $connection): array
     {
-        $rows = $connection->fetchAllKeyValue('SELECT tablename, max(version) FROM synth.database_versioning
-            WHERE tablename IN (?) GROUP BY tablename', [array_keys(self::FROZEN_VERSIONS)], [ArrayParameterType::STRING]);
+        $rows = $connection->fetchAllKeyValue('SELECT catalog_key, max(version) FROM public.core_catalog_version
+            WHERE catalog_key IN (?) GROUP BY catalog_key', [array_keys(self::FROZEN_VERSIONS)], [ArrayParameterType::STRING]);
         $shortfalls = [];
         foreach (self::FROZEN_VERSIONS as $name => $floor) {
             if (!isset($rows[$name]) || (int) $rows[$name] < $floor) $shortfalls[] = "legacy version {$name} is below {$floor}";
@@ -255,7 +255,7 @@ final class Version20261115000000 extends AbstractMigration
     /** @return list<string> baseline manifest entries absent from the database, sorted */
     private static function structureDifferences(Connection $connection): array
     {
-        $manifest = file(__DIR__.'/Version20261115000000.structure.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $manifest = file(__DIR__.'/Version20261117000000.structure.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($manifest === false) return ['the baseline structure manifest is unreadable'];
         // A CRLF checkout must not change the entries.
         $manifest = array_map(static fn (string $line): string => rtrim($line, "
@@ -267,23 +267,23 @@ final class Version20261115000000 extends AbstractMigration
         $connection->executeStatement('SET search_path TO synth, synth_meta, public');
         $present = array_flip(array_map('strval', $connection->fetchFirstColumn(<<<'SQL'
             SELECT concat_ws('|', 'table', table_schema, table_name, table_type)
-              FROM information_schema.tables WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.tables WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'column', table_schema, table_name, column_name, data_type, udt_name, is_nullable,
                              coalesce(column_default, ''), coalesce(character_maximum_length::text, ''))
-              FROM information_schema.columns WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.columns WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'constraint', n.nspname, t.relname, c.conname, c.contype,
                              CASE WHEN c.convalidated THEN 't' ELSE 'f' END, pg_get_constraintdef(c.oid))
               FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta')
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND t.relname LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'index', schemaname, tablename, indexname, indexdef)
-              FROM pg_indexes WHERE schemaname IN ('synth', 'synth_meta')
+              FROM pg_indexes WHERE (schemaname IN ('synth', 'synth_meta') OR (schemaname = 'public' AND tablename LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'typmod', n.nspname, c.relname, a.attname, format_type(a.atttypid, a.atttypmod))
               FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta') AND a.attnum > 0 AND NOT a.attisdropped
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND c.relname LIKE 'core\_%')) AND a.attnum > 0 AND NOT a.attisdropped
                AND a.atttypid = 'public.vector'::regtype
             SQL)));
         return array_values(array_filter($required, static fn (string $line): bool => !isset($present[$line])));

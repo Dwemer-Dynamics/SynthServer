@@ -116,8 +116,8 @@ final class SharedApiKeysTest extends DatabaseTestCase
         $local = $dao->create('local', 'Lab', 'SYNTHKEY-view-local');
         $db = $GLOBALS['db'];
         // The unit database is the pre-ledger legacy chain; the view is created by the shipped migration's own statements.
-        require_once dirname(__DIR__, 2) . '/core/dbmanager/migrations/Version20261116100000.php';
-        foreach (\Synth\Migrations\Version20261116100000::statements() as $statement) {
+        require_once dirname(__DIR__, 2) . '/core/dbmanager/migrations/Version20261117100000.php';
+        foreach (\Synth\Migrations\Version20261117100000::statements() as $statement) {
             $db->execQuery($statement);
         }
         $db->execQuery("INSERT INTO synth.core_llm_connector (label, url, model, api_key_id) VALUES ('Uses global', 'https://openrouter.ai/api/v1/chat/completions', 'm', "

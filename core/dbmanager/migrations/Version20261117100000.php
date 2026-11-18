@@ -19,7 +19,7 @@ use Doctrine\Migrations\AbstractMigration;
 // The public view public.synth_key_references (id, kind, label, shared_key_id) shows which shared keys SYNTH connectors use, for
 // DwemerDistro's shared-key bridge (see the docs for the paired Distro change).
 // Uses addSql() only, like every migration here.
-final class Version20261116100000 extends AbstractMigration
+final class Version20261117100000 extends AbstractMigration
 {
     private const CONNECTORS = ['core_llm_connector', 'core_tts_connector', 'core_stt_connector', 'core_itt_connector'];
 
