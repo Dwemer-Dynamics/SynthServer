@@ -41,7 +41,7 @@ function pts_metadata_schema_ready($conn): bool {
     $tableResult = @pg_query($conn, "
         SELECT
             to_regclass('synth_meta.playthrough_profiles') AS profiles_relation,
-            to_regclass('synth_meta.settings') AS settings_relation
+            to_regclass('public.core_config_setting') AS settings_relation
     ");
     $tableRow = $tableResult ? pg_fetch_assoc($tableResult) : false;
     if (!$tableRow || empty($tableRow['profiles_relation']) || empty($tableRow['settings_relation'])) {

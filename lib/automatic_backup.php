@@ -20,11 +20,11 @@ class AutomaticBackup {
             Logger::info("Created automatic backup directory: " . $this->backupDir);
         }
 
-        // Ensure synth_meta.settings exists and load retention count if available
+        // Ensure core_config_setting (scope 'meta') exists and load retention count if available
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT value FROM synth_meta.settings WHERE key = 'AUTOMATIC_BACKUP_MAX_COUNT'");
+                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_MAX_COUNT'");
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $v = intval($row['value']);
@@ -44,7 +44,7 @@ class AutomaticBackup {
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT value FROM synth_meta.settings WHERE key = 'AUTOMATIC_DATABASE_BACKUPS'");
+                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_DATABASE_BACKUPS'");
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $val = strtolower(trim((string)$row['value']));
@@ -95,7 +95,7 @@ class AutomaticBackup {
             Logger::info("Authentication setup complete");
             
             // Execute pg_dump with direct file output; exclude environment-local settings
-            $command = "HOME=/tmp pg_dump -d " . escapeshellarg($dbname) . " -U " . escapeshellarg($username) . " -h " . escapeshellarg($host) . " -p " . escapeshellarg($port) . " -T synth_meta.settings > " . escapeshellarg($filepath) . " 2>&1";
+            $command = "HOME=/tmp pg_dump -d " . escapeshellarg($dbname) . " -U " . escapeshellarg($username) . " -h " . escapeshellarg($host) . " -p " . escapeshellarg($port) . " > " . escapeshellarg($filepath) . " 2>&1";
             $result = shell_exec($command);
             
             // pg_dump writes directly to file, so we don't need to handle output in memory
@@ -160,7 +160,7 @@ class AutomaticBackup {
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT value FROM synth_meta.settings WHERE key = 'AUTOMATIC_BACKUP_MAX_COUNT'");
+                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_MAX_COUNT'");
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $v = intval($row['value']);
@@ -242,7 +242,7 @@ class AutomaticBackup {
             // 2) Also check persisted timestamp in DB (if available)
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $row = $db->fetchOne("SELECT value FROM synth_meta.settings WHERE key='AUTOMATIC_BACKUP_LAST_TIMESTAMP'");
+                $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_LAST_TIMESTAMP'");
                 if (is_array($row) && isset($row['value'])) {
                     $last = strtotime((string)$row['value']);
                     if ($last !== false && (time() - $last) < $cooldownSeconds) {
@@ -278,7 +278,7 @@ class AutomaticBackup {
             $timestamp = date('Y-m-d H:i:s');
             
             // Update the backup timestamp for reference (not used for backup decisions)
-            $db->upsertRowOnConflict('synth_meta.settings', ['key'=>'AUTOMATIC_BACKUP_LAST_TIMESTAMP','value'=>$timestamp], 'key');
+            $db->upsertRowOnConflict('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTOMATIC_BACKUP_LAST_TIMESTAMP','config_value'=>$timestamp], 'scope, config_key');
             
             Logger::info("Updated last backup timestamp to: {$timestamp}");
             
