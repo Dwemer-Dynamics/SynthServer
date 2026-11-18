@@ -7,6 +7,8 @@ use Synth\Core\LlmDriver;
 use Synth\Core\TurnOutput;
 use Synth\Core\TurnRejected;
 use Synth\Core\UtteranceRepository;
+use Synth\Managers\ExtensionManager\ExtensionManager;
+use Synth\Managers\ExtensionManager\Hooks;
 
 require_once dirname(__DIR__).'/core/contracts/dialogue.php';
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
@@ -18,6 +20,7 @@ require_once __DIR__.'/ContextManager.php';
 require_once __DIR__.'/PromptManager.php';
 require_once __DIR__.'/SpeechManager.php';
 require_once __DIR__.'/WorldKnowledgeManager.php';
+require_once __DIR__.'/ExtensionManager/ExtensionManager.php';
 
 // One explicit conversation turn: sequential admission, context, prompt, provider stream, utterance
 // records, speech and completion. Once admitted there is no legacy fallback; failures are terminal.
@@ -76,17 +79,20 @@ final class DialogueManager
             $messages = $this->prompts->messages($character, $situation, $history, $request->text(),
                 $this->context->skills($request, $character), $knowledge,
                 $quest['reports'] || $quest['participant_background'] ? \synthQuestKnowledgePrompt($quest) : '', $latestDiary);
+            // Extension hook (no-op without enabled extensions; never throws).
+            $messages = ExtensionManager::dialoguePrompt($messages, ['character_key' => $character->key,
+                'npc_name' => $character->displayName(), 'player_name' => $request->playerName(), 'world' => $situation['world'] ?? []]);
         } catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable) { $this->output->fail('provider_failed', 'history_unavailable'); return; }
         $this->utterances->recordInput($request, $request->playerName().': '.$request->text()
             .' (Talking to '.(\synth_control_everyone_input($request->event) ? 'everyone' : $character->displayName()).')');
-        $buffer = ''; $count = 0; $total = 0; $voiceNoted = false;
+        $buffer = ''; $count = 0; $total = 0; $voiceNoted = false; $spoken = [];
         if ($turn->speech === null) {
             \Logger::info('[native-turn] The speaking profile has no TTS connector; the reply is delivered as text only.');
             $voiceNoted = true;
         }
         // Over-limit output stops provider consumption and ends the turn as an error; nothing is truncated.
-        $emit = function (string $text) use ($turn, &$count, &$voiceNoted): void {
+        $emit = function (string $text) use ($turn, &$count, &$voiceNoted, &$spoken): void {
             $this->output->assertActive();
             if ($count >= self::MAX_LINES) throw new \LengthException('provider_output_too_many_lines');
             if (mb_strlen($text) > self::MAX_LINE_CHARS) throw new \LengthException('provider_line_oversized');
@@ -104,6 +110,7 @@ final class DialogueManager
             if ($speech !== null) $payload['speech'] = $speech;
             $this->output->dialogue($suffix, $lineId, $payload);
             $count++;
+            $spoken[] = $text;
         };
         try {
             $this->llm->stream($character->connector, $messages, function (string $delta) use (&$buffer, &$total, $emit): void {
@@ -126,6 +133,10 @@ final class DialogueManager
         // Own completion: no legacy relationship/inline side effects run for this route.
         $this->output->assertActive();
         $this->output->complete();
+        // Extension event after the reply reached the client (inline now; deferred once a sink is installed).
+        ExtensionManager::publish(Hooks::DIALOGUE_REPLY_COMPLETED, ['request_id' => strval($request->event['request_id'] ?? ''),
+            'character_key' => $character->key, 'npc_name' => $character->displayName(), 'player_name' => $request->playerName(),
+            'lines' => $spoken, 'world' => $situation['world'] ?? []]);
     }
 
     // Complete sentences become lines; a trailing fragment is flushed at stream end.

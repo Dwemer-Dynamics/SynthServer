@@ -33,7 +33,7 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 | `context/event` | `gamedata.php` / `processor/` | missing in `api/` | TBD |
 | `dialogue` (`request`, `spoken`, `cancel`) | `main.php`, `processor/request.php`, `api/v2` conversation | in progress | TBD (conversation lifecycle) |
 | `editing` (generic edit API) | none | missing | TBD |
-| `extensions` | none | missing (reserved) | TBD |
+| `extensions` | none | in progress (draft PR: `talk-awareness` reference; `ext/relationship_system` kept) | TBD |
 | `health` | root `health.php` (read-only readiness, 503 contract) | in progress | TBD (health notice) |
 | `locations/save` | none | in progress (locations session) | TBD |
 | `messages` (response queue delivery) | `processor/`, `ui/response_queue.php` | in progress | TBD |
@@ -57,7 +57,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | CharacterManager | `managers/CharacterManager.php` | in progress | TBD (domain move) |
 | ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
 | ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
-| ExtensionManager | none (`ext/relationship_system` legacy) | missing | TBD |
+| ExtensionManager | none (`ext/relationship_system` legacy) | in progress (draft PR: manifest validation, enable/disable in `conf/extensions.json`, 2 filters + 2 events, error isolation; no tables, auto-disable or UI yet) | TBD |
 | GameRpc | none | missing | TBD |
 | ListenerManager | none | missing | TBD |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
@@ -88,11 +88,11 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-| `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | `workers/*.php` (storage-agnostic) | done | this PR |
-| `ExtensionEvents` worker | none | missing | TBD |
-| `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}`; registered via `workers/Memory/MemoryWorker` (thin adapter over `service/memory_dispatch.php`) | in progress | this PR (adapter only) |
-| `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | this PR (adapter only); authored relationships #67 |
-| `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | this PR |
+| `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | `workers/*.php` (storage-agnostic) | done | #82 |
+| `ExtensionEvents` worker | none | missing (seam: `DeferredEventSink` in ExtensionManager) | TBD |
+| `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}`; registered via `workers/Memory/MemoryWorker` (thin adapter over `service/memory_dispatch.php`) | in progress | #82 (adapter only) |
+| `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | #82 (adapter only); authored relationships #67 |
+| `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | #82 |
 | TTS and profile workers | `service/tts_worker.php`, `processor/*_worker.php` | SYNTH-specific | n/a |
 | `bin/notify-server.php` (WebSocket to the plugin) | none; the client polls | missing | TBD |
 | `bin/` maintenance scripts (`message-maintenance`, `npc-biographies`, `item-descriptions`, `oghma-catalog`) | `tools/` (biography, voice catalog, Fallout content import) | SYNTH-specific | n/a |
@@ -102,7 +102,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | `config/config.inc.tmpl.php` | `conf/` (`conf_loader.php`, `conf_schema.json`) | in progress (moves last) | TBD |
-| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | missing | TBD |
+| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | in progress (draft PR; reference is `talk-awareness`) | TBD |
 | Health route (`/api/v1/health`) | `health.php` returns 200 or 503 | in progress | TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
 | `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |
