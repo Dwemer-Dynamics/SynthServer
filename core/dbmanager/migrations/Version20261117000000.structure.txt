@@ -1579,7 +1579,7 @@ constraint|synth_meta|social_task_inputs|social_task_inputs_player_identity_id_f
 constraint|synth_meta|social_task_inputs|social_task_inputs_recipient_identity_id_fkey|f|t|FOREIGN KEY (recipient_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|social_task_inputs|social_task_inputs_task_id_check|c|t|CHECK ((task_id ~ '^social:[0-9a-f]{32}$'::text))
 constraint|public|core_visual_description_revision|visual_description_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|public|core_visual_description_revision|visual_description_revisions_capture_id_fkey|f|t|FOREIGN KEY (capture_id) REFERENCES visual_results(capture_id)
+constraint|public|core_visual_description_revision|visual_description_revisions_capture_id_fkey|f|t|FOREIGN KEY (capture_id) REFERENCES core_visual_result(capture_id)
 constraint|public|core_visual_description_revision|visual_description_revisions_description_check|c|t|CHECK (((description IS NULL) OR ((octet_length(description) <= 12000) AND (btrim(description) <> ''::text))))
 constraint|public|core_visual_description_revision|visual_description_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
 constraint|public|core_visual_description_revision|visual_description_revisions_input_hash_check|c|t|CHECK ((input_hash ~ '^[0-9a-f]{64}$'::text))
@@ -1672,7 +1672,7 @@ constraint|public|core_visual_context|visual_context_actor_identity_id_fkey|f|t|
 constraint|public|core_visual_context|visual_context_capture_id_key|u|t|UNIQUE (capture_id)
 constraint|public|core_visual_context|visual_context_generation_check|c|t|CHECK (((generation IS NULL) OR (generation > 0)))
 constraint|public|core_visual_context|visual_context_interaction_mode_check|c|t|CHECK ((interaction_mode = ANY (ARRAY['store_only'::text, 'describe'::text, 'npc_portrait'::text])))
-constraint|public|core_visual_context|visual_context_media_id_fkey|f|t|FOREIGN KEY (media_id) REFERENCES media_objects(media_id) ON DELETE RESTRICT
+constraint|public|core_visual_context|visual_context_media_id_fkey|f|t|FOREIGN KEY (media_id) REFERENCES core_media_object(media_id) ON DELETE RESTRICT
 constraint|public|core_visual_context|visual_context_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_visual_context|visual_context_request_sha256_check|c|t|CHECK (((request_sha256 IS NULL) OR (request_sha256 ~ '^[0-9a-f]{64}$'::text)))
 constraint|public|core_visual_context|visual_context_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
