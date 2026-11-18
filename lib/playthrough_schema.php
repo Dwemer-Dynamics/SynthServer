@@ -7,7 +7,7 @@
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'logger.php');
 
 // Snapshot create, restore and delete are paused. Snapshots copy the configured application schema but
-// not its migration version, and the old restore dropped `public` and cleared synth.database_versioning.
+// not its migration version, and the old restore dropped `public` and cleared public.core_catalog_version.
 // These helpers keep their return shapes but never change the database. Existing snapshot schemas and
 // profile rows are left as they are. Installing the clone functions belongs to the schema owner.
 const PTS_SNAPSHOTS_UNAVAILABLE = 'Playthrough snapshots are unavailable.';

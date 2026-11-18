@@ -31,7 +31,7 @@ final class Version20261117000000 extends AbstractMigration
 {
     // The frozen contract, copied from the readiness gate and settings list at 42c7e0e and never read from them: the
     // runtime gate states what the current code needs and will grow with later migrations, so the baseline must not
-    // call it. Minimum version per database_versioning entry the legacy chain wrote.
+    // call it. Minimum version per core_catalog_version entry (the legacy database_versioning rows).
     private const FROZEN_VERSIONS = [
         'fallout4_content_pack' => 20261008003, 'conf_opts' => 20260626001, 'core_action' => 20261106001,
         'core_player' => 20260707001, 'general_settings' => 20260722001, 'global_settings_presets' => 20260828001,
@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '857186729db328d4225dac24a9dd044f6af7b458f6856d635d882dd28813cd5e';
+    private const FRESH_INSTALL_SHA256 = '539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -169,12 +169,12 @@ final class Version20261117000000 extends AbstractMigration
     }
 
     /**
-     * True when database_versioning already claims every frozen legacy version. Such an install gets no legacy chain:
+     * True when core_catalog_version already claims every frozen legacy version. Such an install gets no legacy chain:
      * it is verified as it stands, so damage is refused instead of being half-repaired by version-gated steps.
      */
     public static function legacyVersionsClaimCurrent(Connection $connection): bool
     {
-        return self::relationExists($connection, 'synth', 'database_versioning') && self::versionShortfalls($connection) === [];
+        return self::relationExists($connection, 'public', 'core_catalog_version') && self::versionShortfalls($connection) === [];
     }
 
     /**
@@ -214,8 +214,8 @@ final class Version20261117000000 extends AbstractMigration
     /** @return list<string> */
     private static function versionShortfalls(Connection $connection): array
     {
-        $rows = $connection->fetchAllKeyValue('SELECT tablename, max(version) FROM synth.database_versioning
-            WHERE tablename IN (?) GROUP BY tablename', [array_keys(self::FROZEN_VERSIONS)], [ArrayParameterType::STRING]);
+        $rows = $connection->fetchAllKeyValue('SELECT catalog_key, max(version) FROM public.core_catalog_version
+            WHERE catalog_key IN (?) GROUP BY catalog_key', [array_keys(self::FROZEN_VERSIONS)], [ArrayParameterType::STRING]);
         $shortfalls = [];
         foreach (self::FROZEN_VERSIONS as $name => $floor) {
             if (!isset($rows[$name]) || (int) $rows[$name] < $floor) $shortfalls[] = "legacy version {$name} is below {$floor}";

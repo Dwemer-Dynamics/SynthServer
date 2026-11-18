@@ -46,7 +46,7 @@ if (synthRuntimeNeedsDbUpdates()) {
     exit(1);
 }
 
-$versionRows = $db->fetchAll("SELECT COUNT(*) AS count FROM synth.database_versioning");
+$versionRows = $db->fetchAll("SELECT COUNT(*) AS count FROM public.core_catalog_version");
 $seedRows = $db->fetchAll("
     SELECT 'core_action' AS seed_name, COUNT(*) AS row_count, COUNT(DISTINCT code_name) AS unique_count
       FROM synth.core_action
@@ -102,7 +102,7 @@ if (!in_array('Synth\\Migrations\\Version20261117000000', $migrationVersions, tr
 }
 
 echo "SYNTH database bootstrap complete.\n";
-echo "database_versioning rows: {$versionCount}\n";
+echo "core_catalog_version rows: {$versionCount}\n";
 echo "schema verification: complete\n";
 echo "schema migrations recorded: " . count($migrationVersions) . " (latest " . end($migrationVersions) . ")\n";
 foreach ($seedCounts as $seedName => $seedCount) {

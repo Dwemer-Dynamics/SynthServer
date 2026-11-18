@@ -70,7 +70,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.core_itt_connector',
             'synth.core_tts_connector',
             'synth.core_tts_pronunciation',
-            'synth.database_versioning',
+            'public.core_catalog_version',
             'synth.descriptions',
             'synth.descriptions_custom',
             'synth.diarylog',
@@ -261,9 +261,9 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                 array_keys($requiredVersions)
             ));
             $versionRows = $db->fetchAll(
-                "SELECT tablename, version
-                 FROM synth.database_versioning
-                WHERE tablename IN ({$versionNames})"
+                "SELECT catalog_key, version
+                 FROM public.core_catalog_version
+                WHERE catalog_key IN ({$versionNames})"
             );
         } catch (\Throwable $e) {
             return true;
@@ -271,7 +271,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
 
         $versions = [];
         foreach ($versionRows as $row) {
-            $tableName = strval($row['tablename'] ?? '');
+            $tableName = strval($row['catalog_key'] ?? '');
             if ($tableName !== '') {
                 $versions[$tableName] = intval($row['version'] ?? -1);
             }

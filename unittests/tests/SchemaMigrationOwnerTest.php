@@ -247,7 +247,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function dataChecksum(): string
     {
         $parts = [];
-        foreach (['synth.database_versioning', 'synth.general_settings', 'synth.core_profiles', 'synth.core_npc_master',
+        foreach (['public.core_catalog_version', 'synth.general_settings', 'synth.core_profiles', 'synth.core_npc_master',
                      'synth.prompts', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
@@ -283,7 +283,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame([], $this->recorded());
         $this->assertBootstrapSucceeds();
         self::assertSame($schemaBefore, $this->schemaFingerprint(), 'A fresh install must converge on the upgraded schema.');
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
     }
 
     public static function baselineDrift(): array
@@ -337,19 +337,19 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertBootstrapSucceeds();
         $recorded = $this->recorded();
         $this->rows('DROP INDEX synth_meta.memory_summaries_batch');
-        $this->rows("UPDATE synth.database_versioning SET version = 20260719001 WHERE tablename = 'core_action'");
+        $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('no longer matches its recorded legacy baseline', $result['output']);
         self::assertStringContainsString('index|synth_meta|memory_summaries|memory_summaries_batch|', $result['output']);
         self::assertSame($recorded, $this->recorded());
         self::assertNull($this->value("SELECT to_regclass('synth_meta.memory_summaries_batch')"));
-        self::assertSame('20260719001', $this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'core_action'"));
+        self::assertSame('20260719001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'core_action'"));
     }
 
     public function testPartialLegacySchemaIsRefusedThenRecognizedOnceRepaired(): void
     {
-        $this->rows("DELETE FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'");
+        $this->rows("DELETE FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'");
         $this->rows('DROP TABLE synth_meta.social_task_claims, synth_meta.social_task_events, synth_meta.social_task_inputs');
         // A stray table of the same name makes the legacy social task schema file fail as one statement batch.
         $this->rows('CREATE TABLE synth_meta.social_task_inputs (unexpected integer)');
@@ -357,12 +357,12 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertSame([], $this->recorded());
-        self::assertNull($this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'"));
+        self::assertNull($this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
         self::assertNull($this->value("SELECT to_regclass('synth_meta.social_task_events')"));
 
         $this->rows('DROP TABLE synth_meta.social_task_inputs');
         $this->assertBootstrapSucceeds();
-        self::assertSame('20261102001', $this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'"));
+        self::assertSame('20261102001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
     }
 
     public function testBaselineRevertsWithoutTouchingLegacySchemaAndUnknownRecordsAreRefused(): void
@@ -389,7 +389,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         // Code older than the database: a record this tree does not contain stops every entry before any migration,
         // and before the legacy chain could act on an older legacy version.
         $this->rows('DELETE FROM synth_meta.doctrine_migration_versions');
-        $this->rows("UPDATE synth.database_versioning SET version = 20260719001 WHERE tablename = 'core_action'");
+        $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
         $data = $this->dataChecksum();
         foreach ([$this->bootstrap(), $this->finish($this->startDirectUpdates())] as $result) {
@@ -484,7 +484,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             self::assertSame(0, $result['exit'], $result['output']);
         }
         self::assertSame([self::BASELINE], array_keys($this->recorded()));
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
     }
 
     public function testKilledFreshBootstrapIsNeverFalselyBaselinedAndRerunConverges(): void
@@ -591,7 +591,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $baselineIds = pg_escape_literal($pg, $baselineIds);
         return array_column(self::rowsOn($pg, <<<SQL
             SELECT writer, count(*) AS objects FROM (
-                SELECT xmin::text AS writer FROM synth.database_versioning
+                SELECT xmin::text AS writer FROM public.core_catalog_version
                 UNION ALL SELECT xmin::text FROM synth.prompts
                 UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM synth.core_action
@@ -628,7 +628,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame($legacySchema, $this->schemaFingerprint(), 'A fresh install must match the legacy fresh install.');
         self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
         self::assertCount(1, self::installWriters($this->pg(), true), 'Schema, seeds and version record must commit together.');
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
 
         $this->assertBootstrapSucceeds();
         self::assertSame($recorded, $this->recorded(), 'A rerun must not record the baseline again.');
