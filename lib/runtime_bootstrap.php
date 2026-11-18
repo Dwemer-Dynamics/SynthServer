@@ -142,7 +142,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                   FROM pg_class c
                   JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE c.relkind IN ('r', 'p', 'v')
-                   AND n.nspname IN ('synth', 'synth_meta')
+                   AND (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND c.relname LIKE 'core\_%'))
             ");
         } catch (\Throwable $e) {
             return true;

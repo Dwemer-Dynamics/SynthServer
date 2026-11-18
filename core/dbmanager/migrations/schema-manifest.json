@@ -6,7 +6,7 @@
             "class": "Synth\\Migrations\\Version20261117000000",
             "files": {
                 "Version20261117000000.fresh.sql": "539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4",
-                "Version20261117000000.php": "1a83ecc25b1e1393acc0020a6c8b19ffd0af11fbcc69911792eb59d944de1621",
+                "Version20261117000000.php": "eabd86b2e3cc5ca05d528fbb17c56180924592504cff8c5c332e68e733417a91",
                 "Version20261117000000.structure.txt": "06bf55466986b69779ba4e517c1127f1941df7a1edc86c631e9bcd50ae9c798e"
             },
             "structure": {

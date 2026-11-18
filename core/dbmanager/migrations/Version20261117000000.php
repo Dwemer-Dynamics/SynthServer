@@ -267,23 +267,23 @@ final class Version20261117000000 extends AbstractMigration
         $connection->executeStatement('SET search_path TO synth, synth_meta, public');
         $present = array_flip(array_map('strval', $connection->fetchFirstColumn(<<<'SQL'
             SELECT concat_ws('|', 'table', table_schema, table_name, table_type)
-              FROM information_schema.tables WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.tables WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'column', table_schema, table_name, column_name, data_type, udt_name, is_nullable,
                              coalesce(column_default, ''), coalesce(character_maximum_length::text, ''))
-              FROM information_schema.columns WHERE table_schema IN ('synth', 'synth_meta')
+              FROM information_schema.columns WHERE (table_schema IN ('synth', 'synth_meta') OR (table_schema = 'public' AND table_name LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'constraint', n.nspname, t.relname, c.conname, c.contype,
                              CASE WHEN c.convalidated THEN 't' ELSE 'f' END, pg_get_constraintdef(c.oid))
               FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta')
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND t.relname LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'index', schemaname, tablename, indexname, indexdef)
-              FROM pg_indexes WHERE schemaname IN ('synth', 'synth_meta')
+              FROM pg_indexes WHERE (schemaname IN ('synth', 'synth_meta') OR (schemaname = 'public' AND tablename LIKE 'core\_%'))
             UNION ALL
             SELECT concat_ws('|', 'typmod', n.nspname, c.relname, a.attname, format_type(a.atttypid, a.atttypmod))
               FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname IN ('synth', 'synth_meta') AND a.attnum > 0 AND NOT a.attisdropped
+             WHERE (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND c.relname LIKE 'core\_%')) AND a.attnum > 0 AND NOT a.attisdropped
                AND a.atttypid = 'public.vector'::regtype
             SQL)));
         return array_values(array_filter($required, static fn (string $line): bool => !isset($present[$line])));
