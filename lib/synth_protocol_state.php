@@ -1832,6 +1832,13 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         }
 
         synth_protocol_commit_transaction($db);
+        // Extension event once the context is committed (no-op without enabled extensions; never throws).
+        if ($event['type'] === 'context') {
+            require_once dirname(__DIR__).'/managers/ExtensionManager/ExtensionManager.php';
+            \Synth\Managers\ExtensionManager\ExtensionManager::publish(\Synth\Managers\ExtensionManager\Hooks::GAME_CONTEXT_RECEIVED,
+                ['session_id' => $sessionId, 'snapshot_sequence' => intval($event['payload']['snapshot_sequence'] ?? 0),
+                 'world' => is_array($event['payload']['world'] ?? null) ? $event['payload']['world'] : []]);
+        }
         if($event['type']==='action_result' && is_array($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']??null))
             synth_wait_trace_committed_result($event,$GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
         unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
