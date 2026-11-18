@@ -54,9 +54,9 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
         return [
             'templates'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template t ORDER BY body'),
             'maps'=>$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc_biography_template_actor t ORDER BY body'),
-            'columns'=>$this->db()->fetchAll("SELECT column_name,is_nullable FROM information_schema.columns WHERE table_schema='synth' AND table_name='bio_template_actor_map' ORDER BY column_name"),
+            'columns'=>$this->db()->fetchAll("SELECT column_name,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='core_npc_biography_template_actor' ORDER BY column_name"),
             'constraints'=>$this->db()->fetchAll("SELECT conname,pg_get_constraintdef(oid) AS body FROM pg_constraint WHERE conrelid='public.core_npc_biography_template_actor'::regclass ORDER BY conname"),
-            'indexes'=>$this->db()->fetchAll("SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='synth' AND tablename='bio_template_actor_map' ORDER BY indexname"),
+            'indexes'=>$this->db()->fetchAll("SELECT indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='core_npc_biography_template_actor' ORDER BY indexname"),
         ];
     }
 

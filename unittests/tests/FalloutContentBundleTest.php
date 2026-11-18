@@ -128,10 +128,16 @@ final class FalloutContentBundleTest extends DatabaseTestCase
     private function snapshot(): array
     {
         $result=[];
+        $relations=[
+            'bio_templates'=>'public.core_npc_biography_template','bio_templates_custom'=>'public.core_npc_biography_template_custom',
+            'bio_template_actor_map'=>'public.core_npc_biography_template_actor','descriptions'=>'public.core_item_description',
+            'descriptions_custom'=>'public.core_item_description_custom','worldknowledge'=>'public.core_worldknowledge_article',
+            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'synth.core_npc_master',
+            'core_npc_master_history'=>'synth.core_npc_master_history','actor_identities'=>'synth.actor_identities',
+            'core_catalog_version'=>'public.core_catalog_version'];
         foreach (['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom',
             'core_npc_master','worldknowledge','worldknowledge_catalogs','core_catalog_version'] as $table) {
-            $schema=$table==='core_catalog_version'?'public':'synth';
-            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM '.$schema.'.'.$table.' t ORDER BY body');
+            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM '.$relations[$table].' t ORDER BY body');
         }
         return $result;
     }

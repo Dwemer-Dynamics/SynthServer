@@ -3,7 +3,7 @@
 
 BEGIN;
 
-INSERT INTO synth.bio_templates (
+INSERT INTO public.core_npc_biography_template (
     npc_name, worldknowledge_tags, core, npc_static_bio, appearance, personality,
     relationships, occupation, skills, speechstyle, goals, voiceid, gender, race, refid
 ) VALUES
@@ -37,7 +37,7 @@ ON CONFLICT (npc_name) DO UPDATE SET
     race=EXCLUDED.race,
     refid=EXCLUDED.refid;
 
-INSERT INTO synth.bio_template_actor_map (
+INSERT INTO public.core_npc_biography_template_actor (
     template_name, base_plugin, base_local_formid, exact_name, is_nonverbal_creature
 ) VALUES
 ('creature_brahmin','Fallout4.esm','00020480','Brahmin',TRUE),
