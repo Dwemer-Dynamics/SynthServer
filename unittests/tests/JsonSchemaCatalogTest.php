@@ -424,7 +424,7 @@ final class JsonSchemaCatalogTest extends TestCase
                 'actor'=>['properties'=>['form_id'=>['not'=>['pattern'=>'^0x0{6}14$']]]]]]]],$waitRules);
         $this->assertSame(['strength','perception','endurance','charisma','intelligence','agility','luck'],
             $v2['properties']['actor_stats']['properties']['special']['required']);
-        unset($v2['properties']['actor_stats'],$v2['$defs']['special_value']);
+        unset($v2['properties']['actor_stats'],$v2['properties']['actor_condition'],$v2['$defs']['special_value'],$v2['$defs']['condition_entry'],$v2['$defs']['condition_effect']);
         if (($v2['$defs'] ?? null)===[]) unset($v2['$defs']);
         unset($v2['properties']['combat_target'],$v2['properties']['combat_contacts'],$v2['properties']['enemy_awareness'],$v2['properties']['conversation_held'],$v2['properties']['wait_held']);
         $v2['allOf']=array_values(array_filter($v2['allOf'], static fn(array $rule): bool =>
@@ -1269,6 +1269,43 @@ final class JsonSchemaCatalogTest extends TestCase
         synth_visual_validate_request($request);
     }
 
+    // Digital silence is a valid container but not usable speech: it never reaches the cache or a client.
+    public function testSilentSpeechWaveIsNotUsableAudio(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/speech_cache.php';
+        $wave = static fn(int $tag, int $bits, string $data): string => pack('a4Va4a4VvvVVvva4V', 'RIFF', 36 + strlen($data), 'WAVE',
+            'fmt ', 16, $tag, 1, 8000, 8000 * intdiv($bits, 8), intdiv($bits, 8), $bits, 'data', strlen($data)).$data;
+        $silent = [$wave(1, 16, str_repeat("\0", 4000)), $wave(1, 24, str_repeat("\0", 3000)), $wave(3, 32, str_repeat("\0", 4000)),
+            $wave(1, 8, str_repeat("€", 4000))];
+        $audible = [$wave(1, 16, str_repeat("\0", 3998)."\x01\0"), $wave(1, 16, "\0\0\0€"), $wave(1, 8, str_repeat("€", 3999).""),
+            $wave(1, 8, str_repeat("\0", 4000)), $wave(3, 32, "\0\0\0\0\0\0€?")];
+        foreach ($silent as $index => $bytes) {
+            $this->assertTrue(synth_media_is_wave($bytes), "container $index");
+            $this->assertTrue(synth_media_wave_is_silent($bytes), "silent $index");
+            $this->assertFalse(synth_speech_bytes_usable($bytes), "usable $index");
+        }
+        foreach ($audible as $index => $bytes) {
+            $this->assertFalse(synth_media_wave_is_silent($bytes), "audible $index");
+            $this->assertTrue(synth_speech_bytes_usable($bytes), "usable audible $index");
+        }
+        // Malformed input is never "silent"; it is simply unusable.
+        $this->assertFalse(synth_media_wave_is_silent('RIFF'));
+        $this->assertFalse(synth_speech_bytes_usable(''));
+        $path = tempnam(sys_get_temp_dir(), 'synth-silent-');
+        $claimed = $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null;
+        try {
+            $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = false;
+            file_put_contents($path, $silent[0]);
+            $this->assertFalse(synth_speech_cache_valid($path));
+            file_put_contents($path, $audible[0]);
+            $this->assertTrue(synth_speech_cache_valid($path));
+        } finally {
+            unlink($path);
+            if ($claimed === null) unset($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
+            else $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = $claimed;
+        }
+    }
+
     public function testNativeMediaBytesMustMatchTheirDeclaredContainer(): void
     {
         $wave = pack(
@@ -1286,7 +1323,7 @@ final class JsonSchemaCatalogTest extends TestCase
             16,
             'data',
             4
-        ).pack('vv', 0, 0);
+        ).pack('vv', 0, 3);
 
         $this->assertTrue(synth_media_is_wave($wave));
         synth_media_validate_bytes($wave, 'audio/wav');
@@ -1971,10 +2008,10 @@ foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
         $rows[]=[$driver,$case,$config,$GLOBALS['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'],$GLOBALS['TTS'][strtoupper($driver)]['API_KEY']];
     }
     $prefix='get'.$title.'VoiceCachePrefix'; $remote='get'.$title.'RemoteVoicesCacheKey';
-    $one=['connector_id'=>71,'api_badge_id'=>1,'api_key'=>'fixture-key-one','workspace'=>'workspace-A'];
+    $one=['connector_id'=>71,'api_key_id'=>'11111111-1111-4111-8111-111111111111','api_key'=>'fixture-key-one','workspace'=>'workspace-A'];
     $two=array_replace($one,['api_key'=>'fixture-key-two']);
     $scopes[$driver]=[$prefix($one),$prefix($two),$remote($one),$remote($two),
-        $prefix(array_replace($one,['connector_id'=>72])),$prefix(array_replace($one,['api_badge_id'=>2])),
+        $prefix(array_replace($one,['connector_id'=>72])),$prefix(array_replace($one,['api_key_id'=>'22222222-2222-4222-8222-222222222222'])),
         $prefix(array_replace($one,['workspace'=>'workspace-B']))];
     $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']=['inputs'=>['TTSFUNCTION'=>'wrong-provider']];
     try { $getter(); throw new LogicException('Provider mismatch accepted'); }

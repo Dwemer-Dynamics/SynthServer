@@ -40,25 +40,28 @@ $apiKeyTestEndpoints = [
 $apiKeyTestLabels = [ 'openrouter' => 'OpenRouter', 'openai' => 'OpenAI' ];
 $provider = is_string($_POST['provider'] ?? null) ? strtolower(trim($_POST['provider'])) : '';
 $apiKey = is_string($apiKey) ? trim($apiKey) : '';
-// The badge id uses the API Keys page's row id grammar exactly; a padded or signed value names no row.
+// The key id is a shared key id (a canonical lower-case uuid) exactly; anything else names no key.
 $badgeId = is_string($_POST['badge_id'] ?? null) ? $_POST['badge_id'] : '';
 header('Cache-Control: no-store');
 $testProblem = '';
 if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  $provider = '';
  $testProblem = 'Unsupported provider.';
-} else if ($apiKey === '' && preg_match('/^[1-9][0-9]{0,9}$/D', $badgeId) && intval($badgeId) <= 2147483647) {
+} else if ($apiKey === '' && (preg_match('/^shared:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $badgeId) === 1 || preg_match('/^local:[1-9][0-9]{0,9}$/D', $badgeId) === 1)) {
  $savedLabel = '';
  try {
  $enginePath = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
  require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
  synthRuntimeBootstrap($enginePath, []);
  require_once($enginePath . 'core' . DIRECTORY_SEPARATOR . 'dbmanager' . DIRECTORY_SEPARATOR . 'repositories' . DIRECTORY_SEPARATOR . 'ApiBadgeRepository.php');
- $savedRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS['db']))->byId(intval($badgeId));
+ $savedRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS['db']))->byId($badgeId);
  if ($savedRow !== []) {
  // The stored label must equal the provider label apart from letter case; a padded label is a custom entry.
  $savedLabel = strval($savedRow['label'] ?? '');
- if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) $apiKey = trim(strval($savedRow['api_key'] ?? ''));
+ if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) {
+ // The one resolver: a global key is released only for its own provider's origin (this test calls that provider's API).
+ $apiKey = trim((new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS['db']))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($badgeId), '', $apiKeyTestLabels[$provider]));
+ }
  }
  } catch (Throwable $_e) {
  $testProblem = 'Could not read the saved key.';

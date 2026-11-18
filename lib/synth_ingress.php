@@ -255,7 +255,7 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
          'weapon_drawn', 'movement_speed', 'sprinting', 'talking_to_player', 'in_power_armor',
          'current_package'],
         array_merge(['inventory_observation', 'faction_completeness', 'health_percent_available', 'action_points_percent_available'],
-            $version === 2 ? ['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held','actor_stats'] : []),
+            $version === 2 ? ['combat_target','combat_contacts','enemy_awareness','conversation_held','wait_held','actor_stats','actor_condition'] : []),
         $field
     );
     $value['actor'] = synth_protocol_validate_identity($value['actor'] ?? null, $field . '.actor');
@@ -280,6 +280,10 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
     if (array_key_exists('actor_stats',$value)) {
         require_once __DIR__.'/synth_biography.php';
         $value['actor_stats']=synth_protocol_validate_actor_stats($value['actor_stats'],$field.'.actor_stats');
+    }
+    if (array_key_exists('actor_condition',$value)) {
+        require_once dirname(__DIR__).'/managers/ContextManager/ActorConditionValidator.php';
+        $value['actor_condition']=\Synth\Managers\ContextManager\ActorConditionValidator::validate($value['actor_condition'],$field.'.actor_condition');
     }
     if (array_key_exists('enemy_awareness',$value)) {
         $value['enemy_awareness']=synth_protocol_validate_enemy_awareness($value['enemy_awareness'],$field.'.enemy_awareness',$value,$player);
@@ -694,7 +698,7 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
             $payload,
             ['playthrough_id', 'snapshot_sequence', 'player', 'audience', 'active_quests',
              'nearby_items', 'points_of_interest'],
-            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events', 'observed_dialogue']
+            $version === 2 ? ['target', 'actor_states', 'world', 'loaded_context', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation', 'quest_events', 'player_event', 'actor_events', 'observed_dialogue', 'reading_event']
                 : ['target', 'actor_states', 'world', 'active_quests_observation', 'nearby_items_observation', 'points_of_interest_observation', 'audience_observation'],
             'payload'
         );
@@ -791,6 +795,11 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         if (array_key_exists('observed_dialogue',$payload)) {
             require_once __DIR__.'/observed_dialogue.php';
             try {$payload['observed_dialogue']=synthValidateObservedDialogue($payload['observed_dialogue'],$payload);}
+            catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
+        }
+        if (array_key_exists('reading_event',$payload)) {
+            require_once __DIR__.'/../managers/BookManager/ReadingEvent.php';
+            try {$payload['reading_event']=\Synth\Managers\BookManager\ReadingEvent::validate($payload['reading_event']);}
             catch (DomainException $error) {synth_protocol_fail($error->getMessage(),422);}
         }
         foreach (['nearby_items','points_of_interest'] as $collection) {
@@ -1048,6 +1057,9 @@ function synth_protocol_validate_event(array $event): array
     if (isset($seen['action.gift_menu_inventory']) && ($version!==2 || $event['runtime_variant']!=='flat'
         || !isset($seen['action.open_inventory'],$seen['action.transfer_inventory'],$seen['action.give_item_to'],
             $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_gift_menu_capability',422);
+    if (isset($seen['action.trade_confirmation']) && ($version!==2 || $event['runtime_variant']!=='flat'
+        || !isset($seen['action.barter'],$seen['action.player_caps_inventory'],$seen['action.give_item_to'],$seen['action.transfer_inventory'],
+            $seen['action.inventory_observation'],$seen['dialogue.turn_ownership']))) synth_protocol_fail('invalid_trade_capability',422);
     if ((isset($seen['social.tasks.v1']) || in_array($event['type'],['social_task_request','social_task_progress'],true)) && !synth_social_supported($event))
         synth_protocol_fail('invalid_social_capability',422);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
@@ -1125,6 +1137,9 @@ function synth_protocol_validate_event(array $event): array
         if (array_key_exists('actor_stats',$state) && !in_array('context.actor_stats',$event['capabilities'],true)) {
             synth_protocol_fail('invalid_actor_stats',422,[['field'=>'payload.actor_states.'.$index.'.actor_stats','issue'=>'capability_required']]);
         }
+        if (array_key_exists('actor_condition',$state) && !in_array('context.actor_condition',$event['capabilities'],true)) {
+            synth_protocol_fail('invalid_actor_condition',422,[['field'=>'payload.actor_states.'.$index.'.actor_condition','issue'=>'capability_required']]);
+        }
         if (array_key_exists('enemy_awareness',$state) && !synth_enemy_awareness_supported($event)) {
             synth_protocol_fail('invalid_enemy_awareness',422,[['field'=>'payload.actor_states.'.$index.'.enemy_awareness','issue'=>'owned_flat_capabilities_required']]);
         }
@@ -1181,6 +1196,10 @@ function synth_protocol_validate_event(array $event): array
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.observed_dialogue',$event['capabilities'],true)))
         synth_protocol_fail('invalid_observed_dialogue',422,[['field'=>'capabilities','issue'=>'flat_observed_dialogue_required']]);
+    if ($event['type']==='context' && array_key_exists('reading_event',$event['payload'])
+        && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
+            || !in_array('context.reading_events',$event['capabilities'],true)))
+        synth_protocol_fail('invalid_reading_event',422,[['field'=>'capabilities','issue'=>'flat_reading_events_required']]);
     if ($event['type']==='context' && array_key_exists('player_event',$event['payload'])
         && ($event['protocol_version']!==2 || $event['runtime_variant']!=='flat'
             || !in_array('context.player_events',$event['capabilities'],true)))

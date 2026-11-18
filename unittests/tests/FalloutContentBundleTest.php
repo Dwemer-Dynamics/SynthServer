@@ -107,9 +107,9 @@ final class FalloutContentBundleTest extends DatabaseTestCase
         self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge('.implode(',',array_keys($legacyFields)).') VALUES('.
             implode(',',array_map(static fn($i)=>'$'.$i,range(1,count($legacyFields)))).')',array_values($legacyFields)));
         self::assertNotFalse($db->execQuery("INSERT INTO synth.worldknowledge(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES('bundle_authored','bundle_authored','Operator-authored World Knowledge.','custom',true)"));
-        self::assertNotFalse($db->execQuery('ALTER TABLE synth.database_versioning DROP CONSTRAINT IF EXISTS database_versioning_pkey'));
-        self::assertNotFalse($db->execQuery("DELETE FROM synth.database_versioning WHERE tablename='fallout4_content_pack'"));
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.database_versioning(tablename,version) VALUES('fallout4_content_pack',20261007001)"));
+        self::assertNotFalse($db->execQuery('ALTER TABLE public.core_catalog_version DROP CONSTRAINT IF EXISTS core_catalog_version_pkey'));
+        self::assertNotFalse($db->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_content_pack'"));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_catalog_version(catalog_key,version) VALUES('fallout4_content_pack',20261007001)"));
         $ids=[];
         foreach ([0,1,1] as $index=>$rowIndex) {
             $row=$pack['npcs'][$rowIndex];$reference='0x03F0040'.($index+1);
@@ -129,8 +129,10 @@ final class FalloutContentBundleTest extends DatabaseTestCase
     {
         $result=[];
         foreach (['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom',
-            'core_npc_master','worldknowledge','worldknowledge_catalogs','database_versioning'] as $table)
-            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.'.$table.' t ORDER BY body');
+            'core_npc_master','worldknowledge','worldknowledge_catalogs','core_catalog_version'] as $table) {
+            $schema=$table==='core_catalog_version'?'public':'synth';
+            $result[$table]=$this->db()->fetchAll('SELECT row_to_json(t)::text AS body FROM '.$schema.'.'.$table.' t ORDER BY body');
+        }
         return $result;
     }
 
@@ -160,7 +162,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
         [$root,$pack,,$legacy]=$this->fixture();
         try {
             $this->seedPopulatedState($pack,$legacy);$before=$this->snapshot();
-            $db=new FalloutContentBundleTestAdapter($this->db(),'UPDATE synth.database_versioning SET version=GREATEST');
+            $db=new FalloutContentBundleTestAdapter($this->db(),'UPDATE public.core_catalog_version SET version=GREATEST');
             try { synthInstallFalloutContentBundle($db,$root,true);self::fail('Version update must fail'); }
             catch (RuntimeException $error) { self::assertStringContainsString('bundle version',$error->getMessage()); }
             self::assertSame(['BEGIN','ROLLBACK'],$this->transactionCommands($db));
@@ -183,7 +185,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
                 self::assertSame(SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION,$report['content_version']);
                 self::assertTrue($this->db()->isTransactionIdle());
             }
-            $version=$this->db()->fetchOne("SELECT count(*) AS n,min(version) AS version FROM synth.database_versioning WHERE tablename='fallout4_content_pack'");
+            $version=$this->db()->fetchOne("SELECT count(*) AS n,min(version) AS version FROM public.core_catalog_version WHERE catalog_key='fallout4_content_pack'");
             self::assertSame(['n'=>'1','version'=>strval(SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION)],$version);
             $after=$this->snapshot();
             self::assertSame($before['bio_templates_custom'],$after['bio_templates_custom']);

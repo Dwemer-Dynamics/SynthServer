@@ -1,0 +1,17 @@
+# Structure of Version20261117100000 (shared key references beside SYNTH-only keys). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+column|synth|core_itt_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_itt_connector|local_api_key_id|integer|int4|YES||
+column|synth|core_llm_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_llm_connector|local_api_key_id|integer|int4|YES||
+column|synth|core_stt_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_stt_connector|local_api_key_id|integer|int4|YES||
+column|synth|core_tts_connector|api_key_id|uuid|uuid|YES||
+column|synth|core_tts_connector|local_api_key_id|integer|int4|YES||
+constraint|synth|core_itt_connector|core_itt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (local_api_key_id) REFERENCES core_api_badge(id)
+constraint|synth|core_itt_connector|core_itt_connector_one_key_store|c|t|CHECK (((api_key_id IS NULL) OR (local_api_key_id IS NULL)))
+constraint|synth|core_llm_connector|core_llm_connector_one_key_store|c|t|CHECK (((api_key_id IS NULL) OR (local_api_key_id IS NULL)))
+constraint|synth|core_llm_connector|llm_connector_api_badge_id_fkey|f|t|FOREIGN KEY (local_api_key_id) REFERENCES core_api_badge(id)
+constraint|synth|core_stt_connector|core_stt_connector_one_key_store|c|t|CHECK (((api_key_id IS NULL) OR (local_api_key_id IS NULL)))
+constraint|synth|core_stt_connector|stt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (local_api_key_id) REFERENCES core_api_badge(id)
+constraint|synth|core_tts_connector|core_tts_connector_one_key_store|c|t|CHECK (((api_key_id IS NULL) OR (local_api_key_id IS NULL)))
+constraint|synth|core_tts_connector|tts_connector_api_badge_id_fkey|f|t|FOREIGN KEY (local_api_key_id) REFERENCES core_api_badge(id)

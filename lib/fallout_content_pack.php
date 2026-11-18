@@ -91,10 +91,10 @@ function synthInstallFalloutContentBundle(object $db,string $root,bool $fillExis
         $report=synthInstallFalloutContentPack($db,$root,$fillExistingProfiles,false);
         $report['worldknowledge']=synthWorldKnowledgeInstallFactoryCatalog($db,$root,false);
         // Older populated installations have no unique key on this legacy table.
-        if ($db->execQuery('LOCK TABLE synth.database_versioning IN SHARE ROW EXCLUSIVE MODE')===false
-            || $db->execQuery('INSERT INTO synth.database_versioning(tablename,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM synth.database_versioning WHERE tablename=$1)',
+        if ($db->execQuery('LOCK TABLE public.core_catalog_version IN SHARE ROW EXCLUSIVE MODE')===false
+            || $db->execQuery('INSERT INTO public.core_catalog_version(catalog_key,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM public.core_catalog_version WHERE catalog_key=$1)',
                 ['fallout4_content_pack',SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION])===false
-            || $db->execQuery('UPDATE synth.database_versioning SET version=GREATEST(version,$2) WHERE tablename=$1',
+            || $db->execQuery('UPDATE public.core_catalog_version SET version=GREATEST(version,$2) WHERE catalog_key=$1',
                 ['fallout4_content_pack',SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION])===false)
             throw new RuntimeException('Unable to record Fallout content bundle version');
         if ($db->execQuery('COMMIT')===false) throw new RuntimeException('Unable to commit Fallout content bundle');

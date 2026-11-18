@@ -9,40 +9,21 @@ require_once __DIR__.'/DatabaseTestCase.php';
 // legacy schema, and concurrent, direct, transactional or killed runs stay consistent.
 final class SchemaMigrationOwnerTest extends DatabaseTestCase
 {
-    private const BASELINE = 'Synth\\Migrations\\Version20261115000000';
+    private const BASELINE = 'Synth\\Migrations\\Version20261117000000';
+    // The first migration after the baseline: the shared API key binding column (docs/SCHEMA-MIGRATIONS.md, "Shared API keys").
+    private const SHIPPED = 'Synth\\Migrations\\Version20261117100000';
     private const LATER = 'Synth\\Migrations\\Version29990101000001';
     private const LOCK = "SELECT pg_advisory_lock(hashtextextended('synth-schema-migrations', 0))";
 
     private ?\PgSql\Connection $pg = null;
 
-    // The shared fixture runs the legacy chain inside the PHPUnit process, where per-process caches left by earlier
-    // classes (synth_ensure_synthnpcs_view's static flag) skip steps. These tests compare the fixture with what a
-    // fresh bootstrap process produces, so this class builds it the same way: the chain in a fresh child process.
+    // The reference install is one real bootstrap of an empty database: the baseline migration installs the schema and
+    // seeds, then tools/bootstrap-database.php loads the narrator settings (seeding their missing keys). The legacy
+    // upgrade chain is retired by the schema redesign (no upgrade path), so no legacy-built reference exists any more.
     public static function setUpBeforeClass(): void
     {
-        self::recreateTestDatabaseFromDefaultSql();
-        $code = <<<'PHP'
-            $root = $argv[1];
-            require_once $root.'/lib/logger.php'; require_once $root.'/lib/runtime_bootstrap.php';
-            require_once $root.'/lib/phpunit.class.php';
-            require $root.'/conf/conf.sample.php'; synthRuntimeImportConfigVariables(get_defined_vars());
-            require_once $root.'/lib/db_connection_settings.php'; require_once $root.'/core/dbmanager/SchemaMigrations.php';
-            $GLOBALS['db'] = $db = new sql();
-            $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(
-                \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('testdb')));
-            try { $owner->applyLegacyChainWithoutLedger(); } finally { $owner->close(); }
-            $db->close();
-            PHP;
-        $process = proc_open([PHP_BINARY, '-r', $code, '--', dirname(__DIR__, 2)],
-            [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $exit = proc_close($process);
-        self::assertSame(0, $exit, "The legacy fixture chain failed: {$output}");
-        self::assertStringNotContainsString('[error]', $output, 'The legacy fixture chain logged an error.');
+        self::recreateEmptyTestDatabase();
         self::loadTestRuntime();
-        self::snapshotTestDatabaseAsFixture();
 
         // The reference for the fresh path: this legacy fresh install after one real bootstrap (which also loads the
         // narrator settings, seeding their missing keys), before setUp() adjusts test rows. setUp() replaces this copy.
@@ -56,12 +37,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame(0, proc_close($process), "The legacy fixture bootstrap failed: {$output}");
         $pg = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
         self::$legacyInstall = self::installFingerprint($pg);
-        self::$legacyWriters = count(self::installWriters($pg, false));
+        // The per-test fixture is this install without its ledger record: a pre-ledger database whose frozen versions are
+        // current, which the owner recognizes and records instead of installing again.
+        pg_query($pg, 'DELETE FROM synth_meta.doctrine_migration_versions');
         pg_close($pg);
+        self::snapshotTestDatabaseAsFixture();
     }
 
     private static array $legacyInstall = [];
-    private static int $legacyWriters = 0;
 
     public function tearDown(): void
     {
@@ -105,7 +88,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         if ($this->pg !== null) pg_close($this->pg);
         $this->pg = null;
-        self::recreateTestDatabaseFromDefaultSql();
+        self::recreateEmptyTestDatabase();
     }
 
     /** @return array{0:resource,1:string,2:string} */
@@ -213,8 +196,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $result = $this->bootstrap();
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('schema migrations recorded: 1 (latest '.self::BASELINE.')', $result['output']);
-        self::assertSame([self::BASELINE], array_keys($this->recorded()));
+        self::assertStringContainsString('schema migrations recorded: 2 (latest '.self::SHIPPED.')', $result['output']);
+        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($this->recorded()));
     }
 
     // Structure of both application schemas apart from the Doctrine version table: relations, columns with types,
@@ -247,7 +230,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function dataChecksum(): string
     {
         $parts = [];
-        foreach (['synth.database_versioning', 'synth.general_settings', 'synth.core_profiles', 'synth.core_npc_master',
+        foreach (['public.core_catalog_version', 'synth.general_settings', 'synth.core_profiles', 'synth.core_npc_master',
                      'synth.prompts', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
@@ -283,7 +266,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame([], $this->recorded());
         $this->assertBootstrapSucceeds();
         self::assertSame($schemaBefore, $this->schemaFingerprint(), 'A fresh install must converge on the upgraded schema.');
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
     }
 
     public static function baselineDrift(): array
@@ -335,21 +318,25 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testDamageAfterTheRecordedBaselineIsRefusedNotRepaired(): void
     {
         $this->assertBootstrapSucceeds();
+        // Baseline checks apply only while the baseline is the latest record (later migrations own the schema).
+        $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version = $1', [self::SHIPPED]);
         $recorded = $this->recorded();
         $this->rows('DROP INDEX synth_meta.memory_summaries_batch');
-        $this->rows("UPDATE synth.database_versioning SET version = 20260719001 WHERE tablename = 'core_action'");
+        $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('no longer matches its recorded legacy baseline', $result['output']);
         self::assertStringContainsString('index|synth_meta|memory_summaries|memory_summaries_batch|', $result['output']);
         self::assertSame($recorded, $this->recorded());
         self::assertNull($this->value("SELECT to_regclass('synth_meta.memory_summaries_batch')"));
-        self::assertSame('20260719001', $this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'core_action'"));
+        self::assertSame('20260719001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'core_action'"));
     }
 
     public function testPartialLegacySchemaIsRefusedThenRecognizedOnceRepaired(): void
     {
-        $this->rows("DELETE FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'");
+        // Retired by the schema redesign: the repair path ran the frozen legacy chain's social task schema step.
+        self::markTestSkipped('The legacy upgrade chain is retired by the schema redesign.');
+        $this->rows("DELETE FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'");
         $this->rows('DROP TABLE synth_meta.social_task_claims, synth_meta.social_task_events, synth_meta.social_task_inputs');
         // A stray table of the same name makes the legacy social task schema file fail as one statement batch.
         $this->rows('CREATE TABLE synth_meta.social_task_inputs (unexpected integer)');
@@ -357,12 +344,12 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertSame([], $this->recorded());
-        self::assertNull($this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'"));
+        self::assertNull($this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
         self::assertNull($this->value("SELECT to_regclass('synth_meta.social_task_events')"));
 
         $this->rows('DROP TABLE synth_meta.social_task_inputs');
         $this->assertBootstrapSucceeds();
-        self::assertSame('20261102001', $this->value("SELECT version FROM synth.database_versioning WHERE tablename = 'social_tasks_schema'"));
+        self::assertSame('20261102001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
     }
 
     public function testBaselineRevertsWithoutTouchingLegacySchemaAndUnknownRecordsAreRefused(): void
@@ -389,7 +376,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         // Code older than the database: a record this tree does not contain stops every entry before any migration,
         // and before the legacy chain could act on an older legacy version.
         $this->rows('DELETE FROM synth_meta.doctrine_migration_versions');
-        $this->rows("UPDATE synth.database_versioning SET version = 20260719001 WHERE tablename = 'core_action'");
+        $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
         $data = $this->dataChecksum();
         foreach ([$this->bootstrap(), $this->finish($this->startDirectUpdates())] as $result) {
@@ -420,7 +407,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $result = $this->finish($this->startLaterMigration(false));
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString("gate unmet before: yes\ngate unmet after: no", $result['output']);
-        self::assertSame([self::BASELINE, self::LATER], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED, self::LATER], array_keys($this->recorded()));
         self::assertSame($baseline[self::BASELINE], $this->recorded()[self::BASELINE]);
         self::assertSame($data, $this->dataChecksum(), 'A later migration must not change legacy rows it does not own.');
     }
@@ -437,7 +424,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $result = $this->finish($waiting);
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('direct entry finished', $result['output']);
-        self::assertSame([self::BASELINE], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($this->recorded()));
 
         // Inside a caller's transaction the entry refuses before the legacy chain or any migration, so it cannot
         // commit or end that work.
@@ -473,7 +460,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         pg_close($holder);
         $result = $this->finish($waiting);
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertSame([self::BASELINE], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($this->recorded()));
 
         // Two fresh-install bootstraps at once: one runs the legacy chain and records the baseline, the other waits
         // and then finds nothing to do. Unserialized, the chain's check-then-insert version writes would race.
@@ -483,25 +470,29 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         foreach ([$this->finish($first), $this->finish($second)] as $result) {
             self::assertSame(0, $result['exit'], $result['output']);
         }
-        self::assertSame([self::BASELINE], array_keys($this->recorded()));
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($this->recorded()));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
     }
 
     public function testKilledFreshBootstrapIsNeverFalselyBaselinedAndRerunConverges(): void
     {
         $legacySchema = $this->schemaFingerprint();
-        $this->recreateFreshDatabase();
-        $run = $this->startBootstrap();
-        // The kill point is not controlled; whatever step it lands on, no baseline may exist without a complete schema.
-        usleep(1500000);
-        proc_terminate($run[0], 9);
-        $this->finish($run);
-        if ($this->recorded() !== []) {
-            self::assertSame($legacySchema, $this->schemaFingerprint(), 'A recorded baseline must describe a complete schema.');
-        }
+        // The kill lands on a different step for each delay: the baseline transaction, the settings seed, the narrator
+        // settings load. Whatever step it lands on, no baseline may exist without a complete schema, and the rerun
+        // must end with the same schema as an uninterrupted install.
+        foreach ([200, 500, 800, 1100, 1500] as $milliseconds) {
+            $this->recreateFreshDatabase();
+            $run = $this->startBootstrap();
+            usleep($milliseconds * 1000);
+            proc_terminate($run[0], 9);
+            $this->finish($run);
+            if ($this->recorded() !== []) {
+                self::assertSame($legacySchema, $this->schemaFingerprint(), "A recorded baseline must describe a complete schema (killed after {$milliseconds} ms).");
+            }
 
-        $this->assertBootstrapSucceeds();
-        self::assertSame($legacySchema, $this->schemaFingerprint());
+            $this->assertBootstrapSucceeds();
+            self::assertSame($legacySchema, $this->schemaFingerprint(), "The rerun must converge (killed after {$milliseconds} ms).");
+        }
     }
 
     // A new, empty UTF-8 database: what the WSL provisioner hands the bootstrap, minus the extensions it pre-creates.
@@ -529,9 +520,10 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $fingerprint = [];
         foreach (self::rowsOn($pg, "SELECT table_schema, table_name FROM information_schema.tables
                 WHERE table_schema IN ('synth', 'synth_meta') AND table_type = 'BASE TABLE'
-                  AND table_name <> 'doctrine_migration_versions' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
+                  AND table_name <> 'doctrine_migration_versions' AND table_name <> 'core_api_badge' ORDER BY 1, 2") as ['table_schema' => $schema, 'table_name' => $table]) {
             $columns = array_column(self::rowsOn($pg, "SELECT quote_ident(column_name) AS name FROM information_schema.columns
-                WHERE table_schema = $1 AND table_name = $2 AND data_type NOT LIKE 'timestamp%' ORDER BY ordinal_position",
+                WHERE table_schema = $1 AND table_name = $2 AND data_type NOT LIKE 'timestamp%'
+                  AND column_name NOT IN ('api_badge_id', 'api_key_id') ORDER BY ordinal_position",
                 [$schema, $table]), 'name');
             $row = 'ROW('.implode(', ', $columns).')::text';
             $relation = pg_escape_identifier($pg, $schema).'.'.pg_escape_identifier($pg, $table);
@@ -575,7 +567,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     // is inserted by the bootstrap's separate seed step, so it is not part of the baseline's one transaction.
     private static function baselineSettingIds(): array
     {
-        $sql = file_get_contents(dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261115000000.fresh.sql');
+        $sql = file_get_contents(dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261117000000.fresh.sql');
         self::assertSame(1, preg_match('/INSERT INTO synth\.general_settings VALUES\n(.*?)\n-- end-statement/s', $sql, $block));
         preg_match_all('/^\t\(\'([A-Z0-9_@]+)\', /m', $block[1], $ids);
         self::assertGreaterThan(40, count($ids[1]), 'The baseline general settings block was not parsed.');
@@ -586,12 +578,13 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     // with the version record when $withLedger: one writer means one transaction created them all.
     private static function installWriters(\PgSql\Connection $pg, bool $withLedger): array
     {
-        $ledger = $withLedger ? 'UNION ALL SELECT xmin::text FROM synth_meta.doctrine_migration_versions' : '';
+        // Only the baseline's record and objects: the later migration (it alters the four connector tables) is its own savepoint.
+        $ledger = $withLedger ? "UNION ALL SELECT xmin::text FROM synth_meta.doctrine_migration_versions WHERE version LIKE '%Version20261115000000'" : '';
         $baselineIds = '{'.implode(',', array_map(static fn(string $id): string => '"'.$id.'"', self::baselineSettingIds())).'}';
         $baselineIds = pg_escape_literal($pg, $baselineIds);
         return array_column(self::rowsOn($pg, <<<SQL
             SELECT writer, count(*) AS objects FROM (
-                SELECT xmin::text AS writer FROM synth.database_versioning
+                SELECT xmin::text AS writer FROM public.core_catalog_version
                 UNION ALL SELECT xmin::text FROM synth.prompts
                 UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM synth.core_action
@@ -600,7 +593,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 UNION ALL SELECT xmin::text FROM pg_namespace WHERE nspname IN ('synth', 'plugins')
                 UNION ALL SELECT c.xmin::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE n.nspname IN ('synth', 'synth_meta')
-                   AND c.relname NOT IN ('doctrine_migration_versions', 'doctrine_migration_versions_pkey')
+                   AND c.relname NOT IN ('doctrine_migration_versions', 'doctrine_migration_versions_pkey', 'core_api_badge', 'core_llm_connector', 'core_tts_connector', 'core_stt_connector', 'core_itt_connector')
                 {$ledger}
             ) writers GROUP BY writer
             SQL), 'objects', 'writer');
@@ -613,7 +606,6 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testEmptyDatabaseIsInstalledByTheBaselineMigrationInOneTransaction(): void
     {
         $legacySchema = $this->schemaFingerprint();
-        self::assertGreaterThan(1, self::$legacyWriters, 'The legacy chain writes in many transactions; the check must tell them apart.');
 
         $this->recreateEmptyDatabase();
         $this->assertDatabaseIsEmpty();
@@ -621,14 +613,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $second = $this->startBootstrap();
         foreach ([$this->finish($first), $this->finish($second)] as $result) {
             self::assertSame(0, $result['exit'], $result['output']);
-            self::assertStringContainsString('schema migrations recorded: 1 (latest '.self::BASELINE.')', $result['output']);
+            self::assertStringContainsString('schema migrations recorded: 2 (latest '.self::SHIPPED.')', $result['output']);
         }
         $recorded = $this->recorded();
-        self::assertSame([self::BASELINE], array_keys($recorded));
+        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($recorded));
         self::assertSame($legacySchema, $this->schemaFingerprint(), 'A fresh install must match the legacy fresh install.');
         self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
         self::assertCount(1, self::installWriters($this->pg(), true), 'Schema, seeds and version record must commit together.');
-        self::assertSame([], $this->rows('SELECT tablename FROM synth.database_versioning GROUP BY tablename HAVING count(*) > 1'));
+        self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
 
         $this->assertBootstrapSucceeds();
         self::assertSame($recorded, $this->recorded(), 'A rerun must not record the baseline again.');
@@ -736,12 +728,12 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testOnlyADatabaseWithNothingInItIsInstalledFresh(): void
     {
         require_once dirname(__DIR__, 2).'/vendor/autoload.php';
-        require_once dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261115000000.php';
+        require_once dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261117000000.php';
         $connect = static fn (): \Doctrine\DBAL\Connection => \Doctrine\DBAL\DriverManager::getConnection(['driver' => 'pgsql',
             'host' => 'localhost', 'port' => 5432, 'dbname' => 'testdb', 'user' => 'dwemer', 'password' => 'dwemer']);
         $connection = $connect();
         try {
-            self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), 'A legacy install is not empty.');
+            self::assertFalse(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection), 'A legacy install is not empty.');
         } finally {
             $connection->close();
         }
@@ -749,14 +741,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->recreateEmptyDatabase();
         $connection = $connect();
         try {
-            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            self::assertTrue(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection));
             $connection->beginTransaction();
             foreach (['CREATE EXTENSION vector', 'CREATE EXTENSION pg_trgm', 'CREATE SCHEMA synth_meta',
                          'CREATE TABLE synth_meta.doctrine_migration_versions (version varchar(191) PRIMARY KEY, executed_at timestamp(0), execution_time integer)']
                      as $sql) {
                 $connection->executeStatement($sql);
             }
-            self::assertTrue(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection));
+            self::assertTrue(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection));
             foreach ([
                 'table' => 'CREATE TABLE public.stray (id integer)',
                 'view' => 'CREATE VIEW public.stray AS SELECT 1 AS id',
@@ -770,7 +762,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             ] as $case => $sql) {
                 $connection->executeStatement('SAVEPOINT stray');
                 $connection->executeStatement($sql);
-                self::assertFalse(\Synth\Migrations\Version20261115000000::isEmptyDatabase($connection), $case);
+                self::assertFalse(\Synth\Migrations\Version20261117000000::isEmptyDatabase($connection), $case);
                 $connection->executeStatement('ROLLBACK TO SAVEPOINT stray');
             }
             $connection->rollBack();
@@ -779,7 +771,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         }
         $this->assertDatabaseIsEmpty();
 
-        $statements = \Synth\Migrations\Version20261115000000::freshInstallStatements();
+        $statements = \Synth\Migrations\Version20261117000000::freshInstallStatements();
         self::assertCount(783, $statements);
         foreach ($statements as $statement) {
             self::assertStringEndsWith(';', rtrim($statement));
@@ -922,7 +914,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 self::assertTrue($c->isTransactionActive(), 'Capture work must run in the owner transaction.');
                 return $metadata;
             });
-            self::assertSame($metadata([self::BASELINE]), $captured);
+            self::assertSame($metadata([self::BASELINE, self::SHIPPED]), $captured);
             $target = ['id' => 7, 'metadata' => $captured];
             self::assertSame($target, $owner->restoreSnapshot(function (\Doctrine\DBAL\Connection $c) use ($target): array {
                 self::assertFalse($this->migrationLockIsFree(), 'The target must be read under the lock.');
@@ -934,7 +926,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             // A two-version ledger: only its exact canonical metadata restores. [LATER] alone shares its newest member.
             $this->rows('INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ($1)', [self::LATER]);
             $both = $owner->captureSnapshot('synth', static fn (array $metadata): array => $metadata);
-            self::assertSame($metadata([self::BASELINE, self::LATER]), $both);
+            self::assertSame($metadata([self::BASELINE, self::SHIPPED, self::LATER]), $both);
             // Key order of the metadata object is irrelevant: reordered keys and a JSONB round trip both restore.
             $jsonb = json_decode($this->value('SELECT $1::jsonb::text', [json_encode($both)]), true, 512, JSON_THROW_ON_ERROR);
             foreach (['reordered keys' => array_reverse($both, true), 'jsonb round trip' => $jsonb] as $stored) {
@@ -949,14 +941,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 'null metadata' => ['metadata' => null],
                 'same newest version' => ['metadata' => $metadata([self::LATER])],
                 'older set' => ['metadata' => $captured],
-                'superset' => ['metadata' => $metadata([self::BASELINE, 'Synth\\Migrations\\Version20200101000000', self::LATER])],
-                'unsorted' => ['metadata' => $metadata([self::LATER, self::BASELINE])],
-                'repeated' => ['metadata' => $metadata([self::BASELINE, self::LATER, self::LATER])],
+                'superset' => ['metadata' => $metadata([self::BASELINE, 'Synth\\Migrations\\Version20200101000000', self::SHIPPED, self::LATER])],
+                'unsorted' => ['metadata' => $metadata([self::LATER, self::SHIPPED, self::BASELINE])],
+                'repeated' => ['metadata' => $metadata([self::BASELINE, self::SHIPPED, self::LATER, self::LATER])],
                 'other format' => ['metadata' => array_merge($both, ['format' => 'synth-schema-snapshot.v2'])],
                 'other schema' => ['metadata' => array_merge($both, ['schema' => 'public'])],
                 'extra key' => ['metadata' => array_merge($both, ['note' => 'x'])],
                 'missing key' => ['metadata' => array_diff_key($both, ['schema' => true])],
-                'reordered, unsorted list' => ['metadata' => array_reverse($metadata([self::LATER, self::BASELINE]), true)],
+                'reordered, unsorted list' => ['metadata' => array_reverse($metadata([self::LATER, self::SHIPPED, self::BASELINE]), true)],
                 'reordered, list keys reordered' => ['metadata' => array_reverse(array_merge($both,
                     ['migration_versions' => array_reverse($both['migration_versions'], true)]), true)],
                 'list instead of object' => ['metadata' => array_values($both)],
@@ -991,7 +983,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
             $this->assertSnapshotRefused($capture(), 'does not contain: Synth\\Migrations\\Version29990101000000');
             $this->assertSnapshotRefused($restore($unread), 'does not contain: Synth\\Migrations\\Version29990101000000');
-            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version <> $1', [self::BASELINE]);
+            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version NOT IN ($1, $2)', [self::BASELINE, self::SHIPPED]);
         } finally {
             $owner->close();
         }

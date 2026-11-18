@@ -944,7 +944,12 @@ if ($checkVersion("moods_issued_sequence")<20260626001) {
         }
     }
 
-    $updateVersion("worldknowledge",20250903001);
+    // The guard above is commented out, so this body runs on every pass; it must never move the version backward.
+    // Doing so made a rerun after an interrupted chain repeat the later 20260720001 block and re-create the index
+    // the recorded parity step had already dropped.
+    if ($checkVersion("worldknowledge") < 20250903001) {
+        $updateVersion("worldknowledge",20250903001);
+    }
     Logger::info("Applied patch worldknowledge 20250903001");
 //}
 
@@ -1115,7 +1120,7 @@ if ($checkVersion("core_llm_connector") < 20260423001) {
                 "service" => "openrouter"
             ];
             if ($openRouterBadgeId > 0) {
-                $insertPayload["api_badge_id"] = $openRouterBadgeId;
+                $insertPayload["local_api_key_id"] = $openRouterBadgeId;
             }
 
             $db->insert("core_llm_connector", $insertPayload);
@@ -1162,7 +1167,7 @@ if ($checkVersion("core_llm_connector") < 20260423002) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_badge_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -1210,7 +1215,7 @@ if ($checkVersion("core_llm_connector") < 20260423003) {
             "service" => "openrouter"
         ];
         if ($openRouterBadgeId > 0) {
-            $sceneClassifierPayload["api_badge_id"] = $openRouterBadgeId;
+            $sceneClassifierPayload["local_api_key_id"] = $openRouterBadgeId;
         }
 
         if ($sceneClassifierRow && isset($sceneClassifierRow["id"])) {
@@ -1826,7 +1831,18 @@ try {
             WHERE a.prompt_key = b.prompt_key
               AND a.ctid < b.ctid
         ");
-        $db->execQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_prompt_key_unique ON synth.prompts (prompt_key)");
+        // Only a table without a unique key on prompt_key needs the index; the table the chain creates has the primary
+        // key, and a rerun after an interrupted chain must not add a redundant second one (the schema would differ
+        // from an uninterrupted run's).
+        $promptKeyIsUnique = $db->fetchOne("
+            SELECT 1 AS found FROM pg_index i
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+             WHERE i.indrelid = 'synth.prompts'::regclass AND i.indisunique AND i.indnatts = 1
+               AND i.indpred IS NULL AND i.indexprs IS NULL AND a.attname = 'prompt_key'
+        ");
+        if (empty($promptKeyIsUnique)) {
+            $db->execQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_prompt_key_unique ON synth.prompts (prompt_key)");
+        }
 
         $promptCountRow = $db->fetchOne("SELECT COUNT(*) AS count FROM synth.prompts");
         $promptCount = intval($promptCountRow["count"] ?? 0);
@@ -3295,7 +3311,8 @@ if ($checkVersion("core_stt_connector") < 20260502002) {
     }
 
     try {
-        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS api_badge_id integer;");
+        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS local_api_key_id integer;");
+        $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS api_key_id uuid;");
         $db->execQuery("ALTER TABLE synth.core_stt_connector ADD COLUMN IF NOT EXISTS url text;");
     } catch (Exception $e) {
         $b_ok = false;
@@ -3313,7 +3330,7 @@ if ($checkVersion("core_stt_connector") < 20260502002) {
             $db->execQuery("
                 ALTER TABLE synth.core_stt_connector
                 ADD CONSTRAINT stt_connector_api_badge_id_fkey
-                FOREIGN KEY (api_badge_id) REFERENCES synth.core_api_badge(id)
+                FOREIGN KEY (local_api_key_id) REFERENCES synth.core_api_badge(id)
             ");
         }
     } catch (Exception $e) {
@@ -3810,7 +3827,7 @@ if ($checkVersion("core_tts_connector_omnivoice") < 20260708001) {
     $b_ok = true;
     try {
         $db->execQuery("
-            INSERT INTO synth.core_tts_connector (driver, label, metadata, api_badge_id, url, voice_field)
+            INSERT INTO synth.core_tts_connector (driver, label, metadata, local_api_key_id, url, voice_field)
             SELECT
                 'omnivoice',
                 'OmniVoice Default',
@@ -4971,7 +4988,7 @@ if ($checkVersion('itt_connector_defaults') < 20260731002) {
                 'driver' => 'openrouter',
                 'label' => 'Global ITT Connector',
                 'metadata' => $ittConnector->getDefaultMetadataForDriver('openrouter'),
-                'api_badge_id' => $ittConnector->getDefaultApiBadgeIdForDriver('openrouter'),
+                'api_key_ref' => null,
                 'url' => $ittConnector->getDefaultUrlForDriver('openrouter'),
             ]);
             if ($activeId < 1) {

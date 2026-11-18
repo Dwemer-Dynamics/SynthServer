@@ -299,13 +299,10 @@ function getInworldActiveConfig(): array {
         }
         if ($apiCredential === '') {
             $db = ensureInworldDb();
-            $apiBadgeId = intval($row['api_badge_id'] ?? 0);
-            if ($db && $apiBadgeId > 0) {
-                require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-                $badgeRow = (new \Synth\Core\ApiBadgeRepository($db))->keyById($apiBadgeId);
-                if (is_array($badgeRow) && !empty($badgeRow['api_key'])) {
-                    $apiCredential = trim(strval($badgeRow['api_key']));
-                }
+            if ($db && is_array($row)) {
+                // The key the connector names, else the global Inworld key.
+                require_once __DIR__ . '/../lib/core/api_badge.class.php';
+                $apiCredential = trim(ApiBadge::keyForConnector($row, 'Inworld'));
             }
         }
     }

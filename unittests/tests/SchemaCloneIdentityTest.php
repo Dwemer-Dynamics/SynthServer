@@ -62,7 +62,7 @@ final class SchemaCloneIdentityTest extends TestCase
 
         $source = (string) file_get_contents($page);
         foreach (['<form', '$_POST', 'pts_clone_schema', 'pts_drop_schema', 'pts_recreate_public_schema',
-                     'database_versioning', 'INSERT INTO', 'UPDATE synth_meta', 'DELETE FROM'] as $mutation) {
+                     'core_catalog_version', 'INSERT INTO', 'UPDATE synth_meta', 'DELETE FROM'] as $mutation) {
             $this->assertStringNotContainsString($mutation, $source);
         }
     }
