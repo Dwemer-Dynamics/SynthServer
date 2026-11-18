@@ -27,14 +27,16 @@ class SaveRepository
     public function conversationRows(array $event, string $targetName, array $deliveredStates, int $limit): array
     {
         $states = implode(',', array_map(fn($state) => $this->db->escapeLiteral(strval($state)), $deliveredStates));
+        // Rows of the request's own conversation fill the limit first; the result stays newest first.
+        $rank = \Synth\Managers\Conversation\ConversationManager::rankSql($this->db, $event);
         $rows = $this->db->fetchAll(synth_protocol_history_cte($this->db, $event, $targetName)
-            ." SELECT type,data,CASE WHEN speaker_identity_id=reader_identity_id THEN 1 ELSE 0 END AS own
+            ." SELECT type,data,own FROM (SELECT type,data,history_event_id,CASE WHEN speaker_identity_id=reader_identity_id THEN 1 ELSE 0 END AS own
             FROM native_history WHERE ((type='inputtext' AND speaker_identity_id=reader_player_id)
                 OR (type='chat' AND speaker_identity_id IS NOT NULL AND speaker_identity_id<>reader_player_id
                     AND delivery_state IN ($states))
                 OR (type='backgroundchat' AND witness_basis='first_observed' AND speaker_identity_id IS NOT NULL
                     AND speaker_identity_id<>reader_player_id))
-            ORDER BY history_event_id DESC LIMIT ".intval($limit));
+            ORDER BY ".($rank === null ? '' : "($rank) DESC,")."history_event_id DESC LIMIT ".intval($limit).") limited ORDER BY history_event_id DESC");
         return is_array($rows) ? $rows : [];
     }
 }

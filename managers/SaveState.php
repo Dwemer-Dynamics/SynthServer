@@ -12,6 +12,9 @@ require_once dirname(__DIR__).'/core/dbmanager/repositories/SaveRepository.php';
 class SaveState
 {
     public const HEARD_STATES = ['spoken', 'presented'];
+    // Lines that may appear in a prompt: heard lines, plus lines the player only partly heard (interrupted). An
+    // interrupted line is written to history only under dialogue.conversation, marked as cut off; it is never heard.
+    public const CONTEXT_STATES = ['spoken', 'presented', 'interrupted'];
 
     public function __construct(private SaveRepository $saves) {}
 
@@ -23,7 +26,7 @@ class SaveState
     // Newest first: real player input and only heard lines between this player and this placed NPC.
     public function conversationRows(array $event, string $targetName, int $limit): array
     {
-        return $this->saves->conversationRows($event, $targetName, self::HEARD_STATES, $limit);
+        return $this->saves->conversationRows($event, $targetName, self::CONTEXT_STATES, $limit);
     }
 
     public function heard(string $state): bool

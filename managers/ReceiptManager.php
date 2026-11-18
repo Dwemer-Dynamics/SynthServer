@@ -13,8 +13,12 @@ require_once __DIR__.'/SessionManager.php';
 // owned receipt write. It needs no provider, speech, knowledge or turn services.
 final class ReceiptManager
 {
+    // skipped (dialogue.conversation) is a line the player never heard: it is stored exactly like a failed one,
+    // and the stored receipt event keeps the distinct outcome.
     private const RECEIPT_STATES = ['audio_completed' => 'spoken', 'text_presented' => 'presented',
-        'interrupted' => 'interrupted', 'failed' => 'failed'];
+        'interrupted' => 'interrupted', 'failed' => 'failed', 'skipped' => 'failed'];
+    // Marks a line the player only partly heard, so a later prompt can tell it was cut off.
+    public const CUT_OFF_MARK = ' [cut off]';
 
     public function __construct(private SessionManager $sessions, private UtteranceRepository $utterances) {}
 
@@ -33,8 +37,12 @@ final class ReceiptManager
         $player = $receipt->playerName();
         // A /talk line keeps its fixed form. An ordinary line is labelled only from its own stored route: speaker,
         // addressed listener and the origin's mode (the emission-time suffix wording), never the receipt's target.
-        $heard = $this->sessions->heard($state)
-            ? static function (string $text, ?array $ordinary = null) use ($speaker, $player): string {
+        // With dialogue.conversation an interrupted line stays in context, marked as cut off; without it the
+        // released behaviour is unchanged and an interrupted line is never heard.
+        $cutOff = $state === 'interrupted' && in_array('dialogue.conversation', $event['capabilities'] ?? [], true);
+        $heard = $this->sessions->heard($state) || $cutOff
+            ? static function (string $text, ?array $ordinary = null) use ($speaker, $player, $cutOff): string {
+                if ($cutOff) $text .= self::CUT_OFF_MARK;
                 if ($ordinary === null) return $speaker.': '.$text.' (talking to '.$player.')';
                 $listener = trim($ordinary['listener']);
                 $suffix = $listener === '' ? '' : ' '.match ($ordinary['mode']) {
