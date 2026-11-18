@@ -110,22 +110,22 @@ column|synth_meta|history_events|recorded_at|timestamp with time zone|timestampt
 column|synth_meta|history_events|request_id|text|text|YES||
 column|synth_meta|history_events|scene_context_sequence|bigint|int8|YES||
 column|synth_meta|history_events|session_id|text|text|NO||
-column|synth_meta|media_objects|byte_length|bigint|int8|NO||
-column|synth_meta|media_objects|cache_key|text|text|YES||
-column|synth_meta|media_objects|content_type|text|text|NO||
-column|synth_meta|media_objects|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|media_objects|expires_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|media_objects|failure_code|text|text|YES||
-column|synth_meta|media_objects|generation|bigint|int8|YES||
-column|synth_meta|media_objects|media_id|text|text|NO||
-column|synth_meta|media_objects|published_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|media_objects|request_id|text|text|YES||
-column|synth_meta|media_objects|sha256|character|bpchar|NO||64
-column|synth_meta|media_objects|speaker_identity_id|bigint|int8|YES||
-column|synth_meta|media_objects|state|text|text|NO||
-column|synth_meta|media_objects|storage_key|text|text|NO||
-column|synth_meta|media_objects|turn_id|text|text|YES||
-column|synth_meta|media_objects|utterance_id|text|text|YES||
+column|public|core_media_object|byte_length|bigint|int8|NO||
+column|public|core_media_object|cache_key|text|text|YES||
+column|public|core_media_object|content_type|text|text|NO||
+column|public|core_media_object|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_media_object|expires_at|timestamp with time zone|timestamptz|YES||
+column|public|core_media_object|failure_code|text|text|YES||
+column|public|core_media_object|generation|bigint|int8|YES||
+column|public|core_media_object|media_id|text|text|NO||
+column|public|core_media_object|published_at|timestamp with time zone|timestamptz|YES||
+column|public|core_media_object|request_id|text|text|YES||
+column|public|core_media_object|sha256|character|bpchar|NO||64
+column|public|core_media_object|speaker_identity_id|bigint|int8|YES||
+column|public|core_media_object|state|text|text|NO||
+column|public|core_media_object|storage_key|text|text|NO||
+column|public|core_media_object|turn_id|text|text|YES||
+column|public|core_media_object|utterance_id|text|text|YES||
 column|synth_meta|memory_batch_control_events|action|text|text|YES||
 column|synth_meta|memory_batch_control_events|archived|boolean|bool|NO||
 column|synth_meta|memory_batch_control_events|batch_id|bigint|int8|NO||
@@ -494,21 +494,21 @@ column|synth_meta|social_task_inputs|performer_identity_id|bigint|int8|NO||
 column|synth_meta|social_task_inputs|player_identity_id|bigint|int8|NO||
 column|synth_meta|social_task_inputs|recipient_identity_id|bigint|int8|NO||
 column|synth_meta|social_task_inputs|task_id|text|text|NO||
-column|synth_meta|visual_description_revisions|actor_identity_id|bigint|int8|NO||
-column|synth_meta|visual_description_revisions|capture_id|text|text|NO||
-column|synth_meta|visual_description_revisions|description|text|text|YES||
-column|synth_meta|visual_description_revisions|history_event_id|bigint|int8|NO||
-column|synth_meta|visual_description_revisions|input_hash|character|bpchar|NO||64
-column|synth_meta|visual_description_revisions|input_payload|jsonb|jsonb|NO||
-column|synth_meta|visual_results|actor_identity_id|bigint|int8|NO||
-column|synth_meta|visual_results|capture_id|text|text|NO||
-column|synth_meta|visual_results|context_sequence|bigint|int8|NO||
-column|synth_meta|visual_results|generation|bigint|int8|NO||
-column|synth_meta|visual_results|history_event_id|bigint|int8|NO||
-column|synth_meta|visual_results|request_id|text|text|NO||
-column|synth_meta|visual_results|result_payload|jsonb|jsonb|NO||
-column|synth_meta|visual_results|result_sha256|character|bpchar|NO||64
-column|synth_meta|visual_results|session_id|text|text|NO||
+column|public|core_visual_description_revision|actor_identity_id|bigint|int8|NO||
+column|public|core_visual_description_revision|capture_id|text|text|NO||
+column|public|core_visual_description_revision|description|text|text|YES||
+column|public|core_visual_description_revision|history_event_id|bigint|int8|NO||
+column|public|core_visual_description_revision|input_hash|character|bpchar|NO||64
+column|public|core_visual_description_revision|input_payload|jsonb|jsonb|NO||
+column|public|core_visual_result|actor_identity_id|bigint|int8|NO||
+column|public|core_visual_result|capture_id|text|text|NO||
+column|public|core_visual_result|context_sequence|bigint|int8|NO||
+column|public|core_visual_result|generation|bigint|int8|NO||
+column|public|core_visual_result|history_event_id|bigint|int8|NO||
+column|public|core_visual_result|request_id|text|text|NO||
+column|public|core_visual_result|result_payload|jsonb|jsonb|NO||
+column|public|core_visual_result|result_sha256|character|bpchar|NO||64
+column|public|core_visual_result|session_id|text|text|NO||
 column|synth_meta|worker_jobs|actor_identity_id|bigint|int8|YES||
 column|synth_meta|worker_jobs|attempts|integer|int4|NO|0|
 column|synth_meta|worker_jobs|available_at|timestamp with time zone|timestamptz|NO|now()|
@@ -834,12 +834,12 @@ column|synth|eventlog|synth_session_id|text|text|YES||
 column|synth|eventlog|ts|bigint|int8|YES||
 column|synth|eventlog|type|character varying|varchar|YES||128
 column|synth|eventlog|utterance_id|text|text|YES||
-column|synth|factions|caps|numeric|numeric|YES||
-column|synth|factions|formid|text|text|NO||
-column|synth|factions|name|text|text|YES||
-column|synth|factions|player_rank|numeric|numeric|YES||
-column|synth|factions|stock|jsonb|jsonb|YES||
-column|synth|factions|vendor_cont|text|text|YES||
+column|public|core_faction|caps|numeric|numeric|YES||
+column|public|core_faction|formid|text|text|NO||
+column|public|core_faction|name|text|text|YES||
+column|public|core_faction|player_rank|numeric|numeric|YES||
+column|public|core_faction|stock|jsonb|jsonb|YES||
+column|public|core_faction|vendor_cont|text|text|YES||
 column|synth|game_plugins|compile_index|integer|int4|NO|0|
 column|synth|game_plugins|formid_prefix|text|text|NO|''::text|
 column|synth|game_plugins|is_light|boolean|bool|NO|false|
@@ -929,24 +929,24 @@ column|public|core_prompt|default_prompt|text|text|NO||
 column|public|core_prompt|description|text|text|YES||
 column|public|core_prompt|prompt_key|character varying|varchar|NO||128
 column|public|core_prompt|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
-column|synth|quests|briefing2|text|text|YES||
-column|synth|quests|briefing|text|text|YES||
-column|synth|quests|data|text|text|YES||
-column|synth|quests|editor_id|text|text|YES||
-column|synth|quests|gamets|bigint|int8|NO||
-column|synth|quests|giver_actor_id|text|text|YES||
-column|synth|quests|id_quest|character varying|varchar|NO||1024
-column|synth|quests|is_unique|boolean|bool|YES||
-column|synth|quests|localts|bigint|int8|NO||
-column|synth|quests|mod|text|text|YES||
-column|synth|quests|name|text|text|YES||
-column|synth|quests|reward|text|text|YES||
-column|synth|quests|rowid|bigint|int8|NO|nextval('quests_rowid_seq'::regclass)|
-column|synth|quests|sess|character varying|varchar|YES||1024
-column|synth|quests|stage|integer|int4|YES||
-column|synth|quests|status|text|text|YES||
-column|synth|quests|target_id|text|text|YES||
-column|synth|quests|ts|text|text|NO||
+column|public|core_quest|briefing2|text|text|YES||
+column|public|core_quest|briefing|text|text|YES||
+column|public|core_quest|data|text|text|YES||
+column|public|core_quest|editor_id|text|text|YES||
+column|public|core_quest|gamets|bigint|int8|NO||
+column|public|core_quest|giver_actor_id|text|text|YES||
+column|public|core_quest|id_quest|character varying|varchar|NO||1024
+column|public|core_quest|is_unique|boolean|bool|YES||
+column|public|core_quest|localts|bigint|int8|NO||
+column|public|core_quest|mod|text|text|YES||
+column|public|core_quest|name|text|text|YES||
+column|public|core_quest|reward|text|text|YES||
+column|public|core_quest|rowid|bigint|int8|NO|nextval('quests_rowid_seq'::regclass)|
+column|public|core_quest|sess|character varying|varchar|YES||1024
+column|public|core_quest|stage|integer|int4|YES||
+column|public|core_quest|status|text|text|YES||
+column|public|core_quest|target_id|text|text|YES||
+column|public|core_quest|ts|text|text|NO||
 column|synth|relationship_eval_queue|created_at|timestamp without time zone|timestamp|YES|now()|
 column|synth|relationship_eval_queue|eval_data|jsonb|jsonb|NO||
 column|synth|relationship_eval_queue|id|integer|int4|NO|nextval('relationship_eval_queue_id_seq'::regclass)|
@@ -1014,63 +1014,63 @@ column|synth|synthnpcs|speechstyle|text|text|YES||
 column|synth|synthnpcs|tags|text|text|YES||
 column|synth|synthnpcs|voiceid|text|text|YES||
 column|synth|synthnpcs|worldknowledge_tags|text|text|YES||
-column|synth|visual_context|active|boolean|bool|NO|true|
-column|synth|visual_context|actor_identity_id|bigint|int8|YES||
-column|synth|visual_context|baseid|text|text|NO|''::text|
-column|synth|visual_context|capture_id|text|text|NO||
-column|synth|visual_context|captured_at|timestamp with time zone|timestamptz|NO|CURRENT_TIMESTAMP|
-column|synth|visual_context|cell_id|text|text|NO|''::text|
-column|synth|visual_context|description|text|text|NO|''::text|
-column|synth|visual_context|generation|bigint|int8|YES||
-column|synth|visual_context|id|bigint|int8|NO|nextval('visual_context_id_seq'::regclass)|
-column|synth|visual_context|image_path|text|text|NO|''::text|
-column|synth|visual_context|image_sha256|text|text|NO|''::text|
-column|synth|visual_context|interaction_mode|text|text|NO|'store_only'::text|
-column|synth|visual_context|location_name|text|text|NO|''::text|
-column|synth|visual_context|locked|boolean|bool|NO|false|
-column|synth|visual_context|media_id|text|text|YES||
-column|synth|visual_context|metadata|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|visual_context|model|text|text|NO|''::text|
-column|synth|visual_context|perspective|text|text|NO|'first_person'::text|
-column|synth|visual_context|plugin|text|text|NO|''::text|
-column|synth|visual_context|provider|text|text|NO|''::text|
-column|synth|visual_context|refid|text|text|NO|''::text|
-column|synth|visual_context|request_id|text|text|NO|''::text|
-column|synth|visual_context|request_sha256|character|bpchar|YES||64
-column|synth|visual_context|response_payload|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|visual_context|runtime_variant|text|text|NO|'flat'::text|
-column|synth|visual_context|session_id|text|text|YES||
-column|synth|visual_context|subject_key|text|text|NO||
-column|synth|visual_context|subject_name|text|text|NO|''::text|
-column|synth|visual_context|subject_type|text|text|NO|'scene'::text|
-column|synth|visual_context|turn_id|text|text|NO|''::text|
-column|synth|visual_context|updated_at|timestamp with time zone|timestamptz|NO|CURRENT_TIMESTAMP|
-column|synth|visual_context|user_edited|boolean|bool|NO|false|
-column|synth|visual_context|worldspace_id|text|text|NO|''::text|
-column|synth|visual_context|worldspace_name|text|text|NO|''::text|
-column|synth|worldknowledge_audit|access_decisions|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|algorithm_version|text|text|NO||
-column|synth|worldknowledge_audit|audit_id|bigint|int8|NO|nextval('worldknowledge_audit_audit_id_seq'::regclass)|
-column|synth|worldknowledge_audit|catalog_checksum|character varying|varchar|YES||64
-column|synth|worldknowledge_audit|catalog_id|text|text|YES||
-column|synth|worldknowledge_audit|catalog_version|text|text|YES||
-column|synth|worldknowledge_audit|context_tags|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|worldknowledge_audit|elapsed_ms|numeric|numeric|NO|0|
-column|synth|worldknowledge_audit|fallback|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|worldknowledge_audit|forced_signals|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|grounded_matches|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|input_text|text|text|NO||
-column|synth|worldknowledge_audit|normalized_input|text|text|NO||
-column|synth|worldknowledge_audit|npc_name|text|text|YES||
-column|synth|worldknowledge_audit|prompt_hash|character varying|varchar|YES||64
-column|synth|worldknowledge_audit|rejected_candidates|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|request_type|text|text|NO||
-column|synth|worldknowledge_audit|retrieval_elapsed_ms|numeric|numeric|NO|0|
-column|synth|worldknowledge_audit|selected_articles|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_audit|settings|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|worldknowledge_audit|status|text|text|NO||
-column|synth|worldknowledge_audit|tag_decisions|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_visual_context|active|boolean|bool|NO|true|
+column|public|core_visual_context|actor_identity_id|bigint|int8|YES||
+column|public|core_visual_context|baseid|text|text|NO|''::text|
+column|public|core_visual_context|capture_id|text|text|NO||
+column|public|core_visual_context|captured_at|timestamp with time zone|timestamptz|NO|CURRENT_TIMESTAMP|
+column|public|core_visual_context|cell_id|text|text|NO|''::text|
+column|public|core_visual_context|description|text|text|NO|''::text|
+column|public|core_visual_context|generation|bigint|int8|YES||
+column|public|core_visual_context|id|bigint|int8|NO|nextval('visual_context_id_seq'::regclass)|
+column|public|core_visual_context|image_path|text|text|NO|''::text|
+column|public|core_visual_context|image_sha256|text|text|NO|''::text|
+column|public|core_visual_context|interaction_mode|text|text|NO|'store_only'::text|
+column|public|core_visual_context|location_name|text|text|NO|''::text|
+column|public|core_visual_context|locked|boolean|bool|NO|false|
+column|public|core_visual_context|media_id|text|text|YES||
+column|public|core_visual_context|metadata|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_visual_context|model|text|text|NO|''::text|
+column|public|core_visual_context|perspective|text|text|NO|'first_person'::text|
+column|public|core_visual_context|plugin|text|text|NO|''::text|
+column|public|core_visual_context|provider|text|text|NO|''::text|
+column|public|core_visual_context|refid|text|text|NO|''::text|
+column|public|core_visual_context|request_id|text|text|NO|''::text|
+column|public|core_visual_context|request_sha256|character|bpchar|YES||64
+column|public|core_visual_context|response_payload|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_visual_context|runtime_variant|text|text|NO|'flat'::text|
+column|public|core_visual_context|session_id|text|text|YES||
+column|public|core_visual_context|subject_key|text|text|NO||
+column|public|core_visual_context|subject_name|text|text|NO|''::text|
+column|public|core_visual_context|subject_type|text|text|NO|'scene'::text|
+column|public|core_visual_context|turn_id|text|text|NO|''::text|
+column|public|core_visual_context|updated_at|timestamp with time zone|timestamptz|NO|CURRENT_TIMESTAMP|
+column|public|core_visual_context|user_edited|boolean|bool|NO|false|
+column|public|core_visual_context|worldspace_id|text|text|NO|''::text|
+column|public|core_visual_context|worldspace_name|text|text|NO|''::text|
+column|public|core_worldknowledge_audit|access_decisions|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|algorithm_version|text|text|NO||
+column|public|core_worldknowledge_audit|audit_id|bigint|int8|NO|nextval('worldknowledge_audit_audit_id_seq'::regclass)|
+column|public|core_worldknowledge_audit|catalog_checksum|character varying|varchar|YES||64
+column|public|core_worldknowledge_audit|catalog_id|text|text|YES||
+column|public|core_worldknowledge_audit|catalog_version|text|text|YES||
+column|public|core_worldknowledge_audit|context_tags|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_worldknowledge_audit|elapsed_ms|numeric|numeric|NO|0|
+column|public|core_worldknowledge_audit|fallback|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_worldknowledge_audit|forced_signals|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|grounded_matches|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|input_text|text|text|NO||
+column|public|core_worldknowledge_audit|normalized_input|text|text|NO||
+column|public|core_worldknowledge_audit|npc_name|text|text|YES||
+column|public|core_worldknowledge_audit|prompt_hash|character varying|varchar|YES||64
+column|public|core_worldknowledge_audit|rejected_candidates|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|request_type|text|text|NO||
+column|public|core_worldknowledge_audit|retrieval_elapsed_ms|numeric|numeric|NO|0|
+column|public|core_worldknowledge_audit|selected_articles|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_worldknowledge_audit|settings|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_worldknowledge_audit|status|text|text|NO||
+column|public|core_worldknowledge_audit|tag_decisions|jsonb|jsonb|NO|'[]'::jsonb|
 column|synth|worldknowledge_catalogs|activated_at|timestamp without time zone|timestamp|YES||
 column|synth|worldknowledge_catalogs|catalog_id|text|text|NO||
 column|synth|worldknowledge_catalogs|catalog_version|text|text|NO||
@@ -1215,15 +1215,15 @@ constraint|synth_meta|history_events|history_events_scene_context_sequence_check
 constraint|synth_meta|history_events|history_events_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
 constraint|synth_meta|history_events|history_events_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
 constraint|synth_meta|history_events|history_request_or_manual|c|t|CHECK (((request_id IS NOT NULL) OR ((COALESCE((event_payload ->> 'type'::text), ''::text) = ANY (ARRAY['relationship_manual'::text, 'visual_manual'::text, 'diary_control'::text, 'middleterm_control'::text, 'middleterm_regeneration'::text])) AND (NOT ((event_payload ->> 'delivery_state'::text) IS DISTINCT FROM 'derived'::text)))))
-constraint|synth_meta|media_objects|media_objects_byte_length_check|c|t|CHECK (((byte_length >= 1) AND (byte_length <= 16777216)))
-constraint|synth_meta|media_objects|media_objects_cache_key_key|u|t|UNIQUE (cache_key)
-constraint|synth_meta|media_objects|media_objects_content_type_check|c|t|CHECK ((content_type = ANY (ARRAY['audio/wav'::text, 'audio/ogg'::text, 'image/jpeg'::text, 'image/png'::text, 'image/webp'::text])))
-constraint|synth_meta|media_objects|media_objects_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|media_objects|media_objects_media_id_check|c|t|CHECK ((media_id ~ '^media/[0-9a-f]{64}$'::text))
-constraint|synth_meta|media_objects|media_objects_pkey|p|t|PRIMARY KEY (media_id)
-constraint|synth_meta|media_objects|media_objects_sha256_check|c|t|CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|media_objects|media_objects_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|media_objects|media_objects_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'expired'::text])))
+constraint|public|core_media_object|media_objects_byte_length_check|c|t|CHECK (((byte_length >= 1) AND (byte_length <= 16777216)))
+constraint|public|core_media_object|media_objects_cache_key_key|u|t|UNIQUE (cache_key)
+constraint|public|core_media_object|media_objects_content_type_check|c|t|CHECK ((content_type = ANY (ARRAY['audio/wav'::text, 'audio/ogg'::text, 'image/jpeg'::text, 'image/png'::text, 'image/webp'::text])))
+constraint|public|core_media_object|media_objects_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_media_object|media_objects_media_id_check|c|t|CHECK ((media_id ~ '^media/[0-9a-f]{64}$'::text))
+constraint|public|core_media_object|media_objects_pkey|p|t|PRIMARY KEY (media_id)
+constraint|public|core_media_object|media_objects_sha256_check|c|t|CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_media_object|media_objects_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_media_object|media_objects_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'expired'::text])))
 constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_action_check|c|t|CHECK ((action = ANY (ARRAY['archive'::text, 'restore'::text, 'edit'::text, 'regenerate'::text])))
 constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
 constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_pkey|p|t|PRIMARY KEY (batch_id, revision)
@@ -1578,25 +1578,25 @@ constraint|synth_meta|social_task_inputs|social_task_inputs_pkey|p|t|PRIMARY KEY
 constraint|synth_meta|social_task_inputs|social_task_inputs_player_identity_id_fkey|f|t|FOREIGN KEY (player_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|social_task_inputs|social_task_inputs_recipient_identity_id_fkey|f|t|FOREIGN KEY (recipient_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|social_task_inputs|social_task_inputs_task_id_check|c|t|CHECK ((task_id ~ '^social:[0-9a-f]{32}$'::text))
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_capture_id_fkey|f|t|FOREIGN KEY (capture_id) REFERENCES visual_results(capture_id)
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_description_check|c|t|CHECK (((description IS NULL) OR ((octet_length(description) <= 12000) AND (btrim(description) <> ''::text))))
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_input_hash_check|c|t|CHECK ((input_hash ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.manual.v1'::text))))
-constraint|synth_meta|visual_description_revisions|visual_description_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|visual_results|visual_results_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|visual_results|visual_results_capture_id_check|c|t|CHECK ((capture_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|visual_results|visual_results_capture_id_key|u|t|UNIQUE (capture_id)
-constraint|synth_meta|visual_results|visual_results_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|visual_results|visual_results_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|visual_results|visual_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|visual_results|visual_results_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|visual_results|visual_results_result_payload_check|c|t|CHECK (((jsonb_typeof(result_payload) = 'object'::text) AND (NOT ((result_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.result.v1'::text))))
-constraint|synth_meta|visual_results|visual_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|visual_results|visual_results_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
-constraint|synth_meta|visual_results|visual_results_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|visual_results|visual_results_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
+constraint|public|core_visual_description_revision|visual_description_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_visual_description_revision|visual_description_revisions_capture_id_fkey|f|t|FOREIGN KEY (capture_id) REFERENCES visual_results(capture_id)
+constraint|public|core_visual_description_revision|visual_description_revisions_description_check|c|t|CHECK (((description IS NULL) OR ((octet_length(description) <= 12000) AND (btrim(description) <> ''::text))))
+constraint|public|core_visual_description_revision|visual_description_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_visual_description_revision|visual_description_revisions_input_hash_check|c|t|CHECK ((input_hash ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_visual_description_revision|visual_description_revisions_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.manual.v1'::text))))
+constraint|public|core_visual_description_revision|visual_description_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_visual_result|visual_results_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_visual_result|visual_results_capture_id_check|c|t|CHECK ((capture_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_visual_result|visual_results_capture_id_key|u|t|UNIQUE (capture_id)
+constraint|public|core_visual_result|visual_results_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_visual_result|visual_results_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_visual_result|visual_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_visual_result|visual_results_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_visual_result|visual_results_result_payload_check|c|t|CHECK (((jsonb_typeof(result_payload) = 'object'::text) AND (NOT ((result_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.result.v1'::text))))
+constraint|public|core_visual_result|visual_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_visual_result|visual_results_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES context_snapshots(session_id, generation, snapshot_sequence)
+constraint|public|core_visual_result|visual_results_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_visual_result|visual_results_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
 constraint|synth_meta|worker_jobs|worker_jobs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|worker_jobs|worker_jobs_attempts_check|c|t|CHECK ((attempts >= 0))
 constraint|synth_meta|worker_jobs|worker_jobs_check|c|t|CHECK (((relationship_interaction_id IS NULL) OR ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NULL) AND (memory_batch_id IS NULL) AND (session_id IS NOT NULL) AND (actor_identity_id IS NOT NULL))))
@@ -1655,7 +1655,7 @@ constraint|public|core_tts_pronunciation|core_tts_pronunciation_source_not_blank
 constraint|public|core_tts_pronunciation|core_tts_pronunciation_spoken_not_blank|c|t|CHECK ((btrim((spoken_text)::text) <> ''::text))
 constraint|synth|descriptions_custom|descriptions_custom_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|synth|descriptions|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
-constraint|synth|factions|factions_pkey|p|t|PRIMARY KEY (formid)
+constraint|public|core_faction|factions_pkey|p|t|PRIMARY KEY (formid)
 constraint|synth|game_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
 constraint|synth|general_settings|general_settings_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_config_preset|global_settings_presets_name_check|c|t|CHECK ((length(btrim((name)::text)) > 0))
@@ -1668,17 +1668,17 @@ constraint|synth|relationship_eval_queue|relationship_eval_queue_npc_id_key|u|t|
 constraint|synth|relationship_eval_queue|relationship_eval_queue_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|relationship_init_queue|relationship_init_queue_npc_id_key|u|t|UNIQUE (npc_id)
 constraint|synth|relationship_init_queue|relationship_init_queue_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|visual_context|visual_context_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
-constraint|synth|visual_context|visual_context_capture_id_key|u|t|UNIQUE (capture_id)
-constraint|synth|visual_context|visual_context_generation_check|c|t|CHECK (((generation IS NULL) OR (generation > 0)))
-constraint|synth|visual_context|visual_context_interaction_mode_check|c|t|CHECK ((interaction_mode = ANY (ARRAY['store_only'::text, 'describe'::text, 'npc_portrait'::text])))
-constraint|synth|visual_context|visual_context_media_id_fkey|f|t|FOREIGN KEY (media_id) REFERENCES media_objects(media_id) ON DELETE RESTRICT
-constraint|synth|visual_context|visual_context_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|visual_context|visual_context_request_sha256_check|c|t|CHECK (((request_sha256 IS NULL) OR (request_sha256 ~ '^[0-9a-f]{64}$'::text)))
-constraint|synth|visual_context|visual_context_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
-constraint|synth|visual_context|visual_context_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE SET NULL
-constraint|synth|worldknowledge_audit|worldknowledge_audit_pkey|p|t|PRIMARY KEY (audit_id)
-constraint|synth|worldknowledge_audit|worldknowledge_audit_status_check|c|t|CHECK ((status = ANY (ARRAY['grounded'::text, 'no_match'::text, 'fallback_succeeded'::text, 'fallback_unresolved'::text, 'fallback_failed'::text, 'fallback_disabled'::text, 'fallback_unconfigured'::text, 'disabled'::text, 'ineligible'::text, 'unavailable'::text, 'not_run'::text, 'legacy'::text])))
+constraint|public|core_visual_context|visual_context_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
+constraint|public|core_visual_context|visual_context_capture_id_key|u|t|UNIQUE (capture_id)
+constraint|public|core_visual_context|visual_context_generation_check|c|t|CHECK (((generation IS NULL) OR (generation > 0)))
+constraint|public|core_visual_context|visual_context_interaction_mode_check|c|t|CHECK ((interaction_mode = ANY (ARRAY['store_only'::text, 'describe'::text, 'npc_portrait'::text])))
+constraint|public|core_visual_context|visual_context_media_id_fkey|f|t|FOREIGN KEY (media_id) REFERENCES media_objects(media_id) ON DELETE RESTRICT
+constraint|public|core_visual_context|visual_context_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_visual_context|visual_context_request_sha256_check|c|t|CHECK (((request_sha256 IS NULL) OR (request_sha256 ~ '^[0-9a-f]{64}$'::text)))
+constraint|public|core_visual_context|visual_context_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
+constraint|public|core_visual_context|visual_context_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES runtime_sessions(session_id) ON DELETE SET NULL
+constraint|public|core_worldknowledge_audit|worldknowledge_audit_pkey|p|t|PRIMARY KEY (audit_id)
+constraint|public|core_worldknowledge_audit|worldknowledge_audit_status_check|c|t|CHECK ((status = ANY (ARRAY['grounded'::text, 'no_match'::text, 'fallback_succeeded'::text, 'fallback_unresolved'::text, 'fallback_failed'::text, 'fallback_disabled'::text, 'fallback_unconfigured'::text, 'disabled'::text, 'ineligible'::text, 'unavailable'::text, 'not_run'::text, 'legacy'::text])))
 constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_checksum_format|c|t|CHECK (((checksum_sha256)::text ~ '^[a-f0-9]{64}$'::text))
 constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_pkey|p|t|PRIMARY KEY (catalog_id, catalog_version)
 constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_row_count|c|t|CHECK ((row_count >= 0))
@@ -1714,9 +1714,9 @@ index|synth_meta|history_events|history_events_pkey|CREATE UNIQUE INDEX history_
 index|synth_meta|history_events|history_events_player_event_owner|CREATE UNIQUE INDEX history_events_player_event_owner ON synth_meta.history_events USING btree (session_id, generation, playthrough_id, ((((event_payload ->> 'party'::text))::jsonb ->> 'event_id'::text))) WHERE ((event_payload ->> 'type'::text) = 'player_event'::text)
 index|synth_meta|history_events|history_events_quest_batch_owner|CREATE UNIQUE INDEX history_events_quest_batch_owner ON synth_meta.history_events USING btree (session_id, generation, playthrough_id, ((((event_payload ->> 'party'::text))::jsonb ->> 'batch_id'::text))) WHERE ((event_payload ->> 'type'::text) = 'quest_events'::text)
 index|synth_meta|history_events|history_events_quest_observation_owner|CREATE INDEX history_events_quest_observation_owner ON synth_meta.history_events USING btree (session_id, generation, playthrough_id, id DESC) WHERE ((event_payload ->> 'type'::text) = 'quest_observation'::text)
-index|synth_meta|media_objects|media_objects_cache_key_key|CREATE UNIQUE INDEX media_objects_cache_key_key ON synth_meta.media_objects USING btree (cache_key)
-index|synth_meta|media_objects|media_objects_dispatch|CREATE INDEX media_objects_dispatch ON synth_meta.media_objects USING btree (state, generation, created_at)
-index|synth_meta|media_objects|media_objects_pkey|CREATE UNIQUE INDEX media_objects_pkey ON synth_meta.media_objects USING btree (media_id)
+index|public|core_media_object|media_objects_cache_key_key|CREATE UNIQUE INDEX media_objects_cache_key_key ON public.core_media_object USING btree (cache_key)
+index|public|core_media_object|media_objects_dispatch|CREATE INDEX media_objects_dispatch ON public.core_media_object USING btree (state, generation, created_at)
+index|public|core_media_object|media_objects_pkey|CREATE UNIQUE INDEX media_objects_pkey ON public.core_media_object USING btree (media_id)
 index|synth_meta|memory_batch_control_events|memory_batch_control_events_pkey|CREATE UNIQUE INDEX memory_batch_control_events_pkey ON synth_meta.memory_batch_control_events USING btree (batch_id, revision)
 index|synth_meta|memory_batch_controls|memory_batch_controls_pkey|CREATE UNIQUE INDEX memory_batch_controls_pkey ON synth_meta.memory_batch_controls USING btree (batch_id)
 index|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_pkey|CREATE UNIQUE INDEX memory_batch_rebuilds_pkey ON synth_meta.memory_batch_rebuilds USING btree (batch_id)
@@ -1816,12 +1816,12 @@ index|synth_meta|social_task_events|social_task_events_pkey|CREATE UNIQUE INDEX 
 index|synth_meta|social_task_events|social_task_events_task|CREATE INDEX social_task_events_task ON synth_meta.social_task_events USING btree (task_id, history_event_id DESC)
 index|synth_meta|social_task_inputs|social_task_inputs_history_event_id_key|CREATE UNIQUE INDEX social_task_inputs_history_event_id_key ON synth_meta.social_task_inputs USING btree (history_event_id)
 index|synth_meta|social_task_inputs|social_task_inputs_pkey|CREATE UNIQUE INDEX social_task_inputs_pkey ON synth_meta.social_task_inputs USING btree (task_id)
-index|synth_meta|visual_description_revisions|visual_description_capture_history|CREATE INDEX visual_description_capture_history ON synth_meta.visual_description_revisions USING btree (capture_id, actor_identity_id, history_event_id DESC)
-index|synth_meta|visual_description_revisions|visual_description_revisions_pkey|CREATE UNIQUE INDEX visual_description_revisions_pkey ON synth_meta.visual_description_revisions USING btree (history_event_id)
-index|synth_meta|visual_results|visual_results_actor_history|CREATE INDEX visual_results_actor_history ON synth_meta.visual_results USING btree (actor_identity_id, history_event_id DESC)
-index|synth_meta|visual_results|visual_results_capture_id_key|CREATE UNIQUE INDEX visual_results_capture_id_key ON synth_meta.visual_results USING btree (capture_id)
-index|synth_meta|visual_results|visual_results_pkey|CREATE UNIQUE INDEX visual_results_pkey ON synth_meta.visual_results USING btree (history_event_id)
-index|synth_meta|visual_results|visual_results_session_id_request_id_key|CREATE UNIQUE INDEX visual_results_session_id_request_id_key ON synth_meta.visual_results USING btree (session_id, request_id)
+index|public|core_visual_description_revision|visual_description_capture_history|CREATE INDEX visual_description_capture_history ON public.core_visual_description_revision USING btree (capture_id, actor_identity_id, history_event_id DESC)
+index|public|core_visual_description_revision|visual_description_revisions_pkey|CREATE UNIQUE INDEX visual_description_revisions_pkey ON public.core_visual_description_revision USING btree (history_event_id)
+index|public|core_visual_result|visual_results_actor_history|CREATE INDEX visual_results_actor_history ON public.core_visual_result USING btree (actor_identity_id, history_event_id DESC)
+index|public|core_visual_result|visual_results_capture_id_key|CREATE UNIQUE INDEX visual_results_capture_id_key ON public.core_visual_result USING btree (capture_id)
+index|public|core_visual_result|visual_results_pkey|CREATE UNIQUE INDEX visual_results_pkey ON public.core_visual_result USING btree (history_event_id)
+index|public|core_visual_result|visual_results_session_id_request_id_key|CREATE UNIQUE INDEX visual_results_session_id_request_id_key ON public.core_visual_result USING btree (session_id, request_id)
 index|synth_meta|worker_jobs|worker_jobs_active_memory_batch|CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON synth_meta.worker_jobs USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
 index|synth_meta|worker_jobs|worker_jobs_active_relationship_evaluation|CREATE UNIQUE INDEX worker_jobs_active_relationship_evaluation ON synth_meta.worker_jobs USING btree (relationship_evaluation_id) WHERE ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])))
 index|synth_meta|worker_jobs|worker_jobs_diary_input|CREATE UNIQUE INDEX worker_jobs_diary_input ON synth_meta.worker_jobs USING btree (diary_input_id) WHERE (diary_input_id IS NOT NULL)
@@ -1890,7 +1890,7 @@ index|synth|eventlog|idx_eventlog_gamets_ts_pos|CREATE INDEX idx_eventlog_gamets
 index|synth|eventlog|idx_eventlog_people_trgm2|CREATE INDEX idx_eventlog_people_trgm2 ON synth.eventlog USING gin (data gin_trgm_ops)
 index|synth|eventlog|idx_eventlog_people_trgm|CREATE INDEX idx_eventlog_people_trgm ON synth.eventlog USING gin (people gin_trgm_ops)
 index|synth|eventlog|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utterance_id ON synth.eventlog USING btree (utterance_id)
-index|synth|factions|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON synth.factions USING btree (formid)
+index|public|core_faction|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON public.core_faction USING btree (formid)
 index|synth|game_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON synth.game_plugins USING btree (plugin_name)
 index|synth|general_settings|general_settings_pkey|CREATE UNIQUE INDEX general_settings_pkey ON synth.general_settings USING btree (id)
 index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
@@ -1906,18 +1906,18 @@ index|synth|speech|idx_speech_gamets_pos|CREATE INDEX idx_speech_gamets_pos ON s
 index|synth|speech|idx_speech_listener_trgm|CREATE INDEX idx_speech_listener_trgm ON synth.speech USING gin (listener gin_trgm_ops)
 index|synth|speech|idx_speech_speaker_trgm|CREATE INDEX idx_speech_speaker_trgm ON synth.speech USING gin (speaker gin_trgm_ops)
 index|synth|speech|idx_speech_utterance_id|CREATE INDEX idx_speech_utterance_id ON synth.speech USING btree (utterance_id)
-index|synth|visual_context|visual_context_actor_idx|CREATE INDEX visual_context_actor_idx ON synth.visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL)
-index|synth|visual_context|visual_context_capture_id_key|CREATE UNIQUE INDEX visual_context_capture_id_key ON synth.visual_context USING btree (capture_id)
-index|synth|visual_context|visual_context_cell_idx|CREATE INDEX visual_context_cell_idx ON synth.visual_context USING btree (lower(cell_id), active, captured_at DESC)
-index|synth|visual_context|visual_context_image_idx|CREATE INDEX visual_context_image_idx ON synth.visual_context USING btree (image_sha256)
-index|synth|visual_context|visual_context_location_idx|CREATE INDEX visual_context_location_idx ON synth.visual_context USING btree (lower(worldspace_name), lower(location_name), active, captured_at DESC)
-index|synth|visual_context|visual_context_media_idx|CREATE INDEX visual_context_media_idx ON synth.visual_context USING btree (media_id) WHERE (media_id IS NOT NULL)
-index|synth|visual_context|visual_context_pkey|CREATE UNIQUE INDEX visual_context_pkey ON synth.visual_context USING btree (id)
-index|synth|visual_context|visual_context_runtime_request_idx|CREATE INDEX visual_context_runtime_request_idx ON synth.visual_context USING btree (session_id, generation, request_id, captured_at DESC)
-index|synth|visual_context|visual_context_subject_idx|CREATE INDEX visual_context_subject_idx ON synth.visual_context USING btree (subject_type, subject_key, active, captured_at DESC)
-index|synth|worldknowledge_audit|worldknowledge_audit_created_idx|CREATE INDEX worldknowledge_audit_created_idx ON synth.worldknowledge_audit USING btree (created_at DESC)
-index|synth|worldknowledge_audit|worldknowledge_audit_pkey|CREATE UNIQUE INDEX worldknowledge_audit_pkey ON synth.worldknowledge_audit USING btree (audit_id)
-index|synth|worldknowledge_audit|worldknowledge_audit_status_idx|CREATE INDEX worldknowledge_audit_status_idx ON synth.worldknowledge_audit USING btree (status, created_at DESC)
+index|public|core_visual_context|visual_context_actor_idx|CREATE INDEX visual_context_actor_idx ON public.core_visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL)
+index|public|core_visual_context|visual_context_capture_id_key|CREATE UNIQUE INDEX visual_context_capture_id_key ON public.core_visual_context USING btree (capture_id)
+index|public|core_visual_context|visual_context_cell_idx|CREATE INDEX visual_context_cell_idx ON public.core_visual_context USING btree (lower(cell_id), active, captured_at DESC)
+index|public|core_visual_context|visual_context_image_idx|CREATE INDEX visual_context_image_idx ON public.core_visual_context USING btree (image_sha256)
+index|public|core_visual_context|visual_context_location_idx|CREATE INDEX visual_context_location_idx ON public.core_visual_context USING btree (lower(worldspace_name), lower(location_name), active, captured_at DESC)
+index|public|core_visual_context|visual_context_media_idx|CREATE INDEX visual_context_media_idx ON public.core_visual_context USING btree (media_id) WHERE (media_id IS NOT NULL)
+index|public|core_visual_context|visual_context_pkey|CREATE UNIQUE INDEX visual_context_pkey ON public.core_visual_context USING btree (id)
+index|public|core_visual_context|visual_context_runtime_request_idx|CREATE INDEX visual_context_runtime_request_idx ON public.core_visual_context USING btree (session_id, generation, request_id, captured_at DESC)
+index|public|core_visual_context|visual_context_subject_idx|CREATE INDEX visual_context_subject_idx ON public.core_visual_context USING btree (subject_type, subject_key, active, captured_at DESC)
+index|public|core_worldknowledge_audit|worldknowledge_audit_created_idx|CREATE INDEX worldknowledge_audit_created_idx ON public.core_worldknowledge_audit USING btree (created_at DESC)
+index|public|core_worldknowledge_audit|worldknowledge_audit_pkey|CREATE UNIQUE INDEX worldknowledge_audit_pkey ON public.core_worldknowledge_audit USING btree (audit_id)
+index|public|core_worldknowledge_audit|worldknowledge_audit_status_idx|CREATE INDEX worldknowledge_audit_status_idx ON public.core_worldknowledge_audit USING btree (status, created_at DESC)
 index|synth|worldknowledge_catalogs|worldknowledge_catalogs_pkey|CREATE UNIQUE INDEX worldknowledge_catalogs_pkey ON synth.worldknowledge_catalogs USING btree (catalog_id, catalog_version)
 index|synth|worldknowledge_catalogs|worldknowledge_one_active_catalog_idx|CREATE UNIQUE INDEX worldknowledge_one_active_catalog_idx ON synth.worldknowledge_catalogs USING btree (is_active) WHERE is_active
 index|synth|worldknowledge|worldknowledge_catalog_lookup_idx|CREATE INDEX worldknowledge_catalog_lookup_idx ON synth.worldknowledge USING btree (catalog_id, catalog_version) WHERE (source_kind = 'factory'::text)
@@ -1938,7 +1938,7 @@ table|synth_meta|diary_inputs|BASE TABLE
 table|synth_meta|diary_job_results|BASE TABLE
 table|synth_meta|diary_results|BASE TABLE
 table|synth_meta|history_events|BASE TABLE
-table|synth_meta|media_objects|BASE TABLE
+table|public|core_media_object|BASE TABLE
 table|synth_meta|memory_batch_control_events|BASE TABLE
 table|synth_meta|memory_batch_controls|BASE TABLE
 table|synth_meta|memory_batch_rebuilds|BASE TABLE
@@ -1990,8 +1990,8 @@ table|synth_meta|settings|BASE TABLE
 table|synth_meta|social_task_claims|BASE TABLE
 table|synth_meta|social_task_events|BASE TABLE
 table|synth_meta|social_task_inputs|BASE TABLE
-table|synth_meta|visual_description_revisions|BASE TABLE
-table|synth_meta|visual_results|BASE TABLE
+table|public|core_visual_description_revision|BASE TABLE
+table|public|core_visual_result|BASE TABLE
 table|synth_meta|worker_jobs|BASE TABLE
 table|synth|actions_issued|BASE TABLE
 table|synth|actor_identities|BASE TABLE
@@ -2021,7 +2021,7 @@ table|synth|descriptions_custom|BASE TABLE
 table|synth|descriptions|BASE TABLE
 table|synth|diarylog|BASE TABLE
 table|synth|eventlog|BASE TABLE
-table|synth|factions|BASE TABLE
+table|public|core_faction|BASE TABLE
 table|synth|game_plugins|BASE TABLE
 table|synth|general_settings|BASE TABLE
 table|public|core_config_preset|BASE TABLE
@@ -2033,15 +2033,15 @@ table|synth|memory_v|VIEW
 table|synth|memory|BASE TABLE
 table|synth|moods_issued|BASE TABLE
 table|public|core_prompt|BASE TABLE
-table|synth|quests|BASE TABLE
+table|public|core_quest|BASE TABLE
 table|synth|relationship_eval_queue|BASE TABLE
 table|synth|relationship_init_queue|BASE TABLE
 table|synth|responselog|BASE TABLE
 table|synth|rolemaster|BASE TABLE
 table|synth|speech|BASE TABLE
 table|synth|synthnpcs|VIEW
-table|synth|visual_context|BASE TABLE
-table|synth|worldknowledge_audit|BASE TABLE
+table|public|core_visual_context|BASE TABLE
+table|public|core_worldknowledge_audit|BASE TABLE
 table|synth|worldknowledge_catalogs|BASE TABLE
 table|synth|worldknowledge_effective|VIEW
 table|synth|worldknowledge|BASE TABLE

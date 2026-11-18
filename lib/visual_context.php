@@ -63,7 +63,7 @@ if (!function_exists('synthVisualContextStore')) {
             $responseJson = '{}';
         }
 
-        $row = $db->fetchOne("INSERT INTO synth.visual_context (
+        $row = $db->fetchOne("INSERT INTO public.core_visual_context (
                 capture_id, session_id, request_id, turn_id, generation, runtime_variant,
                 interaction_mode, actor_identity_id, media_id, request_sha256, response_payload,
                 subject_type, subject_key, subject_name, plugin, baseid, refid,
@@ -118,7 +118,7 @@ if (!function_exists('synthVisualContextFindCapture')) {
             return null;
         }
         $row = $GLOBALS['db']->fetchOne(
-            'SELECT * FROM synth.visual_context WHERE capture_id='
+            'SELECT * FROM public.core_visual_context WHERE capture_id='
             . $GLOBALS['db']->escapeLiteral($captureId) . ' LIMIT 1'
         );
         return is_array($row) && $row !== [] ? $row : null;
@@ -156,7 +156,7 @@ if (!function_exists('synthVisualContextComplete')) {
         }
         $assignments[] = 'updated_at=CURRENT_TIMESTAMP';
         return $db->execQuery(
-            'UPDATE synth.visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
+            'UPDATE public.core_visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
         ) !== false;
     }
 }
@@ -173,7 +173,7 @@ function synthVisualContextCompleteOwned(array $request, int $recordId, array $f
         $db->fetchOne("SELECT session_id FROM synth_meta.runtime_sessions WHERE session_id=$session FOR UPDATE");
         synth_visual_validate_runtime($db, $request);
         $capture = $db->escapeLiteral($request['capture_id']);
-        $record = $db->fetchOne("SELECT request_sha256 FROM synth.visual_context
+        $record = $db->fetchOne("SELECT request_sha256 FROM public.core_visual_context
             WHERE id=$recordId AND capture_id=$capture AND session_id=$session FOR UPDATE");
         if (!$record || !hash_equals(strval($record['request_sha256']), hash('sha256', synth_visual_canonical_json($request)))) {
             throw new RuntimeException('Visual completion claim does not match the request.');
@@ -211,7 +211,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         'provider'=>synthVisualContextText($fields['provider'] ?? '',100),'model'=>synthVisualContextText($fields['model'] ?? '',255)];
     $resultJson=synth_visual_canonical_json($result);$resultHash=hash('sha256',$resultJson);
     $wire=synth_visual_canonical_json($request);$wireHash=hash('sha256',$wire);
-    $existing=$db->fetchOne("SELECT v.result_sha256,e.request_sha256 FROM synth_meta.visual_results v
+    $existing=$db->fetchOne("SELECT v.result_sha256,e.request_sha256 FROM public.core_visual_result v
         JOIN synth_meta.request_executions e USING(session_id,request_id) WHERE v.capture_id=$capture");
     if ($existing) {
         if (!hash_equals($existing['result_sha256'],$resultHash) || !hash_equals($existing['request_sha256'],$wireHash)) {
@@ -241,7 +241,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         ), history AS (
             INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT $1,$2,$3,$4,$5,rowid,to_jsonb(publication) FROM publication RETURNING id
-        ) INSERT INTO synth_meta.visual_results(history_event_id,capture_id,session_id,generation,context_sequence,request_id,
+        ) INSERT INTO public.core_visual_result(history_event_id,capture_id,session_id,generation,context_sequence,request_id,
             actor_identity_id,result_payload,result_sha256)
         SELECT id,$8,$1,$2,$3,$4,$9,$10::jsonb,$11 FROM history",
         [$request['session_id'],$generation,$sequence,$request['request_id'],$context['playthrough_id'],
@@ -260,7 +260,7 @@ function synthVisualContextVisibleCte($db, array $event): string
             COALESCE(correction.description,v.result_payload->>'description') AS description,
             COALESCE(correction.history_event_id,0) AS revision,
             gallery.locked,gallery.active,(correction.description IS NOT NULL) AS user_edited,h.recorded_at AS captured_at
-        FROM native_history_scopes scope JOIN synth_meta.visual_results v
+        FROM native_history_scopes scope JOIN public.core_visual_result v
             ON v.session_id=scope.session_id AND v.generation=scope.generation AND v.actor_identity_id=scope.reader_identity_id
         JOIN synth_meta.history_events h ON h.id=v.history_event_id AND h.id<=scope.cutoff
             AND h.session_id=v.session_id AND h.generation=v.generation AND h.request_id=v.request_id
@@ -288,14 +288,14 @@ function synthVisualContextVisibleCte($db, array $event): string
             AND upper(p.canonical_event->'subject'->>'form_id')=upper(origin.context_payload->'target'->>'form_id')
             AND lower(p.canonical_event->'subject'->>'origin_plugin')=lower(origin.context_payload->'target'->>'origin_plugin')
             AND p.canonical_event->'subject'->>'playthrough_id'=h.playthrough_id
-        JOIN synth.visual_context gallery ON gallery.capture_id=v.capture_id
+        JOIN public.core_visual_context gallery ON gallery.capture_id=v.capture_id
         LEFT JOIN LATERAL (SELECT edit.history_event_id,edit.description
             FROM native_history_scopes edited_scope JOIN synth_meta.history_events edited_history
                 ON edited_history.session_id=edited_scope.session_id AND edited_history.generation=edited_scope.generation
                     AND edited_history.playthrough_id=edited_scope.playthrough_id AND edited_history.id<=edited_scope.cutoff
                     AND edited_history.request_id IS NULL AND edited_history.event_payload->>'type'='visual_manual'
                     AND edited_history.event_payload->>'delivery_state'='derived'
-            JOIN synth_meta.visual_description_revisions edit ON edit.history_event_id=edited_history.id
+            JOIN public.core_visual_description_revision edit ON edit.history_event_id=edited_history.id
                 AND edit.actor_identity_id=edited_scope.reader_identity_id AND edit.actor_identity_id=v.actor_identity_id
                 AND edit.capture_id=v.capture_id AND edit.history_event_id>v.history_event_id
                 AND edit.input_payload=edited_history.event_payload->'manual_correction'
@@ -332,7 +332,7 @@ if (!function_exists('synthVisualContextList')) {
         $limit = max(1, min($limit, 1000));
         try {
             $rows = $GLOBALS['db']->fetchAll(
-                "SELECT * FROM synth.visual_context ORDER BY locked DESC, captured_at DESC LIMIT {$limit}"
+                "SELECT * FROM public.core_visual_context ORDER BY locked DESC, captured_at DESC LIMIT {$limit}"
             );
             return is_array($rows) ? $rows : [];
         } catch (Throwable $e) {
@@ -350,7 +350,7 @@ if (!function_exists('synthVisualContextUpdate')) {
         $assignments = [];
         if (array_key_exists('description', $values)) {
             // Native descriptions are immutable observations; edits require an actor/save-scoped journal revision.
-            $record=$GLOBALS['db']->fetchOne('SELECT metadata FROM synth.visual_context WHERE id='.$id);
+            $record=$GLOBALS['db']->fetchOne('SELECT metadata FROM public.core_visual_context WHERE id='.$id);
             $metadata=json_decode(strval($record['metadata'] ?? '{}'),true);
             if (($metadata['schema'] ?? '')==='synth.visual_context.capture.v2') {
                 throw new LogicException('Use native visual corrections to edit this description.');
@@ -370,7 +370,7 @@ if (!function_exists('synthVisualContextUpdate')) {
         }
         $assignments[] = 'updated_at=CURRENT_TIMESTAMP';
         return $GLOBALS['db']->execQuery(
-            'UPDATE synth.visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
+            'UPDATE public.core_visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
         ) !== false;
     }
 }
@@ -378,7 +378,7 @@ if (!function_exists('synthVisualContextUpdate')) {
 if (!function_exists('synthVisualContextDelete')) {
     function synthVisualContextDelete(int $id): bool
     {
-        return $id > 0 && $GLOBALS['db']->delete('synth.visual_context', 'id=' . $id) !== false;
+        return $id > 0 && $GLOBALS['db']->delete('public.core_visual_context', 'id=' . $id) !== false;
     }
 }
 
@@ -424,7 +424,7 @@ if (!function_exists('synthBuildVisualContextPrompt')) {
             $rows = ($event['protocol_version'] ?? 1)===2
                 ? synthVisualContextSavedHistory($db,$event,$worldPayload,$ttlMinutes)
                 : $db->fetchAll("SELECT subject_name, description, locked, user_edited, captured_at
-                FROM synth.visual_context
+                FROM public.core_visual_context
                 WHERE active=TRUE
                   AND BTRIM(description)<>''
                   AND (

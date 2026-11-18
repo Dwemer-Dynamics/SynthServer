@@ -1088,7 +1088,7 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
     $playthrough = $db->escapeLiteral(trim(strval(
         $event['payload']['playthrough_id'] ?? 'unknown'
     )));
-    if ($quality==='complete' && $db->execQuery("DELETE FROM synth.quests WHERE sess={$playthrough}") === false) {
+    if ($quality==='complete' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}") === false) {
         throw new RuntimeException('Unable to replace playthrough quest projection.');
     }
     foreach (array_slice($quests, 0, 16) as $quest) {
@@ -1097,7 +1097,7 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
         $name = $db->escapeLiteral(trim(strval($quest['display_name'] ?? '')));
         $editor = $db->escapeLiteral(trim(strval($quest['editor_id'] ?? '')));
         $plugin = $db->escapeLiteral(trim(strval($quest['origin_plugin'] ?? '')));
-        if ($quality==='partial' && $db->execQuery("DELETE FROM synth.quests WHERE sess={$playthrough}
+        if ($quality==='partial' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}
             AND upper(id_quest)={$id} AND lower(mod)=lower({$plugin})")===false) {
             throw new RuntimeException('Unable to update observed quest projection.');
         }
@@ -1121,7 +1121,7 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         ));
         if ($db->execQuery(
-            "INSERT INTO synth.quests
+            "INSERT INTO public.core_quest
                 (ts, sess, id_quest, name, editor_id, giver_actor_id, mod, stage,
                  briefing, briefing2, localts, gamets, data, status)
              VALUES ('{$timestamp}', {$playthrough}, {$id}, {$name}, {$editor}, '',

@@ -994,7 +994,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertContains($upload['status'],[200,201]);
         $sha=substr($value['media_id'],6);
         $this->assertSame([['content_type'=>'audio/wav','byte_length'=>strval($upload['size']),'sha256'=>$sha,'state'=>'ready']],
-            $this->query('SELECT content_type,byte_length,sha256,state FROM synth_meta.media_objects WHERE media_id=$1',[$value['media_id']]));
+            $this->query('SELECT content_type,byte_length,sha256,state FROM public.core_media_object WHERE media_id=$1',[$value['media_id']]));
         return $sha;
     }
     // The server's STT connector received exactly the uploaded bytes once for this root.
@@ -1172,7 +1172,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             [$evidence['speech'],$evidence['speech_status'],$evidence['media'],$evidence['speech_utterance'],$evidence['speech_media'],
                 $evidence['speech_sha256']],'ready player speech names the voiced media');
         $this->assertSame([['state'=>'ready','byte_length'=>strval(strlen($wave)),'request_id'=>$value['request_id'],'utterance_id'=>$utterance]],
-            $this->query('SELECT state,byte_length,request_id,utterance_id FROM synth_meta.media_objects WHERE media_id=$1',[$evidence['speech_media']]));
+            $this->query('SELECT state,byte_length,request_id,utterance_id FROM public.core_media_object WHERE media_id=$1',[$evidence['speech_media']]));
         $this->autochat['player_tts_ready']=['media_id'=>$evidence['speech_media'],'utterance_id'=>$utterance];
         $this->autochat['history']['voice']=$root['history'];
         $this->playerRows(['tts_connector_id'=>null,'tts_voice_override'=>null]);

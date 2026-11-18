@@ -1128,7 +1128,7 @@ function getTimeColor($time) {
  }
  }
  </script></div><!-- Active Quests Tab --><div id="quests-tab" class="tab-content <?php echo $activeTab === 'quests' ? 'active' : ''; ?>"><?php
- $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from quests");
+ $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from core_quest");
 
  // Define column headers mapping
  $columnHeaders = [

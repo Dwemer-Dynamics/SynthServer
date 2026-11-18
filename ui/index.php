@@ -659,7 +659,7 @@ if (isset($_POST["animation"])) {
  }
 
  if (isset($_GET["table"]) && ($_GET["table"] == "quests")) {
- $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from quests");
+ $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from core_quest");
 
  // Define column headers mapping
  $columnHeaders = [
