@@ -731,6 +731,8 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         synthPersistActorEvents($db, $event);
         require_once __DIR__.'/observed_dialogue.php';
         synthPersistObservedDialogue($db, $event);
+        require_once __DIR__.'/../managers/BookManager/ReadingHistory.php';
+        \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE synth_meta.context_snapshots c
@@ -739,7 +741,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
                    AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
                    AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment','backgroundchat')
+                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
             ),0))
             WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
             [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
@@ -1151,7 +1153,7 @@ function synth_protocol_persist_observation_history(
     $db, array $event, string $type, string $data, string $people, string $location, array $party, int $gamets
 ): void {
     if (($event['protocol_version'] ?? 1) !== 2
-        || !in_array($type, ['world_context', 'nearby_items', 'points_of_interest', 'quest_observation', 'quest_events', 'player_event', 'actor_equipment'], true)
+        || !in_array($type, ['world_context', 'nearby_items', 'points_of_interest', 'quest_observation', 'quest_events', 'player_event', 'reading_event', 'actor_equipment'], true)
         || intval($event['payload']['snapshot_sequence'] ?? 0) < 1) {
         throw new InvalidArgumentException('Native observation requires an owned context sequence.');
     }
@@ -2827,7 +2829,7 @@ function synth_protocol_prompt_snapshot($db): ?array
     $context = synth_protocol_current_context($db, $event);
     $payload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
     // Native source records are audit evidence, not witnessed prompt context. Read the owned history projection instead.
-    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue']);
+    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue'],$payload['reading_event']);
     if (!synth_protocol_quest_response_is_narrator($db,$event)) {
         unset($payload['active_quests'],$payload['active_quests_observation']);
     } else {
