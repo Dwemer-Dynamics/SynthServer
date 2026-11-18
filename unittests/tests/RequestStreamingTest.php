@@ -1312,7 +1312,7 @@ final class RequestStreamingTest extends TestCase
             foreach (['main_synth_pipeline.php','gamedata.php'] as $path) {
                 $this->assertStringNotContainsString('synthMaybeHandleIncomingGametsRollback(',file_get_contents(dirname(__DIR__,2).'/'.$path));
             }
-            $this->assertStringContainsString('$db->delete(\'quests\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+            $this->assertStringContainsString('$db->delete(\'core_quest\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
         } finally {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
             $GLOBALS['db'] = $previousDb;
