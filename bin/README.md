@@ -5,5 +5,5 @@ maintenance scripts. Scripts here have no namespace and stay thin: parse argumen
 or manager, print a result and exit with a status code. They contain no business rules and no SQL.
 
 Deployment and developer helpers (`deploy-*.ps1`, schema and import tools) stay in `tools/`. The
-legacy launcher `service/manager.php` and `service/start.sh` stay until the worker supervisor lands
-here. See [docs/SERVER-FILE-LAYOUT.md](../docs/SERVER-FILE-LAYOUT.md).
+legacy launcher `service/manager.php` and `service/start.sh` remain the default runtime; the worker
+supervisor here is opt-in (see [workers/README.md](../workers/README.md)). See [docs/SERVER-FILE-LAYOUT.md](../docs/SERVER-FILE-LAYOUT.md).

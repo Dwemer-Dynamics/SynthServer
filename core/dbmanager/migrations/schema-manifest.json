@@ -7,11 +7,22 @@
             "files": {
                 "Version20261115000000.fresh.sql": "4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7",
                 "Version20261115000000.php": "d1d826b4ad85d6f9bb764297055251987417269477b057505e95a4fdbfa9b9bc",
-                "Version20261115000000.structure.txt": "10e72bdc505a9970ae5fc2ba0419e53b243dee6e20fc172d14e4c8607671e358"
+                "Version20261115000000.structure.txt": "3f2030b04b9791d9d5862e5320d50aa306db517bcaf3b242ee0a52392f77984f"
             },
             "structure": {
                 "file": "Version20261115000000.structure.txt",
-                "entries": 2062
+                "entries": 2054
+            }
+        },
+        "Version20261116100000": {
+            "class": "Synth\\Migrations\\Version20261116100000",
+            "files": {
+                "Version20261116100000.php": "9dc7dba8c925bdaa3004b028406ea2a4a25eb8caa7ac771f2cac3a896999d14b",
+                "Version20261116100000.structure.txt": "fb37206d0a0c74facdc6f216f4514e8c6a082bd084317d84ad6baa61dc759639"
+            },
+            "structure": {
+                "file": "Version20261116100000.structure.txt",
+                "entries": 16
             }
         }
     }

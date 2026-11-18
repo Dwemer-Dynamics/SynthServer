@@ -87,10 +87,32 @@ abstract class DatabaseTestCase extends TestCase
         $this->tearDownConfFile();
     }
 
+    // API keys live in the shared dwemer store, which has no place in the unit database. The fixture is a disposable
+    // PostgreSQL database holding just the columns of api_keys SYNTH uses (the real schema is the CHIM 4 server's shared
+    // migrations), emptied for every test and holding the one OpenRouter test key the connector tests expect.
+    private function useSharedKeyStoreFixture($db): void
+    {
+        require_once dirname(__DIR__, 2).'/core/dbmanager/repositories/ApiBadgeRepository.php';
+        $admin = pg_connect('host=localhost dbname=postgres user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        if (!pg_fetch_row(pg_query($admin, "SELECT 1 FROM pg_database WHERE datname = 'dwemer_unit_keys'"))) {
+            pg_query($admin, 'CREATE DATABASE dwemer_unit_keys');
+        }
+        pg_close($admin);
+        $shared = pg_connect('host=localhost dbname=dwemer_unit_keys user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        pg_query($shared, "CREATE TABLE IF NOT EXISTS public.api_keys (key_id uuid PRIMARY KEY, provider varchar(32) NOT NULL, label varchar(64) NOT NULL,
+            origin varchar(300) NOT NULL, status varchar(8) NOT NULL DEFAULT 'active', nonce bytea, ciphertext bytea, revision bigint NOT NULL DEFAULT 1,
+            created_at timestamptz NOT NULL DEFAULT clock_timestamp(), updated_at timestamptz NOT NULL DEFAULT clock_timestamp(), deleted_at timestamptz, secret text)");
+        pg_query($shared, 'TRUNCATE public.api_keys');
+        pg_close($shared);
+        \Synth\Core\ApiBadgeRepository::useSharedStore(\Synth\Core\SharedApiKeyStore::forSettings(
+            ['host' => 'localhost', 'port' => '5432', 'dbname' => 'dwemer_unit_keys', 'user' => 'dwemer', 'password' => 'dwemer']));
+        (new \Synth\Core\ApiBadgeRepository($db))->add('OpenRouter', 'openrouterjson_key');
+    }
+
     private function setUpDatabaseDefaults(): void
     {
         $db = new sql();
-        $db->updateRow('core_api_badge', ['api_key' => 'openrouterjson_key'], 'id=1');
+        $this->useSharedKeyStoreFixture($db);
         $db->execQuery('UPDATE synth.core_profiles SET tts_connector_id = NULL');
         $db->upsertRowOnConflict('general_settings', [
             'id' => 'SCENE_CLASSIFIER_ENABLED',

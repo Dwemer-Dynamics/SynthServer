@@ -88,11 +88,11 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-| `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | none | missing | TBD |
+| `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | `workers/*.php` (storage-agnostic) | done | #82 |
 | `ExtensionEvents` worker | none | missing (seam: `DeferredEventSink` in ExtensionManager) | TBD |
-| `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}` | in progress | TBD |
-| `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship` | in progress | TBD (authored relationships #67) |
-| `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `service/manager.php`, `service/start.sh` | in progress | TBD |
+| `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}`; registered via `workers/Memory/MemoryWorker` (thin adapter over `service/memory_dispatch.php`) | in progress | #82 (adapter only) |
+| `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | #82 (adapter only); authored relationships #67 |
+| `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | #82 |
 | TTS and profile workers | `service/tts_worker.php`, `processor/*_worker.php` | SYNTH-specific | n/a |
 | `bin/notify-server.php` (WebSocket to the plugin) | none; the client polls | missing | TBD |
 | `bin/` maintenance scripts (`message-maintenance`, `npc-biographies`, `item-descriptions`, `oghma-catalog`) | `tools/` (biography, voice catalog, Fallout content import) | SYNTH-specific | n/a |

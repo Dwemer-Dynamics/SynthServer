@@ -111,7 +111,7 @@ try {
         'driver' => $driver,
         'url' => $connectorData['url'] ?? '',
         'metadata' => $connectorData['metadata'] ?? '{}',
-        'api_badge_id' => $connectorData['api_badge_id'] ?? null,
+        'api_key_id' => $connectorData['api_key_id'] ?? null,
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $cacheSeed = 'synth-diary-audio|' . hash('sha256', implode('|', [
         strval($entryId),

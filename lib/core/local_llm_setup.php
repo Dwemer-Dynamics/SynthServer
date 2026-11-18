@@ -128,13 +128,13 @@ function synthLocalLlmCurrentSetup(): array
         $setup['disable_streaming'] = synthLocalLlmBoolish($metadata['disable_streaming'] ?? false);
         $setup['scope'] = ($metadata['quickstart_scope'] ?? '') === 'all' ? 'all' : 'conversations';
         $setup['connector_id'] = intval($connector['id']);
-        $setup['has_api_key'] = intval($connector['api_badge_id'] ?? 0) > 0;
+        $setup['has_api_key'] = \Synth\Core\Contracts\ApiKeyRef::normalize($connector['api_key_id'] ?? null) !== null;
     }
     return $setup;
 }
 
 // A blank key may reuse a saved credential only for its original endpoint.
-function synthLocalLlmReusableBadge(?array $existing, array $setup): ?int
+function synthLocalLlmReusableBadge(?array $existing, array $setup): ?string
 {
     if ($existing === null || $setup['clear_api_key']) {
         return null;
@@ -146,8 +146,7 @@ function synthLocalLlmReusableBadge(?array $existing, array $setup): ?int
     } catch (InvalidArgumentException $e) {
         return null;
     }
-    $badgeId = intval($existing['api_badge_id'] ?? 0);
-    return $badgeId > 0 ? $badgeId : null;
+    return \Synth\Core\Contracts\ApiKeyRef::normalize($existing['api_key_id'] ?? null);
 }
 
 // Connector, credential association, and routing must become visible together.
@@ -177,10 +176,11 @@ function synthLocalLlmApplySetup(array $raw): array
         if ($setup['api_key'] !== '' && !$setup['clear_api_key']
             && !hash_equals(strval($savedBadge['api_key'] ?? ''), $setup['api_key'])) {
             // Never overwrite a badge that another connector may share.
-            $badgeId = intval((new ApiBadge())->create([
-                'label' => 'Quickstart Local LLM ' . bin2hex(random_bytes(4)), 'api_key' => $setup['api_key'],
-            ]));
-            if ($badgeId <= 0) {
+            // A local server's key is a SYNTH-only key: it never leaves this mod and needs no provider or origin.
+            $badgeId = (new ApiBadge())->create([
+                'store' => 'local', 'label' => 'Quickstart Local LLM ' . bin2hex(random_bytes(4)), 'api_key' => $setup['api_key'],
+            ]);
+            if ($badgeId === '') {
                 throw new RuntimeException('Could not create the local model credential.');
             }
         }
@@ -196,7 +196,7 @@ function synthLocalLlmApplySetup(array $raw): array
             'label' => 'Local LLM - ' . $setup['server_label'],
             'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
             'url' => $setup['url'], 'model' => $setup['model'], 'provider' => 'local', 'service' => 'custom',
-            'driver' => 'openaijson', 'api_badge_id' => $badgeId,
+            'driver' => 'openaijson', 'api_key_id' => $badgeId,
         ];
         $connectors = new LLMConnector();
         $id = intval($existing['id'] ?? 0);
