@@ -1103,7 +1103,7 @@ if (isset($_GET['action']) && ($_GET['action'] === 'test_cartesia' || $_GET['act
         $db = $GLOBALS["db"];
         $prefix = $provider . '_voice_id_';
         $prefixEscaped = $db->escape($prefix);
-        $rows = $db->fetchAll("SELECT id, value FROM conf_opts WHERE id LIKE '{$prefixEscaped}%'");
+        $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
         $cloned = [];
         foreach ($rows as $row) {
             $voiceName = str_replace($prefix, '', $row['id']);
@@ -1559,7 +1559,7 @@ function getClonedVoices($provider) {
     $db = $GLOBALS["db"];
     $prefix = $provider . '_voice_id_';
     $prefixEscaped = $db->escape($prefix);
-    $rows = $db->fetchAll("SELECT id, value FROM conf_opts WHERE id LIKE '{$prefixEscaped}%'");
+    $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
     $cloned = [];
     foreach ($rows as $row) {
         $voiceName = str_replace($prefix, '', $row['id']);
@@ -2173,7 +2173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $legacyPrefixEscaped = $db->escape('cartesia_voice_id_');
         $scopedPrefixEscaped = $db->escape('cartesia_voice_scope_');
         $metadataPrefixEscaped = $db->escape('cartesia_voice_meta_');
-        $db->execQuery("DELETE FROM conf_opts WHERE id LIKE '{$legacyPrefixEscaped}%' OR id LIKE '{$scopedPrefixEscaped}%' OR id LIKE '{$metadataPrefixEscaped}%'");
+        $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND (config_key LIKE '{$legacyPrefixEscaped}%' OR config_key LIKE '{$scopedPrefixEscaped}%' OR config_key LIKE '{$metadataPrefixEscaped}%')");
         $cartesiaMessage .= "<p style='color:rgb(247, 231, 16);'><strong>Cartesia voice cache cleared.</strong></p>";
     }
 
@@ -2382,7 +2382,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $legacyPrefixEscaped = $db->escape('inworld_voice_id_');
         $scopedPrefixEscaped = $db->escape('inworld_voice_scope_');
         $metadataPrefixEscaped = $db->escape('inworld_voice_meta_');
-        $db->execQuery("DELETE FROM conf_opts WHERE id LIKE '{$legacyPrefixEscaped}%' OR id LIKE '{$scopedPrefixEscaped}%' OR id LIKE '{$metadataPrefixEscaped}%'");
+        $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND (config_key LIKE '{$legacyPrefixEscaped}%' OR config_key LIKE '{$scopedPrefixEscaped}%' OR config_key LIKE '{$metadataPrefixEscaped}%')");
         $inworldMessage .= "<p style='color:rgb(247, 231, 16);'><strong>Inworld voice cache cleared.</strong></p>";
     }
 

@@ -54,7 +54,7 @@ function synth_profile_enqueue_batch($db, string $queueId, array $queue): void
                         $actor,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]);
                 if (!$result) throw new RuntimeException('Unable to persist native profile job.');
             }
-            if (!@pg_query_params($connection,'DELETE FROM synth.conf_opts WHERE id=$1',[$queueId])) throw new RuntimeException('Unable to finish profile queue transfer.');
+            if (!@pg_query_params($connection,"DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key=$1",[$queueId])) throw new RuntimeException('Unable to finish profile queue transfer.');
         },2000);
     });
 }

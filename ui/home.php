@@ -246,7 +246,7 @@ $hasEventlog = synth_home_table_exists($db, 'eventlog');
 $hasNpcMaster = synth_home_table_exists($db, 'core_npc_master');
 $hasDiary = synth_home_table_exists($db, 'diarylog');
 $hasMemorySummary = synth_home_table_exists($db, 'memory_summary');
-$hasConfOpts = synth_home_table_exists($db, 'conf_opts');
+$hasConfOpts = synth_home_table_exists($db, 'core_config_setting');
 $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
 $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
 $hasLocations = synth_home_table_exists($db, 'core_location');
@@ -385,8 +385,8 @@ try {
     // Keep runtime fallback.
 }
 
-$currentMode = $hasConfOpts ? synth_home_value($db, "SELECT value FROM conf_opts WHERE id='synth_mode' LIMIT 1", 'value', 'STANDARD') : 'STANDARD';
-$currentModelSlot = $hasConfOpts ? (int)synth_home_value($db, "SELECT value FROM conf_opts WHERE id='synth_profile_model' LIMIT 1", 'value', 1) : 1;
+$currentMode = $hasConfOpts ? synth_home_value($db, "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode' LIMIT 1", 'value', 'STANDARD') : 'STANDARD';
+$currentModelSlot = $hasConfOpts ? (int)synth_home_value($db, "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model' LIMIT 1", 'value', 1) : 1;
 $modelLabels = [1 => 'Standard', 2 => 'Fast', 3 => 'Powerful', 4 => 'Experimental'];
 $currentModel = $modelLabels[$currentModelSlot] ?? 'Standard';
 $ttsConnectorCount = $hasTtsConnector ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_tts_connector", 'total', 0) : 0;
@@ -406,7 +406,7 @@ if ($hasConfOpts) {
         return "'" . $db->escape($statName) . "'";
     }, synthFalloutStatNames());
     if ($statIds !== []) {
-        foreach (synth_home_rows($db, "SELECT id, value FROM conf_opts WHERE id IN (" . implode(',', $statIds) . ")") as $statRow) {
+        foreach (synth_home_rows($db, "SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key IN (" . implode(',', $statIds) . ")") as $statRow) {
             $statName = (string)($statRow['id'] ?? '');
             if ($statName !== '' && is_numeric($statRow['value'] ?? null)) {
                 $falloutStats[$statName] = max(0, (int)$statRow['value']);

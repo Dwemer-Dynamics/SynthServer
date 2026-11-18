@@ -82,7 +82,7 @@ try {
         [$mode, $rows] = $db->withManagementTransaction(static function($connection) {
             synth_audience_lock_gate($connection, false);
             $mode = pg_fetch_assoc(synth_audience_query($connection,
-                "SELECT value FROM synth.conf_opts WHERE id='synth_mode'", []));
+                "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode'", []));
             $rows = pg_fetch_all(synth_audience_query($connection,
                 "SELECT session_id, active_generation, runtime_variant, playthrough_id, client_version,
                         audience_intent, audience_reset_epoch

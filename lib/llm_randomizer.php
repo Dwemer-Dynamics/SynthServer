@@ -136,7 +136,7 @@ class LLMRandomizer {
         if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']))
             return intval($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']);
         $db = $GLOBALS['db'];
-        $result = $db->fetchOne("SELECT value FROM conf_opts WHERE id='synth_profile_model'");
+        $result = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
         
         if (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4) {
             return (int)$result['value'];
@@ -229,7 +229,7 @@ class LLMRandomizer {
             return false;
         }
 
-        $row = $db->fetchOne("SELECT value FROM conf_opts WHERE id='" . self::PLAYER2_FORCE_ENABLED_KEY . "' LIMIT 1");
+        $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . self::PLAYER2_FORCE_ENABLED_KEY . "' LIMIT 1");
         self::$player2ForceEnabled = self::isTruthy($row['value'] ?? '0');
         return self::$player2ForceEnabled;
     }
@@ -339,7 +339,7 @@ class LLMRandomizer {
             return null;
         }
 
-        $row = $db->fetchOne("SELECT value FROM conf_opts WHERE id='" . self::PLAYER2_FORCE_CONNECTOR_KEY . "' LIMIT 1");
+        $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . self::PLAYER2_FORCE_CONNECTOR_KEY . "' LIMIT 1");
         $connectorId = intval($row['value'] ?? 0);
 
         if ($connectorId > 0) {
@@ -361,12 +361,12 @@ class LLMRandomizer {
         }
 
         $escapedId = $db->escape($id);
-        $row = $db->fetchOne("SELECT id FROM conf_opts WHERE id='{$escapedId}' LIMIT 1");
+        $row = $db->fetchOne("SELECT config_key AS id FROM public.core_config_setting WHERE scope = 'conf' AND config_key ='{$escapedId}' LIMIT 1");
         if ($row && isset($row['id'])) {
-            return $db->updateRow('conf_opts', ['value' => (string)$value], "id='" . $escapedId . "'");
+            return $db->updateRow('public.core_config_setting', ['config_value' => (string)$value], "scope = 'conf' AND config_key = '" . $escapedId . "'");
         }
 
-        return $db->insert('conf_opts', ['id' => $id, 'value' => (string)$value]);
+        return $db->insert('public.core_config_setting', ['scope' => 'conf', 'config_key' => $id, 'config_value' => (string)$value]);
     }
 
     // Player2 needs no stored key: the connector sends its fixed game key when it has none, and the shared key store holds

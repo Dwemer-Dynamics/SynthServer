@@ -4437,7 +4437,7 @@ function synthGetCurrentPartyFromConfOpts()
 {
     global $db;
 
-    $results = $db->fetchAll("select value from conf_opts where id='CurrentParty'");
+    $results = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='CurrentParty'");
     if (!is_array($results) || empty($results)) {
         return json_encode([]);
     }

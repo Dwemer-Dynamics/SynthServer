@@ -281,11 +281,10 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $testDb = new sql();
         $this->assertNotFalse($testDb->execQuery("UPDATE public.core_worldknowledge_article SET knowledge_class='medicine',knowledge_class_basic='commonwealth' WHERE canonical_topic='stimpack_seller' AND source_kind='custom'"));
         $this->assertNotFalse($testDb->execQuery("INSERT INTO public.core_config_setting(scope,config_key,config_value) VALUES('narrator','worldknowledge','medicine') ON CONFLICT(scope,config_key) DO UPDATE SET config_value=EXCLUDED.config_value"));
-        $testDb->insert(
-            'conf_opts',
+        $testDb->insert('public.core_config_setting',
             array(
-                'id' => 'current_worldknowledge_topic',
-                'value' => 'Stimpack Vendor'
+                'scope' => 'conf', 'config_key' => 'current_worldknowledge_topic',
+                'config_value' => 'Stimpack Vendor'
             )
         );
         $testDb->close();
@@ -324,11 +323,10 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $this->insertStimpackLore();
 
         $testDb = new sql();
-        $testDb->insert(
-            'conf_opts',
+        $testDb->insert('public.core_config_setting',
             array(
-                'id' => 'current_worldknowledge_topic',
-                'value' => 'Alchemist'
+                'scope' => 'conf', 'config_key' => 'current_worldknowledge_topic',
+                'config_value' => 'Alchemist'
             )
         );
         $testDb->close();
@@ -364,11 +362,10 @@ final class WorldKnowledgeTest extends DatabaseTestCase
 
         $this->insertStimpackLore();
         $testDb = new sql();
-        $testDb->insert(
-            'conf_opts',
+        $testDb->insert('public.core_config_setting',
             array(
-                'id' => 'current_worldknowledge_topic',
-                'value' => 'Stimpack'
+                'scope' => 'conf', 'config_key' => 'current_worldknowledge_topic',
+                'config_value' => 'Stimpack'
             )
         );
         $testDb->insert(
@@ -416,11 +413,10 @@ final class WorldKnowledgeTest extends DatabaseTestCase
 
         $this->insertStimpackLore();
         $testDb = new sql();
-        $testDb->insert(
-            'conf_opts',
+        $testDb->insert('public.core_config_setting',
             array(
-                'id' => 'current_worldknowledge_topic',
-                'value' => 'Doctor'
+                'scope' => 'conf', 'config_key' => 'current_worldknowledge_topic',
+                'config_value' => 'Doctor'
             )
         );
         $testDb->insert(

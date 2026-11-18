@@ -217,7 +217,7 @@ $currentTopic = '';
 if (method_exists($db, 'fetchOne')) {
     try {
         $currentTopicRow = $db->fetchOne(
-            "SELECT value FROM synth.conf_opts WHERE id='current_worldknowledge_topic' LIMIT 1"
+            "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic' LIMIT 1"
         );
         $currentTopic = trim(strval($currentTopicRow['value'] ?? ''));
     } catch (Throwable) {

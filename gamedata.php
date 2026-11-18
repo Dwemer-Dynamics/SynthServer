@@ -960,10 +960,10 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
                 $partyFragments[] = json_encode($partyRow, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             }
             $partyValue = implode(',', $partyFragments) . ',';
-            $db->upsertRowOnConflict('conf_opts', [
-                'id' => 'CurrentParty',
-                'value' => $partyValue,
-            ], 'id');
+            $db->upsertRowOnConflict('public.core_config_setting', [
+                'scope' => 'conf', 'config_key' => 'CurrentParty',
+                'config_value' => $partyValue,
+            ], 'scope, config_key');
             Logger::debug("[gamedata.php] Updated CurrentParty from nearby_actors {$partySource}: " . implode(', ', array_keys($partyRows)));
         } else {
             Logger::debug("[gamedata.php] Kept existing CurrentParty; nearby_actors {$partySource} had no party members");
@@ -2212,7 +2212,8 @@ function handleFalloutStatsUpdate(array $data): void {
         if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES {$playerValuesSql} ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
             throw new RuntimeException('Could not update core_player Fallout statistics');
         }
-        if ($db->query("INSERT INTO conf_opts (id, value) VALUES {$valuesSql} ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value") === false) {
+        $confValuesSql = implode(',', array_map(static fn(string $row): string => "('conf', " . substr($row, 1), $valueRows));
+        if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES {$confValuesSql} ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
             throw new RuntimeException('Could not update conf_opts Fallout statistics');
         }
 

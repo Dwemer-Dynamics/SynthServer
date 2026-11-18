@@ -628,8 +628,6 @@ column|synth|combined_descriptions|baseid|character varying|varchar|YES||128
 column|synth|combined_descriptions|description|text|text|YES||
 column|synth|combined_descriptions|name|text|text|YES||
 column|synth|combined_descriptions|plugin|text|text|YES||
-column|synth|conf_opts|id|text|text|NO||
-column|synth|conf_opts|value|text|text|YES||
 column|public|core_action_custom|action_name|character varying|varchar|NO||255
 column|public|core_action_custom|available_to_followers|boolean|bool|NO|false|
 column|public|core_action_custom|available_to_narrator|boolean|bool|NO|false|
@@ -1595,7 +1593,6 @@ constraint|public|core_npc_biography_template_actor|bio_template_actor_map_refer
 constraint|public|core_npc_biography_template_actor|bio_template_actor_map_reference_pair_check|c|t|CHECK (((reference_plugin IS NULL) = (reference_local_formid IS NULL)))
 constraint|public|core_npc_biography_template_custom|bio_templates_custom_pkey|p|t|PRIMARY KEY (npc_name)
 constraint|public|core_npc_biography_template|bio_templates_pkey|p|t|PRIMARY KEY (npc_name)
-constraint|synth|conf_opts|conf_opts_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE (code_name)
 constraint|public|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
@@ -1808,7 +1805,6 @@ index|public|core_npc_biography_template_actor|bio_template_actor_map_reference_
 index|public|core_npc_biography_template_actor|bio_template_actor_map_template_idx|CREATE INDEX bio_template_actor_map_template_idx ON public.core_npc_biography_template_actor USING btree (lower((template_name)::text))
 index|public|core_npc_biography_template_custom|bio_templates_custom_pkey|CREATE UNIQUE INDEX bio_templates_custom_pkey ON public.core_npc_biography_template_custom USING btree (npc_name)
 index|public|core_npc_biography_template|bio_templates_pkey|CREATE UNIQUE INDEX bio_templates_pkey ON public.core_npc_biography_template USING btree (npc_name)
-index|synth|conf_opts|conf_opts_pkey|CREATE UNIQUE INDEX conf_opts_pkey ON synth.conf_opts USING btree (id)
 index|public|core_action_custom|core_action_custom_code_name_key|CREATE UNIQUE INDEX core_action_custom_code_name_key ON public.core_action_custom USING btree (code_name)
 index|public|core_action_custom|core_action_custom_pkey|CREATE UNIQUE INDEX core_action_custom_pkey ON public.core_action_custom USING btree (id)
 index|public|core_action_custom|idx_core_action_custom_action_name_lower|CREATE INDEX idx_core_action_custom_action_name_lower ON public.core_action_custom USING btree (lower((action_name)::text))
@@ -1966,7 +1962,6 @@ table|public|core_npc_biography_template|BASE TABLE
 table|synth|combined_bio_templates|VIEW
 table|synth|combined_core_action|VIEW
 table|synth|combined_descriptions|VIEW
-table|synth|conf_opts|BASE TABLE
 table|public|core_action_custom|BASE TABLE
 table|public|core_action|BASE TABLE
 table|public|core_api_badge|BASE TABLE

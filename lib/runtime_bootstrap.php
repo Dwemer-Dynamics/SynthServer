@@ -55,7 +55,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.audit_request',
             'public.core_npc_biography_template',
             'public.core_npc_biography_template_custom',
-            'synth.conf_opts',
             'public.core_action',
             'public.core_action_custom',
             'public.core_api_badge',

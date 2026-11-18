@@ -233,7 +233,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $state=$this->query('SELECT state FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$session,$id]);
         $this->assertSame([['state'=>'complete']],$state,$body.$this->tail());
         // The HTTP admission itself queued exactly this owner's batch, keyed by the target's stable identity only.
-        $queued=$this->query("SELECT value FROM synth.conf_opts WHERE id LIKE 'dynamic_profiles_queue_%'");
+        $queued=$this->query("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE 'dynamic_profiles_queue_%'");
         $this->assertCount(1,$queued,'the admission queued one batch '.$body.$this->tail());
         $batch=json_decode($queued[0]['value'],true,64,JSON_THROW_ON_ERROR);
         $key='actor:'.$this->identities['target'];
@@ -263,7 +263,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $rows=$this->query('SELECT history_event_id,prior_history_event_id,actor_identity_id,profile_role,context_sequence,result_fields
             FROM public.core_character_generation_revision WHERE session_id=$1 AND request_id=$2',[$refresh['session_id'],$refresh['request_id']]);
         $this->assertCount(1,$rows,'one accepted revision '.$diagnostic);
-        $this->assertSame([],$this->query("SELECT id FROM synth.conf_opts WHERE id LIKE 'dynamic_profiles_queue_%'"),'the worker drained the batch');
+        $this->assertSame([],$this->query("SELECT config_key AS id FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE 'dynamic_profiles_queue_%'"),'the worker drained the batch');
         $this->assertSame([strval($this->identities['target']),'npc',strval($refresh['context_sequence'])],
             [$rows[0]['actor_identity_id'],$rows[0]['profile_role'],$rows[0]['context_sequence']]);
         $fields=json_decode($rows[0]['result_fields'],true,4,JSON_THROW_ON_ERROR);
