@@ -75,6 +75,7 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     require_once __DIR__.'/synth_dialogue_policy.php';
     require_once __DIR__.'/synth_player_rewrite.php';
     require_once __DIR__.'/core/llm_connector.class.php';
+    require_once dirname(__DIR__).'/drivers/llm/LlmWrapper.php';
     require_once dirname(__DIR__).'/drivers/llm/PlayerRewriteDriver.php';
     require_once dirname(__DIR__).'/managers/ContextManager.php';
     if (!synth_autochat_selected($event) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
@@ -109,8 +110,8 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     if (!is_array($connector)) throw new DomainException('provider_unsupported');
     // The existing HTTP_TIMEOUT reaches the driver only as this call's transient config; no new setting.
     $timeout = $GLOBALS['HTTP_TIMEOUT'] ?? Synth\Drivers\Llm\PlayerRewriteDriver::DEFAULT_HTTP_TIMEOUT;
-    $driver = new Synth\Drivers\Llm\PlayerRewriteDriver($assertActive,
-        static fn(array $row): array => $connectors->dialogueProviderConfig($row) + ['http_timeout' => $timeout]);
+    $driver = new Synth\Drivers\Llm\LlmWrapper([new Synth\Drivers\Llm\PlayerRewriteDriver($assertActive,
+        static fn(array $row): array => $connectors->dialogueProviderConfig($row) + ['http_timeout' => $timeout])]);
     $line = (new SynthPlayerRewrite($driver, $assertActive))->rewrite($request, $placed, $intent, $connector, $player, $history);
     // The ordinary input adapter collapses whitespace and pipes; such a line would differ in history and on the wire.
     require_once __DIR__.'/request.php';

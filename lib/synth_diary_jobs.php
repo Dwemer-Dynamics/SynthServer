@@ -203,7 +203,7 @@ function synth_diary_generate($db, array $input): array
         // Never look up an arbitrary core record for a frozen legacy selection or inherit a previous worker's core metadata.
         unset($GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']);
         $driver=$selection['driver'];
-        require_once __DIR__.'/../connector/'.$driver.'.php';
+        require_once __DIR__.'/../drivers/llm/LlmWrapper.php';
     }
     $GLOBALS['CURRENT_CONNECTOR']=$driver;$GLOBALS['FORCE_MAX_TOKENS']=$input['max_tokens'];
     $GLOBALS['COMMAND_PROMPT']='';$GLOBALS['BASE_FUNCTIONS']=[];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];$GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
@@ -212,7 +212,7 @@ function synth_diary_generate($db, array $input): array
         ? ($input['character_name'] ?? $input['context']['player']['display_name']) : $input['context']['player']['display_name'];
     $reason=$input['owner']['payload']['reason'] ?? 'manual';
     $GLOBALS['gameRequest']=[$input['diary_role']==='player' ? 'diary_player' : 'diary',time(),intval($input['context']['world']['game_time_ticks'] ?? 0),'Native '.$reason.' diary'];
-    $handler=$selection['kind']==='core' ? $manager->getConnector($settings) : new $driver();
+    $handler=$selection['kind']==='core' ? $manager->getConnector($settings) : \Synth\Drivers\Llm\LlmWrapper::legacyConnector($driver);
     $text=$handler->fast_request($input['messages'],['MAX_TOKENS'=>$input['max_tokens']],'diary');
     if (!is_string($text) || trim($text)==='') throw new RuntimeException('Diary provider returned no text.');
     return ['topic'=>ucfirst($reason).' diary','content'=>trim($text)];

@@ -285,11 +285,12 @@ final class TwoStepActions
     public static function completeWith(array $connector, \Closure $config, array $messages): string
     {
         require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
+        require_once dirname(__DIR__, 2) . '/drivers/llm/LlmWrapper.php';
         require_once dirname(__DIR__, 2) . '/drivers/llm/PlayerRewriteDriver.php';
         $assertActive = static function (): void {
             \synth_protocol_assert_request_active();
         };
-        $driver = new \Synth\Drivers\Llm\PlayerRewriteDriver(
+        $driver = new \Synth\Drivers\Llm\LlmWrapper([new \Synth\Drivers\Llm\PlayerRewriteDriver(
             $assertActive,
             static fn (array $row): array => [
                 'max_tokens' => self::MAX_TOKENS,
@@ -298,7 +299,7 @@ final class TwoStepActions
             65536,
             null,
             self::budgetMs() / 1000
-        );
+        )]);
         if (!$driver->supports($connector)) {
             throw new \DomainException('provider_unsupported');
         }

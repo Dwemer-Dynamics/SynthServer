@@ -2,6 +2,7 @@
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'itt_connector.class.php');
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'visual_context.php');
+require_once(dirname(__DIR__) . '/drivers/itt/IttWrapper.php');
 
 if (!function_exists('synthIttBuildHints')) {
     function synthIttBuildHints(array $captureMetadata): string
@@ -32,130 +33,28 @@ if (!function_exists('synthIttBuildHints')) {
     }
 }
 
-if (!function_exists('synthIttImageData')) {
-    function synthIttImageData(string $imagePath): array
+if (!function_exists('synthIttTimeout')) {
+    function synthIttTimeout(): int
     {
-        $bytes = @file_get_contents($imagePath);
-        if (!is_string($bytes) || $bytes === '') {
-            throw new RuntimeException('PipVision could not read the normalized image');
-        }
-        $info = @getimagesize($imagePath);
-        $mime = strtolower(trim(strval($info['mime'] ?? '')));
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true)) {
-            throw new RuntimeException('PipVision does not support this image format');
-        }
-        return [$bytes, $mime];
+        return max(10, min(synthGetGeneralSettingInt('PIPVISION_REQUEST_TIMEOUT_SECONDS', 60), 180));
     }
 }
 
-if (!function_exists('synthIttRequestJson')) {
-    function synthIttRequestJson(string $url, array $payload, array $headers): array
-    {
-        if (!function_exists('curl_init')) {
-            throw new RuntimeException('PHP cURL is required for PipVision');
-        }
-        if ($url === '') {
-            throw new RuntimeException('ITT connector endpoint URL is empty');
-        }
-
-        $timeout = max(10, min(synthGetGeneralSettingInt('PIPVISION_REQUEST_TIMEOUT_SECONDS', 60), 180));
-        $curl = curl_init($url);
-        curl_setopt_array($curl, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json', 'Accept: application/json'], $headers),
-            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            CURLOPT_CONNECTTIMEOUT => min(15, $timeout),
-            CURLOPT_TIMEOUT => $timeout,
-        ]);
-        $raw = curl_exec($curl);
-        $curlError = curl_error($curl);
-        $status = intval(curl_getinfo($curl, CURLINFO_HTTP_CODE));
-        curl_close($curl);
-
-        if (!is_string($raw) || $raw === '' || $status < 200 || $status >= 300) {
-            $detail = $curlError !== '' ? $curlError : ('HTTP ' . $status);
-            if (is_string($raw) && trim($raw) !== '') {
-                $detail .= ': ' . substr(trim(strip_tags($raw)), 0, 300);
-            }
-            throw new RuntimeException('ITT connector request failed: ' . $detail);
-        }
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('ITT connector returned invalid JSON');
-        }
-        return $decoded;
-    }
-}
-
-if (!function_exists('synthIttExtractContent')) {
-    function synthIttExtractContent(array $response): string
-    {
-        $content = $response['choices'][0]['message']['content'] ?? ($response['content'] ?? '');
-        if (is_array($content)) {
-            $parts = [];
-            foreach ($content as $part) {
-                if (is_array($part) && isset($part['text'])) {
-                    $parts[] = strval($part['text']);
-                } elseif (is_string($part)) {
-                    $parts[] = $part;
-                }
-            }
-            $content = implode("\n", $parts);
-        }
-        return trim(strval($content));
-    }
-}
-
+// Thin hooks: read the connector's globals (the key was already resolved through the API badge store by
+// ITTConnector::setOldGlobals) and let IttWrapper's drivers do the call.
 if (!function_exists('synthIttOpenAiCompatible')) {
     function synthIttOpenAiCompatible(string $provider, string $imagePath, string $hints, bool $openRouter = false): string
     {
         $config = is_array($GLOBALS['ITT'][$provider] ?? null) ? $GLOBALS['ITT'][$provider] : [];
-        $url = trim(strval($config['url'] ?? ($config['URL'] ?? '')));
-        $model = trim(strval($config['model'] ?? ''));
-        if ($url === '' || $model === '') {
-            throw new RuntimeException('ITT connector requires both an endpoint URL and model');
-        }
-
-        [$bytes, $mime] = synthIttImageData($imagePath);
-        $prompt = trim(strval($config['AI_VISION_PROMPT'] ?? ''));
-        if ($hints !== '') {
-            $prompt .= ($prompt !== '' ? "\n\nGame metadata:\n" : '') . $hints;
-        }
-        $imageUrl = ['url' => 'data:' . $mime . ';base64,' . base64_encode($bytes)];
-        $detail = strtolower(trim(strval($config['detail'] ?? 'low')));
-        if (in_array($detail, ['low', 'high'], true)) {
-            $imageUrl['detail'] = $detail;
-        }
-
-        $headers = [];
-        $apiKey = trim(strval($config['API_KEY'] ?? ''));
-        if ($apiKey !== '') {
-            $headers[] = 'Authorization: Bearer ' . $apiKey;
-        }
-        if ($openRouter) {
-            $headers[] = 'HTTP-Referer: https://dwemerdynamics.com/';
-            $headers[] = 'X-Title: SYNTH PipVision';
-        }
-
-        $response = synthIttRequestJson($url, [
-            'model' => $model,
-            'temperature' => 0.0,
-            'messages' => [[
-                'role' => 'user',
-                'content' => [
-                    ['type' => 'text', 'text' => $prompt],
-                    ['type' => 'image_url', 'image_url' => $imageUrl],
-                ],
-            ]],
-            'max_tokens' => max(64, min(intval($config['max_tokens'] ?? 1024), 4096)),
-        ], $headers);
-
-        $description = synthIttExtractContent($response);
-        if ($description === '') {
-            throw new RuntimeException('ITT connector returned an empty description');
-        }
-        return $description;
+        return \Synth\Drivers\Itt\IttWrapper::describe($provider, [
+            'url' => strval($config['url'] ?? ($config['URL'] ?? '')),
+            'model' => strval($config['model'] ?? ''),
+            'api_key' => strval($config['API_KEY'] ?? ''),
+            'prompt' => strval($config['AI_VISION_PROMPT'] ?? ''),
+            'detail' => strval($config['detail'] ?? 'low'),
+            'max_tokens' => intval($config['max_tokens'] ?? 1024),
+            'timeout' => synthIttTimeout(),
+        ], new \Synth\Drivers\Itt\IttRequest($imagePath, $hints));
     }
 }
 
@@ -163,27 +62,11 @@ if (!function_exists('synthIttLlamaCpp')) {
     function synthIttLlamaCpp(string $imagePath, string $hints): string
     {
         $config = is_array($GLOBALS['ITT']['llamacpp'] ?? null) ? $GLOBALS['ITT']['llamacpp'] : [];
-        $baseUrl = rtrim(trim(strval($config['URL'] ?? ($config['url'] ?? ''))), '/');
-        if ($baseUrl === '') {
-            throw new RuntimeException('llama.cpp ITT connector URL is empty');
-        }
-        [$bytes] = synthIttImageData($imagePath);
-        $prompt = trim(strval($config['AI_VISION_PROMPT'] ?? ''));
-        if ($hints !== '') {
-            $prompt .= ($prompt !== '' ? "\n\nGame metadata:\n" : '') . $hints;
-        }
-        $response = synthIttRequestJson($baseUrl . '/completion', [
-            'prompt' => $prompt . "\nASSISTANT:",
-            'n_predict' => 1024,
-            'image_data' => [['data' => base64_encode($bytes), 'id' => 1]],
-            'ignore_eos' => false,
-            'temperature' => 0.0,
-        ], []);
-        $description = synthIttExtractContent($response);
-        if ($description === '') {
-            throw new RuntimeException('llama.cpp ITT connector returned an empty description');
-        }
-        return $description;
+        return \Synth\Drivers\Itt\IttWrapper::describe('llamacpp', [
+            'url' => strval($config['URL'] ?? ($config['url'] ?? '')),
+            'prompt' => strval($config['AI_VISION_PROMPT'] ?? ''),
+            'timeout' => synthIttTimeout(),
+        ], new \Synth\Drivers\Itt\IttRequest($imagePath, $hints));
     }
 }
 

@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Picks the handler of a version one API route; included by `api/index.php`.
+ *
+ * Expects `$route` (the path after `/api/v1/`) and `$method`. Every row maps a route to the allowed methods
+ * and a handler script under `api/v1/<area>/`. The handler validates and adapts; it never reimplements the
+ * logic of the legacy entry point it calls. A known route with another method answers 405, an unknown one 404.
+ * `edit` and `extensions` answer 501 until the generic edit API and the extension routes land.
+ */
+
+/** @var array<string, array{0: list<string>, 1: string}> $synthApiRoutes */
+$synthApiRoutes = [
+    'health' => [['GET', 'HEAD'], 'health.php'],
+    'health/live' => [['GET', 'HEAD'], 'health.php'],
+    'health/db' => [['GET', 'HEAD'], 'health.php'],
+    'health/api-keys-configured' => [['GET', 'HEAD'], 'health.php'],
+    'health/npcs-available' => [['GET', 'HEAD'], 'health.php'],
+    'health/llm' => [['GET', 'HEAD'], 'health.php'],
+    'context/event' => [['POST'], 'context/event.php'],
+    'dialogue/request' => [['POST'], 'dialogue/request.php'],
+    'dialogue/spoken' => [['POST'], 'dialogue/spoken.php'],
+    'dialogue/cancel' => [['POST'], 'dialogue/cancel.php'],
+    'user/input' => [['POST'], 'user/input.php'],
+    'save/created' => [['POST'], 'save/created.php'],
+    'save/loaded' => [['POST'], 'save/loaded.php'],
+    'speech/transcribe' => [['POST'], 'speech/transcribe.php'],
+    'vision/describe' => [['POST'], 'vision/describe.php'],
+    'plugins/manifest' => [['POST'], 'plugins/manifest.php'],
+    'npc/add' => [['POST'], 'npc/add.php'],
+    'books/read' => [['POST'], 'books/read.php'],
+    'locations/save' => [['POST'], 'locations/save.php'],
+];
+
+if (preg_match('#^messages/([^/]+)$#', $route, $synthApiMessage) === 1) {
+    $messageIdText = $synthApiMessage[1];
+    $synthApiRoutes[$route] = [['GET', 'HEAD'], 'messages.php'];
+}
+
+if ($route === 'edit' || str_starts_with($route, 'edit/')) {
+    require __DIR__ . '/v1/editing/index.php';
+    return;
+}
+
+if ($route === 'extensions' || str_starts_with($route, 'extensions/')) {
+    require __DIR__ . '/v1/extensions.php';
+    return;
+}
+
+if (!isset($synthApiRoutes[$route])) {
+    synthApiRefuse(404, 'Route not found');
+    return;
+}
+
+[$synthApiMethods, $synthApiHandler] = $synthApiRoutes[$route];
+if (!in_array($method, $synthApiMethods, true)) {
+    header('Allow: ' . implode(', ', $synthApiMethods));
+    synthApiRefuse(405, 'Method not allowed');
+    return;
+}
+
+require_once __DIR__ . '/v1/LegacyEntry.php';
+require __DIR__ . '/v1/' . $synthApiHandler;
+return;
