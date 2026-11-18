@@ -674,13 +674,11 @@ column|synth|core_action|updated_at|timestamp without time zone|timestamp|YES|no
 column|synth|core_api_badge|api_key|text|text|NO||
 column|synth|core_api_badge|id|integer|int4|NO|nextval('api_badge_id_seq'::regclass)|
 column|synth|core_api_badge|label|text|text|NO||
-column|synth|core_itt_connector|api_badge_id|integer|int4|YES||
 column|synth|core_itt_connector|driver|text|text|NO||
 column|synth|core_itt_connector|id|integer|int4|NO|nextval('core_itt_connector_id_seq'::regclass)|
 column|synth|core_itt_connector|label|text|text|NO||
 column|synth|core_itt_connector|metadata|jsonb|jsonb|NO|'{}'::jsonb|
 column|synth|core_itt_connector|url|text|text|YES||
-column|synth|core_llm_connector|api_badge_id|integer|int4|YES||
 column|synth|core_llm_connector|driver|text|text|YES||
 column|synth|core_llm_connector|enforce_json|integer|int4|YES|1|
 column|synth|core_llm_connector|frequency_penalty|numeric|numeric|YES||
@@ -781,13 +779,11 @@ column|synth|core_profiles|metadata|jsonb|jsonb|YES||
 column|synth|core_profiles|prompt|text|text|YES||
 column|synth|core_profiles|slot|integer|int4|YES||
 column|synth|core_profiles|tts_connector_id|integer|int4|YES||
-column|synth|core_stt_connector|api_badge_id|integer|int4|YES||
 column|synth|core_stt_connector|driver|text|text|YES||
 column|synth|core_stt_connector|id|integer|int4|NO|nextval('stt_connector_id_seq'::regclass)|
 column|synth|core_stt_connector|label|text|text|YES||
 column|synth|core_stt_connector|metadata|jsonb|jsonb|YES||
 column|synth|core_stt_connector|url|text|text|YES||
-column|synth|core_tts_connector|api_badge_id|integer|int4|YES||
 column|synth|core_tts_connector|driver|text|text|YES||
 column|synth|core_tts_connector|id|integer|int4|NO|nextval('tts_connector_id_seq'::regclass)|
 column|synth|core_tts_connector|label|text|text|YES||
@@ -1636,9 +1632,7 @@ constraint|synth|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
 constraint|synth|core_action|core_action_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_api_badge|core_api_badge_label_unique|u|t|UNIQUE (label)
 constraint|synth|core_api_badge|my_table_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_itt_connector|core_itt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
 constraint|synth|core_itt_connector|core_itt_connector_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_llm_connector|llm_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
 constraint|synth|core_llm_connector|llm_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_narrator|core_narrator_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_npc_master_history|core_npc_master_history_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
@@ -1656,9 +1650,7 @@ constraint|synth|core_profiles|profiles_llm_secondary_id_fkey|f|t|FOREIGN KEY (l
 constraint|synth|core_profiles|profiles_llm_tertiary_id_fkey|f|t|FOREIGN KEY (llm_tertiary_id) REFERENCES core_llm_connector(id)
 constraint|synth|core_profiles|profiles_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_profiles|profiles_tts_connector_id_fkey|f|t|FOREIGN KEY (tts_connector_id) REFERENCES core_tts_connector(id)
-constraint|synth|core_stt_connector|stt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
 constraint|synth|core_stt_connector|stt_connector_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_tts_connector|tts_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
 constraint|synth|core_tts_connector|tts_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_tts_pronunciation|core_tts_pronunciation_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_tts_pronunciation|core_tts_pronunciation_source_not_blank|c|t|CHECK ((btrim((source_text)::text) <> ''::text))
