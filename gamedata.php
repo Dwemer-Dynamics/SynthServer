@@ -2208,7 +2208,8 @@ function handleFalloutStatsUpdate(array $data): void {
         }
 
         $valuesSql = implode(',', $valueRows);
-        if ($db->query("INSERT INTO core_player (id, value) VALUES {$valuesSql} ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value") === false) {
+        $playerValuesSql = implode(',', array_map(static fn(string $row): string => "('player', " . substr($row, 1), $valueRows));
+        if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES {$playerValuesSql} ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
             throw new RuntimeException('Could not update core_player Fallout statistics');
         }
         if ($db->query("INSERT INTO conf_opts (id, value) VALUES {$valuesSql} ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value") === false) {
@@ -2226,7 +2227,7 @@ function handleFalloutStatsUpdate(array $data): void {
         $snapshotJson = json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($snapshotJson !== false) {
             $safeSnapshot = $db->escape($snapshotJson);
-            if ($db->query("INSERT INTO core_player (id, value) VALUES ('fallout_stats', '{$safeSnapshot}') ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value") === false) {
+            if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('player', 'fallout_stats', '{$safeSnapshot}') ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
                 throw new RuntimeException('Could not update Fallout statistics snapshot');
             }
         }

@@ -7,7 +7,7 @@ class Narrator
     public const CANONICAL_NAME = 'The Narrator';
     public const DEFAULT_ROLEPLAY_NAME = self::CANONICAL_NAME;
 
-    private $table = "core_narrator";
+    private $table = "public.core_config_setting";
     private $db;
 
     public function __construct()
@@ -26,7 +26,7 @@ class Narrator
     public function get(string $key): ?string
     {
         $escaped = $this->escape($key);
-        $query = "SELECT value FROM {$this->table} WHERE id = '{$escaped}' LIMIT 1";
+        $query = "SELECT config_value AS value FROM {$this->table} WHERE scope = 'narrator' AND config_key = '{$escaped}' LIMIT 1";
         $result = $this->db->fetchOne($query);
         
         if ($result && isset($result['value'])) {
@@ -52,10 +52,10 @@ class Narrator
         
         if ($exists !== null) {
             // Update existing
-            $query = "UPDATE {$this->table} SET value = '{$escaped_value}' WHERE id = '{$escaped_key}'";
+            $query = "UPDATE {$this->table} SET config_value = '{$escaped_value}', updated_at = CURRENT_TIMESTAMP WHERE scope = 'narrator' AND config_key = '{$escaped_key}'";
         } else {
             // Insert new
-            $query = "INSERT INTO {$this->table} (id, value) VALUES ('{$escaped_key}', '{$escaped_value}')";
+            $query = "INSERT INTO {$this->table} (scope, config_key, config_value) VALUES ('narrator', '{$escaped_key}', '{$escaped_value}')";
         }
         
         $result = $this->db->query($query);
@@ -68,7 +68,7 @@ class Narrator
      */
     public function getAll(): array
     {
-        $query = "SELECT id, value FROM {$this->table}";
+        $query = "SELECT config_key AS id, config_value AS value FROM {$this->table} WHERE scope = 'narrator'";
         $results = $this->db->fetchAll($query);
         
         $data = [];
@@ -107,7 +107,7 @@ class Narrator
     public function delete(string $key): bool
     {
         $escaped = $this->escape($key);
-        $query = "DELETE FROM {$this->table} WHERE id = '{$escaped}'";
+        $query = "DELETE FROM {$this->table} WHERE scope = 'narrator' AND config_key = '{$escaped}'";
         $result = $this->db->query($query);
         return $result !== false;
     }

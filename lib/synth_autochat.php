@@ -101,7 +101,7 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     $history = synth_autochat_pair_history($saves->conversationRows($event, $placed->displayName(),
         Synth\Managers\ContextManager::HISTORY_ROWS), $placed->displayName());
     $player = [];
-    foreach ($db->fetchAll("SELECT id,value FROM core_player WHERE id IN ('bio','speech_style')") ?: [] as $row) {
+    foreach ($db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key IN ('bio','speech_style')") ?: [] as $row) {
         $player[strval($row['id'])] = strval($row['value'] ?? '');
     }
     $connectors = new LLMConnector();

@@ -2,7 +2,7 @@
 
 class Player
 {
-    private $table = "core_player";
+    private $table = "public.core_config_setting";
     private $db;
 
     public function __construct()
@@ -21,7 +21,7 @@ class Player
     public function get(string $key): ?string
     {
         $escaped = $this->escape($key);
-        $query = "SELECT value FROM {$this->table} WHERE id = '{$escaped}' LIMIT 1";
+        $query = "SELECT config_value AS value FROM {$this->table} WHERE scope = 'player' AND config_key = '{$escaped}' LIMIT 1";
         $result = $this->db->fetchOne($query);
         
         if ($result && isset($result['value'])) {
@@ -47,10 +47,10 @@ class Player
         
         if ($exists !== null) {
             // Update existing
-            $query = "UPDATE {$this->table} SET value = '{$escaped_value}' WHERE id = '{$escaped_key}'";
+            $query = "UPDATE {$this->table} SET config_value = '{$escaped_value}', updated_at = CURRENT_TIMESTAMP WHERE scope = 'player' AND config_key = '{$escaped_key}'";
         } else {
             // Insert new
-            $query = "INSERT INTO {$this->table} (id, value) VALUES ('{$escaped_key}', '{$escaped_value}')";
+            $query = "INSERT INTO {$this->table} (scope, config_key, config_value) VALUES ('player', '{$escaped_key}', '{$escaped_value}')";
         }
         
         $result = $this->db->query($query);
@@ -63,7 +63,7 @@ class Player
      */
     public function getAll(): array
     {
-        $query = "SELECT id, value FROM {$this->table}";
+        $query = "SELECT config_key AS id, config_value AS value FROM {$this->table} WHERE scope = 'player'";
         $results = $this->db->fetchAll($query);
         
         $data = [];
@@ -102,7 +102,7 @@ class Player
     public function delete(string $key): bool
     {
         $escaped = $this->escape($key);
-        $query = "DELETE FROM {$this->table} WHERE id = '{$escaped}'";
+        $query = "DELETE FROM {$this->table} WHERE scope = 'player' AND config_key = '{$escaped}'";
         $result = $this->db->query($query);
         return $result !== false;
     }

@@ -37,8 +37,8 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
             [$event['session_id'],$selection['npc_id'],$selection['actor_identity_id'],$selection['profile_id'],
              $identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id'],$event['runtime_variant']]);
     } elseif ($selection['role']==='narrator') {
-        $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_narrator n JOIN public.core_profiles p
-            ON n.id='profile_id' AND n.value=p.id::text WHERE p.id=$1 FOR SHARE OF n,p",[$selection['profile_id']]);
+        $result=@pg_query_params($connection,"SELECT 1 FROM public.core_config_setting n JOIN public.core_profiles p
+            ON n.scope='narrator' AND n.config_key='profile_id' AND n.config_value=p.id::text WHERE p.id=$1 FOR SHARE OF n,p",[$selection['profile_id']]);
     } else throw new LogicException('rechat_selection_role_invalid');
     if (!$result) throw new RuntimeException('rechat_selection_binding_query_failed');
     if (!pg_fetch_assoc($result)) throw new LogicException('rechat_selected_binding_changed');

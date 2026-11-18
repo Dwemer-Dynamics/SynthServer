@@ -1028,8 +1028,8 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     }
     private function playerRows(array $values): void {
         foreach ($values as $id=>$value) {
-            $this->query('DELETE FROM public.core_player WHERE id=$1',[$id]);
-            if ($value!==null) $this->query('INSERT INTO public.core_player(id,value) VALUES($1,$2)',[$id,strval($value)]);
+            $this->query("DELETE FROM public.core_config_setting WHERE scope='player' AND config_key=\$1",[$id]);
+            if ($value!==null) $this->query("INSERT INTO public.core_config_setting(scope,config_key,config_value) VALUES('player',\$1,\$2)",[$id,strval($value)]);
         }
     }
     // The root's player history rows (the generated stage is type inputtext).
