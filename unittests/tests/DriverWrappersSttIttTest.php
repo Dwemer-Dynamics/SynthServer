@@ -15,7 +15,7 @@ require_once dirname(__DIR__, 2) . '/drivers/stt/SttWrapper.php';
 require_once dirname(__DIR__, 2) . '/drivers/itt/IttWrapper.php';
 
 // Provider selection and "fails cleanly when not configured"; no network is used.
-final class SttIttWrapperTest extends TestCase
+final class DriverWrappersSttIttTest extends TestCase
 {
     public function testSttDriverNamesMatchTheConnectorDrivers(): void
     {

@@ -12,7 +12,7 @@ require_once dirname(__DIR__, 2) . '/drivers/llm/LlmWrapper.php';
 require_once dirname(__DIR__, 2) . '/drivers/tts/TtsWrapper.php';
 
 // The wrappers pick a driver and forward; they never add behaviour of their own.
-final class LlmWrapperTest extends TestCase
+final class DriverWrappersLlmTtsTest extends TestCase
 {
     private function driver(string $name, string $supported, array &$log): LlmDriverInterface
     {
