@@ -14,13 +14,13 @@ function initializeLogTrimming($maxLines = 10000) {
 
         $db = $GLOBALS['db'];
         // Read enabled flag (default true)
-        $enabledRow = @$db->fetchOne("SELECT value FROM synth_meta.settings WHERE key='AUTO_TRIM_LOGS_ENABLED'");
+        $enabledRow = @$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTO_TRIM_LOGS_ENABLED'");
         $enabled = true;
         if (is_array($enabledRow) && isset($enabledRow['value'])) {
             $enabled = in_array(strtolower(trim((string)$enabledRow['value'])), ['true','1','yes','on']);
         } else {
             // persist default true
-            @$db->insert('synth_meta.settings', ['key'=>'AUTO_TRIM_LOGS_ENABLED','value'=>'true']);
+            @$db->insert('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTO_TRIM_LOGS_ENABLED','config_value'=>'true']);
             $enabled = true;
         }
 
@@ -30,7 +30,7 @@ function initializeLogTrimming($maxLines = 10000) {
         }
 
         // Prevent frequent runs within the same day (or at most every 30 minutes)
-        $lastRunRow = @$db->fetchOne("SELECT value FROM synth_meta.settings WHERE key='AUTO_TRIM_LOGS_LAST_RUN'");
+        $lastRunRow = @$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTO_TRIM_LOGS_LAST_RUN'");
         $now = time();
         if (is_array($lastRunRow) && isset($lastRunRow['value'])) {
             $lastRun = (int)$lastRunRow['value'];
@@ -65,9 +65,9 @@ function initializeLogTrimming($maxLines = 10000) {
             }
         }
 
-        @$db->insert('synth_meta.settings', ['key'=>'AUTO_TRIM_LOGS_LAST_RUN','value'=> (string)$now]);
+        @$db->insert('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTO_TRIM_LOGS_LAST_RUN','config_value'=> (string)$now]);
         // If already exists, update
-        @$db->update('synth_meta.settings', "value='".$db->escape((string)$now)."'", "key='AUTO_TRIM_LOGS_LAST_RUN'");
+        @$db->update('public.core_config_setting', "config_value='".$db->escape((string)$now)."'", "scope='meta' AND config_key='AUTO_TRIM_LOGS_LAST_RUN'");
         Logger::info("Log trimming run completed for $trimCount files");
     } catch (Throwable $e) {
         Logger::warn("Error during log trimming: ".$e->getMessage());

@@ -473,8 +473,6 @@ column|public|core_runtime_session|runtime_version|text|text|NO||
 column|public|core_runtime_session|session_id|text|text|NO||
 column|public|core_runtime_session|state|text|text|NO|'active'::text|
 column|public|core_runtime_session|updated_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|settings|key|text|text|NO||
-column|synth_meta|settings|value|text|text|YES||
 column|public|core_social_task_claim|deadline_at|timestamp with time zone|timestamptz|NO||
 column|public|core_social_task_claim|execution_id|text|text|NO||
 column|public|core_social_task_claim|generation|bigint|int8|NO||
@@ -1533,7 +1531,6 @@ constraint|public|core_runtime_session|runtime_sessions_playthrough_id_check|c|t
 constraint|public|core_runtime_session|runtime_sessions_runtime_variant_check|c|t|CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
 constraint|public|core_runtime_session|runtime_sessions_session_id_check|c|t|CHECK ((session_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 constraint|public|core_runtime_session|runtime_sessions_state_check|c|t|CHECK ((state = ANY (ARRAY['active'::text, 'halted'::text, 'expired'::text])))
-constraint|synth_meta|settings|settings_pkey|p|t|PRIMARY KEY (key)
 constraint|public|core_social_task_claim|social_task_claims_execution_id_check|c|t|CHECK ((execution_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 constraint|public|core_social_task_claim|social_task_claims_generation_check|c|t|CHECK ((generation > 0))
 constraint|public|core_social_task_claim|social_task_claims_pkey|p|t|PRIMARY KEY (task_id, session_id, generation)
@@ -1792,7 +1789,6 @@ index|public|core_dialogue_route|response_routes_utterance_unique|CREATE UNIQUE 
 index|public|core_runtime_session|runtime_sessions_memory_dispatch|CREATE INDEX runtime_sessions_memory_dispatch ON public.core_runtime_session USING btree (memory_dispatch_after, session_id) WHERE (state = 'active'::text)
 index|public|core_runtime_session|runtime_sessions_pkey|CREATE UNIQUE INDEX runtime_sessions_pkey ON public.core_runtime_session USING btree (session_id)
 index|public|core_runtime_session|runtime_sessions_playthrough_state|CREATE INDEX runtime_sessions_playthrough_state ON public.core_runtime_session USING btree (playthrough_id, state, updated_at DESC)
-index|synth_meta|settings|settings_pkey|CREATE UNIQUE INDEX settings_pkey ON synth_meta.settings USING btree (key)
 index|public|core_social_task_claim|social_task_claims_pkey|CREATE UNIQUE INDEX social_task_claims_pkey ON public.core_social_task_claim USING btree (task_id, session_id, generation)
 index|public|core_social_task_claim|social_task_claims_session_id_generation_execution_id_key|CREATE UNIQUE INDEX social_task_claims_session_id_generation_execution_id_key ON public.core_social_task_claim USING btree (session_id, generation, execution_id)
 index|public|core_social_task_event|social_task_events_pkey|CREATE UNIQUE INDEX social_task_events_pkey ON public.core_social_task_event USING btree (history_event_id)
@@ -1969,7 +1965,6 @@ table|public|core_relationship_revision|BASE TABLE
 table|synth_meta|request_executions|BASE TABLE
 table|public|core_dialogue_route|BASE TABLE
 table|public|core_runtime_session|BASE TABLE
-table|synth_meta|settings|BASE TABLE
 table|public|core_social_task_claim|BASE TABLE
 table|public|core_social_task_event|BASE TABLE
 table|public|core_social_task_input|BASE TABLE
@@ -2037,3 +2032,11 @@ column|public|core_catalog_version|version|bigint|int8|NO||
 constraint|public|core_catalog_version|core_catalog_version_pkey|p|t|PRIMARY KEY (catalog_key)
 index|public|core_catalog_version|core_catalog_version_pkey|CREATE UNIQUE INDEX core_catalog_version_pkey ON public.core_catalog_version USING btree (catalog_key)
 table|public|core_catalog_version|BASE TABLE
+column|public|core_config_setting|scope|text|text|NO||
+column|public|core_config_setting|config_key|text|text|NO||
+column|public|core_config_setting|config_value|text|text|YES||
+column|public|core_config_setting|description|text|text|NO|''::text|
+column|public|core_config_setting|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
+constraint|public|core_config_setting|core_config_setting_pkey|p|t|PRIMARY KEY (scope, config_key)
+index|public|core_config_setting|core_config_setting_pkey|CREATE UNIQUE INDEX core_config_setting_pkey ON public.core_config_setting USING btree (scope, config_key)
+table|public|core_config_setting|BASE TABLE

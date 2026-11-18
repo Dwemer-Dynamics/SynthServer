@@ -103,7 +103,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.actor_identities',
             'public.core_npc_biography_template_actor',
             'synth_meta.playthrough_profiles',
-            'synth_meta.settings',
+            'public.core_config_setting',
             'public.core_runtime_session',
             'synth_meta.request_executions',
             'public.core_dialogue_route',

@@ -2692,9 +2692,13 @@ CREATE TABLE public.core_runtime_session (
     CONSTRAINT runtime_sessions_state_check CHECK ((state = ANY (ARRAY['active'::text, 'halted'::text, 'expired'::text])))
 );
 -- end-statement
-CREATE TABLE synth_meta.settings (
-    key text NOT NULL,
-    value text
+CREATE TABLE public.core_config_setting (
+    scope text NOT NULL,
+    config_key text NOT NULL,
+    config_value text,
+    description text DEFAULT ''::text NOT NULL,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT core_config_setting_pkey PRIMARY KEY (scope, config_key)
 );
 -- end-statement
 CREATE TABLE public.core_social_task_claim (
@@ -4715,9 +4719,6 @@ ALTER TABLE ONLY public.core_dialogue_route
 -- end-statement
 ALTER TABLE ONLY public.core_runtime_session
     ADD CONSTRAINT runtime_sessions_pkey PRIMARY KEY (session_id);
--- end-statement
-ALTER TABLE ONLY synth_meta.settings
-    ADD CONSTRAINT settings_pkey PRIMARY KEY (key);
 -- end-statement
 ALTER TABLE ONLY public.core_social_task_claim
     ADD CONSTRAINT social_task_claims_pkey PRIMARY KEY (task_id, session_id, generation);
