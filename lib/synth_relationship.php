@@ -53,8 +53,8 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
             if (!is_int($id) || $id<1) throw new InvalidArgumentException('Invalid relationship history source');
         }
         $dependencySources=", relationship_graph_dependency_sources(history_event_id) AS MATERIALIZED (
-            SELECT source_history_event_id FROM synth_meta.relationship_revision_sources
-            UNION SELECT history_event_id FROM synth_meta.relationship_evaluation_sources
+            SELECT source_history_event_id FROM public.core_relationship_revision_source
+            UNION SELECT history_event_id FROM public.core_relationship_evaluation_source
             UNION SELECT unnest(ARRAY[".implode(',',$sourceHistoryIds)."]::bigint[])
         ) ";
     }
@@ -75,13 +75,13 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
         SELECT history_event_id FROM relationship_graph_sources WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
     ), relationship_revision_history AS MATERIALIZED (
         SELECT h.* FROM synth_meta.history_events h
-        JOIN synth_meta.relationship_revisions revision ON revision.history_event_id=h.id
+        JOIN public.core_relationship_revision revision ON revision.history_event_id=h.id
         WHERE EXISTS (SELECT 1 FROM relationship_graph_scopes scope
             WHERE scope.session_id=h.session_id AND scope.generation=h.generation
                 AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=revision.actor_identity_id
                 AND h.id<=scope.cutoff)
     ), relationship_candidates AS MATERIALIZED (
-        SELECT r.*,h.playthrough_id FROM synth_meta.relationship_revisions r
+        SELECT r.*,h.playthrough_id FROM public.core_relationship_revision r
         JOIN relationship_revision_history h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff AND r.actor_identity_id=scope.reader_identity_id
@@ -95,10 +95,10 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
             AND r.input_payload->'prior'=COALESCE(to_jsonb(r.prior_history_event_id),'null'::jsonb)
             AND COALESCE(r.input_payload->'evaluation_result','null'::jsonb)=COALESCE(to_jsonb(r.result_history_event_id),'null'::jsonb)
             AND jsonb_typeof(r.input_payload->'sources')='array'
-            AND EXISTS (SELECT 1 FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id)
-            AND (SELECT count(*) FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id)
+            AND EXISTS (SELECT 1 FROM public.core_relationship_revision_source d WHERE d.relationship_history_event_id=r.history_event_id)
+            AND (SELECT count(*) FROM public.core_relationship_revision_source d WHERE d.relationship_history_event_id=r.history_event_id)
                 =jsonb_array_length(CASE WHEN jsonb_typeof(r.input_payload->'sources')='array' THEN r.input_payload->'sources' ELSE '[]'::jsonb END)
-            AND NOT EXISTS (SELECT 1 FROM synth_meta.relationship_revision_sources d
+            AND NOT EXISTS (SELECT 1 FROM public.core_relationship_revision_source d
                 WHERE d.relationship_history_event_id=r.history_event_id AND (
                     NOT (r.input_payload->'sources' @> jsonb_build_array(d.source_history_event_id)) OR NOT (
                     EXISTS(SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.source_history_event_id AND s.actor_identity_id=r.actor_identity_id)
@@ -143,7 +143,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $pair=synth_relationship_pair($db,$event,$subject);
         if (!$pair) throw new OutOfBoundsException('Native relationship context or subject unavailable');
         if (!synth_relationship_write_allowed($connection,$event,$pair['actor_id'])) throw new LogicException('Relationship control blocks this proposal');
-        $responses=@pg_query($connection,'SELECT history_event_id FROM synth_meta.relationship_response_inputs WHERE history_event_id IN ('.implode(',',$sources).')');
+        $responses=@pg_query($connection,'SELECT history_event_id FROM public.core_relationship_response_input WHERE history_event_id IN ('.implode(',',$sources).')');
         if (!$responses) throw new RuntimeException('Unable to verify relationship response boundaries');
         foreach (pg_fetch_all($responses) as $response) {
             if (!synth_relationship_write_allowed($connection,$event,$pair['actor_id'],intval($response['history_event_id']))) {
@@ -157,7 +157,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $input=['delta'=>$delta,'type'=>$type,'prior'=>$expectedRevision,'sources'=>$sources];
         if ($details!==null) $input['details']=(object)$details;
         if ($evaluationResult!==null) {
-            $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id
+            $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
                 WHERE r.history_event_id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.actor_identity_id=$4 AND i.context_sequence=$5 AND i.generation=$6',
                 [$evaluationResult,$event['session_id'],$event['request_id'],$pair['actor_id'],$event['context_sequence'],$event['generation']]);
             if (!$result || !pg_fetch_assoc($result)) throw new LogicException('Native relationship result owner mismatch');
@@ -165,7 +165,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         }
         $input=json_encode($input,JSON_THROW_ON_ERROR);
         $hash=hash('sha256',$input);
-        $existing=@pg_query_params($connection,'SELECT r.history_event_id,r.input_hash,h.context_sequence FROM synth_meta.relationship_revisions r
+        $existing=@pg_query_params($connection,'SELECT r.history_event_id,r.input_hash,h.context_sequence FROM public.core_relationship_revision r
             JOIN synth_meta.history_events h ON h.id=r.history_event_id
             WHERE h.session_id=$1 AND h.generation=$2 AND h.request_id=$3
                 AND r.actor_identity_id=$4 AND r.subject_identity_id=$5',
@@ -187,7 +187,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
             if (!$known || !pg_fetch_assoc($known)) throw new InvalidArgumentException('Invalid native relationship type');
         }
         // Unsaved concurrent publication is stale. Invalid older revisions must not permanently block recovery.
-        $head=@pg_query_params($connection,'SELECT max(r.history_event_id) AS id FROM synth_meta.relationship_revisions r
+        $head=@pg_query_params($connection,'SELECT max(r.history_event_id) AS id FROM public.core_relationship_revision r
             JOIN synth_meta.history_events h ON h.id=r.history_event_id WHERE h.session_id=$1 AND h.generation=$2
                 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4 AND h.id>(
                     SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5)',
@@ -201,7 +201,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         if (intval(pg_fetch_assoc($visible)['n'])!==count($sources)) {
             // Only this already-persisted result may use a factual gift source before its thank-you is heard. Reuse
             // full worker revalidation under the same owner/lease; never admit the raw candidate as speech evidence.
-            $fact=$evaluationResult===null ? false : @pg_query_params($connection,'SELECT evaluation_id FROM synth_meta.relationship_results
+            $fact=$evaluationResult===null ? false : @pg_query_params($connection,'SELECT evaluation_id FROM public.core_relationship_result
                 WHERE history_event_id=$1',[$evaluationResult]);
             $fact=$fact ? pg_fetch_assoc($fact) : false;
             $validated=$fact ? synth_relationship_evaluation_input($connection,$db,$event,intval($fact['evaluation_id'])) : null;
@@ -222,7 +222,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('relationship_details',$16::jsonb)
             FROM publication RETURNING id
-        ) INSERT INTO synth_meta.relationship_revisions(history_event_id,actor_identity_id,subject_identity_id,
+        ) INSERT INTO public.core_relationship_revision(history_event_id,actor_identity_id,subject_identity_id,
             prior_history_event_id,affinity,relationship_type,input_payload,input_hash,result_history_event_id,details)
             SELECT id,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16::jsonb FROM history RETURNING history_event_id",
             [$pair['playthrough_id'],intval($pair['context']['world']['game_time_ticks'] ?? 0),time(),
@@ -231,7 +231,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         if (!$result) throw new RuntimeException('Unable to publish native relationship');
         $id=intval(pg_fetch_assoc($result)['history_event_id']);
         foreach ($sources as $source) {
-            if (@pg_query_params($connection,'INSERT INTO synth_meta.relationship_revision_sources VALUES($1,$2)',[$id,$source])===false) {
+            if (@pg_query_params($connection,'INSERT INTO public.core_relationship_revision_source VALUES($1,$2)',[$id,$source])===false) {
                 throw new RuntimeException('Unable to freeze native relationship evidence');
             }
         }

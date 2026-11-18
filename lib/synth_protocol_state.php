@@ -179,7 +179,7 @@ function synth_protocol_assert_request_active(): void
     if (is_array($diaryLease)) {
         $jobId=intval($diaryLease['id']);$token=$db->escapeLiteral($diaryLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 FROM public.core_worker_job j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
+        $job=$db->fetchOne("SELECT 1 FROM public.core_worker_job j JOIN public.core_diary_input i ON i.id=j.diary_input_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation AND i.actor_identity_id=j.actor_identity_id
             WHERE j.id=$jobId AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1'
                 AND j.session_id=$session AND j.request_id=$request AND j.generation=$generation AND j.turn_id=$turn
@@ -192,7 +192,7 @@ function synth_protocol_assert_request_active(): void
         $jobId=intval($interactionLease['id']);$token=$db->escapeLiteral($interactionLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
         $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job j
-            JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
+            JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
                 AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
                 AND i.speaker_identity_id=j.actor_identity_id AND i.context_sequence::text=j.payload->>'context_sequence'
             WHERE j.id=$jobId AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
@@ -369,8 +369,8 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         $readerJoin=" JOIN synth.actor_identities journal_actor ON journal_actor.game='fo4'
             AND journal_actor.playthrough_id=c.playthrough_id AND journal_actor.id<>c.player_identity_id
             AND ".($journalKind==='middleterm'
-                ? 'EXISTS(SELECT 1 FROM synth_meta.middleterm_inputs journal WHERE journal.actor_identity_id=journal_actor.id)'
-                : "EXISTS(SELECT 1 FROM synth_meta.diary_inputs journal WHERE journal.actor_identity_id=journal_actor.id AND journal.diary_role='npc')")
+                ? 'EXISTS(SELECT 1 FROM public.core_middleterm_input journal WHERE journal.actor_identity_id=journal_actor.id)'
+                : "EXISTS(SELECT 1 FROM public.core_diary_input journal WHERE journal.actor_identity_id=journal_actor.id AND journal.diary_role='npc')")
             .($journalReaderIdentityId===null || $journalReaderIdentityId===0 ? '' : ' AND journal_actor.id='.$journalReaderIdentityId);
     }
     if ($playerPerspective) {

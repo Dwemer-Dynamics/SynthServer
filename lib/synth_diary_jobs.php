@@ -48,8 +48,8 @@ function synth_diary_automation_available($db,array $event,array $binding,string
 {
     if (!$policy['enabled']) return false;
     if ($event['payload']['reason']==='manual') return true;
-    $pending=$db->fetchOne("SELECT 1 FROM synth_meta.diary_inputs i JOIN public.core_worker_job j ON j.diary_input_id=i.id
-        LEFT JOIN synth_meta.diary_results r ON r.input_id=i.id
+    $pending=$db->fetchOne("SELECT 1 FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
+        LEFT JOIN public.core_diary_result r ON r.input_id=i.id
         JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
         WHERE i.session_id=".$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
         .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.intval($binding['actor_identity_id'])
@@ -71,7 +71,7 @@ function synth_diary_prepare_npc($db, array $identity): ?int
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_npc_binding($db,$event,$identity);
         // An admitted input owns its original settings even if configuration changes before a replay.
-        $existing=$db->fetchOne('SELECT id FROM synth_meta.diary_inputs WHERE session_id='.$db->escapeLiteral($event['session_id'])
+        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
             .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='npc'");
         if ($existing) return intval($existing['id']);
         $npc=synth_diary_lock_binding($db,$binding);
@@ -107,7 +107,7 @@ function synth_diary_prepare_narrator($db): ?int
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_narrator_binding($db,$event);
-        $existing=$db->fetchOne('SELECT id FROM synth_meta.diary_inputs WHERE session_id='.$db->escapeLiteral($event['session_id'])
+        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
             .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='narrator'");
         if ($existing) return intval($existing['id']);
         $narrator=synth_diary_lock_binding($db,$binding);
@@ -132,7 +132,7 @@ function synth_diary_prepare_player($db): ?int
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_player_owned_binding($db,$event,'player');
-        $existing=$db->fetchOne('SELECT id FROM synth_meta.diary_inputs WHERE session_id='.$db->escapeLiteral($event['session_id'])
+        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
             .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='player'");
         if ($existing) return intval($existing['id']);
         $player=synth_diary_lock_binding($db,$binding);
@@ -160,7 +160,7 @@ function synth_diary_enqueue_character($db, ?array $identity, string $role): ?in
             (job_type,session_id,request_id,turn_id,generation,actor_identity_id,diary_input_id,payload,deadline_at)
             SELECT 'diary',session_id,request_id,$2,generation,actor_identity_id,id,
                 jsonb_build_object('schema','synth.diary.job.v1','context_sequence',context_sequence),clock_timestamp()+INTERVAL '30 minutes'
-            FROM synth_meta.diary_inputs WHERE id=$1 ON CONFLICT DO NOTHING",[$inputId,$event['turn_id']]);
+            FROM public.core_diary_input WHERE id=$1 ON CONFLICT DO NOTHING",[$inputId,$event['turn_id']]);
         if (!$result) throw new RuntimeException('Unable to admit diary job.');
         return intval($db->fetchOne('SELECT id FROM public.core_worker_job WHERE diary_input_id='.$inputId)['id']);
     },2000);
@@ -245,7 +245,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary worker requires an idle database connection.');
     $job=$db->fetchOne("SELECT j.*,i.input_payload,i.input_sha256,i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid
-        FROM public.core_worker_job j JOIN synth_meta.diary_inputs i ON i.id=j.diary_input_id
+        FROM public.core_worker_job j JOIN public.core_diary_input i ON i.id=j.diary_input_id
         WHERE j.id=".intval($jobId)." AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')");
     if (!$job) return false;
     if ($job['valid']!=='t') throw new LogicException('Frozen diary input hash mismatch.');
@@ -276,13 +276,13 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
         try {
             $saved=$db->fetchOne("SELECT result_payload,result_sha256=encode(sha256(convert_to(result_payload::text,'UTF8')),'hex')
                 AND input_sha256=".$db->escapeLiteral($job['input_sha256'])." AS valid
-                FROM synth_meta.diary_job_results WHERE job_id=$jobId");
+                FROM public.core_diary_job_result WHERE job_id=$jobId");
             if ($saved && $saved['valid']!=='t') throw new LogicException('Diary checkpoint hash mismatch.');
             $value=$saved ? json_decode($saved['result_payload'],true,flags:JSON_THROW_ON_ERROR)
                 : ($generate ? $generate($input) : synth_diary_generate($db,$input));
             synth_diary_validate_result($value);
             if (!$saved) $db->withNativeRequestLock(static function($connection) use($jobId,$job,$value) {
-                if (!@pg_query_params($connection,"INSERT INTO synth_meta.diary_job_results(job_id,input_sha256,result_payload,result_sha256)
+                if (!@pg_query_params($connection,"INSERT INTO public.core_diary_job_result(job_id,input_sha256,result_payload,result_sha256)
                     VALUES($1,$3,$2::jsonb,encode(sha256(convert_to(($2::jsonb)::text,'UTF8')),'hex'))",[$jobId,json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$job['input_sha256']])) throw new RuntimeException('Unable to checkpoint diary output.');
             },2000);
             require_once __DIR__.'/synth_memory_recall.php';
@@ -290,7 +290,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
                 (embedding IS NULL AND embedding_sha256 IS NULL AND embedding_text_sha256 IS NULL) OR
                     (embedding_attempted AND embedding_sha256=encode(sha256(convert_to(embedding::text,'UTF8')),'hex')
                         AND (embedding_text_sha256 IS NULL OR embedding_text_sha256=encode(sha256(convert_to(result_payload->>'content','UTF8')),'hex'))) AS valid
-                FROM synth_meta.diary_job_results WHERE job_id=$jobId");
+                FROM public.core_diary_job_result WHERE job_id=$jobId");
             if (!$vector || $vector['valid']!=='t') throw new LogicException('Diary embedding checkpoint invalid.');
             if ($vector['embedding_attempted']!=='t') {
                 $embedding=synth_memory_optional_embedding($value['content'],
@@ -298,7 +298,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
                 if ($embedding!==null) $embedding=synth_memory_vector_json($embedding);
                 $embeddingTextHash=$embedding===null ? null : hash('sha256',$value['content']);
                 $db->withNativeRequestLock(static function($connection) use($jobId,$embedding,$embeddingTextHash) {
-                    if (!@pg_query_params($connection,"UPDATE synth_meta.diary_job_results SET embedding=$2::public.vector,
+                    if (!@pg_query_params($connection,"UPDATE public.core_diary_job_result SET embedding=$2::public.vector,
                         embedding_sha256=CASE WHEN $2 IS NULL THEN NULL ELSE encode(sha256(convert_to(($2::public.vector)::text,'UTF8')),'hex') END,
                         embedding_text_sha256=$3,embedding_attempted=true WHERE job_id=$1 AND NOT embedding_attempted",[$jobId,$embedding,$embeddingTextHash])) throw new RuntimeException('Unable to checkpoint diary embedding.');
                 },2000);
@@ -306,11 +306,11 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             $db->withNativeRequestLock(static function($connection) use($db,$job,$jobId,$value,$input) {
                 $revision=synth_diary_publish_character($db,intval($job['diary_input_id']),$value,$job['input_sha256'],$input['diary_role']);
                 // Preserve old checkpoints without inventing provenance; publish their accepted text without an unbound vector.
-                $attached=@pg_query_params($connection,"UPDATE synth_meta.diary_results r SET
+                $attached=@pg_query_params($connection,"UPDATE public.core_diary_result r SET
                         embedding=CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END,
                         embedding_sha256=CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding_sha256 ELSE NULL END,
                         embedding_text_sha256=c.embedding_text_sha256
-                    FROM synth_meta.diary_job_results c WHERE r.history_event_id=$1 AND c.job_id=$2
+                    FROM public.core_diary_job_result c WHERE r.history_event_id=$1 AND c.job_id=$2
                         AND r.result_sha256=c.result_sha256 AND r.input_id=$3 AND c.embedding_attempted
                         AND ((c.embedding IS NULL AND c.embedding_sha256 IS NULL AND c.embedding_text_sha256 IS NULL) OR
                             (c.embedding_sha256=encode(sha256(convert_to(c.embedding::text,'UTF8')),'hex')

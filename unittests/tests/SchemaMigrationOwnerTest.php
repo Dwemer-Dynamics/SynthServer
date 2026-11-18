@@ -284,9 +284,9 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 'constraint|public|core_social_task_claim|social_task_claims_generation_check|c|t|CHECK ((generation > 0))'],
             'unique' => [$claims.'DROP CONSTRAINT social_task_claims_session_id_generation_execution_id_key',
                 'constraint|public|core_social_task_claim|social_task_claims_session_id_generation_execution_id_key|u|t|'],
-            'index' => ['DROP INDEX synth_meta.memory_summaries_batch', 'index|synth_meta|memory_summaries|memory_summaries_batch|'],
-            'vector dimension' => ['ALTER TABLE synth_meta.diary_job_results ALTER COLUMN embedding TYPE public.vector(768) USING NULL',
-                'typmod|synth_meta|diary_job_results|embedding|vector(384)'],
+            'index' => ['DROP INDEX public.memory_summaries_batch', 'index|public|core_memory_summary|memory_summaries_batch|'],
+            'vector dimension' => ['ALTER TABLE public.core_diary_job_result ALTER COLUMN embedding TYPE public.vector(768) USING NULL',
+                'typmod|public|core_diary_job_result|embedding|vector(384)'],
         ];
     }
 
@@ -321,14 +321,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         // Baseline checks apply only while the baseline is the latest record (later migrations own the schema).
         $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version = $1', [self::SHIPPED]);
         $recorded = $this->recorded();
-        $this->rows('DROP INDEX synth_meta.memory_summaries_batch');
+        $this->rows('DROP INDEX public.memory_summaries_batch');
         $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString('no longer matches its recorded legacy baseline', $result['output']);
-        self::assertStringContainsString('index|synth_meta|memory_summaries|memory_summaries_batch|', $result['output']);
+        self::assertStringContainsString('index|public|core_memory_summary|memory_summaries_batch|', $result['output']);
         self::assertSame($recorded, $this->recorded());
-        self::assertNull($this->value("SELECT to_regclass('synth_meta.memory_summaries_batch')"));
+        self::assertNull($this->value("SELECT to_regclass('public.memory_summaries_batch')"));
         self::assertSame('20260719001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'core_action'"));
     }
 

@@ -29,7 +29,7 @@ function synth_relationship_pair_evidence_cte(): string
         FROM interaction_result_owners i
         JOIN public.core_runtime_session runtime ON runtime.session_id=i.session_id AND runtime.playthrough_id=i.playthrough_id
             AND runtime.game='fo4' AND runtime.runtime_variant=i.owner_event->>'runtime_variant'
-        JOIN synth_meta.relationship_response_inputs receipt ON receipt.session_id=i.session_id
+        JOIN public.core_relationship_response_input receipt ON receipt.session_id=i.session_id
             AND receipt.request_id=i.request_id AND receipt.actor_identity_id=i.speaker_identity_id
         JOIN synth_meta.history_events speech ON speech.id=receipt.history_event_id AND speech.session_id=i.session_id
             AND speech.generation=i.generation AND speech.context_sequence=i.context_sequence AND speech.request_id=i.request_id
@@ -51,7 +51,7 @@ function synth_relationship_pair_evidence_cte(): string
             AND receipt.response_payload->>'request_sha256'=(SELECT p.event_sha256 FROM public.core_protocol_event p
                 WHERE p.session_id=i.session_id AND p.request_id=i.request_id)
             AND receipt.response_payload->'input_events'='[]'::jsonb
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_response_sources source WHERE source.response_history_event_id=receipt.history_event_id)
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_response_source source WHERE source.response_history_event_id=receipt.history_event_id)
             AND ((i.owner_state='complete' AND encode(sha256(i.owner_body),'hex')=receipt.response_sha256)
                 OR (i.owner_state='cancelled' AND i.owner_body IS NULL AND i.owner_error IN ('turn_cancelled','request_cancelled')))
     ), interaction_rechat_prepared AS MATERIALIZED (
@@ -103,7 +103,7 @@ function synth_relationship_pair_evidence_cte(): string
             AND parent.canonical_event->'capabilities' @> '[\"dialogue.turn_ownership\"]'::jsonb
     ), interaction_rechat_provenance AS MATERIALIZED (
         SELECT i.* FROM interaction_rechat_parent i
-        JOIN synth_meta.relationship_response_inputs parent_receipt ON parent_receipt.session_id=i.session_id
+        JOIN public.core_relationship_response_input parent_receipt ON parent_receipt.session_id=i.session_id
             AND parent_receipt.request_id=i.proven_parent_request_id AND parent_receipt.response_sha256=i.proven_parent_response_sha256
         JOIN synth.actor_identities parent_actor ON parent_actor.id=parent_receipt.actor_identity_id
             AND parent_actor.game='fo4' AND parent_actor.playthrough_id=i.playthrough_id
@@ -131,10 +131,10 @@ function synth_relationship_pair_evidence_cte(): string
                     AND entry#>>'{speaker,playthrough_id}'=i.playthrough_id)
             AND CASE WHEN jsonb_typeof(parent_receipt.response_payload->'input_events')='array' THEN
                 jsonb_array_length(parent_receipt.response_payload->'input_events')=CASE WHEN i.parent_execution_type IN ('input_text','input_audio') THEN 1 ELSE 0 END
-                AND jsonb_array_length(parent_receipt.response_payload->'input_events')=(SELECT count(*) FROM synth_meta.relationship_response_sources source
+                AND jsonb_array_length(parent_receipt.response_payload->'input_events')=(SELECT count(*) FROM public.core_relationship_response_source source
                     WHERE source.response_history_event_id=parent_receipt.history_event_id)
                 AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(parent_receipt.response_payload->'input_events') item WHERE NOT EXISTS(
-                    SELECT 1 FROM synth_meta.relationship_response_sources source JOIN synth_meta.history_events raw ON raw.id=source.source_history_event_id
+                    SELECT 1 FROM public.core_relationship_response_source source JOIN synth_meta.history_events raw ON raw.id=source.source_history_event_id
                     WHERE source.response_history_event_id=parent_receipt.history_event_id AND to_jsonb(raw.id)=item->'id' AND raw.id<parent_speech.id
                         AND raw.session_id=i.session_id AND raw.generation=i.generation AND raw.request_id=i.proven_parent_request_id
                         AND raw.context_sequence=i.context_sequence AND raw.playthrough_id=i.playthrough_id

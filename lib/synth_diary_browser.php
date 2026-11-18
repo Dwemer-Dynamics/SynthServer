@@ -32,8 +32,8 @@ WITH written_diaries AS (
         COALESCE(i.input_payload#>>'{context,world,location}','') AS location,
         COALESCE(i.input_payload#>>'{context,player,display_name}','Sole Survivor') AS player_name,
         substr(encode(sha256(convert_to(h.playthrough_id,'UTF8')),'hex'),1,12) AS save_key
-    FROM synth_meta.diary_results r
-    JOIN synth_meta.diary_inputs i ON i.id=r.input_id
+    FROM public.core_diary_result r
+    JOIN public.core_diary_input i ON i.id=r.input_id
     JOIN synth_meta.history_events h ON h.id=r.history_event_id
         AND h.session_id=i.session_id AND h.request_id=i.request_id
         AND h.generation=i.generation AND h.context_sequence=i.context_sequence

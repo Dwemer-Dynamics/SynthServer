@@ -7,9 +7,9 @@ function synth_relationship_graph_scope_cte(): string
         SELECT reader_identity_id::bigint FROM native_ancestry WHERE depth=1
         UNION
         SELECT CASE WHEN i.speaker_identity_id=reader.actor_identity_id THEN i.listener_identity_id ELSE i.speaker_identity_id END
-        FROM relationship_graph_readers reader JOIN synth_meta.relationship_interaction_evaluations i
+        FROM relationship_graph_readers reader JOIN public.core_relationship_interaction_evaluation i
             ON i.speaker_identity_id=reader.actor_identity_id OR i.listener_identity_id=reader.actor_identity_id
-        JOIN synth_meta.relationship_interaction_results result ON result.interaction_id=i.id
+        JOIN public.core_relationship_interaction_result result ON result.interaction_id=i.id
         JOIN synth_meta.history_events h ON h.id=result.history_event_id
         JOIN native_history_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff

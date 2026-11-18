@@ -56,7 +56,7 @@ function synth_memory_enqueue($db, int $batchId): ?int
             "INSERT INTO public.core_worker_job (job_type,session_id,request_id,turn_id,generation,actor_identity_id,
                 memory_batch_id,payload,deadline_at)
              SELECT 'memory',$1,$2,$3,$4,$5,$6,jsonb_build_object('context_sequence',$7::bigint),clock_timestamp()+INTERVAL '10 minutes'
-             WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_summaries WHERE batch_id=$6)
+             WHERE NOT EXISTS (SELECT 1 FROM public.core_memory_summary WHERE batch_id=$6)
                AND NOT EXISTS (SELECT 1 FROM public.core_worker_job WHERE memory_batch_id=$6
                     AND session_id=$1 AND request_id=$2 AND state='failed')
                AND (SELECT count(*) FROM public.core_worker_job WHERE actor_identity_id=$5
@@ -105,7 +105,7 @@ function synth_memory_claim($db, int $jobId): ?array
         if (!$job) return null;
         $result = @pg_query_params($connection,"SELECT input_payload,packed_message,
             encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS input_sha256
-            FROM synth_meta.memory_batches WHERE id=$1",[$job['memory_batch_id']]);
+            FROM public.core_memory_batch WHERE id=$1",[$job['memory_batch_id']]);
         $batch = $result ? pg_fetch_assoc($result) : false;
         if (!$batch) throw new RuntimeException('Claimed memory batch unavailable');
         return array_merge($job,$batch);
@@ -127,7 +127,7 @@ function synth_memory_checkpoint_locked($connection,array $event,int $jobId,stri
 {
     $result=@pg_query_params($connection,"SELECT j.payload,j.memory_batch_id,
             encode(sha256(convert_to(b.input_payload::text,'UTF8')),'hex') AS input_sha256
-        FROM public.core_worker_job j JOIN synth_meta.memory_batches b ON b.id=j.memory_batch_id
+        FROM public.core_worker_job j JOIN public.core_memory_batch b ON b.id=j.memory_batch_id
         WHERE j.id=$1 AND j.job_type='memory' AND j.session_id=$2 AND j.request_id=$3 AND j.generation=$4
             AND j.turn_id=$5 AND j.payload->>'context_sequence'=$6 AND j.state='running' AND j.lease_token=$7
             AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp() FOR UPDATE OF j",
@@ -194,7 +194,7 @@ function synth_memory_complete($db, int $jobId, string $token, string $summary, 
                     AND state='running' AND lease_token=$5 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()
                     AND payload->>'context_sequence'=$7
                 RETURNING id,memory_batch_id
-             ) INSERT INTO synth_meta.memory_summaries (batch_id,job_id,summary,embedding)
+             ) INSERT INTO public.core_memory_summary (batch_id,job_id,summary,embedding)
                SELECT memory_batch_id,id,$6,$8::public.vector FROM accepted RETURNING id",
             [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$token,$summary,(string)$event['context_sequence'],$vector]);
         if (!$result) throw new RuntimeException('Unable to publish native memory');
@@ -281,15 +281,15 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
         $journalReaderIdentityId===null?'diary':'middleterm').", native_memory_visible_sources AS MATERIALIZED (
         SELECT DISTINCT history_event_id,gamets FROM native_history
     ), native_memory_owned_batches AS MATERIALIZED (
-        SELECT b.id FROM synth_meta.memory_batches b
+        SELECT b.id FROM public.core_memory_batch b
         WHERE EXISTS (SELECT 1 FROM native_history_scopes s
             WHERE s.reader_identity_id=b.actor_identity_id AND s.playthrough_id=b.playthrough_id)
     ), native_memory_source_counts AS MATERIALIZED (
         SELECT d.batch_id,count(*) AS source_count,count(h.history_event_id) AS visible_count,
             count(*) FILTER (WHERE h.gamets IS NOT NULL AND h.gamets=frozen.gamets) AS clock_count,
             min(h.gamets) AS first_gamets,max(h.gamets) AS last_gamets
-        FROM native_memory_owned_batches owned JOIN synth_meta.memory_batch_sources d ON d.batch_id=owned.id
-        JOIN synth_meta.memory_batches b ON b.id=owned.id
+        FROM native_memory_owned_batches owned JOIN public.core_memory_batch_source d ON d.batch_id=owned.id
+        JOIN public.core_memory_batch b ON b.id=owned.id
         LEFT JOIN native_memory_visible_sources h ON h.history_event_id=d.history_event_id
         LEFT JOIN LATERAL (
             SELECT CASE WHEN jsonb_typeof(b.input_payload->'events'->(d.position-1)->'gamets')='number'
@@ -299,24 +299,24 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
         ) frozen ON TRUE
         GROUP BY d.batch_id
     ), native_memory_direct_batches AS MATERIALIZED (
-        SELECT b.* FROM synth_meta.memory_batches b JOIN native_memory_source_counts sources ON sources.batch_id=b.id
+        SELECT b.* FROM public.core_memory_batch b JOIN native_memory_source_counts sources ON sources.batch_id=b.id
         WHERE sources.visible_count=sources.source_count AND sources.clock_count=sources.source_count
             AND sources.source_count=jsonb_array_length(b.input_payload->'events')
             AND b.first_gamets=sources.first_gamets AND b.last_gamets=sources.last_gamets
     ), native_memory_batch_families AS MATERIALIZED (
         SELECT b.id,b.id AS root_id FROM native_memory_direct_batches b
-        WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_batch_rebuilds rebuild WHERE rebuild.batch_id=b.id)
+        WHERE NOT EXISTS (SELECT 1 FROM public.core_memory_batch_rebuild rebuild WHERE rebuild.batch_id=b.id)
         UNION ALL
-        SELECT b.id,rebuild.root_batch_id FROM synth_meta.memory_batch_rebuilds rebuild
+        SELECT b.id,rebuild.root_batch_id FROM public.core_memory_batch_rebuild rebuild
         JOIN native_memory_direct_batches b ON b.id=rebuild.batch_id
         JOIN native_memory_direct_batches original ON original.id=rebuild.root_batch_id
         WHERE original.actor_identity_id=b.actor_identity_id
             AND original.playthrough_id=b.playthrough_id AND original.first_gamets=b.first_gamets
             AND original.last_gamets=b.last_gamets AND original.packed_message=b.packed_message
             AND original.input_payload->'events'=b.input_payload->'events'
-            AND NOT EXISTS (SELECT 1 FROM synth_meta.memory_batch_rebuilds nested WHERE nested.batch_id=original.id)
-            AND NOT EXISTS (SELECT history_event_id,position FROM synth_meta.memory_batch_sources WHERE batch_id=b.id
-                EXCEPT SELECT history_event_id,position FROM synth_meta.memory_batch_sources WHERE batch_id=original.id)
+            AND NOT EXISTS (SELECT 1 FROM public.core_memory_batch_rebuild nested WHERE nested.batch_id=original.id)
+            AND NOT EXISTS (SELECT history_event_id,position FROM public.core_memory_batch_source WHERE batch_id=b.id
+                EXCEPT SELECT history_event_id,position FROM public.core_memory_batch_source WHERE batch_id=original.id)
     ), native_memory_latest_batches AS MATERIALIZED (
         SELECT root_id,max(id) AS id FROM native_memory_batch_families GROUP BY root_id
     ), native_memory_effective_summaries AS (
@@ -324,20 +324,20 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
             COALESCE(edit.revision,0) AS summary_revision,COALESCE(edit.summary,s.summary) AS summary,
             CASE WHEN edit.revision IS NULL THEN s.embedding ELSE NULL::public.vector END AS embedding,
             COALESCE(edit.native_vec,s.native_vec) AS native_vec
-        FROM synth_meta.memory_summaries s JOIN native_memory_batch_families b ON b.id=s.batch_id
-        LEFT JOIN LATERAL (SELECT revision,summary,native_vec FROM synth_meta.memory_summary_revisions
+        FROM public.core_memory_summary s JOIN native_memory_batch_families b ON b.id=s.batch_id
+        LEFT JOIN LATERAL (SELECT revision,summary,native_vec FROM public.core_memory_summary_revision
             WHERE summary_id=s.id ORDER BY revision DESC LIMIT 1) edit ON TRUE
     ), native_memory_summary_edges AS MATERIALIZED (
         SELECT b.id,s.batch_id AS parent_id,
             d.summary_revision=current.summary_revision AND latest.id=s.batch_id AS current_reference
         FROM native_memory_direct_batches b
         JOIN native_memory_batch_families child_family ON child_family.id=b.id
-        JOIN synth_meta.memory_batch_summary_sources d ON d.batch_id=b.id
-        JOIN synth_meta.memory_summaries s ON s.id=d.summary_id
+        JOIN public.core_memory_batch_summary_source d ON d.batch_id=b.id
+        JOIN public.core_memory_summary s ON s.id=d.summary_id
         JOIN native_memory_effective_summaries current ON current.id=s.id
         JOIN native_memory_batch_families family ON family.id=s.batch_id
         JOIN native_memory_latest_batches latest ON latest.root_id=family.root_id
-        LEFT JOIN synth_meta.memory_summary_revisions frozen ON frozen.summary_id=s.id AND frozen.revision=d.summary_revision
+        LEFT JOIN public.core_memory_summary_revision frozen ON frozen.summary_id=s.id AND frozen.revision=d.summary_revision
         JOIN native_memory_direct_batches parent ON parent.id=s.batch_id
         WHERE parent.actor_identity_id=b.actor_identity_id AND parent.playthrough_id=b.playthrough_id
             AND parent.last_gamets<b.first_gamets
@@ -349,7 +349,7 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
     ), native_memory_valid_batches(id) AS (
         SELECT b.id FROM native_memory_direct_batches b JOIN native_memory_batch_families family ON family.id=b.id
         WHERE NOT (b.input_payload ? 'previous_summary')
-            AND NOT EXISTS (SELECT 1 FROM synth_meta.memory_batch_summary_sources d WHERE d.batch_id=b.id)
+            AND NOT EXISTS (SELECT 1 FROM public.core_memory_batch_summary_source d WHERE d.batch_id=b.id)
         UNION
         SELECT edge.id FROM native_memory_valid_batches valid
             JOIN native_memory_summary_edges edge ON edge.parent_id=valid.id
@@ -358,7 +358,7 @@ function synth_memory_visible_batch_cte($db, array $event, string $actor = '', ?
     ), native_memory_unarchived AS MATERIALIZED (
         SELECT b.* FROM native_memory_evidence_batches b
         JOIN native_memory_latest_batches latest ON latest.id=b.id
-        LEFT JOIN synth_meta.memory_batch_controls control ON control.batch_id=latest.root_id
+        LEFT JOIN public.core_memory_batch_control control ON control.batch_id=latest.root_id
         WHERE NOT COALESCE(control.archived,FALSE)
     ), native_memory_recallable(id) AS (
         SELECT b.id FROM native_memory_unarchived b WHERE NOT (b.input_payload ? 'previous_summary')
@@ -442,18 +442,18 @@ function synth_memory_rebuild_batch($db): ?int
         $result=@pg_query($connection,synth_memory_visible_batch_cte($db,$event)."
             SELECT b.*,latest.root_id,parent.id AS previous_id,parent.summary AS previous_text,parent.summary_revision
             FROM native_memory_evidence_batches b JOIN native_memory_latest_batches latest ON latest.id=b.id
-            JOIN synth_meta.memory_batch_summary_sources edge ON edge.batch_id=b.id
-            JOIN synth_meta.memory_summaries frozen ON frozen.id=edge.summary_id
+            JOIN public.core_memory_batch_summary_source edge ON edge.batch_id=b.id
+            JOIN public.core_memory_summary frozen ON frozen.id=edge.summary_id
             JOIN native_memory_batch_families parent_family ON parent_family.id=frozen.batch_id
             JOIN native_memory_latest_batches parent_latest ON parent_latest.root_id=parent_family.root_id
             JOIN native_memory_batches parent_batch ON parent_batch.id=parent_latest.id
             JOIN native_memory_effective_summaries parent ON parent.batch_id=parent_batch.id
-            LEFT JOIN synth_meta.memory_batch_controls control ON control.batch_id=latest.root_id
+            LEFT JOIN public.core_memory_batch_control control ON control.batch_id=latest.root_id
             WHERE NOT COALESCE(control.archived,FALSE) AND parent_batch.last_gamets<b.first_gamets
                 AND NOT EXISTS (SELECT 1 FROM native_memory_batches active WHERE active.id=b.id)
                 AND (control.regenerate_batch_id=b.id OR NOT EXISTS (
-                    SELECT 1 FROM synth_meta.memory_summaries summary
-                    JOIN synth_meta.memory_summary_revisions correction ON correction.summary_id=summary.id
+                    SELECT 1 FROM public.core_memory_summary summary
+                    JOIN public.core_memory_summary_revision correction ON correction.summary_id=summary.id
                     WHERE summary.batch_id=b.id))
             ORDER BY b.first_gamets,b.id LIMIT 1");
         if (!$result) throw new RuntimeException('Unable to select memory rebuild');
@@ -463,18 +463,18 @@ function synth_memory_rebuild_batch($db): ?int
         $input['previous_summary']=['id'=>intval($source['previous_id']),'summary'=>$source['previous_text']];
         if (intval($source['summary_revision'])>0) $input['previous_summary']['revision']=intval($source['summary_revision']);
         $json=json_encode($input,JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        $result=@pg_query_params($connection,'INSERT INTO synth_meta.memory_batches
+        $result=@pg_query_params($connection,'INSERT INTO public.core_memory_batch
             (actor_identity_id,playthrough_id,session_id,generation,context_sequence,source_hash,input_payload,packed_message,first_gamets,last_gamets)
             VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10) RETURNING id',
             [$source['actor_identity_id'],$source['playthrough_id'],$event['session_id'],$event['generation'],$event['context_sequence'],
                 hash('sha256',$json),$json,$source['packed_message'],$source['first_gamets'],$source['last_gamets']]);
         if (!$result) throw new RuntimeException('Unable to freeze rebuilt memory');
         $id=pg_fetch_assoc($result)['id'];
-        if (@pg_query_params($connection,'INSERT INTO synth_meta.memory_batch_sources(batch_id,history_event_id,position)
-            SELECT $1,history_event_id,position FROM synth_meta.memory_batch_sources WHERE batch_id=$2',[$id,$source['id']])===false
-            || @pg_query_params($connection,'INSERT INTO synth_meta.memory_batch_summary_sources(batch_id,summary_id,summary_revision)
+        if (@pg_query_params($connection,'INSERT INTO public.core_memory_batch_source(batch_id,history_event_id,position)
+            SELECT $1,history_event_id,position FROM public.core_memory_batch_source WHERE batch_id=$2',[$id,$source['id']])===false
+            || @pg_query_params($connection,'INSERT INTO public.core_memory_batch_summary_source(batch_id,summary_id,summary_revision)
                 VALUES($1,$2,$3)',[$id,$source['previous_id'],$source['summary_revision']])===false
-            || @pg_query_params($connection,'INSERT INTO synth_meta.memory_batch_rebuilds(batch_id,root_batch_id) VALUES($1,$2)',[$id,$source['root_id']])===false) {
+            || @pg_query_params($connection,'INSERT INTO public.core_memory_batch_rebuild(batch_id,root_batch_id) VALUES($1,$2)',[$id,$source['root_id']])===false) {
             throw new RuntimeException('Unable to freeze rebuild dependencies');
         }
         if (@pg_query_params($connection,"UPDATE public.core_worker_job SET state='cancelled',lease_token=NULL,lease_until=NULL,
@@ -523,7 +523,7 @@ function synth_memory_capture_batch($db, int $minimumEvents = 5, int $intervalTi
             FROM memory_boundaries
         ), memory_uncovered AS (
             SELECT g.* FROM memory_groups g WHERE NOT EXISTS (
-                SELECT 1 FROM native_memory_evidence_batches b JOIN synth_meta.memory_batch_sources d ON d.batch_id=b.id
+                SELECT 1 FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source d ON d.batch_id=b.id
                 WHERE d.history_event_id=g.history_event_id)
         ), memory_next_group AS (
             SELECT scene_group FROM memory_uncovered GROUP BY scene_group
@@ -548,7 +548,7 @@ function synth_memory_capture_batch($db, int $minimumEvents = 5, int $intervalTi
         $json = json_encode($batch['input_payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         $batch['source_hash'] = hash('sha256',$json);
         $result = @pg_query_params($connection,
-            'INSERT INTO synth_meta.memory_batches (actor_identity_id,playthrough_id,session_id,generation,
+            'INSERT INTO public.core_memory_batch (actor_identity_id,playthrough_id,session_id,generation,
                 context_sequence,source_hash,input_payload,packed_message,first_gamets,last_gamets)
              VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10)
              ON CONFLICT (actor_identity_id,source_hash) DO NOTHING RETURNING id',
@@ -559,20 +559,20 @@ function synth_memory_capture_batch($db, int $minimumEvents = 5, int $intervalTi
         if (!$created) {
             // READ COMMITTED sees a concurrently committed identical batch on this new statement.
             $result = @pg_query_params($connection,
-                'SELECT id FROM synth_meta.memory_batches WHERE actor_identity_id=$1 AND source_hash=$2',
+                'SELECT id FROM public.core_memory_batch WHERE actor_identity_id=$1 AND source_hash=$2',
                 [$context['target_identity_id'],$batch['source_hash']]);
             $existing = $result ? pg_fetch_assoc($result) : false;
             if (!$existing) throw new RuntimeException('Native memory batch conflict unavailable');
             return intval($existing['id']);
         }
         $result = @pg_query_params($connection,
-            'INSERT INTO synth_meta.memory_batch_sources (batch_id,history_event_id,position)
+            'INSERT INTO public.core_memory_batch_source (batch_id,history_event_id,position)
              SELECT $1,(e.event->>\'history_event_id\')::bigint,e.ordinality
              FROM jsonb_array_elements($2::jsonb->\'events\') WITH ORDINALITY e(event,ordinality)',
             [$created['id'],$json]);
         if (!$result) throw new RuntimeException('Unable to freeze native memory dependencies');
         if ($previous && @pg_query_params($connection,
-            'INSERT INTO synth_meta.memory_batch_summary_sources (batch_id,summary_id,summary_revision) VALUES ($1,$2,$3)',
+            'INSERT INTO public.core_memory_batch_summary_source (batch_id,summary_id,summary_revision) VALUES ($1,$2,$3)',
             [$created['id'],$previous['id'],$previous['summary_revision']]) === false) {
             throw new RuntimeException('Unable to freeze prior native memory dependency');
         }

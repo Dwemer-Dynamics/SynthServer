@@ -125,7 +125,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         synth_relationship_finish_response(true);
         $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='relationship-parent'"))['body'];
         synth_relationship_store_response($this->database,$this->parent,hex2bin($body));
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_response_inputs'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_response_input'))['n']);
     }
 
     public function tearDown(): void {
@@ -398,7 +398,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $body=implode('',$lines);
         $this->query("UPDATE synth_meta.request_executions SET state='complete',response_body=convert_to($1,'UTF8'),completed_at=clock_timestamp() WHERE request_id=$2",[$body,$event['request_id']]);
         synth_relationship_store_response($this->database,$event,$body);
-        $receipt=pg_fetch_assoc($this->query('SELECT response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$event['request_id']]));
+        $receipt=pg_fetch_assoc($this->query('SELECT response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$event['request_id']]));
         $this->assertNotFalse($receipt);
         $frozen=json_decode($receipt['response_payload'],true,flags:JSON_THROW_ON_ERROR);
         $this->assertSame(synth_protocol_canonical_json($pair['listener']),synth_protocol_canonical_json($frozen['entries'][0]['routing']['listener']));
@@ -560,8 +560,8 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             return '{"changes":{}}';
         },true);
         $this->assertNotNull($result);$this->assertSame(1,$calls);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
         $this->assertSame('ready',pg_fetch_assoc($this->query("SELECT state FROM public.core_worker_job WHERE job_type='relationship'"))['state']);
         $this->query("UPDATE public.core_runtime_session SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
         $this->assertNull(synth_relationship_dispatch($this->database,function() use (&$calls): string {++$calls;return '{"changes":{}}';},true));
@@ -651,11 +651,11 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
         synth_relationship_store_response($this->database,$receipt,hex2bin($body));
         $row=pg_fetch_assoc($this->query("SELECT response_payload->>'verified_gift_action_id' AS gift
-            FROM synth_meta.relationship_response_inputs WHERE request_id='gift-result'"));
+            FROM public.core_relationship_response_input WHERE request_id='gift-result'"));
         $this->assertSame($gift['action_id'],$row['gift']);
         if ($receipts) $this->assertSame([],$this->database->fetchAll(synth_relationship_visible_cte($this->database,$receipt,true,sourceHistoryIds:[])
             ." SELECT history_event_id FROM relationship_response_evidence WHERE request_id='gift-result'"),'a gift fact never makes its unheard speech eligible');
-        $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM synth_meta.relationship_evaluations
+        $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM public.core_relationship_evaluation
             WHERE request_id='gift-result'"))['n'],'Reply completion leaves appraisal preparation to the worker.');
 
         [$child,$chain]=$this->continuation('npc',true,$receipt);
@@ -719,17 +719,17 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             $this->assertSame(1,$calls);
             $this->assertSame('cancelled',pg_fetch_assoc($this->query("SELECT state FROM public.core_worker_job
                 WHERE request_id='gift-result' AND job_type='relationship'"))['state']);
-            $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
+            $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
             return;
         }
         $this->assertNotNull(synth_relationship_dispatch($this->database,$generate,true));
-        $evaluation=(int)pg_fetch_assoc($this->query("SELECT id FROM synth_meta.relationship_evaluations WHERE request_id='gift-result'"))['id'];
+        $evaluation=(int)pg_fetch_assoc($this->query("SELECT id FROM public.core_relationship_evaluation WHERE request_id='gift-result'"))['id'];
         $job=pg_fetch_assoc($this->query('SELECT id,state FROM public.core_worker_job WHERE relationship_evaluation_id=$1',[$evaluation]));
         $this->assertSame('ready',$job['state']);
         if ($receipts) $this->assertEquals($frozenSnapshot,json_decode(pg_fetch_assoc($this->query(
-            'SELECT input_payload FROM synth_meta.relationship_evaluations WHERE id=$1',[$evaluation]))['input_payload'],true),'later hearing cannot backfill frozen gift speech');
-        $saved=pg_fetch_assoc($this->query('SELECT v.affinity FROM synth_meta.relationship_revisions v
-            JOIN synth_meta.relationship_results r ON r.history_event_id=v.result_history_event_id WHERE r.evaluation_id=$1',[$evaluation]));
+            'SELECT input_payload FROM public.core_relationship_evaluation WHERE id=$1',[$evaluation]))['input_payload'],true),'later hearing cannot backfill frozen gift speech');
+        $saved=pg_fetch_assoc($this->query('SELECT v.affinity FROM public.core_relationship_revision v
+            JOIN public.core_relationship_result r ON r.history_event_id=v.result_history_event_id WHERE r.evaluation_id=$1',[$evaluation]));
         $this->assertSame('4',$saved['affinity']);
         $this->assertNull(synth_relationship_run_persisted_job($this->database,(int)$job['id'],$generate));
         $this->assertSame(1,$calls,'A receipt replay cannot multiply gift appreciation.');
@@ -744,9 +744,9 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         synth_relationship_capture_route($line,'Player','fixture:dialogue');synth_relationship_finish_response(true);
         $duplicateBody=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result-replayed'"))['body'];
         synth_relationship_store_response($this->database,$duplicate,hex2bin($duplicateBody));
-        $duplicateResponse=(int)pg_fetch_assoc($this->query("SELECT history_event_id FROM synth_meta.relationship_response_inputs WHERE request_id='gift-result-replayed'"))['history_event_id'];
+        $duplicateResponse=(int)pg_fetch_assoc($this->query("SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id='gift-result-replayed'"))['history_event_id'];
         $this->assertNull(synth_relationship_capture_evaluation($this->database,$duplicateResponse,'No duplicate gift reward.',true));
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results WHERE evaluation_id=$1',[$evaluation]))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result WHERE evaluation_id=$1',[$evaluation]))['n']);
 
         $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
             WHERE snapshot_sequence=3");
@@ -765,7 +765,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     }
 
     private function evaluationJob(): int {
-        $response=(int)pg_fetch_assoc($this->query('SELECT history_event_id FROM synth_meta.relationship_response_inputs'))['history_event_id'];
+        $response=(int)pg_fetch_assoc($this->query('SELECT history_event_id FROM public.core_relationship_response_input'))['history_event_id'];
         $evaluation=synth_relationship_capture_evaluation($this->database,$response,'Evaluate only synthetic relationship evidence.',true);
         $this->assertNotNull($evaluation);
         $job=synth_relationship_enqueue_evaluation($this->database,$evaluation);
@@ -950,7 +950,7 @@ PHP;
                 $text.(!$dedicated && $id==='fixture:first' ? ' #REL:Player=+5#' : '')),'Player','utt.'.str_replace(':','-',$id));
         synth_relationship_finish_response(true);
         synth_relationship_store_response($this->database,$root,$body);
-        $frozen=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$root['request_id']]));
+        $frozen=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$root['request_id']]));
         $this->assertNotFalse($frozen);
         $this->assertCount(2,json_decode($frozen['response_payload'],true)['entries']);
         $this->assertSame(['fixture:first','fixture:dialogue'],json_decode($frozen['response_payload'],true)['delivery_lines']);
@@ -1003,7 +1003,7 @@ PHP;
             $this->assertSame([],$eligible(true));
         }
         $state('fixture:dialogue','spoken');
-        $this->assertSame($frozen['response_payload'],pg_fetch_assoc($this->query('SELECT response_payload FROM synth_meta.relationship_response_inputs WHERE history_event_id=$1',[$responseId]))['response_payload']);
+        $this->assertSame($frozen['response_payload'],pg_fetch_assoc($this->query('SELECT response_payload FROM public.core_relationship_response_input WHERE history_event_id=$1',[$responseId]))['response_payload']);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$root];
         if ($dedicated) {
             $evaluation=synth_relationship_capture_evaluation($this->database,$responseId,'Synthetic delivered appraisal.',true);
@@ -1035,7 +1035,7 @@ PHP;
             $this->fail('A completed but cancelled input cannot authorize late relationship work');
         } catch (SYNTHProtocolCancelled $error) {$this->assertSame('request_cancelled',$error->getMessage());}
         $this->assertSame(0,$calls);
-        foreach (['synth_meta.relationship_results','synth_meta.relationship_revisions','public.core_worker_job'] as $table)
+        foreach (['public.core_relationship_result','public.core_relationship_revision','public.core_worker_job'] as $table)
             $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM '.$table))['n']);
         $this->assertSame($this->parent,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
     }
@@ -1049,12 +1049,12 @@ PHP;
             synth_relationship_complete_evaluation($this->database,$job,$first['lease_token'],'{"changes":{"Player":{"delta":50}}}');
             $this->fail('The expired token must not change a replacement attempt');
         } catch (SYNTHProtocolCancelled $error) {$this->assertSame('relationship_lease_lost',$error->getMessage());}
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
         $result=synth_relationship_complete_evaluation($this->database,$job,$second['lease_token'],'{"changes":{}}');
         $this->assertGreaterThan(0,$result);
         $after=pg_fetch_assoc($this->query('SELECT state,attempts,deadline_at FROM public.core_worker_job WHERE id=$1',[$job]));
         $this->assertSame('ready',$after['state']);$this->assertSame('2',$after['attempts']);$this->assertSame($before['deadline_at'],$after['deadline_at']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
         $this->assertSame($result,synth_relationship_complete_evaluation($this->database,$job,$second['lease_token'],'{"changes":{}}'));
         $this->assertNull(synth_relationship_enqueue_evaluation($this->database,(int)pg_fetch_assoc($this->query('SELECT relationship_evaluation_id FROM public.core_worker_job WHERE id=$1',[$job]))['relationship_evaluation_id']));
     }
@@ -1069,7 +1069,7 @@ PHP;
         $after=pg_fetch_assoc($this->query('SELECT state,attempts,deadline_at,last_error FROM public.core_worker_job WHERE id=$1',[$job]));
         $this->assertSame('failed',$after['state']);$this->assertSame('3',$after['attempts']);
         $this->assertSame('lease_expired',$after['last_error']);$this->assertSame($before['deadline_at'],$after['deadline_at']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
     }
     public function testPublicationRequiresSavedFrontierAndEarlierSaveExcludesLaterResult(): void {
         $job=$this->evaluationJob();$claimed=synth_relationship_claim_evaluation($this->database,$job);$this->assertNotNull($claimed);
@@ -1077,7 +1077,7 @@ PHP;
             '{"changes":{"Player":{"delta":2,"reason":"Synthetic appreciation"}}}');
         $this->assertSame('unknown',synth_relationship_read($this->database,'Player')['availability'],
             'Publication beyond this saved cutoff must not become visible immediately');
-        $frontier=(int)pg_fetch_assoc($this->query('SELECT max(history_event_id) AS id FROM synth_meta.relationship_revisions'))['id'];
+        $frontier=(int)pg_fetch_assoc($this->query('SELECT max(history_event_id) AS id FROM public.core_relationship_revision'))['id'];
         $this->query("UPDATE public.core_runtime_context SET history_event_id=$1 WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=2",[$frontier]);
         $later=$this->parent;$later['request_id']='relationship-later';$later['turn_id']='relationship-later-turn';$later['context_sequence']=2;
         $this->request($later);$this->query("UPDATE public.core_runtime_session SET active_turn_id=$1,active_turn_sequence=2 WHERE session_id='relationship-dispatch-session'",[$later['turn_id']]);
@@ -1198,7 +1198,7 @@ PHP;
         $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
             WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=2");
         $this->completeCapturedOwner($owner);
-        $freshResponse=pg_fetch_assoc($this->query('SELECT history_event_id FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$owner['request_id']]));
+        $freshResponse=pg_fetch_assoc($this->query('SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($freshResponse);
         $this->query("UPDATE public.core_runtime_session SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");$calls=0;
         $result=synth_relationship_dispatch($this->database,function(array $input) use(&$calls,$owner,$freshResponse): string {
@@ -1211,8 +1211,8 @@ PHP;
         $this->assertNotNull($result);$this->assertSame(1,$calls);
         $row=pg_fetch_assoc($this->query('SELECT revision.history_event_id AS revision,result.history_event_id AS result,result.job_id,
                 evaluation.id AS evaluation,evaluation.response_history_event_id AS response,owner.completed_at
-            FROM synth_meta.relationship_revisions revision JOIN synth_meta.relationship_results result ON result.history_event_id=revision.result_history_event_id
-            JOIN synth_meta.relationship_evaluations evaluation ON evaluation.id=result.evaluation_id
+            FROM public.core_relationship_revision revision JOIN public.core_relationship_result result ON result.history_event_id=revision.result_history_event_id
+            JOIN public.core_relationship_evaluation evaluation ON evaluation.id=result.evaluation_id
             JOIN synth_meta.request_executions owner ON owner.session_id=evaluation.session_id AND owner.request_id=evaluation.request_id
             WHERE evaluation.request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($row);$this->assertNotNull($row['completed_at']);
@@ -1260,8 +1260,8 @@ PHP;
         $visible=$this->savedRelationship($this->savedSelector());$this->assertNotNull($visible);
         $this->assertSame('2',$visible['affinity']);$this->assertSame($row['revision'],$visible['history_event_id']);
         $this->assertSame($row['result'],$visible['result_history_event_id']);
-        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
         $this->assertSame('ready',pg_fetch_assoc($this->query('SELECT state FROM public.core_worker_job WHERE id=$1',[$row['job_id']]))['state']);
         $replay=synth_protocol_claim_request($this->database,$owner);$this->assertSame('replay',$replay['status']);
         $this->assertSame('',$replay['body']);$this->assertSame($retired['error_code'],$replay['error_code']);
@@ -1311,15 +1311,15 @@ PHP;
             return '{"changes":{"Player":{"delta":3,"reason":"Synthetic continuing trust"}}}';
         },true);
         $this->assertNotNull($result);$this->assertSame(1,$calls);
-        $latest=pg_fetch_assoc($this->query('SELECT history_event_id,prior_history_event_id,affinity FROM synth_meta.relationship_revisions ORDER BY history_event_id DESC LIMIT 1'));
+        $latest=pg_fetch_assoc($this->query('SELECT history_event_id,prior_history_event_id,affinity FROM public.core_relationship_revision ORDER BY history_event_id DESC LIMIT 1'));
         $this->assertSame($row['revision'],$latest['prior_history_event_id']);$this->assertSame('5',$latest['affinity']);
         $context=$this->context;$context['snapshot_sequence']=4;
         $this->query("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload,history_event_id)
             VALUES('relationship-dispatch-session',1,4,'relationship-dispatch-save',$1,$2,$3::jsonb,$4::jsonb,$5)",
             [$this->playerId,$this->actorId,$this->json([$this->actorId]),$this->json($context),$latest['history_event_id']]);
         $this->assertSame('5',$this->savedRelationship($this->savedSelector(4))['affinity']);
-        $this->assertSame('3',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
-        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('3',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
+        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
     }
     public static function forbiddenChainReasons(): array {
         $cases=[];
@@ -1383,13 +1383,13 @@ PHP;
             return '{"speaker":{"delta":3,"reason":"Synthetic encouragement"},"listener":{"delta":-2,"reason":"Synthetic caution"}}';
         });
         $this->assertNotNull($result);$this->assertSame(1,$calls);
-        $directions=pg_fetch_all($this->query('SELECT actor_identity_id,subject_identity_id,affinity FROM synth_meta.relationship_revisions ORDER BY actor_identity_id'));
+        $directions=pg_fetch_all($this->query('SELECT actor_identity_id,subject_identity_id,affinity FROM public.core_relationship_revision ORDER BY actor_identity_id'));
         $this->assertSame([
             ['actor_identity_id'=>(string)$this->actorId,'subject_identity_id'=>(string)$npc['actor_id'],'affinity'=>'3'],
             ['actor_identity_id'=>(string)$npc['actor_id'],'subject_identity_id'=>(string)$this->actorId,'affinity'=>'-2'],
         ],$directions);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_results'))['n']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions WHERE subject_identity_id=$1',[$this->playerId]))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_result'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision WHERE subject_identity_id=$1',[$this->playerId]))['n']);
         $this->query("UPDATE public.core_runtime_session SET interaction_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
         $this->assertNull(synth_relationship_dispatch_interaction($this->database,function() use (&$calls): string {++$calls;return '{}';}));
         $this->query("UPDATE public.core_runtime_session SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
@@ -1406,7 +1406,7 @@ PHP;
         $this->response($child,$this->context['player'],$npc['identity']);
         $this->captureOwnedSpeech($child,$npc['identity'],'Player');
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
-        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$child['request_id']]));
+        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM public.core_relationship_response_input WHERE request_id=$1',[$child['request_id']]));
         $this->assertNotFalse($receipt,'The public prepared responder must retain its own accepted speech.');
         $this->assertSame((string)$npc['actor_id'],$receipt['actor_identity_id']);
         $selected=synth_protocol_response_actor_identity($this->database,$child,synth_protocol_current_context($this->database,$child));
@@ -1420,8 +1420,8 @@ PHP;
         $calls=0;
         $this->assertNull(synth_relationship_dispatch($this->database,function() use (&$calls): string {++$calls;return '{"changes":{"Player":{"delta":99}}}';},true));
         $this->assertSame(0,$calls);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_results'))['n']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
         $this->assertSame($child,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
     }
 
@@ -1446,7 +1446,7 @@ PHP;
             [$parent['request_id'],$this->json($input)]))['id'];
         $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=1',[$incoming]);
         $this->response($parent,$npc['identity']);$this->captureOwnedSpeech($parent,$this->context['target'],$npc['identity']['display_name']);
-        $parentReceipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$parent['request_id']]));
+        $parentReceipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM public.core_relationship_response_input WHERE request_id=$1',[$parent['request_id']]));
         $this->assertNotFalse($parentReceipt,'The public parent A->B must have a durable accepted receipt.');
         $this->assertSame((string)$this->actorId,$parentReceipt['actor_identity_id']);
         $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=2',[$parentReceipt['history_event_id']]);
@@ -1541,7 +1541,7 @@ PHP;
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner,'request_id'=>$owner['request_id'],'runtime_variant'=>$owner['runtime_variant']];
         synth_protocol_complete_request($this->database,'complete','application/x-ndjson',$bytes);
         $this->captureOwnedSpeech($owner,$npc['identity'],$this->context['target']['display_name']);
-        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$owner['request_id']]));
+        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($receipt);
         $snapshot=synth_protocol_current_context($this->database,$owner);
         $this->assertSame(synth_protocol_canonical_json($this->context['target']),synth_protocol_canonical_json($snapshot['payload']['target']),'The captured canonical scene target remains A.');
@@ -1567,15 +1567,15 @@ PHP;
             $this->assertSame(2,$input['context']['snapshot_sequence']);
             return '{"speaker":{"delta":3,"reason":"Synthetic encouragement"},"listener":{"delta":-2,"reason":"Synthetic caution"}}';
         });$this->assertNotNull($result);$this->assertSame(1,$calls);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_evaluations'))['n']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_results'))['n']);
-        $revisions=pg_fetch_all($this->query('SELECT history_event_id,actor_identity_id,subject_identity_id,affinity FROM synth_meta.relationship_revisions ORDER BY actor_identity_id'));
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_evaluation'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_result'))['n']);
+        $revisions=pg_fetch_all($this->query('SELECT history_event_id,actor_identity_id,subject_identity_id,affinity FROM public.core_relationship_revision ORDER BY actor_identity_id'));
         $this->assertCount(2,$revisions);
         $this->assertSame([
             ['actor_identity_id'=>(string)$this->actorId,'subject_identity_id'=>(string)$npc['actor_id'],'affinity'=>'-2'],
             ['actor_identity_id'=>(string)$npc['actor_id'],'subject_identity_id'=>(string)$this->actorId,'affinity'=>'3'],
         ],array_map(static fn(array $row): array=>array_diff_key($row,['history_event_id'=>true]),$revisions));
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions WHERE subject_identity_id=$1',[$this->playerId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision WHERE subject_identity_id=$1',[$this->playerId]))['n']);
         $frontier=max(array_map('intval',array_column($revisions,'history_event_id')));
         $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=3',[$frontier]);
         $before=[$this->savedPair($npc['actor_id'],$this->actorId),$this->savedPair($this->actorId,$npc['actor_id'])];
@@ -1616,7 +1616,7 @@ PHP;
             [$b['actor_id'],$b['npc_id'],$b['profile_id'],$this->json($b['identity']),$parent['request_id']]);
         $this->query('UPDATE public.core_runtime_session SET capabilities=$1::jsonb',[$this->json($parent['capabilities'])]);
         $this->response($parent,$c['identity'],$b['identity']);$this->captureOwnedSpeech($parent,$b['identity'],$c['identity']['display_name']);
-        $parentReceipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$parent['request_id']]));
+        $parentReceipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id FROM public.core_relationship_response_input WHERE request_id=$1',[$parent['request_id']]));
         $this->assertNotFalse($parentReceipt);$this->assertSame((string)$b['actor_id'],$parentReceipt['actor_identity_id']);
         $scene=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM public.core_runtime_context WHERE snapshot_sequence=3'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
         $scene['target']=$b['identity'];
@@ -1629,7 +1629,7 @@ PHP;
         $this->query('UPDATE public.core_rechat_selection SET actor_identity_id=$1,npc_id=$2,profile_id=$3,identity=$4::jsonb WHERE request_id=$5',
             [$c['actor_id'],$c['npc_id'],$c['profile_id'],$this->json($c['identity']),$owner['request_id']]);
         $this->response($owner,$b['identity'],$c['identity']);$this->captureOwnedSpeech($owner,$c['identity'],$b['identity']['display_name']);
-        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$owner['request_id']]));
+        $receipt=pg_fetch_assoc($this->query('SELECT history_event_id,actor_identity_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($receipt);$this->assertSame((string)$c['actor_id'],$receipt['actor_identity_id']);
         $this->assertSame(1,$owner['context_sequence']);$this->assertSame(3,$owner['payload']['scene_context_sequence']);
         $this->assertSame(synth_protocol_canonical_json($b['identity']),synth_protocol_canonical_json($owner['payload']['actor']));
@@ -1651,13 +1651,13 @@ PHP;
             return '{"speaker":{"delta":3,"reason":"Synthetic encouragement"},"listener":{"delta":-2,"reason":"Synthetic caution"}}';
         });$this->assertNotNull($result);$this->assertSame(1,$calls);
         $job=pg_fetch_assoc($this->query('SELECT job.actor_identity_id,job.state,evaluation.speaker_identity_id,evaluation.listener_identity_id FROM public.core_worker_job job
-            JOIN synth_meta.relationship_interaction_evaluations evaluation ON evaluation.id=job.relationship_interaction_id WHERE evaluation.request_id=$1',[$owner['request_id']]));
+            JOIN public.core_relationship_interaction_evaluation evaluation ON evaluation.id=job.relationship_interaction_id WHERE evaluation.request_id=$1',[$owner['request_id']]));
         $this->assertSame((string)$c['actor_id'],$job['actor_identity_id']);$this->assertSame((string)$c['actor_id'],$job['speaker_identity_id']);
         $this->assertSame((string)$b['actor_id'],$job['listener_identity_id']);$this->assertSame('ready',$job['state']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_evaluations'))['n']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_results'))['n']);
-        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
-        $frontier=(int)pg_fetch_assoc($this->query('SELECT max(history_event_id) AS n FROM synth_meta.relationship_revisions'))['n'];
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_evaluation'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_result'))['n']);
+        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
+        $frontier=(int)pg_fetch_assoc($this->query('SELECT max(history_event_id) AS n FROM public.core_relationship_revision'))['n'];
         $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=4',[$frontier]);
         $before=[$this->savedPair($c['actor_id'],$b['actor_id'],4),$this->savedPair($b['actor_id'],$c['actor_id'],4)];
         $this->assertNotNull($before[0]);$this->assertNotNull($before[1]);$this->assertSame('3',$before[0]['affinity']);$this->assertSame('-2',$before[1]['affinity']);
@@ -1691,7 +1691,7 @@ PHP;
             $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                 VALUES('relationship-dispatch-session',1,1,$1,'relationship-dispatch-save',930001,$2::jsonb)",[$parent['request_id'],$this->json($input)]);
             $this->response($parent,$npc['identity']);$this->captureOwnedSpeech($parent,$this->context['target'],$npc['identity']['display_name']);
-            $older=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$parent['request_id']]));
+            $older=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$parent['request_id']]));
             $this->assertNotFalse($older);
             $this->query('UPDATE synth_meta.request_executions SET completed_at=clock_timestamp() WHERE request_id=$1',[$parent['request_id']]);
             $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=2',[$older['history_event_id']]);
@@ -1709,7 +1709,7 @@ PHP;
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner,'request_id'=>$owner['request_id'],'runtime_variant'=>$owner['runtime_variant']];
         synth_protocol_complete_request($this->database,'complete','application/x-ndjson',$bytes);
         $this->captureOwnedSpeech($owner,$this->context['target'],$npc['identity']['display_name']);
-        $fresh=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM synth_meta.relationship_response_inputs WHERE request_id=$1',[$owner['request_id']]));
+        $fresh=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($fresh);$this->query("UPDATE public.core_runtime_session SET interaction_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
         $calls=0;$result=synth_relationship_dispatch_interaction($this->database,function(array $input) use(&$calls,$owner,$fresh,$npc,$scene): string {
             ++$calls;$this->assertTrue($this->database->isTransactionIdle());
@@ -1725,12 +1725,12 @@ PHP;
                 evaluation.response_history_event_id AS response,job.lease_token,job.state,
                 evaluation.input_sha256=history.event_payload->>\'evaluation_sha256\' AS input_bound,
                 encode(sha256(convert_to(result.result_payload::text,\'UTF8\')),\'hex\')=history.event_payload->>\'result_sha256\' AS result_bound
-            FROM synth_meta.relationship_interaction_results result JOIN synth_meta.relationship_interaction_evaluations evaluation ON evaluation.id=result.interaction_id
+            FROM public.core_relationship_interaction_result result JOIN public.core_relationship_interaction_evaluation evaluation ON evaluation.id=result.interaction_id
             JOIN public.core_worker_job job ON job.id=result.job_id JOIN synth_meta.history_events history ON history.id=result.history_event_id
             WHERE evaluation.request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($row);$this->assertSame($fresh['history_event_id'],$row['response']);
         $this->assertSame('ready',$row['state']);$this->assertSame('t',$row['input_bound']);$this->assertSame('t',$row['result_bound']);
-        $revisions=pg_fetch_all($this->query('SELECT history_event_id,actor_identity_id,subject_identity_id,affinity FROM synth_meta.relationship_revisions
+        $revisions=pg_fetch_all($this->query('SELECT history_event_id,actor_identity_id,subject_identity_id,affinity FROM public.core_relationship_revision
             WHERE interaction_result_history_event_id=$1 ORDER BY actor_identity_id',[$row['result']]));
         $this->assertCount(2,$revisions);$frontier=max(array_map('intval',array_column($revisions,'history_event_id')));
         $this->query("UPDATE public.core_runtime_context SET history_event_id=$1 WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=3",[$frontier]);
@@ -1768,8 +1768,8 @@ PHP;
             $this->fail('Historical pair evidence cannot authorize late publication');
         } catch (SYNTHProtocolCancelled $error) {$this->assertSame('request_cancelled',$error->getMessage());}
         $this->assertSame('ready',pg_fetch_assoc($this->query('SELECT state FROM public.core_worker_job WHERE id=$1',[$row['job_id']]))['state']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_interaction_results'))['n']);
-        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.relationship_revisions'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_interaction_result'))['n']);
+        $this->assertSame('2',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_revision'))['n']);
     }
     public function testAcceptedNpcPairSurvivesLaterChainClosureAndProfileRemoval(): void {
         ['owner'=>$owner,'row'=>$row,'npc'=>$npc,'chain'=>$chain]=$this->publishedNpcPair(true);
@@ -1785,8 +1785,8 @@ PHP;
         ['row'=>$row,'npc'=>$npc]=$this->publishedNpcPair(false);
         // The parent lookup has no optional receipt; existing FK-protected setup evidence is retained separately.
         $unrelated=$this->parent;$unrelated['request_id']='fixture-unrelated-parent';$unrelated['turn_id']='fixture-unrelated-turn';$this->request($unrelated);
-        $this->query("UPDATE synth_meta.relationship_response_inputs SET request_id=$1 WHERE request_id='relationship-parent'",[$unrelated['request_id']]);
-        $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM synth_meta.relationship_response_inputs WHERE request_id='relationship-parent'"))['n']);
+        $this->query("UPDATE public.core_relationship_response_input SET request_id=$1 WHERE request_id='relationship-parent'",[$unrelated['request_id']]);
+        $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM public.core_relationship_response_input WHERE request_id='relationship-parent'"))['n']);
         $this->assertSame('3',$this->savedPair($this->actorId,$npc['actor_id'])['affinity']);
         $this->assertSame('-2',$this->savedPair($npc['actor_id'],$this->actorId)['affinity']);
         $this->assertSame($row['result'],$this->savedPair($this->actorId,$npc['actor_id'])['interaction_result_history_event_id']);
@@ -1798,15 +1798,15 @@ PHP;
             $input['response']['request']=$owner;$input['response']['request_sha256']=$hash;
             $this->query('UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id=$3',[$canonical,$hash,$fixture['owner']['request_id']]);
             $this->query('UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id=$2',[$hash,$fixture['owner']['request_id']]);
-            $this->query('UPDATE synth_meta.relationship_response_inputs SET response_payload=$1::jsonb WHERE history_event_id=$2',[$this->json($input['response']),$row['response']]);
+            $this->query('UPDATE public.core_relationship_response_input SET response_payload=$1::jsonb WHERE history_event_id=$2',[$this->json($input['response']),$row['response']]);
             $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
                 to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex')))
-                FROM synth_meta.relationship_response_inputs receipt WHERE history.id=receipt.history_event_id AND history.id=$1",[$row['response']]);
+                FROM public.core_relationship_response_input receipt WHERE history.id=receipt.history_event_id AND history.id=$1",[$row['response']]);
         }
-        $this->query("UPDATE synth_meta.relationship_interaction_evaluations SET input_payload=$1::jsonb,
+        $this->query("UPDATE public.core_relationship_interaction_evaluation SET input_payload=$1::jsonb,
             input_sha256=encode(sha256(convert_to(($1::jsonb)::text,'UTF8')),'hex') WHERE id=$2",[$this->json($input),$row['evaluation']]);
         $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{evaluation_sha256}',to_jsonb(evaluation.input_sha256))
-            FROM synth_meta.relationship_interaction_evaluations evaluation WHERE evaluation.id=$1 AND history.id=$2",[$row['evaluation'],$row['result']]);
+            FROM public.core_relationship_interaction_evaluation evaluation WHERE evaluation.id=$1 AND history.id=$2",[$row['evaluation'],$row['result']]);
     }
     public static function invalidSavedPairEvidence(): array {
         return array_combine([
@@ -1831,36 +1831,36 @@ PHP;
         $this->assertNotNull($this->savedPair($this->actorId,$npc['actor_id']));
         $this->assertNotNull($this->savedPair($npc['actor_id'],$this->actorId));
         $this->cancelRetainedOwner($owner,true);$this->admitRetainedNextTurn($owner);
-        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.relationship_interaction_evaluations WHERE id=$1',[$row['evaluation']]))['input_payload'],true,flags:JSON_THROW_ON_ERROR);
+        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_relationship_interaction_evaluation WHERE id=$1',[$row['evaluation']]))['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         switch ($case) {
-            case 'receipt digest':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_sha256=repeat('0',64) WHERE history_event_id=$1",[$row['response']]);break;
-            case 'receipt payload':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_payload=jsonb_set(response_payload,'{entries,0,text}','\"Changed\"') WHERE history_event_id=$1",[$row['response']]);break;
-            case 'frozen input':$this->query("UPDATE synth_meta.relationship_interaction_evaluations SET input_payload=jsonb_set(input_payload,'{context,snapshot_sequence}','1') WHERE id=$1",[$row['evaluation']]);break;
-            case 'result digest':$this->query("UPDATE synth_meta.relationship_interaction_results SET result_payload=jsonb_set(result_payload,'{changes,0,state,aff}','99') WHERE history_event_id=$1",[$row['result']]);break;
+            case 'receipt digest':$this->query("UPDATE public.core_relationship_response_input SET response_sha256=repeat('0',64) WHERE history_event_id=$1",[$row['response']]);break;
+            case 'receipt payload':$this->query("UPDATE public.core_relationship_response_input SET response_payload=jsonb_set(response_payload,'{entries,0,text}','\"Changed\"') WHERE history_event_id=$1",[$row['response']]);break;
+            case 'frozen input':$this->query("UPDATE public.core_relationship_interaction_evaluation SET input_payload=jsonb_set(input_payload,'{context,snapshot_sequence}','1') WHERE id=$1",[$row['evaluation']]);break;
+            case 'result digest':$this->query("UPDATE public.core_relationship_interaction_result SET result_payload=jsonb_set(result_payload,'{changes,0,state,aff}','99') WHERE history_event_id=$1",[$row['result']]);break;
             case 'unready job':$this->query("UPDATE public.core_worker_job SET state='cancelled' WHERE id=$1",[$row['job_id']]);break;
             case 'unprepared selection':$this->query('UPDATE public.core_rechat_selection SET prepared_at=NULL WHERE request_id=$1',[$owner['request_id']]);break;
             case 'narrator selection':$this->query("UPDATE public.core_rechat_selection SET role='narrator',actor_identity_id=NULL,npc_id=NULL,identity=NULL WHERE request_id=$1",[$owner['request_id']]);break;
             case 'private policy':$this->query("UPDATE public.core_rechat_chain SET policy=jsonb_set(policy,'{private}','true') WHERE id=$1",[$chain]);break;
             case 'selection actor':$this->query('UPDATE public.core_rechat_selection SET actor_identity_id=$1,identity=$2::jsonb WHERE request_id=$3',[$npc['actor_id'],$this->json($npc['identity']),$owner['request_id']]);break;
-            case 'parent receipt actor':$this->query("UPDATE synth_meta.relationship_response_inputs SET actor_identity_id=$1 WHERE request_id='relationship-parent'",[$npc['actor_id']]);break;
-            case 'parent receipt digest':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_sha256=repeat('0',64) WHERE request_id='relationship-parent'");break;
-            case 'parent frozen source':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_payload=jsonb_set(response_payload,'{input_events,0,event,data}','\"Other input\"') WHERE request_id='relationship-parent'");
+            case 'parent receipt actor':$this->query("UPDATE public.core_relationship_response_input SET actor_identity_id=$1 WHERE request_id='relationship-parent'",[$npc['actor_id']]);break;
+            case 'parent receipt digest':$this->query("UPDATE public.core_relationship_response_input SET response_sha256=repeat('0',64) WHERE request_id='relationship-parent'");break;
+            case 'parent frozen source':$this->query("UPDATE public.core_relationship_response_input SET response_payload=jsonb_set(response_payload,'{input_events,0,event,data}','\"Other input\"') WHERE request_id='relationship-parent'");
                 $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
-                    to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM synth_meta.relationship_response_inputs receipt
+                    to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM public.core_relationship_response_input receipt
                     WHERE history.id=receipt.history_event_id AND receipt.request_id='relationship-parent'");break;
             case 'parent canonical request':$this->query("UPDATE public.core_protocol_event SET canonical_event=jsonb_set(canonical_event,'{context_sequence}','2') WHERE request_id='relationship-parent'");break;
             case 'parent route actor':$this->query("UPDATE public.core_dialogue_route SET speaker=$1::jsonb WHERE request_id='relationship-parent'",[$this->json($npc['identity'])]);break;
             case 'automatic activate parent':
                 $parent=$this->parent;$parent['type']='activate';$parent['payload']=['source'=>'automatic'];
                 $canonical=synth_protocol_canonical_json($parent);$hash=hash('sha256',$canonical);
-                $receipt=json_decode(pg_fetch_assoc($this->query("SELECT response_payload FROM synth_meta.relationship_response_inputs WHERE request_id='relationship-parent'"))['response_payload'],true,flags:JSON_THROW_ON_ERROR);
+                $receipt=json_decode(pg_fetch_assoc($this->query("SELECT response_payload FROM public.core_relationship_response_input WHERE request_id='relationship-parent'"))['response_payload'],true,flags:JSON_THROW_ON_ERROR);
                 $receipt['request']=$parent;$receipt['request_sha256']=$hash;$receipt['input_events']=[];
                 $this->query("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_type='activate',event_sha256=$2 WHERE request_id='relationship-parent'",[$canonical,$hash]);
                 $this->query("UPDATE synth_meta.request_executions SET event_type='activate',request_sha256=$1 WHERE request_id='relationship-parent'",[$hash]);
-                $this->query("UPDATE synth_meta.relationship_response_inputs SET response_payload=$1::jsonb WHERE request_id='relationship-parent'",[$this->json($receipt)]);
-                $this->query("DELETE FROM synth_meta.relationship_response_sources WHERE response_history_event_id IN (SELECT history_event_id FROM synth_meta.relationship_response_inputs WHERE request_id='relationship-parent')");
+                $this->query("UPDATE public.core_relationship_response_input SET response_payload=$1::jsonb WHERE request_id='relationship-parent'",[$this->json($receipt)]);
+                $this->query("DELETE FROM public.core_relationship_response_source WHERE response_history_event_id IN (SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id='relationship-parent')");
                 $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
-                    to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM synth_meta.relationship_response_inputs receipt
+                    to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM public.core_relationship_response_input receipt
                     WHERE history.id=receipt.history_event_id AND receipt.request_id='relationship-parent'");break;
             case 'unsupported cancellation':$this->query("UPDATE synth_meta.request_executions SET error_code='relationship_lease_lost' WHERE request_id=$1",[$owner['request_id']]);break;
             case 'incomplete owner':$this->query("UPDATE synth_meta.request_executions SET state='claimed',error_code=NULL WHERE request_id=$1",[$owner['request_id']]);break;
@@ -1999,20 +1999,20 @@ PHP;
 
     private function acceptedDeferredPublicPairFixture(): array {
         $fixture=$this->publishedNpcPair(true,true);$row=$fixture['row'];$older=$fixture['older'];
-        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.relationship_interaction_evaluations WHERE id=$1',[$row['evaluation']]))['input_payload'],true);
+        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_relationship_interaction_evaluation WHERE id=$1',[$row['evaluation']]))['input_payload'],true);
         $input['response']=json_decode($older['response_payload'],true);
         $input['interaction']['response_id']=intval($older['history_event_id']);
         $input['lines']=[['entry_index'=>0,'entry'=>$input['response']['entries'][0]]];
         $this->replacePairFrozenInput($fixture,$input);
         // Reconstruct the previously accepted legacy binding, without calling the repaired writer.
-        $this->query('UPDATE synth_meta.relationship_interaction_evaluations SET response_history_event_id=$1 WHERE id=$2',[$older['history_event_id'],$row['evaluation']]);
-        $this->query("UPDATE synth_meta.relationship_revisions SET input_payload=jsonb_set(input_payload,'{sources}',jsonb_build_array($1::bigint))
+        $this->query('UPDATE public.core_relationship_interaction_evaluation SET response_history_event_id=$1 WHERE id=$2',[$older['history_event_id'],$row['evaluation']]);
+        $this->query("UPDATE public.core_relationship_revision SET input_payload=jsonb_set(input_payload,'{sources}',jsonb_build_array($1::bigint))
             WHERE interaction_result_history_event_id=$2",[$older['history_event_id'],$row['result']]);
-        $this->query("UPDATE synth_meta.relationship_revisions SET input_hash=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')
+        $this->query("UPDATE public.core_relationship_revision SET input_hash=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')
             WHERE interaction_result_history_event_id=$1",[$row['result']]);
         $this->query("UPDATE synth_meta.history_events h SET event_payload=jsonb_set(h.event_payload,'{relationship_input_sha256}',to_jsonb(r.input_hash))
-            FROM synth_meta.relationship_revisions r WHERE r.history_event_id=h.id AND r.interaction_result_history_event_id=$1",[$row['result']]);
-        $this->query('UPDATE synth_meta.relationship_revision_sources d SET source_history_event_id=$1 FROM synth_meta.relationship_revisions r
+            FROM public.core_relationship_revision r WHERE r.history_event_id=h.id AND r.interaction_result_history_event_id=$1",[$row['result']]);
+        $this->query('UPDATE public.core_relationship_revision_source d SET source_history_event_id=$1 FROM public.core_relationship_revision r
             WHERE r.history_event_id=d.relationship_history_event_id AND r.interaction_result_history_event_id=$2',[$older['history_event_id'],$row['result']]);
         return $fixture;
     }
@@ -2043,8 +2043,8 @@ PHP;
     public function testAcceptedDeferredPublicPairRejectsUnprovenEvidence(string $case): void {
         $fixture=$this->acceptedDeferredPublicPairFixture();$npc=$fixture['npc'];
         switch($case) {
-            case 'source digest':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_sha256=repeat('a',64) WHERE history_event_id=$1",[$fixture['older']['history_event_id']]);break;
-            case 'source payload':$this->query("UPDATE synth_meta.relationship_response_inputs SET response_payload=jsonb_set(response_payload,'{entries,0,text}','\"altered\"'::jsonb) WHERE history_event_id=$1",[$fixture['older']['history_event_id']]);break;
+            case 'source digest':$this->query("UPDATE public.core_relationship_response_input SET response_sha256=repeat('a',64) WHERE history_event_id=$1",[$fixture['older']['history_event_id']]);break;
+            case 'source payload':$this->query("UPDATE public.core_relationship_response_input SET response_payload=jsonb_set(response_payload,'{entries,0,text}','\"altered\"'::jsonb) WHERE history_event_id=$1",[$fixture['older']['history_event_id']]);break;
             case 'private owner':$this->query("UPDATE public.core_rechat_chain SET policy=jsonb_set(policy,'{private}','true') WHERE id=$1",[$fixture['chain']]);break;
             case 'unready job':$this->query("UPDATE public.core_worker_job SET state='failed' WHERE id=$1",[$fixture['row']['job_id']]);break;
         }

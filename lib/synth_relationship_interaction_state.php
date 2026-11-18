@@ -8,8 +8,8 @@ function synth_relationship_interaction_state_cte(): string
     return ", interaction_result_base AS MATERIALIZED (
         SELECT result.*,i.speaker_identity_id,i.listener_identity_id,i.response_history_event_id,i.input_payload,i.input_sha256,
             h.playthrough_id,h.session_id,h.generation,h.context_sequence,h.request_id,h.event_payload
-        FROM synth_meta.relationship_interaction_results result
-        JOIN synth_meta.relationship_interaction_evaluations i ON i.id=result.interaction_id
+        FROM public.core_relationship_interaction_result result
+        JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
         JOIN synth_meta.history_events h ON h.id=result.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
@@ -66,21 +66,21 @@ function synth_relationship_interaction_state_cte(): string
                 WHERE change->>'role' NOT IN ('speaker','listener') OR i.input_payload#>>ARRAY['writable',change->>'role'] IS DISTINCT FROM 'true')
     ), interaction_result_prior_candidates AS MATERIALIZED (
         SELECT i.* FROM interaction_result_origins i
-        WHERE (SELECT count(*) FROM synth_meta.relationship_interaction_priors d WHERE d.interaction_id=i.interaction_id)
+        WHERE (SELECT count(*) FROM public.core_relationship_interaction_prior d WHERE d.interaction_id=i.interaction_id)
                 =(SELECT count(*) FROM jsonb_each(i.input_payload#>'{interaction,relationships}') prior WHERE prior.value<>'null'::jsonb)
-            AND (SELECT count(*) FROM synth_meta.relationship_interaction_result_priors d WHERE d.result_history_event_id=i.history_event_id)
+            AND (SELECT count(*) FROM public.core_relationship_interaction_result_prior d WHERE d.result_history_event_id=i.history_event_id)
                 =(SELECT count(*) FROM jsonb_each(i.input_payload#>'{interaction,relationships}') prior WHERE prior.value<>'null'::jsonb)
             AND NOT EXISTS(SELECT 1 FROM jsonb_each(i.input_payload#>'{interaction,relationships}') prior WHERE prior.value<>'null'::jsonb AND NOT EXISTS(
-                SELECT 1 FROM synth_meta.relationship_interaction_priors frozen
-                JOIN synth_meta.relationship_interaction_result_priors edge ON edge.result_history_event_id=i.history_event_id
+                SELECT 1 FROM public.core_relationship_interaction_prior frozen
+                JOIN public.core_relationship_interaction_result_prior edge ON edge.result_history_event_id=i.history_event_id
                     AND edge.actor_identity_id=frozen.actor_identity_id AND edge.prior_history_event_id=frozen.prior_history_event_id
-                JOIN synth_meta.relationship_revisions p ON p.history_event_id=edge.prior_history_event_id AND p.actor_identity_id=edge.actor_identity_id
+                JOIN public.core_relationship_revision p ON p.history_event_id=edge.prior_history_event_id AND p.actor_identity_id=edge.actor_identity_id
                 WHERE frozen.interaction_id=i.interaction_id AND to_jsonb(p.actor_identity_id)=i.input_payload#>ARRAY['interaction','actor_ids',prior.key]
                     AND p.subject_identity_id=CASE WHEN prior.key='speaker' THEN i.listener_identity_id ELSE i.speaker_identity_id END
                     AND to_jsonb(p.history_event_id)=prior.value->'revision' AND COALESCE(to_jsonb(p.affinity),'null'::jsonb)=prior.value->'aff'
                     AND p.relationship_type IS NOT DISTINCT FROM prior.value->>'type' AND p.details=prior.value-'revision'-'aff'-'type'))
     ), interaction_revision_candidates AS MATERIALIZED (
-        SELECT r.*,h.playthrough_id FROM synth_meta.relationship_revisions r
+        SELECT r.*,h.playthrough_id FROM public.core_relationship_revision r
         JOIN interaction_result_prior_candidates i ON i.history_event_id=r.interaction_result_history_event_id
         JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence AND h.playthrough_id=i.playthrough_id AND h.id>i.history_event_id
@@ -99,11 +99,11 @@ function synth_relationship_interaction_state_cte(): string
             AND r.input_payload=jsonb_build_object('schema','synth.relationship.interaction.revision.v1','interaction_result',i.history_event_id,
                 'role',change->>'role','prior',r.prior_history_event_id,'state',change->'state','sources',jsonb_build_array(i.response_history_event_id))
             AND r.input_hash=encode(sha256(convert_to(r.input_payload::text,'UTF8')),'hex') AND r.input_hash=h.event_payload->>'relationship_input_sha256'
-            AND (SELECT count(*) FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id)=1
-            AND EXISTS(SELECT 1 FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id AND d.source_history_event_id=i.response_history_event_id)
+            AND (SELECT count(*) FROM public.core_relationship_revision_source d WHERE d.relationship_history_event_id=r.history_event_id)=1
+            AND EXISTS(SELECT 1 FROM public.core_relationship_revision_source d WHERE d.relationship_history_event_id=r.history_event_id AND d.source_history_event_id=i.response_history_event_id)
     ), interaction_result_candidates AS MATERIALIZED (
         SELECT i.* FROM interaction_result_prior_candidates i
-        WHERE (SELECT count(*) FROM synth_meta.relationship_revisions r WHERE r.interaction_result_history_event_id=i.history_event_id)=jsonb_array_length(i.result_payload->'changes')
+        WHERE (SELECT count(*) FROM public.core_relationship_revision r WHERE r.interaction_result_history_event_id=i.history_event_id)=jsonb_array_length(i.result_payload->'changes')
             AND (SELECT count(*) FROM interaction_revision_candidates r WHERE r.interaction_result_history_event_id=i.history_event_id)=jsonb_array_length(i.result_payload->'changes')
             AND (SELECT count(DISTINCT r.actor_identity_id) FROM interaction_revision_candidates r WHERE r.interaction_result_history_event_id=i.history_event_id)=jsonb_array_length(i.result_payload->'changes')
     ) ";

@@ -18,7 +18,7 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_interaction_id IS NOT NULL
                     AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR relationship_evaluation_id IS NOT NULL OR memory_batch_id IS NOT NULL
-                        OR NOT EXISTS(SELECT 1 FROM synth_meta.relationship_interaction_evaluations i
+                        OR NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_evaluation i
                             JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                                 AND e.generation=i.generation AND e.turn_id=j.turn_id AND e.state='complete'
                             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
@@ -42,7 +42,7 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
             if ($row=pg_fetch_assoc($result)) return ['job'=>intval($row['id'])];
             $result=@pg_query_params($connection,"SELECT i.id,i.session_id,i.request_id,i.generation,i.context_sequence,
                     e.turn_id,e.event_type,p.canonical_event,p.event_sha256
-                FROM synth_meta.relationship_interaction_evaluations i
+                FROM public.core_relationship_interaction_evaluation i
                 JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
@@ -67,8 +67,8 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 JOIN synth.actor_identities listener ON listener.game='fo4' AND listener.playthrough_id=c.playthrough_id
                     AND upper(listener.full_form_id)=upper(entry.value#>>'{routing,listener,form_id}')
                     AND lower(listener.origin_plugin)=lower(entry.value#>>'{routing,listener,origin_plugin}')
-                LEFT JOIN synth_meta.relationship_actor_controls speaker_control ON speaker_control.actor_identity_id=replying.id
-                LEFT JOIN synth_meta.relationship_actor_controls listener_control ON listener_control.actor_identity_id=listener.id
+                LEFT JOIN public.core_relationship_actor_control speaker_control ON speaker_control.actor_identity_id=replying.id
+                LEFT JOIN public.core_relationship_actor_control listener_control ON listener_control.actor_identity_id=listener.id
                 WHERE response.response_payload->>'schema'='synth.relationship.response.v3' AND response.response_payload->>'evaluation_mode'='dedicated'
                     AND entry.ordinality<=256 AND entry.value#>>'{routing,availability}'='addressed'
                     AND response.actor_identity_id=replying.id
@@ -87,15 +87,15 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                             AND source.id>COALESCE(speaker_control.barrier_event_id,0))
                         OR (NOT COALESCE(listener_control.locked,false) AND owner.id>COALESCE(listener_control.barrier_event_id,0)
                             AND source.id>COALESCE(listener_control.barrier_event_id,0)))
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_interaction_evaluations i WHERE i.response_history_event_id=response.history_event_id
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_evaluation i WHERE i.response_history_event_id=response.history_event_id
                         AND i.listener_identity_id=listener.id AND i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$4)
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_interaction_results result
-                        JOIN synth_meta.relationship_interaction_evaluations i ON i.id=result.interaction_id
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_result result
+                        JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
                         JOIN synth_meta.history_events h ON h.id=result.history_event_id
                         WHERE i.response_history_event_id=response.history_event_id AND i.listener_identity_id=listener.id
                             AND ((h.session_id=$1 AND h.generation=$2) OR EXISTS(SELECT 1 FROM native_history_scopes scope
                                 WHERE scope.session_id=h.session_id AND scope.generation=h.generation AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff)))
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_results result JOIN synth_meta.relationship_evaluations i ON i.id=result.evaluation_id
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_result result JOIN public.core_relationship_evaluation i ON i.id=result.evaluation_id
                         JOIN synth_meta.history_events h ON h.id=result.history_event_id
                         WHERE i.response_history_event_id=response.history_event_id AND i.input_payload->'subjects' @> jsonb_build_array(jsonb_build_object('subject_id',listener.id))
                             AND ((h.session_id=$1 AND h.generation=$2) OR EXISTS(SELECT 1 FROM native_history_scopes scope

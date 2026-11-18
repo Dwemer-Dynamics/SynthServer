@@ -74,8 +74,8 @@ function synth_private_narrator_validate_payload(string $type, array $payload): 
 // An install whose migration has not run yet keeps publishing contexts and never grants the capability.
 function synth_private_narrator_schema_ready($db): bool
 {
-    $row = $db->fetchOne("SELECT to_regclass('synth_meta.narrator_context_states') IS NOT NULL
-        AND to_regclass('synth_meta.narrator_pending_outputs') IS NOT NULL AS ready");
+    $row = $db->fetchOne("SELECT to_regclass('public.core_narrator_context_state') IS NOT NULL
+        AND to_regclass('public.core_narrator_pending_output') IS NOT NULL AS ready");
     return in_array($row['ready'] ?? false, [true, 't'], true);
 }
 
@@ -89,7 +89,7 @@ function synth_private_narrator_capture_context($db, array $event, string $sessi
     $generation = intval($event['generation']);
     $sequence = intval($payload['snapshot_sequence']);
     $playthrough = strval($payload['playthrough_id']);
-    $head = $db->execQuery('SELECT state_id,playthrough_id FROM synth_meta.narrator_lane_heads
+    $head = $db->execQuery('SELECT state_id,playthrough_id FROM public.core_narrator_lane_head
         WHERE session_id=$1 AND generation=$2 FOR UPDATE', [$sessionId, $generation]);
     if ($head === false) throw new RuntimeException('Unable to read private narrator lane');
     $head = pg_fetch_assoc($head);
@@ -97,8 +97,8 @@ function synth_private_narrator_capture_context($db, array $event, string $sessi
         $state = null;
         $anchor = synth_protocol_loaded_context($db, $event);
         if ($anchor !== null) {
-            $saved = $db->execQuery('SELECT n.state_id FROM synth_meta.narrator_context_states n
-                LEFT JOIN synth_meta.narrator_states s ON s.state_id=n.state_id
+            $saved = $db->execQuery('SELECT n.state_id FROM public.core_narrator_context_state n
+                LEFT JOIN public.core_narrator_state s ON s.state_id=n.state_id
                 WHERE n.session_id=$1 AND n.generation=$2 AND n.snapshot_sequence=$3 AND n.playthrough_id=$4
                     AND (n.state_id IS NULL OR s.playthrough_id=n.playthrough_id)',
                 [$anchor['session_id'], intval($anchor['generation']), intval($anchor['snapshot_sequence']), $playthrough]);
@@ -107,13 +107,13 @@ function synth_private_narrator_capture_context($db, array $event, string $sessi
             // A save made before this feature (or without it) restores the empty state.
             if ($saved !== false && $saved['state_id'] !== null) $state = intval($saved['state_id']);
         }
-        if ($db->execQuery('INSERT INTO synth_meta.narrator_lane_heads(session_id,generation,playthrough_id,state_id)
+        if ($db->execQuery('INSERT INTO public.core_narrator_lane_head(session_id,generation,playthrough_id,state_id)
             VALUES($1,$2,$3,$4)', [$sessionId, $generation, $playthrough, $state]) === false) {
             throw new RuntimeException('Unable to open private narrator lane');
         }
         // A load or same-world replacement starts a new lane; replies owned by any earlier lane of this playthrough
         // can no longer reach a transcript.
-        if ($db->execQuery("UPDATE synth_meta.narrator_pending_outputs SET state='cancelled',updated_at=NOW()
+        if ($db->execQuery("UPDATE public.core_narrator_pending_output SET state='cancelled',updated_at=NOW()
             WHERE playthrough_id=$1 AND state IN ('pending','generated') AND NOT (session_id=$2 AND generation=$3)",
             [$playthrough, $sessionId, $generation]) === false) {
             throw new RuntimeException('Unable to retire superseded private narrator replies');
@@ -122,7 +122,7 @@ function synth_private_narrator_capture_context($db, array $event, string $sessi
     } elseif ($head['playthrough_id'] !== $playthrough) {
         throw new DomainException('context_playthrough_mismatch');
     }
-    if ($db->execQuery('INSERT INTO synth_meta.narrator_context_states(session_id,generation,snapshot_sequence,playthrough_id,state_id)
+    if ($db->execQuery('INSERT INTO public.core_narrator_context_state(session_id,generation,snapshot_sequence,playthrough_id,state_id)
         VALUES($1,$2,$3,$4,$5)', [$sessionId, $generation, $sequence, $playthrough, $head['state_id']]) === false) {
         throw new RuntimeException('Unable to capture private narrator state');
     }

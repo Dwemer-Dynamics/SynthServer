@@ -35,15 +35,15 @@ function synth_middleterm_regeneration_plan($db,array $event,int $actorId,int $n
     // Only validated replacements of the originally pinned families qualify; never add later unrelated summaries.
     $rows=$db->fetchAll($cte." SELECT d.position,current.id,current.summary_revision,current.summary,b.last_gamets,
             family.root_id AS source_family_id
-        FROM middleterm_effective i JOIN synth_meta.middleterm_sources d ON d.input_id=i.input_id
-        JOIN synth_meta.memory_summaries original ON original.id=d.summary_id
-        JOIN synth_meta.memory_batches original_batch ON original_batch.id=original.batch_id
+        FROM middleterm_effective i JOIN public.core_middleterm_source d ON d.input_id=i.input_id
+        JOIN public.core_memory_summary original ON original.id=d.summary_id
+        JOIN public.core_memory_batch original_batch ON original_batch.id=original.batch_id
             AND original_batch.actor_identity_id=i.actor_identity_id AND original_batch.playthrough_id=i.playthrough_id
         JOIN native_memory_batch_families family ON family.id=original.batch_id
         JOIN native_memory_latest_batches latest ON latest.root_id=family.root_id
         JOIN native_memory_batches b ON b.id=latest.id AND b.actor_identity_id=i.actor_identity_id AND b.playthrough_id=i.playthrough_id
         JOIN native_memory_effective_summaries current ON current.batch_id=b.id
-        LEFT JOIN synth_meta.memory_summary_revisions pinned ON pinned.summary_id=original.id AND pinned.revision=d.summary_revision
+        LEFT JOIN public.core_memory_summary_revision pinned ON pinned.summary_id=original.id AND pinned.revision=d.summary_revision
         WHERE i.history_event_id=$narrativeId
             AND i.input_payload->'sources'->d.position->>'id'=d.summary_id::text
             AND i.input_payload->'sources'->d.position->>'revision'=d.summary_revision::text

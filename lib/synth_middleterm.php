@@ -23,7 +23,7 @@ function synth_middleterm_owned_cte(string $historyCte): string
         SELECT i.id AS input_id,i.actor_identity_id,i.playthrough_id,i.prior_history_event_id,
             i.session_id,i.generation,i.context_sequence,i.request_id,i.input_sha256,i.regeneration_approval_id,
             i.input_payload,r.history_event_id,r.narrative,r.result_sha256
-        FROM synth_meta.middleterm_inputs i JOIN synth_meta.middleterm_results r ON r.input_id=i.id
+        FROM public.core_middleterm_input i JOIN public.core_middleterm_result r ON r.input_id=i.id
         JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=i.session_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence
             AND h.request_id=i.request_id AND h.playthrough_id=i.playthrough_id
@@ -53,10 +53,10 @@ function synth_middleterm_owned_cte(string $historyCte): string
         AND r.result_sha256=encode(sha256(convert_to(r.narrative,'UTF8')),'hex')
         AND jsonb_array_length(i.input_payload->'sources') BETWEEN
             CASE WHEN i.prior_history_event_id IS NULL THEN 5 ELSE 10 END AND 100
-        AND (SELECT count(*) FROM synth_meta.middleterm_sources d WHERE d.input_id=i.id)=jsonb_array_length(i.input_payload->'sources')
+        AND (SELECT count(*) FROM public.core_middleterm_source d WHERE d.input_id=i.id)=jsonb_array_length(i.input_payload->'sources')
     ), middleterm_replacement_candidates AS (
         SELECT replacement.history_event_id,replacement.target_history_event_id,replacement.approval_id
-        FROM synth_meta.middleterm_replacements replacement JOIN middleterm_publications fresh
+        FROM public.core_middleterm_replacement replacement JOIN middleterm_publications fresh
             ON fresh.history_event_id=replacement.history_event_id AND fresh.regeneration_approval_id=replacement.approval_id
                 AND fresh.session_id=replacement.session_id AND fresh.generation=replacement.generation
         JOIN regeneration_receipts approval ON approval.history_event_id=replacement.approval_id
@@ -76,14 +76,14 @@ function synth_middleterm_owned_cte(string $historyCte): string
     ), middleterm_replaced AS (
         SELECT link.* FROM middleterm_replacement_candidates link JOIN middleterm_owned p ON p.history_event_id=link.history_event_id
     ), middleterm_replacement_fences AS MATERIALIZED (
-        SELECT DISTINCT replacement.target_history_event_id FROM synth_meta.middleterm_replacements replacement
+        SELECT DISTINCT replacement.target_history_event_id FROM public.core_middleterm_replacement replacement
         JOIN middleterm_owned target ON target.history_event_id=replacement.target_history_event_id
-        JOIN synth_meta.middleterm_results fresh ON fresh.history_event_id=replacement.history_event_id
-        JOIN synth_meta.middleterm_inputs input ON input.id=fresh.input_id AND input.regeneration_approval_id=replacement.approval_id
+        JOIN public.core_middleterm_result fresh ON fresh.history_event_id=replacement.history_event_id
+        JOIN public.core_middleterm_input input ON input.id=fresh.input_id AND input.regeneration_approval_id=replacement.approval_id
             AND input.actor_identity_id=target.actor_identity_id AND input.playthrough_id=target.playthrough_id
         JOIN synth_meta.history_events h ON h.id=fresh.history_event_id AND h.session_id=input.session_id AND h.generation=input.generation
             AND h.context_sequence=input.context_sequence AND h.request_id=input.request_id AND h.playthrough_id=input.playthrough_id
-        JOIN synth_meta.middleterm_regeneration_approvals approval ON approval.history_event_id=replacement.approval_id
+        JOIN public.core_middleterm_regeneration_approval approval ON approval.history_event_id=replacement.approval_id
             AND approval.narrative_id=target.history_event_id AND approval.actor_identity_id=target.actor_identity_id
             AND approval.session_id=input.session_id AND approval.generation=input.generation AND approval.playthrough_id=input.playthrough_id
         WHERE replacement.session_id=h.session_id AND replacement.generation=h.generation
@@ -109,7 +109,7 @@ function synth_middleterm_history_cte($db, array $event, string $actor, ?int $jo
         FROM native_history_scopes scope JOIN synth_meta.history_events h
             ON h.session_id=scope.session_id AND h.generation=scope.generation
                 AND h.playthrough_id=scope.playthrough_id AND h.id<=scope.cutoff
-        JOIN synth_meta.middleterm_control_revisions c ON c.history_event_id=h.id
+        JOIN public.core_middleterm_control_revision c ON c.history_event_id=h.id
         JOIN middleterm_owned i ON i.history_event_id=c.narrative_id AND i.actor_identity_id=scope.reader_identity_id
     ), middleterm_control_candidates AS (
         SELECT c.* FROM middleterm_scoped_controls c JOIN public.core_runtime_context origin
@@ -159,13 +159,13 @@ function synth_middleterm_history_cte($db, array $event, string $actor, ?int $jo
     ), middleterm_suppressed_families AS (
         SELECT DISTINCT family.root_id FROM middleterm_suppressed blocked
         JOIN middleterm_owned i ON i.history_event_id=blocked.history_event_id
-        JOIN synth_meta.middleterm_sources source ON source.input_id=i.input_id
-        JOIN synth_meta.memory_summaries summary ON summary.id=source.summary_id
+        JOIN public.core_middleterm_source source ON source.input_id=i.input_id
+        JOIN public.core_memory_summary summary ON summary.id=source.summary_id
         JOIN native_memory_batch_families family ON family.id=summary.batch_id
     ), middleterm_direct AS (
         SELECT i.* FROM middleterm_effective i WHERE NOT EXISTS(
             SELECT 1 FROM middleterm_suppressed blocked WHERE blocked.history_event_id=i.history_event_id) AND NOT EXISTS(
-            SELECT 1 FROM synth_meta.middleterm_sources d WHERE d.input_id=i.input_id AND NOT EXISTS(
+            SELECT 1 FROM public.core_middleterm_source d WHERE d.input_id=i.input_id AND NOT EXISTS(
             SELECT 1 FROM native_memory_effective_summaries s JOIN native_memory_batches b ON b.id=s.batch_id
             WHERE s.id=d.summary_id AND b.actor_identity_id=i.actor_identity_id AND b.playthrough_id=i.playthrough_id
                 AND s.summary_revision=d.summary_revision
@@ -189,7 +189,7 @@ function synth_middleterm_history_cte($db, array $event, string $actor, ?int $jo
         UNION ALL SELECT prior.* FROM native_middleterms prior JOIN middleterm_ancestry child
             ON child.prior_history_event_id=prior.history_event_id
     ), middleterm_covered AS (
-        SELECT DISTINCT s.summary_id FROM middleterm_ancestry a JOIN synth_meta.middleterm_sources s ON s.input_id=a.input_id
+        SELECT DISTINCT s.summary_id FROM middleterm_ancestry a JOIN public.core_middleterm_source s ON s.input_id=a.input_id
         UNION SELECT s.id FROM native_memory_effective_summaries s JOIN native_memory_batch_families family ON family.id=s.batch_id
             JOIN middleterm_suppressed_families blocked ON blocked.root_id=family.root_id
     ) ";
@@ -251,7 +251,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         $cte=synth_middleterm_history_cte($db,$event,$name);
         if (synth_middleterm_has_unsaved_control($db,$event,$actor)) return null;
         // A published result must enter the next acknowledged snapshot before another chain can be admitted.
-        $unobserved=@pg_query_params($connection,"SELECT 1 FROM synth_meta.middleterm_inputs i JOIN synth_meta.middleterm_results r ON r.input_id=i.id
+        $unobserved=@pg_query_params($connection,"SELECT 1 FROM public.core_middleterm_input i JOIN public.core_middleterm_result r ON r.input_id=i.id
             WHERE i.session_id=$1 AND i.generation=$2 AND i.actor_identity_id=$3 AND r.history_event_id>$4 LIMIT 1",
             [$event['session_id'],$event['generation'],$actor,intval($db->fetchOne('SELECT history_event_id FROM public.core_runtime_context WHERE session_id='
                 .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['history_event_id'] ?? 0)]);
@@ -259,12 +259,12 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         if (pg_fetch_assoc($unobserved)) return null;
         $approved=null;
         $candidates=$approvalId!==null?[['history_event_id'=>$approvalId]]:$db->fetchAll("SELECT q.history_event_id
-            FROM synth_meta.middleterm_regeneration_approvals q
+            FROM public.core_middleterm_regeneration_approval q
             WHERE q.session_id=".$db->escapeLiteral($event['session_id']).' AND q.generation='.intval($event['generation'])."
-                AND q.actor_identity_id=$actor AND NOT EXISTS(SELECT 1 FROM synth_meta.middleterm_regeneration_approvals newer
+                AND q.actor_identity_id=$actor AND NOT EXISTS(SELECT 1 FROM public.core_middleterm_regeneration_approval newer
                     WHERE newer.session_id=q.session_id AND newer.generation=q.generation AND newer.narrative_id=q.narrative_id
                         AND newer.actor_identity_id=q.actor_identity_id AND newer.history_event_id>q.history_event_id)
-                AND NOT EXISTS(SELECT 1 FROM synth_meta.middleterm_replacements done WHERE done.approval_id=q.history_event_id)
+                AND NOT EXISTS(SELECT 1 FROM public.core_middleterm_replacement done WHERE done.approval_id=q.history_event_id)
             ORDER BY q.last_considered_at NULLS FIRST,q.history_event_id LIMIT 20");
         $considered=[];
         foreach ($candidates as $candidate) {
@@ -275,7 +275,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             if ($check['status']==='ready') {$approved=$check;break;}
         }
         // Rotate bounded discovery so twenty obsolete plans cannot permanently hide a later valid approval.
-        if ($approvalId===null && $considered && $db->execQuery('UPDATE synth_meta.middleterm_regeneration_approvals
+        if ($approvalId===null && $considered && $db->execQuery('UPDATE public.core_middleterm_regeneration_approval
             SET last_considered_at=clock_timestamp() WHERE history_event_id IN ('.implode(',',$considered).')')===false) {
             throw new RuntimeException('Unable to advance regeneration discovery.');
         }
@@ -319,14 +319,14 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             'target_narrative_id'=>intval($approved['plan']['target']['narrative_id']),'plan_sha256'=>$approved['plan']['plan_sha256']];
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if (strlen($json)>1000000) throw new LengthException('Narrative input exceeds its bound.');
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.middleterm_inputs(session_id,request_id,generation,context_sequence,
+        $result=@pg_query_params($connection,"INSERT INTO public.core_middleterm_input(session_id,request_id,generation,context_sequence,
             actor_identity_id,playthrough_id,prior_history_event_id,input_payload,input_sha256,regeneration_approval_id)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,encode(sha256(convert_to(($8::jsonb)::text,'UTF8')),'hex'),$9)
             ON CONFLICT(session_id,request_id,generation,actor_identity_id,input_sha256) DO UPDATE SET input_sha256=EXCLUDED.input_sha256 RETURNING id",
             [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$actor,$identity['playthrough_id'],$prior['history_event_id'] ?? null,$json,$approved['approval_id']??null]);
         if (!$result || !($row=pg_fetch_assoc($result))) throw new RuntimeException('Unable to freeze narrative input.');
         $id=intval($row['id']);
-        foreach ($sources as $position=>$source) if (!@pg_query_params($connection,"INSERT INTO synth_meta.middleterm_sources
+        foreach ($sources as $position=>$source) if (!@pg_query_params($connection,"INSERT INTO public.core_middleterm_source
             (input_id,position,summary_id,summary_revision,source_sha256) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
             [$id,$position,$source['id'],$source['revision'],hash('sha256',$source['summary'])])) throw new RuntimeException('Unable to freeze narrative source.');
         return $id;
@@ -336,9 +336,9 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
 // Confirmed same-generation corrections fence workers immediately, before a later snapshot exposes the new text.
 function synth_middleterm_has_unsaved_control($db,array $event,int $actorId): bool
 {
-    $result=$db->fetchOne("SELECT EXISTS(SELECT 1 FROM synth_meta.middleterm_control_revisions c
-        JOIN synth_meta.middleterm_inputs i ON i.actor_identity_id=$actorId
-        JOIN synth_meta.middleterm_results r ON r.input_id=i.id AND r.history_event_id=c.narrative_id
+    $result=$db->fetchOne("SELECT EXISTS(SELECT 1 FROM public.core_middleterm_control_revision c
+        JOIN public.core_middleterm_input i ON i.actor_identity_id=$actorId
+        JOIN public.core_middleterm_result r ON r.input_id=i.id AND r.history_event_id=c.narrative_id
         JOIN synth_meta.history_events h ON h.id=c.history_event_id
         JOIN public.core_runtime_context snapshot ON snapshot.session_id=h.session_id AND snapshot.generation=h.generation
         WHERE h.session_id=".$db->escapeLiteral($event['session_id']).' AND h.generation='.intval($event['generation'])

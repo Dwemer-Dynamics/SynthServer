@@ -134,7 +134,7 @@ function countMemories()
         $db=$GLOBALS['db'];
         return $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
             $result=@pg_query($connection,synth_memory_visible_batch_cte($db,$event)
-                .'SELECT count(*) AS n FROM synth_meta.memory_summaries s JOIN native_memory_batches b ON b.id=s.batch_id');
+                .'SELECT count(*) AS n FROM public.core_memory_summary s JOIN native_memory_batches b ON b.id=s.batch_id');
             if (!$result) throw new RuntimeException('Unable to count native memories');
             return intval(pg_fetch_assoc($result)['n']);
         },2000);

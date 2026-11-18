@@ -27,13 +27,13 @@ function synth_middleterm_approval_cte(string $prefix='WITH',bool $savedScope=fa
 {
     // Bound the history reader's planner at saved approvals; management lookups retain predicate pushdown by exact ID/token.
     return $prefix.' regeneration_receipts AS '.($savedScope?'MATERIALIZED ':'')."(
-        SELECT q.* FROM synth_meta.middleterm_regeneration_approvals q
+        SELECT q.* FROM public.core_middleterm_regeneration_approval q
         JOIN synth_meta.history_events h ON h.id=q.history_event_id AND h.session_id=q.session_id
             AND h.generation=q.generation AND h.context_sequence=q.context_sequence AND h.playthrough_id=q.playthrough_id
         JOIN public.core_runtime_context origin ON origin.session_id=q.session_id AND origin.generation=q.generation
             AND origin.snapshot_sequence=q.context_sequence AND origin.playthrough_id=q.playthrough_id
-        JOIN synth_meta.middleterm_results result ON result.history_event_id=q.narrative_id
-        JOIN synth_meta.middleterm_inputs target ON target.id=result.input_id
+        JOIN public.core_middleterm_result result ON result.history_event_id=q.narrative_id
+        JOIN public.core_middleterm_input target ON target.id=result.input_id
             AND target.actor_identity_id=q.actor_identity_id AND target.playthrough_id=q.playthrough_id
         JOIN synth.actor_identities actor ON actor.id=q.actor_identity_id AND actor.playthrough_id=q.playthrough_id AND actor.game='fo4'
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='middleterm_regeneration'
@@ -121,7 +121,7 @@ function synth_middleterm_approve_regeneration($db,array $input): array
             SELECT synth_session_id,synth_generation,synth_context_sequence,NULL,$2,rowid,to_jsonb(publication)
                 ||jsonb_build_object('middleterm_regeneration',value.payload,'middleterm_regeneration_sha256',
                     encode(sha256(convert_to(value.payload::text,'UTF8')),'hex')) FROM publication CROSS JOIN value RETURNING id
-        ) INSERT INTO synth_meta.middleterm_regeneration_approvals(history_event_id,session_id,generation,context_sequence,
+        ) INSERT INTO public.core_middleterm_regeneration_approval(history_event_id,session_id,generation,context_sequence,
             actor_identity_id,playthrough_id,narrative_id,approval_token,approval_payload,approval_sha256)
             SELECT history.id,$4,$5,$6,$7,$2,$8,$9,value.payload,encode(sha256(convert_to(value.payload::text,'UTF8')),'hex')
             FROM history CROSS JOIN value RETURNING history_event_id",
@@ -137,7 +137,7 @@ function synth_middleterm_approved_regeneration_plan($db,array $event,int $actor
 {
     if ($actorId<1 || $approvalId<1) throw new InvalidArgumentException('Approved regeneration requires exact actor and approval IDs.');
     $result=$db->fetchOne(synth_middleterm_approval_cte()." SELECT q.*,c.history_event_id AS cutoff,
-        EXISTS(SELECT 1 FROM synth_meta.middleterm_regeneration_approvals newer
+        EXISTS(SELECT 1 FROM public.core_middleterm_regeneration_approval newer
             WHERE newer.session_id=q.session_id AND newer.generation=q.generation AND newer.actor_identity_id=q.actor_identity_id
                 AND newer.narrative_id=q.narrative_id AND newer.history_event_id>q.history_event_id) AS superseded
         FROM regeneration_receipts q JOIN public.core_runtime_context c ON c.session_id=q.session_id
@@ -169,8 +169,8 @@ function synth_middleterm_regeneration_budget($db,int $approvalId): array
     $row=$db->fetchOne("SELECT COALESCE(SUM(j.attempts),0) AS attempts,MIN(j.deadline_at) AS deadline_at,
         COALESCE(bool_or(j.state='failed'),false) AS failed,
         COALESCE(MIN(j.deadline_at)<=clock_timestamp(),false) AS expired,
-        EXISTS(SELECT 1 FROM synth_meta.middleterm_replacements WHERE approval_id=$approvalId) AS published
-        FROM synth_meta.middleterm_inputs i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id AND j.job_type='middleterm'
+        EXISTS(SELECT 1 FROM public.core_middleterm_replacement WHERE approval_id=$approvalId) AS published
+        FROM public.core_middleterm_input i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id AND j.job_type='middleterm'
         WHERE i.regeneration_approval_id=$approvalId");
     if (!$row) throw new RuntimeException('Unable to read regeneration attempt budget.');
     return ['state'=>$row['published']==='t'?'succeeded':($row['failed']==='t'?'failed':($row['expired']==='t'?'expired':
@@ -186,7 +186,7 @@ function synth_middleterm_regeneration_status($db,array $event,int $actorId,int 
         replacement.history_event_id AS publication_id,
         replacement.target_history_event_id=raw.narrative_id AND replacement.session_id=raw.session_id
             AND replacement.generation=raw.generation AND job.state='ready'
-            AND EXISTS(SELECT 1 FROM synth_meta.middleterm_results result JOIN synth_meta.middleterm_inputs input ON input.id=result.input_id
+            AND EXISTS(SELECT 1 FROM public.core_middleterm_result result JOIN public.core_middleterm_input input ON input.id=result.input_id
                 JOIN synth_meta.history_events history ON history.id=result.history_event_id AND history.session_id=input.session_id
                     AND history.generation=input.generation AND history.request_id=input.request_id AND history.context_sequence=input.context_sequence
                     AND history.playthrough_id=input.playthrough_id
@@ -200,9 +200,9 @@ function synth_middleterm_regeneration_status($db,array $event,int $actorId,int 
         job.deadline_at>clock_timestamp() AS deadline_live,
         session.active_turn_id=job.turn_id AND session.active_turn_sequence::text=job.payload->>'context_sequence'
             AND execution.state='complete' AS owner_live
-        FROM synth_meta.middleterm_regeneration_approvals raw LEFT JOIN regeneration_receipts valid ON valid.history_event_id=raw.history_event_id
-        LEFT JOIN synth_meta.middleterm_replacements replacement ON replacement.approval_id=raw.history_event_id
-        LEFT JOIN LATERAL (SELECT j.* FROM synth_meta.middleterm_inputs i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id
+        FROM public.core_middleterm_regeneration_approval raw LEFT JOIN regeneration_receipts valid ON valid.history_event_id=raw.history_event_id
+        LEFT JOIN public.core_middleterm_replacement replacement ON replacement.approval_id=raw.history_event_id
+        LEFT JOIN LATERAL (SELECT j.* FROM public.core_middleterm_input i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id
             WHERE i.regeneration_approval_id=raw.history_event_id AND j.job_type='middleterm' ORDER BY j.id DESC LIMIT 1) job ON true
         LEFT JOIN public.core_runtime_session session ON session.session_id=job.session_id AND session.active_generation=job.generation AND session.state='active'
         LEFT JOIN synth_meta.request_executions execution ON execution.session_id=job.session_id AND execution.request_id=job.request_id

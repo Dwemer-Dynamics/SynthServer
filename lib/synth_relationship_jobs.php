@@ -57,7 +57,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$responseId]);
         if (!$result) throw new RuntimeException('Unable to check completed relationship evaluation');
         if (pg_fetch_assoc($result)) return null;
-        $result=@pg_query_params($connection,'SELECT id,input_payload FROM synth_meta.relationship_evaluations
+        $result=@pg_query_params($connection,'SELECT id,input_payload FROM public.core_relationship_evaluation
             WHERE session_id=$1 AND request_id=$2 AND response_history_event_id=$3',[$event['session_id'],$event['request_id'],$responseId]);
         if (!$result) throw new RuntimeException('Unable to check relationship evaluation replay');
         if ($existing=pg_fetch_assoc($result)) {
@@ -104,7 +104,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         if ($gift!==null) {
             // One physical handoff may be delivered again under another receipt request ID.
             // Its dedicated evaluation is owned by the action, not by repeated thank-you speech.
-            if ($db->fetchOne("SELECT id FROM synth_meta.relationship_evaluations WHERE actor_identity_id=".intval($response['actor_identity_id'])
+            if ($db->fetchOne("SELECT id FROM public.core_relationship_evaluation WHERE actor_identity_id=".intval($response['actor_identity_id'])
                 ." AND input_payload#>>'{received_gift,fact,action_id}'=".$db->escapeLiteral($gift['action_id'])." LIMIT 1")) return null;
             $perspective=synth_player_gift_perspective($db,$event,intval($response['actor_identity_id']));
             if ($perspective===null) return null;
@@ -112,13 +112,13 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         }
         $json=json_encode($input,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if (strlen($json)>262144) throw new LengthException('Native relationship evaluation input too large');
-        $result=@pg_query_params($connection,'INSERT INTO synth_meta.relationship_evaluations
+        $result=@pg_query_params($connection,'INSERT INTO public.core_relationship_evaluation
             (actor_identity_id,response_history_event_id,session_id,request_id,generation,context_sequence,input_payload,input_sha256)
             VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,encode(sha256(convert_to(($7::jsonb)::text,\'UTF8\')),\'hex\')) RETURNING id',
             [$response['actor_identity_id'],$responseId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$json]);
         if (!$result) throw new RuntimeException('Unable to freeze relationship evaluation');
         $id=intval(pg_fetch_assoc($result)['id']);
-        foreach ($sources as $source) if (@pg_query_params($connection,'INSERT INTO synth_meta.relationship_evaluation_sources VALUES($1,$2)',[$id,$source])===false) {
+        foreach ($sources as $source) if (@pg_query_params($connection,'INSERT INTO public.core_relationship_evaluation_source VALUES($1,$2)',[$id,$source])===false) {
             throw new RuntimeException('Unable to freeze relationship evaluation dependency');
         }
         return $id;
@@ -128,7 +128,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
 // Revalidate the immutable payload, every source and all saved prior states at worker boundaries.
 function synth_relationship_evaluation_input($connection, $db, array $event, int $evaluationId): ?array
 {
-    $result=@pg_query_params($connection,'SELECT i.* FROM synth_meta.relationship_evaluations i
+    $result=@pg_query_params($connection,'SELECT i.* FROM public.core_relationship_evaluation i
         JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation AND e.state=\'complete\'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
             AND p.canonical_event=i.input_payload->\'owner\'
@@ -177,14 +177,14 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
     }
     // Player-only evaluations have exactly one source, the response already verified above.
     $sourceQuery=($input['schema'] ?? null)==='synth.relationship.evaluation.v2'
-        ? 'SELECT history_event_id FROM synth_meta.relationship_evaluation_sources WHERE evaluation_id=$1 ORDER BY history_event_id'
+        ? 'SELECT history_event_id FROM public.core_relationship_evaluation_source WHERE evaluation_id=$1 ORDER BY history_event_id'
         : synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$input['source_ids'])
-            .'SELECT d.history_event_id FROM synth_meta.relationship_evaluation_sources d
+            .'SELECT d.history_event_id FROM public.core_relationship_evaluation_source d
                 JOIN relationship_visible_sources s USING(history_event_id) WHERE d.evaluation_id=$1 ORDER BY d.history_event_id';
     $result=@pg_query_params($connection,$sourceQuery,[$evaluationId]);
     if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation sources');
     if (array_map('intval',array_column(pg_fetch_all($result),'history_event_id'))!==$input['source_ids']) return null;
-    $result=@pg_query_params($connection,'SELECT count(*) AS n FROM synth_meta.relationship_evaluation_sources WHERE evaluation_id=$1',[$evaluationId]);
+    $result=@pg_query_params($connection,'SELECT count(*) AS n FROM public.core_relationship_evaluation_source WHERE evaluation_id=$1',[$evaluationId]);
     if (!$result) throw new RuntimeException('Unable to check relationship dependency count');
     if (intval(pg_fetch_assoc($result)['n'])!==count($input['source_ids'])) return null;
     foreach ($input['recent_events'] as $recent) {
@@ -215,7 +215,7 @@ function synth_relationship_queue_has_capacity($connection, array $actorIds): bo
     foreach (array_unique($actorIds) as $actorId) {
         $scope="job_type='relationship' AND (relationship_evaluation_id IS NOT NULL OR relationship_interaction_id IS NOT NULL)
             AND state IN ('pending','running') AND (actor_identity_id=$1 OR relationship_interaction_id IN (
-                SELECT id FROM synth_meta.relationship_interaction_evaluations WHERE listener_identity_id=$1))";
+                SELECT id FROM public.core_relationship_interaction_evaluation WHERE listener_identity_id=$1))";
         $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
             last_error='lease_expired',updated_at=clock_timestamp() WHERE $scope
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$actorId]);
@@ -239,7 +239,7 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
                 (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,state,last_error,deadline_at)
                 SELECT 'relationship',i.id,i.session_id,i.request_id,$4,i.generation,i.actor_identity_id,
                     jsonb_build_object('context_sequence',i.context_sequence),'stale','input_unavailable',clock_timestamp()
-                FROM synth_meta.relationship_evaluations i
+                FROM public.core_relationship_evaluation i
                 WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$5 AND i.context_sequence=$6
                     AND i.input_payload->'owner'=$7::jsonb
                     AND NOT EXISTS(SELECT 1 FROM public.core_worker_job j WHERE j.relationship_evaluation_id=i.id)",
@@ -283,7 +283,7 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
         $input=synth_relationship_evaluation_input($connection,$db,$event,intval($job['relationship_evaluation_id']));
         if (!$input) {
             $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='stale',lease_token=NULL,lease_until=NULL,
-                last_error='input_unavailable',updated_at=clock_timestamp() FROM synth_meta.relationship_evaluations i
+                last_error='input_unavailable',updated_at=clock_timestamp() FROM public.core_relationship_evaluation i
                 WHERE j.id=$1 AND j.relationship_evaluation_id=i.id AND i.input_payload->'owner'=$2::jsonb
                     AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))",
                 [$jobId,synth_protocol_canonical_json($event)]);
@@ -390,7 +390,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         $parsed=synth_relationship_parse_evaluation($modelText,$input);
         $json=json_encode($parsed,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if ($job['state']==='ready') {
-            $result=@pg_query_params($connection,'SELECT history_event_id FROM synth_meta.relationship_results WHERE job_id=$1 AND result_payload=$2::jsonb',[$jobId,$json]);
+            $result=@pg_query_params($connection,'SELECT history_event_id FROM public.core_relationship_result WHERE job_id=$1 AND result_payload=$2::jsonb',[$jobId,$json]);
             $existing=$result ? pg_fetch_assoc($result) : false;
             if (!$existing) throw new LogicException('Conflicting relationship evaluation replay');
             return intval($existing['history_event_id']);
@@ -404,15 +404,15 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
             [$evaluation['actor_identity_id'],$evaluation['response_history_event_id']])===false) throw new RuntimeException('Unable to lock relationship result');
         // A verified gift has one immutable response. A result for that receipt is a duplicate on every save.
         $priorResultQuery=isset($input['received_gift'])
-            ? 'SELECT 1 FROM synth_meta.relationship_results result
-                JOIN synth_meta.relationship_evaluations prior ON prior.id=result.evaluation_id
+            ? 'SELECT 1 FROM public.core_relationship_result result
+                JOIN public.core_relationship_evaluation prior ON prior.id=result.evaluation_id
                 WHERE prior.response_history_event_id=$1 LIMIT 1'
             : synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
                 .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1';
         $result=@pg_query_params($connection,$priorResultQuery,[$evaluation['response_history_event_id']]);
         if (!$result) throw new RuntimeException('Unable to check prior relationship result');
         if (pg_fetch_assoc($result)) throw new LogicException('Relationship response already evaluated');
-        $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
             WHERE i.session_id=$1 AND i.generation=$2 AND i.response_history_event_id=$3 AND i.actor_identity_id=$4 AND r.history_event_id>(
                 SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
             [$event['session_id'],$event['generation'],$evaluation['response_history_event_id'],$evaluation['actor_identity_id'],$event['context_sequence']]);
@@ -426,7 +426,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
             INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('evaluation_sha256',$8::text,'result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex')) FROM publication RETURNING id
-        ) INSERT INTO synth_meta.relationship_results(history_event_id,evaluation_id,job_id,result_payload)
+        ) INSERT INTO public.core_relationship_result(history_event_id,evaluation_id,job_id,result_payload)
             SELECT id,$10,$11,$9::jsonb FROM history RETURNING history_event_id",
             [$input['context']['playthrough_id'],intval($input['context']['world']['game_time_ticks'] ?? 0),time(),$event['session_id'],
                 $event['generation'],$event['context_sequence'],$event['request_id'],$evaluation['input_sha256'],$json,$evaluation['id'],$jobId]);
@@ -434,7 +434,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         $resultId=intval(pg_fetch_assoc($result)['history_event_id']); $subjects=[];
         foreach ($input['subjects'] as $subject) {
             $subjects[$subject['subject_id']]=$subject;
-            if ($subject['relationship']!==null && @pg_query_params($connection,'INSERT INTO synth_meta.relationship_result_priors VALUES($1,$2)',
+            if ($subject['relationship']!==null && @pg_query_params($connection,'INSERT INTO public.core_relationship_result_prior VALUES($1,$2)',
                 [$resultId,$subject['relationship']['revision']])===false) throw new RuntimeException('Unable to freeze relationship result prior');
         }
         foreach ($parsed['changes'] as $change) {

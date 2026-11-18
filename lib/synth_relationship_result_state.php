@@ -9,7 +9,7 @@ function synth_relationship_result_state_cte(): string
     return ", relationship_result_origins AS MATERIALIZED (
         SELECT result.*,i.actor_identity_id,h.playthrough_id,i.response_history_event_id,i.input_payload,i.input_sha256,
             h.session_id,h.generation,h.context_sequence,h.request_id,h.event_payload,j.turn_id
-        FROM synth_meta.relationship_results result JOIN synth_meta.relationship_evaluations i ON i.id=result.evaluation_id
+        FROM public.core_relationship_result result JOIN public.core_relationship_evaluation i ON i.id=result.evaluation_id
         JOIN synth_meta.history_events h ON h.id=result.history_event_id AND h.session_id=i.session_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence AND h.request_id=i.request_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
@@ -117,12 +117,12 @@ function synth_relationship_result_state_cte(): string
                     AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.result_payload->'changes')='array'
                         THEN i.result_payload->'changes' ELSE '[]'::jsonb END) change
                         WHERE change->'subject_id' IS DISTINCT FROM to_jsonb(c.player_identity_id) OR change->>'label' IS DISTINCT FROM 'Player')
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_revisions revision WHERE revision.result_history_event_id=i.history_event_id
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_revision revision WHERE revision.result_history_event_id=i.history_event_id
                         AND (revision.actor_identity_id<>i.actor_identity_id OR revision.subject_identity_id<>c.player_identity_id))))
             AND jsonb_typeof(i.input_payload->'source_ids')='array' AND jsonb_typeof(i.input_payload->'subjects')='array'
-            AND (SELECT count(*) FROM synth_meta.relationship_evaluation_sources d WHERE d.evaluation_id=i.evaluation_id)
+            AND (SELECT count(*) FROM public.core_relationship_evaluation_source d WHERE d.evaluation_id=i.evaluation_id)
                 =jsonb_array_length(CASE WHEN jsonb_typeof(i.input_payload->'source_ids')='array' THEN i.input_payload->'source_ids' ELSE '[]'::jsonb END)
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_evaluation_sources d WHERE d.evaluation_id=i.evaluation_id AND (
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_evaluation_source d WHERE d.evaluation_id=i.evaluation_id AND (
                 NOT (i.input_payload->'source_ids' @> jsonb_build_array(d.history_event_id)) OR NOT (
                     EXISTS(SELECT 1 FROM relationship_graph_sources s WHERE s.history_event_id=d.history_event_id AND s.actor_identity_id=i.actor_identity_id)
                     OR (i.input_payload->'gift_only'='true'::jsonb AND d.history_event_id=i.response_history_event_id))))
@@ -130,12 +130,12 @@ function synth_relationship_result_state_cte(): string
                 THEN i.input_payload->'recent_events' ELSE '[]'::jsonb END) item WHERE NOT EXISTS(
                     SELECT 1 FROM relationship_graph_history raw WHERE to_jsonb(raw.history_event_id)=item->'history_event_id' AND raw.reader_identity_id=i.actor_identity_id
                         AND raw.type=item->>'type' AND raw.data=item->>'data'))
-            AND (SELECT count(*) FROM synth_meta.relationship_result_priors d WHERE d.result_history_event_id=i.history_event_id)
+            AND (SELECT count(*) FROM public.core_relationship_result_prior d WHERE d.result_history_event_id=i.history_event_id)
                 =(SELECT count(*) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.input_payload->'subjects')='array'
                     THEN i.input_payload->'subjects' ELSE '[]'::jsonb END) subject WHERE subject->'relationship' IS DISTINCT FROM 'null'::jsonb)
             AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(i.input_payload->'subjects')='array'
                 THEN i.input_payload->'subjects' ELSE '[]'::jsonb END) subject WHERE subject->'relationship' IS DISTINCT FROM 'null'::jsonb
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_result_priors d JOIN synth_meta.relationship_revisions prior
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_result_prior d JOIN public.core_relationship_revision prior
                         ON prior.history_event_id=d.prior_history_event_id
                         WHERE d.result_history_event_id=i.history_event_id AND to_jsonb(prior.subject_identity_id)=subject->'subject_id'
                             AND to_jsonb(prior.history_event_id)=subject->'relationship'->'revision' AND prior.actor_identity_id=i.actor_identity_id
@@ -156,13 +156,13 @@ function synth_relationship_result_state_cte(): string
         SELECT history_event_id AS child,prior_history_event_id AS parent,true AS same_pair,actor_identity_id AS parent_actor
             FROM all_relationship_candidates WHERE prior_history_event_id IS NOT NULL
         UNION ALL SELECT history_event_id,result_history_event_id,false,actor_identity_id FROM relationship_candidates WHERE result_history_event_id IS NOT NULL
-        UNION ALL SELECT d.result_history_event_id,d.prior_history_event_id,false,r.actor_identity_id FROM synth_meta.relationship_result_priors d
+        UNION ALL SELECT d.result_history_event_id,d.prior_history_event_id,false,r.actor_identity_id FROM public.core_relationship_result_prior d
             JOIN relationship_result_candidates r ON r.history_event_id=d.result_history_event_id
         UNION ALL SELECT r.history_event_id,r.interaction_result_history_event_id,false,i.speaker_identity_id
-            FROM interaction_revision_candidates r JOIN synth_meta.relationship_interaction_results result ON result.history_event_id=r.interaction_result_history_event_id
-            JOIN synth_meta.relationship_interaction_evaluations i ON i.id=result.interaction_id
+            FROM interaction_revision_candidates r JOIN public.core_relationship_interaction_result result ON result.history_event_id=r.interaction_result_history_event_id
+            JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
         UNION ALL SELECT d.result_history_event_id,d.prior_history_event_id,false,d.actor_identity_id
-            FROM synth_meta.relationship_interaction_result_priors d JOIN interaction_result_candidates r ON r.history_event_id=d.result_history_event_id
+            FROM public.core_relationship_interaction_result_prior d JOIN interaction_result_candidates r ON r.history_event_id=d.result_history_event_id
     ), relationship_invalid(history_event_id) AS (
         SELECT DISTINCT e.child FROM relationship_edges e JOIN relationship_nodes child ON child.history_event_id=e.child
         LEFT JOIN relationship_nodes parent ON parent.history_event_id=e.parent

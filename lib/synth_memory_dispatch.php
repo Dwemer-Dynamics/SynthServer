@@ -77,7 +77,7 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
             if ($job) return ['job'=>intval($job['id'])];
             $result = @pg_query($connection,synth_memory_visible_batch_cte($db,$event)
                 ."SELECT b.id FROM native_memory_batches b
-                    WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_summaries s WHERE s.batch_id=b.id)
+                    WHERE NOT EXISTS (SELECT 1 FROM public.core_memory_summary s WHERE s.batch_id=b.id)
                     AND NOT EXISTS (SELECT 1 FROM public.core_worker_job j WHERE j.memory_batch_id=b.id
                         AND j.job_type='memory' AND (j.state='ready'
                             OR (j.state IN ('pending','running') AND j.deadline_at>clock_timestamp()
