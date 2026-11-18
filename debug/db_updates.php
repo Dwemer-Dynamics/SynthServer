@@ -944,7 +944,12 @@ if ($checkVersion("moods_issued_sequence")<20260626001) {
         }
     }
 
-    $updateVersion("worldknowledge",20250903001);
+    // The guard above is commented out, so this body runs on every pass; it must never move the version backward.
+    // Doing so made a rerun after an interrupted chain repeat the later 20260720001 block and re-create the index
+    // the recorded parity step had already dropped.
+    if ($checkVersion("worldknowledge") < 20250903001) {
+        $updateVersion("worldknowledge",20250903001);
+    }
     Logger::info("Applied patch worldknowledge 20250903001");
 //}
 
@@ -1826,7 +1831,18 @@ try {
             WHERE a.prompt_key = b.prompt_key
               AND a.ctid < b.ctid
         ");
-        $db->execQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_prompt_key_unique ON synth.prompts (prompt_key)");
+        // Only a table without a unique key on prompt_key needs the index; the table the chain creates has the primary
+        // key, and a rerun after an interrupted chain must not add a redundant second one (the schema would differ
+        // from an uninterrupted run's).
+        $promptKeyIsUnique = $db->fetchOne("
+            SELECT 1 AS found FROM pg_index i
+              JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+             WHERE i.indrelid = 'synth.prompts'::regclass AND i.indisunique AND i.indnatts = 1
+               AND i.indpred IS NULL AND i.indexprs IS NULL AND a.attname = 'prompt_key'
+        ");
+        if (empty($promptKeyIsUnique)) {
+            $db->execQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_prompts_prompt_key_unique ON synth.prompts (prompt_key)");
+        }
 
         $promptCountRow = $db->fetchOne("SELECT COUNT(*) AS count FROM synth.prompts");
         $promptCount = intval($promptCountRow["count"] ?? 0);
