@@ -62,7 +62,7 @@ function synthActionPayloadOrderedArgs(string $actionName, $parameter = null, st
         $normalizedAction = strtolower(trim($actionName));
         $orderedKeys = [
             'attack' => ['target'],
-            'barter' => ['target'],
+            'barter' => ['target', 'item', 'amount'],
             'checkinventory' => ['target'],
             'comecloser' => ['target'],
             'consume' => ['target', 'item', 'amount'],
@@ -227,7 +227,15 @@ function synthEncodeActionLine(string $actor, string $action, $parameter = '', s
         $parameter=[];$parameterString='{}';
     }
 
-    if (in_array($action,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if (in_array($action,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)
+            || !synth_wait_action_parameters_empty($parameter)
+            || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
+        $parameter=[];$parameterString='{}';
+    }
+
+    if (in_array($action,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         if (!is_array($parameter) && $parameterString !== '') $parameter = json_decode($parameterString, true);
         if (!synthNativeTransferParametersValid($parameter,in_array($action,['GiveCapsTo','TakeCapsFromPlayer'],true))) return '';
         $parameterString = json_encode($parameter, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

@@ -422,7 +422,7 @@ function synthExtractActionArgumentTargetValue($arguments)
 // We must use internal keys here.
 
 $F_DESCRIPTIONS_LOCAL["MoveTo"] = "Move to a visible nearby actor or NPC. Use TravelTo for places, buildings, cities, doors, or locations.";
-$F_DESCRIPTIONS_LOCAL["Barter"] = "Open a vendor-style barter menu with #SYNTH_NAME#.";
+$F_DESCRIPTIONS_LOCAL["Barter"] = "#SYNTH_NAME# offers to sell #PLAYER_NAME# one unit of one item from #SYNTH_NAME#'s own inventory for caps. The player then confirms or cancels in a box; nothing moves without a Yes. Never claim the sale happened before the result.";
 $F_DESCRIPTIONS_LOCAL["OpenInventory"] = "Open #SYNTH_NAME#'s inventory for free item exchange with #PLAYER_NAME#.";
 $F_DESCRIPTIONS_LOCAL["Attack"] = "Attack with intention to kill a target actor or entity.";
 $F_DESCRIPTIONS_LOCAL["Follow"] = "Move to and follow the specified target actor";
@@ -461,7 +461,7 @@ $F_DESCRIPTIONS_LOCAL["UnequipItem"] = "#SYNTH_NAME# removes a currently equippe
 $F_DESCRIPTIONS_LOCAL["EndConversation"] = "#SYNTH_NAME# ends the conversation and becomes unavailable to talk for a short time.";
 
 $F_RETURNMESSAGES_LOCAL["MoveTo"] = "#SYNTH_NAME# moves to #TARGET#.";
-$F_RETURNMESSAGES_LOCAL["Barter"] = "Opens barter menu with #SYNTH_NAME#.";
+$F_RETURNMESSAGES_LOCAL["Barter"] = "#SYNTH_NAME# offered #ITEM# to #TARGET# for caps; the player's answer follows.";
 $F_RETURNMESSAGES_LOCAL["OpenInventory"] = "Opens #SYNTH_NAME#'s inventory for item exchange with #PLAYER_NAME#.";
 $F_RETURNMESSAGES_LOCAL["Attack"] = "#SYNTH_NAME# attacks #TARGET#.";
 $F_RETURNMESSAGES_LOCAL["Follow"] = "#SYNTH_NAME# follows #TARGET#.";
@@ -576,10 +576,18 @@ $GLOBALS["FUNCTIONS"] = [
             "properties" => [
                 "target" => [
                     "type" => "string",
-                    "description" => "Keep it blank",
+                    "description" => "The player being sold to.",
+                ],
+                "item" => [
+                    "type" => "string",
+                    "description" => "Exact name of an item in your own <inventory>. One unit is offered.",
+                ],
+                "amount" => [
+                    "type" => "integer",
+                    "description" => "Price in caps, a whole number from 1 to 100000 that fits the item's value.",
                 ],
             ],
-            "required" => [],
+            "required" => ["target", "item", "amount"],
         ],
     ],
     [
@@ -1041,6 +1049,10 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         require_once dirname(__DIR__).'/lib/synth_attack_actions.php';
         if (!synth_attack_supported($event)) return false;
     }
+    if (($event['protocol_version'] ?? 1)===2 && in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true)) {
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$codeName)) return false;
+    }
     if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat' && !synth_rechat_action_code_allowed($codeName)) return false;
@@ -1050,6 +1062,10 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'TakeItemFromPlayer'
         && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
+    if ($codeName === 'Barter') {
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        if (!function_exists('synth_protocol_supports_transfer') || !\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return false;
+    }
     if ($codeName === 'GiveItemTo'
         && (!function_exists('synth_protocol_supports_transfer') || !synth_protocol_supports_transfer($event))) return false;
     if ($codeName === 'GiveCapsTo' && ($event['protocol_version'] ?? 1) === 2
@@ -1625,11 +1641,11 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
     $parameterValue = $parsedResponse["target"] ?? "";
     $missingRequired = [];
 
-    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         // Preserve every raw non-speech field; only shared exact-empty placeholders are not wait arguments.
         $parameterValue=array_diff_key($parsedResponse,array_flip(['action','character','listener','mood','message','lang','emotion','emotion_intensity']));
         foreach (['target','item','amount'] as $key) if (($parameterValue[$key] ?? null)==='') unset($parameterValue[$key]);
-    } elseif (in_array($functionCodeName,['GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    } elseif (in_array($functionCodeName,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
         // Keep action fields separate from speech before strict transfer validation.
         $parameterValue = array_diff_key($parsedResponse, array_flip([
             'action','character','listener','mood','message','lang','emotion','emotion_intensity',
@@ -1641,6 +1657,8 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
             && intval($quantity) <= 1000000) $parameterValue['amount'] = intval($quantity);
         // An exact empty placeholder means the optional item quantity was omitted.
         if (in_array($functionCodeName,['GiveItemTo','TakeItemFromPlayer'],true) && $quantity === '') unset($parameterValue['amount']);
+        // A sale's amount is its price; an empty price is no offer, never a default.
+        if ($functionCodeName === 'Barter' && $quantity === '') unset($parameterValue['amount']);
         // The shared speech envelope requires an item field. Only its exact empty placeholder is not a caps argument.
         if (in_array($functionCodeName,['GiveCapsTo','TakeCapsFromPlayer'],true) && ($parameterValue['item'] ?? null) === '') unset($parameterValue['item']);
     } elseif (is_array($functionDef)) {
@@ -1722,7 +1740,7 @@ function synthPrepareActionsIssuedOriginalValue($originalValue)
 function buildFunctionExecutionParameter($functionCodeName, $parameter)
 {
     $functionCodeName = trim(strval($functionCodeName));
-    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory'],true)
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true)
         && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
         return synth_wait_action_parameters_empty($parameter) ? '{}'
@@ -1750,7 +1768,7 @@ function findFunctionByName($name)
         && ($event['payload']['kind'] ?? '')==='rechat'
         && !synth_rechat_action_code_allowed(strval(getFunctionCodeName($name) ?: $name))) return null;
     if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
-        && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'TakeItemFromPlayer', 'OpenInventory', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait'], true)) {
+        && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'TakeItemFromPlayer', 'OpenInventory', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait', 'FollowPlayer', 'StopFollowing', 'TakeASeat'], true)) {
         // Native contracts use the negotiated runtime definition; a legacy row
         // cannot restore caps fallbacks, broaden observation tools or add wait arguments.
         foreach ($GLOBALS['FUNCTIONS'] ?? [] as $function)
@@ -1991,6 +2009,17 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
     }
     
+    if (in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
+        $GLOBALS['FUNCTIONS'][$n]['description']=match($codeName) {
+            'FollowPlayer'=>'Only when the player explicitly asks you to follow or come with them now and you agree. A Talk promise does not make you follow. Leave every action parameter blank. The game applies the order.',
+            'StopFollowing'=>'Only when the player explicitly asks you to stop following and you agree. This ends only the follow order SYNTH gave you and does not dismiss a native follower. Leave every action parameter blank.',
+            default=>'Only when the player explicitly asks you to sit down and you agree. You never choose the seat; the game finds one. Leave every action parameter blank.',
+        };
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+    }
+
     if ($codeName==='OpenInventory' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
         $GLOBALS['FUNCTIONS'][$n]['description']='If you accept a general gift offer without a named item, select this to open your inventory exchange with Player. Keep all action fields blank. The player chooses items in the menu. Merely opening the menu is not a received gift; wait for verified inventory changes after it closes. A named gift uses TakeItemFromPlayer instead.';
         $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];

@@ -67,6 +67,13 @@ function synth_media_is_wave(string $bytes): bool
     return $dataBytes % intval($format['block_align']) === 0;
 }
 
+// True when a valid RIFF/WAVE carries only digital silence (thin hook into the TTS driver layer).
+function synth_media_wave_is_silent(string $bytes): bool
+{
+    require_once dirname(__DIR__) . '/drivers/tts/WaveSilence.php';
+    return \Synth\Drivers\Tts\WaveSilence::isSilent($bytes);
+}
+
 // Confirms that the declared native content type matches the bounded media bytes.
 function synth_media_validate_bytes(string $bytes, string $contentType): void
 {

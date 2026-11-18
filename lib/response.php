@@ -47,6 +47,11 @@ function synth_protocol_encode_response_line(string $type, array $payload, strin
         'payload' => $payload,
     ];
     if ($context['protocol_version'] === 2) $line['context_sequence'] = $context['context_sequence'];
+    if ($type === 'dialogue') {
+        // A companion order names the exact NPC reply line it rides on.
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine($line);
+    }
     return json_encode($line, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
 }
 
@@ -268,6 +273,11 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         require_once __DIR__.'/synth_wait_actions.php';
         if (!synth_wait_action_supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
     }
+    $order = in_array($serverCode,['FollowPlayer','StopFollowing','TakeASeat'],true);
+    if ($order) {
+        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
+    }
     if ($capability==='action.attack' && ($event['protocol_version'] ?? 1)===2 && !synth_attack_supported($event)) return null;
     if ($capability==='action.read_quests' && !synth_protocol_player_journal_action_allowed()) return null;
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
@@ -280,6 +290,10 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     if ($capability==='action.take_caps_from_player' && ($event['protocol_version'] ?? 1)===2
         && (!synth_protocol_supports_player_caps($event) || synth_protocol_owns_rechat($event))) return null;
     if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event,$db)) return null;
+    if ($capability==='action.barter') {
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        if (!\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return null;
+    }
     if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event,$db)) return null;
     $actor = synth_protocol_response_speaker(strval($line['speaker'] ?? ''));
     if (!$actor || isset($actor['kind'])) {
@@ -387,6 +401,14 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         if (!$target || array_diff(array_keys($arguments),['target_name'])!==[]) return null;
         $arguments=[];
     }
+    if ($capability==='action.barter') {
+        // The sale is an offer only: the captured player is its buyer and the client asks before anything moves.
+        $captured=$captured ?? synth_protocol_current_context($db,$event);
+        if (!is_array($captured) || !is_array($captured['player'] ?? null)) return null;
+        $target=$captured['player'];
+        $arguments=\Synth\Managers\ActionsManager\TradeOffer::arguments($captured,$actor,$target,$line);
+        if ($arguments===null) return null;
+    }
     $context = synth_protocol_response_context();
     $ordinal = intval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] ?? 0) + 1;
     $seed = $context['session_id'] . '|' . $context['generation'] . '|' . $context['request_id']
@@ -399,7 +421,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         'capability' => $capability,
         'actor' => $actor,
         'arguments' => (object)$arguments,
-        'deadline_ms' => $nativeTarget && $capability==='action.open_inventory' ? 120000 : ($nativeTarget && $capability==='action.attack' ? 5000 : 30000),
+        'deadline_ms' => $nativeTarget && $capability==='action.open_inventory' ? 120000 : ($nativeTarget && $capability==='action.attack' ? 5000 : ($capability==='action.barter' ? \Synth\Managers\ActionsManager\TradeOffer::DEADLINE_MS : 30000)),
         'server_code' => $serverCode,
     ];
     if ($target !== null) {
@@ -407,6 +429,20 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     }
     if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
         try { synth_wait_action_validate($db,$event,$action); }
+        catch (DomainException) { return null; }
+    }
+    if ($capability==='action.barter') {
+        // Bound to the NPC's own first reply line in this response, and at most one offer per response.
+        $replyLine = \Synth\Managers\ActionsManager\TradeOffer::claimReplyLine($context['request_id'],$actor);
+        if ($replyLine === null) return null;
+        $action['reply_line_id'] = $replyLine;
+    }
+    if ($order) {
+        // Bound to the NPC's own first reply line in this response; the game applies it, never the server.
+        $replyLine = \Synth\Managers\ActionsManager\CompanionOrders::claimReplyLine($context['request_id'],$actor);
+        if ($replyLine === null) return null;
+        $action['reply_line_id'] = $replyLine;
+        try { \Synth\Managers\ActionsManager\CompanionOrders::validate($db,$event,$action); }
         catch (DomainException) { return null; }
     }
     if ($nativeTarget && $capability==='action.attack') {
@@ -445,6 +481,9 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     $actorStats=$status==='init_accepted' && ($event['type'] ?? '')==='init'
         && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
         && in_array('context.actor_stats',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
+    $actorCondition=$status==='init_accepted' && ($event['type'] ?? '')==='init'
+        && in_array($event['runtime_variant'] ?? '',['flat','vr'],true)
+        && in_array('context.actor_condition',$event['capabilities'] ?? [],true) && ($event['protocol_version'] ?? 1)===2;
     $privateNarrator=false;
     if ($status==='init_accepted' && ($event['type'] ?? '')==='init') {
         require_once __DIR__.'/synth_private_narrator.php';
@@ -506,6 +545,10 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($nativeTurn) $statusPayload['native_turn'] = true;
     if ($deliveryReceipts) $statusPayload['delivery_receipts'] = true;
     if ($actorStats) $statusPayload['actor_stats'] = true;
+    if ($actorCondition) $statusPayload['actor_condition'] = true;
+    // Confirmed NPC sales: granted only to a flat init that negotiated the whole contract.
+    require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+    if (($event['type'] ?? '')==='init' && \Synth\Managers\ActionsManager\TradeOffer::supported($event)) $statusPayload['trade_confirmation'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;
     if ($combatTargets) $statusPayload['combat_targets'] = true;

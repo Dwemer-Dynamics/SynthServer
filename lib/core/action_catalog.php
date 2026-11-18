@@ -887,6 +887,7 @@ function synthActionCatalogBuildBaseFollowupConfig($codeName)
         'GiveCapsTo' => ['arg_name' => 'target', 'prompt' => 'Reply with one short in-character line reacting to the caps transfer result below. Do not ask follow-up questions.'],
         'TakeItemFromPlayer' => ['arg_name'=>'target','prompt'=>'React in character to the gift result below. Only a verified successful handoff is a received gift. Judge its personal value using your biography, personality, goals and current needs, not price alone. No fixed gratitude or relationship bonus is required.'],
         'TakeCapsFromPlayer' => ['arg_name' => 'amount', 'prompt' => 'Reply with one short in-character line reacting to the caps transfer result below. Do not ask follow-up questions.'],
+        'Barter' => ['arg_name' => 'target', 'prompt' => 'React in one short in-character line to the sale outcome below. Only a completed, verified outcome means the item and caps changed hands. Do not ask follow-up questions or re-offer.'],
     ];
 
     if (in_array($codeName, $disabledFollowUpCodes, true)) {

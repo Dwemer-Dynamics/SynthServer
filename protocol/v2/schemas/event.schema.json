@@ -1338,6 +1338,38 @@
       "if": {
         "properties": {
           "type": {
+            "const": "context"
+          },
+          "payload": {
+            "required": [
+              "actor_states"
+            ],
+            "properties": {
+              "actor_states": {
+                "contains": {
+                  "required": [
+                    "actor_condition"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "context.actor_condition"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
             "const": "social_task_request"
           }
         }
@@ -1841,6 +1873,59 @@
       }
     },
     {
+      "$comment": "trade-confirmation-capability",
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "action.trade_confirmation"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "runtime_variant": {
+            "const": "flat"
+          },
+          "capabilities": {
+            "allOf": [
+              {
+                "contains": {
+                  "const": "action.barter"
+                }
+              },
+              {
+                "contains": {
+                  "const": "action.player_caps_inventory"
+                }
+              },
+              {
+                "contains": {
+                  "const": "action.give_item_to"
+                }
+              },
+              {
+                "contains": {
+                  "const": "action.transfer_inventory"
+                }
+              },
+              {
+                "contains": {
+                  "const": "action.inventory_observation"
+                }
+              },
+              {
+                "contains": {
+                  "const": "dialogue.turn_ownership"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "if": {
         "properties": {
           "type": {
@@ -1950,6 +2035,69 @@
           },
           "payload": {
             "$ref": "narrator.schema.json#/$defs/receipt"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "narrator_command",
+              "narrator_turn"
+            ]
+          },
+          "payload": {
+            "required": [
+              "object"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "payload"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "narrator.object.v1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "narrator_command"
+          },
+          "payload": {
+            "properties": {
+              "action": {
+                "const": "transcript"
+              }
+            },
+            "required": [
+              "action",
+              "definition_id"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "payload"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "narrator.object.v1"
+            }
           }
         }
       }

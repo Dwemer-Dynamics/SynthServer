@@ -406,7 +406,18 @@ Scratch under `D:\build\synth-schema-redesign`.
 
 ## 13. Open questions
 
-For Stu (CHIM 4 / chevo owner). **Questions 1 to 8 are pending Stu.** Steps 2, 4 and 5 of the rollout wait for his answers to 2, 3, 4 and 8.
+For Stu (CHIM 4 / chevo owner). **Questions 1 to 8: user decision (2026-11-17), chevo-aligned defaults; Stu may revise.** The defaults below are used instead of waiting for Stu, so no rollout step is blocked on these questions:
+
+1. **Copy chevo's `core/dbmanager` layout and `Database` class; no shared package.**
+2. **`core_context_event` stays as chevo has it.** SYNTH's extra fields (`delivery_state`, `synth_*` correlation) go in `context_metadata`.
+3. **Identity: adopt chevo's `core_npc.character_id` plus `core_npc_actor(refid, plugin)`.** `playthrough_id` goes on events only.
+4. **`playthrough_id` is a `guid`.**
+5. **World knowledge uses neutral names, `core_worldknowledge_*`.**
+6. **`diarylog` folds into `core_memory` with `source_type='diary'`.**
+7. **A `core_prompt` table is acceptable.**
+8. **Keep SYNTH's `core_worker_job` leases and evaluation pipeline; do not adopt `core_worker_unit` yet.** A parallel session builds a storage-agnostic `workers/` framework, so the worker tables stay behind a seam.
+
+The original questions follow for the record.
 
 1. **Is copying chevo's `core/dbmanager` layout and `Database` class right, or will they become a shared package?** (risk 7)
 2. **`core_context_event`:** may SYNTH extend it with the few columns it needs (`delivery_state`, `synth_*` correlation) or should they live in `context_metadata`?

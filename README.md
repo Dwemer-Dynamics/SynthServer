@@ -141,7 +141,8 @@ is not loopback, an IP address or this machine's name; to open it by another nam
    database, its UTF8 encoding, the schema and the migration ledger are ready. Otherwise it answers
    503 with an `error` naming the fix, for example running `php tools/bootstrap-database.php` in
    the server root (see [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md#readiness)). The
-   `background_processor` field is advisory. While the database is unreachable or not ready,
+   `background_processor` field is advisory. `health.php?check=live|db|api-keys|npcs|llm|all` answers
+   one granular, read-only question each ([docs/HEALTH-CHECKS.md](docs/HEALTH-CHECKS.md)). While the database is unreachable or not ready,
    Quickstart answers 503 with a link to health.php (its GET also requires a current migration
    ledger and installed vendor dependencies) and its saves are refused before any settings are
    saved.

@@ -1,5 +1,14 @@
 # Synthserver developer handoff
 
+## Confirmed NPC trade candidate
+
+The model's `Barter` action is now a validated one-unit sale offer (exact stack from the NPC's complete observed inventory,
+a sane whole-caps price the player can pay). It rides the ordinary action-intent path as a `barter` action, the client confirms
+with Yes/Cancel, and every outcome returns as the existing paired transfer receipt, verified against the original snapshot and
+told to the NPC as a known outcome only. Flat only, behind the `action.trade_confirmation` acknowledgement; no storage added.
+See [CONFIRMED-TRADE.md](CONFIRMED-TRADE.md) and [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md#confirmed-npc-trade). Paired with
+the SYNTH client `trade` module; game acceptance is open.
+
 ## Auto Chat candidate
 
 Explicit `AUTOCHAT` rewrites typed or server-transcribed intent into one generated player line,
@@ -45,6 +54,8 @@ instead of the legacy plaintext exit, and adds `schema_migrations` (`current`, `
 or `unavailable`) from the owner's lock-free `SchemaMigrations::status()`. It answers 200 only when the
 database, UTF8 encoding, runtime gate and ledger are ready, otherwise 503 with one fixed, actionable error;
 it never migrates or loads settings, writes no SYNTH log file, and the background processor stays advisory.
+Granular read-only checks (`?check=live|db|api-keys|npcs|llm|all`), the Health tab's checks table and the client's
+connection notice are described in [HEALTH-CHECKS.md](HEALTH-CHECKS.md).
 Quickstart GET answers a 503 page linking to `health.php` unless the database, UTF8 encoding, runtime gate,
 current ledger and vendor dependencies are ready; its saves answer a database or migration failure with a fixed
 JSON 503 before any settings save. `tools/bootstrap-database.php` reads `conf.php` once, checks UTF8 before
@@ -176,6 +187,7 @@ The optional private narrator contract adds separate immutable definition revisi
 transcripts. Existing context snapshots capture opaque private-state IDs; SCTX and ordinary NPC receipts remain
 unchanged. Private data is excluded from NPC history and journal sources. See [PRIVATE-NARRATOR.md](PRIVATE-NARRATOR.md).
 The additive migration is `private_narrator_schema` 20261113001. No deployment or gameplay acceptance is included.
+Talking objects extend it with object-bound definitions; the contract is accepted and refused until storage lands. See [TALKING-OBJECTS.md](TALKING-OBJECTS.md).
 
 ## Installed gift screen and shared wording
 
@@ -238,8 +250,10 @@ over `Synth\Drivers\Tts\ProfileSpeechDriver`, `Synth\Drivers\Llm\OpenAiCompatibl
 root. Legacy `lib/` and the existing schema update chain are unchanged by this layout.
 Eligibility, identity and receipt rules are in `protocol/v2/README.md`. Limits: plain
 `openaijson` connectors only; TTS uses the NPC profile's own TTS connector and resolved voice,
-with no server-wide fallback; a missing or non-portable profile TTS makes the turn ineligible
-with a reason. Schema `synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances`
+with no server-wide fallback. Voice is optional: a missing or non-portable profile TTS, a speech
+queue failure, failed or timed-out synthesis, or silent (all-zero PCM) synthesized audio all deliver
+the line as text only (no `speech` block, or a `failed` speech status); the turn still completes and
+a later `text_presented` receipt records the line as heard. Schema `synth_protocol_schema` 20261109001 adds `synth_meta.dialogue_utterances`
 and `synth_meta.json_object_has_unique_keys(text)`, which replaces the PostgreSQL 16-only
 `IS JSON OBJECT WITH UNIQUE KEYS` predicate in the wait-proof checks. Before this,
 every native history read failed on PostgreSQL 15. A scratch HTTP-plus-PostgreSQL 15
