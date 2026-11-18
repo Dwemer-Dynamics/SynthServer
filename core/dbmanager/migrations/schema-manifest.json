@@ -2,16 +2,27 @@
     "format": 1,
     "provenance": "One entry per migration: hashes of the class and its generated companion files, LF-normalized. The baseline structure file was generated from a disposable PostgreSQL 15 inventory of legacy source 42c7e0e and is verified by the baseline itself; this manifest only freezes it. Refresh an entry only from a reviewed migration, never to silence drift. Current hashes: php tools/schema-check.php --hashes.",
     "migrations": {
-        "Version20261115000000": {
-            "class": "Synth\\Migrations\\Version20261115000000",
+        "Version20261117000000": {
+            "class": "Synth\\Migrations\\Version20261117000000",
             "files": {
-                "Version20261115000000.fresh.sql": "4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7",
-                "Version20261115000000.php": "d1d826b4ad85d6f9bb764297055251987417269477b057505e95a4fdbfa9b9bc",
-                "Version20261115000000.structure.txt": "10e72bdc505a9970ae5fc2ba0419e53b243dee6e20fc172d14e4c8607671e358"
+                "Version20261117000000.fresh.sql": "fef1fee16687f2b17514ccffd3766b47a6e22602db550027cf93d8c8309545f2",
+                "Version20261117000000.php": "f3bbffa81339f241d5e24f01ce360d03f76386c008588524605c6a2f8c41cd7b",
+                "Version20261117000000.structure.txt": "058dcd8ad304f3bd41bf63842acf1e56a161d52bbe3cf1c6ef1e971c770daf80"
             },
             "structure": {
-                "file": "Version20261115000000.structure.txt",
-                "entries": 2062
+                "file": "Version20261117000000.structure.txt",
+                "entries": 2056
+            }
+        },
+        "Version20261117100000": {
+            "class": "Synth\\Migrations\\Version20261117100000",
+            "files": {
+                "Version20261117100000.php": "aa529547b2d057e9ce23c8fc8014b892d42ccf6adeb8f1a21d79cb78268e9cf1",
+                "Version20261117100000.structure.txt": "fab12e08198e2c1daa868d2bd890568710f282d795087c94b7fa009157d7f9c0"
+            },
+            "structure": {
+                "file": "Version20261117100000.structure.txt",
+                "entries": 16
             }
         }
     }

@@ -9,7 +9,7 @@ use Doctrine\Migrations\Configuration\Migration\ConfigurationArray;
 use Doctrine\Migrations\DependencyFactory;
 use Doctrine\Migrations\MigratorConfiguration;
 use Doctrine\Migrations\Version\Version;
-use Synth\Migrations\Version20261115000000 as LegacyBaseline;
+use Synth\Migrations\Version20261117000000 as LegacyBaseline;
 
 // The one owner of versioned schema changes. tools/bootstrap-database.php and every caller of the debug/db_updates.php
 // compatibility entry come here; the frozen legacy chain in that file runs only from inside this class. It uses its
@@ -56,7 +56,7 @@ final class SchemaMigrations
             throw new \RuntimeException('Synthserver production dependencies are missing; run composer install --no-dev in the server root');
         }
         require_once $autoload;
-        require_once __DIR__.'/migrations/Version20261115000000.php';
+        require_once __DIR__.'/migrations/Version20261117000000.php';
 
         try {
             $connection = DriverManager::getConnection([

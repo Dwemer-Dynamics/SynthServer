@@ -87,11 +87,33 @@ abstract class DatabaseTestCase extends TestCase
         $this->tearDownConfFile();
     }
 
+    // API keys live in the shared dwemer store, which has no place in the unit database. The fixture is a disposable
+    // PostgreSQL database holding just the columns of api_keys SYNTH uses (the real schema is the CHIM 4 server's shared
+    // migrations), emptied for every test and holding the one OpenRouter test key the connector tests expect.
+    private function useSharedKeyStoreFixture($db): void
+    {
+        require_once dirname(__DIR__, 2).'/core/dbmanager/repositories/ApiBadgeRepository.php';
+        $admin = pg_connect('host=localhost dbname=postgres user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        if (!pg_fetch_row(pg_query($admin, "SELECT 1 FROM pg_database WHERE datname = 'dwemer_unit_keys'"))) {
+            pg_query($admin, 'CREATE DATABASE dwemer_unit_keys');
+        }
+        pg_close($admin);
+        $shared = pg_connect('host=localhost dbname=dwemer_unit_keys user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
+        pg_query($shared, "CREATE TABLE IF NOT EXISTS public.api_keys (key_id uuid PRIMARY KEY, provider varchar(32) NOT NULL, label varchar(64) NOT NULL,
+            origin varchar(300) NOT NULL, status varchar(8) NOT NULL DEFAULT 'active', nonce bytea, ciphertext bytea, revision bigint NOT NULL DEFAULT 1,
+            created_at timestamptz NOT NULL DEFAULT clock_timestamp(), updated_at timestamptz NOT NULL DEFAULT clock_timestamp(), deleted_at timestamptz, secret text)");
+        pg_query($shared, 'TRUNCATE public.api_keys');
+        pg_close($shared);
+        \Synth\Core\ApiBadgeRepository::useSharedStore(\Synth\Core\SharedApiKeyStore::forSettings(
+            ['host' => 'localhost', 'port' => '5432', 'dbname' => 'dwemer_unit_keys', 'user' => 'dwemer', 'password' => 'dwemer']));
+        (new \Synth\Core\ApiBadgeRepository($db))->add('OpenRouter', 'openrouterjson_key');
+    }
+
     private function setUpDatabaseDefaults(): void
     {
         $db = new sql();
-        $db->updateRow('core_api_badge', ['api_key' => 'openrouterjson_key'], 'id=1');
-        $db->execQuery('UPDATE synth.core_profiles SET tts_connector_id = NULL');
+        $this->useSharedKeyStoreFixture($db);
+        $db->execQuery('UPDATE public.core_profiles SET tts_connector_id = NULL');
         $db->upsertRowOnConflict('general_settings', [
             'id' => 'SCENE_CLASSIFIER_ENABLED',
             'value' => 'false',
@@ -100,30 +122,33 @@ abstract class DatabaseTestCase extends TestCase
         $db->close();
     }
 
+    // The shared fixture is the install a new deployment gets: an empty database installed by the baseline migration
+    // through the real tools/bootstrap-database.php, run in a child process so no per-process cache hides a step.
     public static function createTestDB(): void
     {
-        self::recreateTestDatabaseFromDefaultSql();
+        self::recreateEmptyTestDatabase();
         self::resetSharedTestConnection();
-        $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
+        self::bootstrapTestDatabase();
         self::loadTestRuntime();
-        $db = new sql();
-        $GLOBALS["db"] = $db;
-        // A true pre-ledger legacy install: the frozen chain under the migration lock, with no migration recorded.
-        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."db_connection_settings.php");
-        require_once($path.DIRECTORY_SEPARATOR."core".DIRECTORY_SEPARATOR."dbmanager".DIRECTORY_SEPARATOR."SchemaMigrations.php");
-        $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(
-            \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('testdb')));
-        try {
-            $owner->applyLegacyChainWithoutLedger();
-        } finally {
-            $owner->close();
-        }
-
-        $db->close();
-        unset($db);
-        unset($GLOBALS["db"]);
-
         self::snapshotTestDatabaseAsFixture();
+    }
+
+    // Runs tools/bootstrap-database.php against testdb (and nothing else) and fails the test on any error.
+    protected static function bootstrapTestDatabase(): void
+    {
+        $process = proc_open([PHP_BINARY, dirname(__DIR__, 2).'/tools/bootstrap-database.php'],
+            [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, null,
+            array_merge(getenv(), ['SYNTH_DB_HOST' => 'localhost', 'SYNTH_DB_PORT' => '5432', 'SYNTH_DB_NAME' => self::$testDatabaseName,
+                'SYNTH_DB_USER' => 'dwemer', 'SYNTH_DB_PASSWORD' => 'dwemer']));
+        if (!is_resource($process)) {
+            self::fail('Failed to start the test database bootstrap.');
+        }
+        $output = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $exit = proc_close($process);
+        if ($exit !== 0 || str_contains($output, '[error]')) {
+            self::fail("The test database bootstrap failed (exit {$exit}): {$output}");
+        }
     }
 
     // The test sql adapter and the sample configuration the tests run with.

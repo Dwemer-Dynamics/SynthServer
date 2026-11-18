@@ -5,6 +5,7 @@ require_once __DIR__.'/synth_gift_menu.php';
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php';
 require_once __DIR__.'/synth_wait_actions.php';
+require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 // Converts the database BYTEA text representation used for deterministic response replay.
 function synth_protocol_decode_bytea($value): string
@@ -731,6 +732,8 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         synthPersistActorEvents($db, $event);
         require_once __DIR__.'/observed_dialogue.php';
         synthPersistObservedDialogue($db, $event);
+        require_once __DIR__.'/../managers/BookManager/ReadingHistory.php';
+        \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE synth_meta.context_snapshots c
@@ -739,7 +742,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
                    AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
                    AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','actor_equipment','backgroundchat')
+                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
             ),0))
             WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
             [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
@@ -1151,7 +1154,7 @@ function synth_protocol_persist_observation_history(
     $db, array $event, string $type, string $data, string $people, string $location, array $party, int $gamets
 ): void {
     if (($event['protocol_version'] ?? 1) !== 2
-        || !in_array($type, ['world_context', 'nearby_items', 'points_of_interest', 'quest_observation', 'quest_events', 'player_event', 'actor_equipment'], true)
+        || !in_array($type, ['world_context', 'nearby_items', 'points_of_interest', 'quest_observation', 'quest_events', 'player_event', 'reading_event', 'actor_equipment'], true)
         || intval($event['payload']['snapshot_sequence'] ?? 0) < 1) {
         throw new InvalidArgumentException('Native observation requires an owned context sequence.');
     }
@@ -1352,7 +1355,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     $session = $db->escapeLiteral($sessionId);
     $generation = intval($event['generation']);
     $intent = $db->fetchOne(
-        "SELECT action_id, idempotency_key, state, action_name
+        "SELECT action_id, idempotency_key, state, action_name, (deadline_at + INTERVAL '5 minutes' < NOW()) AS expired
            FROM synth_meta.action_intents
           WHERE action_id={$actionId} AND session_id={$session} AND generation={$generation}
           FOR UPDATE"
@@ -1379,7 +1382,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         $waitOutcome=synth_wait_result_context($db,$event);
     $transferReceipt = ($result['schema'] ?? '') === 'synth.action.transfer-result.v2';
     $transferIntent = in_array($intent['action_name'] ?? '', ['GiveItemTo', 'give_item_to'], true)
-        || (($event['protocol_version'] ?? 1) === 2 && in_array($intent['action_name'] ?? '', ['GiveCapsTo','give_caps_to','TakeCapsFromPlayer','take_caps_from_player','TakeItemFromPlayer','take_item_from_player','OpenInventory','open_inventory'], true));
+        || (($event['protocol_version'] ?? 1) === 2 && in_array($intent['action_name'] ?? '', ['GiveCapsTo','give_caps_to','TakeCapsFromPlayer','take_caps_from_player','TakeItemFromPlayer','take_item_from_player','OpenInventory','open_inventory','Barter','barter'], true));
     if ($transferReceipt || $transferIntent || ($result['schema'] ?? '') === 'synth.action.result.v2') {
         // Only the recorded mutation owner may attach inventory; labels never confer identity.
         $owner = $db->fetchOne("SELECT i.turn_id, i.request_id, i.action_name, i.capability,
@@ -1410,6 +1413,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
             'TakeCapsFromPlayer', 'take_caps_from_player' => 'action.take_caps_from_player',
             'TakeItemFromPlayer', 'take_item_from_player' => 'action.take_item_from_player',
             'OpenInventory', 'open_inventory' => 'action.open_inventory',
+            'Barter', 'barter' => 'action.barter',
             default => null,
         };
         if (!$owner || !is_array($parent) || $capability === null || ($owner['capability'] ?? '') !== $capability
@@ -1437,7 +1441,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         }
         if ($capability === 'action.consume' && (!synth_protocol_supports_consumption($event)
             || !synth_protocol_supports_consumption($parent))) throw new DomainException('action_inventory_capability_mismatch');
-        $isTransfer = in_array($capability, ['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory'], true);
+        $isTransfer = in_array($capability, ['action.give_item_to','action.give_caps_to','action.take_caps_from_player','action.take_item_from_player','action.open_inventory','action.barter'], true);
         if (($transferReceipt && !$isTransfer) || ($isTransfer && ($result['schema'] ?? '') === 'synth.action.result.v2'))
             throw new DomainException('action_inventory_owner_mismatch');
         if ($isTransfer) {
@@ -1449,6 +1453,14 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 || !synth_protocol_supports_player_caps($parent))) throw new DomainException('action_inventory_capability_mismatch');
             if ($capability === 'action.take_item_from_player' && (!synth_protocol_supports_player_items($event)
                 || !synth_protocol_supports_player_items($parent))) throw new DomainException('action_inventory_capability_mismatch');
+            if ($capability==='action.barter') {
+                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+                if (!\Synth\Managers\ActionsManager\TradeOffer::supported($event) || !\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !$transferReceipt)
+                    throw new DomainException('action_inventory_capability_mismatch');
+                // The client owns the 45 s box; the server only refuses a receipt more than 5 minutes past the 60 s deadline.
+                if ($result['status']==='succeeded' && in_array($intent['expired'] ?? false,[true,'t','true',1,'1'],true))
+                    throw new DomainException('trade_offer_expired');
+            }
             if ($capability==='action.open_inventory' && (!synth_protocol_supports_gift_menu($event)
                 || !synth_protocol_supports_gift_menu($parent) || !$transferReceipt)) throw new DomainException('action_inventory_capability_mismatch');
             $recipient = $result['recipient_inventory']['actor'] ?? [];
@@ -1765,6 +1777,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 "UPDATE synth_meta.active_agents SET state='stale', last_seen_at=NOW()
                   WHERE session_id={$session} AND generation <= {$generation} AND state='active'"
             );
+        } elseif ($event['type'] === 'cancel' && ($event['payload']['scope'] ?? '') === 'conversation') {
+            \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $session, $generation);
         } elseif ($event['type'] === 'cancel') {
             $cancelRequest = $db->escapeLiteral($event['payload']['cancel_request_id']);
             // A context anchors admission; an owned reply anchors the same conversation after descendants start.
@@ -1821,6 +1835,13 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         }
 
         synth_protocol_commit_transaction($db);
+        // Extension event once the context is committed (no-op without enabled extensions; never throws).
+        if ($event['type'] === 'context') {
+            require_once dirname(__DIR__).'/managers/ExtensionManager/ExtensionManager.php';
+            \Synth\Managers\ExtensionManager\ExtensionManager::publish(\Synth\Managers\ExtensionManager\Hooks::GAME_CONTEXT_RECEIVED,
+                ['session_id' => $sessionId, 'snapshot_sequence' => intval($event['payload']['snapshot_sequence'] ?? 0),
+                 'world' => is_array($event['payload']['world'] ?? null) ? $event['payload']['world'] : []]);
+        }
         if($event['type']==='action_result' && is_array($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']??null))
             synth_wait_trace_committed_result($event,$GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
         unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
@@ -1872,14 +1893,17 @@ function synth_protocol_record_action_intent($db, array $action): void
     $playerItem = in_array($action['name'] ?? '', ['take_item_from_player'],true)
         || ($action['server_code'] ?? '')==='TakeItemFromPlayer' || ($action['capability'] ?? '')==='action.take_item_from_player';
     if ($playerItem && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('player_item_emission_claim_required');
-    $transfer = $giftMenu || $playerItem || $caps || ($action['name'] ?? '')==='give_item_to' || ($action['server_code'] ?? '')==='GiveItemTo'
+    $trade = ($event['protocol_version'] ?? 1)===2 && (($action['name'] ?? '')==='barter'
+        || ($action['server_code'] ?? '')==='Barter' || ($action['capability'] ?? '')==='action.barter');
+    if ($trade && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('trade_emission_claim_required');
+    $transfer = $trade || $giftMenu || $playerItem || $caps || ($action['name'] ?? '')==='give_item_to' || ($action['server_code'] ?? '')==='GiveItemTo'
         || ($action['capability'] ?? '')==='action.give_item_to';
     if ($transfer) {
         if (!synth_protocol_supports_transfer($event)) throw new DomainException('transfer_contract_required');
         if ($caps && !synth_protocol_supports_caps_transfer($event)) throw new DomainException('caps_contract_required');
         if ($playerItem && !synth_protocol_supports_player_items($event)) throw new DomainException('player_item_contract_required');
         if ($taking && !synth_protocol_supports_player_caps($event)) throw new DomainException('player_caps_contract_required');
-        if (!$giftMenu && !synth_protocol_valid_transfer_intent($action)) throw new DomainException('invalid_transfer_intent');
+        if (!$giftMenu && !$trade && !synth_protocol_valid_transfer_intent($action)) throw new DomainException('invalid_transfer_intent');
         if ($caps && synth_protocol_owns_rechat($event)) throw new DomainException('caps_rechat_mutation_not_allowed');
     }
     if (synth_protocol_owns_rechat($event) && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
@@ -1887,12 +1911,13 @@ function synth_protocol_record_action_intent($db, array $action): void
     }
     $guarded = !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
     $native = $guarded && ($event['protocol_version'] ?? 1) === 2;
-    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack, $order): void {
+    $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack, $order, $trade): void {
         synth_protocol_assert_request_active();
         if ($wait && $owner!==$event) throw new LogicException('wait_emission_owner_changed');
         if ($attack && $owner!==$event) throw new LogicException('attack_emission_owner_changed');
         if ($giftMenu && $owner!==$event) throw new LogicException('gift_menu_emission_owner_changed');
         if ($playerItem && $owner!==$event) throw new LogicException('player_item_emission_owner_changed');
+        if ($trade && $owner!==$event) throw new LogicException('trade_emission_owner_changed');
         if ($wait) synth_wait_action_validate($db,$event,$action);
         if ($order) \Synth\Managers\ActionsManager\CompanionOrders::validate($db,$event,$action);
         if ($attack) synth_attack_validate($db,$event,$action);
@@ -1918,6 +1943,10 @@ function synth_protocol_record_action_intent($db, array $action): void
                 if (!$found) throw new DomainException('transfer_actor_not_in_snapshot');
             }
             if ($giftMenu) synth_gift_menu_validate($event,$action,$context);
+            if ($trade) {
+                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+                \Synth\Managers\ActionsManager\TradeOffer::validate($event,$action,$context);
+            }
             if ($playerItem) {
                 require_once __DIR__.'/synth_player_gifts.php';
 require_once __DIR__.'/synth_gift_menu.php';
@@ -2252,6 +2281,22 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
             ...($taking?['donor'=>$row['target_name']]:[]),
             'reported_detail'=>$result['detail'],
             ...(($gift=synth_player_gift_for_event($db,$wireEvent))===null ? [] : ['verified_gift'=>$gift])], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+    if ($boundContext !== null && $row['action_name'] === 'Barter' && ($row['capability'] ?? '') === 'action.barter') {
+        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
+        // The seller is told the verified outcome, never the client's free text.
+        $tradeArguments = is_array($row['arguments'] ?? null) ? $row['arguments']
+            : json_decode(strval($row['arguments'] ?? '{}'), true, flags: JSON_THROW_ON_ERROR);
+        $seller = ['form_id'=>$row['actor_form_id'],'origin_plugin'=>$row['actor_plugin'],'playthrough_id'=>$row['actor_playthrough']];
+        $buyer = ['form_id'=>$row['target_form_id'],'origin_plugin'=>$row['target_plugin'],'playthrough_id'=>$row['target_playthrough']];
+        // $boundContext already carries this receipt's inventories; the sale is checked against the original snapshot.
+        $before = synth_protocol_original_context($db,$wireEvent);
+        $verification = ($result['status'] ?? '')!=='succeeded' || ($result['schema'] ?? '')!=='synth.action.transfer-result.v2' ? ['verified'=>false,'reason'=>'not_succeeded']
+            : ($before===null ? ['verified'=>false,'reason'=>'before_inventory_unavailable']
+                : \Synth\Managers\ActionsManager\TradeOffer::verifyReceipt($tradeArguments,$before,$seller,$buyer,$result));
+        $result['detail'] = json_encode(\Synth\Managers\ActionsManager\TradeOffer::outcomeDetail($tradeArguments,$result,$verification),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (($result['status'] ?? '')==='succeeded' && !$verification['verified']) $result['status']='failed';
     }
     $gameRequest[0] = 'funcret';
     $gameRequest[3] = json_encode([
@@ -2601,7 +2646,7 @@ function synth_protocol_prompt_actor_states(
         if (!is_array($state)) continue;
         // A different participant's combat target is not knowledge for this response speaker.
         // The selected speaker's dedicated prompt is rendered separately from these generic states.
-        unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['conversation_held'],$state['actor_stats']);
+        unset($state['combat_target'],$state['combat_contacts'],$state['enemy_awareness'],$state['conversation_held'],$state['actor_stats'],$state['actor_condition']);
         // A historical numeric default does not prove a successful native actor-value read.
         foreach (['health_percent','action_points_percent'] as $field) {
             $available = ($state[$field . '_available'] ?? false) === true;
@@ -2787,7 +2832,7 @@ function synth_protocol_prompt_snapshot($db): ?array
     $context = synth_protocol_current_context($db, $event);
     $payload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
     // Native source records are audit evidence, not witnessed prompt context. Read the owned history projection instead.
-    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue']);
+    unset($payload['actor_events'],$payload['quest_events'],$payload['observed_dialogue'],$payload['reading_event']);
     if (!synth_protocol_quest_response_is_narrator($db,$event)) {
         unset($payload['active_quests'],$payload['active_quests_observation']);
     } else {

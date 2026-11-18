@@ -35,7 +35,7 @@ final class CharacterManager
         }
         $npc = $this->characters->npc(intval($row['npc_id']));
         $profile = $this->characters->profile(intval($row['profile_id']));
-        if ($npc === null || $profile === null) throw new TurnRejected('tts_profile_unsupported');
+        if ($npc === null || $profile === null) throw new TurnRejected('npc_not_registered');
         // The admitted save's latest revision for this exact identity replaces only the five dynamic fields of this
         // turn's copy; prompt head, biography, voice and connector stay base. A failed read is a backend failure.
         $saved = $this->characters->savedProfile($request->event, intval($row['identity_id']));

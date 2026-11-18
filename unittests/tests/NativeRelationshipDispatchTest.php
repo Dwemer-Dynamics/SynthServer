@@ -86,7 +86,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $player=['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'relationship-dispatch-save','display_name'=>'Nora'];
         $actor=['form_id'=>'0x00002F1F','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'relationship-dispatch-save','display_name'=>'Piper Wright'];
         $this->playerId=$this->identity($player);$this->actorId=$this->identity($actor);
-        $this->profileId=(int)pg_fetch_assoc($this->query("INSERT INTO synth.core_profiles(label) VALUES('Synthetic relationship dispatcher') RETURNING id"))['id'];
+        $this->profileId=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_profiles(label) VALUES('Synthetic relationship dispatcher') RETURNING id"))['id'];
         $this->npcId=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
             [$actor['display_name'],$this->profileId,$this->actorId]))['id'];
         $this->context=['playthrough_id'=>'relationship-dispatch-save','snapshot_sequence'=>1,'player'=>$player,'target'=>$actor,
@@ -348,7 +348,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         require_once dirname(__DIR__,2).'/lib/synth_ambient_npc.php';
         $npc=$this->secondaryNpc([1,2]);
         $this->query('UPDATE synth.core_npc_master SET md5=md5(npc_name) WHERE id IN ($1,$2)',[$this->npcId,$npc['npc_id']]);
-        $this->query('UPDATE synth.core_profiles SET metadata=$1::jsonb WHERE id=$2',[$this->json(['RECHAT_H'=>4,'RECHAT_P'=>100]),$npc['profile_id']]);
+        $this->query('UPDATE public.core_profiles SET metadata=$1::jsonb WHERE id=$2',[$this->json(['RECHAT_H'=>4,'RECHAT_P'=>100]),$npc['profile_id']]);
         $payload=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM synth_meta.context_snapshots WHERE snapshot_sequence=1'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
         $payload['actor_states']=[];
         foreach ([$payload['player'],$payload['target'],$npc['identity']] as $index=>$identity) {
@@ -415,8 +415,8 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     public function testAmbientNpcProfileLoadsExactCapturedSpeakerAndPreservesInputConfiguration(): void {
         [$event]=$this->ambientFixture(true);$request=['bored',1,2,''];
         $this->assertTrue(synth_protocol_bind_trigger_context($this->database,$event,$request));
-        $connector=(int)pg_fetch_assoc($this->query('SELECT id FROM synth.core_llm_connector ORDER BY id LIMIT 1'))['id'];
-        $this->query('UPDATE synth.core_profiles SET llm_primary_id=$1 WHERE id=$2',[$connector,$this->profileId]);
+        $connector=(int)pg_fetch_assoc($this->query('SELECT id FROM public.core_llm_connector ORDER BY id LIMIT 1'))['id'];
+        $this->query('UPDATE public.core_profiles SET llm_primary_id=$1 WHERE id=$2',[$connector,$this->profileId]);
         $previous=$GLOBALS;
         try {
             $GLOBALS['active_profile']=md5('The Narrator');$GLOBALS['SYNTH_NAME']='The Narrator';
@@ -1104,9 +1104,9 @@ PHP;
     }
     private function assertGiftRechatProfileSurvivesLockContention(array $child): void {
         require_once dirname(__DIR__,2).'/lib/synth_rechat_profile.php';
-        $connector=pg_fetch_assoc($this->query('SELECT id FROM synth.core_llm_connector ORDER BY id LIMIT 1'));
+        $connector=pg_fetch_assoc($this->query('SELECT id FROM public.core_llm_connector ORDER BY id LIMIT 1'));
         $this->assertNotFalse($connector);
-        $this->query('UPDATE synth.core_profiles SET llm_primary_id=$1,llm_secondary_id=$1,llm_tertiary_id=$1,llm_quaternary_id=$1
+        $this->query('UPDATE public.core_profiles SET llm_primary_id=$1,llm_secondary_id=$1,llm_tertiary_id=$1,llm_quaternary_id=$1
             WHERE id=$2',[$connector['id'],$this->profileId]);
         $this->query('UPDATE synth.core_npc_master SET md5=$1 WHERE id=$2',[md5('Fixture Piper Wright'),$this->npcId]);
         $locker=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);
@@ -1336,7 +1336,7 @@ PHP;
     private function secondaryNpc(array $sequences,?array $identity=null): array {
         $identity ??=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'relationship-dispatch-save','display_name'=>'Preston Garvey'];
         $id=$this->identity($identity);
-        $profile=(int)pg_fetch_assoc($this->query("INSERT INTO synth.core_profiles(label) VALUES('Synthetic addressed NPC') RETURNING id"))['id'];
+        $profile=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_profiles(label) VALUES('Synthetic addressed NPC') RETURNING id"))['id'];
         $npc=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
             [$identity['display_name'],$profile,$id]))['id'];
         foreach ($sequences as $sequence) {

@@ -18,7 +18,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $root=sys_get_temp_dir().'/synth-status-read-'.bin2hex(random_bytes(8));
         mkdir($root.'/soundcache',0700,true);
         $key=md5('read-only-status');
-        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\0\0";
+        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\1\0";
         $cache=$root.'/soundcache/'.$key.'.wav';
         $status=synth_npc_tts_status_dir($root).'/'.$key.'.json';
         $object=$root.'/soundcache/media/'.hash('sha256',$wav);
@@ -78,7 +78,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $root=sys_get_temp_dir().'/synth-status-owner-'.bin2hex(random_bytes(8));
         mkdir($root.'/soundcache',0700,true);
         $key=md5('owned-status');
-        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\0\0";
+        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\1\0";
         $cache=$root.'/soundcache/'.$key.'.wav';
         $status=synth_npc_tts_status_dir($root).'/'.$key.'.json';
         $object=$root.'/soundcache/media/'.hash('sha256',$wav);
@@ -182,7 +182,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $keys=['SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_REQUEST_EVENT','db'];
         $saved=array_intersect_key($GLOBALS,array_flip($keys));
         foreach($keys as $key) unset($GLOBALS[$key]);
-        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\0\0";
+        $wav='RIFF'.pack('V',38).'WAVEfmt '.pack('VvvVVvv',16,1,1,24000,48000,2,16).'data'.pack('V',2)."\1\0";
         try {
             $this->assertTrue(synth_publish_speech_cache($wav,$target));
             $this->assertSame($wav,file_get_contents($target));

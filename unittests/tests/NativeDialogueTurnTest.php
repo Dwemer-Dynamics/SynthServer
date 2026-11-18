@@ -173,7 +173,7 @@ final class NativeDialogueTurnTest extends TestCase
     }
 
     // Dialogue services over injected repository, driver and output fakes (no database or provider).
-    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool $speech=true,
+    private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool|string $speech=true,
         array|Throwable|null $saved=null, ?object $db=null, ?SYNTHClaimedRequest $owner=null, ?string $metadata=null): array
     {
         $saves=new class($context) extends SaveState {
@@ -230,7 +230,7 @@ final class NativeDialogueTurnTest extends TestCase
             private int $line=0;
             public function assertActive(): void {}
             public function allocateLine(): string { return 'dialogue:'.++$this->line; }
-            public function dialogue(string $suffix, string $lineId, array $payload): void { $this->events[]=[$lineId,$payload['text'],$payload['speech']['cache_key']]; }
+            public function dialogue(string $suffix, string $lineId, array $payload): void { $this->events[]=[$lineId,$payload['text'],$payload['speech']['cache_key'] ?? null]; }
             public function complete(): void { $this->events[]=['complete']; }
             public function fail(string $code, string $detail): void { $this->events[]=['fail',$code,$detail]; }
             public function reject(string $reason): void { $this->events[]=['reject',$reason]; }
@@ -242,11 +242,12 @@ final class NativeDialogueTurnTest extends TestCase
             public function stream(array $connector, array $messages, callable $onText): void { $this->messages=$messages; foreach ($this->chunks as $chunk) $onText($chunk); }
         };
         $tts=new class($speech) implements SpeechDriver {
-            public function __construct(private bool $speech) {}
-            public function settings(array $npcRow, array $profile): ?array { return ['TTSFUNCTION'=>'xtts-fastapi']; }
+            public function __construct(private bool|string $speech) {}
+            // 'none' is a profile without a portable TTS connector.
+            public function settings(array $npcRow, array $profile): ?array { return $this->speech==='none' ? null : ['TTSFUNCTION'=>'xtts-fastapi']; }
             public function queue(array $speaker, string $lineId, string $text, array $settings): string
             {
-                if (!$this->speech) throw new RuntimeException('tts down');
+                if ($this->speech===false) throw new RuntimeException('tts down');
                 return 'cache-'.$lineId;
             }
         };
@@ -332,9 +333,9 @@ final class NativeDialogueTurnTest extends TestCase
             ['user','Danny Sullivan: Overheard. (Talking to Jun)'],['user','Danny Sullivan: Gate. (Talking to Nate)'],['user',trim($event['payload']['text'])]],
             array_map(static fn($m)=>[$m['role'],$m['content']],array_slice($llm->messages,1)));
         $this->assertStringContainsString('Personality: Weary.',$llm->messages[0]['content']);
-        // Over-limit, unvoiced and empty output end with a terminal error; nothing is truncated or silently text-only.
+        // Over-limit and empty output end with a terminal error; nothing is truncated.
         foreach ([[array_map(static fn($i)=>"Line $i. ",range(1,13)),true,12,'provider_output_too_many_lines'],
-            [['Short. '.str_repeat('a',1001)],true,1,'provider_line_oversized'],[['Hello.'],false,0,'speech_unavailable'],
+            [['Short. '.str_repeat('a',1001)],true,1,'provider_line_oversized'],
             [[str_repeat('Hi. ',4097)],true,0,'provider_output_oversized']] as [$chunks,$speech,$lines,$detail]) {
             [$manager,$output]=$this->dialogue($this->talkContext(),$row,[],$chunks,$speech);
             $manager->converse($event);
@@ -344,6 +345,22 @@ final class NativeDialogueTurnTest extends TestCase
         [$manager,$output]=$this->dialogue($this->talkContext(),$row,[],['  ']);
         $manager->converse($event);
         $this->assertSame([['fail','provider_empty','provider_empty']],$output->events);
+    }
+
+    // Voice is optional: no portable TTS connector, or a TTS queue failure, still delivers every line as text
+    // (no speech block), and the turn completes. Working TTS is covered by the voiced test above.
+    public function testTurnWithoutWorkingVoiceDeliversTextOnly(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $id=$event['request_id'];
+        foreach (['none','failing'] as $mode) {
+            [$manager,$output,$utterances]=$this->dialogue($this->talkContext(),$row,[],['Holding, barely. Thanks','.'],$mode==='none' ? 'none' : false);
+            $manager->converse($event);
+            $this->assertSame([[$id.':dialogue:1','Holding, barely.',null],[$id.':dialogue:2','Thanks.',null],['complete']],$output->events,$mode);
+            // The same server records back the later text_presented receipt.
+            $this->assertSame([[$id.':dialogue:1','Holding, barely.'],[$id.':dialogue:2','Thanks.']],array_slice($utterances->rows,1),$mode);
+        }
     }
 
     public function testExplicitConversationIntentAdmissionReportsUsefulReasonsAndNeverUsesNames(): void
@@ -409,6 +426,45 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertArrayNotHasKey('actor_stats',synth_protocol_without_combat_targets([$duplicate])[0]);
         $legacy=$this->fixture('valid/input-text-native-turn.json');
         $this->assertStringNotContainsString('Skills',$prompt($legacy,[['actor'=>$target,'actor_stats'=>$stats(1)]]));
+    }
+
+    // The condition line comes only from this turn's exact rows, shows captured effects only for a client that
+    // negotiated the capability, keeps low health and power armor for an older client, and the setting turns it off.
+    public function testConditionLineProjectsCapturedEffectsWithOptOutAndOldClients(): void
+    {
+        $event=$this->fixture('valid/input-text-native-turn.json');
+        $row=['identity_id'=>9,'npc_id'=>3,'profile_id'=>4,'driver'=>'openaijson','url'=>'http://127.0.0.1:9/v1','model'=>'m'];
+        $context=$this->talkContext();$target=$context['target'];$player=$context['player'];
+        $entry=static fn(string $id,string $name,string ...$kind)=>['form_id'=>$id,'origin_plugin'=>'Fallout4.esm','name'=>$name]+($kind ? ['kind'=>$kind[0]] : []);
+        $condition=['observation'=>'observed','radiation_percent'=>62.5,'addictions'=>[$entry('0x00057A4C','Jet Addiction')],
+            'effects'=>[$entry('0x00057A4B','Psycho','chem'),$entry('0x00057A4F','Psycho','chem'),$entry('0x0010E8A2','Rad-X','effect')],
+            'crippled_limbs'=>['left_leg'],'truncated'=>false];
+        $states=[['actor'=>$player,'health_percent'=>12,'health_percent_available'=>true,'in_power_armor'=>true,'actor_condition'=>$condition],
+            ['actor'=>$target,'health_percent'=>90,'health_percent_available'=>true,'in_power_armor'=>false]];
+        $prompt=function(array $event,array $states) use ($context,$row): string {
+            [$manager,,,$llm]=$this->dialogue(['actor_states'=>$states]+$context,$row,[],['Fine.']);
+            $manager->converse($event);
+            return $llm->messages[0]['content'];
+        };
+        $event['capabilities'][]='context.actor_condition';
+        $system=$prompt($event,$states);
+        foreach (['Condition at this moment','Nate: low health (12%); in power armor; heavy radiation (63%); addicted: Jet Addiction; on chems: Psycho; effects: Rad-X; crippled: left leg'] as $needle)
+            $this->assertStringContainsString($needle,$system);
+        $this->assertSame(1,substr_count($system,'Psycho'));
+        // An older client sent no key: only the long-standing fields speak.
+        $old=$this->fixture('valid/input-text-native-turn.json');
+        unset($states[0]['actor_condition']);
+        $system=$prompt($old,$states);
+        $this->assertStringContainsString('Nate: low health (12%); in power armor.',$system);
+        $this->assertStringNotContainsString('radiation',$system);
+        // A different actor's row, an unavailable observation or a healthy actor adds no condition line.
+        $this->assertStringNotContainsString('Condition at this moment',$prompt($event,[['actor'=>['form_id'=>'0x00010001']+$player,'actor_condition'=>$condition]]));
+        // The opt-out removes the line without touching the rest of the situation.
+        $GLOBALS['CONDITION_CONTEXT_ENABLED']=false;
+        try { $states[0]['actor_condition']=$condition;$system=$prompt($event,$states); }
+        finally { unset($GLOBALS['CONDITION_CONTEXT_ENABLED']); }
+        $this->assertStringNotContainsString('Condition at this moment',$system);
+        $this->assertStringContainsString('"player":"Nate"',$system);
     }
 
     public function testActorStatsAdmissionRequiresCapabilityAndExactBoundedShape(): void

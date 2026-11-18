@@ -671,37 +671,35 @@ column|synth|core_action|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
 column|synth|core_action|return_message|text|text|NO|''::text|
 column|synth|core_action|script_proxy_program|jsonb|jsonb|YES||
 column|synth|core_action|updated_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|core_api_badge|api_key|text|text|NO||
-column|synth|core_api_badge|id|integer|int4|NO|nextval('api_badge_id_seq'::regclass)|
-column|synth|core_api_badge|label|text|text|NO||
-column|synth|core_itt_connector|api_badge_id|integer|int4|YES||
-column|synth|core_itt_connector|driver|text|text|NO||
-column|synth|core_itt_connector|id|integer|int4|NO|nextval('core_itt_connector_id_seq'::regclass)|
-column|synth|core_itt_connector|label|text|text|NO||
-column|synth|core_itt_connector|metadata|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|core_itt_connector|url|text|text|YES||
-column|synth|core_llm_connector|api_badge_id|integer|int4|YES||
-column|synth|core_llm_connector|driver|text|text|YES||
-column|synth|core_llm_connector|enforce_json|integer|int4|YES|1|
-column|synth|core_llm_connector|frequency_penalty|numeric|numeric|YES||
-column|synth|core_llm_connector|id|integer|int4|NO|nextval('llm_connector_id_seq'::regclass)|
-column|synth|core_llm_connector|json_schema|integer|int4|YES||
-column|synth|core_llm_connector|label|text|text|YES||
-column|synth|core_llm_connector|max_tokens|integer|int4|YES||
-column|synth|core_llm_connector|metadata|jsonb|jsonb|YES||
-column|synth|core_llm_connector|min_p|numeric|numeric|YES||
-column|synth|core_llm_connector|model|text|text|YES||
-column|synth|core_llm_connector|prefill_json|integer|int4|YES|0|
-column|synth|core_llm_connector|presence_penalty|numeric|numeric|YES||
-column|synth|core_llm_connector|provider|text|text|YES||
-column|synth|core_llm_connector|reasoning_model|integer|int4|YES||
-column|synth|core_llm_connector|repetition_penalty|numeric|numeric|YES||
-column|synth|core_llm_connector|service|text|text|YES||
-column|synth|core_llm_connector|temperature|numeric|numeric|YES||
-column|synth|core_llm_connector|top_a|numeric|numeric|YES||
-column|synth|core_llm_connector|top_k|integer|int4|YES||
-column|synth|core_llm_connector|top_p|numeric|numeric|YES||
-column|synth|core_llm_connector|url|text|text|YES||
+column|public|core_api_badge|api_key|text|text|NO||
+column|public|core_api_badge|id|integer|int4|NO|nextval('api_badge_id_seq'::regclass)|
+column|public|core_api_badge|label|text|text|NO||
+column|public|core_itt_connector|driver|text|text|NO||
+column|public|core_itt_connector|id|integer|int4|NO|nextval('core_itt_connector_id_seq'::regclass)|
+column|public|core_itt_connector|label|text|text|NO||
+column|public|core_itt_connector|metadata|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_itt_connector|url|text|text|YES||
+column|public|core_llm_connector|driver|text|text|YES||
+column|public|core_llm_connector|enforce_json|integer|int4|YES|1|
+column|public|core_llm_connector|frequency_penalty|numeric|numeric|YES||
+column|public|core_llm_connector|id|integer|int4|NO|nextval('llm_connector_id_seq'::regclass)|
+column|public|core_llm_connector|json_schema|integer|int4|YES||
+column|public|core_llm_connector|label|text|text|YES||
+column|public|core_llm_connector|max_tokens|integer|int4|YES||
+column|public|core_llm_connector|metadata|jsonb|jsonb|YES||
+column|public|core_llm_connector|min_p|numeric|numeric|YES||
+column|public|core_llm_connector|model|text|text|YES||
+column|public|core_llm_connector|prefill_json|integer|int4|YES|0|
+column|public|core_llm_connector|presence_penalty|numeric|numeric|YES||
+column|public|core_llm_connector|provider|text|text|YES||
+column|public|core_llm_connector|reasoning_model|integer|int4|YES||
+column|public|core_llm_connector|repetition_penalty|numeric|numeric|YES||
+column|public|core_llm_connector|service|text|text|YES||
+column|public|core_llm_connector|temperature|numeric|numeric|YES||
+column|public|core_llm_connector|top_a|numeric|numeric|YES||
+column|public|core_llm_connector|top_k|integer|int4|YES||
+column|public|core_llm_connector|top_p|numeric|numeric|YES||
+column|public|core_llm_connector|url|text|text|YES||
 column|synth|core_narrator|id|text|text|NO||
 column|synth|core_narrator|value|text|text|YES||
 column|synth|core_npc_master_history|actor_identity_id|bigint|int8|YES||
@@ -764,48 +762,44 @@ column|synth|core_npc_master|speechstyle|text|text|YES||
 column|synth|core_npc_master|tags|text|text|YES||
 column|synth|core_npc_master|voiceid|text|text|YES||
 column|synth|core_npc_master|worldknowledge_tags|text|text|YES||
-column|synth|core_player|id|text|text|NO||
-column|synth|core_player|value|text|text|YES||
-column|synth|core_profiles|default_narrator|text|text|YES||
-column|synth|core_profiles|default_npc|text|text|YES||
-column|synth|core_profiles|diary_connector_id|integer|int4|YES||
-column|synth|core_profiles|id|integer|int4|NO|nextval('profiles_id_seq'::regclass)|
-column|synth|core_profiles|label|text|text|YES||
-column|synth|core_profiles|llm_fallback_id|integer|int4|YES||
-column|synth|core_profiles|llm_formatter_id|integer|int4|YES||
-column|synth|core_profiles|llm_primary_id|integer|int4|YES||
-column|synth|core_profiles|llm_quaternary_id|integer|int4|YES||
-column|synth|core_profiles|llm_secondary_id|integer|int4|YES||
-column|synth|core_profiles|llm_tertiary_id|integer|int4|YES||
-column|synth|core_profiles|metadata|jsonb|jsonb|YES||
-column|synth|core_profiles|prompt|text|text|YES||
-column|synth|core_profiles|slot|integer|int4|YES||
-column|synth|core_profiles|tts_connector_id|integer|int4|YES||
-column|synth|core_stt_connector|api_badge_id|integer|int4|YES||
-column|synth|core_stt_connector|driver|text|text|YES||
-column|synth|core_stt_connector|id|integer|int4|NO|nextval('stt_connector_id_seq'::regclass)|
-column|synth|core_stt_connector|label|text|text|YES||
-column|synth|core_stt_connector|metadata|jsonb|jsonb|YES||
-column|synth|core_stt_connector|url|text|text|YES||
-column|synth|core_tts_connector|api_badge_id|integer|int4|YES||
-column|synth|core_tts_connector|driver|text|text|YES||
-column|synth|core_tts_connector|id|integer|int4|NO|nextval('tts_connector_id_seq'::regclass)|
-column|synth|core_tts_connector|label|text|text|YES||
-column|synth|core_tts_connector|metadata|jsonb|jsonb|YES||
-column|synth|core_tts_connector|url|text|text|YES||
-column|synth|core_tts_connector|voice_field|text|text|YES||
-column|synth|core_tts_pronunciation|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|core_tts_pronunciation|enabled|boolean|bool|NO|true|
-column|synth|core_tts_pronunciation|id|integer|int4|NO||
-column|synth|core_tts_pronunciation|is_builtin|boolean|bool|NO|false|
-column|synth|core_tts_pronunciation|npc_names|character varying|varchar|NO|''::character varying|512
-column|synth|core_tts_pronunciation|oghma_tags|character varying|varchar|NO|''::character varying|512
-column|synth|core_tts_pronunciation|races|character varying|varchar|NO|''::character varying|512
-column|synth|core_tts_pronunciation|source_text|character varying|varchar|NO||120
-column|synth|core_tts_pronunciation|spoken_text|character varying|varchar|NO||240
-column|synth|core_tts_pronunciation|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|database_versioning|tablename|text|text|NO||
-column|synth|database_versioning|version|bigint|int8|NO||
+column|public|core_player|id|text|text|NO||
+column|public|core_player|value|text|text|YES||
+column|public|core_profiles|default_narrator|text|text|YES||
+column|public|core_profiles|default_npc|text|text|YES||
+column|public|core_profiles|diary_connector_id|integer|int4|YES||
+column|public|core_profiles|id|integer|int4|NO|nextval('profiles_id_seq'::regclass)|
+column|public|core_profiles|label|text|text|YES||
+column|public|core_profiles|llm_fallback_id|integer|int4|YES||
+column|public|core_profiles|llm_formatter_id|integer|int4|YES||
+column|public|core_profiles|llm_primary_id|integer|int4|YES||
+column|public|core_profiles|llm_quaternary_id|integer|int4|YES||
+column|public|core_profiles|llm_secondary_id|integer|int4|YES||
+column|public|core_profiles|llm_tertiary_id|integer|int4|YES||
+column|public|core_profiles|metadata|jsonb|jsonb|YES||
+column|public|core_profiles|prompt|text|text|YES||
+column|public|core_profiles|slot|integer|int4|YES||
+column|public|core_profiles|tts_connector_id|integer|int4|YES||
+column|public|core_stt_connector|driver|text|text|YES||
+column|public|core_stt_connector|id|integer|int4|NO|nextval('stt_connector_id_seq'::regclass)|
+column|public|core_stt_connector|label|text|text|YES||
+column|public|core_stt_connector|metadata|jsonb|jsonb|YES||
+column|public|core_stt_connector|url|text|text|YES||
+column|public|core_tts_connector|driver|text|text|YES||
+column|public|core_tts_connector|id|integer|int4|NO|nextval('tts_connector_id_seq'::regclass)|
+column|public|core_tts_connector|label|text|text|YES||
+column|public|core_tts_connector|metadata|jsonb|jsonb|YES||
+column|public|core_tts_connector|url|text|text|YES||
+column|public|core_tts_connector|voice_field|text|text|YES||
+column|public|core_tts_pronunciation|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_tts_pronunciation|enabled|boolean|bool|NO|true|
+column|public|core_tts_pronunciation|id|integer|int4|NO||
+column|public|core_tts_pronunciation|is_builtin|boolean|bool|NO|false|
+column|public|core_tts_pronunciation|npc_names|character varying|varchar|NO|''::character varying|512
+column|public|core_tts_pronunciation|oghma_tags|character varying|varchar|NO|''::character varying|512
+column|public|core_tts_pronunciation|races|character varying|varchar|NO|''::character varying|512
+column|public|core_tts_pronunciation|source_text|character varying|varchar|NO||120
+column|public|core_tts_pronunciation|spoken_text|character varying|varchar|NO||240
+column|public|core_tts_pronunciation|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
 column|synth|descriptions_custom|baseid|character varying|varchar|NO||128
 column|synth|descriptions_custom|description|text|text|YES||
 column|synth|descriptions_custom|name|text|text|YES||
@@ -1634,35 +1628,31 @@ constraint|synth|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE 
 constraint|synth|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
 constraint|synth|core_action|core_action_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_api_badge|core_api_badge_label_unique|u|t|UNIQUE (label)
-constraint|synth|core_api_badge|my_table_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_itt_connector|core_itt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
-constraint|synth|core_itt_connector|core_itt_connector_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_llm_connector|llm_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
-constraint|synth|core_llm_connector|llm_connector_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_api_badge|core_api_badge_label_unique|u|t|UNIQUE (label)
+constraint|public|core_api_badge|my_table_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_itt_connector|core_itt_connector_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_llm_connector|llm_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_narrator|core_narrator_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|core_npc_master_history|core_npc_master_history_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
 constraint|synth|core_npc_master_history|core_npc_master_history_pkey|p|t|PRIMARY KEY (history_id)
 constraint|synth|core_npc_master|core_npc_master_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id) ON DELETE SET NULL
 constraint|synth|core_npc_master|fk_profile_id|f|t|FOREIGN KEY (profile_id) REFERENCES core_profiles(id) ON DELETE SET NULL
 constraint|synth|core_npc_master|npc_master_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_player|core_player_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_profiles|fk_diary_connector|f|t|FOREIGN KEY (diary_connector_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_fallback_id_fkey|f|t|FOREIGN KEY (llm_fallback_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_formatter_id_fkey|f|t|FOREIGN KEY (llm_formatter_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_primary_id_fkey|f|t|FOREIGN KEY (llm_primary_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_quaternary_id_fkey|f|t|FOREIGN KEY (llm_quaternary_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_secondary_id_fkey|f|t|FOREIGN KEY (llm_secondary_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_llm_tertiary_id_fkey|f|t|FOREIGN KEY (llm_tertiary_id) REFERENCES core_llm_connector(id)
-constraint|synth|core_profiles|profiles_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_profiles|profiles_tts_connector_id_fkey|f|t|FOREIGN KEY (tts_connector_id) REFERENCES core_tts_connector(id)
-constraint|synth|core_stt_connector|stt_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
-constraint|synth|core_stt_connector|stt_connector_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_tts_connector|tts_connector_api_badge_id_fkey|f|t|FOREIGN KEY (api_badge_id) REFERENCES core_api_badge(id)
-constraint|synth|core_tts_connector|tts_connector_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_tts_pronunciation|core_tts_pronunciation_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_tts_pronunciation|core_tts_pronunciation_source_not_blank|c|t|CHECK ((btrim((source_text)::text) <> ''::text))
-constraint|synth|core_tts_pronunciation|core_tts_pronunciation_spoken_not_blank|c|t|CHECK ((btrim((spoken_text)::text) <> ''::text))
+constraint|public|core_player|core_player_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_profiles|fk_diary_connector|f|t|FOREIGN KEY (diary_connector_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_fallback_id_fkey|f|t|FOREIGN KEY (llm_fallback_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_formatter_id_fkey|f|t|FOREIGN KEY (llm_formatter_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_primary_id_fkey|f|t|FOREIGN KEY (llm_primary_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_quaternary_id_fkey|f|t|FOREIGN KEY (llm_quaternary_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_secondary_id_fkey|f|t|FOREIGN KEY (llm_secondary_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_llm_tertiary_id_fkey|f|t|FOREIGN KEY (llm_tertiary_id) REFERENCES core_llm_connector(id)
+constraint|public|core_profiles|profiles_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_profiles|profiles_tts_connector_id_fkey|f|t|FOREIGN KEY (tts_connector_id) REFERENCES core_tts_connector(id)
+constraint|public|core_stt_connector|stt_connector_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_tts_connector|tts_connector_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_tts_pronunciation|core_tts_pronunciation_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_tts_pronunciation|core_tts_pronunciation_source_not_blank|c|t|CHECK ((btrim((source_text)::text) <> ''::text))
+constraint|public|core_tts_pronunciation|core_tts_pronunciation_spoken_not_blank|c|t|CHECK ((btrim((spoken_text)::text) <> ''::text))
 constraint|synth|descriptions_custom|descriptions_custom_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|synth|descriptions|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|synth|factions|factions_pkey|p|t|PRIMARY KEY (formid)
@@ -1869,12 +1859,12 @@ index|synth|core_action|idx_core_action_available_to_npc|CREATE INDEX idx_core_a
 index|synth|core_action|idx_core_action_code_name_lower|CREATE INDEX idx_core_action_code_name_lower ON synth.core_action USING btree (lower((code_name)::text))
 index|synth|core_action|idx_core_action_game_function|CREATE INDEX idx_core_action_game_function ON synth.core_action USING btree (game_function)
 index|synth|core_action|idx_core_action_is_activated|CREATE INDEX idx_core_action_is_activated ON synth.core_action USING btree (is_activated)
-index|synth|core_api_badge|core_api_badge_label_unique|CREATE UNIQUE INDEX core_api_badge_label_unique ON synth.core_api_badge USING btree (label)
-index|synth|core_api_badge|idx_core_api_badge_label_lower|CREATE INDEX idx_core_api_badge_label_lower ON synth.core_api_badge USING btree (lower(label))
-index|synth|core_api_badge|my_table_pkey|CREATE UNIQUE INDEX my_table_pkey ON synth.core_api_badge USING btree (id)
-index|synth|core_itt_connector|core_itt_connector_label_idx|CREATE INDEX core_itt_connector_label_idx ON synth.core_itt_connector USING btree (lower(label))
-index|synth|core_itt_connector|core_itt_connector_pkey|CREATE UNIQUE INDEX core_itt_connector_pkey ON synth.core_itt_connector USING btree (id)
-index|synth|core_llm_connector|llm_connector_pkey|CREATE UNIQUE INDEX llm_connector_pkey ON synth.core_llm_connector USING btree (id)
+index|public|core_api_badge|core_api_badge_label_unique|CREATE UNIQUE INDEX core_api_badge_label_unique ON public.core_api_badge USING btree (label)
+index|public|core_api_badge|idx_core_api_badge_label_lower|CREATE INDEX idx_core_api_badge_label_lower ON public.core_api_badge USING btree (lower(label))
+index|public|core_api_badge|my_table_pkey|CREATE UNIQUE INDEX my_table_pkey ON public.core_api_badge USING btree (id)
+index|public|core_itt_connector|core_itt_connector_label_idx|CREATE INDEX core_itt_connector_label_idx ON public.core_itt_connector USING btree (lower(label))
+index|public|core_itt_connector|core_itt_connector_pkey|CREATE UNIQUE INDEX core_itt_connector_pkey ON public.core_itt_connector USING btree (id)
+index|public|core_llm_connector|llm_connector_pkey|CREATE UNIQUE INDEX llm_connector_pkey ON public.core_llm_connector USING btree (id)
 index|synth|core_narrator|core_narrator_pkey|CREATE UNIQUE INDEX core_narrator_pkey ON synth.core_narrator USING btree (id)
 index|synth|core_npc_master_history|core_npc_master_history_pkey|CREATE UNIQUE INDEX core_npc_master_history_pkey ON synth.core_npc_master_history USING btree (history_id)
 index|synth|core_npc_master_history|idx_core_npc_master_history_actor_identity|CREATE INDEX idx_core_npc_master_history_actor_identity ON synth.core_npc_master_history USING btree (actor_identity_id) WHERE (actor_identity_id IS NOT NULL)
@@ -1882,13 +1872,13 @@ index|synth|core_npc_master_history|idx_core_npc_master_history_restore|CREATE I
 index|synth|core_npc_master|core_npc_master_actor_identity|CREATE UNIQUE INDEX core_npc_master_actor_identity ON synth.core_npc_master USING btree (actor_identity_id) WHERE (actor_identity_id IS NOT NULL)
 index|synth|core_npc_master|core_npc_master_legacy_name|CREATE UNIQUE INDEX core_npc_master_legacy_name ON synth.core_npc_master USING btree (npc_name) WHERE (actor_identity_id IS NULL)
 index|synth|core_npc_master|npc_master_pkey|CREATE UNIQUE INDEX npc_master_pkey ON synth.core_npc_master USING btree (id)
-index|synth|core_player|core_player_pkey|CREATE UNIQUE INDEX core_player_pkey ON synth.core_player USING btree (id)
-index|synth|core_profiles|core_profiles_slot_unique_idx|CREATE UNIQUE INDEX core_profiles_slot_unique_idx ON synth.core_profiles USING btree (slot) WHERE (slot IS NOT NULL)
-index|synth|core_profiles|profiles_pkey|CREATE UNIQUE INDEX profiles_pkey ON synth.core_profiles USING btree (id)
-index|synth|core_stt_connector|stt_connector_pkey|CREATE UNIQUE INDEX stt_connector_pkey ON synth.core_stt_connector USING btree (id)
-index|synth|core_tts_connector|tts_connector_pkey|CREATE UNIQUE INDEX tts_connector_pkey ON synth.core_tts_connector USING btree (id)
-index|synth|core_tts_pronunciation|core_tts_pronunciation_pkey|CREATE UNIQUE INDEX core_tts_pronunciation_pkey ON synth.core_tts_pronunciation USING btree (id)
-index|synth|core_tts_pronunciation|core_tts_pronunciation_unique_entry|CREATE UNIQUE INDEX core_tts_pronunciation_unique_entry ON synth.core_tts_pronunciation USING btree (lower((source_text)::text), md5(((((lower((npc_names)::text) || ''::text) || lower((races)::text)) || ''::text) || lower((oghma_tags)::text))), is_builtin)
+index|public|core_player|core_player_pkey|CREATE UNIQUE INDEX core_player_pkey ON public.core_player USING btree (id)
+index|public|core_profiles|core_profiles_slot_unique_idx|CREATE UNIQUE INDEX core_profiles_slot_unique_idx ON public.core_profiles USING btree (slot) WHERE (slot IS NOT NULL)
+index|public|core_profiles|profiles_pkey|CREATE UNIQUE INDEX profiles_pkey ON public.core_profiles USING btree (id)
+index|public|core_stt_connector|stt_connector_pkey|CREATE UNIQUE INDEX stt_connector_pkey ON public.core_stt_connector USING btree (id)
+index|public|core_tts_connector|tts_connector_pkey|CREATE UNIQUE INDEX tts_connector_pkey ON public.core_tts_connector USING btree (id)
+index|public|core_tts_pronunciation|core_tts_pronunciation_pkey|CREATE UNIQUE INDEX core_tts_pronunciation_pkey ON public.core_tts_pronunciation USING btree (id)
+index|public|core_tts_pronunciation|core_tts_pronunciation_unique_entry|CREATE UNIQUE INDEX core_tts_pronunciation_unique_entry ON public.core_tts_pronunciation USING btree (lower((source_text)::text), md5(((((lower((npc_names)::text) || ''::text) || lower((races)::text)) || ''::text) || lower((oghma_tags)::text))), is_builtin)
 index|synth|descriptions_custom|descriptions_custom_pkey|CREATE UNIQUE INDEX descriptions_custom_pkey ON synth.descriptions_custom USING btree (plugin, baseid)
 index|synth|descriptions|descriptions_pkey|CREATE UNIQUE INDEX descriptions_pkey ON synth.descriptions USING btree (plugin, baseid)
 index|synth|diarylog|idx_diarylog_people_gamets|CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC)
@@ -2016,18 +2006,17 @@ table|synth|combined_descriptions|VIEW
 table|synth|conf_opts|BASE TABLE
 table|synth|core_action_custom|BASE TABLE
 table|synth|core_action|BASE TABLE
-table|synth|core_api_badge|BASE TABLE
-table|synth|core_itt_connector|BASE TABLE
-table|synth|core_llm_connector|BASE TABLE
+table|public|core_api_badge|BASE TABLE
+table|public|core_itt_connector|BASE TABLE
+table|public|core_llm_connector|BASE TABLE
 table|synth|core_narrator|BASE TABLE
 table|synth|core_npc_master_history|BASE TABLE
 table|synth|core_npc_master|BASE TABLE
-table|synth|core_player|BASE TABLE
-table|synth|core_profiles|BASE TABLE
-table|synth|core_stt_connector|BASE TABLE
-table|synth|core_tts_connector|BASE TABLE
-table|synth|core_tts_pronunciation|BASE TABLE
-table|synth|database_versioning|BASE TABLE
+table|public|core_player|BASE TABLE
+table|public|core_profiles|BASE TABLE
+table|public|core_stt_connector|BASE TABLE
+table|public|core_tts_connector|BASE TABLE
+table|public|core_tts_pronunciation|BASE TABLE
 table|synth|descriptions_custom|BASE TABLE
 table|synth|descriptions|BASE TABLE
 table|synth|diarylog|BASE TABLE
@@ -2062,3 +2051,8 @@ typmod|synth_meta|memory_summaries|embedding|vector(384)
 typmod|synth|memory_summary|embedding768|vector(768)
 typmod|synth|memory_summary|embedding|vector(384)
 typmod|synth|worldknowledge|vector384|vector(384)
+column|public|core_catalog_version|catalog_key|text|text|NO||
+column|public|core_catalog_version|version|bigint|int8|NO||
+constraint|public|core_catalog_version|core_catalog_version_pkey|p|t|PRIMARY KEY (catalog_key)
+index|public|core_catalog_version|core_catalog_version_pkey|CREATE UNIQUE INDEX core_catalog_version_pkey ON public.core_catalog_version USING btree (catalog_key)
+table|public|core_catalog_version|BASE TABLE

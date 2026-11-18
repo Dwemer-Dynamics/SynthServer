@@ -52,7 +52,7 @@ function get_connector_id($s_driver='', $s_model='', $s_url='') {
     }
     if ($i_res < 0) {
         if ((strlen($s_model) > 0) && (strlen($s_url) > 0)  && (strlen($s_driver) > 0)) {
-            $query = "SELECT id FROM synth.core_llm_connector WHERE (url='{$s_url}') AND (model='{$s_model}') AND (driver='{$s_driver}') LIMIT 1 ";
+            $query = "SELECT id FROM public.core_llm_connector WHERE (url='{$s_url}') AND (model='{$s_model}') AND (driver='{$s_driver}') LIMIT 1 ";
             $ret = $GLOBALS["db"]->fetchAll($query);
             if ($ret) {
                 $i_res = intval($ret[0]['id'] ?? -1);
@@ -2615,7 +2615,12 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     $historySource = $nativeHistory ? 'native_history' : 'eventlog';
     $historyPrefix = $nativeHistory ? synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true) : '';
     $identityColumns = $nativeHistory ? ',history_event_id,utterance_id,reader_identity_id,reader_player_id,speaker_identity_id,response_role,response_actor_identity_id' : '';
-    $query=$historyPrefix."select
+    // dialogue.conversation: rows of the request's own conversation fill the row limit first (the same fixed
+    // preference as the native lane); the selected rows keep their chronological order.
+    require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
+    $conversationRank = $nativeHistory ? \Synth\Managers\Conversation\ConversationManager::rankSql($db, $nativeEvent) : null;
+    if ($conversationRank !== null) $identityColumns .= ',ts,rowid';
+    $query=$historyPrefix.($conversationRank !== null ? 'SELECT * FROM (' : '')."select
     case
       when type='infoaction' and a.data like '#%MEMORY%' then 'MEMORY'
       when type like 'info%' or type like 'funcret%' or type like 'location%' then 'CONTEXTI'
@@ -2655,7 +2660,8 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     )" : " ").
     //((false)?" and gamets>".($currentGameTs-(60*60*60*60)):"").
     " {$ext_sqlfilter2}
-    ORDER BY gamets desc, ts desc, rowid desc LIMIT {$nRecordsLimit} OFFSET 0 ";
+    ORDER BY ".($conversationRank !== null ? "({$conversationRank}) DESC," : '')." gamets desc, ts desc, rowid desc LIMIT {$nRecordsLimit} OFFSET 0 "
+        .($conversationRank !== null ? ') ranked ORDER BY gamets desc, ts desc, rowid desc' : '');
 
     // Keep generic far-away actors out of historic context. Shared narrator rows are flattened on write.
     $results = $db->fetchAll($query);

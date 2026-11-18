@@ -60,14 +60,14 @@ function synthTtsPronunciationPreviewOptions(string $enginePath): array
     $profileId = $narrator->getProfileId();
     if ($profileId !== null && $profileId > 0) {
         $profile = $GLOBALS['db']->fetchOne(
-            'SELECT tts_connector_id FROM synth.core_profiles WHERE id = ' . intval($profileId) . ' LIMIT 1'
+            'SELECT tts_connector_id FROM public.core_profiles WHERE id = ' . intval($profileId) . ' LIMIT 1'
         );
         $defaultConnectorId = intval($profile['tts_connector_id'] ?? 0);
     }
     if ($defaultConnectorId <= 0) {
         $profile = $GLOBALS['db']->fetchOne(
             "SELECT tts_connector_id
-             FROM synth.core_profiles
+             FROM public.core_profiles
              WHERE LOWER(COALESCE(default_narrator, '')) IN ('1', 't', 'true', 'yes', 'on')
              ORDER BY id
              LIMIT 1"

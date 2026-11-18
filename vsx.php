@@ -6,6 +6,7 @@ ini_set('display_errors', '0');
 $path = __DIR__ . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $path;
 require_once $path . 'lib/voice_sample.php';
+require_once $path . 'managers/VoiceSample/VoiceSampleStore.php';
 require_once $path . 'lib/runtime_bootstrap.php';
 require_once $path . 'lib/fuz_convert.php';
 require_once $path . 'lib/voice_clone_sync.php';
@@ -95,6 +96,8 @@ try {
         if ($converted === '' || !is_file($converted) || filesize($converted) < 132344) {
             throw new InvalidArgumentException('Voice conversion failed or speech sample is shorter than 3 seconds');
         }
+        // Silence teaches a provider nothing: refuse all-zero decoded audio before it can replace or become a sample.
+        \Synth\Managers\VoiceSample\VoiceSampleStore::assertAudible($converted);
         synthVsxCheckSession($metadata);
         $staged = $voiceDir . '/.' . $voice . '.' . bin2hex(random_bytes(8)) . '.wav';
         $temporary[] = $staged;

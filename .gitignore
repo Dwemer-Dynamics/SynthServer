@@ -58,3 +58,7 @@ data/CurrentModel_*.json
 *.swo
 *.log
 */Zone.Identifier
+
+# Local extension state (enabled list, settings) and per-extension data
+/conf/extensions.json
+/data/extensions/*

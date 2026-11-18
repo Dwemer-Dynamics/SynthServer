@@ -239,7 +239,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         $actor=synth_protocol_actor_identity_id($db,$identity);$name=$identity['display_name'];
         $npc=$db->fetchOne('SELECT * FROM synth.core_npc_master WHERE actor_identity_id='.$actor);
         if (!$npc) return null;
-        $profile=$db->fetchOne('SELECT metadata FROM synth.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
+        $profile=$db->fetchOne('SELECT metadata FROM public.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
         if (!synth_middleterm_enabled($npc,$profile ?: [])) return null;
         if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-middleterm:'||$1,0))",[$actor])) {
             throw new RuntimeException('Unable to lock narrative admission.');

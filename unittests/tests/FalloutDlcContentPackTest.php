@@ -69,10 +69,10 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
         require_once dirname(__DIR__,2).'/lib/runtime_bootstrap.php';
         $db=$GLOBALS['db'] ??= new sql();
         self::assertFalse(synthRuntimeNeedsDbUpdates());
-        self::assertNotFalse($db->execQuery('UPDATE synth.database_versioning SET version=$1 WHERE tablename=$2',
+        self::assertNotFalse($db->execQuery('UPDATE public.core_catalog_version SET version=$1 WHERE catalog_key=$2',
             [20261007001,'fallout4_content_pack']));
         self::assertTrue(synthRuntimeNeedsDbUpdates());
-        self::assertNotFalse($db->execQuery('UPDATE synth.database_versioning SET version=$1 WHERE tablename=$2',
+        self::assertNotFalse($db->execQuery('UPDATE public.core_catalog_version SET version=$1 WHERE catalog_key=$2',
             [SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION,'fallout4_content_pack']));
         self::assertFalse(synthRuntimeNeedsDbUpdates());
     }

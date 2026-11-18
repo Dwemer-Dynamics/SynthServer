@@ -59,7 +59,7 @@ function synth_home_table_exists($db, string $table): bool
 {
     try {
         $safeTable = str_replace("'", "''", $table);
-        $row = $db->fetchOne("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='synth' AND table_name='{$safeTable}') AS exists");
+        $row = $db->fetchOne("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema IN ('synth','public') AND table_name='{$safeTable}') AS exists");
         return isset($row['exists']) && ($row['exists'] === true || $row['exists'] === 't' || $row['exists'] === '1' || $row['exists'] === 1);
     } catch (Throwable $e) {
         return false;
@@ -70,7 +70,7 @@ function synth_home_table_columns($db, string $table): array
 {
     try {
         $safeTable = str_replace("'", "''", $table);
-        $rows = $db->fetchAll("SELECT column_name FROM information_schema.columns WHERE table_schema='synth' AND table_name='{$safeTable}'");
+        $rows = $db->fetchAll("SELECT column_name FROM information_schema.columns WHERE table_schema IN ('synth','public') AND table_name='{$safeTable}'");
         if (!is_array($rows)) {
             return [];
         }

@@ -59,18 +59,18 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.conf_opts',
             'synth.core_action',
             'synth.core_action_custom',
-            'synth.core_api_badge',
-            'synth.core_llm_connector',
+            'public.core_api_badge',
+            'public.core_llm_connector',
             'synth.core_narrator',
             'synth.core_npc_master',
             'synth.core_npc_master_history',
-            'synth.core_player',
-            'synth.core_profiles',
-            'synth.core_stt_connector',
-            'synth.core_itt_connector',
-            'synth.core_tts_connector',
-            'synth.core_tts_pronunciation',
-            'synth.database_versioning',
+            'public.core_player',
+            'public.core_profiles',
+            'public.core_stt_connector',
+            'public.core_itt_connector',
+            'public.core_tts_connector',
+            'public.core_tts_pronunciation',
+            'public.core_catalog_version',
             'synth.descriptions',
             'synth.descriptions_custom',
             'synth.diarylog',
@@ -142,7 +142,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                   FROM pg_class c
                   JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE c.relkind IN ('r', 'p', 'v')
-                   AND n.nspname IN ('synth', 'synth_meta')
+                   AND (n.nspname IN ('synth', 'synth_meta') OR (n.nspname = 'public' AND c.relname LIKE 'core\_%'))
             ");
         } catch (\Throwable $e) {
             return true;
@@ -183,8 +183,8 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                         'synth_scene_prompt',
                         'synth_memory_prompt'
                       )) AS prompt_defaults,
-                    (SELECT COUNT(*) FROM synth.core_profiles WHERE default_npc = '1') AS npc_defaults,
-                    (SELECT COUNT(*) FROM synth.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
+                    (SELECT COUNT(*) FROM public.core_profiles WHERE default_npc = '1') AS npc_defaults,
+                    (SELECT COUNT(*) FROM public.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
                     (SELECT COUNT(DISTINCT p.proname)
                        FROM pg_proc p
                        JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -261,9 +261,9 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                 array_keys($requiredVersions)
             ));
             $versionRows = $db->fetchAll(
-                "SELECT tablename, version
-                 FROM synth.database_versioning
-                WHERE tablename IN ({$versionNames})"
+                "SELECT catalog_key, version
+                 FROM public.core_catalog_version
+                WHERE catalog_key IN ({$versionNames})"
             );
         } catch (\Throwable $e) {
             return true;
@@ -271,7 +271,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
 
         $versions = [];
         foreach ($versionRows as $row) {
-            $tableName = strval($row['tablename'] ?? '');
+            $tableName = strval($row['catalog_key'] ?? '');
             if ($tableName !== '') {
                 $versions[$tableName] = intval($row['version'] ?? -1);
             }

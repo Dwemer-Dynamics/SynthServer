@@ -21,7 +21,7 @@ function synth_diary_lock_binding($db, array $binding): array
 {
     if (($binding['player'] ?? false)===true) {
         $settings=[];
-        foreach ($db->fetchAll("SELECT id,value FROM synth.core_player WHERE id IN
+        foreach ($db->fetchAll("SELECT id,value FROM public.core_player WHERE id IN
             ('player_name','diary_enabled','auto_diary_enabled','auto_diary_wait_enabled','diary_connector_id','appearance','background','bio','speech_style') ORDER BY id FOR SHARE") ?: [] as $row) $settings[$row['id']]=$row['value'];
         return $settings+['npc_static_bio'=>trim($settings['background'] ?? '')!=='' ? $settings['background'] : ($settings['bio'] ?? ''),
             'speechstyle'=>$settings['speech_style'] ?? ''];
