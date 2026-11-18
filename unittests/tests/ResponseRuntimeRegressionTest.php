@@ -791,7 +791,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             public array $payload;
             public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
             public function fetchOne(string $sql): ?array {
-                if (str_contains($sql,'general_settings') || str_contains($sql,'conf_opts')) return null;
+                if (str_contains($sql,'core_config_setting') || str_contains($sql,'conf_opts')) return null;
                 if (!str_contains($sql,'core_runtime_context')) throw new LogicException('Global query forbidden');
                 return str_contains($sql,"c.session_id='session:one'") && str_contains($sql,'c.generation=2') && str_contains($sql,'c.snapshot_sequence=7')
                     ? ['context_payload'=>json_encode($this->payload)] : null;
@@ -844,7 +844,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             public array $payload;
             public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
             public function fetchOne(string $sql): ?array {
-                if (str_contains($sql,'general_settings') || str_contains($sql,'conf_opts')) return null;
+                if (str_contains($sql,'core_config_setting') || str_contains($sql,'conf_opts')) return null;
                 $actor=$this->payload['target'];
                 if (str_contains($sql,'SELECT a.full_form_id')) return [
                     'full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],'playthrough_id'=>$actor['playthrough_id']];

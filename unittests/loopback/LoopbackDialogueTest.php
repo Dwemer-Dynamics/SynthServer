@@ -179,7 +179,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             [$tts,$llm,json_encode(['DYNAMIC_PROFILE_ENABLED'=>1,'DYNAMIC_PROFILE_FIELDS'=>['personality','speechstyle']])])[0]['id'];
         $profiles=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback profile llm','{}',$1,'loopback-profile-model','openaijson',0,200,0.3,0.8) RETURNING id",[$this->profileUrl])[0]['id'];
-        $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES('CORE_CONNECTOR_PROFILES',$1,'loopback')
+        $this->query("INSERT INTO public.core_config_setting(scope,config_key,config_value,description) VALUES('general','CORE_CONNECTOR_PROFILES',$1,'loopback')
             ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[strval($profiles)]);
         $this->query("INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,profile_id,personality,voiceid)
             VALUES('Settler',$1,$2,$3,'loopback_voice')",[$rows[0]['id'],$profile,self::BASE]);
@@ -1060,7 +1060,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             AND reasoning_model IS NULL RETURNING id",[$this->autochat['rewrite_url'],self::AUTOCHAT_MODEL]),'the default player connector row');
         // The default player connector, and no legacy in-process rechat, so every provider call is counted exactly.
         foreach (['CORE_CONNECTOR_PLAYER'=>'2','RECHAT_H'=>'0','RECHAT_P'=>'0'] as $id=>$setting) {
-            $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES($1,$2,'loopback autochat')
+            $this->query("INSERT INTO public.core_config_setting(scope,config_key,config_value,description) VALUES('general',$1,$2,'loopback autochat')
                 ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[$id,$setting]);
         }
         $this->playerRows(['bio'=>self::AUTOCHAT_BIO,'speech_style'=>'Dry and brief.']);
@@ -1142,7 +1142,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         // (direct WAV, no converter), both on the fake provider.
         $stt=$this->query("INSERT INTO public.core_stt_connector(driver,label,metadata,url) VALUES('localwhisper','loopback stt','{}',$1) RETURNING id",
             [$this->autochat['fake_base'].'/stt'])[0]['id'];
-        $this->query("INSERT INTO synth.general_settings(id,value,description) VALUES('GLOBAL_STT_CONNECTOR_ID',$1,'loopback autochat')
+        $this->query("INSERT INTO public.core_config_setting(scope,config_key,config_value,description) VALUES('general','GLOBAL_STT_CONNECTOR_ID',$1,'loopback autochat')
             ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value",[strval($stt)]);
         file_put_contents($this->llmDir.'/stt_text',self::AUTOCHAT_TRANSCRIPT);
         file_put_contents($this->llmDir.'/tts.wav',self::autochatWave());
@@ -1181,7 +1181,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $quickstart=$this->query("INSERT INTO public.core_llm_connector(label,metadata,url,model,driver,reasoning_model,max_tokens,temperature,top_p)
             VALUES('loopback quickstart player',$1,$2,'loopback-quickstart-rewrite','openaijson',0,300,0.3,0.8) RETURNING id",
             [json_encode(['quickstart_managed'=>true,'disable_streaming'=>true]),$this->autochat['rewrite_url']])[0]['id'];
-        $this->query("UPDATE synth.general_settings SET value=$1 WHERE id='CORE_CONNECTOR_PLAYER'",[strval($quickstart)]);
+        $this->query("UPDATE public.core_config_setting SET config_value = $1 WHERE scope = 'general' AND config_key = 'CORE_CONNECTOR_PLAYER'",[strval($quickstart)]);
         $this->autochat['model']='loopback-quickstart-rewrite';
         $this->rewriteScript('ok','Evening, neighbour LGS303.');
         $this->script($this->ordinaryReply('Evening LNR303.','','Settler'));

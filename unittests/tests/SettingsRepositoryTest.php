@@ -12,8 +12,8 @@ final class SettingsRepositoryTest extends DatabaseTestCase
 {
     private function seed(sql $db): void
     {
-        $db->execQuery("INSERT INTO synth.general_settings (id, value) VALUES
-            ('SYNTH_TEST_ALPHA', 'alpha'), ('SYNTH_TEST_NULL', NULL), ('SYNTH_TEST_\"Q\\', 'quoted'), ('123', 'numeric')");
+        $db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES
+            ('general', 'SYNTH_TEST_ALPHA', 'alpha'), ('general', 'SYNTH_TEST_NULL', NULL), ('general', 'SYNTH_TEST_\"Q\\', 'quoted'), ('general', '123', 'numeric')");
     }
 
     public function testValuesKeepStoredMissingAndNullSemantics(): void
@@ -69,15 +69,15 @@ final class SettingsRepositoryTest extends DatabaseTestCase
             $this->assertSame('alpha', $settings->value('SYNTH_TEST_ALPHA'));
 
             $db->execQuery('BEGIN');
-            $db->execQuery("UPDATE synth.general_settings SET value = 'uncommitted' WHERE id = 'SYNTH_TEST_ALPHA'");
-            $db->execQuery("INSERT INTO synth.general_settings (id, value) VALUES ('SYNTH_TEST_NEW', 'new')");
+            $db->execQuery("UPDATE public.core_config_setting SET config_value = 'uncommitted' WHERE scope = 'general' AND config_key = 'SYNTH_TEST_ALPHA'");
+            $db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('general', 'SYNTH_TEST_NEW', 'new')");
             $this->assertSame('uncommitted', $settings->value('SYNTH_TEST_ALPHA'));
             $this->assertSame(['SYNTH_TEST_NEW' => 'new'], $settings->values(['SYNTH_TEST_NEW']));
             $this->assertSame(PGSQL_TRANSACTION_INTRANS, pg_transaction_status($link));
             $this->assertSame($pid, pg_get_pid($link));
             $locks = pg_fetch_all(pg_query($link, "SELECT locktype, mode, relation::regclass::text AS relation
                 FROM pg_locks WHERE pid = pg_backend_pid() AND (locktype = 'advisory'
-                OR (relation = 'synth.general_settings'::regclass AND mode NOT IN ('AccessShareLock', 'RowExclusiveLock')))"));
+                OR (relation = 'public.core_config_setting'::regclass AND mode NOT IN ('AccessShareLock', 'RowExclusiveLock')))"));
             $this->assertSame([], $locks ?: [], 'reads add no advisory or row-share locks');
             $db->execQuery('ROLLBACK');
 
@@ -85,7 +85,7 @@ final class SettingsRepositoryTest extends DatabaseTestCase
             $this->assertNull($settings->value('SYNTH_TEST_NEW'));
 
             $other = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
-            pg_query($other, "UPDATE synth.general_settings SET value = 'committed elsewhere' WHERE id = 'SYNTH_TEST_ALPHA'");
+            pg_query($other, "UPDATE public.core_config_setting SET config_value = 'committed elsewhere' WHERE scope = 'general' AND config_key = 'SYNTH_TEST_ALPHA'");
             $this->assertSame('committed elsewhere', $settings->value('SYNTH_TEST_ALPHA'));
 
             $this->assertSame('0', pg_fetch_result(pg_query($link, 'SELECT count(*) FROM pg_prepared_statements'), 0, 0));
@@ -106,7 +106,7 @@ final class SettingsRepositoryTest extends DatabaseTestCase
         try {
             $settings = new SettingsRepository($db);
             $db->execQuery('BEGIN');
-            $db->execQuery('ALTER TABLE synth.general_settings RENAME TO general_settings_hidden');
+            $db->execQuery('ALTER TABLE public.core_config_setting RENAME TO core_config_setting_hidden');
             $db->execQuery('SAVEPOINT unreadable');
             $this->assertNull($settings->value('SYNTH_TEST_ALPHA'), 'an unreadable single setting reads as absent');
             $db->execQuery('ROLLBACK TO SAVEPOINT unreadable');

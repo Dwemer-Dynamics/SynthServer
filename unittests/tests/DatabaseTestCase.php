@@ -114,11 +114,11 @@ abstract class DatabaseTestCase extends TestCase
         $db = new sql();
         $this->useSharedKeyStoreFixture($db);
         $db->execQuery('UPDATE public.core_profiles SET tts_connector_id = NULL');
-        $db->upsertRowOnConflict('general_settings', [
-            'id' => 'SCENE_CLASSIFIER_ENABLED',
-            'value' => 'false',
+        $db->upsertRowOnConflict('core_config_setting', [
+            'scope' => 'general', 'config_key' => 'SCENE_CLASSIFIER_ENABLED',
+            'config_value' => 'false',
             'description' => 'Disabled in automated tests to prevent external LLM requests.',
-        ], 'id');
+        ], 'scope, config_key');
         $db->close();
     }
 

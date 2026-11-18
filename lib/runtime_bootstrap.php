@@ -76,7 +76,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.eventlog',
             'public.core_faction',
             'public.core_plugins',
-            'synth.general_settings',
             'public.core_config_preset',
             'public.core_npc_profile_rule',
             'public.core_location',
@@ -188,9 +187,9 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
                        JOIN pg_namespace n ON n.oid = p.pronamespace
                       WHERE n.nspname = 'synth_meta'
                         AND p.proname IN ('clone_schema', 'drop_schema_safe', 'get_schema_size')) AS playthrough_functions,
-                    (SELECT COUNT(DISTINCT id)
-                       FROM synth.general_settings
-                      WHERE id IN ({$managedGeneralSettingLiterals})) AS managed_general_settings
+                    (SELECT COUNT(DISTINCT config_key)
+                       FROM public.core_config_setting
+                      WHERE scope = 'general' AND config_key IN ({$managedGeneralSettingLiterals})) AS managed_general_settings
             ");
         } catch (\Throwable $e) {
             return true;

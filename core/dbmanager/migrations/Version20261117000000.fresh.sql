@@ -1088,14 +1088,6 @@ WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
 COMMENT ON TABLE public.core_plugins IS 'Loaded Fallout plugins sent from the game runtime for plugin-aware form resolution';
 -- end-statement
-CREATE TABLE synth.general_settings (
-    id text NOT NULL,
-    value text,
-    description text DEFAULT ''::text,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
 CREATE TABLE public.core_config_preset (
     id integer NOT NULL,
     name character varying(60) NOT NULL,
@@ -3769,65 +3761,65 @@ INSERT INTO public.core_item_description VALUES
 INSERT INTO public.core_item_description VALUES
 	('DLCCoast.esm', '00043C7F', 'Vim Refresh T-51 torso', 'A rounded T-51 armor part with green promotional paint when present.');
 -- end-statement
-INSERT INTO synth.general_settings VALUES
-	('AUTO_LOCK_PROFILE', 'true', 'When enabled, saving an NPC profile in SYNTH NPC page automatically locks it to prevent history updates from overwriting manual edits.', CURRENT_TIMESTAMP),
-	('AUTOFILL_CUSTOM_PROFILES', 'true', 'When enabled, imported custom NPCs with blank AI profile fields will be marked for automatic AI profile backfill once they have enough usable dialogue history.', CURRENT_TIMESTAMP),
-	('AUTOFILL_CUSTOM_PROFILES_TRIGGER', '40', 'Number of usable AI profile events required before a blank custom NPC is auto-filled. Range: 10-100.', CURRENT_TIMESTAMP),
-	('CLEAN_CONTEXT_FOCUS_CHAT_HISTORY', '25', 'Context history length with only conversations. Ideally set it to 20-30.', CURRENT_TIMESTAMP),
-	('FEATURES@MEMORY_EMBEDDING@ENABLED', 'true', 'Enable long-term memory recall. The system injects relevant memory summaries into AI context for responses.', CURRENT_TIMESTAMP),
-	('FEATURES@MEMORY_EMBEDDING@USE_TEXT2VEC', 'true', 'Use TXT2VEC to create embeddings for memories. These are more accurate than keywords.', CURRENT_TIMESTAMP),
-	('FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARY_INTERVAL', '10', 'Time frame used to pack summary data. Each point is about 0.24 in-game hours. Examples: 5 = 1.2 in-game hours | 10 = 2.4 in-game hours | 50 = 12 in-game hours', CURRENT_TIMESTAMP),
-	('FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARYS', 'true', 'Controls whether automatic memory summaries are created by the memory embedding system.', CURRENT_TIMESTAMP),
-	('PROMPT_HEAD', 'You are #SYNTH_NAME#, a character in the Fallout 4 world. This is not a simulation or a game; this is your reality. You will embody this persona with absolute conviction, prioritizing narrative authenticity and psychological consistency.
+INSERT INTO public.core_config_setting VALUES
+	('general', 'AUTO_LOCK_PROFILE', 'true', 'When enabled, saving an NPC profile in SYNTH NPC page automatically locks it to prevent history updates from overwriting manual edits.', CURRENT_TIMESTAMP),
+	('general', 'AUTOFILL_CUSTOM_PROFILES', 'true', 'When enabled, imported custom NPCs with blank AI profile fields will be marked for automatic AI profile backfill once they have enough usable dialogue history.', CURRENT_TIMESTAMP),
+	('general', 'AUTOFILL_CUSTOM_PROFILES_TRIGGER', '40', 'Number of usable AI profile events required before a blank custom NPC is auto-filled. Range: 10-100.', CURRENT_TIMESTAMP),
+	('general', 'CLEAN_CONTEXT_FOCUS_CHAT_HISTORY', '25', 'Context history length with only conversations. Ideally set it to 20-30.', CURRENT_TIMESTAMP),
+	('general', 'FEATURES@MEMORY_EMBEDDING@ENABLED', 'true', 'Enable long-term memory recall. The system injects relevant memory summaries into AI context for responses.', CURRENT_TIMESTAMP),
+	('general', 'FEATURES@MEMORY_EMBEDDING@USE_TEXT2VEC', 'true', 'Use TXT2VEC to create embeddings for memories. These are more accurate than keywords.', CURRENT_TIMESTAMP),
+	('general', 'FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARY_INTERVAL', '10', 'Time frame used to pack summary data. Each point is about 0.24 in-game hours. Examples: 5 = 1.2 in-game hours | 10 = 2.4 in-game hours | 50 = 12 in-game hours', CURRENT_TIMESTAMP),
+	('general', 'FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARYS', 'true', 'Controls whether automatic memory summaries are created by the memory embedding system.', CURRENT_TIMESTAMP),
+	('general', 'PROMPT_HEAD', 'You are #SYNTH_NAME#, a character in the Fallout 4 world. This is not a simulation or a game; this is your reality. You will embody this persona with absolute conviction, prioritizing narrative authenticity and psychological consistency.
 
 The director provides scene prompts and narrative catalysts. Integrate these prompts seamlessly as the next logical event in the story. Treat them as established fact and build upon them with your character''s authentic reaction.
 
 Your primary driver is to be a compelling, psychologically consistent, and authentically reactive character. Your loyalty is to the truth of the story. Identify potential narrative directions based on your knowledge of narrative tropes, goals, and relationships, selecting the most appropriate one for the current scene. Original thinking is encouraged.', 'System Prompt. Defines the rules of the roleplay.', CURRENT_TIMESTAMP),
-	('EMOTEMOODS', 'sassy,assertive,sexy,smug,kindly,lovely,seductive,sarcastic,smirking,amused,irritated,playful,neutral,teasing,desperate,scared,pleading,sad,happy,angry,drunk,shy,surprised', 'Default list of moods passed to LLM (comma separated). Can be overridden per-NPC in SYNTH NPCs. Some moods will trigger animations if enabled.', CURRENT_TIMESTAMP),
-	('LOCATION_BLACKLIST', 'Glowing Sea, Mass Fusion Building', 'Comma-separated list of location names to exclude from Points of Interest context (e.g. ''Glowing Sea, Mass Fusion Building'').', CURRENT_TIMESTAMP),
-	('ITEM_BLACKLIST', '', 'Comma-separated list of item/armor names to exclude from dynamic context (e.g. ''9mm Pistol, Leather Armor, Stimpak'').', CURRENT_TIMESTAMP),
-	('SHORTER_NEARBY_ITEM_LIST', 'false', 'Group duplicate nearby ground items into one counted entry. When enabled, context shows one line per unique nearby item plus a single representative RefID in the item descriptions block.', CURRENT_TIMESTAMP),
-	('EVENT_TYPE_FILTER', '', 'Comma-separated list of event types to exclude from context generation (e.g. ''death, itemfound, chat'').', CURRENT_TIMESTAMP),
-	('GROUND_ITEMS_DESCRIPTIONS_ONLY', 'false', 'Only show nearby ground items in context that have descriptions in the description manager.', CURRENT_TIMESTAMP),
-	('INVENTORY_ITEMS_DESCRIPTIONS_ONLY', 'false', 'Only show inventory items in context that have descriptions in the description manager.', CURRENT_TIMESTAMP),
-	('HIDE_AMBIENT_COMBAT', 'false', 'Hide ambient NPC-to-NPC combat deaths from context during requests. Only player, current actor, and companion/party deaths or kills will be shown.', CURRENT_TIMESTAMP),
-	('PROMPT_TIMESTAMP', 'false', 'Add rough timestamp subdividers to event context (e.g., ''Moments Ago'', ''A while ago'') to help the AI NPCs understand when events happend.', CURRENT_TIMESTAMP),
-	('COMPACT_NPC_CONTEXT_HISTORY', 'true', 'Use compact text instead of separate messages for prior NPC conversation history. Does not affect the Narrator.', CURRENT_TIMESTAMP),
-	('SHORT_TERM_MEMORY_IN_COMPACT_CHAT', 'true', 'Keeps short term memory summaries in the prompt while Compact NPC Context History is on. Only affects profiles with Short Term Memory enabled. Turn off to keep the compact prompt smaller.', CURRENT_TIMESTAMP),
-	('PROMPT_HEAD_MARKDOWN_ENABLED', 'true', 'Use Markdown headings instead of XML tags for all prompt sections.', CURRENT_TIMESTAMP),
-	('RECHAT_MODE', 'random', 'Controls how server-side rechat picks the next responder. Tight = listener-only, Conversational = prefers the current partner, Group = lets nearby NPCs rotate into the exchange, Random = picks one of the other modes at the start of each rechat chain.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_PLAYER', '2', 'Connector used for player re-speech. Recommend to use a very Fast LLM.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_SUMMARY', '4', 'Connector used for generating and compacting memory summaries that power long-term memory recall. Recommend using a smaller LLM.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_MEDIUMTERM', '4', 'Connector used to generate longer memories summaries after every 10 memory summaries. Can be enabled in SYNTH NPC page. Recommend to user a smaller LLM.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_SCENECLASSIFIER', '7', 'Connector used to classify recent scene tone/genre for post-request ambient cues. Recommend using a very fast small LLM.', CURRENT_TIMESTAMP),
-	('JEV_ACTIONS_ENABLED', 'false', 'Use Jev to choose among the current NPC''s enabled actions. Off by default. Uncertain, unavailable or slow decisions keep ordinary action selection.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_DECISION', '0', 'Dedicated OpenRouter connector for optional Jev actions. Use driver openrouterjson, model typesafe/jev-1.13 and an API badge. The dialogue connector is unchanged.', CURRENT_TIMESTAMP),
-	('JEV_ACTION_TIMEOUT_MS', '350', 'Maximum Jev action selection budget in milliseconds. One attempt, no retries; a timeout keeps ordinary action selection.', CURRENT_TIMESTAMP),
-	('JEV_ACTION_MIN_CONFIDENCE', '0.8', 'Minimum Jev confidence to narrow the action catalogue. Confidence is not a guarantee; action arguments and execution are still validated.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_PROFILES', '1', 'Connector used to update SYNTH NPC Dynamic Profiles. Recommend to use a Standard LLM.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_DIRECTOR', '1', 'Connector used for Director mode. Recommend to use a Powerful LLM.', CURRENT_TIMESTAMP),
-	('RELLLM_CONNECTOR', '5', 'Connector used for Relationship Management system. Analyzes and updates NPC relationships. Recommend to use a Fast LLM with low temperature (0.1-0.3) for consistent evaluations.', CURRENT_TIMESTAMP),
-	('NEVER_CLEAR_RELATIONSHIP_DATA', 'false', 'Keep current NPC relationships when loading older saves. NPCs may remember later events. Off by default.', CURRENT_TIMESTAMP),
-	('CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM', '0', 'Connector used for the bounded explicit-request World Knowledge fallback. Deterministic local retrieval remains the default.', CURRENT_TIMESTAMP),
-	('RELATIONSHIP_SYSTEM_ENABLED', 'true', 'Enable the Relationship Management System. When enabled, NPCs will dynamically form and update relationships based on conversations and events. Requires RELLLM_CONNECTOR to be configured.', CURRENT_TIMESTAMP),
-	('SCENE_CLASSIFIER_ENABLED', 'true', 'Enable the Scene Classifier. When enabled, SYNTH runs a small post-request genre/tone classification pass for ambient scene cues. Requires CORE_CONNECTOR_SCENECLASSIFIER or a valid fallback connector.', CURRENT_TIMESTAMP),
-	('POWER_AWARENESS_ENABLED', 'false', 'NPCs will be aware of relative power levels (based on character level) and react appropriately to threats.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_CUSTOM', 'false', 'Use custom LLM for WorldKnowledge topic extraction instead of MiniMe T5. Allows for custom prompt via Prompts Manager.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_INFINIUM', 'true', 'Enable World Knowledge topic extraction and prompt injection.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_AMOUNT', '1', 'Max extracted world knowledge topics per turn.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_RESULT_LIMIT', '3', 'Maximum grounded World Knowledge articles included in one prompt.', CURRENT_TIMESTAMP),
-	('RACE_WORLDKNOWLEDGE', 'true', 'Include lore that matches the active NPC race or species.', CURRENT_TIMESTAMP),
-	('FACTION_WORLDKNOWLEDGE', 'true', 'Include lore that matches the active NPC faction context.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_EXTRACTOR_FALLBACK', 'false', 'Allow the configured extractor connector to resolve explicit lore requests that deterministic retrieval cannot ground.', CURRENT_TIMESTAMP),
-	('WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS', '1500', 'Maximum time in milliseconds for the optional World Knowledge extractor fallback.', CURRENT_TIMESTAMP),
-	('VISUAL_CONTEXT_SCENE_TTL_MINUTES', '10', 'Minutes that an unlocked PipVision capture remains available to prompts. Locked location captures do not expire.', CURRENT_TIMESTAMP),
-	('VISUAL_CONTEXT_PROMPT_MAX_CHARS', '1800', 'Maximum PipVision description characters injected into a prompt.', CURRENT_TIMESTAMP),
-	('PIPVISION_IMAGE_QUALITY', '88', 'JPEG quality used when SYNTH Server stores PipVision screenshots. Range: 45-95.', CURRENT_TIMESTAMP),
-	('PIPVISION_REQUEST_TIMEOUT_SECONDS', '60', 'Maximum time allowed for the PipVision image model request. Range: 10-180 seconds.', CURRENT_TIMESTAMP),
-	('ENFORCE_STRICT_RECHAT_RESPONSE', 'false', 'If enabled, the NPC chosen for a rechat turn must respond directly to the previous speaker and set the listener to that speaker.', CURRENT_TIMESTAMP),
-	('PROMPT_CONTEXT_OPTIONS', '{"enabled_sections":["roleplay_instructions","world","knowledge","available_actions_list","nearby_actors","actors_nearby","group_descriptions","nearby_items","adventuring_party","points_of_interest","scene_notes","paralinguistic_tags"],"enabled_character_subsections":["basic_summary","groups","personality","relationships","occupation","skills","rpg_skills","speech_style","goals","middle_term_memory","group","storyline_starring","quest_topics"],"enabled_appearance_subsections":["appearance","equipment","target_equipment","inventory","current_activity","current_condition"],"enabled_general_subsections":["active_quests"],"enabled_nearby_actor_subsections":["basic_summary","appearance","equipment","equipment_descriptions","current_activity","power_awareness","factions","custom_state"]}', 'Controls which XML-like prompt context sections are included in the final system prompt sent to the LLM. Managed from Global Settings.', CURRENT_TIMESTAMP),
-	('LOCATION_WORLDKNOWLEDGE', 'true', 'Force World Knowledge for the current Fallout location and worldspace into NPC prompts when matching articles exist.', CURRENT_TIMESTAMP),
-	('GLOBAL_ITT_CONNECTOR_ID', '1', 'Active global PipVision image-to-text connector.', CURRENT_TIMESTAMP);
+	('general', 'EMOTEMOODS', 'sassy,assertive,sexy,smug,kindly,lovely,seductive,sarcastic,smirking,amused,irritated,playful,neutral,teasing,desperate,scared,pleading,sad,happy,angry,drunk,shy,surprised', 'Default list of moods passed to LLM (comma separated). Can be overridden per-NPC in SYNTH NPCs. Some moods will trigger animations if enabled.', CURRENT_TIMESTAMP),
+	('general', 'LOCATION_BLACKLIST', 'Glowing Sea, Mass Fusion Building', 'Comma-separated list of location names to exclude from Points of Interest context (e.g. ''Glowing Sea, Mass Fusion Building'').', CURRENT_TIMESTAMP),
+	('general', 'ITEM_BLACKLIST', '', 'Comma-separated list of item/armor names to exclude from dynamic context (e.g. ''9mm Pistol, Leather Armor, Stimpak'').', CURRENT_TIMESTAMP),
+	('general', 'SHORTER_NEARBY_ITEM_LIST', 'false', 'Group duplicate nearby ground items into one counted entry. When enabled, context shows one line per unique nearby item plus a single representative RefID in the item descriptions block.', CURRENT_TIMESTAMP),
+	('general', 'EVENT_TYPE_FILTER', '', 'Comma-separated list of event types to exclude from context generation (e.g. ''death, itemfound, chat'').', CURRENT_TIMESTAMP),
+	('general', 'GROUND_ITEMS_DESCRIPTIONS_ONLY', 'false', 'Only show nearby ground items in context that have descriptions in the description manager.', CURRENT_TIMESTAMP),
+	('general', 'INVENTORY_ITEMS_DESCRIPTIONS_ONLY', 'false', 'Only show inventory items in context that have descriptions in the description manager.', CURRENT_TIMESTAMP),
+	('general', 'HIDE_AMBIENT_COMBAT', 'false', 'Hide ambient NPC-to-NPC combat deaths from context during requests. Only player, current actor, and companion/party deaths or kills will be shown.', CURRENT_TIMESTAMP),
+	('general', 'PROMPT_TIMESTAMP', 'false', 'Add rough timestamp subdividers to event context (e.g., ''Moments Ago'', ''A while ago'') to help the AI NPCs understand when events happend.', CURRENT_TIMESTAMP),
+	('general', 'COMPACT_NPC_CONTEXT_HISTORY', 'true', 'Use compact text instead of separate messages for prior NPC conversation history. Does not affect the Narrator.', CURRENT_TIMESTAMP),
+	('general', 'SHORT_TERM_MEMORY_IN_COMPACT_CHAT', 'true', 'Keeps short term memory summaries in the prompt while Compact NPC Context History is on. Only affects profiles with Short Term Memory enabled. Turn off to keep the compact prompt smaller.', CURRENT_TIMESTAMP),
+	('general', 'PROMPT_HEAD_MARKDOWN_ENABLED', 'true', 'Use Markdown headings instead of XML tags for all prompt sections.', CURRENT_TIMESTAMP),
+	('general', 'RECHAT_MODE', 'random', 'Controls how server-side rechat picks the next responder. Tight = listener-only, Conversational = prefers the current partner, Group = lets nearby NPCs rotate into the exchange, Random = picks one of the other modes at the start of each rechat chain.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_PLAYER', '2', 'Connector used for player re-speech. Recommend to use a very Fast LLM.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_SUMMARY', '4', 'Connector used for generating and compacting memory summaries that power long-term memory recall. Recommend using a smaller LLM.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_MEDIUMTERM', '4', 'Connector used to generate longer memories summaries after every 10 memory summaries. Can be enabled in SYNTH NPC page. Recommend to user a smaller LLM.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_SCENECLASSIFIER', '7', 'Connector used to classify recent scene tone/genre for post-request ambient cues. Recommend using a very fast small LLM.', CURRENT_TIMESTAMP),
+	('general', 'JEV_ACTIONS_ENABLED', 'false', 'Use Jev to choose among the current NPC''s enabled actions. Off by default. Uncertain, unavailable or slow decisions keep ordinary action selection.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_DECISION', '0', 'Dedicated OpenRouter connector for optional Jev actions. Use driver openrouterjson, model typesafe/jev-1.13 and an API badge. The dialogue connector is unchanged.', CURRENT_TIMESTAMP),
+	('general', 'JEV_ACTION_TIMEOUT_MS', '350', 'Maximum Jev action selection budget in milliseconds. One attempt, no retries; a timeout keeps ordinary action selection.', CURRENT_TIMESTAMP),
+	('general', 'JEV_ACTION_MIN_CONFIDENCE', '0.8', 'Minimum Jev confidence to narrow the action catalogue. Confidence is not a guarantee; action arguments and execution are still validated.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_PROFILES', '1', 'Connector used to update SYNTH NPC Dynamic Profiles. Recommend to use a Standard LLM.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_DIRECTOR', '1', 'Connector used for Director mode. Recommend to use a Powerful LLM.', CURRENT_TIMESTAMP),
+	('general', 'RELLLM_CONNECTOR', '5', 'Connector used for Relationship Management system. Analyzes and updates NPC relationships. Recommend to use a Fast LLM with low temperature (0.1-0.3) for consistent evaluations.', CURRENT_TIMESTAMP),
+	('general', 'NEVER_CLEAR_RELATIONSHIP_DATA', 'false', 'Keep current NPC relationships when loading older saves. NPCs may remember later events. Off by default.', CURRENT_TIMESTAMP),
+	('general', 'CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM', '0', 'Connector used for the bounded explicit-request World Knowledge fallback. Deterministic local retrieval remains the default.', CURRENT_TIMESTAMP),
+	('general', 'RELATIONSHIP_SYSTEM_ENABLED', 'true', 'Enable the Relationship Management System. When enabled, NPCs will dynamically form and update relationships based on conversations and events. Requires RELLLM_CONNECTOR to be configured.', CURRENT_TIMESTAMP),
+	('general', 'SCENE_CLASSIFIER_ENABLED', 'true', 'Enable the Scene Classifier. When enabled, SYNTH runs a small post-request genre/tone classification pass for ambient scene cues. Requires CORE_CONNECTOR_SCENECLASSIFIER or a valid fallback connector.', CURRENT_TIMESTAMP),
+	('general', 'POWER_AWARENESS_ENABLED', 'false', 'NPCs will be aware of relative power levels (based on character level) and react appropriately to threats.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_CUSTOM', 'false', 'Use custom LLM for WorldKnowledge topic extraction instead of MiniMe T5. Allows for custom prompt via Prompts Manager.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_INFINIUM', 'true', 'Enable World Knowledge topic extraction and prompt injection.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_AMOUNT', '1', 'Max extracted world knowledge topics per turn.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_RESULT_LIMIT', '3', 'Maximum grounded World Knowledge articles included in one prompt.', CURRENT_TIMESTAMP),
+	('general', 'RACE_WORLDKNOWLEDGE', 'true', 'Include lore that matches the active NPC race or species.', CURRENT_TIMESTAMP),
+	('general', 'FACTION_WORLDKNOWLEDGE', 'true', 'Include lore that matches the active NPC faction context.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_EXTRACTOR_FALLBACK', 'false', 'Allow the configured extractor connector to resolve explicit lore requests that deterministic retrieval cannot ground.', CURRENT_TIMESTAMP),
+	('general', 'WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS', '1500', 'Maximum time in milliseconds for the optional World Knowledge extractor fallback.', CURRENT_TIMESTAMP),
+	('general', 'VISUAL_CONTEXT_SCENE_TTL_MINUTES', '10', 'Minutes that an unlocked PipVision capture remains available to prompts. Locked location captures do not expire.', CURRENT_TIMESTAMP),
+	('general', 'VISUAL_CONTEXT_PROMPT_MAX_CHARS', '1800', 'Maximum PipVision description characters injected into a prompt.', CURRENT_TIMESTAMP),
+	('general', 'PIPVISION_IMAGE_QUALITY', '88', 'JPEG quality used when SYNTH Server stores PipVision screenshots. Range: 45-95.', CURRENT_TIMESTAMP),
+	('general', 'PIPVISION_REQUEST_TIMEOUT_SECONDS', '60', 'Maximum time allowed for the PipVision image model request. Range: 10-180 seconds.', CURRENT_TIMESTAMP),
+	('general', 'ENFORCE_STRICT_RECHAT_RESPONSE', 'false', 'If enabled, the NPC chosen for a rechat turn must respond directly to the previous speaker and set the listener to that speaker.', CURRENT_TIMESTAMP),
+	('general', 'PROMPT_CONTEXT_OPTIONS', '{"enabled_sections":["roleplay_instructions","world","knowledge","available_actions_list","nearby_actors","actors_nearby","group_descriptions","nearby_items","adventuring_party","points_of_interest","scene_notes","paralinguistic_tags"],"enabled_character_subsections":["basic_summary","groups","personality","relationships","occupation","skills","rpg_skills","speech_style","goals","middle_term_memory","group","storyline_starring","quest_topics"],"enabled_appearance_subsections":["appearance","equipment","target_equipment","inventory","current_activity","current_condition"],"enabled_general_subsections":["active_quests"],"enabled_nearby_actor_subsections":["basic_summary","appearance","equipment","equipment_descriptions","current_activity","power_awareness","factions","custom_state"]}', 'Controls which XML-like prompt context sections are included in the final system prompt sent to the LLM. Managed from Global Settings.', CURRENT_TIMESTAMP),
+	('general', 'LOCATION_WORLDKNOWLEDGE', 'true', 'Force World Knowledge for the current Fallout location and worldspace into NPC prompts when matching articles exist.', CURRENT_TIMESTAMP),
+	('general', 'GLOBAL_ITT_CONNECTOR_ID', '1', 'Active global PipVision image-to-text connector.', CURRENT_TIMESTAMP);
 -- end-statement
 INSERT INTO public.core_prompt VALUES
 	('middleterm_narrative_summarizer', 'You are a long-term narrative continuity summarizer for an improvised Fallout universe chronicle.
@@ -4383,9 +4375,6 @@ ALTER TABLE ONLY public.core_faction
 -- end-statement
 ALTER TABLE ONLY public.core_plugins
     ADD CONSTRAINT game_plugins_pkey PRIMARY KEY (plugin_name);
--- end-statement
-ALTER TABLE ONLY synth.general_settings
-    ADD CONSTRAINT general_settings_pkey PRIMARY KEY (id);
 -- end-statement
 ALTER TABLE ONLY public.core_config_preset
     ADD CONSTRAINT global_settings_presets_pkey PRIMARY KEY (id);

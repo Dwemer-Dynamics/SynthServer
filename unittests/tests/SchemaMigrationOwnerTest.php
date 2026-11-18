@@ -230,7 +230,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function dataChecksum(): string
     {
         $parts = [];
-        foreach (['public.core_catalog_version', 'synth.general_settings', 'public.core_profiles', 'synth.core_npc_master',
+        foreach (['public.core_catalog_version', 'public.core_config_setting', 'public.core_profiles', 'synth.core_npc_master',
                      'public.core_prompt', 'public.core_action', 'synth.eventlog', 'public.core_npc_biography_template'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
@@ -239,7 +239,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
     private function populateLegacyInstall(): void
     {
-        $this->rows("INSERT INTO synth.general_settings (id, value, description) VALUES ('SCHEMA_OWNER_FIXTURE', 'kept', 'test row')");
+        $this->rows("INSERT INTO public.core_config_setting (scope, config_key, config_value, description) VALUES ('general', 'SCHEMA_OWNER_FIXTURE', 'kept', 'test row')");
         $this->rows("INSERT INTO synth.eventlog (type, data, sess, gamets, localts, ts) VALUES ('inputtext', 'Sole Survivor: hello', 'pending', 7, 8, 9)");
         $this->rows("INSERT INTO synth.core_npc_master (npc_name, npc_static_bio) VALUES ('schema owner fixture', 'Kept verbatim.')");
         $this->rows("UPDATE public.core_prompt SET custom_prompt = 'Kept local prompt.' WHERE prompt_key = 'synth_system_prompt'");
@@ -568,8 +568,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private static function baselineSettingIds(): array
     {
         $sql = file_get_contents(dirname(__DIR__, 2).'/core/dbmanager/migrations/Version20261117000000.fresh.sql');
-        self::assertSame(1, preg_match('/INSERT INTO synth\.general_settings VALUES\n(.*?)\n-- end-statement/s', $sql, $block));
-        preg_match_all('/^\t\(\'([A-Z0-9_@]+)\', /m', $block[1], $ids);
+        self::assertSame(1, preg_match('/INSERT INTO public\.core_config_setting VALUES\n(.*?)\n-- end-statement/s', $sql, $block));
+        preg_match_all('/^\t\(\'general\', \'([A-Z0-9_@]+)\', /m', $block[1], $ids);
         self::assertGreaterThan(40, count($ids[1]), 'The baseline general settings block was not parsed.');
         return $ids[1];
     }
@@ -586,7 +586,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             SELECT writer, count(*) AS objects FROM (
                 SELECT xmin::text AS writer FROM public.core_catalog_version
                 UNION ALL SELECT xmin::text FROM public.core_prompt
-                UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
+                UNION ALL SELECT xmin::text FROM public.core_config_setting WHERE scope = 'general' AND config_key = ANY({$baselineIds}::text[])
                 UNION ALL SELECT xmin::text FROM public.core_action
                 UNION ALL SELECT xmin::text FROM public.core_profiles
                 UNION ALL SELECT xmin::text FROM public.core_worldknowledge_article
@@ -648,17 +648,17 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->recreateEmptyDatabase();
         $this->assertBootstrapSucceeds();
         $managed = array_values(array_unique(synthGetManagedGeneralSettingIds()));
-        $present = array_column($this->rows('SELECT id FROM synth.general_settings'), 'id');
+        $present = array_column($this->rows("SELECT config_key AS id FROM public.core_config_setting WHERE scope = 'general'"), 'id');
         self::assertSame([], array_values(array_diff($managed, $present)), 'Managed settings missing after a fresh install.');
         foreach (['TWO_STEP_ACTIONS_ENABLED' => 'false', 'CORE_CONNECTOR_TWO_STEP' => '0', 'TWO_STEP_ACTION_TIMEOUT_MS' => '4000'] as $id => $default) {
-            self::assertSame($default, $this->value('SELECT value FROM synth.general_settings WHERE id = $1', [$id]), $id);
+            self::assertSame($default, $this->value("SELECT config_value FROM public.core_config_setting WHERE scope = 'general' AND config_key = $1", [$id]), $id);
         }
-        $before = $this->rows('SELECT id, value, description FROM synth.general_settings ORDER BY id');
-        $this->rows("UPDATE synth.general_settings SET value = '5000' WHERE id = 'TWO_STEP_ACTION_TIMEOUT_MS'");
+        $before = $this->rows("SELECT config_key AS id, config_value AS value, description FROM public.core_config_setting WHERE scope = 'general' ORDER BY config_key");
+        $this->rows("UPDATE public.core_config_setting SET config_value = '5000' WHERE scope = 'general' AND config_key = 'TWO_STEP_ACTION_TIMEOUT_MS'");
         $this->assertBootstrapSucceeds();
-        self::assertSame('5000', $this->value("SELECT value FROM synth.general_settings WHERE id = 'TWO_STEP_ACTION_TIMEOUT_MS'"),
+        self::assertSame('5000', $this->value("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'general' AND config_key = 'TWO_STEP_ACTION_TIMEOUT_MS'"),
             'A rerun must not overwrite a stored setting.');
-        self::assertCount(count($before), $this->rows('SELECT id FROM synth.general_settings'));
+        self::assertCount(count($before), $this->rows("SELECT config_key AS id FROM public.core_config_setting WHERE scope = 'general'"));
     }
 
     // The WSL provisioner creates both extensions in public before the bootstrap, as postgres. That database still counts
@@ -772,7 +772,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertDatabaseIsEmpty();
 
         $statements = \Synth\Migrations\Version20261117000000::freshInstallStatements();
-        self::assertCount(776, $statements);
+        self::assertCount(774, $statements);
         foreach ($statements as $statement) {
             self::assertStringEndsWith(';', rtrim($statement));
             self::assertStringNotContainsString('-- end-statement', $statement);

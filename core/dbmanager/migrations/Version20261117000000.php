@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '6f159111c0ed3e2a55fda470acf44664fadeb6c8be1bd8c82e6dd192b12af2e0';
+    private const FRESH_INSTALL_SHA256 = 'b3917fa842c4475209216b6241d8b426b23aec4cda9ac6c722c777625886a342';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -230,7 +230,7 @@ final class Version20261117000000 extends AbstractMigration
             SELECT (SELECT count(DISTINCT prompt_key) FROM public.core_prompt WHERE prompt_key IN (?)) AS prompts,
                    (SELECT count(*) FROM public.core_profiles WHERE default_npc = '1') AS npc_defaults,
                    (SELECT count(*) FROM public.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
-                   (SELECT count(DISTINCT id) FROM synth.general_settings WHERE id IN (?)) AS general_settings,
+                   (SELECT count(DISTINCT config_key) FROM public.core_config_setting WHERE scope = 'general' AND config_key IN (?)) AS general_settings,
                    (SELECT count(DISTINCT p.proname) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                      WHERE n.nspname = 'synth_meta' AND p.proname IN ('clone_schema', 'drop_schema_safe', 'get_schema_size'))
                        AS playthrough_functions,

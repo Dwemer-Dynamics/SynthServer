@@ -575,9 +575,9 @@ Expertise: Cooking.";
         $hadGlobal = array_key_exists('NEVER_CLEAR_RELATIONSHIP_DATA', $GLOBALS);
         $savedGlobal = $GLOBALS['NEVER_CLEAR_RELATIONSHIP_DATA'] ?? null;
         try {
-            $GLOBALS['db']->upsertRowOnConflict('general_settings', [
-                'id' => 'NEVER_CLEAR_RELATIONSHIP_DATA', 'value' => 'true',
-            ], 'id');
+            $GLOBALS['db']->upsertRowOnConflict('core_config_setting', [
+                'scope' => 'general', 'config_key' => 'NEVER_CLEAR_RELATIONSHIP_DATA', 'config_value' => 'true',
+            ], 'scope, config_key');
             $GLOBALS['NEVER_CLEAR_RELATIONSHIP_DATA'] = false;
             $this->assertTrue($this->npcMaster->restoreNPC(100));
             $restored = $this->npcMaster->getByName($name);
@@ -586,7 +586,7 @@ Expertise: Cooking.";
             $this->assertSame('Before save', $restored['personality']);
             $this->assertEquals($expected, $this->npcMaster->getExtendedData($restored));
 
-            $GLOBALS['db']->updateRow('general_settings', ['value' => 'false'], "id = 'NEVER_CLEAR_RELATIONSHIP_DATA'");
+            $GLOBALS['db']->updateRow('core_config_setting', ['config_value' => 'false'], "scope = 'general' AND config_key = 'NEVER_CLEAR_RELATIONSHIP_DATA'");
             $GLOBALS['NEVER_CLEAR_RELATIONSHIP_DATA'] = true;
             $this->assertTrue($this->npcMaster->restoreNPC(100));
             $rolledBack = $this->npcMaster->getExtendedData($this->npcMaster->getByName($name));

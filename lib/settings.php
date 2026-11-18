@@ -403,7 +403,7 @@ if (!function_exists('synthGetSelectOptionsForOverrideSetting')) {
 }
 
 if (!function_exists('synthGetGlobalOnlySettingIds')) {
-    // Their consumers read synth.general_settings directly rather than the runtime globals, so a profile
+    // Their consumers read the general scope of core_config_setting directly rather than the runtime globals, so a profile
     // or NPC override would be stored but never applied. They are edited on the global pages only.
     function synthGetGlobalOnlySettingIds(): array
     {
@@ -862,7 +862,7 @@ if (!function_exists('synthGetGeneralSettingRow')) {
             return [];
         }
 
-        $query = "SELECT id, value, description, updated_at FROM synth.general_settings WHERE id = " . $db->escapeLiteral($safeId) . " LIMIT 1";
+        $query = "SELECT config_key AS id, config_value AS value, description, updated_at FROM public.core_config_setting WHERE scope = 'general' AND config_key = " . $db->escapeLiteral($safeId) . " LIMIT 1";
         $row = $db->fetchOne($query);
         return is_array($row) ? $row : [];
     }
@@ -913,7 +913,7 @@ if (!function_exists('synthGetAllGeneralSettings')) {
         }
 
         try {
-            $rows = $db->fetchAll("SELECT id, value, description, updated_at FROM synth.general_settings ORDER BY id ASC");
+            $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value, description, updated_at FROM public.core_config_setting WHERE scope = 'general' ORDER BY config_key ASC");
         } catch (\Throwable $e) {
             return [];
         }
@@ -941,11 +941,11 @@ if (!function_exists('synthSetGeneralSetting')) {
             : $db->escapeLiteral($description);
 
         $query = "
-            INSERT INTO synth.general_settings (id, value, description, updated_at)
-            VALUES (" . $db->escapeLiteral($safeId) . ", {$valueLiteral}, " . (($description === null) ? "''" : $descriptionSql) . ", CURRENT_TIMESTAMP)
-            ON CONFLICT (id) DO UPDATE SET
-                value = EXCLUDED.value,
-                description = " . (($description === null) ? "synth.general_settings.description" : "EXCLUDED.description") . ",
+            INSERT INTO public.core_config_setting (scope, config_key, config_value, description, updated_at)
+            VALUES ('general', " . $db->escapeLiteral($safeId) . ", {$valueLiteral}, " . (($description === null) ? "''" : $descriptionSql) . ", CURRENT_TIMESTAMP)
+            ON CONFLICT (scope, config_key) DO UPDATE SET
+                config_value = EXCLUDED.config_value,
+                description = " . (($description === null) ? "public.core_config_setting.description" : "EXCLUDED.description") . ",
                 updated_at = CURRENT_TIMESTAMP
         ";
 
@@ -967,9 +967,9 @@ if (!function_exists('synthSetGeneralSettingDescription')) {
         }
 
         $query = "
-            INSERT INTO synth.general_settings (id, value, description, updated_at)
-            VALUES (" . $db->escapeLiteral($safeId) . ", '', " . $db->escapeLiteral($description) . ", CURRENT_TIMESTAMP)
-            ON CONFLICT (id) DO UPDATE SET
+            INSERT INTO public.core_config_setting (scope, config_key, config_value, description, updated_at)
+            VALUES ('general', " . $db->escapeLiteral($safeId) . ", '', " . $db->escapeLiteral($description) . ", CURRENT_TIMESTAMP)
+            ON CONFLICT (scope, config_key) DO UPDATE SET
                 description = EXCLUDED.description,
                 updated_at = CURRENT_TIMESTAMP
         ";
