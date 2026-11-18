@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = 'fef1fee16687f2b17514ccffd3766b47a6e22602db550027cf93d8c8309545f2';
+    private const FRESH_INSTALL_SHA256 = 'dcb9e53212c67961fb661228b8ce94cd89c86d2ae8e1bcc49b260874e7a75448';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -227,7 +227,7 @@ final class Version20261117000000 extends AbstractMigration
     private static function seedProblems(Connection $connection): array
     {
         $state = $connection->fetchAssociative(<<<'SQL'
-            SELECT (SELECT count(DISTINCT prompt_key) FROM synth.prompts WHERE prompt_key IN (?)) AS prompts,
+            SELECT (SELECT count(DISTINCT prompt_key) FROM public.core_prompt WHERE prompt_key IN (?)) AS prompts,
                    (SELECT count(*) FROM public.core_profiles WHERE default_npc = '1') AS npc_defaults,
                    (SELECT count(*) FROM public.core_profiles WHERE default_narrator = '1') AS narrator_defaults,
                    (SELECT count(DISTINCT id) FROM synth.general_settings WHERE id IN (?)) AS general_settings,

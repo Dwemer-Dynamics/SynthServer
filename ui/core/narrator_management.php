@@ -148,7 +148,7 @@ if (
  $updatedAtSql = $GLOBALS["db"]->escapeLiteral(date('Y-m-d H:i:s'));
  $promptKeySql = $GLOBALS["db"]->escapeLiteral($promptKey);
  $result = $GLOBALS["db"]->execQuery(
- "UPDATE prompts
+ "UPDATE core_prompt
  SET custom_prompt = {$setCustomPromptSql},
  updated_at = {$updatedAtSql}
  WHERE prompt_key = {$promptKeySql}"
@@ -171,7 +171,7 @@ if (
  $updatedAtSql = $GLOBALS["db"]->escapeLiteral(date('Y-m-d H:i:s'));
  $promptKeySql = $GLOBALS["db"]->escapeLiteral($promptKey);
  $result = $GLOBALS["db"]->execQuery(
- "UPDATE prompts
+ "UPDATE core_prompt
  SET custom_prompt = NULL,
  updated_at = {$updatedAtSql}
  WHERE prompt_key = {$promptKeySql}"
@@ -417,7 +417,7 @@ foreach ($advancedPromptKeys as $index => $advancedPromptKey) {
 
 $advancedPromptRows = $GLOBALS["db"]->fetchAll(
  "SELECT prompt_key, default_prompt, custom_prompt, description
- FROM prompts
+ FROM core_prompt
  WHERE prompt_key IN (" . implode(', ', array_map([$GLOBALS["db"], 'escapeLiteral'], $advancedPromptKeys)) . ")
  ORDER BY CASE prompt_key " . implode(' ', $advancedPromptOrderSql) . " ELSE 999 END"
 );

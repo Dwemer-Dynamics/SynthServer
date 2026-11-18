@@ -78,14 +78,14 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.factions',
             'synth.game_plugins',
             'synth.general_settings',
-            'synth.global_settings_presets',
+            'public.core_config_preset',
             'synth.import_rules',
             'synth.locations',
             'synth.log',
             'synth.memory',
             'synth.memory_summary',
             'synth.moods_issued',
-            'synth.prompts',
+            'public.core_prompt',
             'synth.quests',
             'synth.relationship_eval_queue',
             'synth.relationship_init_queue',
@@ -175,7 +175,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             $runtimeSeedState = $db->fetchOne("
                 SELECT
                     (SELECT COUNT(*)
-                       FROM synth.prompts
+                       FROM public.core_prompt
                       WHERE prompt_key IN (
                         'synth_system_prompt',
                         'synth_response_rules',

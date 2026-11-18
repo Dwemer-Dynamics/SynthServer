@@ -38,7 +38,7 @@ if (!function_exists('synthLoadManagedPromptTemplate')) {
                 $escapedPromptKey = method_exists($db, 'escape')
                     ? $db->escape((string)$promptKey)
                     : str_replace("'", "''", (string)$promptKey);
-                $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM synth.prompts WHERE prompt_key = '{$escapedPromptKey}' LIMIT 1");
+                $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM public.core_prompt WHERE prompt_key = '{$escapedPromptKey}' LIMIT 1");
                 if ($promptData) {
                     $promptText = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
                 }

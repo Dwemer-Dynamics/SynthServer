@@ -41,7 +41,7 @@ function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback
         }
 
         $escapedPromptKey = $db->escape($promptKey);
-        $row = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) AS prompt FROM prompts WHERE prompt_key='{$escapedPromptKey}' LIMIT 1");
+        $row = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) AS prompt FROM core_prompt WHERE prompt_key='{$escapedPromptKey}' LIMIT 1");
         $prompt = trim((string)($row['prompt'] ?? ''));
         if ($prompt === '') {
             $prompt = $fallback;

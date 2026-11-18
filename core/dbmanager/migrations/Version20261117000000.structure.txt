@@ -851,11 +851,11 @@ column|synth|general_settings|description|text|text|YES|''::text|
 column|synth|general_settings|id|text|text|NO||
 column|synth|general_settings|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 column|synth|general_settings|value|text|text|YES||
-column|synth|global_settings_presets|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|global_settings_presets|id|integer|int4|NO||
-column|synth|global_settings_presets|name|character varying|varchar|NO||60
-column|synth|global_settings_presets|snapshot|jsonb|jsonb|NO||
-column|synth|global_settings_presets|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_config_preset|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_config_preset|id|integer|int4|NO||
+column|public|core_config_preset|name|character varying|varchar|NO||60
+column|public|core_config_preset|snapshot|jsonb|jsonb|NO||
+column|public|core_config_preset|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
 column|synth|import_rules|action|jsonb|jsonb|YES||
 column|synth|import_rules|description|text|text|NO||
 column|synth|import_rules|enabled|boolean|bool|YES|true|
@@ -923,12 +923,12 @@ column|synth|moods_issued|rowid|bigint|int8|NO|nextval('moods_issued_rowid_seq':
 column|synth|moods_issued|sess|character varying|varchar|YES||1024
 column|synth|moods_issued|speaker|text|text|YES||
 column|synth|moods_issued|ts|bigint|int8|YES||
-column|synth|prompts|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
-column|synth|prompts|custom_prompt|text|text|YES||
-column|synth|prompts|default_prompt|text|text|NO||
-column|synth|prompts|description|text|text|YES||
-column|synth|prompts|prompt_key|character varying|varchar|NO||128
-column|synth|prompts|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
+column|public|core_prompt|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
+column|public|core_prompt|custom_prompt|text|text|YES||
+column|public|core_prompt|default_prompt|text|text|NO||
+column|public|core_prompt|description|text|text|YES||
+column|public|core_prompt|prompt_key|character varying|varchar|NO||128
+column|public|core_prompt|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 column|synth|quests|briefing2|text|text|YES||
 column|synth|quests|briefing|text|text|YES||
 column|synth|quests|data|text|text|YES||
@@ -1658,12 +1658,12 @@ constraint|synth|descriptions|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|synth|factions|factions_pkey|p|t|PRIMARY KEY (formid)
 constraint|synth|game_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
 constraint|synth|general_settings|general_settings_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|global_settings_presets|global_settings_presets_name_check|c|t|CHECK ((length(btrim((name)::text)) > 0))
-constraint|synth|global_settings_presets|global_settings_presets_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|global_settings_presets|global_settings_presets_snapshot_check|c|t|CHECK ((jsonb_typeof(snapshot) = 'object'::text))
+constraint|public|core_config_preset|global_settings_presets_name_check|c|t|CHECK ((length(btrim((name)::text)) > 0))
+constraint|public|core_config_preset|global_settings_presets_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_config_preset|global_settings_presets_snapshot_check|c|t|CHECK ((jsonb_typeof(snapshot) = 'object'::text))
 constraint|synth|import_rules|import_rules_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|import_rules|import_rules_profile_fkey|f|t|FOREIGN KEY (profile) REFERENCES core_profiles(id)
-constraint|synth|prompts|prompts_pkey|p|t|PRIMARY KEY (prompt_key)
+constraint|public|core_prompt|prompts_pkey|p|t|PRIMARY KEY (prompt_key)
 constraint|synth|relationship_eval_queue|relationship_eval_queue_npc_id_key|u|t|UNIQUE (npc_id)
 constraint|synth|relationship_eval_queue|relationship_eval_queue_pkey|p|t|PRIMARY KEY (id)
 constraint|synth|relationship_init_queue|relationship_init_queue_npc_id_key|u|t|UNIQUE (npc_id)
@@ -1893,11 +1893,11 @@ index|synth|eventlog|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utteran
 index|synth|factions|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON synth.factions USING btree (formid)
 index|synth|game_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON synth.game_plugins USING btree (plugin_name)
 index|synth|general_settings|general_settings_pkey|CREATE UNIQUE INDEX general_settings_pkey ON synth.general_settings USING btree (id)
-index|synth|global_settings_presets|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON synth.global_settings_presets USING btree (lower((name)::text))
-index|synth|global_settings_presets|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON synth.global_settings_presets USING btree (id)
+index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
+index|public|core_config_preset|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON public.core_config_preset USING btree (id)
 index|synth|import_rules|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON synth.import_rules USING btree (id)
 index|synth|memory_summary|memory_summary_tsv_idx|CREATE INDEX memory_summary_tsv_idx ON synth.memory_summary USING gin (native_vec)
-index|synth|prompts|prompts_pkey|CREATE UNIQUE INDEX prompts_pkey ON synth.prompts USING btree (prompt_key)
+index|public|core_prompt|prompts_pkey|CREATE UNIQUE INDEX prompts_pkey ON public.core_prompt USING btree (prompt_key)
 index|synth|relationship_eval_queue|relationship_eval_queue_npc_id_key|CREATE UNIQUE INDEX relationship_eval_queue_npc_id_key ON synth.relationship_eval_queue USING btree (npc_id)
 index|synth|relationship_eval_queue|relationship_eval_queue_pkey|CREATE UNIQUE INDEX relationship_eval_queue_pkey ON synth.relationship_eval_queue USING btree (id)
 index|synth|relationship_init_queue|relationship_init_queue_npc_id_key|CREATE UNIQUE INDEX relationship_init_queue_npc_id_key ON synth.relationship_init_queue USING btree (npc_id)
@@ -2024,7 +2024,7 @@ table|synth|eventlog|BASE TABLE
 table|synth|factions|BASE TABLE
 table|synth|game_plugins|BASE TABLE
 table|synth|general_settings|BASE TABLE
-table|synth|global_settings_presets|BASE TABLE
+table|public|core_config_preset|BASE TABLE
 table|synth|import_rules|BASE TABLE
 table|synth|locations|BASE TABLE
 table|synth|log|BASE TABLE
@@ -2032,7 +2032,7 @@ table|synth|memory_summary|BASE TABLE
 table|synth|memory_v|VIEW
 table|synth|memory|BASE TABLE
 table|synth|moods_issued|BASE TABLE
-table|synth|prompts|BASE TABLE
+table|public|core_prompt|BASE TABLE
 table|synth|quests|BASE TABLE
 table|synth|relationship_eval_queue|BASE TABLE
 table|synth|relationship_init_queue|BASE TABLE

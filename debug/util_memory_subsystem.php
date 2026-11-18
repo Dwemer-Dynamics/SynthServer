@@ -288,7 +288,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
 
     $summaryPromptValue = '';
     try {
-        $summaryPromptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'summary_prompt'");
+        $summaryPromptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'summary_prompt'");
         if ($summaryPromptData) {
             $summaryPromptValue = (!empty($summaryPromptData['custom_prompt'])) ? $summaryPromptData['custom_prompt'] : $summaryPromptData['default_prompt'];
         }
@@ -301,7 +301,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
 
     $individualPromptTemplate = null;
     try {
-        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'memory_subsystem_summary_individual'");
+        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'memory_subsystem_summary_individual'");
         if ($promptData) {
             $individualPromptTemplate = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
         }
@@ -766,7 +766,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     // Load memory subsystem summary prompt from database with fallback to hardcoded default
                     $memoryPrompt = null;
                     try {
-                        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'memory_subsystem_summary'");
+                        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'memory_subsystem_summary'");
                         if ($promptData) {
                             // Use custom_prompt if set, otherwise use default_prompt
                             $memoryPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -788,7 +788,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     // Load SUMMARY_PROMPT from database with fallback to $GLOBALS
                     $summaryPromptValue = null;
                     try {
-                        $summaryPromptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = 'summary_prompt'");
+                        $summaryPromptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'summary_prompt'");
                         if ($summaryPromptData) {
                             $summaryPromptValue = (!empty($summaryPromptData['custom_prompt'])) ? $summaryPromptData['custom_prompt'] : $summaryPromptData['default_prompt'];
                         }

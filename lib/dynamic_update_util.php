@@ -1437,7 +1437,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
     $updatePrompt = null;
     if (isset($dbPromptKeyMapping[$promptName])) {
         try {
-            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM prompts WHERE prompt_key = '{$dbPromptKeyMapping[$promptName]}'");
+            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = '{$dbPromptKeyMapping[$promptName]}'");
             if ($promptData) {
                 $updatePrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
