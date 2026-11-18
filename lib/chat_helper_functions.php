@@ -2121,22 +2121,6 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                         "utterance_id" => $currentUtteranceId,
                     ],
                 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-                if ($outBuffer["actor"]!="Player" && isset($GLOBALS["PATCH_ORIGINAL_MOOD_ISSUED"])) {
-                    $GLOBALS["db"]->insert(
-                        'moods_issued',
-                        array(
-                            'localts' => time(),
-                            'ts' => $GLOBALS["gameRequest"][1],
-                            'gamets' => $GLOBALS["gameRequest"][2],
-                            'speaker' => $outBuffer["actor"],
-                            'listener' =>$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"],
-                            'sess' => 'pending',
-                            'mood' => $GLOBALS["PATCH_ORIGINAL_MOOD_ISSUED"]
-
-
-                        )
-                    );
-                }
 
                 $outputToPluginLog = __DIR__."/../log/output_to_plugin.log";
                 if (class_exists('Logger')) {

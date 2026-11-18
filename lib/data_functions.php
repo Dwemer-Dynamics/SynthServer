@@ -5094,17 +5094,6 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
         //print_r($reponse);
 
         if (isset($reponse["is_memory_recall"]) && $reponse["is_memory_recall"]=="No") {
-             $GLOBALS["db"]->insert(
-                'audit_memory',
-                array(
-                    'input' => $TEST_TEXT,
-                    'keywords' =>'memory recall declined',
-                    'rank_any'=> -1,
-                    'rank_all'=>-1,
-                    'memory'=>'',
-                    'time'=>$reponse["elapsed_time"]
-                )
-            );
             return "";
         } else  if (isset($reponse["is_memory_recall"])) {
 
@@ -5198,17 +5187,6 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
         if (!isset($memory[0]))
             $memory[0]=["rank_any"=>null,"rank_all"=>null,"summary"=>null];
 
-        $GLOBALS["db"]->insert(
-                'audit_memory',
-                array(
-                    'input' => $TEST_TEXT,
-                    'keywords' =>$kwStringAny,
-                    'rank_any'=> $memory[0]["rank_any"],
-                    'rank_all'=>$memory[0]["rank_all"],
-                    'memory'=>$memory[0]["summary"],
-                    'time'=>isset($reponse["elapsed_time"])?$reponse["elapsed_time"]:"0 secs (internal)"
-                )
-            );
 
 
     return $memory;
@@ -5276,17 +5254,6 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
 
 
             if (isset($reponse["is_memory_recall"]) && $reponse["is_memory_recall"]=="No") {
-                $GLOBALS["db"]->insert(
-                    'audit_memory',
-                    array(
-                        'input' => $TEST_TEXT,
-                        'keywords' =>'memory recall declined',
-                        'rank_any'=> -1,
-                        'rank_all'=>-1,
-                        'memory'=>'',
-                        'time'=>$reponse["elapsed_time"]
-                    )
-                );
                 return null;
 
             }/* else  if (isset($reponse["is_memory_recall"])) {
@@ -5482,18 +5449,6 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                     LIMIT 5 OFFSET 0
                 ");*/
 
-            $GLOBALS["db"]->insert(
-                    'audit_memory',
-                    array(
-                        'input' => $TEST_TEXT,
-                        'keywords' =>(!empty($GLOBALS['PATCH_BYPASS_MINIME_EXTRACT']) ? 'strict semantic fallback / ' : 'text2vec search / ')
-                            . '(input plus "'.$contextKeywords.'"',
-                        'rank_any'=> (1.40 - floatval($singleMemory["mixed_distance"] ?? $singleMemory["distance"] ?? 0)),// Try to mimic FTS query rank
-                        'rank_all'=> (1.40 - floatval($singleMemory["distance"] ?? 0)),// Try to mimic FTS query rank
-                        'memory'=>$singleMemory["summary"],
-                        'time'=>isset($vector["timing"])?$vector["timing"]["generation_time_seconds"]:"0 secs (text2vec)"
-                    )
-                );
 
         } else {
             return null;
@@ -5599,17 +5554,6 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
              $memory[0]['combined_rank']=(7.95-$memory[0]["distance"]);
         }
 
-        $GLOBALS["db"]->insert(
-                'audit_memory',
-                array(
-                    'input' => $TEST_TEXT,
-                    'keywords' =>'text2vec worldknowledge search /'.$contextKeywords,
-                    'rank_any'=> (1.40-$memory[0]["distance"]),// Try to mimic FTS query rank
-                    'rank_all'=> (1.40-$memory[0]["distance"]),// Try to mimic FTS query rank
-                    'memory'=>$memory[0]["topic"],
-                    'time'=>isset($vector1["timing"])?$vector1["timing"]["generation_time_seconds"]:"0 secs (text2vec)"
-                )
-            );
 
     } else {
         return null;

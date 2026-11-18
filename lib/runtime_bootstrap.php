@@ -52,7 +52,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
 
         $requiredRelations = [
             'synth.actions_issued',
-            'synth.audit_memory',
             'synth.audit_request',
             'synth.bio_templates',
             'synth.bio_templates_custom',
@@ -84,7 +83,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'synth.log',
             'synth.memory',
             'synth.memory_summary',
-            'synth.moods_issued',
             'public.core_prompt',
             'public.core_quest',
             'public.core_relationship_eval_queue',
@@ -223,7 +221,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'descriptions_defaults' => 20260811002,
             'prompts' => 20260627001,
             'core_profiles' => 20260717001,
-            'moods_issued_sequence' => 20260626001,
             'core_tts_connector_metadata' => 20260626001,
             'core_tts_connector_omnivoice' => 20260708001,
             'core_tts_connector_removed_drivers' => 20260712001,
