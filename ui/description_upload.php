@@ -33,7 +33,7 @@ if (!$conn) {
 
 // EXPORT CUSTOM DESCRIPTIONS
 if (isset($_GET['action']) && $_GET['action'] == 'export_custom_items') {
- $export_query = "SELECT plugin, baseid, name, description FROM {$schema}.descriptions_custom ORDER BY plugin ASC, baseid ASC";
+ $export_query = "SELECT plugin, baseid, name, description FROM public.core_item_description_custom ORDER BY plugin ASC, baseid ASC";
  $export_result = pg_query($conn, $export_query);
 
  if ($export_result) {
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
  }
 
  $query = "
- INSERT INTO {$schema}.descriptions_custom
+ INSERT INTO public.core_item_description_custom
  (plugin, baseid, name, description)
  VALUES ($1, $2, $3, $4)
  ON CONFLICT (plugin, baseid)
@@ -180,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
  }
 
  $query = "
- INSERT INTO $schema.descriptions_custom (
+ INSERT INTO public.core_item_description_custom (
  plugin,
  baseid,
  name,
@@ -232,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 //
 //
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['truncate_items'])) {
- $truncate_query = "TRUNCATE TABLE {$schema}.descriptions_custom";
+ $truncate_query = "TRUNCATE TABLE public.core_item_description_custom";
  $result = pg_query($conn, $truncate_query);
 
  if ($result) {
@@ -261,7 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  }
 
  $query = "
- INSERT INTO {$schema}.descriptions_custom
+ INSERT INTO public.core_item_description_custom
  (plugin, baseid, name, description)
  VALUES ($1, $2, $3, $4)
  ON CONFLICT (plugin, baseid)

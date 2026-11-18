@@ -87,25 +87,25 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $column = $testDb->fetchOne("
             SELECT is_nullable
               FROM information_schema.columns
-             WHERE table_schema = 'synth'
-               AND table_name = 'worldknowledge'
+             WHERE table_schema = 'public'
+               AND table_name = 'core_worldknowledge_article'
                AND column_name = 'topic_desc'
         ");
         $uniqueIndex = $testDb->fetchOne("
             SELECT COUNT(*) AS total
               FROM pg_indexes
-             WHERE schemaname = 'synth'
-               AND tablename = 'worldknowledge'
+             WHERE schemaname = 'public'
+               AND tablename = 'core_worldknowledge_article'
                AND indexname = 'worldknowledge_custom_topic_unique_idx'
         ");
         $legacyUniqueIndexes = $testDb->fetchOne("
             SELECT COUNT(*) AS total FROM pg_indexes
-             WHERE schemaname = 'synth'
+             WHERE schemaname IN ('synth', 'public')
                AND indexname IN ('worldknowledge_topic_unique_idx', 'worldknowledge_canonical_topic_unique_idx')
         ");
-        $factoryBefore = $testDb->fetchOne("SELECT COUNT(*) AS total FROM worldknowledge WHERE source_kind='factory'");
+        $factoryBefore = $testDb->fetchOne("SELECT COUNT(*) AS total FROM core_worldknowledge_article WHERE source_kind='factory'");
         $firstImport = $testDb->execQuery("
-            INSERT INTO worldknowledge (topic, aliases, canonical_topic, topic_desc_basic, category, source_kind, is_active)
+            INSERT INTO core_worldknowledge_article (topic, aliases, canonical_topic, topic_desc_basic, category, source_kind, is_active)
             VALUES ('diamond_city', 'The Great Green Jewel', 'diamond_city', 'Diamond City is a fortified Commonwealth settlement.', 'location', 'custom', TRUE)
             ON CONFLICT (canonical_topic) WHERE source_kind='custom' AND is_active DO UPDATE
                 SET topic = EXCLUDED.topic,
@@ -113,7 +113,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
                     category = EXCLUDED.category
         ");
         $secondImport = $testDb->execQuery("
-            INSERT INTO worldknowledge (topic, aliases, canonical_topic, topic_desc_basic, category, source_kind, is_active)
+            INSERT INTO core_worldknowledge_article (topic, aliases, canonical_topic, topic_desc_basic, category, source_kind, is_active)
             VALUES ('diamond_city', 'The Stadium', 'diamond_city', 'Diamond City occupies Boston''s old baseball stadium.', 'location', 'custom', TRUE)
             ON CONFLICT (canonical_topic) WHERE source_kind='custom' AND is_active DO UPDATE
                 SET topic_desc_basic = EXCLUDED.topic_desc_basic,
@@ -126,7 +126,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
                    MAX(topic_desc_basic) AS topic_desc_basic, MAX(source_kind) AS source_kind
               FROM worldknowledge_effective WHERE canonical_topic = 'diamond_city'
         ");
-        $factoryAfter = $testDb->fetchOne("SELECT COUNT(*) AS total FROM worldknowledge WHERE source_kind='factory'");
+        $factoryAfter = $testDb->fetchOne("SELECT COUNT(*) AS total FROM core_worldknowledge_article WHERE source_kind='factory'");
         $testDb->close();
 
         $this->assertSame('YES', $column['is_nullable'] ?? null);
@@ -213,9 +213,9 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         require("conf.php");
 
         $testDb = new sql();
-        $testDb->execQuery("DELETE FROM worldknowledge WHERE canonical_topic = 'the_minutemen' AND source_kind = 'custom'");
+        $testDb->execQuery("DELETE FROM core_worldknowledge_article WHERE canonical_topic = 'the_minutemen' AND source_kind = 'custom'");
         $testDb->insert(
-            'worldknowledge',
+            'core_worldknowledge_article',
             array(
                 'topic' => 'the_minutemen',
                 'aliases' => 'Minutemen',
@@ -226,7 +226,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             )
         );
         $testDb->execQuery("
-            UPDATE worldknowledge
+            UPDATE core_worldknowledge_article
                SET native_vector =
                      setweight(to_tsvector(coalesce(topic, '')), 'A')
                   || setweight(to_tsvector(coalesce(topic_desc, '')), 'B')
@@ -279,7 +279,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
         $this->insertStimpackLore();
 
         $testDb = new sql();
-        $this->assertNotFalse($testDb->execQuery("UPDATE synth.worldknowledge SET knowledge_class='medicine',knowledge_class_basic='commonwealth' WHERE canonical_topic='stimpack_seller' AND source_kind='custom'"));
+        $this->assertNotFalse($testDb->execQuery("UPDATE public.core_worldknowledge_article SET knowledge_class='medicine',knowledge_class_basic='commonwealth' WHERE canonical_topic='stimpack_seller' AND source_kind='custom'"));
         $this->assertNotFalse($testDb->execQuery("INSERT INTO synth.core_narrator(id,value) VALUES('worldknowledge','medicine') ON CONFLICT(id) DO UPDATE SET value=EXCLUDED.value"));
         $testDb->insert(
             'conf_opts',
@@ -586,7 +586,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
     private function insertStimpackLore() {
         $testDb = new sql();
         $testDb->insert(
-            'worldknowledge',
+            'core_worldknowledge_article',
             array(
                 'topic' => 'stimpack_seller',
                 'aliases' => 'stimpack vendor,Lair of the Stimpack Vendor',

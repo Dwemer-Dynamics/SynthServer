@@ -106,8 +106,8 @@ final class NativeWaitActionTest extends DatabaseTestCase
 
     public function testOrdinaryNpcCatalogOffersNegotiatedWaitAndMissingReleaseWithoutDatabaseMutation(): void
     {
-        $this->database->execQuery("DELETE FROM synth.core_action WHERE code_name='ReleaseWait'");
-        $before=$this->database->fetchAll('SELECT code_name,is_activated,parameters_json::text FROM synth.core_action ORDER BY code_name');
+        $this->database->execQuery("DELETE FROM public.core_action WHERE code_name='ReleaseWait'");
+        $before=$this->database->fetchAll('SELECT code_name,is_activated,parameters_json::text FROM public.core_action ORDER BY code_name');
         require_once dirname(__DIR__,2).'/functions/functions.php';
         $this->assertContains('WaitHere',$GLOBALS['ENABLED_FUNCTIONS']);
         $this->assertContains('ReleaseWait',$GLOBALS['ENABLED_FUNCTIONS']);
@@ -117,7 +117,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
             $this->assertSame(false,$GLOBALS['BASE_FUNCTIONS'][$code]['parameters']['additionalProperties']);
             $this->assertStringContainsString('Talk promise does not',$GLOBALS['F_DESCRIPTIONS'][$code]);
         }
-        $this->assertSame($before,$this->database->fetchAll('SELECT code_name,is_activated,parameters_json::text FROM synth.core_action ORDER BY code_name'));
+        $this->assertSame($before,$this->database->fetchAll('SELECT code_name,is_activated,parameters_json::text FROM public.core_action ORDER BY code_name'));
         $model=['action'=>$GLOBALS['F_NAMES']['WaitHere'],'character'=>'Codsworth','listener'=>'Nora',
             'mood'=>'normal','message'=>'Very well.','target'=>'','item'=>''];
         $execution=buildFunctionExecutionContextFromResponse($model);

@@ -689,7 +689,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
             echo "Creating vectors for memories" . PHP_EOL;
 
             $db      = new sql();
-            $results = $db->fetchAll("select topic,topic_desc from worldknowledge where vector384 is null");
+            $results = $db->fetchAll("select topic,topic_desc from core_worldknowledge_article where vector384 is null");
             $counter = 0;
             foreach ($results as $row) {
 

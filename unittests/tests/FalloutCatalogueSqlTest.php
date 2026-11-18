@@ -80,8 +80,8 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
 
     private function clearFactoryCatalogue(): void
     {
-        self::assertNotFalse($this->db()->execQuery("DELETE FROM synth.worldknowledge WHERE source_kind='factory'"));
-        self::assertNotFalse($this->db()->execQuery('DELETE FROM synth.worldknowledge_catalogs'));
+        self::assertNotFalse($this->db()->execQuery("DELETE FROM public.core_worldknowledge_article WHERE source_kind='factory'"));
+        self::assertNotFalse($this->db()->execQuery('DELETE FROM public.core_worldknowledge_catalog'));
         self::assertNotFalse($this->db()->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_catalogue_sql'"));
     }
 
@@ -164,12 +164,12 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     public function testEmptyTablesSeedAllKeysAndStableReferenceAndAliases(): void
     {
         $this->clearFactoryCatalogue();
-        self::assertNotFalse($this->db()->execQuery('TRUNCATE synth.bio_templates,synth.bio_templates_custom,synth.bio_template_actor_map,synth.descriptions,synth.descriptions_custom'));
+        self::assertNotFalse($this->db()->execQuery('TRUNCATE synth.bio_templates,synth.bio_templates_custom,synth.bio_template_actor_map,public.core_item_description,public.core_item_description_custom'));
         $report=synthInstallFalloutCatalogueSql($this->db(),$this->root());
         self::assertSame(0,$report['profiles_filled']);
         self::assertSame('204',$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_templates')['n']);
         self::assertSame('207',$this->db()->fetchOne('SELECT count(*) AS n FROM synth.bio_template_actor_map')['n']);
-        self::assertSame('201',$this->db()->fetchOne('SELECT count(*) AS n FROM synth.descriptions')['n']);
+        self::assertSame('201',$this->db()->fetchOne('SELECT count(*) AS n FROM public.core_item_description')['n']);
         $pack=synthLoadFalloutContentPack($this->root());$references=0;$aliases=0;
         foreach ($pack['npcs'] as $row) {
             if (($row['mapping_kind'] ?? 'base')==='reference') {
@@ -193,10 +193,10 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         $pack=synthLoadFalloutContentPack($this->root());$npc=$pack['npcs'][0]['npc_name'];$item=$pack['items'][0];
         self::assertNotFalse($db->execQuery('UPDATE synth.bio_templates SET personality=$1 WHERE npc_name=$2',['Operator standard edit.',$npc]));
         self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_templates_custom(npc_name,npc_static_bio) VALUES($1,$2) ON CONFLICT(npc_name) DO UPDATE SET npc_static_bio=EXCLUDED.npc_static_bio',[$npc,'Operator custom biography.']));
-        self::assertNotFalse($db->execQuery('UPDATE synth.descriptions SET description=$1 WHERE plugin=$2 AND baseid=$3',['Operator standard item.',$item['plugin'],$item['baseid']]));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.descriptions_custom(plugin,baseid,name,description) VALUES($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description',[$item['plugin'],$item['baseid'],'Custom item','Operator custom item.']));
+        self::assertNotFalse($db->execQuery('UPDATE public.core_item_description SET description=$1 WHERE plugin=$2 AND baseid=$3',['Operator standard item.',$item['plugin'],$item['baseid']]));
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description',[$item['plugin'],$item['baseid'],'Custom item','Operator custom item.']));
         foreach ([['tato',true],['catalogue_inactive_custom',false]] as [$topic,$active])
-            self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES($1,$2,$3,\'custom\',$4)',[$topic,$topic,'Operator lore retained.',$active ? 'true' : 'false']));
+            self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES($1,$2,$3,\'custom\',$4)',[$topic,$topic,'Operator lore retained.',$active ? 'true' : 'false']));
         // Deliberate remapping is an existing operator choice; the source identity must still exist.
         $base=$pack['npcs'][0];
         self::assertNotFalse($db->execQuery('UPDATE synth.bio_template_actor_map SET exact_name=$1 WHERE lower(base_plugin)=lower($2) AND base_local_formid=$3',['Operator mapping label.',$base['plugin'],$base['baseid']]));
@@ -210,7 +210,7 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         foreach (['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom','core_npc_master','core_npc_master_history','actor_identities'] as $table)
             self::assertSame($before[$table],$after[$table],$table.' must retain operator and save-owned bytes');
         self::assertSame('Operator lore retained.',$db->fetchOne("SELECT topic_desc FROM synth.worldknowledge_effective WHERE canonical_topic='tato'")['topic_desc']);
-        self::assertSame('f',$db->fetchOne("SELECT is_active FROM synth.worldknowledge WHERE canonical_topic='catalogue_inactive_custom'")['is_active']);
+        self::assertSame('f',$db->fetchOne("SELECT is_active FROM public.core_worldknowledge_article WHERE canonical_topic='catalogue_inactive_custom'")['is_active']);
         self::assertSame(['BEGIN','COMMIT'],$this->transactions($adapter));
         synthInstallFalloutCatalogueSql($db,$this->root());
         self::assertSame($after,$this->snapshot(),'Repeated release must not churn row contents/timestamps');
@@ -219,21 +219,21 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
     public function testForeignActiveCatalogueAndOldVersionsRemainIntact(): void
     {
         $this->clearFactoryCatalogue();$db=$this->db();
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.worldknowledge_catalogs(catalog_id,catalog_version,display_name,checksum_sha256,row_count,is_active) VALUES('operator-selected','custom-release','Operator selected',repeat('a',64),1,true)"));
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.worldknowledge(topic,canonical_topic,topic_desc,source_kind,catalog_id,catalog_version,content_hash) VALUES('foreign_topic','foreign_topic','Selected catalogue.','factory','operator-selected','custom-release',repeat('b',64))"));
-        $foreignBefore=$db->fetchOne("SELECT to_jsonb(row) AS row FROM synth.worldknowledge_catalogs row WHERE catalog_id='operator-selected'");
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_worldknowledge_catalog(catalog_id,catalog_version,display_name,checksum_sha256,row_count,is_active) VALUES('operator-selected','custom-release','Operator selected',repeat('a',64),1,true)"));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,topic_desc,source_kind,catalog_id,catalog_version,content_hash) VALUES('foreign_topic','foreign_topic','Selected catalogue.','factory','operator-selected','custom-release',repeat('b',64))"));
+        $foreignBefore=$db->fetchOne("SELECT to_jsonb(row) AS row FROM public.core_worldknowledge_catalog row WHERE catalog_id='operator-selected'");
         synthInstallFalloutCatalogueSql($db,$this->root());
-        self::assertSame($foreignBefore,$db->fetchOne("SELECT to_jsonb(row) AS row FROM synth.worldknowledge_catalogs row WHERE catalog_id='operator-selected'"));
-        self::assertSame('operator-selected',$db->fetchOne('SELECT catalog_id FROM synth.worldknowledge_catalogs WHERE is_active')['catalog_id']);
+        self::assertSame($foreignBefore,$db->fetchOne("SELECT to_jsonb(row) AS row FROM public.core_worldknowledge_catalog row WHERE catalog_id='operator-selected'"));
+        self::assertSame('operator-selected',$db->fetchOne('SELECT catalog_id FROM public.core_worldknowledge_catalog WHERE is_active')['catalog_id']);
         self::assertSame('Selected catalogue.',$db->fetchOne("SELECT topic_desc FROM synth.worldknowledge_effective WHERE canonical_topic='foreign_topic'")['topic_desc']);
         $own=synthLoadFalloutCatalogueSql($this->root())['manifest']['catalog'];
-        self::assertSame('f',$db->fetchOne('SELECT is_active FROM synth.worldknowledge_catalogs WHERE catalog_id='.$db->escapeLiteral($own['catalog_id']).' AND catalog_version='.$db->escapeLiteral($own['catalog_version']))['is_active']);
-        self::assertNotFalse($db->execQuery("UPDATE synth.worldknowledge_catalogs SET is_active=false WHERE catalog_id='operator-selected'"));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge_catalogs(catalog_id,catalog_version,display_name,checksum_sha256,row_count,is_active) VALUES($1,\'old-retained\',\'Old factory\',repeat(\'c\',64),1,true)',[$own['catalog_id']]));
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge(topic,canonical_topic,topic_desc,source_kind,catalog_id,catalog_version) VALUES(\'old_topic\',\'old_topic\',\'Old retained article.\',\'factory\',$1,\'old-retained\')',[$own['catalog_id']]));
+        self::assertSame('f',$db->fetchOne('SELECT is_active FROM public.core_worldknowledge_catalog WHERE catalog_id='.$db->escapeLiteral($own['catalog_id']).' AND catalog_version='.$db->escapeLiteral($own['catalog_version']))['is_active']);
+        self::assertNotFalse($db->execQuery("UPDATE public.core_worldknowledge_catalog SET is_active=false WHERE catalog_id='operator-selected'"));
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_catalog(catalog_id,catalog_version,display_name,checksum_sha256,row_count,is_active) VALUES($1,\'old-retained\',\'Old factory\',repeat(\'c\',64),1,true)',[$own['catalog_id']]));
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,topic_desc,source_kind,catalog_id,catalog_version) VALUES(\'old_topic\',\'old_topic\',\'Old retained article.\',\'factory\',$1,\'old-retained\')',[$own['catalog_id']]));
         synthInstallFalloutCatalogueSql($db,$this->root());
-        self::assertEquals($own,$db->fetchOne('SELECT catalog_id,catalog_version FROM synth.worldknowledge_catalogs WHERE is_active'));
-        self::assertSame('Old retained article.',$db->fetchOne("SELECT topic_desc FROM synth.worldknowledge WHERE canonical_topic='old_topic'")['topic_desc']);
+        self::assertEquals($own,$db->fetchOne('SELECT catalog_id,catalog_version FROM public.core_worldknowledge_catalog WHERE is_active'));
+        self::assertSame('Old retained article.',$db->fetchOne("SELECT topic_desc FROM public.core_worldknowledge_article WHERE canonical_topic='old_topic'")['topic_desc']);
     }
 
     public function testMalformedManifestPathsHashesCountsAndTransactionCommandsWriteNothing(): void
@@ -346,18 +346,18 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         $catalog=synthLoadFalloutCatalogueSql($this->root())['manifest']['catalog'];
         $scope="source_kind='factory' AND catalog_id=".$db->escapeLiteral($catalog['catalog_id'])
             .' AND catalog_version='.$db->escapeLiteral($catalog['catalog_version']);
-        self::assertSame('125',$db->fetchOne('SELECT count(*) AS n FROM synth.worldknowledge WHERE '.$scope.' AND native_vector IS NOT NULL')['n']);
-        self::assertSame('1',$db->fetchOne("SELECT count(*) AS n FROM synth.worldknowledge WHERE ".$scope." AND canonical_topic='tato' AND native_vector @@ plainto_tsquery('simple','tato')")['n']);
-        self::assertNotFalse($db->execQuery("UPDATE synth.worldknowledge SET native_vector=NULL,is_active=false WHERE ".$scope." AND canonical_topic='tato'"));
-        self::assertNotFalse($db->execQuery("UPDATE synth.worldknowledge SET native_vector=to_tsvector('simple','obsolete_vector_fixture') WHERE ".$scope." AND canonical_topic='jet'"));
+        self::assertSame('125',$db->fetchOne('SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE '.$scope.' AND native_vector IS NOT NULL')['n']);
+        self::assertSame('1',$db->fetchOne("SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE ".$scope." AND canonical_topic='tato' AND native_vector @@ plainto_tsquery('simple','tato')")['n']);
+        self::assertNotFalse($db->execQuery("UPDATE public.core_worldknowledge_article SET native_vector=NULL,is_active=false WHERE ".$scope." AND canonical_topic='tato'"));
+        self::assertNotFalse($db->execQuery("UPDATE public.core_worldknowledge_article SET native_vector=to_tsvector('simple','obsolete_vector_fixture') WHERE ".$scope." AND canonical_topic='jet'"));
         synthInstallFalloutCatalogueSql($db,$this->root());
         $expected="setweight(to_tsvector('simple',coalesce(topic,'')),'A')"
             ."||setweight(to_tsvector('simple',coalesce(aliases,'')),'A')"
             ."||setweight(to_tsvector('simple',coalesce(topic_desc,'')),'B')"
             ."||setweight(to_tsvector('simple',coalesce(topic_desc_basic,'')),'C')";
-        self::assertSame('0',$db->fetchOne('SELECT count(*) AS n FROM synth.worldknowledge WHERE '.$scope.' AND native_vector IS DISTINCT FROM ('.$expected.')')['n']);
-        self::assertSame('f',$db->fetchOne("SELECT is_active FROM synth.worldknowledge WHERE ".$scope." AND canonical_topic='tato'")['is_active']);
-        self::assertSame('1',$db->fetchOne("SELECT count(*) AS n FROM synth.worldknowledge WHERE ".$scope." AND canonical_topic='jet' AND native_vector @@ plainto_tsquery('simple','jet')")['n']);
+        self::assertSame('0',$db->fetchOne('SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE '.$scope.' AND native_vector IS DISTINCT FROM ('.$expected.')')['n']);
+        self::assertSame('f',$db->fetchOne("SELECT is_active FROM public.core_worldknowledge_article WHERE ".$scope." AND canonical_topic='tato'")['is_active']);
+        self::assertSame('1',$db->fetchOne("SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE ".$scope." AND canonical_topic='jet' AND native_vector @@ plainto_tsquery('simple','jet')")['n']);
         $after=$this->snapshot();
         synthInstallFalloutCatalogueSql($db,$this->root());
         self::assertSame($after,$this->snapshot(),'Correct vectors must not churn on repeated release');

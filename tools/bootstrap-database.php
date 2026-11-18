@@ -49,7 +49,7 @@ if (synthRuntimeNeedsDbUpdates()) {
 $versionRows = $db->fetchAll("SELECT COUNT(*) AS count FROM public.core_catalog_version");
 $seedRows = $db->fetchAll("
     SELECT 'core_action' AS seed_name, COUNT(*) AS row_count, COUNT(DISTINCT code_name) AS unique_count
-      FROM synth.core_action
+      FROM public.core_action
     UNION ALL
     SELECT 'prompts', COUNT(*), COUNT(DISTINCT prompt_key)
       FROM public.core_prompt
@@ -58,7 +58,7 @@ $seedRows = $db->fetchAll("
       FROM synth.bio_templates
     UNION ALL
     SELECT 'descriptions', COUNT(*), COUNT(DISTINCT lower(plugin || ':' || baseid))
-      FROM synth.descriptions
+      FROM public.core_item_description
     UNION ALL
     SELECT 'general_settings', COUNT(*), COUNT(DISTINCT id)
       FROM synth.general_settings

@@ -1,7 +1,7 @@
 -- Canonical SYNTH FO4 core actions.
 -- Keep this list in sync with synthCanonicalActionCodes() in functions/functions.php.
 
-DELETE FROM synth.core_action
+DELETE FROM public.core_action
 WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
   AND code_name NOT IN (
     'Attack',
@@ -42,7 +42,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'WaitHere'
   );
 
-DELETE FROM synth.core_action_custom
+DELETE FROM public.core_action_custom
 WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
   AND code_name NOT IN (
     'Attack',
@@ -83,7 +83,7 @@ WHERE metadata @> '{"source":"functions.php","builtin":true}'::jsonb
     'WaitHere'
   );
 
-INSERT INTO synth.core_action (
+INSERT INTO public.core_action (
     code_name,
     action_name,
     description,

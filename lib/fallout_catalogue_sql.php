@@ -214,14 +214,14 @@ function synthFalloutCatalogueSqlAssertInstalled(object $db,array $release): voi
     $queries=[];
     if ($names!==[]) $queries['npcs']='WITH expected(npc_name) AS (VALUES '.implode(',',$names).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.bio_templates installed WHERE installed.npc_name=expected.npc_name)';
     if ($maps!==[]) $queries['mappings']='WITH expected(kind,plugin,formid) AS (VALUES '.implode(',',$maps).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.bio_template_actor_map installed WHERE (expected.kind=\'base\' AND lower(installed.base_plugin)=lower(expected.plugin) AND upper(installed.base_local_formid)=expected.formid) OR (expected.kind=\'reference\' AND lower(installed.reference_plugin)=lower(expected.plugin) AND upper(installed.reference_local_formid)=expected.formid))';
-    if ($items!==[]) $queries['items']='WITH expected(plugin,baseid) AS (VALUES '.implode(',',$items).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.descriptions installed WHERE installed.plugin=expected.plugin AND installed.baseid=expected.baseid)';
+    if ($items!==[]) $queries['items']='WITH expected(plugin,baseid) AS (VALUES '.implode(',',$items).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM public.core_item_description installed WHERE installed.plugin=expected.plugin AND installed.baseid=expected.baseid)';
     foreach ($queries as $key=>$query) {
         $result=$db->fetchOne($query);
         if (!is_array($result) || !array_key_exists('n',$result) || intval($result['n'])!==$release['manifest']['counts'][$key])
             throw new RuntimeException('Fallout catalogue source identity coverage is incomplete');
     }
     $catalog=$release['catalog'];$id=$literal($catalog['manifest']['catalog_id']);$version=$literal($catalog['manifest']['catalog_version']);
-    $record=$db->fetchOne('SELECT row_count,checksum_sha256 FROM synth.worldknowledge_catalogs WHERE catalog_id='.$id.' AND catalog_version='.$version);
+    $record=$db->fetchOne('SELECT row_count,checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id='.$id.' AND catalog_version='.$version);
     if (!is_array($record) || intval($record['row_count'] ?? -1)!==count($catalog['rows'])
         || ($record['checksum_sha256'] ?? '')!==$catalog['checksum_sha256']
         || synthWorldKnowledgeAssertCatalogComplete($db,$catalog['manifest']['catalog_id'],$catalog['manifest']['catalog_version'])!==count($catalog['rows']))
@@ -229,7 +229,7 @@ function synthFalloutCatalogueSqlAssertInstalled(object $db,array $release): voi
     $expected=[];
     foreach ($catalog['rows'] as $row) $expected[]='('.$literal($row['canonical_topic']).','.$literal($row['content_hash']).')';
     if ($expected!==[]) {
-        $result=$db->fetchOne('WITH expected(topic,content_hash) AS (VALUES '.implode(',',$expected).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM synth.worldknowledge installed WHERE installed.source_kind=\'factory\' AND installed.catalog_id='.$id.' AND installed.catalog_version='.$version.' AND installed.canonical_topic=expected.topic AND installed.content_hash=expected.content_hash)');
+        $result=$db->fetchOne('WITH expected(topic,content_hash) AS (VALUES '.implode(',',$expected).') SELECT count(*) AS n FROM expected WHERE EXISTS (SELECT 1 FROM public.core_worldknowledge_article installed WHERE installed.source_kind=\'factory\' AND installed.catalog_id='.$id.' AND installed.catalog_version='.$version.' AND installed.canonical_topic=expected.topic AND installed.content_hash=expected.content_hash)');
         if (!is_array($result) || intval($result['n'] ?? -1)!==count($catalog['rows']))
             throw new RuntimeException('Fallout lore source hashes are incomplete');
     }
@@ -259,12 +259,12 @@ function synthInstallFalloutCatalogueSql(object $db,string $root): array
             throw new RuntimeException('Unable to inspect Fallout catalogue migration version');
         if ($installed['version']!==null && intval($installed['version'])>SYNTH_FALLOUT_CATALOGUE_SQL_VERSION)
             throw new RuntimeException('A newer Fallout catalogue SQL migration is installed; refusing an older release');
-        if ($db->execQuery('LOCK TABLE synth.worldknowledge_catalogs IN SHARE ROW EXCLUSIVE MODE')===false)
+        if ($db->execQuery('LOCK TABLE public.core_worldknowledge_catalog IN SHARE ROW EXCLUSIVE MODE')===false)
             throw new RuntimeException('Unable to lock Fallout catalogue selection');
-        $activeBefore=$db->fetchOne('SELECT catalog_id,catalog_version FROM synth.worldknowledge_catalogs WHERE is_active');
+        $activeBefore=$db->fetchOne('SELECT catalog_id,catalog_version FROM public.core_worldknowledge_catalog WHERE is_active');
         if ($db->execQuery($release['sql'])===false) throw new RuntimeException('Fallout catalogue SQL did not execute cleanly');
         synthFalloutCatalogueSqlAssertInstalled($db,$release);
-        $activeAfter=$db->fetchOne('SELECT catalog_id,catalog_version FROM synth.worldknowledge_catalogs WHERE is_active');
+        $activeAfter=$db->fetchOne('SELECT catalog_id,catalog_version FROM public.core_worldknowledge_catalog WHERE is_active');
         $ownId=$release['manifest']['catalog']['catalog_id'];
         if (($activeBefore['catalog_id'] ?? $ownId)!==$ownId) {
             if ($activeAfter!==$activeBefore) throw new RuntimeException('Fallout catalogue changed another active catalogue');

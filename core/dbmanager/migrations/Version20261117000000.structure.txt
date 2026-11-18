@@ -632,38 +632,38 @@ column|synth|combined_descriptions|name|text|text|YES||
 column|synth|combined_descriptions|plugin|text|text|YES||
 column|synth|conf_opts|id|text|text|NO||
 column|synth|conf_opts|value|text|text|YES||
-column|synth|core_action_custom|action_name|character varying|varchar|NO||255
-column|synth|core_action_custom|available_to_followers|boolean|bool|NO|false|
-column|synth|core_action_custom|available_to_narrator|boolean|bool|NO|false|
-column|synth|core_action_custom|available_to_npc|boolean|bool|NO|false|
-column|synth|core_action_custom|code_name|character varying|varchar|NO||128
-column|synth|core_action_custom|created_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|core_action_custom|description|text|text|NO|''::text|
-column|synth|core_action_custom|game_function|boolean|bool|NO|true|
-column|synth|core_action_custom|id|integer|int4|NO||
-column|synth|core_action_custom|import_version|bigint|int8|NO|0|
-column|synth|core_action_custom|is_activated|boolean|bool|NO|true|
-column|synth|core_action_custom|metadata|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|core_action_custom|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|core_action_custom|return_message|text|text|NO|''::text|
-column|synth|core_action_custom|script_proxy_program|jsonb|jsonb|YES||
-column|synth|core_action_custom|updated_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|core_action|action_name|character varying|varchar|NO||255
-column|synth|core_action|available_to_followers|boolean|bool|NO|false|
-column|synth|core_action|available_to_narrator|boolean|bool|NO|false|
-column|synth|core_action|available_to_npc|boolean|bool|NO|false|
-column|synth|core_action|code_name|character varying|varchar|NO||128
-column|synth|core_action|created_at|timestamp without time zone|timestamp|YES|now()|
-column|synth|core_action|description|text|text|NO|''::text|
-column|synth|core_action|game_function|boolean|bool|NO|true|
-column|synth|core_action|id|integer|int4|NO||
-column|synth|core_action|import_version|bigint|int8|NO|0|
-column|synth|core_action|is_activated|boolean|bool|NO|true|
-column|synth|core_action|metadata|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|core_action|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|core_action|return_message|text|text|NO|''::text|
-column|synth|core_action|script_proxy_program|jsonb|jsonb|YES||
-column|synth|core_action|updated_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_action_custom|action_name|character varying|varchar|NO||255
+column|public|core_action_custom|available_to_followers|boolean|bool|NO|false|
+column|public|core_action_custom|available_to_narrator|boolean|bool|NO|false|
+column|public|core_action_custom|available_to_npc|boolean|bool|NO|false|
+column|public|core_action_custom|code_name|character varying|varchar|NO||128
+column|public|core_action_custom|created_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_action_custom|description|text|text|NO|''::text|
+column|public|core_action_custom|game_function|boolean|bool|NO|true|
+column|public|core_action_custom|id|integer|int4|NO||
+column|public|core_action_custom|import_version|bigint|int8|NO|0|
+column|public|core_action_custom|is_activated|boolean|bool|NO|true|
+column|public|core_action_custom|metadata|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_action_custom|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_action_custom|return_message|text|text|NO|''::text|
+column|public|core_action_custom|script_proxy_program|jsonb|jsonb|YES||
+column|public|core_action_custom|updated_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_action|action_name|character varying|varchar|NO||255
+column|public|core_action|available_to_followers|boolean|bool|NO|false|
+column|public|core_action|available_to_narrator|boolean|bool|NO|false|
+column|public|core_action|available_to_npc|boolean|bool|NO|false|
+column|public|core_action|code_name|character varying|varchar|NO||128
+column|public|core_action|created_at|timestamp without time zone|timestamp|YES|now()|
+column|public|core_action|description|text|text|NO|''::text|
+column|public|core_action|game_function|boolean|bool|NO|true|
+column|public|core_action|id|integer|int4|NO||
+column|public|core_action|import_version|bigint|int8|NO|0|
+column|public|core_action|is_activated|boolean|bool|NO|true|
+column|public|core_action|metadata|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_action|parameters_json|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_action|return_message|text|text|NO|''::text|
+column|public|core_action|script_proxy_program|jsonb|jsonb|YES||
+column|public|core_action|updated_at|timestamp without time zone|timestamp|YES|now()|
 column|public|core_api_badge|api_key|text|text|NO||
 column|public|core_api_badge|id|integer|int4|NO|nextval('api_badge_id_seq'::regclass)|
 column|public|core_api_badge|label|text|text|NO||
@@ -793,14 +793,14 @@ column|public|core_tts_pronunciation|races|character varying|varchar|NO|''::char
 column|public|core_tts_pronunciation|source_text|character varying|varchar|NO||120
 column|public|core_tts_pronunciation|spoken_text|character varying|varchar|NO||240
 column|public|core_tts_pronunciation|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|descriptions_custom|baseid|character varying|varchar|NO||128
-column|synth|descriptions_custom|description|text|text|YES||
-column|synth|descriptions_custom|name|text|text|YES||
-column|synth|descriptions_custom|plugin|text|text|NO|''::text|
-column|synth|descriptions|baseid|character varying|varchar|NO||128
-column|synth|descriptions|description|text|text|YES||
-column|synth|descriptions|name|text|text|YES||
-column|synth|descriptions|plugin|text|text|NO|''::text|
+column|public|core_item_description_custom|baseid|character varying|varchar|NO||128
+column|public|core_item_description_custom|description|text|text|YES||
+column|public|core_item_description_custom|name|text|text|YES||
+column|public|core_item_description_custom|plugin|text|text|NO|''::text|
+column|public|core_item_description|baseid|character varying|varchar|NO||128
+column|public|core_item_description|description|text|text|YES||
+column|public|core_item_description|name|text|text|YES||
+column|public|core_item_description|plugin|text|text|NO|''::text|
 column|synth|diarylog|content|text|text|YES||
 column|synth|diarylog|gamets|bigint|int8|NO||
 column|synth|diarylog|localts|bigint|int8|NO||
@@ -1054,15 +1054,15 @@ column|public|core_worldknowledge_audit|selected_articles|jsonb|jsonb|NO|'[]'::j
 column|public|core_worldknowledge_audit|settings|jsonb|jsonb|NO|'{}'::jsonb|
 column|public|core_worldknowledge_audit|status|text|text|NO||
 column|public|core_worldknowledge_audit|tag_decisions|jsonb|jsonb|NO|'[]'::jsonb|
-column|synth|worldknowledge_catalogs|activated_at|timestamp without time zone|timestamp|YES||
-column|synth|worldknowledge_catalogs|catalog_id|text|text|NO||
-column|synth|worldknowledge_catalogs|catalog_version|text|text|NO||
-column|synth|worldknowledge_catalogs|checksum_sha256|character varying|varchar|NO||64
-column|synth|worldknowledge_catalogs|display_name|text|text|NO||
-column|synth|worldknowledge_catalogs|installed_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|worldknowledge_catalogs|is_active|boolean|bool|NO|false|
-column|synth|worldknowledge_catalogs|manifest|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth|worldknowledge_catalogs|row_count|integer|int4|NO||
+column|public|core_worldknowledge_catalog|activated_at|timestamp without time zone|timestamp|YES||
+column|public|core_worldknowledge_catalog|catalog_id|text|text|NO||
+column|public|core_worldknowledge_catalog|catalog_version|text|text|NO||
+column|public|core_worldknowledge_catalog|checksum_sha256|character varying|varchar|NO||64
+column|public|core_worldknowledge_catalog|display_name|text|text|NO||
+column|public|core_worldknowledge_catalog|installed_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_worldknowledge_catalog|is_active|boolean|bool|NO|false|
+column|public|core_worldknowledge_catalog|manifest|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_worldknowledge_catalog|row_count|integer|int4|NO||
 column|synth|worldknowledge_effective|aliases|text|text|YES||
 column|synth|worldknowledge_effective|canonical_topic|text|text|YES||
 column|synth|worldknowledge_effective|catalog_id|text|text|YES||
@@ -1081,25 +1081,25 @@ column|synth|worldknowledge_effective|topic_desc_basic|text|text|YES||
 column|synth|worldknowledge_effective|topic_desc|character varying|varchar|YES||
 column|synth|worldknowledge_effective|topic|character varying|varchar|YES||
 column|synth|worldknowledge_effective|updated_at|timestamp without time zone|timestamp|YES||
-column|synth|worldknowledge|aliases|text|text|NO|''::text|
-column|synth|worldknowledge|canonical_topic|text|text|NO||
-column|synth|worldknowledge|catalog_id|text|text|YES||
-column|synth|worldknowledge|catalog_version|text|text|YES||
-column|synth|worldknowledge|category|text|text|YES||
-column|synth|worldknowledge|content_hash|character varying|varchar|YES||64
-column|synth|worldknowledge|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|worldknowledge|entry_id|bigint|int8|NO|nextval('worldknowledge_entry_id_seq'::regclass)|
-column|synth|worldknowledge|is_active|boolean|bool|NO|true|
-column|synth|worldknowledge|knowledge_class_basic|text|text|YES||
-column|synth|worldknowledge|knowledge_class|text|text|YES||
-column|synth|worldknowledge|native_vector|tsvector|tsvector|YES||
-column|synth|worldknowledge|source_kind|text|text|NO|'custom'::text|
-column|synth|worldknowledge|tags|text|text|YES||
-column|synth|worldknowledge|topic_desc_basic|text|text|YES||
-column|synth|worldknowledge|topic_desc|character varying|varchar|YES||
-column|synth|worldknowledge|topic|character varying|varchar|NO||
-column|synth|worldknowledge|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|worldknowledge|vector384|USER-DEFINED|vector|YES||
+column|public|core_worldknowledge_article|aliases|text|text|NO|''::text|
+column|public|core_worldknowledge_article|canonical_topic|text|text|NO||
+column|public|core_worldknowledge_article|catalog_id|text|text|YES||
+column|public|core_worldknowledge_article|catalog_version|text|text|YES||
+column|public|core_worldknowledge_article|category|text|text|YES||
+column|public|core_worldknowledge_article|content_hash|character varying|varchar|YES||64
+column|public|core_worldknowledge_article|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_worldknowledge_article|entry_id|bigint|int8|NO|nextval('worldknowledge_entry_id_seq'::regclass)|
+column|public|core_worldknowledge_article|is_active|boolean|bool|NO|true|
+column|public|core_worldknowledge_article|knowledge_class_basic|text|text|YES||
+column|public|core_worldknowledge_article|knowledge_class|text|text|YES||
+column|public|core_worldknowledge_article|native_vector|tsvector|tsvector|YES||
+column|public|core_worldknowledge_article|source_kind|text|text|NO|'custom'::text|
+column|public|core_worldknowledge_article|tags|text|text|YES||
+column|public|core_worldknowledge_article|topic_desc_basic|text|text|YES||
+column|public|core_worldknowledge_article|topic_desc|character varying|varchar|YES||
+column|public|core_worldknowledge_article|topic|character varying|varchar|NO||
+column|public|core_worldknowledge_article|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
+column|public|core_worldknowledge_article|vector384|USER-DEFINED|vector|YES||
 constraint|public|core_action_intent|action_intents_action_id_check|c|t|CHECK ((action_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
 constraint|public|core_action_intent|action_intents_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|public|core_action_intent|action_intents_arguments_check|c|t|CHECK ((jsonb_typeof(arguments) = 'object'::text))
@@ -1607,10 +1607,10 @@ constraint|synth|bio_template_actor_map|bio_template_actor_map_reference_pair_ch
 constraint|synth|bio_templates_custom|bio_templates_custom_pkey|p|t|PRIMARY KEY (npc_name)
 constraint|synth|bio_templates|bio_templates_pkey|p|t|PRIMARY KEY (npc_name)
 constraint|synth|conf_opts|conf_opts_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE (code_name)
-constraint|synth|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
-constraint|synth|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
-constraint|synth|core_action|core_action_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_action_custom|core_action_custom_code_name_key|u|t|UNIQUE (code_name)
+constraint|public|core_action_custom|core_action_custom_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_action|core_action_code_name_key|u|t|UNIQUE (code_name)
+constraint|public|core_action|core_action_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_api_badge|core_api_badge_label_unique|u|t|UNIQUE (label)
 constraint|public|core_api_badge|my_table_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_itt_connector|core_itt_connector_pkey|p|t|PRIMARY KEY (id)
@@ -1636,8 +1636,8 @@ constraint|public|core_tts_connector|tts_connector_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_tts_pronunciation|core_tts_pronunciation_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_tts_pronunciation|core_tts_pronunciation_source_not_blank|c|t|CHECK ((btrim((source_text)::text) <> ''::text))
 constraint|public|core_tts_pronunciation|core_tts_pronunciation_spoken_not_blank|c|t|CHECK ((btrim((spoken_text)::text) <> ''::text))
-constraint|synth|descriptions_custom|descriptions_custom_pkey|p|t|PRIMARY KEY (plugin, baseid)
-constraint|synth|descriptions|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
+constraint|public|core_item_description_custom|descriptions_custom_pkey|p|t|PRIMARY KEY (plugin, baseid)
+constraint|public|core_item_description|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|public|core_faction|factions_pkey|p|t|PRIMARY KEY (formid)
 constraint|public|core_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
 constraint|synth|general_settings|general_settings_pkey|p|t|PRIMARY KEY (id)
@@ -1662,14 +1662,14 @@ constraint|public|core_visual_context|visual_context_runtime_variant_check|c|t|C
 constraint|public|core_visual_context|visual_context_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE SET NULL
 constraint|public|core_worldknowledge_audit|worldknowledge_audit_pkey|p|t|PRIMARY KEY (audit_id)
 constraint|public|core_worldknowledge_audit|worldknowledge_audit_status_check|c|t|CHECK ((status = ANY (ARRAY['grounded'::text, 'no_match'::text, 'fallback_succeeded'::text, 'fallback_unresolved'::text, 'fallback_failed'::text, 'fallback_disabled'::text, 'fallback_unconfigured'::text, 'disabled'::text, 'ineligible'::text, 'unavailable'::text, 'not_run'::text, 'legacy'::text])))
-constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_checksum_format|c|t|CHECK (((checksum_sha256)::text ~ '^[a-f0-9]{64}$'::text))
-constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_pkey|p|t|PRIMARY KEY (catalog_id, catalog_version)
-constraint|synth|worldknowledge_catalogs|worldknowledge_catalogs_row_count|c|t|CHECK ((row_count >= 0))
-constraint|synth|worldknowledge|worldknowledge_catalog_foreign_key|f|t|FOREIGN KEY (catalog_id, catalog_version) REFERENCES worldknowledge_catalogs(catalog_id, catalog_version) ON DELETE RESTRICT
-constraint|synth|worldknowledge|worldknowledge_content_hash_check|c|t|CHECK (((content_hash IS NULL) OR ((content_hash)::text ~ '^[a-f0-9]{64}$'::text)))
-constraint|synth|worldknowledge|worldknowledge_ownership_check|c|t|CHECK ((((source_kind = 'factory'::text) AND (catalog_id IS NOT NULL) AND (catalog_version IS NOT NULL)) OR ((source_kind = 'custom'::text) AND (catalog_id IS NULL) AND (catalog_version IS NULL))))
-constraint|synth|worldknowledge|worldknowledge_pkey|p|t|PRIMARY KEY (entry_id)
-constraint|synth|worldknowledge|worldknowledge_source_kind_check|c|t|CHECK ((source_kind = ANY (ARRAY['factory'::text, 'custom'::text])))
+constraint|public|core_worldknowledge_catalog|worldknowledge_catalogs_checksum_format|c|t|CHECK (((checksum_sha256)::text ~ '^[a-f0-9]{64}$'::text))
+constraint|public|core_worldknowledge_catalog|worldknowledge_catalogs_pkey|p|t|PRIMARY KEY (catalog_id, catalog_version)
+constraint|public|core_worldknowledge_catalog|worldknowledge_catalogs_row_count|c|t|CHECK ((row_count >= 0))
+constraint|public|core_worldknowledge_article|worldknowledge_catalog_foreign_key|f|t|FOREIGN KEY (catalog_id, catalog_version) REFERENCES core_worldknowledge_catalog(catalog_id, catalog_version) ON DELETE RESTRICT
+constraint|public|core_worldknowledge_article|worldknowledge_content_hash_check|c|t|CHECK (((content_hash IS NULL) OR ((content_hash)::text ~ '^[a-f0-9]{64}$'::text)))
+constraint|public|core_worldknowledge_article|worldknowledge_ownership_check|c|t|CHECK ((((source_kind = 'factory'::text) AND (catalog_id IS NOT NULL) AND (catalog_version IS NOT NULL)) OR ((source_kind = 'custom'::text) AND (catalog_id IS NULL) AND (catalog_version IS NULL))))
+constraint|public|core_worldknowledge_article|worldknowledge_pkey|p|t|PRIMARY KEY (entry_id)
+constraint|public|core_worldknowledge_article|worldknowledge_source_kind_check|c|t|CHECK ((source_kind = ANY (ARRAY['factory'::text, 'custom'::text])))
 index|public|core_action_intent|action_intents_dispatch|CREATE INDEX action_intents_dispatch ON public.core_action_intent USING btree (session_id, generation, state, deadline_at)
 index|public|core_action_intent|action_intents_idempotency_key_key|CREATE UNIQUE INDEX action_intents_idempotency_key_key ON public.core_action_intent USING btree (idempotency_key)
 index|public|core_action_intent|action_intents_pkey|CREATE UNIQUE INDEX action_intents_pkey ON public.core_action_intent USING btree (action_id)
@@ -1824,24 +1824,24 @@ index|synth|bio_template_actor_map|bio_template_actor_map_template_idx|CREATE IN
 index|synth|bio_templates_custom|bio_templates_custom_pkey|CREATE UNIQUE INDEX bio_templates_custom_pkey ON synth.bio_templates_custom USING btree (npc_name)
 index|synth|bio_templates|bio_templates_pkey|CREATE UNIQUE INDEX bio_templates_pkey ON synth.bio_templates USING btree (npc_name)
 index|synth|conf_opts|conf_opts_pkey|CREATE UNIQUE INDEX conf_opts_pkey ON synth.conf_opts USING btree (id)
-index|synth|core_action_custom|core_action_custom_code_name_key|CREATE UNIQUE INDEX core_action_custom_code_name_key ON synth.core_action_custom USING btree (code_name)
-index|synth|core_action_custom|core_action_custom_pkey|CREATE UNIQUE INDEX core_action_custom_pkey ON synth.core_action_custom USING btree (id)
-index|synth|core_action_custom|idx_core_action_custom_action_name_lower|CREATE INDEX idx_core_action_custom_action_name_lower ON synth.core_action_custom USING btree (lower((action_name)::text))
-index|synth|core_action_custom|idx_core_action_custom_available_to_followers|CREATE INDEX idx_core_action_custom_available_to_followers ON synth.core_action_custom USING btree (available_to_followers)
-index|synth|core_action_custom|idx_core_action_custom_available_to_narrator|CREATE INDEX idx_core_action_custom_available_to_narrator ON synth.core_action_custom USING btree (available_to_narrator)
-index|synth|core_action_custom|idx_core_action_custom_available_to_npc|CREATE INDEX idx_core_action_custom_available_to_npc ON synth.core_action_custom USING btree (available_to_npc)
-index|synth|core_action_custom|idx_core_action_custom_code_name_lower|CREATE INDEX idx_core_action_custom_code_name_lower ON synth.core_action_custom USING btree (lower((code_name)::text))
-index|synth|core_action_custom|idx_core_action_custom_game_function|CREATE INDEX idx_core_action_custom_game_function ON synth.core_action_custom USING btree (game_function)
-index|synth|core_action_custom|idx_core_action_custom_is_activated|CREATE INDEX idx_core_action_custom_is_activated ON synth.core_action_custom USING btree (is_activated)
-index|synth|core_action|core_action_code_name_key|CREATE UNIQUE INDEX core_action_code_name_key ON synth.core_action USING btree (code_name)
-index|synth|core_action|core_action_pkey|CREATE UNIQUE INDEX core_action_pkey ON synth.core_action USING btree (id)
-index|synth|core_action|idx_core_action_action_name_lower|CREATE INDEX idx_core_action_action_name_lower ON synth.core_action USING btree (lower((action_name)::text))
-index|synth|core_action|idx_core_action_available_to_followers|CREATE INDEX idx_core_action_available_to_followers ON synth.core_action USING btree (available_to_followers)
-index|synth|core_action|idx_core_action_available_to_narrator|CREATE INDEX idx_core_action_available_to_narrator ON synth.core_action USING btree (available_to_narrator)
-index|synth|core_action|idx_core_action_available_to_npc|CREATE INDEX idx_core_action_available_to_npc ON synth.core_action USING btree (available_to_npc)
-index|synth|core_action|idx_core_action_code_name_lower|CREATE INDEX idx_core_action_code_name_lower ON synth.core_action USING btree (lower((code_name)::text))
-index|synth|core_action|idx_core_action_game_function|CREATE INDEX idx_core_action_game_function ON synth.core_action USING btree (game_function)
-index|synth|core_action|idx_core_action_is_activated|CREATE INDEX idx_core_action_is_activated ON synth.core_action USING btree (is_activated)
+index|public|core_action_custom|core_action_custom_code_name_key|CREATE UNIQUE INDEX core_action_custom_code_name_key ON public.core_action_custom USING btree (code_name)
+index|public|core_action_custom|core_action_custom_pkey|CREATE UNIQUE INDEX core_action_custom_pkey ON public.core_action_custom USING btree (id)
+index|public|core_action_custom|idx_core_action_custom_action_name_lower|CREATE INDEX idx_core_action_custom_action_name_lower ON public.core_action_custom USING btree (lower((action_name)::text))
+index|public|core_action_custom|idx_core_action_custom_available_to_followers|CREATE INDEX idx_core_action_custom_available_to_followers ON public.core_action_custom USING btree (available_to_followers)
+index|public|core_action_custom|idx_core_action_custom_available_to_narrator|CREATE INDEX idx_core_action_custom_available_to_narrator ON public.core_action_custom USING btree (available_to_narrator)
+index|public|core_action_custom|idx_core_action_custom_available_to_npc|CREATE INDEX idx_core_action_custom_available_to_npc ON public.core_action_custom USING btree (available_to_npc)
+index|public|core_action_custom|idx_core_action_custom_code_name_lower|CREATE INDEX idx_core_action_custom_code_name_lower ON public.core_action_custom USING btree (lower((code_name)::text))
+index|public|core_action_custom|idx_core_action_custom_game_function|CREATE INDEX idx_core_action_custom_game_function ON public.core_action_custom USING btree (game_function)
+index|public|core_action_custom|idx_core_action_custom_is_activated|CREATE INDEX idx_core_action_custom_is_activated ON public.core_action_custom USING btree (is_activated)
+index|public|core_action|core_action_code_name_key|CREATE UNIQUE INDEX core_action_code_name_key ON public.core_action USING btree (code_name)
+index|public|core_action|core_action_pkey|CREATE UNIQUE INDEX core_action_pkey ON public.core_action USING btree (id)
+index|public|core_action|idx_core_action_action_name_lower|CREATE INDEX idx_core_action_action_name_lower ON public.core_action USING btree (lower((action_name)::text))
+index|public|core_action|idx_core_action_available_to_followers|CREATE INDEX idx_core_action_available_to_followers ON public.core_action USING btree (available_to_followers)
+index|public|core_action|idx_core_action_available_to_narrator|CREATE INDEX idx_core_action_available_to_narrator ON public.core_action USING btree (available_to_narrator)
+index|public|core_action|idx_core_action_available_to_npc|CREATE INDEX idx_core_action_available_to_npc ON public.core_action USING btree (available_to_npc)
+index|public|core_action|idx_core_action_code_name_lower|CREATE INDEX idx_core_action_code_name_lower ON public.core_action USING btree (lower((code_name)::text))
+index|public|core_action|idx_core_action_game_function|CREATE INDEX idx_core_action_game_function ON public.core_action USING btree (game_function)
+index|public|core_action|idx_core_action_is_activated|CREATE INDEX idx_core_action_is_activated ON public.core_action USING btree (is_activated)
 index|public|core_api_badge|core_api_badge_label_unique|CREATE UNIQUE INDEX core_api_badge_label_unique ON public.core_api_badge USING btree (label)
 index|public|core_api_badge|idx_core_api_badge_label_lower|CREATE INDEX idx_core_api_badge_label_lower ON public.core_api_badge USING btree (lower(label))
 index|public|core_api_badge|my_table_pkey|CREATE UNIQUE INDEX my_table_pkey ON public.core_api_badge USING btree (id)
@@ -1862,8 +1862,8 @@ index|public|core_stt_connector|stt_connector_pkey|CREATE UNIQUE INDEX stt_conne
 index|public|core_tts_connector|tts_connector_pkey|CREATE UNIQUE INDEX tts_connector_pkey ON public.core_tts_connector USING btree (id)
 index|public|core_tts_pronunciation|core_tts_pronunciation_pkey|CREATE UNIQUE INDEX core_tts_pronunciation_pkey ON public.core_tts_pronunciation USING btree (id)
 index|public|core_tts_pronunciation|core_tts_pronunciation_unique_entry|CREATE UNIQUE INDEX core_tts_pronunciation_unique_entry ON public.core_tts_pronunciation USING btree (lower((source_text)::text), md5(((((lower((npc_names)::text) || ''::text) || lower((races)::text)) || ''::text) || lower((oghma_tags)::text))), is_builtin)
-index|synth|descriptions_custom|descriptions_custom_pkey|CREATE UNIQUE INDEX descriptions_custom_pkey ON synth.descriptions_custom USING btree (plugin, baseid)
-index|synth|descriptions|descriptions_pkey|CREATE UNIQUE INDEX descriptions_pkey ON synth.descriptions USING btree (plugin, baseid)
+index|public|core_item_description_custom|descriptions_custom_pkey|CREATE UNIQUE INDEX descriptions_custom_pkey ON public.core_item_description_custom USING btree (plugin, baseid)
+index|public|core_item_description|descriptions_pkey|CREATE UNIQUE INDEX descriptions_pkey ON public.core_item_description USING btree (plugin, baseid)
 index|synth|diarylog|idx_diarylog_people_gamets|CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC)
 index|synth|eventlog|event_log_type|CREATE INDEX event_log_type ON synth.eventlog USING btree (type)
 index|synth|eventlog|eventlog_native_owner|CREATE INDEX eventlog_native_owner ON synth.eventlog USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL)
@@ -1901,13 +1901,13 @@ index|public|core_visual_context|visual_context_subject_idx|CREATE INDEX visual_
 index|public|core_worldknowledge_audit|worldknowledge_audit_created_idx|CREATE INDEX worldknowledge_audit_created_idx ON public.core_worldknowledge_audit USING btree (created_at DESC)
 index|public|core_worldknowledge_audit|worldknowledge_audit_pkey|CREATE UNIQUE INDEX worldknowledge_audit_pkey ON public.core_worldknowledge_audit USING btree (audit_id)
 index|public|core_worldknowledge_audit|worldknowledge_audit_status_idx|CREATE INDEX worldknowledge_audit_status_idx ON public.core_worldknowledge_audit USING btree (status, created_at DESC)
-index|synth|worldknowledge_catalogs|worldknowledge_catalogs_pkey|CREATE UNIQUE INDEX worldknowledge_catalogs_pkey ON synth.worldknowledge_catalogs USING btree (catalog_id, catalog_version)
-index|synth|worldknowledge_catalogs|worldknowledge_one_active_catalog_idx|CREATE UNIQUE INDEX worldknowledge_one_active_catalog_idx ON synth.worldknowledge_catalogs USING btree (is_active) WHERE is_active
-index|synth|worldknowledge|worldknowledge_catalog_lookup_idx|CREATE INDEX worldknowledge_catalog_lookup_idx ON synth.worldknowledge USING btree (catalog_id, catalog_version) WHERE (source_kind = 'factory'::text)
-index|synth|worldknowledge|worldknowledge_custom_topic_unique_idx|CREATE UNIQUE INDEX worldknowledge_custom_topic_unique_idx ON synth.worldknowledge USING btree (canonical_topic) WHERE ((source_kind = 'custom'::text) AND is_active)
-index|synth|worldknowledge|worldknowledge_effective_lookup_idx|CREATE INDEX worldknowledge_effective_lookup_idx ON synth.worldknowledge USING btree (canonical_topic, source_kind, is_active)
-index|synth|worldknowledge|worldknowledge_factory_topic_unique_idx|CREATE UNIQUE INDEX worldknowledge_factory_topic_unique_idx ON synth.worldknowledge USING btree (catalog_id, catalog_version, canonical_topic) WHERE (source_kind = 'factory'::text)
-index|synth|worldknowledge|worldknowledge_pkey|CREATE UNIQUE INDEX worldknowledge_pkey ON synth.worldknowledge USING btree (entry_id)
+index|public|core_worldknowledge_catalog|worldknowledge_catalogs_pkey|CREATE UNIQUE INDEX worldknowledge_catalogs_pkey ON public.core_worldknowledge_catalog USING btree (catalog_id, catalog_version)
+index|public|core_worldknowledge_catalog|worldknowledge_one_active_catalog_idx|CREATE UNIQUE INDEX worldknowledge_one_active_catalog_idx ON public.core_worldknowledge_catalog USING btree (is_active) WHERE is_active
+index|public|core_worldknowledge_article|worldknowledge_catalog_lookup_idx|CREATE INDEX worldknowledge_catalog_lookup_idx ON public.core_worldknowledge_article USING btree (catalog_id, catalog_version) WHERE (source_kind = 'factory'::text)
+index|public|core_worldknowledge_article|worldknowledge_custom_topic_unique_idx|CREATE UNIQUE INDEX worldknowledge_custom_topic_unique_idx ON public.core_worldknowledge_article USING btree (canonical_topic) WHERE ((source_kind = 'custom'::text) AND is_active)
+index|public|core_worldknowledge_article|worldknowledge_effective_lookup_idx|CREATE INDEX worldknowledge_effective_lookup_idx ON public.core_worldknowledge_article USING btree (canonical_topic, source_kind, is_active)
+index|public|core_worldknowledge_article|worldknowledge_factory_topic_unique_idx|CREATE UNIQUE INDEX worldknowledge_factory_topic_unique_idx ON public.core_worldknowledge_article USING btree (catalog_id, catalog_version, canonical_topic) WHERE (source_kind = 'factory'::text)
+index|public|core_worldknowledge_article|worldknowledge_pkey|CREATE UNIQUE INDEX worldknowledge_pkey ON public.core_worldknowledge_article USING btree (entry_id)
 table|public|core_action_intent|BASE TABLE
 table|public|core_action_result|BASE TABLE
 table|public|core_actor_activation|BASE TABLE
@@ -1986,8 +1986,8 @@ table|synth|combined_bio_templates|VIEW
 table|synth|combined_core_action|VIEW
 table|synth|combined_descriptions|VIEW
 table|synth|conf_opts|BASE TABLE
-table|synth|core_action_custom|BASE TABLE
-table|synth|core_action|BASE TABLE
+table|public|core_action_custom|BASE TABLE
+table|public|core_action|BASE TABLE
 table|public|core_api_badge|BASE TABLE
 table|public|core_itt_connector|BASE TABLE
 table|public|core_llm_connector|BASE TABLE
@@ -1999,8 +1999,8 @@ table|public|core_profiles|BASE TABLE
 table|public|core_stt_connector|BASE TABLE
 table|public|core_tts_connector|BASE TABLE
 table|public|core_tts_pronunciation|BASE TABLE
-table|synth|descriptions_custom|BASE TABLE
-table|synth|descriptions|BASE TABLE
+table|public|core_item_description_custom|BASE TABLE
+table|public|core_item_description|BASE TABLE
 table|synth|diarylog|BASE TABLE
 table|synth|eventlog|BASE TABLE
 table|public|core_faction|BASE TABLE
@@ -2023,15 +2023,15 @@ table|synth|speech|BASE TABLE
 table|synth|synthnpcs|VIEW
 table|public|core_visual_context|BASE TABLE
 table|public|core_worldknowledge_audit|BASE TABLE
-table|synth|worldknowledge_catalogs|BASE TABLE
+table|public|core_worldknowledge_catalog|BASE TABLE
 table|synth|worldknowledge_effective|VIEW
-table|synth|worldknowledge|BASE TABLE
+table|public|core_worldknowledge_article|BASE TABLE
 typmod|public|core_diary_job_result|embedding|vector(384)
 typmod|public|core_diary_result|embedding|vector(384)
 typmod|public|core_memory_summary|embedding|vector(384)
 typmod|synth|memory_summary|embedding768|vector(768)
 typmod|synth|memory_summary|embedding|vector(384)
-typmod|synth|worldknowledge|vector384|vector(384)
+typmod|public|core_worldknowledge_article|vector384|vector(384)
 column|public|core_catalog_version|catalog_key|text|text|NO||
 column|public|core_catalog_version|version|bigint|int8|NO||
 constraint|public|core_catalog_version|core_catalog_version_pkey|p|t|PRIMARY KEY (catalog_key)

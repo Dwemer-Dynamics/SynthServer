@@ -447,13 +447,13 @@ function lookupDescriptionRecordByCandidates(array $candidateBaseIds, bool $requ
         }
     }
 
-    foreach (['descriptions_custom', 'descriptions'] as $tableName) {
+    foreach (['core_item_description_custom', 'core_item_description'] as $tableName) {
         foreach ($candidateRows as $candidateRow) {
             $escapedPlugin = $db->escape($candidateRow['plugin']);
             $escapedBaseId = $db->escape($candidateRow['baseid']);
             $record = $db->fetchOne(
                 "SELECT plugin, baseid, name, description
-                   FROM synth.{$tableName}
+                   FROM public.{$tableName}
                   WHERE plugin = '{$escapedPlugin}'
                     AND baseid = '{$escapedBaseId}'
                   LIMIT 1"
@@ -566,8 +566,8 @@ function synthLookupCapturedEquipmentDescription(string $formId, string $plugin)
     }
     $localFormId = synthExtractLocalFormIdFromRuntimeFormId($formId);
     // Do not use wildcard, bare runtime-ID or name fallbacks across plugins.
-    foreach (['descriptions_custom', 'descriptions'] as $table) {
-        $result = $db->execQuery("SELECT description FROM synth.{$table}
+    foreach (['core_item_description_custom', 'core_item_description'] as $table) {
+        $result = $db->execQuery("SELECT description FROM public.{$table}
             WHERE plugin=$1 AND baseid=$2 AND description<>'' LIMIT 1", [$plugin, $localFormId]);
         if ($result === false) return null;
         $row = pg_fetch_assoc($result);
@@ -5539,7 +5539,7 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
                     vector384 <-> $vectorString3 as distance3,
                     vector384 <-> $vectorString4 as distance4,
                     ((vector384 <-> $vectorString1) + (vector384 <-> $vectorString2)/4 + (vector384 <-> $vectorString3)/2 + (vector384 <-> $vectorString4)/2 )/2 as distance
-                FROM synth.worldknowledge
+                FROM public.core_worldknowledge_article
                 WHERE vector384 IS NOT NULL
                 ORDER BY ((vector384 <-> $vectorString1) + (vector384 <-> $vectorString2)/4 + (vector384 <-> $vectorString3)/2 + (vector384 <-> $vectorString4)/2 )/4 ASC
                 LIMIT 5 OFFSET 0

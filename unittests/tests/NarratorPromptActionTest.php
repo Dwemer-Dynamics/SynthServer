@@ -72,7 +72,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
         $GLOBALS['FEATURES']['MISC']['JSON_DIALOGUE_FORMAT_REORDER'] = false;
         $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.read_quests'];
         $GLOBALS['gameRequest'] = ['cheatmode', 100, 200, '<pick up the nearby wrench>'];
-        $db->execQuery("UPDATE synth.core_action SET is_activated = TRUE WHERE code_name = 'PickupItem'");
+        $db->execQuery("UPDATE public.core_action SET is_activated = TRUE WHERE code_name = 'PickupItem'");
 
         require __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'functions'.DIRECTORY_SEPARATOR.'json_response.php';
 
@@ -104,7 +104,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
         $GLOBALS['FEATURES']['MISC']['JSON_DIALOGUE_FORMAT_REORDER'] = false;
         $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.read_quests'];
         $GLOBALS['gameRequest'] = ['narrator_inputtext', 100, 200, 'pick up the nearby wrench'];
-        $db->execQuery("UPDATE synth.core_action SET is_activated = TRUE WHERE code_name = 'PickupItem'");
+        $db->execQuery("UPDATE public.core_action SET is_activated = TRUE WHERE code_name = 'PickupItem'");
 
         require __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'functions'.DIRECTORY_SEPARATOR.'json_response.php';
 
@@ -142,7 +142,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
         $GLOBALS['FEATURES']['MISC']['JSON_DIALOGUE_FORMAT_REORDER'] = false;
         $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.read_quests'];
         $GLOBALS['gameRequest'] = ['narrator_inputtext', 100, 200, 'give RANGROO 1000 caps'];
-        $db->execQuery("UPDATE synth.core_action SET is_activated = TRUE WHERE code_name = 'GiveCapsTo'");
+        $db->execQuery("UPDATE public.core_action SET is_activated = TRUE WHERE code_name = 'GiveCapsTo'");
 
         require __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'functions'.DIRECTORY_SEPARATOR.'json_response.php';
 

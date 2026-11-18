@@ -279,9 +279,9 @@ function synthWorldKnowledgeRemoveLegacyFactorySeed(object $db, string $rootPath
                 . ' AND coalesce(knowledge_class_basic,\'\')=' . $db->escapeLiteral(trim(strval($row['knowledge_class_basic'] ?? '')))
                 . ' AND coalesce(tags,\'\')=' . $db->escapeLiteral(trim(strval($row['tags'] ?? '')))
                 . ' AND coalesce(category,\'\')=' . $db->escapeLiteral(trim(strval($row['category'] ?? '')));
-            $sql = 'DELETE FROM synth.worldknowledge' . $predicate;
+            $sql = 'DELETE FROM public.core_worldknowledge_article' . $predicate;
             $before = $db->fetchOne(
-                'SELECT entry_id FROM synth.worldknowledge' . $predicate . ' LIMIT 1'
+                'SELECT entry_id FROM public.core_worldknowledge_article' . $predicate . ' LIMIT 1'
             );
             if (is_array($before) && $before !== [] && $db->execQuery($sql)) {
                 $removed++;
@@ -427,8 +427,8 @@ function synthWorldKnowledgeAssertCatalogComplete(object $db, string $catalogId,
 {
     $catalog = $db->fetchOne(
         'SELECT catalog.row_count AS expected_rows, count(article.entry_id) AS installed_rows'
-        . ' FROM synth.worldknowledge_catalogs AS catalog'
-        . ' LEFT JOIN synth.worldknowledge AS article ON article.source_kind=\'factory\''
+        . ' FROM public.core_worldknowledge_catalog AS catalog'
+        . ' LEFT JOIN public.core_worldknowledge_article AS article ON article.source_kind=\'factory\''
         . ' AND article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version'
         . ' WHERE catalog.catalog_id=' . $db->escapeLiteral($catalogId)
         . ' AND catalog.catalog_version=' . $db->escapeLiteral($catalogVersion)
@@ -481,19 +481,19 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath, 
             }
         }
         $legacySeedRemoved = synthWorldKnowledgeRemoveLegacyFactorySeed($db, $rootPath);
-        if (!$db->execQuery("DELETE FROM synth.worldknowledge WHERE source_kind='factory'")) {
+        if (!$db->execQuery("DELETE FROM public.core_worldknowledge_article WHERE source_kind='factory'")) {
             throw new RuntimeException('Unable to replace World Knowledge factory rows');
         }
         if (!$db->execQuery(
-            "UPDATE synth.worldknowledge SET catalog_id=NULL, catalog_version=NULL WHERE source_kind<>'factory'"
+            "UPDATE public.core_worldknowledge_article SET catalog_id=NULL, catalog_version=NULL WHERE source_kind<>'factory'"
             . ' AND (catalog_id IS NOT NULL OR catalog_version IS NOT NULL)'
         )) {
             throw new RuntimeException('Unable to detach custom World Knowledge rows from factory metadata');
         }
-        if (!$db->execQuery('DELETE FROM synth.worldknowledge_catalogs')) {
+        if (!$db->execQuery('DELETE FROM public.core_worldknowledge_catalog')) {
             throw new RuntimeException('Unable to replace World Knowledge catalog metadata');
         }
-        $catalogSql = 'INSERT INTO synth.worldknowledge_catalogs '
+        $catalogSql = 'INSERT INTO public.core_worldknowledge_catalog '
             . '(catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest,is_active,activated_at) VALUES ('
             . implode(',', [
                 $db->escapeLiteral($catalogId),
@@ -525,7 +525,7 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath, 
                 $db->escapeLiteral($catalogVersion),
                 $db->escapeLiteral($row['content_hash']),
             ];
-            $insertSql = 'INSERT INTO synth.worldknowledge ('
+            $insertSql = 'INSERT INTO public.core_worldknowledge_article ('
                 . 'topic,canonical_topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,'
                 . 'tags,category,source_kind,catalog_id,catalog_version,content_hash,native_vector'
                 . ') VALUES (' . implode(',', $values) . ','

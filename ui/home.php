@@ -254,8 +254,8 @@ $hasGamePlugins = synth_home_table_exists($db, 'core_plugins');
 $hasQuests = synth_home_table_exists($db, 'core_quest');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
 $hasBioTemplates = synth_home_table_exists($db, 'bio_templates');
-$hasWorldKnowledge = synth_home_table_exists($db, 'worldknowledge');
-$hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'worldknowledge_catalogs');
+$hasWorldKnowledge = synth_home_table_exists($db, 'core_worldknowledge_article');
+$hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_catalog');
 
 $eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog", 'total', 0) : 0;
 $chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog WHERE type='chat'", 'total', 0) : 0;
@@ -272,10 +272,10 @@ if ($hasBioTemplates && in_array('npc_name', synth_home_table_columns($db, 'bio_
 }
 $worldLoreCount = null;
 if ($hasWorldKnowledge && $hasWorldKnowledgeCatalogs
-    && array_diff(['source_kind', 'is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'worldknowledge')) === []
-    && array_diff(['is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'worldknowledge_catalogs')) === []) {
+    && array_diff(['source_kind', 'is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'core_worldknowledge_article')) === []
+    && array_diff(['is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'core_worldknowledge_catalog')) === []) {
     $worldLoreCount = synth_home_value($db,
-        "SELECT COUNT(*) AS total FROM synth.worldknowledge AS article JOIN synth.worldknowledge_catalogs AS catalog"
+        "SELECT COUNT(*) AS total FROM public.core_worldknowledge_article AS article JOIN public.core_worldknowledge_catalog AS catalog"
         . " ON article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version"
         . " WHERE article.source_kind='factory' AND article.is_active AND catalog.is_active",
         'total');

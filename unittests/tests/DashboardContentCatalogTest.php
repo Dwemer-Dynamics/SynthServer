@@ -113,7 +113,7 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
         $description="A & B's \"quoted\" <detail> and literal &lt;entity&gt;.";
         $basic="Plain & simple <basic> \"words\"; literal &amp; stays literal.";
         $aliases='Regression Harbor Alias';$tags='regression harbor tags';
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge(topic,canonical_topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,source_kind,is_active) VALUES($1::text,$1::text,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,source_kind,is_active) VALUES($1::text,$1::text,$2,$3,$4,$5,$6,$7,$8,$9,TRUE)',
             ['far_harbor',$aliases,$description,'far_harbor_lore',$basic,'far_harbor',$tags,'location','custom']));
         foreach (['far_harbor',$aliases,$tags] as $search) {
             $html=$this->render('ui/worldknowledge_upload.php',['search'=>$search]);
@@ -136,7 +136,7 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     {
         $this->installLibrary();
         $db=$this->db();
-        $factory=$db->fetchOne("SELECT topic_desc,content_hash FROM synth.worldknowledge WHERE topic='far_harbor' AND source_kind='factory'");
+        $factory=$db->fetchOne("SELECT topic_desc,content_hash FROM public.core_worldknowledge_article WHERE topic='far_harbor' AND source_kind='factory'");
         $description="Harbor & ships, \"quotes\", <detail>, and literal &lt;text&gt;.";
         $basic="A fisherman's <town> & literal &amp;entity;.";
         $this->render('ui/worldknowledge_upload.php',['search'=>'far_harbor'],[
@@ -144,11 +144,11 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
             'aliases_new'=>'Regression Far Harbor','topic_desc_new'=>$description,
             'knowledge_class_new'=>'far_harbor_lore','topic_desc_basic_new'=>$basic,
             'knowledge_class_basic_new'=>'far_harbor','tags_new'=>'regression harbor docks','category_new'=>'location']);
-        $custom=$db->fetchOne("SELECT topic,topic_desc,topic_desc_basic FROM synth.worldknowledge WHERE canonical_topic='far_harbor' AND source_kind='custom'");
+        $custom=$db->fetchOne("SELECT topic,topic_desc,topic_desc_basic FROM public.core_worldknowledge_article WHERE canonical_topic='far_harbor' AND source_kind='custom'");
         self::assertSame('far_harbor',$custom['topic']);
         self::assertSame($description,$custom['topic_desc']);
         self::assertSame($basic,$custom['topic_desc_basic']);
-        self::assertSame($factory,$db->fetchOne("SELECT topic_desc,content_hash FROM synth.worldknowledge WHERE topic='far_harbor' AND source_kind='factory'"));
+        self::assertSame($factory,$db->fetchOne("SELECT topic_desc,content_hash FROM public.core_worldknowledge_article WHERE topic='far_harbor' AND source_kind='factory'"));
         $payloads=array_values(array_filter($this->editPayloads($this->render('ui/worldknowledge_upload.php',['search'=>'far_harbor'])),
             static fn(array $row): bool=>$row['topic']==='far_harbor'));
         self::assertCount(1,$payloads);
