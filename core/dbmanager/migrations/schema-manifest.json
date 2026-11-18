@@ -2,26 +2,26 @@
     "format": 1,
     "provenance": "One entry per migration: hashes of the class and its generated companion files, LF-normalized. The baseline structure file was generated from a disposable PostgreSQL 15 inventory of legacy source 42c7e0e and is verified by the baseline itself; this manifest only freezes it. Refresh an entry only from a reviewed migration, never to silence drift. Current hashes: php tools/schema-check.php --hashes.",
     "migrations": {
-        "Version20261115000000": {
-            "class": "Synth\\Migrations\\Version20261115000000",
+        "Version20261117000000": {
+            "class": "Synth\\Migrations\\Version20261117000000",
             "files": {
-                "Version20261115000000.fresh.sql": "4c9cf629bfc34634924ace80e01a1a8e222feafc11a92ff6ac49cfff998c19d7",
-                "Version20261115000000.php": "d1d826b4ad85d6f9bb764297055251987417269477b057505e95a4fdbfa9b9bc",
-                "Version20261115000000.structure.txt": "3f2030b04b9791d9d5862e5320d50aa306db517bcaf3b242ee0a52392f77984f"
+                "Version20261117000000.fresh.sql": "539a2685abe9c76b86daca26021b02332227835fca6b90b71633753242a583c4",
+                "Version20261117000000.php": "eabd86b2e3cc5ca05d528fbb17c56180924592504cff8c5c332e68e733417a91",
+                "Version20261117000000.structure.txt": "ca17137d0072f48a28d61d0a46f78379ee50042ec13d65af528aaefde63da439"
             },
             "structure": {
-                "file": "Version20261115000000.structure.txt",
-                "entries": 2054
+                "file": "Version20261117000000.structure.txt",
+                "entries": 2056
             }
         },
-        "Version20261116100000": {
-            "class": "Synth\\Migrations\\Version20261116100000",
+        "Version20261117100000": {
+            "class": "Synth\\Migrations\\Version20261117100000",
             "files": {
-                "Version20261116100000.php": "9dc7dba8c925bdaa3004b028406ea2a4a25eb8caa7ac771f2cac3a896999d14b",
-                "Version20261116100000.structure.txt": "fb37206d0a0c74facdc6f216f4514e8c6a082bd084317d84ad6baa61dc759639"
+                "Version20261117100000.php": "1593047faa31f6c9bfa3f7f8cd97bd3ffde8144f8bf29dbd7ae8a54210ac9791",
+                "Version20261117100000.structure.txt": "70d64db70c20c72a99758e1b667c68bcf2e5b1ea21ace5f1f64e647f8f186f67"
             },
             "structure": {
-                "file": "Version20261116100000.structure.txt",
+                "file": "Version20261117100000.structure.txt",
                 "entries": 16
             }
         }

@@ -800,8 +800,6 @@ column|synth|core_tts_pronunciation|races|character varying|varchar|NO|''::chara
 column|synth|core_tts_pronunciation|source_text|character varying|varchar|NO||120
 column|synth|core_tts_pronunciation|spoken_text|character varying|varchar|NO||240
 column|synth|core_tts_pronunciation|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|database_versioning|tablename|text|text|NO||
-column|synth|database_versioning|version|bigint|int8|NO||
 column|synth|descriptions_custom|baseid|character varying|varchar|NO||128
 column|synth|descriptions_custom|description|text|text|YES||
 column|synth|descriptions_custom|name|text|text|YES||
@@ -2019,7 +2017,6 @@ table|synth|core_profiles|BASE TABLE
 table|synth|core_stt_connector|BASE TABLE
 table|synth|core_tts_connector|BASE TABLE
 table|synth|core_tts_pronunciation|BASE TABLE
-table|synth|database_versioning|BASE TABLE
 table|synth|descriptions_custom|BASE TABLE
 table|synth|descriptions|BASE TABLE
 table|synth|diarylog|BASE TABLE
@@ -2054,3 +2051,8 @@ typmod|synth_meta|memory_summaries|embedding|vector(384)
 typmod|synth|memory_summary|embedding768|vector(768)
 typmod|synth|memory_summary|embedding|vector(384)
 typmod|synth|worldknowledge|vector384|vector(384)
+column|public|core_catalog_version|catalog_key|text|text|NO||
+column|public|core_catalog_version|version|bigint|int8|NO||
+constraint|public|core_catalog_version|core_catalog_version_pkey|p|t|PRIMARY KEY (catalog_key)
+index|public|core_catalog_version|core_catalog_version_pkey|CREATE UNIQUE INDEX core_catalog_version_pkey ON public.core_catalog_version USING btree (catalog_key)
+table|public|core_catalog_version|BASE TABLE

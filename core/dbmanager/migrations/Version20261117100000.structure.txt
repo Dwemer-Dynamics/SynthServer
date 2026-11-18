@@ -1,4 +1,4 @@
-# Structure of Version20261116100000 (shared key references beside SYNTH-only keys). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+# Structure of Version20261117100000 (shared key references beside SYNTH-only keys). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
 column|synth|core_itt_connector|api_key_id|uuid|uuid|YES||
 column|synth|core_itt_connector|local_api_key_id|integer|int4|YES||
 column|synth|core_llm_connector|api_key_id|uuid|uuid|YES||
