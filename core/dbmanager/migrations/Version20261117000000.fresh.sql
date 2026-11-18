@@ -539,17 +539,6 @@ CREATE SEQUENCE public.api_badge_id_seq
 -- end-statement
 ALTER SEQUENCE public.api_badge_id_seq OWNED BY public.core_api_badge.id;
 -- end-statement
-CREATE TABLE synth.audit_memory (
-    input text,
-    keywords text,
-    rank_any numeric(20,10),
-    rank_all numeric(20,10),
-    memory text,
-    "time" text,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
 CREATE SEQUENCE synth.audit_request_rowid_seq
     START WITH 1
     INCREMENT BY 1
@@ -1350,29 +1339,6 @@ CREATE VIEW synth.memory_v AS
             event_source.ts
            FROM event_source) subquery
   ORDER BY gamets, ts;
--- end-statement
-CREATE TABLE synth.moods_issued (
-    sess character varying(1024),
-    speaker text,
-    mood text,
-    listener text,
-    localts bigint NOT NULL,
-    gamets bigint NOT NULL,
-    ts bigint,
-    rowid bigint NOT NULL,
-    emotion text,
-    emotion_intensity text
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
-CREATE SEQUENCE synth.moods_issued_rowid_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
--- end-statement
-ALTER SEQUENCE synth.moods_issued_rowid_seq OWNED BY synth.moods_issued.rowid;
 -- end-statement
 CREATE SEQUENCE synth.npc_master_id_seq
     AS integer
@@ -2878,8 +2844,6 @@ ALTER TABLE ONLY synth.memory ALTER COLUMN rowid SET DEFAULT nextval('synth.memo
 -- end-statement
 ALTER TABLE ONLY synth.memory_summary ALTER COLUMN rowid SET DEFAULT nextval('synth.memory_summary_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.moods_issued ALTER COLUMN rowid SET DEFAULT nextval('synth.moods_issued_rowid_seq'::regclass);
--- end-statement
 ALTER TABLE ONLY public.core_quest ALTER COLUMN rowid SET DEFAULT nextval('public.quests_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_relationship_eval_queue ALTER COLUMN id SET DEFAULT nextval('public.relationship_eval_queue_id_seq'::regclass);
@@ -3524,8 +3488,6 @@ INSERT INTO public.core_tts_pronunciation VALUES
 -- end-statement
 INSERT INTO public.core_catalog_version VALUES
 	('actions_issued', 20250525001),
-	('moods_issued', 20250526001),
-	('moods_issued_sequence', 20260626001),
 	('core_tts_connector_metadata', 20260626001),
 	('core_tts_connector_removed_drivers', 20260712001),
 	('locations', 20250526001),
@@ -4306,8 +4268,6 @@ SELECT pg_catalog.setval('synth.memory_rowid_seq', 1, false);
 SELECT pg_catalog.setval('synth.memory_summary_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.memory_uid_seq', 1, false);
--- end-statement
-SELECT pg_catalog.setval('synth.moods_issued_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.npc_master_id_seq', 2189, true);
 -- end-statement

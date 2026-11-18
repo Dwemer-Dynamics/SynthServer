@@ -38,7 +38,7 @@ final class Version20261117000000 extends AbstractMigration
         'import_rules' => 20260730001, 'core_stt_connector' => 20260502002, 'core_itt_connector' => 20260731001,
         'visual_context' => 20260731001, 'pipvision_general_settings' => 20260731001,
         'itt_connector_defaults' => 20260731002, 'descriptions_defaults' => 20260811002, 'prompts' => 20260627001,
-        'core_profiles' => 20260717001, 'moods_issued_sequence' => 20260626001,
+        'core_profiles' => 20260717001,
         'core_tts_connector_metadata' => 20260626001, 'core_tts_connector_omnivoice' => 20260708001,
         'core_tts_connector_removed_drivers' => 20260712001, 'core_tts_pronunciation' => 20261008003,
         'tts_gender_fallback_defaults' => 20260715001, 'legacy_translation_tables_cleanup' => 20260628001,
@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = 'd20828f62b0a058cbf95cbd680db125ef628a6f29299c349a6014b1bf582d4e3';
+    private const FRESH_INSTALL_SHA256 = '748378ba7eeb25a47e85104e18b049dbfaaa97c5b8763628afac2bb0aff36e45';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.

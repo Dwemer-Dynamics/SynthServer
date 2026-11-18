@@ -550,13 +550,6 @@ column|synth|actor_identities|last_seen_at|timestamp with time zone|timestamptz|
 column|synth|actor_identities|metadata|jsonb|jsonb|NO|'{}'::jsonb|
 column|synth|actor_identities|origin_plugin|text|text|NO||
 column|synth|actor_identities|playthrough_id|text|text|NO||
-column|synth|audit_memory|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
-column|synth|audit_memory|input|text|text|YES||
-column|synth|audit_memory|keywords|text|text|YES||
-column|synth|audit_memory|memory|text|text|YES||
-column|synth|audit_memory|rank_all|numeric|numeric|YES||
-column|synth|audit_memory|rank_any|numeric|numeric|YES||
-column|synth|audit_memory|time|text|text|YES||
 column|synth|audit_request|connector|text|text|YES||
 column|synth|audit_request|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 column|synth|audit_request|request|text|text|YES||
@@ -913,16 +906,6 @@ column|synth|memory|session|text|text|YES||
 column|synth|memory|speaker|text|text|YES||
 column|synth|memory|ts|bigint|int8|YES||
 column|synth|memory|uid|integer|int4|NO|nextval('memory_uid_seq'::regclass)|
-column|synth|moods_issued|emotion_intensity|text|text|YES||
-column|synth|moods_issued|emotion|text|text|YES||
-column|synth|moods_issued|gamets|bigint|int8|NO||
-column|synth|moods_issued|listener|text|text|YES||
-column|synth|moods_issued|localts|bigint|int8|NO||
-column|synth|moods_issued|mood|text|text|YES||
-column|synth|moods_issued|rowid|bigint|int8|NO|nextval('moods_issued_rowid_seq'::regclass)|
-column|synth|moods_issued|sess|character varying|varchar|YES||1024
-column|synth|moods_issued|speaker|text|text|YES||
-column|synth|moods_issued|ts|bigint|int8|YES||
 column|public|core_prompt|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 column|public|core_prompt|custom_prompt|text|text|YES||
 column|public|core_prompt|default_prompt|text|text|NO||
@@ -1995,7 +1978,6 @@ table|public|core_visual_result|BASE TABLE
 table|public|core_worker_job|BASE TABLE
 table|synth|actions_issued|BASE TABLE
 table|synth|actor_identities|BASE TABLE
-table|synth|audit_memory|BASE TABLE
 table|synth|audit_request|BASE TABLE
 table|synth|bio_template_actor_map|BASE TABLE
 table|synth|bio_templates_custom|BASE TABLE
@@ -2031,7 +2013,6 @@ table|synth|log|BASE TABLE
 table|synth|memory_summary|BASE TABLE
 table|synth|memory_v|VIEW
 table|synth|memory|BASE TABLE
-table|synth|moods_issued|BASE TABLE
 table|public|core_prompt|BASE TABLE
 table|public|core_quest|BASE TABLE
 table|public|core_relationship_eval_queue|BASE TABLE
