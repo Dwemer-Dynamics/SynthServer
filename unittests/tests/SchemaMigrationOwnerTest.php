@@ -15,34 +15,13 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
     private ?\PgSql\Connection $pg = null;
 
-    // The shared fixture runs the legacy chain inside the PHPUnit process, where per-process caches left by earlier
-    // classes (synth_ensure_synthnpcs_view's static flag) skip steps. These tests compare the fixture with what a
-    // fresh bootstrap process produces, so this class builds it the same way: the chain in a fresh child process.
+    // The reference install is one real bootstrap of an empty database: the baseline migration installs the schema and
+    // seeds, then tools/bootstrap-database.php loads the narrator settings (seeding their missing keys). The legacy
+    // upgrade chain is retired by the schema redesign (no upgrade path), so no legacy-built reference exists any more.
     public static function setUpBeforeClass(): void
     {
-        self::recreateTestDatabaseFromDefaultSql();
-        $code = <<<'PHP'
-            $root = $argv[1];
-            require_once $root.'/lib/logger.php'; require_once $root.'/lib/runtime_bootstrap.php';
-            require_once $root.'/lib/phpunit.class.php';
-            require $root.'/conf/conf.sample.php'; synthRuntimeImportConfigVariables(get_defined_vars());
-            require_once $root.'/lib/db_connection_settings.php'; require_once $root.'/core/dbmanager/SchemaMigrations.php';
-            $GLOBALS['db'] = $db = new sql();
-            $owner = \Synth\Core\Doctrine\SchemaMigrations::connect(
-                \Synth\Core\Doctrine\SchemaMigrations::settingsForLegacySession($db, synthDbConnectionSettings('testdb')));
-            try { $owner->applyLegacyChainWithoutLedger(); } finally { $owner->close(); }
-            $db->close();
-            PHP;
-        $process = proc_open([PHP_BINARY, '-r', $code, '--', dirname(__DIR__, 2)],
-            [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
-        self::assertIsResource($process);
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $exit = proc_close($process);
-        self::assertSame(0, $exit, "The legacy fixture chain failed: {$output}");
-        self::assertStringNotContainsString('[error]', $output, 'The legacy fixture chain logged an error.');
+        self::recreateEmptyTestDatabase();
         self::loadTestRuntime();
-        self::snapshotTestDatabaseAsFixture();
 
         // The reference for the fresh path: this legacy fresh install after one real bootstrap (which also loads the
         // narrator settings, seeding their missing keys), before setUp() adjusts test rows. setUp() replaces this copy.
@@ -56,12 +35,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame(0, proc_close($process), "The legacy fixture bootstrap failed: {$output}");
         $pg = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
         self::$legacyInstall = self::installFingerprint($pg);
-        self::$legacyWriters = count(self::installWriters($pg, false));
+        // The per-test fixture is this install without its ledger record: a pre-ledger database whose frozen versions are
+        // current, which the owner recognizes and records instead of installing again.
+        pg_query($pg, 'DELETE FROM synth_meta.doctrine_migration_versions');
         pg_close($pg);
+        self::snapshotTestDatabaseAsFixture();
     }
 
     private static array $legacyInstall = [];
-    private static int $legacyWriters = 0;
 
     public function tearDown(): void
     {
@@ -105,7 +86,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         if ($this->pg !== null) pg_close($this->pg);
         $this->pg = null;
-        self::recreateTestDatabaseFromDefaultSql();
+        self::recreateEmptyTestDatabase();
     }
 
     /** @return array{0:resource,1:string,2:string} */
@@ -349,6 +330,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
     public function testPartialLegacySchemaIsRefusedThenRecognizedOnceRepaired(): void
     {
+        // Retired by the schema redesign: the repair path ran the frozen legacy chain's social task schema step.
+        self::markTestSkipped('The legacy upgrade chain is retired by the schema redesign.');
         $this->rows("DELETE FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'");
         $this->rows('DROP TABLE synth_meta.social_task_claims, synth_meta.social_task_events, synth_meta.social_task_inputs');
         // A stray table of the same name makes the legacy social task schema file fail as one statement batch.
@@ -613,7 +596,6 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testEmptyDatabaseIsInstalledByTheBaselineMigrationInOneTransaction(): void
     {
         $legacySchema = $this->schemaFingerprint();
-        self::assertGreaterThan(1, self::$legacyWriters, 'The legacy chain writes in many transactions; the check must tell them apart.');
 
         $this->recreateEmptyDatabase();
         $this->assertDatabaseIsEmpty();
