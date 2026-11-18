@@ -10,7 +10,8 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
     {
         if (!in_array($table, ['descriptions', 'descriptions_custom'], true)) throw new LogicException('Invalid fixture table');
         $db = $this->db();
-        $db->execQuery("INSERT INTO synth.$table(plugin,baseid,name,description) VALUES($1,$2,'Equipment fixture',$3)
+        $relation = $table === 'descriptions' ? 'core_item_description' : 'core_item_description_custom';
+        $db->execQuery("INSERT INTO public.$relation(plugin,baseid,name,description) VALUES($1,$2,'Equipment fixture',$3)
             ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description", [$plugin, $base, $description]);
     }
 
@@ -20,14 +21,14 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
         $this->description('descriptions', 'EquipmentExact.esp', '00004822', 'Factory pistol');
         $this->description('descriptions_custom', 'EquipmentExact.esp', '00004822', 'Edited pistol');
         $this->description('descriptions_custom', 'DifferentEquipment.esp', '00004822', 'Different mod weapon');
-        $before = $db->fetchAll("SELECT * FROM synth.descriptions_custom ORDER BY plugin,baseid");
+        $before = $db->fetchAll("SELECT * FROM public.core_item_description_custom ORDER BY plugin,baseid");
         $db->execQuery('BEGIN READ ONLY');
         try {
             self::assertSame('Edited pistol', synthLookupCapturedEquipmentDescription('0x02004822', 'EquipmentExact.esp'));
             self::assertSame('Different mod weapon', synthLookupCapturedEquipmentDescription('0x03004822', 'DifferentEquipment.esp'));
             self::assertNull(synthLookupCapturedEquipmentDescription('0x02004822', 'MissingEquipment.esp'));
         } finally { $db->execQuery('ROLLBACK'); }
-        self::assertSame($before, $db->fetchAll("SELECT * FROM synth.descriptions_custom ORDER BY plugin,baseid"));
+        self::assertSame($before, $db->fetchAll("SELECT * FROM public.core_item_description_custom ORDER BY plugin,baseid"));
     }
 
     public function testUnscopedWildcardAndCurrentLoadedRuntimeIdsCannotFillMissingStableDescription(): void

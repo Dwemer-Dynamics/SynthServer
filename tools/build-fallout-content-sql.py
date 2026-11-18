@@ -140,13 +140,13 @@ SET LOCAL standard_conforming_strings = on;
         sql+=' AND '.join(field+'='+literal(value) for field,value in predicates)+';\n'
     sql+='\n'
     sql+='INSERT INTO synth.bio_template_actor_map (template_name,base_plugin,base_local_formid,reference_plugin,reference_local_formid,exact_name,is_nonverbal_creature) VALUES\n'+values(map_rows)+'\nON CONFLICT DO NOTHING;\n\n'
-    sql+='INSERT INTO synth.descriptions (plugin,baseid,name,description) VALUES\n'+values(item_rows)+'\nON CONFLICT (plugin,baseid) DO NOTHING;\n\n'
+    sql+='INSERT INTO public.core_item_description (plugin,baseid,name,description) VALUES\n'+values(item_rows)+'\nON CONFLICT (plugin,baseid) DO NOTHING;\n\n'
     metadata=[catalog_id,catalog_version,manifest['display_name'],manifest['checksum_sha256'],125,compact(manifest)]
-    sql+='INSERT INTO synth.worldknowledge_catalogs (catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest) VALUES\n'+values([metadata])+'''
+    sql+='INSERT INTO public.core_worldknowledge_catalog (catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest) VALUES\n'+values([metadata])+'''
 ON CONFLICT (catalog_id,catalog_version) DO UPDATE SET
 display_name=EXCLUDED.display_name, checksum_sha256=EXCLUDED.checksum_sha256,
 row_count=EXCLUDED.row_count, manifest=EXCLUDED.manifest
-WHERE (worldknowledge_catalogs.display_name,worldknowledge_catalogs.checksum_sha256,worldknowledge_catalogs.row_count,worldknowledge_catalogs.manifest)
+WHERE (core_worldknowledge_catalog.display_name,core_worldknowledge_catalog.checksum_sha256,core_worldknowledge_catalog.row_count,core_worldknowledge_catalog.manifest)
 IS DISTINCT FROM (EXCLUDED.display_name,EXCLUDED.checksum_sha256,EXCLUDED.row_count,EXCLUDED.manifest);
 
 '''
@@ -154,8 +154,8 @@ IS DISTINCT FROM (EXCLUDED.display_name,EXCLUDED.checksum_sha256,EXCLUDED.row_co
     # Existing per-article disabled choices survive both a retry and a new version.
     vector_fields=[('topic','A'),('aliases','A'),('topic_desc','B'),('topic_desc_basic','C')]
     vector='||'.join("setweight(to_tsvector('simple',coalesce(seed."+field+",'')),"+literal(weight)+')' for field,weight in vector_fields)
-    sql+='INSERT INTO synth.worldknowledge ('+','.join(lore_columns)+',native_vector,source_kind,catalog_id,catalog_version,is_active)\nSELECT '+','.join('seed.'+field for field in lore_columns)+','+vector+",'factory',"+literal(catalog_id)+','+literal(catalog_version)+''',
-COALESCE((SELECT prior.is_active FROM synth.worldknowledge prior
+    sql+='INSERT INTO public.core_worldknowledge_article ('+','.join(lore_columns)+',native_vector,source_kind,catalog_id,catalog_version,is_active)\nSELECT '+','.join('seed.'+field for field in lore_columns)+','+vector+",'factory',"+literal(catalog_id)+','+literal(catalog_version)+''',
+COALESCE((SELECT prior.is_active FROM public.core_worldknowledge_article prior
 WHERE prior.source_kind='factory' AND prior.catalog_id='''+literal(catalog_id)+''' AND prior.canonical_topic=seed.canonical_topic
 ORDER BY (prior.catalog_version='''+literal(catalog_version)+''') DESC,prior.updated_at DESC,prior.entry_id DESC LIMIT 1),TRUE)
 FROM (VALUES
@@ -163,15 +163,15 @@ FROM (VALUES
 ON CONFLICT (catalog_id,catalog_version,canonical_topic) WHERE source_kind='factory' DO UPDATE SET
 '''+',\n'.join(field+'=EXCLUDED.'+field for field in LORE_FIELDS+['content_hash','native_vector'])+''',
 updated_at=CURRENT_TIMESTAMP
-WHERE ('''+','.join('worldknowledge.'+field for field in LORE_FIELDS+['content_hash','native_vector'])+') IS DISTINCT FROM ('+','.join('EXCLUDED.'+field for field in LORE_FIELDS+['content_hash','native_vector'])+''');
+WHERE ('''+','.join('core_worldknowledge_article.'+field for field in LORE_FIELDS+['content_hash','native_vector'])+') IS DISTINCT FROM ('+','.join('EXCLUDED.'+field for field in LORE_FIELDS+['content_hash','native_vector'])+''');
 
 -- Retain unrelated catalogue rows and any explicit foreign active selection.
 DO $catalogue_activation$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM synth.worldknowledge_catalogs WHERE is_active AND catalog_id<>'''+literal(catalog_id)+''') THEN
-  UPDATE synth.worldknowledge_catalogs SET is_active=FALSE
+IF NOT EXISTS (SELECT 1 FROM public.core_worldknowledge_catalog WHERE is_active AND catalog_id<>'''+literal(catalog_id)+''') THEN
+  UPDATE public.core_worldknowledge_catalog SET is_active=FALSE
     WHERE is_active AND catalog_id='''+literal(catalog_id)+' AND catalog_version<>'+literal(catalog_version)+''';
-  UPDATE synth.worldknowledge_catalogs SET is_active=TRUE,activated_at=COALESCE(activated_at,CURRENT_TIMESTAMP)
+  UPDATE public.core_worldknowledge_catalog SET is_active=TRUE,activated_at=COALESCE(activated_at,CURRENT_TIMESTAMP)
     WHERE NOT is_active AND catalog_id='''+literal(catalog_id)+' AND catalog_version='+literal(catalog_version)+''';
 END IF;
 END;

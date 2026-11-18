@@ -218,7 +218,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
             // Insert into database
             $GLOBALS["db"]->insert(
-                'rolemaster',
+                'core_director_note',
                 array(
                     'localts' => time(),
                     'ttl' => 300,

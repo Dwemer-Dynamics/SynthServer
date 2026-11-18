@@ -181,7 +181,7 @@ if ($minimeEnabled) {
         }
         if ($topic["generated_tags"] == "relax") {
             $GLOBALS["db"]->insert(
-                'rolemaster',
+                'core_director_note',
                 [
                     'localts' => time(),
                     'ttl'     => 60,
@@ -194,7 +194,7 @@ if ($minimeEnabled) {
 
         } else if ($topic["generated_tags"] == "romance") {
             $GLOBALS["db"]->insert(
-                'rolemaster',
+                'core_director_note',
                 [
                     'localts' => time(),
                     'ttl'     => 60,

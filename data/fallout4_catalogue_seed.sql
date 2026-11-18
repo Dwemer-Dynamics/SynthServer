@@ -526,7 +526,7 @@ INSERT INTO synth.bio_template_actor_map (template_name,base_plugin,base_local_f
 ('fo4_deacon_cover_goodneighbor','Fallout4.esm','001A0422',NULL,NULL,'Drifter',FALSE)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO synth.descriptions (plugin,baseid,name,description) VALUES
+INSERT INTO public.core_item_description (plugin,baseid,name,description) VALUES
 ('Fallout4.esm','00004822','10mm pistol','A compact, chunky pre-War sidearm using 10mm ammunition. Its short frame and pistol grip distinguish it from a shoulder-stocked rifle. Automatic operation, sights and a suppressor depend on its fitted modifications.'),
 ('Fallout4.esm','000CE97D','.44 pistol','A heavy revolver with a rotating cylinder, metal frame and wooden grips, firing .44 ammunition. Barrel length and sights vary with modifications. The cylinder distinguishes it from a magazine-fed pistol.'),
 ('Fallout4.esm','000DF42E','Combat rifle','A pre-War, magazine-fed military firearm. Stocks, barrels and receivers change its role and appearance. Its body closely resembles the combat shotgun, so the verified weapon identity matters when distinguishing the two.'),
@@ -730,17 +730,17 @@ INSERT INTO synth.descriptions (plugin,baseid,name,description) VALUES
 ('DLCCoast.esm','00043C7F','Vim Refresh T-51 torso','A rounded T-51 armor part with green promotional paint when present.')
 ON CONFLICT (plugin,baseid) DO NOTHING;
 
-INSERT INTO synth.worldknowledge_catalogs (catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest) VALUES
+INSERT INTO public.core_worldknowledge_catalog (catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest) VALUES
 ('fallout-4-starter-official','content-v4-2026-10-08','SYNTH Fallout 4 public Commonwealth and DLC catalog','f60d433c87c071402a8b7255aef9b77d566848f90ff0b7f55b99baa5c290824e',125,'{"schema":"synth.worldknowledge-catalog.v1","catalog_id":"fallout-4-starter-official","catalog_version":"content-v4-2026-10-08","display_name":"SYNTH Fallout 4 public Commonwealth and DLC catalog","csv_file":"fallout_worldknowledge_parity_v1.csv","checksum_sha256":"f60d433c87c071402a8b7255aef9b77d566848f90ff0b7f55b99baa5c290824e","row_count":125,"source_snapshot":{"file":"fallout_worldknowledge_sources.jsonl","checksum_sha256":"44a63e7022e122fd444885986197b416627d3ed63392cca69b46576c48c20659","row_count":125,"note":"Authored provenance records; unverified revisions remain null."},"knowledge_vocabulary":{"file":"fallout_worldknowledge_vocabulary.json","checksum_sha256":"dce4e842213da3d96923f489753af3e7ae161072453807a1f037460ac8962381"},"generation":{"method":"Existing 104 articles preserved, commonwealth farming corrected, 20 sourced everyday vocabulary/food/currency/chem/culture articles added.","source_file":"Per-topic source receipts, uncertainty flags and independently reviewed tier access; no live history or provider replay."},"coverage":{"games":["Fallout 4"],"advanced_articles":125,"basic_articles":125,"new_articles":20,"full_world_coverage":false,"regions":{"automatron":3,"commonwealth":14,"contraptions":2,"far_harbor":14,"nuka_world":12,"prewar_culture":1,"vault88":2,"wasteland_workshop":2},"revised_articles":1,"previous_catalog_rows":105,"lore_accuracy_topics":["wasteland_vocabulary","tato","mutfruit","razorgrain","tarberry","wasteland_cooking","prewar_packaged_food","bottle_caps","chems","jet","psycho","buffout","mentats","med_x","rad_x","addictol","prewar_american_culture","smoothskin","prewar_money","noodle_cup"]},"editorial_review":{"status":"approved","reviewer":"Codex local integration review","reviewed_at":"2026-10-08","method":"Independent factual/disclosure/access review; no global DLC basic grants; alias ownership and artifact hashes verified. Local review, not release acceptance."},"content_license":{"license":"CC-BY-SA-4.0","url":"https://creativecommons.org/licenses/by-sa/4.0/","attribution_file":"fallout_worldknowledge_attribution.md","original_source_licenses":["CC-BY-SA-4.0 inherited starter","CC-BY-SA-3.0 Fandom originals"]}}')
 ON CONFLICT (catalog_id,catalog_version) DO UPDATE SET
 display_name=EXCLUDED.display_name, checksum_sha256=EXCLUDED.checksum_sha256,
 row_count=EXCLUDED.row_count, manifest=EXCLUDED.manifest
-WHERE (worldknowledge_catalogs.display_name,worldknowledge_catalogs.checksum_sha256,worldknowledge_catalogs.row_count,worldknowledge_catalogs.manifest)
+WHERE (core_worldknowledge_catalog.display_name,core_worldknowledge_catalog.checksum_sha256,core_worldknowledge_catalog.row_count,core_worldknowledge_catalog.manifest)
 IS DISTINCT FROM (EXCLUDED.display_name,EXCLUDED.checksum_sha256,EXCLUDED.row_count,EXCLUDED.manifest);
 
-INSERT INTO synth.worldknowledge (topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,canonical_topic,content_hash,native_vector,source_kind,catalog_id,catalog_version,is_active)
+INSERT INTO public.core_worldknowledge_article (topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,canonical_topic,content_hash,native_vector,source_kind,catalog_id,catalog_version,is_active)
 SELECT seed.topic,seed.aliases,seed.topic_desc,seed.knowledge_class,seed.topic_desc_basic,seed.knowledge_class_basic,seed.tags,seed.category,seed.canonical_topic,seed.content_hash,setweight(to_tsvector('simple',coalesce(seed.topic,'')),'A')||setweight(to_tsvector('simple',coalesce(seed.aliases,'')),'A')||setweight(to_tsvector('simple',coalesce(seed.topic_desc,'')),'B')||setweight(to_tsvector('simple',coalesce(seed.topic_desc_basic,'')),'C'),'factory','fallout-4-starter-official','content-v4-2026-10-08',
-COALESCE((SELECT prior.is_active FROM synth.worldknowledge prior
+COALESCE((SELECT prior.is_active FROM public.core_worldknowledge_article prior
 WHERE prior.source_kind='factory' AND prior.catalog_id='fallout-4-starter-official' AND prior.canonical_topic=seed.canonical_topic
 ORDER BY (prior.catalog_version='content-v4-2026-10-08') DESC,prior.updated_at DESC,prior.entry_id DESC LIMIT 1),TRUE)
 FROM (VALUES
@@ -881,15 +881,15 @@ category=EXCLUDED.category,
 content_hash=EXCLUDED.content_hash,
 native_vector=EXCLUDED.native_vector,
 updated_at=CURRENT_TIMESTAMP
-WHERE (worldknowledge.topic,worldknowledge.aliases,worldknowledge.topic_desc,worldknowledge.knowledge_class,worldknowledge.topic_desc_basic,worldknowledge.knowledge_class_basic,worldknowledge.tags,worldknowledge.category,worldknowledge.content_hash,worldknowledge.native_vector) IS DISTINCT FROM (EXCLUDED.topic,EXCLUDED.aliases,EXCLUDED.topic_desc,EXCLUDED.knowledge_class,EXCLUDED.topic_desc_basic,EXCLUDED.knowledge_class_basic,EXCLUDED.tags,EXCLUDED.category,EXCLUDED.content_hash,EXCLUDED.native_vector);
+WHERE (core_worldknowledge_article.topic,core_worldknowledge_article.aliases,core_worldknowledge_article.topic_desc,core_worldknowledge_article.knowledge_class,core_worldknowledge_article.topic_desc_basic,core_worldknowledge_article.knowledge_class_basic,core_worldknowledge_article.tags,core_worldknowledge_article.category,core_worldknowledge_article.content_hash,core_worldknowledge_article.native_vector) IS DISTINCT FROM (EXCLUDED.topic,EXCLUDED.aliases,EXCLUDED.topic_desc,EXCLUDED.knowledge_class,EXCLUDED.topic_desc_basic,EXCLUDED.knowledge_class_basic,EXCLUDED.tags,EXCLUDED.category,EXCLUDED.content_hash,EXCLUDED.native_vector);
 
 -- Retain unrelated catalogue rows and any explicit foreign active selection.
 DO $catalogue_activation$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM synth.worldknowledge_catalogs WHERE is_active AND catalog_id<>'fallout-4-starter-official') THEN
-  UPDATE synth.worldknowledge_catalogs SET is_active=FALSE
+IF NOT EXISTS (SELECT 1 FROM public.core_worldknowledge_catalog WHERE is_active AND catalog_id<>'fallout-4-starter-official') THEN
+  UPDATE public.core_worldknowledge_catalog SET is_active=FALSE
     WHERE is_active AND catalog_id='fallout-4-starter-official' AND catalog_version<>'content-v4-2026-10-08';
-  UPDATE synth.worldknowledge_catalogs SET is_active=TRUE,activated_at=COALESCE(activated_at,CURRENT_TIMESTAMP)
+  UPDATE public.core_worldknowledge_catalog SET is_active=TRUE,activated_at=COALESCE(activated_at,CURRENT_TIMESTAMP)
     WHERE NOT is_active AND catalog_id='fallout-4-starter-official' AND catalog_version='content-v4-2026-10-08';
 END IF;
 END;

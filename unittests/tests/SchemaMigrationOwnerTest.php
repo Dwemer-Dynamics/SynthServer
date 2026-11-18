@@ -231,7 +231,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $parts = [];
         foreach (['public.core_catalog_version', 'synth.general_settings', 'public.core_profiles', 'synth.core_npc_master',
-                     'public.core_prompt', 'synth.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
+                     'public.core_prompt', 'public.core_action', 'synth.eventlog', 'synth.bio_templates'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
         return implode(' ', $parts);
@@ -587,9 +587,9 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 SELECT xmin::text AS writer FROM public.core_catalog_version
                 UNION ALL SELECT xmin::text FROM public.core_prompt
                 UNION ALL SELECT xmin::text FROM synth.general_settings WHERE id = ANY({$baselineIds}::text[])
-                UNION ALL SELECT xmin::text FROM synth.core_action
+                UNION ALL SELECT xmin::text FROM public.core_action
                 UNION ALL SELECT xmin::text FROM public.core_profiles
-                UNION ALL SELECT xmin::text FROM synth.worldknowledge
+                UNION ALL SELECT xmin::text FROM public.core_worldknowledge_article
                 UNION ALL SELECT xmin::text FROM pg_namespace WHERE nspname IN ('synth', 'plugins')
                 UNION ALL SELECT c.xmin::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                  WHERE n.nspname IN ('synth', 'synth_meta')

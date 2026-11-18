@@ -118,7 +118,7 @@ function storeMemoryWorldKnowledge($embeddings, $text, $id)
 
 	$canonicalTopic = synthWorldKnowledgeCanonicalTopic($id);
 	$cleanedid = $GLOBALS["db"]->escape($canonicalTopic);
-	$GLOBALS["db"]->execQuery("update worldknowledge set vector384='[" . $embedding_str . "]' where lower(split_part(topic, ',', 1))=lower('$cleanedid')");
+	$GLOBALS["db"]->execQuery("update core_worldknowledge_article set vector384='[" . $embedding_str . "]' where lower(split_part(topic, ',', 1))=lower('$cleanedid')");
 	return true;
 }
 

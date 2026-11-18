@@ -1506,12 +1506,12 @@ function synthActionCatalogDbReady()
     $coreAction = $GLOBALS["db"]->fetchOne("
         SELECT 1 AS exists
         FROM information_schema.tables
-        WHERE table_schema = 'synth' AND table_name = 'core_action'
+        WHERE table_schema = 'public' AND table_name = 'core_action'
     ");
     $coreActionCustom = $GLOBALS["db"]->fetchOne("
         SELECT 1 AS exists
         FROM information_schema.tables
-        WHERE table_schema = 'synth' AND table_name = 'core_action_custom'
+        WHERE table_schema = 'public' AND table_name = 'core_action_custom'
     ");
     $combinedView = $GLOBALS["db"]->fetchOne("
         SELECT 1 AS exists
@@ -1533,7 +1533,7 @@ function synthActionCatalogGetExistingCustomImportVersion($codeName)
 
     $row = $GLOBALS["db"]->fetchOne("
         SELECT import_version
-        FROM synth.core_action_custom
+        FROM public.core_action_custom
         WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
         LIMIT 1
     ");
@@ -1660,9 +1660,9 @@ function synthDeleteNonCanonicalActionCatalogRows($updateCustomRows = true)
 
     $inList = implode(',', $literals);
     if ($updateCustomRows) {
-        $GLOBALS["db"]->execQuery("DELETE FROM synth.core_action_custom WHERE code_name NOT IN ({$inList})");
+        $GLOBALS["db"]->execQuery("DELETE FROM public.core_action_custom WHERE code_name NOT IN ({$inList})");
     }
-    $GLOBALS["db"]->execQuery("DELETE FROM synth.core_action WHERE code_name NOT IN ({$inList})");
+    $GLOBALS["db"]->execQuery("DELETE FROM public.core_action WHERE code_name NOT IN ({$inList})");
 }
 
 function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
@@ -1678,7 +1678,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
     if ($updateCustomRows) {
         $existingCustomRows = $GLOBALS["db"]->fetchAll("
             SELECT code_name, metadata
-            FROM synth.core_action_custom
+            FROM public.core_action_custom
         ");
         foreach ($existingCustomRows as $existingCustomRow) {
             $existingCodeName = strtolower(trim(strval($existingCustomRow['code_name'] ?? '')));
@@ -1701,7 +1701,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
         );
 
         $GLOBALS["db"]->execQuery("
-            INSERT INTO synth.core_action (
+            INSERT INTO public.core_action (
                 code_name,
                 action_name,
                 description,
@@ -1748,7 +1748,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
 
         if ($updateCustomRows) {
             $GLOBALS["db"]->execQuery("
-                UPDATE synth.core_action_custom
+                UPDATE public.core_action_custom
                 SET
                     action_name = " . synthActionCatalogSqlText($row['action_name'] ?? '') . ",
                     description = " . synthActionCatalogSqlText($row['description'] ?? '') . ",
@@ -1793,14 +1793,14 @@ function synthDeleteUnexpectedBaseActionCatalogRows($rowsByCode, $updateCustomRo
     $builtinFilter = "metadata @> '{\"source\":\"functions.php\",\"builtin\":true}'::jsonb";
 
     $GLOBALS["db"]->execQuery("
-        DELETE FROM synth.core_action
+        DELETE FROM public.core_action
         WHERE {$builtinFilter}
           AND LOWER(code_name) NOT IN ({$seedCodeList})
     ");
 
     if ($updateCustomRows) {
         $GLOBALS["db"]->execQuery("
-            DELETE FROM synth.core_action_custom
+            DELETE FROM public.core_action_custom
             WHERE {$builtinFilter}
               AND LOWER(code_name) NOT IN ({$seedCodeList})
         ");
@@ -2146,7 +2146,7 @@ function synthActionCatalogHasBaseRows()
 
     $row = $GLOBALS["db"]->fetchOne("
         SELECT 1 AS has_row
-        FROM synth.core_action
+        FROM public.core_action
         LIMIT 1
     ");
 
@@ -2371,7 +2371,7 @@ function synthActionCatalogUpsertCustomToggle($codeName, $enabled)
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
     $result = $GLOBALS["db"]->execQuery("
-        INSERT INTO synth.core_action_custom (
+        INSERT INTO public.core_action_custom (
             code_name,
             action_name,
             description,
@@ -2428,7 +2428,7 @@ function synthActionCatalogDeleteCustomOverride($codeName)
     }
 
     $result = $GLOBALS["db"]->execQuery("
-        DELETE FROM synth.core_action_custom
+        DELETE FROM public.core_action_custom
         WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
     ");
 
@@ -2520,7 +2520,7 @@ function synthActionCatalogUpsertCustomConfig($codeName, $configValues)
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
     $result = $GLOBALS["db"]->execQuery("
-        INSERT INTO synth.core_action_custom (
+        INSERT INTO public.core_action_custom (
             code_name,
             action_name,
             description,
@@ -2607,7 +2607,7 @@ function synthActionCatalogUpsertCustomParameters($codeName, $parameters)
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
     $result = $GLOBALS["db"]->execQuery("
-        INSERT INTO synth.core_action_custom (
+        INSERT INTO public.core_action_custom (
             code_name,
             action_name,
             description,
@@ -2703,7 +2703,7 @@ function synthActionCatalogUpsertCustomTextFields($codeName, $fieldValues)
     $returnMessage = strval($fieldValues['return_message'] ?? ($row['return_message'] ?? ''));
 
     $result = $GLOBALS["db"]->execQuery("
-        INSERT INTO synth.core_action_custom (
+        INSERT INTO public.core_action_custom (
             code_name,
             action_name,
             description,
@@ -2793,7 +2793,7 @@ function synthActionCatalogUpsertCustomRow($row)
     $importVersion = synthActionCatalogNormalizeImportVersion($row['import_version'] ?? 0);
 
     $result = $GLOBALS["db"]->execQuery("
-        INSERT INTO synth.core_action_custom (
+        INSERT INTO public.core_action_custom (
             code_name,
             action_name,
             description,

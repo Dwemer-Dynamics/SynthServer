@@ -100,13 +100,13 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             [$existing['npc_name'],'Operator-authored custom background.']));
         self::assertNotFalse($db->execQuery('INSERT INTO synth.bio_template_actor_map(template_name,base_plugin,base_local_formid,exact_name,is_nonverbal_creature) VALUES($1,$2,$3,$4,false)',
             [$existing['npc_name'],$existing['plugin'],$existing['baseid'],$existing['display_name']]));
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.descriptions(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored item','Authored standard description.')"));
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.descriptions_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored custom item','Authored custom description.')"));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored item','Authored standard description.')"));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00F00301','Authored custom item','Authored custom description.')"));
         $legacyFields=array_intersect_key($legacy,array_flip(SYNTH_WORLDKNOWLEDGE_CATALOG_FIELDS));
         $legacyFields['canonical_topic']=$legacy['topic'];$legacyFields['source_kind']='custom';
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.worldknowledge('.implode(',',array_keys($legacyFields)).') VALUES('.
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_worldknowledge_article('.implode(',',array_keys($legacyFields)).') VALUES('.
             implode(',',array_map(static fn($i)=>'$'.$i,range(1,count($legacyFields)))).')',array_values($legacyFields)));
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.worldknowledge(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES('bundle_authored','bundle_authored','Operator-authored World Knowledge.','custom',true)"));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_worldknowledge_article(topic,canonical_topic,topic_desc,source_kind,is_active) VALUES('bundle_authored','bundle_authored','Operator-authored World Knowledge.','custom',true)"));
         self::assertNotFalse($db->execQuery('ALTER TABLE public.core_catalog_version DROP CONSTRAINT IF EXISTS core_catalog_version_pkey'));
         self::assertNotFalse($db->execQuery("DELETE FROM public.core_catalog_version WHERE catalog_key='fallout4_content_pack'"));
         self::assertNotFalse($db->execQuery("INSERT INTO public.core_catalog_version(catalog_key,version) VALUES('fallout4_content_pack',20261007001)"));
@@ -146,14 +146,14 @@ final class FalloutContentBundleTest extends DatabaseTestCase
         [$root,$pack,,$legacy]=$this->fixture();
         try {
             $this->seedPopulatedState($pack,$legacy);$before=$this->snapshot();
-            $db=new FalloutContentBundleTestAdapter($this->db(),'INSERT INTO synth.worldknowledge (topic,canonical_topic',2);
+            $db=new FalloutContentBundleTestAdapter($this->db(),'INSERT INTO public.core_worldknowledge_article (topic,canonical_topic',2);
             try { synthInstallFalloutContentBundle($db,$root,true);self::fail('Second World Knowledge insert must fail'); }
             catch (RuntimeException $error) { self::assertStringContainsString('article bundle_fixture_second',$error->getMessage()); }
             self::assertSame(['BEGIN','ROLLBACK'],$this->transactionCommands($db));
             self::assertTrue($this->db()->isTransactionIdle());
             self::assertSame($before,$this->snapshot());
             self::assertNotEmpty(array_filter($db->queries,static fn($query)=>str_starts_with($query,'UPDATE synth.core_npc_master SET')));
-            self::assertContains("DELETE FROM synth.worldknowledge WHERE source_kind='factory'",$db->queries);
+            self::assertContains("DELETE FROM public.core_worldknowledge_article WHERE source_kind='factory'",$db->queries);
         } finally { $this->removeFixture($root); }
     }
 
@@ -167,7 +167,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             catch (RuntimeException $error) { self::assertStringContainsString('bundle version',$error->getMessage()); }
             self::assertSame(['BEGIN','ROLLBACK'],$this->transactionCommands($db));
             self::assertSame($before,$this->snapshot());
-            self::assertCount(2,array_filter($db->queries,static fn($query)=>str_starts_with($query,'INSERT INTO synth.worldknowledge (topic,canonical_topic')));
+            self::assertCount(2,array_filter($db->queries,static fn($query)=>str_starts_with($query,'INSERT INTO public.core_worldknowledge_article (topic,canonical_topic')));
         } finally { $this->removeFixture($root); }
     }
 
@@ -193,9 +193,9 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             $template=$this->db()->fetchOne("SELECT personality,worldknowledge_tags FROM synth.bio_templates WHERE npc_name='fo4_bundle_existing'");
             self::assertSame('Operator-authored standard personality.',$template['personality']);
             self::assertSame('commonwealth,bundle_authored_tag',$template['worldknowledge_tags']);
-            self::assertSame('Authored standard description.',$this->db()->fetchOne("SELECT description FROM synth.descriptions WHERE baseid='00F00301'")['description']);
-            self::assertSame('Operator-authored World Knowledge.',$this->db()->fetchOne("SELECT topic_desc FROM synth.worldknowledge WHERE canonical_topic='bundle_authored'")['topic_desc']);
-            self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM synth.worldknowledge WHERE canonical_topic='bundle_fixture_legacy_seed'")['n']);
+            self::assertSame('Authored standard description.',$this->db()->fetchOne("SELECT description FROM public.core_item_description WHERE baseid='00F00301'")['description']);
+            self::assertSame('Operator-authored World Knowledge.',$this->db()->fetchOne("SELECT topic_desc FROM public.core_worldknowledge_article WHERE canonical_topic='bundle_authored'")['topic_desc']);
+            self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE canonical_topic='bundle_fixture_legacy_seed'")['n']);
             foreach ($ids as $index=>$id) {
                 $profile=$this->db()->fetchOne('SELECT npc_static_bio,skills,personality,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
                 self::assertSame('Authored profile personality.',$profile['personality']);
@@ -270,7 +270,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
         [$root,$pack,,$legacy]=$this->fixture();
         try {
             $this->seedPopulatedState($pack,$legacy);$before=$this->snapshot();
-            $db=new FalloutContentBundleTestAdapter($this->db(),'INSERT INTO synth.worldknowledge (topic,canonical_topic',2);
+            $db=new FalloutContentBundleTestAdapter($this->db(),'INSERT INTO public.core_worldknowledge_article (topic,canonical_topic',2);
             self::assertNotFalse($db->execQuery('BEGIN'));
             synthInstallFalloutContentPack($db,$root,true,false);
             try { synthWorldKnowledgeInstallFactoryCatalog($db,$root,false);self::fail('Borrowed World Knowledge insert must fail'); }

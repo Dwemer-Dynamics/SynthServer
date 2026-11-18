@@ -787,13 +787,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
         } else {
             $baseRow = $GLOBALS["db"]->fetchOne("
                 SELECT 1 AS exists
-                FROM synth.core_action
+                FROM public.core_action
                 WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
                 LIMIT 1
             ");
             $customRow = $GLOBALS["db"]->fetchOne("
                 SELECT 1 AS exists
-                FROM synth.core_action_custom
+                FROM public.core_action_custom
                 WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
                 LIMIT 1
             ");
@@ -880,9 +880,9 @@ if ($catalogReady) {
         $whereParts[] = "v.game_function = FALSE";
     }
     if ($customFilter === "custom") {
-        $whereParts[] = "EXISTS (SELECT 1 FROM synth.core_action_custom c WHERE LOWER(c.code_name) = LOWER(v.code_name))";
+        $whereParts[] = "EXISTS (SELECT 1 FROM public.core_action_custom c WHERE LOWER(c.code_name) = LOWER(v.code_name))";
     } elseif ($customFilter === "base") {
-        $whereParts[] = "NOT EXISTS (SELECT 1 FROM synth.core_action_custom c WHERE LOWER(c.code_name) = LOWER(v.code_name))";
+        $whereParts[] = "NOT EXISTS (SELECT 1 FROM public.core_action_custom c WHERE LOWER(c.code_name) = LOWER(v.code_name))";
     }
 
     $whereSql = count($whereParts) > 0 ? ("WHERE " . implode(" AND ", $whereParts)) : "";
@@ -902,12 +902,12 @@ if ($catalogReady) {
             v.script_proxy_program,
             EXISTS (
                 SELECT 1
-                FROM synth.core_action b
+                FROM public.core_action b
                 WHERE LOWER(b.code_name) = LOWER(v.code_name)
             ) AS has_base,
             EXISTS (
                 SELECT 1
-                FROM synth.core_action_custom c
+                FROM public.core_action_custom c
                 WHERE LOWER(c.code_name) = LOWER(v.code_name)
             ) AS is_custom
         FROM synth.combined_core_action v

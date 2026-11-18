@@ -195,7 +195,7 @@ foreach ($catalog as $row) {
         $trace['catalog_version'] = strval($row['catalog_version']);
         if (method_exists($db, 'fetchOne') && method_exists($db, 'escapeLiteral')) {
             $catalogRecord = $db->fetchOne(
-                'SELECT checksum_sha256 FROM synth.worldknowledge_catalogs WHERE catalog_id='
+                'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id='
                 . $db->escapeLiteral($trace['catalog_id']) . ' AND catalog_version='
                 . $db->escapeLiteral($trace['catalog_version']) . ' LIMIT 1'
             );

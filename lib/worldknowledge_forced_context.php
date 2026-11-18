@@ -237,7 +237,7 @@ if (!function_exists('synthWorldKnowledgeFindRowsForSignals')) {
         } catch (Throwable) {
             $rows = $db->fetchAll(
                 "SELECT topic, ''::text AS aliases, topic_desc, knowledge_class, topic_desc_basic, knowledge_class_basic
-                   FROM synth.worldknowledge
+                   FROM public.core_worldknowledge_article
                   WHERE EXISTS (
                         SELECT 1
                           FROM regexp_split_to_table(topic, E'\\\\s*,\\\\s*') AS topic_alias

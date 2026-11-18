@@ -3,7 +3,7 @@
 -- No FNV/Fallout 3 form IDs are retained and display names are never treated as identity.
 
 BEGIN;
-DELETE FROM synth.descriptions
+DELETE FROM public.core_item_description
 WHERE lower(plugin) IN (
     'falloutnv.esm', 'deadmoney.esm', 'honesthearts.esm', 'oldworldblues.esm',
     'lonesomeroad.esm', 'gunrunnersarsenal.esm', 'classicpack.esm',

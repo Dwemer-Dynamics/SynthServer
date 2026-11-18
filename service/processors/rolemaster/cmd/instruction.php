@@ -328,7 +328,7 @@ user request: actor \"a\" leaves the place
         
             // Insert into database
             $GLOBALS["db"]->insert(
-                'rolemaster',
+                'core_director_note',
                 array(
                     'localts' => time(),
                     'ttl' => 300,

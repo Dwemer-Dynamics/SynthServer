@@ -39,7 +39,7 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
         }
         foreach ($pack['items'] as $row) {
             $values=array_map(static fn($key)=>$row[$key],['plugin','baseid','name','description']);
-            if ($db->execQuery('INSERT INTO synth.descriptions(plugin,baseid,name,description) VALUES ($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO NOTHING',$values)===false)
+            if ($db->execQuery('INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES ($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO NOTHING',$values)===false)
                 throw new RuntimeException('Unable to import item description');
         }
         if ($fillExistingProfiles) {

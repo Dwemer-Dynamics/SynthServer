@@ -2,7 +2,7 @@
   "schema": "synth.fallout4-catalogue-sql.v1",
   "migration_version": 20261009002,
   "sql_file": "fallout4_catalogue_seed.sql",
-  "sql_sha256": "bfb1995b8e345e5ee04e61b86d3a3fac59c2789fb534bdbe92a736aa9d89099c",
+  "sql_sha256": "3fe5ea709c6950212c6fda40aefe70292a4c685ec70270f8e86abcea97079f36",
   "source_files": {
     "data/fallout4_content_pack.json": "8d15da865ae638aa42888a6f31dca4dd1d24ce6cdc43b3f857d232ef945a3407",
     "data/fallout4_named_bios.csv": "08ebc0a7356c4e7a46e3ed4dfc3b6042148a5a0fa3a8b0958ed8d856244c993d",

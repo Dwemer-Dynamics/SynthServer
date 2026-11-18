@@ -27,12 +27,12 @@ final class FalloutContentPackTest extends DatabaseTestCase
     {
         $db=$this->db();$root=dirname(__DIR__,2);
         $db->execQuery("UPDATE synth.bio_templates SET personality='Operator-authored character.' WHERE npc_name=(SELECT template_name FROM synth.bio_template_actor_map WHERE base_plugin='Fallout4.esm' AND base_local_formid='000179FF')");
-        $db->execQuery("INSERT INTO synth.descriptions_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00004822','My pistol','My custom description.') ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description");
-        $before=$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM synth.descriptions) AS items');
+        $db->execQuery("INSERT INTO public.core_item_description_custom(plugin,baseid,name,description) VALUES('Fallout4.esm','00004822','My pistol','My custom description.') ON CONFLICT(plugin,baseid) DO UPDATE SET description=EXCLUDED.description");
+        $before=$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM public.core_item_description) AS items');
         synthInstallFalloutContentPack($db,$root,true);
         $report=synthInstallFalloutContentPack($db,$root,true);
         self::assertSame(0,$report['profiles_filled']);
-        self::assertSame($before,$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM synth.descriptions) AS items'));
+        self::assertSame($before,$db->fetchOne('SELECT (SELECT count(*) FROM synth.bio_templates) AS bios,(SELECT count(*) FROM public.core_item_description) AS items'));
         $robot=synth_fetch_bio_template($db,'Codsworth','','Fallout4.esm|000179FF');
         self::assertSame('Operator-authored character.',$robot['personality']);
         self::assertSame('My custom description.',$db->fetchOne("SELECT description FROM synth.combined_descriptions WHERE plugin='Fallout4.esm' AND baseid='00004822'")['description']);

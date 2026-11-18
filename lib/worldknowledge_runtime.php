@@ -107,7 +107,7 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
                     topic_desc, knowledge_class, topic_desc_basic, knowledge_class_basic,
                     tags, category, 'custom'::text AS source_kind, NULL::text AS catalog_id,
                     NULL::text AS catalog_version, TRUE AS is_active
-               FROM synth.worldknowledge
+               FROM public.core_worldknowledge_article
               ORDER BY lower(btrim(split_part(topic, ',', 1)))"
         );
     }

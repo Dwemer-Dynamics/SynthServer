@@ -179,7 +179,7 @@ $activeCatalog = null;
 $catalogResult = @pg_query(
     $conn,
     "SELECT catalog_id, catalog_version, display_name, checksum_sha256, row_count, activated_at
-       FROM {$schema}.worldknowledge_catalogs
+       FROM public.core_worldknowledge_catalog
       WHERE is_active
       LIMIT 1"
 );
@@ -217,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
         $message .= '<p>' . htmlspecialchars($classConflict) . '</p>';
     } elseif (!empty($topic) && worldknowledge_has_description($topic_desc, $topic_desc_basic)) {
         $query = "
-            INSERT INTO $schema.worldknowledge (
+            INSERT INTO public.core_worldknowledge_article (
                 topic,
                 aliases,
                 topic_desc,
@@ -260,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
 
             // Update native_vector
             $update_query = "
-                UPDATE $schema.worldknowledge
+                UPDATE public.core_worldknowledge_article
                 SET native_vector =
                       setweight(to_tsvector(coalesce(topic, '')), 'A')
                     || setweight(to_tsvector(coalesce(aliases, '')), 'A')
@@ -363,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
                         $conflictCount++;
                     } elseif (!empty($topic) && worldknowledge_has_description($topic_desc, $topic_desc_basic)) {
                         $query = "
-                            INSERT INTO $schema.worldknowledge (
+                            INSERT INTO public.core_worldknowledge_article (
                                 topic,
                                 aliases,
                                 topic_desc,
@@ -405,7 +405,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
                             $rowCount++;
                             // Update the native_vector for this single row
                             $update_query = "
-                                UPDATE $schema.worldknowledge
+                                UPDATE public.core_worldknowledge_article
                                 SET native_vector =
                                       setweight(to_tsvector(coalesce(topic, '')), 'A')
                                     || setweight(to_tsvector(coalesce(aliases, '')), 'A')
@@ -477,7 +477,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
     $exportResult = @pg_query(
         $conn,
         "SELECT " . implode(', ', $exportColumns) . "
-           FROM {$schema}.worldknowledge
+           FROM public.core_worldknowledge_article
           WHERE source_kind = 'custom' AND is_active
           ORDER BY canonical_topic"
     );
@@ -510,7 +510,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
  *  4) DELETE ALL
  ********************************************************************/
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_all') {
-    $truncateQuery = "DELETE FROM {$schema}.worldknowledge WHERE source_kind = 'custom'";
+    $truncateQuery = "DELETE FROM public.core_worldknowledge_article WHERE source_kind = 'custom'";
     $truncateResult = pg_query($conn, $truncateQuery);
 
     if ($truncateResult) {
@@ -527,7 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $topic = $_POST['topic'] ?? '';
 
     if (!empty($topic)) {
-        $query = "DELETE FROM {$schema}.worldknowledge WHERE topic = $1 AND source_kind = 'custom'";
+        $query = "DELETE FROM public.core_worldknowledge_article WHERE topic = $1 AND source_kind = 'custom'";
         $result = pg_query_params($conn, $query, [$topic]);
 
         if ($result) {
@@ -599,7 +599,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             // Factory content remains source-controlled. The custom row becomes
             // effective until the user deletes it and reveals the factory row.
             $save_sql = "
-                INSERT INTO $schema.worldknowledge (
+                INSERT INTO public.core_worldknowledge_article (
                     topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
                     knowledge_class_basic, tags, category, canonical_topic, source_kind, is_active
                 )
@@ -613,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             ";
         } else {
             $save_sql = "
-                UPDATE $schema.worldknowledge
+                UPDATE public.core_worldknowledge_article
                 SET topic=$1, aliases=$2, topic_desc=$3, knowledge_class=$4,
                     topic_desc_basic=$5, knowledge_class_basic=$6, tags=$7,
                     category=$8, canonical_topic=$9, updated_at=CURRENT_TIMESTAMP
@@ -627,7 +627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if ($saved) {
             $vector_sql = "
-                UPDATE $schema.worldknowledge
+                UPDATE public.core_worldknowledge_article
                 SET native_vector=
                       setweight(to_tsvector(coalesce(topic, '')), 'A')
                     || setweight(to_tsvector(coalesce(aliases, '')), 'A')
