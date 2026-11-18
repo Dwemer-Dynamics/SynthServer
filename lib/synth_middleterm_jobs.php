@@ -28,7 +28,7 @@ function synth_middleterm_validate_input($db, array $row): array
         : strval($input['prior']['history_event_id'])!==strval($row['prior_history_event_id'])) {
         throw new LogicException('Native narrative normalized prior mismatch.');
     }
-    $digest=$db->fetchOne('SELECT 1 FROM synth_meta.middleterm_inputs WHERE id='.intval($row['id'])
+    $digest=$db->fetchOne('SELECT 1 FROM public.core_middleterm_input WHERE id='.intval($row['id'])
         ." AND input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')");
     if (!$digest) throw new LogicException('Native narrative input digest mismatch.');
     if (synth_middleterm_has_unsaved_control($db,$event,intval($row['actor_identity_id']))) {
@@ -50,7 +50,7 @@ function synth_middleterm_validate_input($db, array $row): array
     }
     $rows=$db->fetchAll(synth_middleterm_history_cte($db,$event,$identity['display_name'])."
         SELECT d.position,d.summary_id,d.summary_revision,d.source_sha256,s.summary,b.last_gamets
-        FROM synth_meta.middleterm_sources d JOIN native_memory_effective_summaries s ON s.id=d.summary_id
+        FROM public.core_middleterm_source d JOIN native_memory_effective_summaries s ON s.id=d.summary_id
             AND s.summary_revision=d.summary_revision AND d.source_sha256=encode(sha256(convert_to(s.summary,'UTF8')),'hex')
         JOIN native_memory_batches b ON b.id=s.batch_id AND b.actor_identity_id=".intval($row['actor_identity_id'])."
         WHERE d.input_id=".intval($row['id']).' ORDER BY d.position');
@@ -117,7 +117,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
     $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256,e.event_type,j.payload->>'context_sequence' AS context_sequence
         FROM public.core_worker_job j JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
         JOIN public.core_protocol_event p USING(session_id,request_id,generation,turn_id,event_type)
-        JOIN synth_meta.middleterm_inputs i ON i.id=j.middleterm_input_id AND i.actor_identity_id=j.actor_identity_id
+        JOIN public.core_middleterm_input i ON i.id=j.middleterm_input_id AND i.actor_identity_id=j.actor_identity_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
             AND i.context_sequence::text=j.payload->>'context_sequence'
         WHERE j.id=".intval($jobId)." AND j.job_type='middleterm' AND j.middleterm_input_id IS NOT NULL AND j.state IN ('pending','running')
@@ -126,7 +126,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
     return synth_worker_with_origin($db,$job,static function() use($db,$job,$jobId,$generate) {
         $token=bin2hex(random_bytes(16));
         $row=$db->withNativeRequestLock(static function($connection) use($db,$job,$jobId,$token) {
-            $row=$db->fetchOne('SELECT * FROM synth_meta.middleterm_inputs WHERE id='.intval($job['middleterm_input_id']));
+            $row=$db->fetchOne('SELECT * FROM public.core_middleterm_input WHERE id='.intval($job['middleterm_input_id']));
             if (!$row) throw new LogicException('Native narrative input missing.');
             if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-middleterm:'||$1,0))",[$row['actor_identity_id']])) {
                 throw new RuntimeException('Unable to lock narrative claim.');
@@ -168,12 +168,12 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                         ||jsonb_build_object('middleterm_input_sha256',$10::text,'middleterm_narrative',$11::text,
                             'middleterm_result_sha256',encode(sha256(convert_to($11::text,'UTF8')),'hex')) FROM publication RETURNING id
                 ), result AS (
-                    INSERT INTO synth_meta.middleterm_results(history_event_id,input_id,narrative,result_sha256)
+                    INSERT INTO public.core_middleterm_result(history_event_id,input_id,narrative,result_sha256)
                     SELECT id,$12,$11,encode(sha256(convert_to($11::text,'UTF8')),'hex') FROM history RETURNING history_event_id
                 ), replacement AS (
-                    INSERT INTO synth_meta.middleterm_replacements(history_event_id,approval_id,target_history_event_id,session_id,generation)
+                    INSERT INTO public.core_middleterm_replacement(history_event_id,approval_id,target_history_event_id,session_id,generation)
                     SELECT result.history_event_id,approval.history_event_id,approval.narrative_id,$6,$7
-                    FROM result JOIN synth_meta.middleterm_regeneration_approvals approval ON approval.history_event_id=$13
+                    FROM result JOIN public.core_middleterm_regeneration_approval approval ON approval.history_event_id=$13
                     RETURNING history_event_id
                 ) SELECT result.history_event_id FROM result WHERE $13::bigint IS NULL
                     OR EXISTS(SELECT 1 FROM replacement WHERE replacement.history_event_id=result.history_event_id)",
@@ -206,9 +206,9 @@ function synth_middleterm_enqueue($db,?int $approvalId=null): ?int
         $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job(job_type,session_id,request_id,turn_id,generation,
             actor_identity_id,middleterm_input_id,payload,deadline_at)
             SELECT 'middleterm',i.session_id,i.request_id,$2,i.generation,i.actor_identity_id,i.id,$3::jsonb,
-                COALESCE((SELECT MIN(prior.deadline_at) FROM public.core_worker_job prior JOIN synth_meta.middleterm_inputs previous ON previous.id=prior.middleterm_input_id
+                COALESCE((SELECT MIN(prior.deadline_at) FROM public.core_worker_job prior JOIN public.core_middleterm_input previous ON previous.id=prior.middleterm_input_id
                     WHERE previous.regeneration_approval_id=i.regeneration_approval_id),clock_timestamp()+INTERVAL '120 seconds')
-            FROM synth_meta.middleterm_inputs i WHERE i.id=$1 ON CONFLICT(middleterm_input_id) WHERE middleterm_input_id IS NOT NULL
+            FROM public.core_middleterm_input i WHERE i.id=$1 ON CONFLICT(middleterm_input_id) WHERE middleterm_input_id IS NOT NULL
             DO UPDATE SET middleterm_input_id=EXCLUDED.middleterm_input_id RETURNING id",[$inputId,$event['turn_id'],$payload]);
         if (!$result || !($row=pg_fetch_assoc($result))) throw new RuntimeException('Unable to enqueue narrative memory.');
         return intval($row['id']);
@@ -270,7 +270,7 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
     } catch (LogicException|SYNTHProtocolCancelled $error) {
         // Invalid frozen inputs must not remain pending forever; do not overwrite another live attempt.
         if ($jobId!==null) $db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN ".($error instanceof SYNTHProtocolCancelled?'TRUE':'FALSE')."
-            AND EXISTS(SELECT 1 FROM synth_meta.middleterm_inputs i WHERE i.id=j.middleterm_input_id AND i.regeneration_approval_id IS NOT NULL)
+            AND EXISTS(SELECT 1 FROM public.core_middleterm_input i WHERE i.id=j.middleterm_input_id AND i.regeneration_approval_id IS NOT NULL)
             THEN 'stale' ELSE 'failed' END,last_error='middleterm_input_invalid'
             WHERE id=$jobId AND job_type='middleterm' AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
         return null;

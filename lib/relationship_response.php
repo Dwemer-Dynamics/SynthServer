@@ -206,7 +206,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             $payload=json_encode($responsePayload,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if (strlen($payload)>131072) return;
             $hash=hash('sha256',$body);
-            $existing=@pg_query_params($connection,'SELECT history_event_id FROM synth_meta.relationship_response_inputs
+            $existing=@pg_query_params($connection,'SELECT history_event_id FROM public.core_relationship_response_input
                 WHERE session_id=$1 AND request_id=$2',[$owner['session_id'],$owner['request_id']]);
             if (!$existing) throw new RuntimeException('Unable to check relationship response replay');
             if (pg_fetch_assoc($existing)) return;
@@ -220,7 +220,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
                     ||jsonb_build_object('response_sha256',$9::text,'response_payload_sha256',
                         encode(sha256(convert_to(($10::jsonb)::text,'UTF8')),'hex'))
                     FROM publication RETURNING id
-            ) INSERT INTO synth_meta.relationship_response_inputs
+            ) INSERT INTO public.core_relationship_response_input
                 (history_event_id,session_id,request_id,actor_identity_id,response_sha256,response_payload)
                 SELECT id,$4,$7,$8,$9,$10::jsonb FROM history RETURNING history_event_id",
                 [$context['playthrough_id'],$context['gamets'],time(),$owner['session_id'],$owner['generation'],
@@ -228,7 +228,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             if (!$result) throw new RuntimeException('Unable to freeze relationship response');
             $responseId=intval(pg_fetch_assoc($result)['history_event_id']);
             foreach ($inputs as $input) {
-                if (@pg_query_params($connection,'INSERT INTO synth_meta.relationship_response_sources VALUES($1,$2)',
+                if (@pg_query_params($connection,'INSERT INTO public.core_relationship_response_source VALUES($1,$2)',
                     [$responseId,$input['id']])===false) throw new RuntimeException('Unable to freeze relationship input dependency');
             }
         },2000);
@@ -299,7 +299,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
     // Resolve retained response history once before expanding saved reader scopes.
     return ", {$evidence}_history AS MATERIALIZED (
         SELECT h.* FROM synth_meta.history_events h
-        JOIN synth_meta.relationship_response_inputs input ON input.history_event_id=h.id
+        JOIN public.core_relationship_response_input input ON input.history_event_id=h.id
         WHERE EXISTS (SELECT 1 FROM $scopes scope
             WHERE scope.session_id=h.session_id AND scope.generation=h.generation
                 AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=input.actor_identity_id
@@ -308,7 +308,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
         SELECT i.*,h.generation,h.context_sequence,h.playthrough_id,
             encode(sha256(convert_to(i.response_payload::text,'UTF8')),'hex') AS candidate_sha256,
             ".synth_relationship_delivery_sql('h','i.response_payload','scope.cutoff','i.actor_identity_id',$current)." AS delivery_eligible
-        FROM synth_meta.relationship_response_inputs i
+        FROM public.core_relationship_response_input i
         JOIN {$evidence}_history h ON h.id=i.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
         JOIN $scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id
@@ -321,8 +321,8 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                     AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff)))
                 OR (e.event_type='action_result' AND e.state='cancelled' AND e.completed_at IS NOT NULL AND e.response_body IS NULL
                     AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff
-                    AND EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations gift
-                        JOIN synth_meta.relationship_results result ON result.evaluation_id=gift.id
+                    AND EXISTS(SELECT 1 FROM public.core_relationship_evaluation gift
+                        JOIN public.core_relationship_result result ON result.evaluation_id=gift.id
                         JOIN public.core_worker_job job ON job.id=result.job_id AND job.relationship_evaluation_id=gift.id
                             AND job.job_type='relationship' AND job.state='ready' AND job.session_id=e.session_id
                             AND job.request_id=e.request_id AND job.generation=e.generation AND job.turn_id=e.turn_id
@@ -362,12 +362,12 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
             AND jsonb_typeof(i.response_payload->'input_events')='array'
             AND CASE WHEN jsonb_typeof(i.response_payload->'input_events')='array' THEN
                 jsonb_array_length(i.response_payload->'input_events')=CASE WHEN e.event_type IN ('input_text','input_audio') THEN 1 ELSE 0 END
-                AND jsonb_array_length(i.response_payload->'input_events')=(SELECT count(*) FROM synth_meta.relationship_response_sources d
+                AND jsonb_array_length(i.response_payload->'input_events')=(SELECT count(*) FROM public.core_relationship_response_source d
                     WHERE d.response_history_event_id=i.history_event_id)
                 AND NOT EXISTS (
                     SELECT 1 FROM jsonb_array_elements(i.response_payload->'input_events') item
                     WHERE NOT EXISTS (
-                        SELECT 1 FROM synth_meta.relationship_response_sources d JOIN synth_meta.history_events raw ON raw.id=d.source_history_event_id
+                        SELECT 1 FROM public.core_relationship_response_source d JOIN synth_meta.history_events raw ON raw.id=d.source_history_event_id
                         WHERE d.response_history_event_id=i.history_event_id AND to_jsonb(raw.id)=item->'id' AND raw.id<h.id
                             AND raw.session_id=h.session_id AND raw.generation=h.generation AND raw.request_id=h.request_id
                             AND raw.context_sequence=h.context_sequence AND raw.playthrough_id=h.playthrough_id

@@ -9,8 +9,8 @@ function synth_relationship_paired_response_consumed($connection, $db, array $ev
     if (!$listenerIds) return false;
     foreach ($listenerIds as $id) if (!is_int($id) || $id<1) throw new InvalidArgumentException('Invalid evaluated relationship subject');
     $result=@pg_query_params($connection,synth_protocol_history_cte($db,$event)."
-        SELECT 1 FROM synth_meta.relationship_interaction_results result
-        JOIN synth_meta.relationship_interaction_evaluations i ON i.id=result.interaction_id
+        SELECT 1 FROM public.core_relationship_interaction_result result
+        JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
         JOIN synth_meta.history_events h ON h.id=result.history_event_id
         WHERE i.response_history_event_id=$1 AND i.listener_identity_id=ANY($2::bigint[])
             AND (EXISTS(SELECT 1 FROM native_history_scopes scope WHERE scope.session_id=h.session_id
@@ -29,7 +29,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId,$token,$modelText) {
         $result=@pg_query_params($connection,"SELECT j.state,j.lease_token,
                 (j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()) AS live,i.*
-            FROM public.core_worker_job j JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
+            FROM public.core_worker_job j JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
                 AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
                 AND i.context_sequence::text=j.payload->>'context_sequence' AND i.speaker_identity_id=j.actor_identity_id
             WHERE j.id=$1 AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
@@ -47,7 +47,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
         $json=json_encode($parsed,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if ($job['state']==='ready') {
             // Idempotent acknowledgement is not a new publication and does not reapply current actor policy.
-            $result=@pg_query_params($connection,"SELECT r.history_event_id FROM synth_meta.relationship_interaction_results r
+            $result=@pg_query_params($connection,"SELECT r.history_event_id FROM public.core_relationship_interaction_result r
                 JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=$4 AND h.request_id=$5
                     AND h.generation=$6 AND h.context_sequence=$7
                 WHERE r.job_id=$1 AND r.interaction_id=$2 AND r.result_payload=$3::jsonb
@@ -66,7 +66,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             throw new LogicException('NPC interaction response already evaluated');
         }
         $result=@pg_query_params($connection,synth_protocol_history_cte($db,$event)."
-            SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id
+            SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
             JOIN synth_meta.history_events h ON h.id=r.history_event_id
             WHERE i.response_history_event_id=$1 AND i.actor_identity_id=$2
                 AND i.input_payload->'subjects' @> jsonb_build_array(jsonb_build_object('subject_id',$5::bigint)) AND (
@@ -81,7 +81,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             if (@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtextextended($1,0))',["synth-relationship:$actor:$subject"])===false) {
                 throw new RuntimeException('Unable to lock interaction perspective');
             }
-            $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_revisions r JOIN synth_meta.history_events h ON h.id=r.history_event_id
+            $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_revision r JOIN synth_meta.history_events h ON h.id=r.history_event_id
                 WHERE h.session_id=$1 AND h.generation=$2 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4
                     AND h.id>(SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
                 [$event['session_id'],$event['generation'],$actor,$subject,$event['context_sequence']]);
@@ -97,14 +97,14 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('evaluation_sha256',$8::text,'result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex'))
             FROM publication RETURNING id
-        ) INSERT INTO synth_meta.relationship_interaction_results(history_event_id,interaction_id,job_id,result_payload)
+        ) INSERT INTO public.core_relationship_interaction_result(history_event_id,interaction_id,job_id,result_payload)
             SELECT id,$10,$11,$9::jsonb FROM history RETURNING history_event_id",
             [$input['context']['playthrough_id'],intval($input['context']['world']['game_time_ticks'] ?? 0),time(),
                 $event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],$job['input_sha256'],$json,$job['id'],$jobId]);
         if (!$result) throw new RuntimeException('Unable to publish NPC interaction result');
         $resultId=intval(pg_fetch_assoc($result)['history_event_id']);
         foreach ($input['interaction']['relationships'] as $role=>$prior) {
-            if ($prior!==null && @pg_query_params($connection,'INSERT INTO synth_meta.relationship_interaction_result_priors
+            if ($prior!==null && @pg_query_params($connection,'INSERT INTO public.core_relationship_interaction_result_prior
                 (result_history_event_id,actor_identity_id,prior_history_event_id) VALUES($1,$2,$3)',[$resultId,$actors[$role],$prior['revision']])===false) {
                 throw new RuntimeException('Unable to publish interaction prior dependency');
             }
@@ -125,7 +125,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
                     ||jsonb_build_object('relationship_details',$15::jsonb,'interaction_result',$14::bigint,
                         'relationship_input_sha256',encode(sha256(convert_to(($13::jsonb)::text,'UTF8')),'hex'))
                 FROM publication RETURNING id
-            ) INSERT INTO synth_meta.relationship_revisions(history_event_id,actor_identity_id,subject_identity_id,prior_history_event_id,
+            ) INSERT INTO public.core_relationship_revision(history_event_id,actor_identity_id,subject_identity_id,prior_history_event_id,
                 affinity,relationship_type,input_payload,input_hash,interaction_result_history_event_id,details)
                 SELECT id,$8,$9,$10,$11,$12,$13::jsonb,encode(sha256(convert_to(($13::jsonb)::text,'UTF8')),'hex'),$14,$15::jsonb
                 FROM history RETURNING history_event_id",
@@ -134,7 +134,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
                     $change['prior_revision'],$change['state']['aff'],$change['state']['type'],$revisionJson,$resultId,$detailsJson]);
             if (!$result) throw new RuntimeException('Unable to publish interaction perspective');
             $revisionId=intval(pg_fetch_assoc($result)['history_event_id']);
-            if (@pg_query_params($connection,'INSERT INTO synth_meta.relationship_revision_sources VALUES($1,$2)',
+            if (@pg_query_params($connection,'INSERT INTO public.core_relationship_revision_source VALUES($1,$2)',
                 [$revisionId,$job['response_history_event_id']])===false) throw new RuntimeException('Unable to publish interaction source');
         }
         $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_until=NULL,updated_at=clock_timestamp()

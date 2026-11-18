@@ -32,7 +32,7 @@ function narrator_private_handle_post(): ?array
         if ($action === 'retire') {
             if ($definitionId === '') return [false, 'Choose a narrator to retire.'];
             $GLOBALS['db']->withManagementTransaction(static function ($connection) use ($definitionId): void {
-                $retired = @pg_query_params($connection, 'UPDATE synth_meta.narrator_definitions SET retired_at=NOW()
+                $retired = @pg_query_params($connection, 'UPDATE public.core_narrator_definition SET retired_at=NOW()
                     WHERE definition_id=$1 AND retired_at IS NULL', [$definitionId]);
                 if (!$retired || pg_affected_rows($retired) !== 1) throw new DomainException('Narrator is already retired.');
                 narrator_private_retire_replies($connection, $definitionId);
@@ -57,21 +57,21 @@ function narrator_private_handle_post(): ?array
         $saved = $GLOBALS['db']->withManagementTransaction(static function ($connection) use ($definitionId, $fields, $profileId): int {
             $id = $definitionId;
             if ($id === '') {
-                if (!@pg_query($connection, 'LOCK TABLE synth_meta.narrator_definitions IN SHARE ROW EXCLUSIVE MODE'))
+                if (!@pg_query($connection, 'LOCK TABLE public.core_narrator_definition IN SHARE ROW EXCLUSIVE MODE'))
                     throw new RuntimeException('Unable to lock narrator library');
-                $count = pg_fetch_row(pg_query($connection, 'SELECT COUNT(*) FROM synth_meta.narrator_definitions WHERE retired_at IS NULL'));
+                $count = pg_fetch_row(pg_query($connection, 'SELECT COUNT(*) FROM public.core_narrator_definition WHERE retired_at IS NULL'));
                 if (intval($count[0] ?? 16) >= 16) throw new DomainException('Retire a narrator before creating another; the library holds 16.');
                 $id = 'nd-'.bin2hex(random_bytes(16));
-                if (!@pg_query_params($connection, 'INSERT INTO synth_meta.narrator_definitions(definition_id) VALUES($1)', [$id]))
+                if (!@pg_query_params($connection, 'INSERT INTO public.core_narrator_definition(definition_id) VALUES($1)', [$id]))
                     throw new RuntimeException('Unable to create narrator.');
             }
             // The definition row lock serializes concurrent edits into one linear revision chain.
-            $current = @pg_query_params($connection, 'SELECT (SELECT MAX(revision_id) FROM synth_meta.narrator_definition_revisions r
-                WHERE r.definition_id=d.definition_id) AS prior FROM synth_meta.narrator_definitions d
+            $current = @pg_query_params($connection, 'SELECT (SELECT MAX(revision_id) FROM public.core_narrator_definition_revision r
+                WHERE r.definition_id=d.definition_id) AS prior FROM public.core_narrator_definition d
                 WHERE d.definition_id=$1 AND d.retired_at IS NULL FOR UPDATE', [$id]);
             $current = $current ? pg_fetch_assoc($current) : false;
             if (!$current) throw new DomainException('That narrator was retired or removed.');
-            $inserted = @pg_query_params($connection, 'INSERT INTO synth_meta.narrator_definition_revisions
+            $inserted = @pg_query_params($connection, 'INSERT INTO public.core_narrator_definition_revision
                 (definition_id,prior_revision_id,name,personality,background,style,voice,profile_id)
                 VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING revision_id', [$id, $current['prior'], $fields['name'],
                 $fields['personality'], $fields['background'], $fields['style'], $fields['voice'], $profileId]);
@@ -92,14 +92,14 @@ function narrator_private_handle_post(): ?array
 // An edit or retirement invalidates replies that were generated from an older revision and are not heard yet.
 function narrator_private_retire_replies($connection, string $definitionId): void
 {
-    if (!@pg_query_params($connection, 'UPDATE synth_meta.narrator_definitions SET edit_generation=edit_generation+1 WHERE definition_id=$1', [$definitionId]))
+    if (!@pg_query_params($connection, 'UPDATE public.core_narrator_definition SET edit_generation=edit_generation+1 WHERE definition_id=$1', [$definitionId]))
         throw new RuntimeException('Unable to invalidate narrator revision');
     if (!@pg_query_params($connection, "UPDATE synth_meta.request_executions e SET state='cancelled',response_body=NULL,
         error_code='request_cancelled',completed_at=NOW() WHERE e.event_type='narrator_turn' AND e.state IN ('claimed','streaming')
-        AND EXISTS(SELECT 1 FROM synth_meta.narrator_pending_outputs p WHERE p.session_id=e.session_id AND p.request_id=e.request_id
+        AND EXISTS(SELECT 1 FROM public.core_narrator_pending_output p WHERE p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.definition_id=$1 AND p.state IN ('pending','generated'))", [$definitionId]))
         throw new RuntimeException('Unable to cancel narrator request');
-    if (!@pg_query_params($connection, "UPDATE synth_meta.narrator_pending_outputs SET state='cancelled',updated_at=NOW()
+    if (!@pg_query_params($connection, "UPDATE public.core_narrator_pending_output SET state='cancelled',updated_at=NOW()
         WHERE definition_id=$1 AND state IN ('pending','generated')", [$definitionId]))
         throw new RuntimeException('Unable to retire pending narrator replies.');
 }
@@ -112,11 +112,11 @@ function narrator_private_render(string $webRoot, ?array $result = null): void
     if ($ready) {
         $definitions = $GLOBALS['db']->fetchAll('SELECT DISTINCT ON (d.definition_id) d.definition_id,r.revision_id,r.name,r.personality,
                 r.background,r.style,r.voice,r.profile_id,r.created_at,
-                (SELECT COUNT(*) FROM synth_meta.narrator_definition_revisions x WHERE x.definition_id=d.definition_id) AS revisions
-            FROM synth_meta.narrator_definitions d JOIN synth_meta.narrator_definition_revisions r USING(definition_id)
+                (SELECT COUNT(*) FROM public.core_narrator_definition_revision x WHERE x.definition_id=d.definition_id) AS revisions
+            FROM public.core_narrator_definition d JOIN public.core_narrator_definition_revision r USING(definition_id)
             WHERE d.retired_at IS NULL ORDER BY d.definition_id,r.revision_id DESC') ?: [];
         usort($definitions, static fn($a, $b) => strcasecmp($a['name'], $b['name']));
-        foreach ($GLOBALS['db']->fetchAll('SELECT definition_id,revision_id,name,created_at FROM synth_meta.narrator_definition_revisions
+        foreach ($GLOBALS['db']->fetchAll('SELECT definition_id,revision_id,name,created_at FROM public.core_narrator_definition_revision
             ORDER BY revision_id DESC LIMIT 200') ?: [] as $row) $revisions[$row['definition_id']][] = $row;
         $profiles = $GLOBALS['db']->fetchAll('SELECT id,label FROM public.core_profiles ORDER BY id') ?: [];
     }

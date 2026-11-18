@@ -11,7 +11,7 @@ function synth_relationship_run_persisted_interaction($db, int $jobId, ?callable
     if (!$db->isTransactionIdle()) throw new LogicException('Interaction providers require an idle database connection');
     $job=$db->fetchOne("SELECT j.session_id,j.request_id,j.turn_id,j.generation,
             j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256
-        FROM public.core_worker_job j JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
+        FROM public.core_worker_job j JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
             AND i.context_sequence::text=j.payload->>'context_sequence' AND i.speaker_identity_id=j.actor_identity_id
         JOIN synth_meta.request_executions e ON e.session_id=j.session_id AND e.request_id=j.request_id

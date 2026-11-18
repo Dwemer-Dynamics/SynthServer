@@ -4,7 +4,7 @@
 function synth_relationship_manual_state_cte(): string
 {
     return ", manual_relationship_candidates AS MATERIALIZED (
-        SELECT r.*,h.playthrough_id FROM synth_meta.relationship_revisions r
+        SELECT r.*,h.playthrough_id FROM public.core_relationship_revision r
         JOIN synth_meta.history_events h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=r.actor_identity_id AND h.id<=scope.cutoff
@@ -32,10 +32,10 @@ function synth_relationship_manual_state_cte(): string
             AND h.event_payload->'manual_correction'=r.input_payload
             AND r.input_hash=encode(sha256(convert_to(r.input_payload::text,'UTF8')),'hex')
             AND h.event_payload->>'relationship_input_sha256'=r.input_hash
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_revision_sources d WHERE d.relationship_history_event_id=r.history_event_id)
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_revision_source d WHERE d.relationship_history_event_id=r.history_event_id)
     ), relationship_reset_history AS MATERIALIZED (
         SELECT r.history_event_id,r.actor_identity_id,r.subject_identity_id,h.session_id,h.generation,h.context_sequence,h.playthrough_id
-        FROM synth_meta.relationship_revisions r
+        FROM public.core_relationship_revision r
         JOIN synth_meta.history_events h ON h.id=r.history_event_id
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='relationship_manual'
             AND h.event_payload#>>'{manual_correction,schema}'='synth.relationship.manual.v2'

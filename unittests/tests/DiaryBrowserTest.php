@@ -57,7 +57,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
         $input=['schema'=>'synth.diary.input.v1','actor_identity_id'=>$actor,'diary_role'=>$role,
             'binding'=>['name'=>$author],'context'=>['player'=>['display_name'=>'Fixture Player'],'world'=>['location'=>'Sanctuary']]];
         $inputHash=$this->hash($input);
-        $inputId=$this->query("INSERT INTO synth_meta.diary_inputs(session_id,request_id,generation,context_sequence,actor_identity_id,diary_role,input_payload,input_sha256)
+        $inputId=$this->query("INSERT INTO public.core_diary_input(session_id,request_id,generation,context_sequence,actor_identity_id,diary_role,input_payload,input_sha256)
             VALUES($1,$2,1,1,$3,$4,$5,$6) RETURNING id",[$session,$request,$actor,$role,json_encode($input),$inputHash])[0]['id'];
         $value=['topic'=>'A day in Sanctuary '.$n,'content'=>$content];$resultHash=$this->hash($value);
         $history=['type'=>'diary_result','delivery_state'=>'derived','gamets'=>123,
@@ -65,7 +65,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
         $id=$this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,recorded_at)
             VALUES($1,1,1,$2,$3,$4,$5,'2026-11-03 12:00:00+00'::timestamptz+($6::integer*interval '1 minute')) RETURNING id",
             [$session,$request,$save,900000+$n,json_encode($history),$n])[0]['id'];
-        $this->query("INSERT INTO synth_meta.diary_results(history_event_id,input_id,result_payload,result_sha256) VALUES($1,$2,$3,$4)",
+        $this->query("INSERT INTO public.core_diary_result(history_event_id,input_id,result_payload,result_sha256) VALUES($1,$2,$3,$4)",
             [$id,$inputId,json_encode($value),$resultHash]);
         return $role.':'.$actor;
     }
@@ -78,7 +78,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
         $this->seed('diary-save-a','narrator','The Narrator','A quiet day.');
         $this->seed('diary-save-a','npc','Sturges','This receipt is mismatched.',false);
         $db=$this->database();
-        $before=$this->query('SELECT history_event_id,result_sha256 FROM synth_meta.diary_results ORDER BY history_event_id');
+        $before=$this->query('SELECT history_event_id,result_sha256 FROM public.core_diary_result ORDER BY history_event_id');
         $this->query('BEGIN READ ONLY');
         try {
             $all=synth_diary_browser_load($db,[]);
@@ -99,7 +99,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
             $summary=synth_diary_browser_summary($db);
             self::assertSame(4,$summary['total']);self::assertSame('The Narrator',$summary['latest']['author']);
         } finally {$this->query('ROLLBACK');}
-        self::assertSame($before,$this->query('SELECT history_event_id,result_sha256 FROM synth_meta.diary_results ORDER BY history_event_id'));
+        self::assertSame($before,$this->query('SELECT history_event_id,result_sha256 FROM public.core_diary_result ORDER BY history_event_id'));
     }
 
     public function testPaginationEscapesWrittenTextAndRetainsFiltersInEmbeddedView(): void

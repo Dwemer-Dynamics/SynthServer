@@ -119,13 +119,13 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
     // Freeze scoped inputs and check each referenced source once, not once for every journal using it.
     return $cte.", diary_scoped_inputs AS MATERIALIZED (
         SELECT i.*,scope.cutoff,scope.playthrough_id AS saved_playthrough_id
-        FROM native_history_scopes scope JOIN synth_meta.diary_inputs i
+        FROM native_history_scopes scope JOIN public.core_diary_input i
             ON i.session_id=scope.session_id AND i.generation=scope.generation AND i.actor_identity_id=scope.reader_identity_id
                 AND ($actorId=0 OR i.actor_identity_id=$actorId) AND i.diary_role='$role'
-        WHERE EXISTS(SELECT 1 FROM synth_meta.diary_results accepted WHERE accepted.input_id=i.id AND accepted.history_event_id<=scope.cutoff)
+        WHERE EXISTS(SELECT 1 FROM public.core_diary_result accepted WHERE accepted.input_id=i.id AND accepted.history_event_id<=scope.cutoff)
     ), diary_visible_sources AS MATERIALIZED (
         SELECT visible.history_event_id,visible.reader_identity_id FROM native_history visible
-        WHERE EXISTS(SELECT 1 FROM synth_meta.diary_input_sources source JOIN diary_scoped_inputs input ON input.id=source.input_id
+        WHERE EXISTS(SELECT 1 FROM public.core_diary_input_source source JOIN diary_scoped_inputs input ON input.id=source.input_id
             WHERE source.history_event_id=visible.history_event_id AND input.actor_identity_id=visible.reader_identity_id)
     ), diary_valid_inputs AS MATERIALIZED (
         SELECT i.* FROM diary_scoped_inputs i
@@ -135,8 +135,8 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
             AND i.input_payload->'prior_revision'=COALESCE(to_jsonb(i.prior_history_event_id),'null'::jsonb)
             AND i.input_payload->'profile_revision'=COALESCE(to_jsonb(i.profile_revision_id),'null'::jsonb)
             AND (i.profile_revision_id IS NULL OR EXISTS(SELECT 1 FROM native_profiles profile WHERE profile.history_event_id=i.profile_revision_id AND profile.actor_identity_id=i.actor_identity_id))
-            AND (SELECT count(*) FROM synth_meta.diary_input_sources s WHERE s.input_id=i.id)=jsonb_array_length(i.input_payload->'history')
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.diary_input_sources s LEFT JOIN diary_visible_sources visible ON visible.history_event_id=s.history_event_id AND visible.reader_identity_id=i.actor_identity_id
+            AND (SELECT count(*) FROM public.core_diary_input_source s WHERE s.input_id=i.id)=jsonb_array_length(i.input_payload->'history')
+            AND NOT EXISTS(SELECT 1 FROM public.core_diary_input_source s LEFT JOIN diary_visible_sources visible ON visible.history_event_id=s.history_event_id AND visible.reader_identity_id=i.actor_identity_id
                 LEFT JOIN synth_meta.history_events original ON original.id=s.history_event_id
                 WHERE s.input_id=i.id AND (visible.history_event_id IS NULL
                     OR s.source_sha256<>encode(sha256(convert_to(original.event_payload::text,'UTF8')),'hex')
@@ -152,7 +152,7 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
                 AND r.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex')
                 THEN r.embedding ELSE NULL::public.vector END AS embedding
         FROM diary_valid_inputs i
-        JOIN synth_meta.diary_results r ON r.input_id=i.id
+        JOIN public.core_diary_result r ON r.input_id=i.id
         JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.id<=i.cutoff
             AND h.session_id=i.session_id AND h.generation=i.generation AND h.context_sequence=i.context_sequence
             AND h.request_id=i.request_id AND h.playthrough_id=i.saved_playthrough_id
@@ -186,7 +186,7 @@ function synth_diary_history_cte($db,array $event,int $actorId,string $role,bool
         FROM native_history_scopes scope JOIN synth_meta.history_events h
             ON h.session_id=scope.session_id AND h.generation=scope.generation
                 AND h.playthrough_id=scope.playthrough_id AND h.id<=scope.cutoff
-        JOIN synth_meta.diary_control_revisions r ON r.history_event_id=h.id
+        JOIN public.core_diary_control_revision r ON r.history_event_id=h.id
         JOIN diary_chain d ON d.history_event_id=r.diary_id AND d.actor_identity_id=scope.reader_identity_id
     ), diary_control_candidates AS (
         SELECT c.* FROM diary_scoped_controls c
@@ -333,7 +333,7 @@ function synth_diary_capture_character($db, ?array $identity, string $prompt, ?i
         $binding=$playerOwned ? synth_diary_player_owned_binding($db,$event,$role) : synth_diary_npc_binding($db,$event,$identity);
         $actor=$binding['actor_identity_id'];
         $existing=$db->fetchOne('SELECT id,input_payload,input_sha256=encode(sha256(convert_to(input_payload::text,\'UTF8\')),\'hex\') AS valid
-            FROM synth_meta.diary_inputs WHERE session_id='.$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
+            FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
             .' AND actor_identity_id='.$actor." AND diary_role='$role'");
         if ($existing) {
             $input=json_decode($existing['input_payload'],true,flags:JSON_THROW_ON_ERROR);
@@ -382,13 +382,13 @@ function synth_diary_capture_character($db, ?array $identity, string $prompt, ?i
             ['role'=>'user','content'=>strtr($prompt,$replace)]];
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if (strlen($json)>1048576) throw new LengthException('Diary input exceeds its bound.');
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.diary_inputs(session_id,request_id,generation,context_sequence,actor_identity_id,
+        $result=@pg_query_params($connection,"INSERT INTO public.core_diary_input(session_id,request_id,generation,context_sequence,actor_identity_id,
             diary_role,prior_history_event_id,input_payload,input_sha256,profile_revision_id) VALUES($1,$2,$3,$4,$5,$9,$6,$7::jsonb,
                 encode(sha256(convert_to(($7::jsonb)::text,'UTF8')),'hex'),$8) RETURNING id",[$event['session_id'],$event['request_id'],$event['generation'],
                     $event['context_sequence'],$actor,$input['prior_revision'],$json,$input['profile_revision'],$role]);
         if (!$result) throw new RuntimeException('Unable to freeze diary input.');
         $id=intval(pg_fetch_assoc($result)['id']);
-        foreach ($history as $source) if (!@pg_query_params($connection,'INSERT INTO synth_meta.diary_input_sources VALUES($1,$2,$3)',[$id,$source['history_event_id'],$source['source_sha256']])) throw new RuntimeException('Unable to freeze diary sources.');
+        foreach ($history as $source) if (!@pg_query_params($connection,'INSERT INTO public.core_diary_input_source VALUES($1,$2,$3)',[$id,$source['history_event_id'],$source['source_sha256']])) throw new RuntimeException('Unable to freeze diary sources.');
         return $id;
     },2000);
 }
@@ -412,7 +412,7 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$inputId,$value,$expectedInputHash,$role) {
         synth_diary_assert_owner($connection,$event,true);
         $playerOwned=$role!=='npc';$narrator=$role==='narrator';
-        $row=$db->fetchOne("SELECT * FROM synth_meta.diary_inputs WHERE id=".intval($inputId)
+        $row=$db->fetchOne("SELECT * FROM public.core_diary_input WHERE id=".intval($inputId)
             .' AND session_id='.$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
             .' AND generation='.intval($event['generation']).' AND context_sequence='.intval($event['context_sequence'])
             ." AND diary_role='$role' AND input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')
@@ -428,7 +428,7 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
         $resultJson=json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         $existing=$db->fetchOne("SELECT history_event_id,result_payload,
             result_sha256=encode(sha256(convert_to(result_payload::text,'UTF8')),'hex') AS valid
-            FROM synth_meta.diary_results WHERE input_id=".$inputId);
+            FROM public.core_diary_result WHERE input_id=".$inputId);
         if ($existing) {
             if ($existing['valid']!=='t' || synth_protocol_canonical_json(json_decode($existing['result_payload'],true))!==synth_protocol_canonical_json($value)) throw new LogicException('Diary result replay conflicts.');
             return intval($existing['history_event_id']);
@@ -442,15 +442,15 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
             throw new LogicException('Diary saved profile changed.');
         }
         $visible=$db->fetchOne(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned)." SELECT count(*) AS n,
-            (SELECT count(*) FROM synth_meta.diary_input_sources WHERE input_id=$inputId) AS total FROM synth_meta.diary_input_sources s
+            (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=$inputId) AS total FROM public.core_diary_input_source s
             JOIN native_history v ON v.history_event_id=s.history_event_id JOIN synth_meta.history_events h ON h.id=s.history_event_id
-            JOIN synth_meta.diary_inputs i ON i.id=s.input_id
+            JOIN public.core_diary_input i ON i.id=s.input_id
             WHERE s.input_id=$inputId AND s.source_sha256=encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex')
                 AND EXISTS(SELECT 1 FROM jsonb_array_elements(i.input_payload->'history') evidence
                     WHERE evidence->>'history_event_id'=s.history_event_id::text AND evidence->>'source_sha256'=s.source_sha256)");
         if (intval($visible['n'])!==count($input['history']) || intval($visible['total'])!==count($input['history'])) throw new LogicException('Diary source evidence unavailable.');
         $context=synth_protocol_current_context($db,$event);$playthrough=$context['player']['playthrough_id'];
-        $pending=$db->fetchOne('SELECT 1 FROM synth_meta.diary_inputs i JOIN synth_meta.diary_results r ON r.input_id=i.id
+        $pending=$db->fetchOne('SELECT 1 FROM public.core_diary_input i JOIN public.core_diary_result r ON r.input_id=i.id
             JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             WHERE i.session_id='.$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
             .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.$binding['actor_identity_id']
@@ -464,7 +464,7 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('diary_input_sha256',$8::text,'diary_result',$9::jsonb,
                     'diary_result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex')) FROM publication RETURNING id
-        ) INSERT INTO synth_meta.diary_results(history_event_id,input_id,result_payload,result_sha256)
+        ) INSERT INTO public.core_diary_result(history_event_id,input_id,result_payload,result_sha256)
             SELECT id,$10,$9::jsonb,encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex') FROM history RETURNING history_event_id",
             [$playthrough,intval($context['payload']['world']['game_time_ticks'] ?? 0),time(),$event['session_id'],$event['generation'],
                 $event['context_sequence'],$event['request_id'],$row['input_sha256'],$resultJson,$inputId]);

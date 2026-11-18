@@ -178,7 +178,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame('replay',synth_protocol_claim_request($ingress,$next)['status']);
         $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['AUTO_CREATE_SUMMARY_MIN_EVENTS']=1;
         $this->assertNotNull(synth_memory_dispatch($this->database,static fn()=>'Recovered memory.'));
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary'))['n']);
     }
 
     private function setSnapshotClock(int $sequence,mixed $clock,bool $present=true): void
@@ -235,28 +235,28 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     }
     private function attachEarlierSummary(): array
     {
-        $batch=pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.memory_batches WHERE id=$1',[$this->batchId]));
+        $batch=pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_memory_batch WHERE id=$1',[$this->batchId]));
         $input=json_decode($batch['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         $this->copySnapshot(3,500);
         $earlierId=$this->appendHistory(3,['data'=>'Nora: Earlier Diamond City evidence.','gamets'=>500]);
         $this->setFrontier($earlierId);
         $earlier=synth_memory_build_batch([['history_event_id'=>$earlierId,'type'=>'inputtext','gamets'=>500,
             'source_location'=>'Diamond City','data'=>'Nora: Earlier Diamond City evidence.']],1,1000000);
-        $result=$this->query("INSERT INTO synth_meta.memory_batches(actor_identity_id,playthrough_id,session_id,generation,context_sequence,source_hash,input_payload,packed_message,first_gamets,last_gamets)
+        $result=$this->query("INSERT INTO public.core_memory_batch(actor_identity_id,playthrough_id,session_id,generation,context_sequence,source_hash,input_payload,packed_message,first_gamets,last_gamets)
             VALUES($1,'memory-recovery-save','memory-recovery-session',1,2,$2,$3::jsonb,$4,500,500) RETURNING id",
             [$this->actorId,$earlier['source_hash'],$this->json($earlier['input_payload']),$earlier['packed_message']]);
         $parentId=(int)pg_fetch_assoc($result)['id'];
-        $this->query('INSERT INTO synth_meta.memory_batch_sources(batch_id,history_event_id,position) VALUES($1,$2,1)',[$parentId,$earlierId]);
+        $this->query('INSERT INTO public.core_memory_batch_source(batch_id,history_event_id,position) VALUES($1,$2,1)',[$parentId,$earlierId]);
         $result=$this->query("INSERT INTO public.core_worker_job(job_type,session_id,request_id,turn_id,generation,actor_identity_id,memory_batch_id,payload,state)
             VALUES('memory','memory-recovery-session',$1,$2,1,$3,$4,'{\"context_sequence\":2}','ready') RETURNING id",
             [$this->event['request_id'],$this->event['turn_id'],$this->actorId,$parentId]);
         $parentJob=(int)pg_fetch_assoc($result)['id'];
-        $result=$this->query('INSERT INTO synth_meta.memory_summaries(batch_id,job_id,summary) VALUES($1,$2,$3) RETURNING id',[$parentId,$parentJob,'Earlier accepted summary.']);
+        $result=$this->query('INSERT INTO public.core_memory_summary(batch_id,job_id,summary) VALUES($1,$2,$3) RETURNING id',[$parentId,$parentJob,'Earlier accepted summary.']);
         $summaryId=(int)pg_fetch_assoc($result)['id'];
         $input['previous_summary']=['id'=>$summaryId,'summary'=>'Earlier accepted summary.'];
         $json=$this->json($input);
-        $this->query('UPDATE synth_meta.memory_batches SET input_payload=$2::jsonb,source_hash=$3 WHERE id=$1',[$this->batchId,$json,hash('sha256',$json)]);
-        $this->query('INSERT INTO synth_meta.memory_batch_summary_sources(batch_id,summary_id,summary_revision) VALUES($1,$2,0)',[$this->batchId,$summaryId]);
+        $this->query('UPDATE public.core_memory_batch SET input_payload=$2::jsonb,source_hash=$3 WHERE id=$1',[$this->batchId,$json,hash('sha256',$json)]);
+        $this->query('INSERT INTO public.core_memory_batch_summary_source(batch_id,summary_id,summary_revision) VALUES($1,$2,0)',[$this->batchId,$summaryId]);
         return [$summaryId,$parentId];
     }
 
@@ -264,8 +264,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     private function dispatchFixture(bool $differentResponder=false): array
     {
         $this->query('DELETE FROM public.core_worker_job WHERE id=$1',[$this->jobId]);
-        $this->query('DELETE FROM synth_meta.memory_batch_sources WHERE batch_id=$1',[$this->batchId]);
-        $this->query('DELETE FROM synth_meta.memory_batches WHERE id=$1',[$this->batchId]);
+        $this->query('DELETE FROM public.core_memory_batch_source WHERE batch_id=$1',[$this->batchId]);
+        $this->query('DELETE FROM public.core_memory_batch WHERE id=$1',[$this->batchId]);
         $GLOBALS['FEATURES']['MEMORY_EMBEDDING']=['AUTO_CREATE_SUMMARYS'=>true,
             'AUTO_CREATE_SUMMARY_MIN_EVENTS'=>5,'AUTO_CREATE_SUMMARY_INTERVAL'=>10];
         $this->setSnapshotClock(1,26886800);
@@ -420,8 +420,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame(synth_protocol_canonical_json($this->event),synth_protocol_canonical_json($owner),
             'The immutable completed parent owns capture and publication');
         $saved=pg_fetch_assoc($this->query("SELECT j.request_id,j.actor_identity_id,j.state,j.payload ? 'accepted_summary' AS checkpoint,b.id AS batch_id
-            FROM synth_meta.memory_summaries s JOIN public.core_worker_job j ON j.id=s.job_id
-            JOIN synth_meta.memory_batches b ON b.id=s.batch_id WHERE s.id=$1",[$summaryId]));
+            FROM public.core_memory_summary s JOIN public.core_worker_job j ON j.id=s.job_id
+            JOIN public.core_memory_batch b ON b.id=s.batch_id WHERE s.id=$1",[$summaryId]));
         $this->assertSame($this->event['request_id'],$saved['request_id']);
         $this->assertNotSame($child['request_id'],$saved['request_id']);
         $this->assertSame((string)$this->actorId,$saved['actor_identity_id']);
@@ -433,8 +433,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             ++$calls;return 'Duplicate generation is forbidden.';
         }));
         $this->assertSame(1,$calls,'Published coverage must prevent generation on another scheduled dispatch');
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries'))['n']);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_batches'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary'))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_batch'))['n']);
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('closedDispatchSelections')]
@@ -449,7 +449,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             ++$calls;return 'No eligible completed parent exists.';
         }));
         $this->assertSame(0,$calls);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_batches'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_batch'))['n']);
         $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM public.core_worker_job WHERE job_type='memory'"))['n']);
     }
 
@@ -482,8 +482,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame(1,$calls);
         $this->assertSame(synth_protocol_canonical_json($child),synth_protocol_canonical_json($owner),
             'A usable prepared NPC must remain the dispatch origin');
-        $saved=pg_fetch_assoc($this->query('SELECT j.request_id,b.actor_identity_id FROM synth_meta.memory_summaries s
-            JOIN public.core_worker_job j ON j.id=s.job_id JOIN synth_meta.memory_batches b ON b.id=s.batch_id WHERE s.id=$1',[$summaryId]));
+        $saved=pg_fetch_assoc($this->query('SELECT j.request_id,b.actor_identity_id FROM public.core_memory_summary s
+            JOIN public.core_worker_job j ON j.id=s.job_id JOIN public.core_memory_batch b ON b.id=s.batch_id WHERE s.id=$1',[$summaryId]));
         $this->assertSame($child['request_id'],$saved['request_id']);
         $this->assertSame((string)$fixture['responder_id'],$saved['actor_identity_id']);
         $this->assertNotSame((string)$this->actorId,$saved['actor_identity_id'],'The captured Piper target cannot impersonate selected Preston');
@@ -505,7 +505,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             $this->assertSame('rechat_selected_binding_changed',$error->getMessage());
         }
         $this->assertSame(0,$calls);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_batches'))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_batch'))['n']);
         $this->assertSame('0',pg_fetch_assoc($this->query("SELECT count(*) AS n FROM public.core_worker_job WHERE job_type='memory'"))['n']);
     }
 
@@ -568,7 +568,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->setSnapshotClock(2,26886800+416667);
         $batchId=synth_memory_capture_batch($this->database,1,1000000);
         $this->assertNotNull($batchId,'The first tick after the strict one-hour cutoff must capture the source');
-        $batch=pg_fetch_assoc($this->query('SELECT first_gamets,last_gamets FROM synth_meta.memory_batches WHERE id=$1',[$batchId]));
+        $batch=pg_fetch_assoc($this->query('SELECT first_gamets,last_gamets FROM public.core_memory_batch WHERE id=$1',[$batchId]));
         $this->assertSame(['first_gamets'=>'26886800','last_gamets'=>'26886800'],$batch);
     }
 
@@ -594,7 +594,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->setSnapshotClock(2,$sourceClock+833333);
         $batchId=synth_memory_capture_batch($this->database);
         $this->assertNotNull($batchId,'UTC payload stamps must not prevent capture two game hours later');
-        $batch=pg_fetch_assoc($this->query('SELECT * FROM synth_meta.memory_batches WHERE id=$1',[$batchId]));
+        $batch=pg_fetch_assoc($this->query('SELECT * FROM public.core_memory_batch WHERE id=$1',[$batchId]));
         $this->assertSame('memory-recovery-save',$batch['playthrough_id']);
         $this->assertSame((string)$this->actorId,$batch['actor_identity_id']);
         $this->assertSame((string)$sourceClock,$batch['first_gamets']);
@@ -605,7 +605,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame(array_fill(0,5,$sourceClock),array_column($input['events'],'gamets'));
         $expected=synth_memory_build_batch($this->historyRows(),5,1000000);
         $this->assertSame($expected['source_hash'],$batch['source_hash'],'Source hashes must bind the normalized game clocks');
-        $sources=pg_fetch_all($this->query('SELECT history_event_id,position FROM synth_meta.memory_batch_sources WHERE batch_id=$1 ORDER BY position',[$batchId]));
+        $sources=pg_fetch_all($this->query('SELECT history_event_id,position FROM public.core_memory_batch_source WHERE batch_id=$1 ORDER BY position',[$batchId]));
         $this->assertSame($ids,array_map(static fn(array $row): int=>(int)$row['history_event_id'],$sources));
         $this->assertSame(range(1,5),array_map(static fn(array $row): int=>(int)$row['position'],$sources));
         $this->assertSame([$batchId],$this->visibleBatchIds());
@@ -617,12 +617,12 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->batchId=$batchId;$this->jobId=$jobId;
         $checkpoint=$this->interruptAfterAcceptedText('Accepted normalized game-clock summary.');
         $hash=pg_fetch_assoc($this->query("SELECT encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS hash
-            FROM synth_meta.memory_batches WHERE id=$1",[$batchId]))['hash'];
+            FROM public.core_memory_batch WHERE id=$1",[$batchId]))['hash'];
         $this->assertSame($hash,$checkpoint['input_sha256']);
         $calls=0;
         $this->assertNotNull(synth_memory_process_job($this->database,$jobId,static function() use (&$calls) {++$calls;return 'Forbidden regenerated text.';}));
         $this->assertSame(0,$calls);
-        $this->assertSame($batch['input_payload'],pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.memory_batches WHERE id=$1',[$batchId]))['input_payload']);
+        $this->assertSame($batch['input_payload'],pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_memory_batch WHERE id=$1',[$batchId]))['input_payload']);
         $this->assertSame($before,pg_fetch_all($this->query('SELECT id,event_payload::text FROM synth_meta.history_events ORDER BY id')));
     }
 
@@ -648,14 +648,14 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $checkpoint=$this->interruptAfterAcceptedText('Accepted legacy UTC-clock summary.');
         $this->stampSourceWithUtcClock();
-        $batch=pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.memory_batches WHERE id=$1',[$this->batchId]));
+        $batch=pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_memory_batch WHERE id=$1',[$this->batchId]));
         $legacyInput=json_decode($batch['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         $legacyInput['events'][0]['gamets']=1791859200;
         $legacyJson=$this->json($legacyInput);
-        $this->query('UPDATE synth_meta.memory_batches SET input_payload=$2::jsonb,first_gamets=1791859200,last_gamets=1791859200,source_hash=$3 WHERE id=$1',
+        $this->query('UPDATE public.core_memory_batch SET input_payload=$2::jsonb,first_gamets=1791859200,last_gamets=1791859200,source_hash=$3 WHERE id=$1',
             [$this->batchId,$legacyJson,hash('sha256',$legacyJson)]);
         $checkpoint['input_sha256']=pg_fetch_assoc($this->query("SELECT encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS hash
-            FROM synth_meta.memory_batches WHERE id=$1",[$this->batchId]))['hash'];
+            FROM public.core_memory_batch WHERE id=$1",[$this->batchId]))['hash'];
         $this->query("UPDATE public.core_worker_job SET payload=jsonb_set(payload,'{accepted_summary}',$2::jsonb) WHERE id=$1",[$this->jobId,$this->json($checkpoint)]);
         $this->assertSame([],$this->visibleBatchIds());
         $this->assertNull(synth_memory_enqueue($this->database,$this->batchId));
@@ -664,13 +664,13 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertNull(synth_memory_process_job($this->database,$this->jobId,static function() use (&$calls) {++$calls;return 'Forbidden legacy recovery.';},
             static function() use (&$embedded) {++$embedded;return null;}));
         $this->assertSame(0,$calls);$this->assertSame(0,$embedded);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
         $this->assertSame($checkpoint['input_sha256'],json_decode($this->job()['payload'],true)['accepted_summary']['input_sha256']);
         $corrected=synth_memory_capture_batch($this->database,1,1000000);
         $this->assertNotNull($corrected);
         $this->assertNotSame($this->batchId,$corrected,'Invalid UTC coverage must leave corrected sources capturable');
         $this->assertSame([$corrected],$this->visibleBatchIds());
-        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM synth_meta.memory_batches WHERE id=$1',[$corrected]))['input_payload'],true);
+        $input=json_decode(pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_memory_batch WHERE id=$1',[$corrected]))['input_payload'],true);
         $this->assertSame(1000,$input['events'][0]['gamets']);
         $this->assertSame($this->historyId,$input['events'][0]['history_event_id']);
     }
@@ -679,26 +679,26 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $summaryId=synth_memory_process_job($this->database,$this->jobId,static fn()=>'Accepted visible summary.');
         $this->assertNotNull($summaryId);
-        $original=pg_fetch_assoc($this->query('SELECT input_payload,first_gamets,last_gamets FROM synth_meta.memory_batches WHERE id=$1',[$this->batchId]));
+        $original=pg_fetch_assoc($this->query('SELECT input_payload,first_gamets,last_gamets FROM public.core_memory_batch WHERE id=$1',[$this->batchId]));
         foreach (['frozen UTC clock','frozen numeric string','first bound','last bound','source position','event count'] as $case) {
             switch ($case) {
-                case 'frozen UTC clock': $this->query("UPDATE synth_meta.memory_batches SET input_payload=jsonb_set(input_payload,'{events,0,gamets}','1791859200'::jsonb) WHERE id=$1",[$this->batchId]);break;
-                case 'frozen numeric string': $this->query("UPDATE synth_meta.memory_batches SET input_payload=jsonb_set(input_payload,'{events,0,gamets}','\"1000\"'::jsonb) WHERE id=$1",[$this->batchId]);break;
-                case 'first bound': $this->query('UPDATE synth_meta.memory_batches SET first_gamets=999 WHERE id=$1',[$this->batchId]);break;
-                case 'last bound': $this->query('UPDATE synth_meta.memory_batches SET last_gamets=1001 WHERE id=$1',[$this->batchId]);break;
-                case 'source position': $this->query('UPDATE synth_meta.memory_batch_sources SET position=2 WHERE batch_id=$1',[$this->batchId]);break;
-                case 'event count': $this->query("UPDATE synth_meta.memory_batches SET input_payload=jsonb_set(input_payload,'{events}',(input_payload->'events')||(input_payload->'events')) WHERE id=$1",[$this->batchId]);break;
+                case 'frozen UTC clock': $this->query("UPDATE public.core_memory_batch SET input_payload=jsonb_set(input_payload,'{events,0,gamets}','1791859200'::jsonb) WHERE id=$1",[$this->batchId]);break;
+                case 'frozen numeric string': $this->query("UPDATE public.core_memory_batch SET input_payload=jsonb_set(input_payload,'{events,0,gamets}','\"1000\"'::jsonb) WHERE id=$1",[$this->batchId]);break;
+                case 'first bound': $this->query('UPDATE public.core_memory_batch SET first_gamets=999 WHERE id=$1',[$this->batchId]);break;
+                case 'last bound': $this->query('UPDATE public.core_memory_batch SET last_gamets=1001 WHERE id=$1',[$this->batchId]);break;
+                case 'source position': $this->query('UPDATE public.core_memory_batch_source SET position=2 WHERE batch_id=$1',[$this->batchId]);break;
+                case 'event count': $this->query("UPDATE public.core_memory_batch SET input_payload=jsonb_set(input_payload,'{events}',(input_payload->'events')||(input_payload->'events')) WHERE id=$1",[$this->batchId]);break;
             }
             $this->assertSame([],$this->visibleBatchIds(),$case.' must invalidate completed recall');
             $visible=pg_fetch_all($this->query(synth_memory_visible_batch_cte($this->database,$this->event)
                 .'SELECT id FROM native_memory_effective_summaries')) ?: [];
             $this->assertSame([],$visible,$case.' must hide the derived summary');
-            $this->query('UPDATE synth_meta.memory_batches SET input_payload=$2::jsonb,first_gamets=$3,last_gamets=$4 WHERE id=$1',
+            $this->query('UPDATE public.core_memory_batch SET input_payload=$2::jsonb,first_gamets=$3,last_gamets=$4 WHERE id=$1',
                 [$this->batchId,$original['input_payload'],$original['first_gamets'],$original['last_gamets']]);
-            $this->query('UPDATE synth_meta.memory_batch_sources SET position=1 WHERE batch_id=$1',[$this->batchId]);
+            $this->query('UPDATE public.core_memory_batch_source SET position=1 WHERE batch_id=$1',[$this->batchId]);
             $this->assertSame([$this->batchId],$this->visibleBatchIds());
         }
-        $this->assertSame('Accepted visible summary.',pg_fetch_assoc($this->query('SELECT summary FROM synth_meta.memory_summaries WHERE id=$1',[$summaryId]))['summary']);
+        $this->assertSame('Accepted visible summary.',pg_fetch_assoc($this->query('SELECT summary FROM public.core_memory_summary WHERE id=$1',[$summaryId]))['summary']);
     }
 
     public function testInconsistentParentClockHidesItsDependentCheckpointAndSummary(): void
@@ -715,8 +715,8 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertNull(synth_memory_process_job($this->database,$this->jobId,static function() use (&$calls) {++$calls;return 'Forbidden descendant recovery.';},
             static function() use (&$embedded) {++$embedded;return null;}));
         $this->assertSame(0,$calls);$this->assertSame(0,$embedded);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
-        $this->assertSame('Earlier accepted summary.',pg_fetch_assoc($this->query('SELECT summary FROM synth_meta.memory_summaries WHERE id=$1',[$summaryId]))['summary']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('Earlier accepted summary.',pg_fetch_assoc($this->query('SELECT summary FROM public.core_memory_summary WHERE id=$1',[$summaryId]))['summary']);
     }
 
     public function testAcceptedTextSurvivesAnEmbeddingInterruptionWithoutRegeneration(): void
@@ -733,14 +733,14 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $summaryId=synth_memory_process_job($this->database,$this->jobId,$generate,static fn()=>null);
         $this->assertNotNull($summaryId);
         $this->assertSame(1,$calls,'Recovery must not request different summary text after the accepted text was checkpointed');
-        $summary=pg_fetch_assoc($this->query('SELECT summary FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]));
+        $summary=pg_fetch_assoc($this->query('SELECT summary FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]));
         $this->assertSame('Accepted first summary.',$summary['summary']);
         $this->assertSame('ready',$this->job()['state']);
         $this->assertSame('2',$this->job()['attempts']);
         $this->assertSame($deadline,$this->job()['deadline_at']);
         $this->assertNull(synth_memory_process_job($this->database,$this->jobId,$generate));
         $this->assertSame(1,$calls);
-        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
     }
 
     public function testAcceptedCheckpointSurvivesActualWorkerProcessExit(): void
@@ -771,7 +771,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             $this->assertNotNull(synth_memory_process_job($this->database,$this->jobId,static function() use (&$calls) {++$calls;return 'Regenerated text.';}));
             $this->assertSame(0,$calls);
             $this->assertSame($deadline,$this->job()['deadline_at']);
-            $rows=pg_fetch_all($this->query('SELECT summary FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]));
+            $rows=pg_fetch_all($this->query('SELECT summary FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]));
             $this->assertSame([['summary'=>'Accepted process summary.']],$rows);
         } finally {if (is_string($marker)) unlink($marker);}
     }
@@ -834,7 +834,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         } catch (LogicException|InvalidArgumentException $error) {$this->assertStringContainsString('memory',$error->getMessage());}
         $this->assertSame(0,$calls);
         $this->assertSame(0,$embedded);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
         $stored=json_decode($this->job()['payload'],true)['accepted_summary'];
         // PostgreSQL JSONB preserves object values/types while ordering keys canonically.
         if (is_array($checkpoint)) {ksort($checkpoint);ksort($stored);}
@@ -849,7 +849,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     public function testCurrentInputMutationRejectsRecoveredCheckpoint(): void
     {
         $this->interruptAfterAcceptedText();
-        $this->query("UPDATE synth_meta.memory_batches SET input_payload=jsonb_set(input_payload,'{events,0,data}','\"Changed evidence.\"'::jsonb) WHERE id=$1",[$this->batchId]);
+        $this->query("UPDATE public.core_memory_batch SET input_payload=jsonb_set(input_payload,'{events,0,data}','\"Changed evidence.\"'::jsonb) WHERE id=$1",[$this->batchId]);
         $calls=0;
         try {
             synth_memory_process_job($this->database,$this->jobId,static function() use (&$calls) {++$calls;return 'Replacement text.';});
@@ -863,7 +863,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $embedded=0;
         try {
             synth_memory_process_job($this->database,$this->jobId,function() {
-                $this->query("UPDATE synth_meta.memory_batches SET input_payload=jsonb_set(input_payload,'{events,0,data}','\"Changed evidence.\"'::jsonb) WHERE id=$1",[$this->batchId]);
+                $this->query("UPDATE public.core_memory_batch SET input_payload=jsonb_set(input_payload,'{events,0,data}','\"Changed evidence.\"'::jsonb) WHERE id=$1",[$this->batchId]);
                 return 'Accepted against the previous input.';
             },static function() use (&$embedded) {++$embedded;return null;});
             $this->fail('Changed in-flight input accepted');
@@ -886,7 +886,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         }
         $this->assertSame('Accepted text.',json_decode($this->job()['payload'],true)['accepted_summary']['summary']);
         $this->assertSame('running',$this->job()['state']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
     }
 
     public function testExpiredAndReplacedLeasesCannotWriteCheckpoints(): void
@@ -924,14 +924,14 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             case 'generation': $this->query("UPDATE public.core_runtime_session SET active_generation=2 WHERE session_id='memory-recovery-session'");break;
             case 'frontier': $this->query("UPDATE public.core_runtime_context SET history_event_id=0 WHERE session_id='memory-recovery-session' AND snapshot_sequence=2");break;
             case 'source': $this->query("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}','\"|Other Actor|\"'::jsonb) WHERE id=$1",[$this->historyId]);break;
-            case 'archive': $this->query('INSERT INTO synth_meta.memory_batch_controls(batch_id,archived,revision) VALUES($1,true,1)',[$this->batchId]);break;
+            case 'archive': $this->query('INSERT INTO public.core_memory_batch_control(batch_id,archived,revision) VALUES($1,true,1)',[$this->batchId]);break;
         }
         $called=0;
         try {
             $this->assertNull(synth_memory_process_job($this->database,$this->jobId,static function() use (&$called) {++$called;return 'Forbidden summary.';}));
         } catch (SYNTHProtocolCancelled $error) {$this->assertSame('generation',$case);}
         $this->assertSame(0,$called);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
         $this->assertArrayHasKey('accepted_summary',json_decode($this->job()['payload'],true));
     }
     public static function sourceInvalidationProvider(): array {return ['generation'=>['generation'],'frontier'=>['frontier'],'source'=>['source'],'archive'=>['archive']];}
@@ -940,7 +940,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $this->assertNotNull(synth_memory_process_job($this->database,$this->jobId,static fn()=>'  Text-only accepted summary.  ',
             static function(): never {throw new RuntimeException('Synthetic optional embedding failure');}));
-        $summary=pg_fetch_assoc($this->query('SELECT summary,embedding FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]));
+        $summary=pg_fetch_assoc($this->query('SELECT summary,embedding FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]));
         $this->assertSame('Text-only accepted summary.',$summary['summary']);
         $this->assertNull($summary['embedding']);
         $this->assertSame('Text-only accepted summary.',json_decode($this->job()['payload'],true)['accepted_summary']['summary']);
@@ -1000,24 +1000,24 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         try {
             synth_memory_process_job($this->database,$this->jobId,static fn()=>'Accepted before archive.',function() {
-                $this->query('INSERT INTO synth_meta.memory_batch_controls(batch_id,archived,revision) VALUES($1,true,1)',[$this->batchId]);
+                $this->query('INSERT INTO public.core_memory_batch_control(batch_id,archived,revision) VALUES($1,true,1)',[$this->batchId]);
                 return null;
             });
             $this->fail('Archived checkpoint published');
         } catch (SYNTHProtocolCancelled $error) {$this->assertSame('memory_lease_lost',$error->getMessage());}
         $this->assertArrayHasKey('accepted_summary',json_decode($this->job()['payload'],true));
         $this->assertSame('running',$this->job()['state']);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
     }
 
     public function testPriorSummaryCorrectionStillFencesCheckpointRecovery(): void
     {
         [$summaryId]=$this->attachEarlierSummary();
         $this->interruptAfterAcceptedText();
-        $this->query('INSERT INTO synth_meta.memory_summary_revisions(summary_id,revision,summary) VALUES($1,1,$2)',[$summaryId,'Corrected prior reflection.']);
+        $this->query('INSERT INTO public.core_memory_summary_revision(summary_id,revision,summary) VALUES($1,1,$2)',[$summaryId,'Corrected prior reflection.']);
         $calls=0;
         $this->assertNull(synth_memory_process_job($this->database,$this->jobId,static function() use (&$calls) {++$calls;return 'Stale descendant.';}));
         $this->assertSame(0,$calls);
-        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM synth_meta.memory_summaries WHERE job_id=$1',[$this->jobId]))['n']);
+        $this->assertSame('0',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_memory_summary WHERE job_id=$1',[$this->jobId]))['n']);
     }
 }

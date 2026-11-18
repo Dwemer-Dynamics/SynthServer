@@ -66,40 +66,40 @@ column|public|core_dialogue_utterance|state|text|text|NO|'generated'::text|
 column|public|core_dialogue_utterance|text_sha256|character|bpchar|NO||64
 column|public|core_dialogue_utterance|text|text|text|NO||
 column|public|core_dialogue_utterance|turn_id|text|text|NO||
-column|synth_meta|diary_control_revisions|control_payload|jsonb|jsonb|NO||
-column|synth_meta|diary_control_revisions|control_sha256|character|bpchar|NO||64
-column|synth_meta|diary_control_revisions|diary_id|bigint|int8|NO||
-column|synth_meta|diary_control_revisions|history_event_id|bigint|int8|NO||
-column|synth_meta|diary_control_revisions|prior_revision_id|bigint|int8|YES||
-column|synth_meta|diary_input_sources|history_event_id|bigint|int8|NO||
-column|synth_meta|diary_input_sources|input_id|bigint|int8|NO||
-column|synth_meta|diary_input_sources|source_sha256|character|bpchar|NO||64
-column|synth_meta|diary_inputs|actor_identity_id|bigint|int8|NO||
-column|synth_meta|diary_inputs|context_sequence|bigint|int8|NO||
-column|synth_meta|diary_inputs|diary_role|text|text|NO||
-column|synth_meta|diary_inputs|generation|bigint|int8|NO||
-column|synth_meta|diary_inputs|id|bigint|int8|NO|nextval('diary_inputs_id_seq'::regclass)|
-column|synth_meta|diary_inputs|input_payload|jsonb|jsonb|NO||
-column|synth_meta|diary_inputs|input_sha256|character|bpchar|NO||64
-column|synth_meta|diary_inputs|prior_history_event_id|bigint|int8|YES||
-column|synth_meta|diary_inputs|profile_revision_id|bigint|int8|YES||
-column|synth_meta|diary_inputs|request_id|text|text|NO||
-column|synth_meta|diary_inputs|session_id|text|text|NO||
-column|synth_meta|diary_job_results|embedding_attempted|boolean|bool|NO|false|
-column|synth_meta|diary_job_results|embedding_sha256|character|bpchar|YES||64
-column|synth_meta|diary_job_results|embedding_text_sha256|character|bpchar|YES||64
-column|synth_meta|diary_job_results|embedding|USER-DEFINED|vector|YES||
-column|synth_meta|diary_job_results|input_sha256|character|bpchar|NO||64
-column|synth_meta|diary_job_results|job_id|bigint|int8|NO||
-column|synth_meta|diary_job_results|result_payload|jsonb|jsonb|NO||
-column|synth_meta|diary_job_results|result_sha256|character|bpchar|NO||64
-column|synth_meta|diary_results|embedding_sha256|character|bpchar|YES||64
-column|synth_meta|diary_results|embedding_text_sha256|character|bpchar|YES||64
-column|synth_meta|diary_results|embedding|USER-DEFINED|vector|YES||
-column|synth_meta|diary_results|history_event_id|bigint|int8|NO||
-column|synth_meta|diary_results|input_id|bigint|int8|NO||
-column|synth_meta|diary_results|result_payload|jsonb|jsonb|NO||
-column|synth_meta|diary_results|result_sha256|character|bpchar|NO||64
+column|public|core_diary_control_revision|control_payload|jsonb|jsonb|NO||
+column|public|core_diary_control_revision|control_sha256|character|bpchar|NO||64
+column|public|core_diary_control_revision|diary_id|bigint|int8|NO||
+column|public|core_diary_control_revision|history_event_id|bigint|int8|NO||
+column|public|core_diary_control_revision|prior_revision_id|bigint|int8|YES||
+column|public|core_diary_input_source|history_event_id|bigint|int8|NO||
+column|public|core_diary_input_source|input_id|bigint|int8|NO||
+column|public|core_diary_input_source|source_sha256|character|bpchar|NO||64
+column|public|core_diary_input|actor_identity_id|bigint|int8|NO||
+column|public|core_diary_input|context_sequence|bigint|int8|NO||
+column|public|core_diary_input|diary_role|text|text|NO||
+column|public|core_diary_input|generation|bigint|int8|NO||
+column|public|core_diary_input|id|bigint|int8|NO|nextval('diary_inputs_id_seq'::regclass)|
+column|public|core_diary_input|input_payload|jsonb|jsonb|NO||
+column|public|core_diary_input|input_sha256|character|bpchar|NO||64
+column|public|core_diary_input|prior_history_event_id|bigint|int8|YES||
+column|public|core_diary_input|profile_revision_id|bigint|int8|YES||
+column|public|core_diary_input|request_id|text|text|NO||
+column|public|core_diary_input|session_id|text|text|NO||
+column|public|core_diary_job_result|embedding_attempted|boolean|bool|NO|false|
+column|public|core_diary_job_result|embedding_sha256|character|bpchar|YES||64
+column|public|core_diary_job_result|embedding_text_sha256|character|bpchar|YES||64
+column|public|core_diary_job_result|embedding|USER-DEFINED|vector|YES||
+column|public|core_diary_job_result|input_sha256|character|bpchar|NO||64
+column|public|core_diary_job_result|job_id|bigint|int8|NO||
+column|public|core_diary_job_result|result_payload|jsonb|jsonb|NO||
+column|public|core_diary_job_result|result_sha256|character|bpchar|NO||64
+column|public|core_diary_result|embedding_sha256|character|bpchar|YES||64
+column|public|core_diary_result|embedding_text_sha256|character|bpchar|YES||64
+column|public|core_diary_result|embedding|USER-DEFINED|vector|YES||
+column|public|core_diary_result|history_event_id|bigint|int8|NO||
+column|public|core_diary_result|input_id|bigint|int8|NO||
+column|public|core_diary_result|result_payload|jsonb|jsonb|NO||
+column|public|core_diary_result|result_sha256|character|bpchar|NO||64
 column|synth_meta|history_events|context_sequence|bigint|int8|NO||
 column|synth_meta|history_events|event_payload|jsonb|jsonb|NO||
 column|synth_meta|history_events|eventlog_rowid|bigint|int8|NO||
@@ -126,163 +126,163 @@ column|public|core_media_object|state|text|text|NO||
 column|public|core_media_object|storage_key|text|text|NO||
 column|public|core_media_object|turn_id|text|text|YES||
 column|public|core_media_object|utterance_id|text|text|YES||
-column|synth_meta|memory_batch_control_events|action|text|text|YES||
-column|synth_meta|memory_batch_control_events|archived|boolean|bool|NO||
-column|synth_meta|memory_batch_control_events|batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_control_events|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|memory_batch_control_events|context_sequence|bigint|int8|NO||
-column|synth_meta|memory_batch_control_events|generation|bigint|int8|NO||
-column|synth_meta|memory_batch_control_events|revision|bigint|int8|NO||
-column|synth_meta|memory_batch_control_events|session_id|text|text|NO||
-column|synth_meta|memory_batch_control_events|subject_batch_id|bigint|int8|YES||
-column|synth_meta|memory_batch_controls|archived|boolean|bool|NO||
-column|synth_meta|memory_batch_controls|batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_controls|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|memory_batch_controls|regenerate_batch_id|bigint|int8|YES||
-column|synth_meta|memory_batch_controls|revision|bigint|int8|NO||
-column|synth_meta|memory_batch_rebuilds|batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_rebuilds|root_batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_sources|batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_sources|history_event_id|bigint|int8|NO||
-column|synth_meta|memory_batch_sources|position|integer|int4|NO||
-column|synth_meta|memory_batch_summary_sources|batch_id|bigint|int8|NO||
-column|synth_meta|memory_batch_summary_sources|summary_id|bigint|int8|NO||
-column|synth_meta|memory_batch_summary_sources|summary_revision|bigint|int8|NO|0|
-column|synth_meta|memory_batches|actor_identity_id|bigint|int8|NO||
-column|synth_meta|memory_batches|context_sequence|bigint|int8|NO||
-column|synth_meta|memory_batches|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|memory_batches|first_gamets|bigint|int8|NO||
-column|synth_meta|memory_batches|generation|bigint|int8|NO||
-column|synth_meta|memory_batches|id|bigint|int8|NO|nextval('memory_batches_id_seq'::regclass)|
-column|synth_meta|memory_batches|input_payload|jsonb|jsonb|NO||
-column|synth_meta|memory_batches|last_gamets|bigint|int8|NO||
-column|synth_meta|memory_batches|packed_message|text|text|NO||
-column|synth_meta|memory_batches|playthrough_id|text|text|NO||
-column|synth_meta|memory_batches|session_id|text|text|NO||
-column|synth_meta|memory_batches|source_hash|character|bpchar|NO||64
-column|synth_meta|memory_summaries|batch_id|bigint|int8|NO||
-column|synth_meta|memory_summaries|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|memory_summaries|embedding|USER-DEFINED|vector|YES||
-column|synth_meta|memory_summaries|id|bigint|int8|NO|nextval('memory_summaries_id_seq'::regclass)|
-column|synth_meta|memory_summaries|job_id|bigint|int8|NO||
-column|synth_meta|memory_summaries|native_vec|tsvector|tsvector|YES||
-column|synth_meta|memory_summaries|summary|text|text|NO||
-column|synth_meta|memory_summary_revisions|created_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|memory_summary_revisions|native_vec|tsvector|tsvector|YES||
-column|synth_meta|memory_summary_revisions|revision|bigint|int8|NO||
-column|synth_meta|memory_summary_revisions|summary_id|bigint|int8|NO||
-column|synth_meta|memory_summary_revisions|summary|text|text|NO||
-column|synth_meta|middleterm_control_revisions|control_payload|jsonb|jsonb|NO||
-column|synth_meta|middleterm_control_revisions|control_sha256|character|bpchar|NO||64
-column|synth_meta|middleterm_control_revisions|history_event_id|bigint|int8|NO||
-column|synth_meta|middleterm_control_revisions|narrative_id|bigint|int8|NO||
-column|synth_meta|middleterm_control_revisions|prior_revision_id|bigint|int8|YES||
-column|synth_meta|middleterm_inputs|actor_identity_id|bigint|int8|NO||
-column|synth_meta|middleterm_inputs|context_sequence|bigint|int8|NO||
-column|synth_meta|middleterm_inputs|generation|bigint|int8|NO||
-column|synth_meta|middleterm_inputs|id|bigint|int8|NO|nextval('middleterm_inputs_id_seq'::regclass)|
-column|synth_meta|middleterm_inputs|input_payload|jsonb|jsonb|NO||
-column|synth_meta|middleterm_inputs|input_sha256|character|bpchar|NO||64
-column|synth_meta|middleterm_inputs|playthrough_id|text|text|NO||
-column|synth_meta|middleterm_inputs|prior_history_event_id|bigint|int8|YES||
-column|synth_meta|middleterm_inputs|regeneration_approval_id|bigint|int8|YES||
-column|synth_meta|middleterm_inputs|request_id|text|text|NO||
-column|synth_meta|middleterm_inputs|session_id|text|text|NO||
-column|synth_meta|middleterm_regeneration_approvals|actor_identity_id|bigint|int8|NO||
-column|synth_meta|middleterm_regeneration_approvals|approval_payload|jsonb|jsonb|NO||
-column|synth_meta|middleterm_regeneration_approvals|approval_sha256|character|bpchar|NO||64
-column|synth_meta|middleterm_regeneration_approvals|approval_token|character|bpchar|NO||32
-column|synth_meta|middleterm_regeneration_approvals|context_sequence|bigint|int8|NO||
-column|synth_meta|middleterm_regeneration_approvals|generation|bigint|int8|NO||
-column|synth_meta|middleterm_regeneration_approvals|history_event_id|bigint|int8|NO||
-column|synth_meta|middleterm_regeneration_approvals|last_considered_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|middleterm_regeneration_approvals|narrative_id|bigint|int8|NO||
-column|synth_meta|middleterm_regeneration_approvals|playthrough_id|text|text|NO||
-column|synth_meta|middleterm_regeneration_approvals|session_id|text|text|NO||
-column|synth_meta|middleterm_replacements|approval_id|bigint|int8|NO||
-column|synth_meta|middleterm_replacements|generation|bigint|int8|NO||
-column|synth_meta|middleterm_replacements|history_event_id|bigint|int8|NO||
-column|synth_meta|middleterm_replacements|session_id|text|text|NO||
-column|synth_meta|middleterm_replacements|target_history_event_id|bigint|int8|NO||
-column|synth_meta|middleterm_results|history_event_id|bigint|int8|NO||
-column|synth_meta|middleterm_results|input_id|bigint|int8|NO||
-column|synth_meta|middleterm_results|narrative|text|text|NO||
-column|synth_meta|middleterm_results|result_sha256|character|bpchar|NO||64
-column|synth_meta|middleterm_sources|input_id|bigint|int8|NO||
-column|synth_meta|middleterm_sources|position|integer|int4|NO||
-column|synth_meta|middleterm_sources|source_sha256|character|bpchar|NO||64
-column|synth_meta|middleterm_sources|summary_id|bigint|int8|NO||
-column|synth_meta|middleterm_sources|summary_revision|bigint|int8|NO||
-column|synth_meta|narrator_context_states|generation|bigint|int8|NO||
-column|synth_meta|narrator_context_states|playthrough_id|text|text|NO||
-column|synth_meta|narrator_context_states|session_id|text|text|NO||
-column|synth_meta|narrator_context_states|snapshot_sequence|bigint|int8|NO||
-column|synth_meta|narrator_context_states|state_id|bigint|int8|YES||
-column|synth_meta|narrator_definition_revisions|background|text|text|NO||
-column|synth_meta|narrator_definition_revisions|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_definition_revisions|definition_id|text|text|NO||
-column|synth_meta|narrator_definition_revisions|name|text|text|NO||
-column|synth_meta|narrator_definition_revisions|personality|text|text|NO||
-column|synth_meta|narrator_definition_revisions|prior_revision_id|bigint|int8|YES||
-column|synth_meta|narrator_definition_revisions|profile_id|bigint|int8|YES||
-column|synth_meta|narrator_definition_revisions|revision_id|bigint|int8|NO|nextval('narrator_definition_revisions_revision_id_seq'::regclass)|
-column|synth_meta|narrator_definition_revisions|style|text|text|NO||
-column|synth_meta|narrator_definition_revisions|voice|text|text|NO||
-column|synth_meta|narrator_definitions|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_definitions|definition_id|text|text|NO||
-column|synth_meta|narrator_definitions|edit_generation|bigint|int8|NO|0|
-column|synth_meta|narrator_definitions|retired_at|timestamp with time zone|timestamptz|YES||
-column|synth_meta|narrator_lane_heads|generation|bigint|int8|NO||
-column|synth_meta|narrator_lane_heads|playthrough_id|text|text|NO||
-column|synth_meta|narrator_lane_heads|session_id|text|text|NO||
-column|synth_meta|narrator_lane_heads|state_id|bigint|int8|YES||
-column|synth_meta|narrator_lane_heads|updated_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_pending_outputs|context_sequence|bigint|int8|NO||
-column|synth_meta|narrator_pending_outputs|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_pending_outputs|definition_edit_generation|bigint|int8|NO|0|
-column|synth_meta|narrator_pending_outputs|definition_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|generation|bigint|int8|NO||
-column|synth_meta|narrator_pending_outputs|input_entry_id|bigint|int8|NO||
-column|synth_meta|narrator_pending_outputs|line_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|parent_state_id|bigint|int8|NO||
-column|synth_meta|narrator_pending_outputs|playthrough_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|receipt_request_id|text|text|YES||
-column|synth_meta|narrator_pending_outputs|request_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|revision_id|bigint|int8|NO||
-column|synth_meta|narrator_pending_outputs|session_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|state|text|text|NO|'pending'::text|
-column|synth_meta|narrator_pending_outputs|text|text|text|YES||
-column|synth_meta|narrator_pending_outputs|turn_id|text|text|NO||
-column|synth_meta|narrator_pending_outputs|updated_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_states|applied_revisions|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth_meta|narrator_states|cause|text|text|NO||
-column|synth_meta|narrator_states|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_states|generation|bigint|int8|NO||
-column|synth_meta|narrator_states|parent_state_id|bigint|int8|YES||
-column|synth_meta|narrator_states|persona_heads|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth_meta|narrator_states|playthrough_id|text|text|NO||
-column|synth_meta|narrator_states|request_id|text|text|NO||
-column|synth_meta|narrator_states|selected_definition_id|text|text|YES||
-column|synth_meta|narrator_states|session_id|text|text|NO||
-column|synth_meta|narrator_states|state_id|bigint|int8|NO|nextval('narrator_states_state_id_seq'::regclass)|
-column|synth_meta|narrator_states|transcript_head_entry_id|bigint|int8|YES||
-column|synth_meta|narrator_transcript_cursors|cursor_id|text|text|NO||
-column|synth_meta|narrator_transcript_cursors|next_entry_id|bigint|int8|NO||
-column|synth_meta|narrator_transcript_cursors|state_id|bigint|int8|NO||
-column|synth_meta|narrator_transcript_entries|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|narrator_transcript_entries|definition_id|text|text|NO||
-column|synth_meta|narrator_transcript_entries|entry_id|bigint|int8|NO|nextval('narrator_transcript_entries_entry_id_seq'::regclass)|
-column|synth_meta|narrator_transcript_entries|generation|bigint|int8|NO||
-column|synth_meta|narrator_transcript_entries|kind|text|text|NO||
-column|synth_meta|narrator_transcript_entries|parent_entry_id|bigint|int8|YES||
-column|synth_meta|narrator_transcript_entries|parent_persona_entry_id|bigint|int8|YES||
-column|synth_meta|narrator_transcript_entries|playthrough_id|text|text|NO||
-column|synth_meta|narrator_transcript_entries|request_id|text|text|NO||
-column|synth_meta|narrator_transcript_entries|revision_id|bigint|int8|NO||
-column|synth_meta|narrator_transcript_entries|role|text|text|NO||
-column|synth_meta|narrator_transcript_entries|session_id|text|text|NO||
-column|synth_meta|narrator_transcript_entries|speaker_name|text|text|NO||
-column|synth_meta|narrator_transcript_entries|text|text|text|NO||
+column|public|core_memory_batch_control_event|action|text|text|YES||
+column|public|core_memory_batch_control_event|archived|boolean|bool|NO||
+column|public|core_memory_batch_control_event|batch_id|bigint|int8|NO||
+column|public|core_memory_batch_control_event|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_memory_batch_control_event|context_sequence|bigint|int8|NO||
+column|public|core_memory_batch_control_event|generation|bigint|int8|NO||
+column|public|core_memory_batch_control_event|revision|bigint|int8|NO||
+column|public|core_memory_batch_control_event|session_id|text|text|NO||
+column|public|core_memory_batch_control_event|subject_batch_id|bigint|int8|YES||
+column|public|core_memory_batch_control|archived|boolean|bool|NO||
+column|public|core_memory_batch_control|batch_id|bigint|int8|NO||
+column|public|core_memory_batch_control|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_memory_batch_control|regenerate_batch_id|bigint|int8|YES||
+column|public|core_memory_batch_control|revision|bigint|int8|NO||
+column|public|core_memory_batch_rebuild|batch_id|bigint|int8|NO||
+column|public|core_memory_batch_rebuild|root_batch_id|bigint|int8|NO||
+column|public|core_memory_batch_source|batch_id|bigint|int8|NO||
+column|public|core_memory_batch_source|history_event_id|bigint|int8|NO||
+column|public|core_memory_batch_source|position|integer|int4|NO||
+column|public|core_memory_batch_summary_source|batch_id|bigint|int8|NO||
+column|public|core_memory_batch_summary_source|summary_id|bigint|int8|NO||
+column|public|core_memory_batch_summary_source|summary_revision|bigint|int8|NO|0|
+column|public|core_memory_batch|actor_identity_id|bigint|int8|NO||
+column|public|core_memory_batch|context_sequence|bigint|int8|NO||
+column|public|core_memory_batch|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_memory_batch|first_gamets|bigint|int8|NO||
+column|public|core_memory_batch|generation|bigint|int8|NO||
+column|public|core_memory_batch|id|bigint|int8|NO|nextval('memory_batches_id_seq'::regclass)|
+column|public|core_memory_batch|input_payload|jsonb|jsonb|NO||
+column|public|core_memory_batch|last_gamets|bigint|int8|NO||
+column|public|core_memory_batch|packed_message|text|text|NO||
+column|public|core_memory_batch|playthrough_id|text|text|NO||
+column|public|core_memory_batch|session_id|text|text|NO||
+column|public|core_memory_batch|source_hash|character|bpchar|NO||64
+column|public|core_memory_summary|batch_id|bigint|int8|NO||
+column|public|core_memory_summary|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_memory_summary|embedding|USER-DEFINED|vector|YES||
+column|public|core_memory_summary|id|bigint|int8|NO|nextval('memory_summaries_id_seq'::regclass)|
+column|public|core_memory_summary|job_id|bigint|int8|NO||
+column|public|core_memory_summary|native_vec|tsvector|tsvector|YES||
+column|public|core_memory_summary|summary|text|text|NO||
+column|public|core_memory_summary_revision|created_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_memory_summary_revision|native_vec|tsvector|tsvector|YES||
+column|public|core_memory_summary_revision|revision|bigint|int8|NO||
+column|public|core_memory_summary_revision|summary_id|bigint|int8|NO||
+column|public|core_memory_summary_revision|summary|text|text|NO||
+column|public|core_middleterm_control_revision|control_payload|jsonb|jsonb|NO||
+column|public|core_middleterm_control_revision|control_sha256|character|bpchar|NO||64
+column|public|core_middleterm_control_revision|history_event_id|bigint|int8|NO||
+column|public|core_middleterm_control_revision|narrative_id|bigint|int8|NO||
+column|public|core_middleterm_control_revision|prior_revision_id|bigint|int8|YES||
+column|public|core_middleterm_input|actor_identity_id|bigint|int8|NO||
+column|public|core_middleterm_input|context_sequence|bigint|int8|NO||
+column|public|core_middleterm_input|generation|bigint|int8|NO||
+column|public|core_middleterm_input|id|bigint|int8|NO|nextval('middleterm_inputs_id_seq'::regclass)|
+column|public|core_middleterm_input|input_payload|jsonb|jsonb|NO||
+column|public|core_middleterm_input|input_sha256|character|bpchar|NO||64
+column|public|core_middleterm_input|playthrough_id|text|text|NO||
+column|public|core_middleterm_input|prior_history_event_id|bigint|int8|YES||
+column|public|core_middleterm_input|regeneration_approval_id|bigint|int8|YES||
+column|public|core_middleterm_input|request_id|text|text|NO||
+column|public|core_middleterm_input|session_id|text|text|NO||
+column|public|core_middleterm_regeneration_approval|actor_identity_id|bigint|int8|NO||
+column|public|core_middleterm_regeneration_approval|approval_payload|jsonb|jsonb|NO||
+column|public|core_middleterm_regeneration_approval|approval_sha256|character|bpchar|NO||64
+column|public|core_middleterm_regeneration_approval|approval_token|character|bpchar|NO||32
+column|public|core_middleterm_regeneration_approval|context_sequence|bigint|int8|NO||
+column|public|core_middleterm_regeneration_approval|generation|bigint|int8|NO||
+column|public|core_middleterm_regeneration_approval|history_event_id|bigint|int8|NO||
+column|public|core_middleterm_regeneration_approval|last_considered_at|timestamp with time zone|timestamptz|YES||
+column|public|core_middleterm_regeneration_approval|narrative_id|bigint|int8|NO||
+column|public|core_middleterm_regeneration_approval|playthrough_id|text|text|NO||
+column|public|core_middleterm_regeneration_approval|session_id|text|text|NO||
+column|public|core_middleterm_replacement|approval_id|bigint|int8|NO||
+column|public|core_middleterm_replacement|generation|bigint|int8|NO||
+column|public|core_middleterm_replacement|history_event_id|bigint|int8|NO||
+column|public|core_middleterm_replacement|session_id|text|text|NO||
+column|public|core_middleterm_replacement|target_history_event_id|bigint|int8|NO||
+column|public|core_middleterm_result|history_event_id|bigint|int8|NO||
+column|public|core_middleterm_result|input_id|bigint|int8|NO||
+column|public|core_middleterm_result|narrative|text|text|NO||
+column|public|core_middleterm_result|result_sha256|character|bpchar|NO||64
+column|public|core_middleterm_source|input_id|bigint|int8|NO||
+column|public|core_middleterm_source|position|integer|int4|NO||
+column|public|core_middleterm_source|source_sha256|character|bpchar|NO||64
+column|public|core_middleterm_source|summary_id|bigint|int8|NO||
+column|public|core_middleterm_source|summary_revision|bigint|int8|NO||
+column|public|core_narrator_context_state|generation|bigint|int8|NO||
+column|public|core_narrator_context_state|playthrough_id|text|text|NO||
+column|public|core_narrator_context_state|session_id|text|text|NO||
+column|public|core_narrator_context_state|snapshot_sequence|bigint|int8|NO||
+column|public|core_narrator_context_state|state_id|bigint|int8|YES||
+column|public|core_narrator_definition_revision|background|text|text|NO||
+column|public|core_narrator_definition_revision|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_definition_revision|definition_id|text|text|NO||
+column|public|core_narrator_definition_revision|name|text|text|NO||
+column|public|core_narrator_definition_revision|personality|text|text|NO||
+column|public|core_narrator_definition_revision|prior_revision_id|bigint|int8|YES||
+column|public|core_narrator_definition_revision|profile_id|bigint|int8|YES||
+column|public|core_narrator_definition_revision|revision_id|bigint|int8|NO|nextval('narrator_definition_revisions_revision_id_seq'::regclass)|
+column|public|core_narrator_definition_revision|style|text|text|NO||
+column|public|core_narrator_definition_revision|voice|text|text|NO||
+column|public|core_narrator_definition|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_definition|definition_id|text|text|NO||
+column|public|core_narrator_definition|edit_generation|bigint|int8|NO|0|
+column|public|core_narrator_definition|retired_at|timestamp with time zone|timestamptz|YES||
+column|public|core_narrator_lane_head|generation|bigint|int8|NO||
+column|public|core_narrator_lane_head|playthrough_id|text|text|NO||
+column|public|core_narrator_lane_head|session_id|text|text|NO||
+column|public|core_narrator_lane_head|state_id|bigint|int8|YES||
+column|public|core_narrator_lane_head|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_pending_output|context_sequence|bigint|int8|NO||
+column|public|core_narrator_pending_output|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_pending_output|definition_edit_generation|bigint|int8|NO|0|
+column|public|core_narrator_pending_output|definition_id|text|text|NO||
+column|public|core_narrator_pending_output|generation|bigint|int8|NO||
+column|public|core_narrator_pending_output|input_entry_id|bigint|int8|NO||
+column|public|core_narrator_pending_output|line_id|text|text|NO||
+column|public|core_narrator_pending_output|parent_state_id|bigint|int8|NO||
+column|public|core_narrator_pending_output|playthrough_id|text|text|NO||
+column|public|core_narrator_pending_output|receipt_request_id|text|text|YES||
+column|public|core_narrator_pending_output|request_id|text|text|NO||
+column|public|core_narrator_pending_output|revision_id|bigint|int8|NO||
+column|public|core_narrator_pending_output|session_id|text|text|NO||
+column|public|core_narrator_pending_output|state|text|text|NO|'pending'::text|
+column|public|core_narrator_pending_output|text|text|text|YES||
+column|public|core_narrator_pending_output|turn_id|text|text|NO||
+column|public|core_narrator_pending_output|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_state|applied_revisions|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_narrator_state|cause|text|text|NO||
+column|public|core_narrator_state|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_state|generation|bigint|int8|NO||
+column|public|core_narrator_state|parent_state_id|bigint|int8|YES||
+column|public|core_narrator_state|persona_heads|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_narrator_state|playthrough_id|text|text|NO||
+column|public|core_narrator_state|request_id|text|text|NO||
+column|public|core_narrator_state|selected_definition_id|text|text|YES||
+column|public|core_narrator_state|session_id|text|text|NO||
+column|public|core_narrator_state|state_id|bigint|int8|NO|nextval('narrator_states_state_id_seq'::regclass)|
+column|public|core_narrator_state|transcript_head_entry_id|bigint|int8|YES||
+column|public|core_narrator_transcript_cursor|cursor_id|text|text|NO||
+column|public|core_narrator_transcript_cursor|next_entry_id|bigint|int8|NO||
+column|public|core_narrator_transcript_cursor|state_id|bigint|int8|NO||
+column|public|core_narrator_transcript_entry|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_narrator_transcript_entry|definition_id|text|text|NO||
+column|public|core_narrator_transcript_entry|entry_id|bigint|int8|NO|nextval('narrator_transcript_entries_entry_id_seq'::regclass)|
+column|public|core_narrator_transcript_entry|generation|bigint|int8|NO||
+column|public|core_narrator_transcript_entry|kind|text|text|NO||
+column|public|core_narrator_transcript_entry|parent_entry_id|bigint|int8|YES||
+column|public|core_narrator_transcript_entry|parent_persona_entry_id|bigint|int8|YES||
+column|public|core_narrator_transcript_entry|playthrough_id|text|text|NO||
+column|public|core_narrator_transcript_entry|request_id|text|text|NO||
+column|public|core_narrator_transcript_entry|revision_id|bigint|int8|NO||
+column|public|core_narrator_transcript_entry|role|text|text|NO||
+column|public|core_narrator_transcript_entry|session_id|text|text|NO||
+column|public|core_narrator_transcript_entry|speaker_name|text|text|NO||
+column|public|core_narrator_transcript_entry|text|text|text|NO||
 column|synth_meta|playthrough_profiles|created_at|timestamp without time zone|timestamp|NO|now()|
 column|synth_meta|playthrough_profiles|eventlog_count|bigint|int8|YES||
 column|synth_meta|playthrough_profiles|game|text|text|YES||
@@ -357,80 +357,80 @@ column|public|core_rechat_selection|request_id|text|text|NO||
 column|public|core_rechat_selection|role|text|text|NO||
 column|public|core_rechat_selection|session_id|text|text|NO||
 column|public|core_rechat_selection|terminal_reason|text|text|YES||
-column|synth_meta|relationship_actor_control_events|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_actor_control_events|barrier_event_id|bigint|int8|NO||
-column|synth_meta|relationship_actor_control_events|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|relationship_actor_control_events|context_sequence|bigint|int8|NO||
-column|synth_meta|relationship_actor_control_events|generation|bigint|int8|NO||
-column|synth_meta|relationship_actor_control_events|legacy_profile_id|bigint|int8|YES||
-column|synth_meta|relationship_actor_control_events|locked|boolean|bool|NO||
-column|synth_meta|relationship_actor_control_events|revision|bigint|int8|NO||
-column|synth_meta|relationship_actor_control_events|session_id|text|text|NO||
-column|synth_meta|relationship_actor_controls|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_actor_controls|barrier_event_id|bigint|int8|NO||
-column|synth_meta|relationship_actor_controls|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|relationship_actor_controls|locked|boolean|bool|NO||
-column|synth_meta|relationship_actor_controls|revision|bigint|int8|NO||
-column|synth_meta|relationship_evaluation_sources|evaluation_id|bigint|int8|NO||
-column|synth_meta|relationship_evaluation_sources|history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_evaluations|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_evaluations|context_sequence|bigint|int8|NO||
-column|synth_meta|relationship_evaluations|created_at|timestamp with time zone|timestamptz|NO|now()|
-column|synth_meta|relationship_evaluations|generation|bigint|int8|NO||
-column|synth_meta|relationship_evaluations|id|bigint|int8|NO|nextval('relationship_evaluations_id_seq'::regclass)|
-column|synth_meta|relationship_evaluations|input_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_evaluations|input_sha256|character|bpchar|NO||64
-column|synth_meta|relationship_evaluations|request_id|text|text|NO||
-column|synth_meta|relationship_evaluations|response_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_evaluations|session_id|text|text|NO||
-column|synth_meta|relationship_interaction_evaluations|context_sequence|bigint|int8|NO||
-column|synth_meta|relationship_interaction_evaluations|created_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
-column|synth_meta|relationship_interaction_evaluations|generation|bigint|int8|NO||
-column|synth_meta|relationship_interaction_evaluations|id|bigint|int8|NO|nextval('relationship_interaction_evaluations_id_seq'::regclass)|
-column|synth_meta|relationship_interaction_evaluations|input_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_interaction_evaluations|input_sha256|character|bpchar|NO||64
-column|synth_meta|relationship_interaction_evaluations|listener_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_evaluations|request_id|text|text|NO||
-column|synth_meta|relationship_interaction_evaluations|response_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_evaluations|session_id|text|text|NO||
-column|synth_meta|relationship_interaction_evaluations|speaker_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_priors|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_priors|interaction_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_priors|prior_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_result_priors|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_result_priors|prior_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_result_priors|result_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_results|history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_results|interaction_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_results|job_id|bigint|int8|NO||
-column|synth_meta|relationship_interaction_results|result_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_response_inputs|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_response_inputs|history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_response_inputs|request_id|text|text|NO||
-column|synth_meta|relationship_response_inputs|response_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_response_inputs|response_sha256|character|bpchar|NO||64
-column|synth_meta|relationship_response_inputs|session_id|text|text|NO||
-column|synth_meta|relationship_response_sources|response_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_response_sources|source_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_result_priors|prior_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_result_priors|result_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_results|evaluation_id|bigint|int8|NO||
-column|synth_meta|relationship_results|history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_results|job_id|bigint|int8|NO||
-column|synth_meta|relationship_results|result_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_revision_sources|relationship_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_revision_sources|source_history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_revisions|actor_identity_id|bigint|int8|NO||
-column|synth_meta|relationship_revisions|affinity|integer|int4|YES||
-column|synth_meta|relationship_revisions|details|jsonb|jsonb|NO|'{}'::jsonb|
-column|synth_meta|relationship_revisions|history_event_id|bigint|int8|NO||
-column|synth_meta|relationship_revisions|input_hash|character|bpchar|NO||64
-column|synth_meta|relationship_revisions|input_payload|jsonb|jsonb|NO||
-column|synth_meta|relationship_revisions|interaction_result_history_event_id|bigint|int8|YES||
-column|synth_meta|relationship_revisions|prior_history_event_id|bigint|int8|YES||
-column|synth_meta|relationship_revisions|relationship_type|text|text|YES||
-column|synth_meta|relationship_revisions|result_history_event_id|bigint|int8|YES||
-column|synth_meta|relationship_revisions|subject_identity_id|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|barrier_event_id|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_relationship_actor_control_event|context_sequence|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|generation|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|legacy_profile_id|bigint|int8|YES||
+column|public|core_relationship_actor_control_event|locked|boolean|bool|NO||
+column|public|core_relationship_actor_control_event|revision|bigint|int8|NO||
+column|public|core_relationship_actor_control_event|session_id|text|text|NO||
+column|public|core_relationship_actor_control|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_actor_control|barrier_event_id|bigint|int8|NO||
+column|public|core_relationship_actor_control|changed_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_relationship_actor_control|locked|boolean|bool|NO||
+column|public|core_relationship_actor_control|revision|bigint|int8|NO||
+column|public|core_relationship_evaluation_source|evaluation_id|bigint|int8|NO||
+column|public|core_relationship_evaluation_source|history_event_id|bigint|int8|NO||
+column|public|core_relationship_evaluation|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_evaluation|context_sequence|bigint|int8|NO||
+column|public|core_relationship_evaluation|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_relationship_evaluation|generation|bigint|int8|NO||
+column|public|core_relationship_evaluation|id|bigint|int8|NO|nextval('relationship_evaluations_id_seq'::regclass)|
+column|public|core_relationship_evaluation|input_payload|jsonb|jsonb|NO||
+column|public|core_relationship_evaluation|input_sha256|character|bpchar|NO||64
+column|public|core_relationship_evaluation|request_id|text|text|NO||
+column|public|core_relationship_evaluation|response_history_event_id|bigint|int8|NO||
+column|public|core_relationship_evaluation|session_id|text|text|NO||
+column|public|core_relationship_interaction_evaluation|context_sequence|bigint|int8|NO||
+column|public|core_relationship_interaction_evaluation|created_at|timestamp with time zone|timestamptz|NO|clock_timestamp()|
+column|public|core_relationship_interaction_evaluation|generation|bigint|int8|NO||
+column|public|core_relationship_interaction_evaluation|id|bigint|int8|NO|nextval('relationship_interaction_evaluations_id_seq'::regclass)|
+column|public|core_relationship_interaction_evaluation|input_payload|jsonb|jsonb|NO||
+column|public|core_relationship_interaction_evaluation|input_sha256|character|bpchar|NO||64
+column|public|core_relationship_interaction_evaluation|listener_identity_id|bigint|int8|NO||
+column|public|core_relationship_interaction_evaluation|request_id|text|text|NO||
+column|public|core_relationship_interaction_evaluation|response_history_event_id|bigint|int8|NO||
+column|public|core_relationship_interaction_evaluation|session_id|text|text|NO||
+column|public|core_relationship_interaction_evaluation|speaker_identity_id|bigint|int8|NO||
+column|public|core_relationship_interaction_prior|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_interaction_prior|interaction_id|bigint|int8|NO||
+column|public|core_relationship_interaction_prior|prior_history_event_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result_prior|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result_prior|prior_history_event_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result_prior|result_history_event_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result|history_event_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result|interaction_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result|job_id|bigint|int8|NO||
+column|public|core_relationship_interaction_result|result_payload|jsonb|jsonb|NO||
+column|public|core_relationship_response_input|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_response_input|history_event_id|bigint|int8|NO||
+column|public|core_relationship_response_input|request_id|text|text|NO||
+column|public|core_relationship_response_input|response_payload|jsonb|jsonb|NO||
+column|public|core_relationship_response_input|response_sha256|character|bpchar|NO||64
+column|public|core_relationship_response_input|session_id|text|text|NO||
+column|public|core_relationship_response_source|response_history_event_id|bigint|int8|NO||
+column|public|core_relationship_response_source|source_history_event_id|bigint|int8|NO||
+column|public|core_relationship_result_prior|prior_history_event_id|bigint|int8|NO||
+column|public|core_relationship_result_prior|result_history_event_id|bigint|int8|NO||
+column|public|core_relationship_result|evaluation_id|bigint|int8|NO||
+column|public|core_relationship_result|history_event_id|bigint|int8|NO||
+column|public|core_relationship_result|job_id|bigint|int8|NO||
+column|public|core_relationship_result|result_payload|jsonb|jsonb|NO||
+column|public|core_relationship_revision_source|relationship_history_event_id|bigint|int8|NO||
+column|public|core_relationship_revision_source|source_history_event_id|bigint|int8|NO||
+column|public|core_relationship_revision|actor_identity_id|bigint|int8|NO||
+column|public|core_relationship_revision|affinity|integer|int4|YES||
+column|public|core_relationship_revision|details|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_relationship_revision|history_event_id|bigint|int8|NO||
+column|public|core_relationship_revision|input_hash|character|bpchar|NO||64
+column|public|core_relationship_revision|input_payload|jsonb|jsonb|NO||
+column|public|core_relationship_revision|interaction_result_history_event_id|bigint|int8|YES||
+column|public|core_relationship_revision|prior_history_event_id|bigint|int8|YES||
+column|public|core_relationship_revision|relationship_type|text|text|YES||
+column|public|core_relationship_revision|result_history_event_id|bigint|int8|YES||
+column|public|core_relationship_revision|subject_identity_id|bigint|int8|NO||
 column|synth_meta|request_executions|claimed_at|timestamp with time zone|timestamptz|NO|now()|
 column|synth_meta|request_executions|completed_at|timestamp with time zone|timestamptz|YES||
 column|synth_meta|request_executions|error_code|text|text|YES||
@@ -1168,43 +1168,43 @@ constraint|public|core_dialogue_utterance|dialogue_utterances_speaker_identity_i
 constraint|public|core_dialogue_utterance|dialogue_utterances_state_check|c|t|CHECK ((state = ANY (ARRAY['generated'::text, 'spoken'::text, 'presented'::text, 'interrupted'::text, 'failed'::text])))
 constraint|public|core_dialogue_utterance|dialogue_utterances_text_check|c|t|CHECK (((length(text) >= 1) AND (length(text) <= 4096)))
 constraint|public|core_dialogue_utterance|dialogue_utterances_text_sha256_check|c|t|CHECK ((text_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_check1|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < history_event_id)))
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_check|c|t|CHECK ((diary_id < history_event_id))
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_control_payload_check|c|t|CHECK (((jsonb_typeof(control_payload) = 'object'::text) AND (COALESCE((control_payload ->> 'schema'::text), ''::text) = ANY (ARRAY['synth.diary.control.v1'::text, 'synth.diary.control.v2'::text]))))
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_control_sha256_check|c|t|CHECK ((control_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_diary_id_fkey|f|t|FOREIGN KEY (diary_id) REFERENCES diary_results(history_event_id)
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|diary_control_revisions|diary_control_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES diary_control_revisions(history_event_id)
-constraint|synth_meta|diary_input_sources|diary_input_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|diary_input_sources|diary_input_sources_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES diary_inputs(id)
-constraint|synth_meta|diary_input_sources|diary_input_sources_pkey|p|t|PRIMARY KEY (input_id, history_event_id)
-constraint|synth_meta|diary_input_sources|diary_input_sources_source_sha256_check|c|t|CHECK ((source_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_inputs|diary_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|diary_inputs|diary_inputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|diary_inputs|diary_inputs_diary_role_check|c|t|CHECK ((diary_role = ANY (ARRAY['npc'::text, 'player'::text, 'narrator'::text])))
-constraint|synth_meta|diary_inputs|diary_inputs_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|diary_inputs|diary_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.diary.input.v1'::text))))
-constraint|synth_meta|diary_inputs|diary_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_inputs|diary_inputs_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|diary_inputs|diary_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|diary_inputs|diary_inputs_profile_revision_id_fkey|f|t|FOREIGN KEY (profile_revision_id) REFERENCES profile_revisions(history_event_id)
-constraint|synth_meta|diary_inputs|diary_inputs_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
-constraint|synth_meta|diary_inputs|diary_inputs_session_id_request_id_actor_identity_id_diary__key|u|t|UNIQUE (session_id, request_id, actor_identity_id, diary_role)
-constraint|synth_meta|diary_inputs|diary_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|diary_job_results|diary_job_results_embedding_text_sha256_check|c|t|CHECK ((embedding_text_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_job_results|diary_job_results_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_job_results|diary_job_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
-constraint|synth_meta|diary_job_results|diary_job_results_pkey|p|t|PRIMARY KEY (job_id)
-constraint|synth_meta|diary_job_results|diary_job_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
-constraint|synth_meta|diary_job_results|diary_job_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_results|diary_results_embedding_text_sha256_check|c|t|CHECK ((embedding_text_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|diary_results|diary_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|diary_results|diary_results_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES diary_inputs(id)
-constraint|synth_meta|diary_results|diary_results_input_id_key|u|t|UNIQUE (input_id)
-constraint|synth_meta|diary_results|diary_results_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|diary_results|diary_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
-constraint|synth_meta|diary_results|diary_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_control_revision|diary_control_revisions_check1|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < history_event_id)))
+constraint|public|core_diary_control_revision|diary_control_revisions_check|c|t|CHECK ((diary_id < history_event_id))
+constraint|public|core_diary_control_revision|diary_control_revisions_control_payload_check|c|t|CHECK (((jsonb_typeof(control_payload) = 'object'::text) AND (COALESCE((control_payload ->> 'schema'::text), ''::text) = ANY (ARRAY['synth.diary.control.v1'::text, 'synth.diary.control.v2'::text]))))
+constraint|public|core_diary_control_revision|diary_control_revisions_control_sha256_check|c|t|CHECK ((control_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_control_revision|diary_control_revisions_diary_id_fkey|f|t|FOREIGN KEY (diary_id) REFERENCES core_diary_result(history_event_id)
+constraint|public|core_diary_control_revision|diary_control_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_diary_control_revision|diary_control_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_diary_control_revision|diary_control_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES core_diary_control_revision(history_event_id)
+constraint|public|core_diary_input_source|diary_input_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_diary_input_source|diary_input_sources_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES core_diary_input(id)
+constraint|public|core_diary_input_source|diary_input_sources_pkey|p|t|PRIMARY KEY (input_id, history_event_id)
+constraint|public|core_diary_input_source|diary_input_sources_source_sha256_check|c|t|CHECK ((source_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_input|diary_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_diary_input|diary_inputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_diary_input|diary_inputs_diary_role_check|c|t|CHECK ((diary_role = ANY (ARRAY['npc'::text, 'player'::text, 'narrator'::text])))
+constraint|public|core_diary_input|diary_inputs_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_diary_input|diary_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.diary.input.v1'::text))))
+constraint|public|core_diary_input|diary_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_input|diary_inputs_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_diary_input|diary_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
+constraint|public|core_diary_input|diary_inputs_profile_revision_id_fkey|f|t|FOREIGN KEY (profile_revision_id) REFERENCES profile_revisions(history_event_id)
+constraint|public|core_diary_input|diary_inputs_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_diary_input|diary_inputs_session_id_request_id_actor_identity_id_diary__key|u|t|UNIQUE (session_id, request_id, actor_identity_id, diary_role)
+constraint|public|core_diary_input|diary_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_diary_job_result|diary_job_results_embedding_text_sha256_check|c|t|CHECK ((embedding_text_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_job_result|diary_job_results_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_job_result|diary_job_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
+constraint|public|core_diary_job_result|diary_job_results_pkey|p|t|PRIMARY KEY (job_id)
+constraint|public|core_diary_job_result|diary_job_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
+constraint|public|core_diary_job_result|diary_job_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_result|diary_results_embedding_text_sha256_check|c|t|CHECK ((embedding_text_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_diary_result|diary_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_diary_result|diary_results_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES core_diary_input(id)
+constraint|public|core_diary_result|diary_results_input_id_key|u|t|UNIQUE (input_id)
+constraint|public|core_diary_result|diary_results_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_diary_result|diary_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
+constraint|public|core_diary_result|diary_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|synth_meta|history_events|history_events_context_sequence_check|c|t|CHECK ((context_sequence > 0))
 constraint|synth_meta|history_events|history_events_event_payload_check|c|t|CHECK ((jsonb_typeof(event_payload) = 'object'::text))
 constraint|synth_meta|history_events|history_events_eventlog_rowid_key|u|t|UNIQUE (eventlog_rowid)
@@ -1224,158 +1224,158 @@ constraint|public|core_media_object|media_objects_pkey|p|t|PRIMARY KEY (media_id
 constraint|public|core_media_object|media_objects_sha256_check|c|t|CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))
 constraint|public|core_media_object|media_objects_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
 constraint|public|core_media_object|media_objects_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'expired'::text])))
-constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_action_check|c|t|CHECK ((action = ANY (ARRAY['archive'::text, 'restore'::text, 'edit'::text, 'regenerate'::text])))
-constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_pkey|p|t|PRIMARY KEY (batch_id, revision)
-constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_revision_check|c|t|CHECK ((revision > 0))
-constraint|synth_meta|memory_batch_control_events|memory_batch_control_events_subject_batch_id_fkey|f|t|FOREIGN KEY (subject_batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_controls|memory_batch_controls_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_controls|memory_batch_controls_pkey|p|t|PRIMARY KEY (batch_id)
-constraint|synth_meta|memory_batch_controls|memory_batch_controls_regenerate_batch_id_fkey|f|t|FOREIGN KEY (regenerate_batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_controls|memory_batch_controls_revision_check|c|t|CHECK ((revision > 0))
-constraint|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_check|c|t|CHECK ((batch_id > root_batch_id))
-constraint|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_pkey|p|t|PRIMARY KEY (batch_id)
-constraint|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_root_batch_id_fkey|f|t|FOREIGN KEY (root_batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_sources|memory_batch_sources_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_sources|memory_batch_sources_batch_id_position_key|u|t|UNIQUE (batch_id, "position")
-constraint|synth_meta|memory_batch_sources|memory_batch_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|memory_batch_sources|memory_batch_sources_pkey|p|t|PRIMARY KEY (batch_id, history_event_id)
-constraint|synth_meta|memory_batch_sources|memory_batch_sources_position_check|c|t|CHECK ((("position" >= 1) AND ("position" <= 150)))
-constraint|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_pkey|p|t|PRIMARY KEY (batch_id)
-constraint|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES memory_summaries(id)
-constraint|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_summary_revision_check|c|t|CHECK ((summary_revision >= 0))
-constraint|synth_meta|memory_batches|memory_batches_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|memory_batches|memory_batches_actor_identity_id_source_hash_key|u|t|UNIQUE (actor_identity_id, source_hash)
-constraint|synth_meta|memory_batches|memory_batches_check|c|t|CHECK ((last_gamets >= first_gamets))
-constraint|synth_meta|memory_batches|memory_batches_first_gamets_check|c|t|CHECK ((first_gamets > 0))
-constraint|synth_meta|memory_batches|memory_batches_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|memory_batches|memory_batches_packed_message_check|c|t|CHECK (((octet_length(packed_message) >= 1) AND (octet_length(packed_message) <= 65536)))
-constraint|synth_meta|memory_batches|memory_batches_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|memory_batches|memory_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
-constraint|synth_meta|memory_batches|memory_batches_source_hash_check|c|t|CHECK ((source_hash ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|memory_summaries|memory_summaries_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES memory_batches(id)
-constraint|synth_meta|memory_summaries|memory_summaries_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
-constraint|synth_meta|memory_summaries|memory_summaries_job_id_key|u|t|UNIQUE (job_id)
-constraint|synth_meta|memory_summaries|memory_summaries_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|memory_summaries|memory_summaries_summary_check|c|t|CHECK (((octet_length(summary) >= 1) AND (octet_length(summary) <= 65536)))
-constraint|synth_meta|memory_summary_revisions|memory_summary_revisions_pkey|p|t|PRIMARY KEY (summary_id, revision)
-constraint|synth_meta|memory_summary_revisions|memory_summary_revisions_revision_check|c|t|CHECK ((revision > 0))
-constraint|synth_meta|memory_summary_revisions|memory_summary_revisions_summary_check|c|t|CHECK (((octet_length(summary) >= 1) AND (octet_length(summary) <= 65536)))
-constraint|synth_meta|memory_summary_revisions|memory_summary_revisions_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES memory_summaries(id)
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_check1|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < history_event_id)))
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_check|c|t|CHECK ((narrative_id < history_event_id))
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_control_payload_check|c|t|CHECK (((jsonb_typeof(control_payload) = 'object'::text) AND (COALESCE((control_payload ->> 'schema'::text), ''::text) = ANY (ARRAY['synth.middleterm.control.v1'::text, 'synth.middleterm.control.v2'::text]))))
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_control_sha256_check|c|t|CHECK ((control_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_narrative_id_fkey|f|t|FOREIGN KEY (narrative_id) REFERENCES middleterm_results(history_event_id)
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_control_revisions|middleterm_control_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES middleterm_control_revisions(history_event_id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (octet_length((input_payload)::text) <= 1048576)))
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_regeneration_approval_id_fkey|f|t|FOREIGN KEY (regeneration_approval_id) REFERENCES middleterm_regeneration_approvals(history_event_id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
-constraint|synth_meta|middleterm_inputs|middleterm_inputs_session_id_request_id_generation_actor_id_key|u|t|UNIQUE (session_id, request_id, generation, actor_identity_id, input_sha256)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_appro_session_id_generation_actor_i_key|u|t|UNIQUE (session_id, generation, actor_identity_id, approval_token)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_approval_payload_check|c|t|CHECK (((jsonb_typeof(approval_payload) = 'object'::text) AND (COALESCE((approval_payload ->> 'schema'::text), ''::text) = 'synth.middleterm.regeneration.v1'::text) AND (octet_length((approval_payload)::text) <= 1048576)))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_approval_sha256_check|c|t|CHECK ((approval_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_approval_token_check|c|t|CHECK ((approval_token ~ '^[0-9a-f]{32}$'::text))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_check|c|t|CHECK ((narrative_id < history_event_id))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_narrative_id_fkey|f|t|FOREIGN KEY (narrative_id) REFERENCES middleterm_results(history_event_id)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_approval_id_fkey|f|t|FOREIGN KEY (approval_id) REFERENCES middleterm_regeneration_approvals(history_event_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_approval_id_key|u|t|UNIQUE (approval_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_check|c|t|CHECK (((history_event_id > target_history_event_id) AND (history_event_id > approval_id)))
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES middleterm_results(history_event_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_target_history_event_id_fkey|f|t|FOREIGN KEY (target_history_event_id) REFERENCES middleterm_results(history_event_id)
-constraint|synth_meta|middleterm_replacements|middleterm_replacements_target_history_event_id_session_id__key|u|t|UNIQUE (target_history_event_id, session_id, generation)
-constraint|synth_meta|middleterm_results|middleterm_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|middleterm_results|middleterm_results_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES middleterm_inputs(id)
-constraint|synth_meta|middleterm_results|middleterm_results_input_id_key|u|t|UNIQUE (input_id)
-constraint|synth_meta|middleterm_results|middleterm_results_narrative_check|c|t|CHECK (((octet_length(narrative) >= 1) AND (octet_length(narrative) <= 65536)))
-constraint|synth_meta|middleterm_results|middleterm_results_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|middleterm_results|middleterm_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|middleterm_sources|middleterm_sources_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES middleterm_inputs(id)
-constraint|synth_meta|middleterm_sources|middleterm_sources_input_id_summary_id_key|u|t|UNIQUE (input_id, summary_id)
-constraint|synth_meta|middleterm_sources|middleterm_sources_pkey|p|t|PRIMARY KEY (input_id, "position")
-constraint|synth_meta|middleterm_sources|middleterm_sources_position_check|c|t|CHECK ((("position" >= 0) AND ("position" <= 99)))
-constraint|synth_meta|middleterm_sources|middleterm_sources_source_sha256_check|c|t|CHECK ((source_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|middleterm_sources|middleterm_sources_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES memory_summaries(id)
-constraint|synth_meta|middleterm_sources|middleterm_sources_summary_revision_check|c|t|CHECK ((summary_revision >= 0))
-constraint|synth_meta|narrator_context_states|narrator_context_states_pkey|p|t|PRIMARY KEY (session_id, generation, snapshot_sequence)
-constraint|synth_meta|narrator_context_states|narrator_context_states_session_id_generation_snapshot_seq_fkey|f|t|FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence) ON DELETE CASCADE
-constraint|synth_meta|narrator_context_states|narrator_context_states_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES narrator_states(state_id)
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_background_check|c|t|CHECK ((char_length(background) <= 4000))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_check|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < revision_id)))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES narrator_definitions(definition_id)
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_name_check|c|t|CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 64)))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_personality_check|c|t|CHECK ((char_length(personality) <= 4000))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_pkey|p|t|PRIMARY KEY (revision_id)
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES narrator_definition_revisions(revision_id)
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_profile_id_check|c|t|CHECK (((profile_id IS NULL) OR (profile_id > 0)))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_style_check|c|t|CHECK ((char_length(style) <= 2000))
-constraint|synth_meta|narrator_definition_revisions|narrator_definition_revisions_voice_check|c|t|CHECK ((char_length(voice) <= 128))
-constraint|synth_meta|narrator_definitions|narrator_definitions_definition_id_check|c|t|CHECK ((definition_id ~ '^nd-[0-9a-f]{32}$'::text))
-constraint|synth_meta|narrator_definitions|narrator_definitions_pkey|p|t|PRIMARY KEY (definition_id)
-constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_pkey|p|t|PRIMARY KEY (session_id, generation)
-constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
-constraint|synth_meta|narrator_lane_heads|narrator_lane_heads_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES narrator_states(state_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_check|c|t|CHECK (((state <> ALL (ARRAY['generated'::text, 'spoken'::text])) OR (text IS NOT NULL)))
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES narrator_definitions(definition_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_input_entry_id_fkey|f|t|FOREIGN KEY (input_entry_id) REFERENCES narrator_transcript_entries(entry_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_parent_state_id_fkey|f|t|FOREIGN KEY (parent_state_id) REFERENCES narrator_states(state_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_pkey|p|t|PRIMARY KEY (session_id, request_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_revision_id_fkey|f|t|FOREIGN KEY (revision_id) REFERENCES narrator_definition_revisions(revision_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_session_id_line_id_key|u|t|UNIQUE (session_id, line_id)
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'generated'::text, 'spoken'::text, 'interrupted'::text, 'failed'::text, 'cancelled'::text])))
-constraint|synth_meta|narrator_pending_outputs|narrator_pending_outputs_text_check|c|t|CHECK (((text IS NULL) OR ((char_length(text) >= 1) AND (char_length(text) <= 1000))))
-constraint|synth_meta|narrator_states|narrator_states_applied_revisions_check|c|t|CHECK ((jsonb_typeof(applied_revisions) = 'object'::text))
-constraint|synth_meta|narrator_states|narrator_states_cause_check|c|t|CHECK ((cause = ANY (ARRAY['select'::text, 'input'::text, 'reply'::text])))
-constraint|synth_meta|narrator_states|narrator_states_check1|c|t|CHECK (((selected_definition_id IS NULL) OR (applied_revisions ? selected_definition_id)))
-constraint|synth_meta|narrator_states|narrator_states_check|c|t|CHECK (((parent_state_id IS NULL) OR (parent_state_id < state_id)))
-constraint|synth_meta|narrator_states|narrator_states_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|narrator_states|narrator_states_parent_state_id_fkey|f|t|FOREIGN KEY (parent_state_id) REFERENCES narrator_states(state_id)
-constraint|synth_meta|narrator_states|narrator_states_persona_heads_check|c|t|CHECK ((jsonb_typeof(persona_heads) = 'object'::text))
-constraint|synth_meta|narrator_states|narrator_states_pkey|p|t|PRIMARY KEY (state_id)
-constraint|synth_meta|narrator_states|narrator_states_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|narrator_states|narrator_states_selected_definition_id_fkey|f|t|FOREIGN KEY (selected_definition_id) REFERENCES narrator_definitions(definition_id)
-constraint|synth_meta|narrator_states|narrator_states_transcript_head_entry_id_fkey|f|t|FOREIGN KEY (transcript_head_entry_id) REFERENCES narrator_transcript_entries(entry_id)
-constraint|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_cursor_id_check|c|t|CHECK ((cursor_id ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_next_entry_id_fkey|f|t|FOREIGN KEY (next_entry_id) REFERENCES narrator_transcript_entries(entry_id)
-constraint|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_pkey|p|t|PRIMARY KEY (cursor_id)
-constraint|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES narrator_states(state_id)
-constraint|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_state_id_next_entry_id_key|u|t|UNIQUE (state_id, next_entry_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_check1|c|t|CHECK (((parent_persona_entry_id IS NULL) OR (parent_persona_entry_id < entry_id)))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_check|c|t|CHECK (((parent_entry_id IS NULL) OR (parent_entry_id < entry_id)))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES narrator_definitions(definition_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_generation_check|c|t|CHECK ((generation > 0))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_kind_check|c|t|CHECK ((kind = ANY (ARRAY['typed'::text, 'voice'::text, 'scene'::text, 'reply'::text])))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_parent_entry_id_fkey|f|t|FOREIGN KEY (parent_entry_id) REFERENCES narrator_transcript_entries(entry_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_parent_persona_entry_id_fkey|f|t|FOREIGN KEY (parent_persona_entry_id) REFERENCES narrator_transcript_entries(entry_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_pkey|p|t|PRIMARY KEY (entry_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_revision_id_fkey|f|t|FOREIGN KEY (revision_id) REFERENCES narrator_definition_revisions(revision_id)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_role_check|c|t|CHECK ((role = ANY (ARRAY['player'::text, 'narrator'::text])))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_session_id_request_id_role_key|u|t|UNIQUE (session_id, request_id, role)
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_speaker_name_check|c|t|CHECK (((char_length(speaker_name) >= 1) AND (char_length(speaker_name) <= 64)))
-constraint|synth_meta|narrator_transcript_entries|narrator_transcript_entries_text_check|c|t|CHECK (((char_length(text) >= 1) AND (char_length(text) <= 4096)))
+constraint|public|core_memory_batch_control_event|memory_batch_control_events_action_check|c|t|CHECK ((action = ANY (ARRAY['archive'::text, 'restore'::text, 'edit'::text, 'regenerate'::text])))
+constraint|public|core_memory_batch_control_event|memory_batch_control_events_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_control_event|memory_batch_control_events_pkey|p|t|PRIMARY KEY (batch_id, revision)
+constraint|public|core_memory_batch_control_event|memory_batch_control_events_revision_check|c|t|CHECK ((revision > 0))
+constraint|public|core_memory_batch_control_event|memory_batch_control_events_subject_batch_id_fkey|f|t|FOREIGN KEY (subject_batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_control|memory_batch_controls_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_control|memory_batch_controls_pkey|p|t|PRIMARY KEY (batch_id)
+constraint|public|core_memory_batch_control|memory_batch_controls_regenerate_batch_id_fkey|f|t|FOREIGN KEY (regenerate_batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_control|memory_batch_controls_revision_check|c|t|CHECK ((revision > 0))
+constraint|public|core_memory_batch_rebuild|memory_batch_rebuilds_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_rebuild|memory_batch_rebuilds_check|c|t|CHECK ((batch_id > root_batch_id))
+constraint|public|core_memory_batch_rebuild|memory_batch_rebuilds_pkey|p|t|PRIMARY KEY (batch_id)
+constraint|public|core_memory_batch_rebuild|memory_batch_rebuilds_root_batch_id_fkey|f|t|FOREIGN KEY (root_batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_source|memory_batch_sources_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_source|memory_batch_sources_batch_id_position_key|u|t|UNIQUE (batch_id, "position")
+constraint|public|core_memory_batch_source|memory_batch_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_memory_batch_source|memory_batch_sources_pkey|p|t|PRIMARY KEY (batch_id, history_event_id)
+constraint|public|core_memory_batch_source|memory_batch_sources_position_check|c|t|CHECK ((("position" >= 1) AND ("position" <= 150)))
+constraint|public|core_memory_batch_summary_source|memory_batch_summary_sources_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_batch_summary_source|memory_batch_summary_sources_pkey|p|t|PRIMARY KEY (batch_id)
+constraint|public|core_memory_batch_summary_source|memory_batch_summary_sources_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES core_memory_summary(id)
+constraint|public|core_memory_batch_summary_source|memory_batch_summary_sources_summary_revision_check|c|t|CHECK ((summary_revision >= 0))
+constraint|public|core_memory_batch|memory_batches_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_memory_batch|memory_batches_actor_identity_id_source_hash_key|u|t|UNIQUE (actor_identity_id, source_hash)
+constraint|public|core_memory_batch|memory_batches_check|c|t|CHECK ((last_gamets >= first_gamets))
+constraint|public|core_memory_batch|memory_batches_first_gamets_check|c|t|CHECK ((first_gamets > 0))
+constraint|public|core_memory_batch|memory_batches_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_memory_batch|memory_batches_packed_message_check|c|t|CHECK (((octet_length(packed_message) >= 1) AND (octet_length(packed_message) <= 65536)))
+constraint|public|core_memory_batch|memory_batches_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_memory_batch|memory_batches_session_id_generation_context_sequence_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_memory_batch|memory_batches_source_hash_check|c|t|CHECK ((source_hash ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_memory_summary|memory_summaries_batch_id_fkey|f|t|FOREIGN KEY (batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_memory_summary|memory_summaries_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
+constraint|public|core_memory_summary|memory_summaries_job_id_key|u|t|UNIQUE (job_id)
+constraint|public|core_memory_summary|memory_summaries_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_memory_summary|memory_summaries_summary_check|c|t|CHECK (((octet_length(summary) >= 1) AND (octet_length(summary) <= 65536)))
+constraint|public|core_memory_summary_revision|memory_summary_revisions_pkey|p|t|PRIMARY KEY (summary_id, revision)
+constraint|public|core_memory_summary_revision|memory_summary_revisions_revision_check|c|t|CHECK ((revision > 0))
+constraint|public|core_memory_summary_revision|memory_summary_revisions_summary_check|c|t|CHECK (((octet_length(summary) >= 1) AND (octet_length(summary) <= 65536)))
+constraint|public|core_memory_summary_revision|memory_summary_revisions_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES core_memory_summary(id)
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_check1|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < history_event_id)))
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_check|c|t|CHECK ((narrative_id < history_event_id))
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_control_payload_check|c|t|CHECK (((jsonb_typeof(control_payload) = 'object'::text) AND (COALESCE((control_payload ->> 'schema'::text), ''::text) = ANY (ARRAY['synth.middleterm.control.v1'::text, 'synth.middleterm.control.v2'::text]))))
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_control_sha256_check|c|t|CHECK ((control_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_narrative_id_fkey|f|t|FOREIGN KEY (narrative_id) REFERENCES core_middleterm_result(history_event_id)
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_middleterm_control_revision|middleterm_control_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES core_middleterm_control_revision(history_event_id)
+constraint|public|core_middleterm_input|middleterm_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_middleterm_input|middleterm_inputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_middleterm_input|middleterm_inputs_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_middleterm_input|middleterm_inputs_input_payload_check|c|t|CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (octet_length((input_payload)::text) <= 1048576)))
+constraint|public|core_middleterm_input|middleterm_inputs_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_middleterm_input|middleterm_inputs_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_middleterm_input|middleterm_inputs_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES history_events(id)
+constraint|public|core_middleterm_input|middleterm_inputs_regeneration_approval_id_fkey|f|t|FOREIGN KEY (regeneration_approval_id) REFERENCES core_middleterm_regeneration_approval(history_event_id)
+constraint|public|core_middleterm_input|middleterm_inputs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
+constraint|public|core_middleterm_input|middleterm_inputs_session_id_request_id_generation_actor_id_key|u|t|UNIQUE (session_id, request_id, generation, actor_identity_id, input_sha256)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_appro_session_id_generation_actor_i_key|u|t|UNIQUE (session_id, generation, actor_identity_id, approval_token)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_approval_payload_check|c|t|CHECK (((jsonb_typeof(approval_payload) = 'object'::text) AND (COALESCE((approval_payload ->> 'schema'::text), ''::text) = 'synth.middleterm.regeneration.v1'::text) AND (octet_length((approval_payload)::text) <= 1048576)))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_approval_sha256_check|c|t|CHECK ((approval_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_approval_token_check|c|t|CHECK ((approval_token ~ '^[0-9a-f]{32}$'::text))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_check|c|t|CHECK ((narrative_id < history_event_id))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_narrative_id_fkey|f|t|FOREIGN KEY (narrative_id) REFERENCES core_middleterm_result(history_event_id)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_approval_id_fkey|f|t|FOREIGN KEY (approval_id) REFERENCES core_middleterm_regeneration_approval(history_event_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_approval_id_key|u|t|UNIQUE (approval_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_check|c|t|CHECK (((history_event_id > target_history_event_id) AND (history_event_id > approval_id)))
+constraint|public|core_middleterm_replacement|middleterm_replacements_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_middleterm_replacement|middleterm_replacements_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES core_middleterm_result(history_event_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_target_history_event_id_fkey|f|t|FOREIGN KEY (target_history_event_id) REFERENCES core_middleterm_result(history_event_id)
+constraint|public|core_middleterm_replacement|middleterm_replacements_target_history_event_id_session_id__key|u|t|UNIQUE (target_history_event_id, session_id, generation)
+constraint|public|core_middleterm_result|middleterm_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_middleterm_result|middleterm_results_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES core_middleterm_input(id)
+constraint|public|core_middleterm_result|middleterm_results_input_id_key|u|t|UNIQUE (input_id)
+constraint|public|core_middleterm_result|middleterm_results_narrative_check|c|t|CHECK (((octet_length(narrative) >= 1) AND (octet_length(narrative) <= 65536)))
+constraint|public|core_middleterm_result|middleterm_results_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_middleterm_result|middleterm_results_result_sha256_check|c|t|CHECK ((result_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_middleterm_source|middleterm_sources_input_id_fkey|f|t|FOREIGN KEY (input_id) REFERENCES core_middleterm_input(id)
+constraint|public|core_middleterm_source|middleterm_sources_input_id_summary_id_key|u|t|UNIQUE (input_id, summary_id)
+constraint|public|core_middleterm_source|middleterm_sources_pkey|p|t|PRIMARY KEY (input_id, "position")
+constraint|public|core_middleterm_source|middleterm_sources_position_check|c|t|CHECK ((("position" >= 0) AND ("position" <= 99)))
+constraint|public|core_middleterm_source|middleterm_sources_source_sha256_check|c|t|CHECK ((source_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_middleterm_source|middleterm_sources_summary_id_fkey|f|t|FOREIGN KEY (summary_id) REFERENCES core_memory_summary(id)
+constraint|public|core_middleterm_source|middleterm_sources_summary_revision_check|c|t|CHECK ((summary_revision >= 0))
+constraint|public|core_narrator_context_state|narrator_context_states_pkey|p|t|PRIMARY KEY (session_id, generation, snapshot_sequence)
+constraint|public|core_narrator_context_state|narrator_context_states_session_id_generation_snapshot_seq_fkey|f|t|FOREIGN KEY (session_id, generation, snapshot_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence) ON DELETE CASCADE
+constraint|public|core_narrator_context_state|narrator_context_states_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES core_narrator_state(state_id)
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_background_check|c|t|CHECK ((char_length(background) <= 4000))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_check|c|t|CHECK (((prior_revision_id IS NULL) OR (prior_revision_id < revision_id)))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES core_narrator_definition(definition_id)
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_name_check|c|t|CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 64)))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_personality_check|c|t|CHECK ((char_length(personality) <= 4000))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_pkey|p|t|PRIMARY KEY (revision_id)
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_prior_revision_id_fkey|f|t|FOREIGN KEY (prior_revision_id) REFERENCES core_narrator_definition_revision(revision_id)
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_profile_id_check|c|t|CHECK (((profile_id IS NULL) OR (profile_id > 0)))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_style_check|c|t|CHECK ((char_length(style) <= 2000))
+constraint|public|core_narrator_definition_revision|narrator_definition_revisions_voice_check|c|t|CHECK ((char_length(voice) <= 128))
+constraint|public|core_narrator_definition|narrator_definitions_definition_id_check|c|t|CHECK ((definition_id ~ '^nd-[0-9a-f]{32}$'::text))
+constraint|public|core_narrator_definition|narrator_definitions_pkey|p|t|PRIMARY KEY (definition_id)
+constraint|public|core_narrator_lane_head|narrator_lane_heads_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_narrator_lane_head|narrator_lane_heads_pkey|p|t|PRIMARY KEY (session_id, generation)
+constraint|public|core_narrator_lane_head|narrator_lane_heads_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id) ON DELETE CASCADE
+constraint|public|core_narrator_lane_head|narrator_lane_heads_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES core_narrator_state(state_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_check|c|t|CHECK (((state <> ALL (ARRAY['generated'::text, 'spoken'::text])) OR (text IS NOT NULL)))
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_context_sequence_check|c|t|CHECK ((context_sequence > 0))
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES core_narrator_definition(definition_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_input_entry_id_fkey|f|t|FOREIGN KEY (input_entry_id) REFERENCES core_narrator_transcript_entry(entry_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_parent_state_id_fkey|f|t|FOREIGN KEY (parent_state_id) REFERENCES core_narrator_state(state_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_pkey|p|t|PRIMARY KEY (session_id, request_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_revision_id_fkey|f|t|FOREIGN KEY (revision_id) REFERENCES core_narrator_definition_revision(revision_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_session_id_line_id_key|u|t|UNIQUE (session_id, line_id)
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'generated'::text, 'spoken'::text, 'interrupted'::text, 'failed'::text, 'cancelled'::text])))
+constraint|public|core_narrator_pending_output|narrator_pending_outputs_text_check|c|t|CHECK (((text IS NULL) OR ((char_length(text) >= 1) AND (char_length(text) <= 1000))))
+constraint|public|core_narrator_state|narrator_states_applied_revisions_check|c|t|CHECK ((jsonb_typeof(applied_revisions) = 'object'::text))
+constraint|public|core_narrator_state|narrator_states_cause_check|c|t|CHECK ((cause = ANY (ARRAY['select'::text, 'input'::text, 'reply'::text])))
+constraint|public|core_narrator_state|narrator_states_check1|c|t|CHECK (((selected_definition_id IS NULL) OR (applied_revisions ? selected_definition_id)))
+constraint|public|core_narrator_state|narrator_states_check|c|t|CHECK (((parent_state_id IS NULL) OR (parent_state_id < state_id)))
+constraint|public|core_narrator_state|narrator_states_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_narrator_state|narrator_states_parent_state_id_fkey|f|t|FOREIGN KEY (parent_state_id) REFERENCES core_narrator_state(state_id)
+constraint|public|core_narrator_state|narrator_states_persona_heads_check|c|t|CHECK ((jsonb_typeof(persona_heads) = 'object'::text))
+constraint|public|core_narrator_state|narrator_states_pkey|p|t|PRIMARY KEY (state_id)
+constraint|public|core_narrator_state|narrator_states_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_narrator_state|narrator_states_selected_definition_id_fkey|f|t|FOREIGN KEY (selected_definition_id) REFERENCES core_narrator_definition(definition_id)
+constraint|public|core_narrator_state|narrator_states_transcript_head_entry_id_fkey|f|t|FOREIGN KEY (transcript_head_entry_id) REFERENCES core_narrator_transcript_entry(entry_id)
+constraint|public|core_narrator_transcript_cursor|narrator_transcript_cursors_cursor_id_check|c|t|CHECK ((cursor_id ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_narrator_transcript_cursor|narrator_transcript_cursors_next_entry_id_fkey|f|t|FOREIGN KEY (next_entry_id) REFERENCES core_narrator_transcript_entry(entry_id)
+constraint|public|core_narrator_transcript_cursor|narrator_transcript_cursors_pkey|p|t|PRIMARY KEY (cursor_id)
+constraint|public|core_narrator_transcript_cursor|narrator_transcript_cursors_state_id_fkey|f|t|FOREIGN KEY (state_id) REFERENCES core_narrator_state(state_id)
+constraint|public|core_narrator_transcript_cursor|narrator_transcript_cursors_state_id_next_entry_id_key|u|t|UNIQUE (state_id, next_entry_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_check1|c|t|CHECK (((parent_persona_entry_id IS NULL) OR (parent_persona_entry_id < entry_id)))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_check|c|t|CHECK (((parent_entry_id IS NULL) OR (parent_entry_id < entry_id)))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_definition_id_fkey|f|t|FOREIGN KEY (definition_id) REFERENCES core_narrator_definition(definition_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_kind_check|c|t|CHECK ((kind = ANY (ARRAY['typed'::text, 'voice'::text, 'scene'::text, 'reply'::text])))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_parent_entry_id_fkey|f|t|FOREIGN KEY (parent_entry_id) REFERENCES core_narrator_transcript_entry(entry_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_parent_persona_entry_id_fkey|f|t|FOREIGN KEY (parent_persona_entry_id) REFERENCES core_narrator_transcript_entry(entry_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_pkey|p|t|PRIMARY KEY (entry_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_playthrough_id_check|c|t|CHECK ((playthrough_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_revision_id_fkey|f|t|FOREIGN KEY (revision_id) REFERENCES core_narrator_definition_revision(revision_id)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_role_check|c|t|CHECK ((role = ANY (ARRAY['player'::text, 'narrator'::text])))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_session_id_request_id_role_key|u|t|UNIQUE (session_id, request_id, role)
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_speaker_name_check|c|t|CHECK (((char_length(speaker_name) >= 1) AND (char_length(speaker_name) <= 64)))
+constraint|public|core_narrator_transcript_entry|narrator_transcript_entries_text_check|c|t|CHECK (((char_length(text) >= 1) AND (char_length(text) <= 4096)))
 constraint|synth_meta|playthrough_profiles|playthrough_profiles_name_key|u|t|UNIQUE (name)
 constraint|synth_meta|playthrough_profiles|playthrough_profiles_pkey|p|t|PRIMARY KEY (id)
 constraint|synth_meta|profile_job_fields|profile_job_fields_field_check|c|t|CHECK ((field = ANY (ARRAY['personality'::text, 'occupation'::text, 'skills'::text, 'speechstyle'::text, 'goals'::text])))
@@ -1435,94 +1435,94 @@ constraint|public|core_rechat_selection|rechat_selections_profile_id_check|c|t|C
 constraint|public|core_rechat_selection|rechat_selections_role_check|c|t|CHECK ((role = ANY (ARRAY['npc'::text, 'narrator'::text, 'terminal'::text])))
 constraint|public|core_rechat_selection|rechat_selections_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES core_rechat_continuation(session_id, request_id) ON DELETE CASCADE
 constraint|public|core_rechat_selection|rechat_selections_terminal_reason_check|c|t|CHECK ((terminal_reason = ANY (ARRAY['no_candidate'::text, 'ineligible'::text, 'private'::text, 'budget_exhausted'::text])))
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_ev_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_barrier_event_id_check|c|t|CHECK ((barrier_event_id > 0))
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_legacy_profile_id_check|c|t|CHECK ((legacy_profile_id > 0))
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_pkey|p|t|PRIMARY KEY (actor_identity_id, revision)
-constraint|synth_meta|relationship_actor_control_events|relationship_actor_control_events_revision_check|c|t|CHECK ((revision > 0))
-constraint|synth_meta|relationship_actor_controls|relationship_actor_controls_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_actor_controls|relationship_actor_controls_barrier_event_id_check|c|t|CHECK ((barrier_event_id > 0))
-constraint|synth_meta|relationship_actor_controls|relationship_actor_controls_pkey|p|t|PRIMARY KEY (actor_identity_id)
-constraint|synth_meta|relationship_actor_controls|relationship_actor_controls_revision_check|c|t|CHECK ((revision > 0))
-constraint|synth_meta|relationship_evaluation_sources|relationship_evaluation_sources_evaluation_id_fkey|f|t|FOREIGN KEY (evaluation_id) REFERENCES relationship_evaluations(id)
-constraint|synth_meta|relationship_evaluation_sources|relationship_evaluation_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_evaluation_sources|relationship_evaluation_sources_pkey|p|t|PRIMARY KEY (evaluation_id, history_event_id)
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES relationship_response_inputs(history_event_id)
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|relationship_evaluations|relationship_evaluations_session_id_request_id_response_his_key|u|t|UNIQUE (session_id, request_id, response_history_event_id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_request_id_respons_key|u|t|UNIQUE (session_id, request_id, response_history_event_id, listener_identity_id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluat_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES relationship_response_inputs(history_event_id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_check|c|t|CHECK ((speaker_identity_id <> listener_identity_id))
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_listener_identity_id_fkey|f|t|FOREIGN KEY (listener_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_pkey|p|t|PRIMARY KEY (id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_interaction_priors|relationship_interaction_priors_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_interaction_priors|relationship_interaction_priors_interaction_id_fkey|f|t|FOREIGN KEY (interaction_id) REFERENCES relationship_interaction_evaluations(id)
-constraint|synth_meta|relationship_interaction_priors|relationship_interaction_priors_pkey|p|t|PRIMARY KEY (interaction_id, actor_identity_id)
-constraint|synth_meta|relationship_interaction_priors|relationship_interaction_priors_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES relationship_revisions(history_event_id)
-constraint|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_pr_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES relationship_interaction_results(history_event_id)
-constraint|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_pri_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES relationship_revisions(history_event_id)
-constraint|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_priors_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_priors_check|c|t|CHECK ((prior_history_event_id < result_history_event_id))
-constraint|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_priors_pkey|p|t|PRIMARY KEY (result_history_event_id, actor_identity_id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_interaction_id_fkey|f|t|FOREIGN KEY (interaction_id) REFERENCES relationship_interaction_evaluations(id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_interaction_id_key|u|t|UNIQUE (interaction_id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_key|u|t|UNIQUE (job_id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|relationship_interaction_results|relationship_interaction_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_response_payload_check|c|t|CHECK ((jsonb_typeof(response_payload) = 'object'::text))
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_response_sha256_check|c|t|CHECK ((response_sha256 ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
-constraint|synth_meta|relationship_response_inputs|relationship_response_inputs_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
-constraint|synth_meta|relationship_response_sources|relationship_response_sources_check|c|t|CHECK ((source_history_event_id < response_history_event_id))
-constraint|synth_meta|relationship_response_sources|relationship_response_sources_pkey|p|t|PRIMARY KEY (response_history_event_id, source_history_event_id)
-constraint|synth_meta|relationship_response_sources|relationship_response_sources_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES relationship_response_inputs(history_event_id)
-constraint|synth_meta|relationship_response_sources|relationship_response_sources_source_history_event_id_fkey|f|t|FOREIGN KEY (source_history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_result_priors|relationship_result_priors_check|c|t|CHECK ((prior_history_event_id < result_history_event_id))
-constraint|synth_meta|relationship_result_priors|relationship_result_priors_pkey|p|t|PRIMARY KEY (result_history_event_id, prior_history_event_id)
-constraint|synth_meta|relationship_result_priors|relationship_result_priors_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES relationship_revisions(history_event_id)
-constraint|synth_meta|relationship_result_priors|relationship_result_priors_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES relationship_results(history_event_id)
-constraint|synth_meta|relationship_results|relationship_results_evaluation_id_fkey|f|t|FOREIGN KEY (evaluation_id) REFERENCES relationship_evaluations(id)
-constraint|synth_meta|relationship_results|relationship_results_evaluation_id_key|u|t|UNIQUE (evaluation_id)
-constraint|synth_meta|relationship_results|relationship_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_results|relationship_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
-constraint|synth_meta|relationship_results|relationship_results_job_id_key|u|t|UNIQUE (job_id)
-constraint|synth_meta|relationship_results|relationship_results_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|relationship_results|relationship_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
-constraint|synth_meta|relationship_revision_sources|relationship_revision_sources_check|c|t|CHECK ((source_history_event_id < relationship_history_event_id))
-constraint|synth_meta|relationship_revision_sources|relationship_revision_sources_pkey|p|t|PRIMARY KEY (relationship_history_event_id, source_history_event_id)
-constraint|synth_meta|relationship_revision_sources|relationship_revision_sources_relationship_history_event_i_fkey|f|t|FOREIGN KEY (relationship_history_event_id) REFERENCES relationship_revisions(history_event_id)
-constraint|synth_meta|relationship_revision_sources|relationship_revision_sources_source_history_event_id_fkey|f|t|FOREIGN KEY (source_history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_revisions|relationship_known_or_reset|c|t|CHECK ((((affinity IS NOT NULL) AND (relationship_type IS NOT NULL)) OR ((affinity IS NULL) AND (relationship_type IS NULL) AND (details = '{}'::jsonb) AND (prior_history_event_id IS NULL) AND (result_history_event_id IS NULL) AND (interaction_result_history_event_id IS NULL) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.relationship.manual.v2'::text)) AND (NOT ((input_payload -> 'state'::text) IS DISTINCT FROM 'null'::jsonb)))))
-constraint|synth_meta|relationship_revisions|relationship_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_affinity_check|c|t|CHECK (((affinity >= '-100'::integer) AND (affinity <= 100)))
-constraint|synth_meta|relationship_revisions|relationship_revisions_check1|c|t|CHECK ((prior_history_event_id < history_event_id))
-constraint|synth_meta|relationship_revisions|relationship_revisions_check2|c|t|CHECK (((interaction_result_history_event_id IS NULL) OR (result_history_event_id IS NULL)))
-constraint|synth_meta|relationship_revisions|relationship_revisions_check|c|t|CHECK ((actor_identity_id <> subject_identity_id))
-constraint|synth_meta|relationship_revisions|relationship_revisions_details_check|c|t|CHECK ((jsonb_typeof(details) = 'object'::text))
-constraint|synth_meta|relationship_revisions|relationship_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_input_hash_check|c|t|CHECK ((input_hash ~ '^[0-9a-f]{64}$'::text))
-constraint|synth_meta|relationship_revisions|relationship_revisions_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
-constraint|synth_meta|relationship_revisions|relationship_revisions_interaction_result_history_event_id_fkey|f|t|FOREIGN KEY (interaction_result_history_event_id) REFERENCES relationship_interaction_results(history_event_id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES relationship_revisions(history_event_id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_relationship_type_check|c|t|CHECK ((relationship_type ~ '^[a-z][a-z0-9_-]{0,49}$'::text))
-constraint|synth_meta|relationship_revisions|relationship_revisions_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES relationship_results(history_event_id)
-constraint|synth_meta|relationship_revisions|relationship_revisions_subject_identity_id_fkey|f|t|FOREIGN KEY (subject_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_ev_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_events_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_events_barrier_event_id_check|c|t|CHECK ((barrier_event_id > 0))
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_events_legacy_profile_id_check|c|t|CHECK ((legacy_profile_id > 0))
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_events_pkey|p|t|PRIMARY KEY (actor_identity_id, revision)
+constraint|public|core_relationship_actor_control_event|relationship_actor_control_events_revision_check|c|t|CHECK ((revision > 0))
+constraint|public|core_relationship_actor_control|relationship_actor_controls_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_actor_control|relationship_actor_controls_barrier_event_id_check|c|t|CHECK ((barrier_event_id > 0))
+constraint|public|core_relationship_actor_control|relationship_actor_controls_pkey|p|t|PRIMARY KEY (actor_identity_id)
+constraint|public|core_relationship_actor_control|relationship_actor_controls_revision_check|c|t|CHECK ((revision > 0))
+constraint|public|core_relationship_evaluation_source|relationship_evaluation_sources_evaluation_id_fkey|f|t|FOREIGN KEY (evaluation_id) REFERENCES core_relationship_evaluation(id)
+constraint|public|core_relationship_evaluation_source|relationship_evaluation_sources_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_evaluation_source|relationship_evaluation_sources_pkey|p|t|PRIMARY KEY (evaluation_id, history_event_id)
+constraint|public|core_relationship_evaluation|relationship_evaluations_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_evaluation|relationship_evaluations_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_relationship_evaluation|relationship_evaluations_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_relationship_evaluation|relationship_evaluations_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_relationship_evaluation|relationship_evaluations_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES core_relationship_response_input(history_event_id)
+constraint|public|core_relationship_evaluation|relationship_evaluations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_relationship_evaluation|relationship_evaluations_session_id_request_id_response_his_key|u|t|UNIQUE (session_id, request_id, response_history_event_id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_eval_session_id_generation_contex_fkey|f|t|FOREIGN KEY (session_id, generation, context_sequence) REFERENCES core_runtime_context(session_id, generation, snapshot_sequence)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_eval_session_id_request_id_respons_key|u|t|UNIQUE (session_id, request_id, response_history_event_id, listener_identity_id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluat_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES core_relationship_response_input(history_event_id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_check|c|t|CHECK ((speaker_identity_id <> listener_identity_id))
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_input_sha256_check|c|t|CHECK ((input_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_listener_identity_id_fkey|f|t|FOREIGN KEY (listener_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_speaker_identity_id_fkey|f|t|FOREIGN KEY (speaker_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_interaction_prior|relationship_interaction_priors_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_interaction_prior|relationship_interaction_priors_interaction_id_fkey|f|t|FOREIGN KEY (interaction_id) REFERENCES core_relationship_interaction_evaluation(id)
+constraint|public|core_relationship_interaction_prior|relationship_interaction_priors_pkey|p|t|PRIMARY KEY (interaction_id, actor_identity_id)
+constraint|public|core_relationship_interaction_prior|relationship_interaction_priors_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES core_relationship_revision(history_event_id)
+constraint|public|core_relationship_interaction_result_prior|relationship_interaction_result_pr_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES core_relationship_interaction_result(history_event_id)
+constraint|public|core_relationship_interaction_result_prior|relationship_interaction_result_pri_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES core_relationship_revision(history_event_id)
+constraint|public|core_relationship_interaction_result_prior|relationship_interaction_result_priors_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_interaction_result_prior|relationship_interaction_result_priors_check|c|t|CHECK ((prior_history_event_id < result_history_event_id))
+constraint|public|core_relationship_interaction_result_prior|relationship_interaction_result_priors_pkey|p|t|PRIMARY KEY (result_history_event_id, actor_identity_id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_interaction_id_fkey|f|t|FOREIGN KEY (interaction_id) REFERENCES core_relationship_interaction_evaluation(id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_interaction_id_key|u|t|UNIQUE (interaction_id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_job_id_key|u|t|UNIQUE (job_id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_relationship_interaction_result|relationship_interaction_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
+constraint|public|core_relationship_response_input|relationship_response_inputs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_response_input|relationship_response_inputs_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_response_input|relationship_response_inputs_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_relationship_response_input|relationship_response_inputs_response_payload_check|c|t|CHECK ((jsonb_typeof(response_payload) = 'object'::text))
+constraint|public|core_relationship_response_input|relationship_response_inputs_response_sha256_check|c|t|CHECK ((response_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_relationship_response_input|relationship_response_inputs_session_id_request_id_fkey|f|t|FOREIGN KEY (session_id, request_id) REFERENCES request_executions(session_id, request_id)
+constraint|public|core_relationship_response_input|relationship_response_inputs_session_id_request_id_key|u|t|UNIQUE (session_id, request_id)
+constraint|public|core_relationship_response_source|relationship_response_sources_check|c|t|CHECK ((source_history_event_id < response_history_event_id))
+constraint|public|core_relationship_response_source|relationship_response_sources_pkey|p|t|PRIMARY KEY (response_history_event_id, source_history_event_id)
+constraint|public|core_relationship_response_source|relationship_response_sources_response_history_event_id_fkey|f|t|FOREIGN KEY (response_history_event_id) REFERENCES core_relationship_response_input(history_event_id)
+constraint|public|core_relationship_response_source|relationship_response_sources_source_history_event_id_fkey|f|t|FOREIGN KEY (source_history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_result_prior|relationship_result_priors_check|c|t|CHECK ((prior_history_event_id < result_history_event_id))
+constraint|public|core_relationship_result_prior|relationship_result_priors_pkey|p|t|PRIMARY KEY (result_history_event_id, prior_history_event_id)
+constraint|public|core_relationship_result_prior|relationship_result_priors_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES core_relationship_revision(history_event_id)
+constraint|public|core_relationship_result_prior|relationship_result_priors_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES core_relationship_result(history_event_id)
+constraint|public|core_relationship_result|relationship_results_evaluation_id_fkey|f|t|FOREIGN KEY (evaluation_id) REFERENCES core_relationship_evaluation(id)
+constraint|public|core_relationship_result|relationship_results_evaluation_id_key|u|t|UNIQUE (evaluation_id)
+constraint|public|core_relationship_result|relationship_results_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_result|relationship_results_job_id_fkey|f|t|FOREIGN KEY (job_id) REFERENCES core_worker_job(id)
+constraint|public|core_relationship_result|relationship_results_job_id_key|u|t|UNIQUE (job_id)
+constraint|public|core_relationship_result|relationship_results_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_relationship_result|relationship_results_result_payload_check|c|t|CHECK ((jsonb_typeof(result_payload) = 'object'::text))
+constraint|public|core_relationship_revision_source|relationship_revision_sources_check|c|t|CHECK ((source_history_event_id < relationship_history_event_id))
+constraint|public|core_relationship_revision_source|relationship_revision_sources_pkey|p|t|PRIMARY KEY (relationship_history_event_id, source_history_event_id)
+constraint|public|core_relationship_revision_source|relationship_revision_sources_relationship_history_event_i_fkey|f|t|FOREIGN KEY (relationship_history_event_id) REFERENCES core_relationship_revision(history_event_id)
+constraint|public|core_relationship_revision_source|relationship_revision_sources_source_history_event_id_fkey|f|t|FOREIGN KEY (source_history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_revision|relationship_known_or_reset|c|t|CHECK ((((affinity IS NOT NULL) AND (relationship_type IS NOT NULL)) OR ((affinity IS NULL) AND (relationship_type IS NULL) AND (details = '{}'::jsonb) AND (prior_history_event_id IS NULL) AND (result_history_event_id IS NULL) AND (interaction_result_history_event_id IS NULL) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.relationship.manual.v2'::text)) AND (NOT ((input_payload -> 'state'::text) IS DISTINCT FROM 'null'::jsonb)))))
+constraint|public|core_relationship_revision|relationship_revisions_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
+constraint|public|core_relationship_revision|relationship_revisions_affinity_check|c|t|CHECK (((affinity >= '-100'::integer) AND (affinity <= 100)))
+constraint|public|core_relationship_revision|relationship_revisions_check1|c|t|CHECK ((prior_history_event_id < history_event_id))
+constraint|public|core_relationship_revision|relationship_revisions_check2|c|t|CHECK (((interaction_result_history_event_id IS NULL) OR (result_history_event_id IS NULL)))
+constraint|public|core_relationship_revision|relationship_revisions_check|c|t|CHECK ((actor_identity_id <> subject_identity_id))
+constraint|public|core_relationship_revision|relationship_revisions_details_check|c|t|CHECK ((jsonb_typeof(details) = 'object'::text))
+constraint|public|core_relationship_revision|relationship_revisions_history_event_id_fkey|f|t|FOREIGN KEY (history_event_id) REFERENCES history_events(id)
+constraint|public|core_relationship_revision|relationship_revisions_input_hash_check|c|t|CHECK ((input_hash ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_relationship_revision|relationship_revisions_input_payload_check|c|t|CHECK ((jsonb_typeof(input_payload) = 'object'::text))
+constraint|public|core_relationship_revision|relationship_revisions_interaction_result_history_event_id_fkey|f|t|FOREIGN KEY (interaction_result_history_event_id) REFERENCES core_relationship_interaction_result(history_event_id)
+constraint|public|core_relationship_revision|relationship_revisions_pkey|p|t|PRIMARY KEY (history_event_id)
+constraint|public|core_relationship_revision|relationship_revisions_prior_history_event_id_fkey|f|t|FOREIGN KEY (prior_history_event_id) REFERENCES core_relationship_revision(history_event_id)
+constraint|public|core_relationship_revision|relationship_revisions_relationship_type_check|c|t|CHECK ((relationship_type ~ '^[a-z][a-z0-9_-]{0,49}$'::text))
+constraint|public|core_relationship_revision|relationship_revisions_result_history_event_id_fkey|f|t|FOREIGN KEY (result_history_event_id) REFERENCES core_relationship_result(history_event_id)
+constraint|public|core_relationship_revision|relationship_revisions_subject_identity_id_fkey|f|t|FOREIGN KEY (subject_identity_id) REFERENCES actor_identities(id)
 constraint|synth_meta|request_executions|request_executions_generation_check|c|t|CHECK ((generation > 0))
 constraint|synth_meta|request_executions|request_executions_pkey|p|t|PRIMARY KEY (session_id, request_id)
 constraint|synth_meta|request_executions|request_executions_request_id_check|c|t|CHECK ((request_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text))
@@ -1600,14 +1600,14 @@ constraint|public|core_visual_result|visual_results_session_id_request_id_key|u|
 constraint|public|core_worker_job|worker_jobs_actor_identity_id_fkey|f|t|FOREIGN KEY (actor_identity_id) REFERENCES actor_identities(id)
 constraint|public|core_worker_job|worker_jobs_attempts_check|c|t|CHECK ((attempts >= 0))
 constraint|public|core_worker_job|worker_jobs_check|c|t|CHECK (((relationship_interaction_id IS NULL) OR ((job_type = 'relationship'::text) AND (relationship_evaluation_id IS NULL) AND (memory_batch_id IS NULL) AND (session_id IS NOT NULL) AND (actor_identity_id IS NOT NULL))))
-constraint|public|core_worker_job|worker_jobs_diary_input_id_fkey|f|t|FOREIGN KEY (diary_input_id) REFERENCES diary_inputs(id)
+constraint|public|core_worker_job|worker_jobs_diary_input_id_fkey|f|t|FOREIGN KEY (diary_input_id) REFERENCES core_diary_input(id)
 constraint|public|core_worker_job|worker_jobs_generation_check|c|t|CHECK ((generation > 0))
 constraint|public|core_worker_job|worker_jobs_job_type_check|c|t|CHECK ((job_type = ANY (ARRAY['memory'::text, 'relationship'::text, 'profile'::text, 'diary'::text, 'tts'::text, 'middleterm'::text])))
-constraint|public|core_worker_job|worker_jobs_memory_batch_id_fkey|f|t|FOREIGN KEY (memory_batch_id) REFERENCES memory_batches(id)
-constraint|public|core_worker_job|worker_jobs_middleterm_input_id_fkey|f|t|FOREIGN KEY (middleterm_input_id) REFERENCES middleterm_inputs(id)
+constraint|public|core_worker_job|worker_jobs_memory_batch_id_fkey|f|t|FOREIGN KEY (memory_batch_id) REFERENCES core_memory_batch(id)
+constraint|public|core_worker_job|worker_jobs_middleterm_input_id_fkey|f|t|FOREIGN KEY (middleterm_input_id) REFERENCES core_middleterm_input(id)
 constraint|public|core_worker_job|worker_jobs_pkey|p|t|PRIMARY KEY (id)
-constraint|public|core_worker_job|worker_jobs_relationship_evaluation_id_fkey|f|t|FOREIGN KEY (relationship_evaluation_id) REFERENCES relationship_evaluations(id)
-constraint|public|core_worker_job|worker_jobs_relationship_interaction_id_fkey|f|t|FOREIGN KEY (relationship_interaction_id) REFERENCES relationship_interaction_evaluations(id)
+constraint|public|core_worker_job|worker_jobs_relationship_evaluation_id_fkey|f|t|FOREIGN KEY (relationship_evaluation_id) REFERENCES core_relationship_evaluation(id)
+constraint|public|core_worker_job|worker_jobs_relationship_interaction_id_fkey|f|t|FOREIGN KEY (relationship_interaction_id) REFERENCES core_relationship_interaction_evaluation(id)
 constraint|public|core_worker_job|worker_jobs_session_id_fkey|f|t|FOREIGN KEY (session_id) REFERENCES core_runtime_session(session_id)
 constraint|public|core_worker_job|worker_jobs_state_check|c|t|CHECK ((state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text, 'failed'::text, 'cancelled'::text, 'stale'::text])))
 constraint|synth|actor_identities|actor_identities_full_form_id_check|c|t|CHECK (((full_form_id)::text ~ '^0x[0-9A-Fa-f]{8}$'::text))
@@ -1698,15 +1698,15 @@ index|public|core_actor_event_batch|actor_event_batches_pkey|CREATE UNIQUE INDEX
 index|public|core_runtime_context|context_snapshots_pkey|CREATE UNIQUE INDEX context_snapshots_pkey ON public.core_runtime_context USING btree (session_id, generation, snapshot_sequence)
 index|public|core_dialogue_origin_policy|dialogue_origin_policies_pkey|CREATE UNIQUE INDEX dialogue_origin_policies_pkey ON public.core_dialogue_origin_policy USING btree (session_id, request_id)
 index|public|core_dialogue_utterance|dialogue_utterances_pkey|CREATE UNIQUE INDEX dialogue_utterances_pkey ON public.core_dialogue_utterance USING btree (session_id, request_id, line_id)
-index|synth_meta|diary_control_revisions|diary_control_revisions_owner|CREATE INDEX diary_control_revisions_owner ON synth_meta.diary_control_revisions USING btree (diary_id, history_event_id DESC)
-index|synth_meta|diary_control_revisions|diary_control_revisions_pkey|CREATE UNIQUE INDEX diary_control_revisions_pkey ON synth_meta.diary_control_revisions USING btree (history_event_id)
-index|synth_meta|diary_input_sources|diary_input_sources_pkey|CREATE UNIQUE INDEX diary_input_sources_pkey ON synth_meta.diary_input_sources USING btree (input_id, history_event_id)
-index|synth_meta|diary_inputs|diary_inputs_actor_role|CREATE INDEX diary_inputs_actor_role ON synth_meta.diary_inputs USING btree (actor_identity_id, diary_role, id DESC)
-index|synth_meta|diary_inputs|diary_inputs_pkey|CREATE UNIQUE INDEX diary_inputs_pkey ON synth_meta.diary_inputs USING btree (id)
-index|synth_meta|diary_inputs|diary_inputs_session_id_request_id_actor_identity_id_diary__key|CREATE UNIQUE INDEX diary_inputs_session_id_request_id_actor_identity_id_diary__key ON synth_meta.diary_inputs USING btree (session_id, request_id, actor_identity_id, diary_role)
-index|synth_meta|diary_job_results|diary_job_results_pkey|CREATE UNIQUE INDEX diary_job_results_pkey ON synth_meta.diary_job_results USING btree (job_id)
-index|synth_meta|diary_results|diary_results_input_id_key|CREATE UNIQUE INDEX diary_results_input_id_key ON synth_meta.diary_results USING btree (input_id)
-index|synth_meta|diary_results|diary_results_pkey|CREATE UNIQUE INDEX diary_results_pkey ON synth_meta.diary_results USING btree (history_event_id)
+index|public|core_diary_control_revision|diary_control_revisions_owner|CREATE INDEX diary_control_revisions_owner ON public.core_diary_control_revision USING btree (diary_id, history_event_id DESC)
+index|public|core_diary_control_revision|diary_control_revisions_pkey|CREATE UNIQUE INDEX diary_control_revisions_pkey ON public.core_diary_control_revision USING btree (history_event_id)
+index|public|core_diary_input_source|diary_input_sources_pkey|CREATE UNIQUE INDEX diary_input_sources_pkey ON public.core_diary_input_source USING btree (input_id, history_event_id)
+index|public|core_diary_input|diary_inputs_actor_role|CREATE INDEX diary_inputs_actor_role ON public.core_diary_input USING btree (actor_identity_id, diary_role, id DESC)
+index|public|core_diary_input|diary_inputs_pkey|CREATE UNIQUE INDEX diary_inputs_pkey ON public.core_diary_input USING btree (id)
+index|public|core_diary_input|diary_inputs_session_id_request_id_actor_identity_id_diary__key|CREATE UNIQUE INDEX diary_inputs_session_id_request_id_actor_identity_id_diary__key ON public.core_diary_input USING btree (session_id, request_id, actor_identity_id, diary_role)
+index|public|core_diary_job_result|diary_job_results_pkey|CREATE UNIQUE INDEX diary_job_results_pkey ON public.core_diary_job_result USING btree (job_id)
+index|public|core_diary_result|diary_results_input_id_key|CREATE UNIQUE INDEX diary_results_input_id_key ON public.core_diary_result USING btree (input_id)
+index|public|core_diary_result|diary_results_pkey|CREATE UNIQUE INDEX diary_results_pkey ON public.core_diary_result USING btree (history_event_id)
 index|synth_meta|history_events|history_events_eventlog_rowid_key|CREATE UNIQUE INDEX history_events_eventlog_rowid_key ON synth_meta.history_events USING btree (eventlog_rowid)
 index|synth_meta|history_events|history_events_native_action_owner|CREATE INDEX history_events_native_action_owner ON synth_meta.history_events USING btree (session_id, generation, playthrough_id, id) WHERE ((event_payload ->> 'type'::text) = 'funccall'::text)
 index|synth_meta|history_events|history_events_native_owner|CREATE INDEX history_events_native_owner ON synth_meta.history_events USING btree (session_id, generation, id)
@@ -1717,51 +1717,51 @@ index|synth_meta|history_events|history_events_quest_observation_owner|CREATE IN
 index|public|core_media_object|media_objects_cache_key_key|CREATE UNIQUE INDEX media_objects_cache_key_key ON public.core_media_object USING btree (cache_key)
 index|public|core_media_object|media_objects_dispatch|CREATE INDEX media_objects_dispatch ON public.core_media_object USING btree (state, generation, created_at)
 index|public|core_media_object|media_objects_pkey|CREATE UNIQUE INDEX media_objects_pkey ON public.core_media_object USING btree (media_id)
-index|synth_meta|memory_batch_control_events|memory_batch_control_events_pkey|CREATE UNIQUE INDEX memory_batch_control_events_pkey ON synth_meta.memory_batch_control_events USING btree (batch_id, revision)
-index|synth_meta|memory_batch_controls|memory_batch_controls_pkey|CREATE UNIQUE INDEX memory_batch_controls_pkey ON synth_meta.memory_batch_controls USING btree (batch_id)
-index|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_pkey|CREATE UNIQUE INDEX memory_batch_rebuilds_pkey ON synth_meta.memory_batch_rebuilds USING btree (batch_id)
-index|synth_meta|memory_batch_rebuilds|memory_batch_rebuilds_root|CREATE INDEX memory_batch_rebuilds_root ON synth_meta.memory_batch_rebuilds USING btree (root_batch_id, batch_id)
-index|synth_meta|memory_batch_sources|memory_batch_sources_batch_id_position_key|CREATE UNIQUE INDEX memory_batch_sources_batch_id_position_key ON synth_meta.memory_batch_sources USING btree (batch_id, "position")
-index|synth_meta|memory_batch_sources|memory_batch_sources_pkey|CREATE UNIQUE INDEX memory_batch_sources_pkey ON synth_meta.memory_batch_sources USING btree (batch_id, history_event_id)
-index|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_parent|CREATE INDEX memory_batch_summary_sources_parent ON synth_meta.memory_batch_summary_sources USING btree (summary_id, batch_id)
-index|synth_meta|memory_batch_summary_sources|memory_batch_summary_sources_pkey|CREATE UNIQUE INDEX memory_batch_summary_sources_pkey ON synth_meta.memory_batch_summary_sources USING btree (batch_id)
-index|synth_meta|memory_batches|memory_batches_actor_identity_id_source_hash_key|CREATE UNIQUE INDEX memory_batches_actor_identity_id_source_hash_key ON synth_meta.memory_batches USING btree (actor_identity_id, source_hash)
-index|synth_meta|memory_batches|memory_batches_pkey|CREATE UNIQUE INDEX memory_batches_pkey ON synth_meta.memory_batches USING btree (id)
-index|synth_meta|memory_summaries|memory_summaries_batch|CREATE INDEX memory_summaries_batch ON synth_meta.memory_summaries USING btree (batch_id, id)
-index|synth_meta|memory_summaries|memory_summaries_job_id_key|CREATE UNIQUE INDEX memory_summaries_job_id_key ON synth_meta.memory_summaries USING btree (job_id)
-index|synth_meta|memory_summaries|memory_summaries_pkey|CREATE UNIQUE INDEX memory_summaries_pkey ON synth_meta.memory_summaries USING btree (id)
-index|synth_meta|memory_summaries|memory_summaries_text|CREATE INDEX memory_summaries_text ON synth_meta.memory_summaries USING gin (native_vec)
-index|synth_meta|memory_summary_revisions|memory_summary_revisions_pkey|CREATE UNIQUE INDEX memory_summary_revisions_pkey ON synth_meta.memory_summary_revisions USING btree (summary_id, revision)
-index|synth_meta|middleterm_control_revisions|middleterm_control_revisions_owner|CREATE INDEX middleterm_control_revisions_owner ON synth_meta.middleterm_control_revisions USING btree (narrative_id, history_event_id DESC)
-index|synth_meta|middleterm_control_revisions|middleterm_control_revisions_pkey|CREATE UNIQUE INDEX middleterm_control_revisions_pkey ON synth_meta.middleterm_control_revisions USING btree (history_event_id)
-index|synth_meta|middleterm_inputs|middleterm_inputs_actor|CREATE INDEX middleterm_inputs_actor ON synth_meta.middleterm_inputs USING btree (actor_identity_id, id DESC)
-index|synth_meta|middleterm_inputs|middleterm_inputs_pkey|CREATE UNIQUE INDEX middleterm_inputs_pkey ON synth_meta.middleterm_inputs USING btree (id)
-index|synth_meta|middleterm_inputs|middleterm_inputs_regeneration|CREATE INDEX middleterm_inputs_regeneration ON synth_meta.middleterm_inputs USING btree (regeneration_approval_id, id) WHERE (regeneration_approval_id IS NOT NULL)
-index|synth_meta|middleterm_inputs|middleterm_inputs_session_id_request_id_generation_actor_id_key|CREATE UNIQUE INDEX middleterm_inputs_session_id_request_id_generation_actor_id_key ON synth_meta.middleterm_inputs USING btree (session_id, request_id, generation, actor_identity_id, input_sha256)
-index|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_appro_session_id_generation_actor_i_key|CREATE UNIQUE INDEX middleterm_regeneration_appro_session_id_generation_actor_i_key ON synth_meta.middleterm_regeneration_approvals USING btree (session_id, generation, actor_identity_id, approval_token)
-index|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_pkey|CREATE UNIQUE INDEX middleterm_regeneration_approvals_pkey ON synth_meta.middleterm_regeneration_approvals USING btree (history_event_id)
-index|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_approvals_target|CREATE INDEX middleterm_regeneration_approvals_target ON synth_meta.middleterm_regeneration_approvals USING btree (narrative_id, history_event_id DESC)
-index|synth_meta|middleterm_regeneration_approvals|middleterm_regeneration_discovery|CREATE INDEX middleterm_regeneration_discovery ON synth_meta.middleterm_regeneration_approvals USING btree (session_id, generation, actor_identity_id, last_considered_at NULLS FIRST, history_event_id)
-index|synth_meta|middleterm_replacements|middleterm_replacements_approval_id_key|CREATE UNIQUE INDEX middleterm_replacements_approval_id_key ON synth_meta.middleterm_replacements USING btree (approval_id)
-index|synth_meta|middleterm_replacements|middleterm_replacements_pkey|CREATE UNIQUE INDEX middleterm_replacements_pkey ON synth_meta.middleterm_replacements USING btree (history_event_id)
-index|synth_meta|middleterm_replacements|middleterm_replacements_target_history_event_id_session_id__key|CREATE UNIQUE INDEX middleterm_replacements_target_history_event_id_session_id__key ON synth_meta.middleterm_replacements USING btree (target_history_event_id, session_id, generation)
-index|synth_meta|middleterm_results|middleterm_results_input_id_key|CREATE UNIQUE INDEX middleterm_results_input_id_key ON synth_meta.middleterm_results USING btree (input_id)
-index|synth_meta|middleterm_results|middleterm_results_pkey|CREATE UNIQUE INDEX middleterm_results_pkey ON synth_meta.middleterm_results USING btree (history_event_id)
-index|synth_meta|middleterm_sources|middleterm_sources_input_id_summary_id_key|CREATE UNIQUE INDEX middleterm_sources_input_id_summary_id_key ON synth_meta.middleterm_sources USING btree (input_id, summary_id)
-index|synth_meta|middleterm_sources|middleterm_sources_pkey|CREATE UNIQUE INDEX middleterm_sources_pkey ON synth_meta.middleterm_sources USING btree (input_id, "position")
-index|synth_meta|narrator_context_states|narrator_context_states_pkey|CREATE UNIQUE INDEX narrator_context_states_pkey ON synth_meta.narrator_context_states USING btree (session_id, generation, snapshot_sequence)
-index|synth_meta|narrator_definition_revisions|narrator_definition_revisions_chain|CREATE UNIQUE INDEX narrator_definition_revisions_chain ON synth_meta.narrator_definition_revisions USING btree (definition_id, COALESCE(prior_revision_id, (0)::bigint))
-index|synth_meta|narrator_definition_revisions|narrator_definition_revisions_pkey|CREATE UNIQUE INDEX narrator_definition_revisions_pkey ON synth_meta.narrator_definition_revisions USING btree (revision_id)
-index|synth_meta|narrator_definitions|narrator_definitions_pkey|CREATE UNIQUE INDEX narrator_definitions_pkey ON synth_meta.narrator_definitions USING btree (definition_id)
-index|synth_meta|narrator_lane_heads|narrator_lane_heads_pkey|CREATE UNIQUE INDEX narrator_lane_heads_pkey ON synth_meta.narrator_lane_heads USING btree (session_id, generation)
-index|synth_meta|narrator_pending_outputs|narrator_pending_outputs_open|CREATE INDEX narrator_pending_outputs_open ON synth_meta.narrator_pending_outputs USING btree (playthrough_id, state) WHERE (state = ANY (ARRAY['pending'::text, 'generated'::text]))
-index|synth_meta|narrator_pending_outputs|narrator_pending_outputs_pkey|CREATE UNIQUE INDEX narrator_pending_outputs_pkey ON synth_meta.narrator_pending_outputs USING btree (session_id, request_id)
-index|synth_meta|narrator_pending_outputs|narrator_pending_outputs_session_id_line_id_key|CREATE UNIQUE INDEX narrator_pending_outputs_session_id_line_id_key ON synth_meta.narrator_pending_outputs USING btree (session_id, line_id)
-index|synth_meta|narrator_states|narrator_states_pkey|CREATE UNIQUE INDEX narrator_states_pkey ON synth_meta.narrator_states USING btree (state_id)
-index|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_pkey|CREATE UNIQUE INDEX narrator_transcript_cursors_pkey ON synth_meta.narrator_transcript_cursors USING btree (cursor_id)
-index|synth_meta|narrator_transcript_cursors|narrator_transcript_cursors_state_id_next_entry_id_key|CREATE UNIQUE INDEX narrator_transcript_cursors_state_id_next_entry_id_key ON synth_meta.narrator_transcript_cursors USING btree (state_id, next_entry_id)
-index|synth_meta|narrator_transcript_entries|narrator_transcript_entries_pkey|CREATE UNIQUE INDEX narrator_transcript_entries_pkey ON synth_meta.narrator_transcript_entries USING btree (entry_id)
-index|synth_meta|narrator_transcript_entries|narrator_transcript_entries_session_id_request_id_role_key|CREATE UNIQUE INDEX narrator_transcript_entries_session_id_request_id_role_key ON synth_meta.narrator_transcript_entries USING btree (session_id, request_id, role)
+index|public|core_memory_batch_control_event|memory_batch_control_events_pkey|CREATE UNIQUE INDEX memory_batch_control_events_pkey ON public.core_memory_batch_control_event USING btree (batch_id, revision)
+index|public|core_memory_batch_control|memory_batch_controls_pkey|CREATE UNIQUE INDEX memory_batch_controls_pkey ON public.core_memory_batch_control USING btree (batch_id)
+index|public|core_memory_batch_rebuild|memory_batch_rebuilds_pkey|CREATE UNIQUE INDEX memory_batch_rebuilds_pkey ON public.core_memory_batch_rebuild USING btree (batch_id)
+index|public|core_memory_batch_rebuild|memory_batch_rebuilds_root|CREATE INDEX memory_batch_rebuilds_root ON public.core_memory_batch_rebuild USING btree (root_batch_id, batch_id)
+index|public|core_memory_batch_source|memory_batch_sources_batch_id_position_key|CREATE UNIQUE INDEX memory_batch_sources_batch_id_position_key ON public.core_memory_batch_source USING btree (batch_id, "position")
+index|public|core_memory_batch_source|memory_batch_sources_pkey|CREATE UNIQUE INDEX memory_batch_sources_pkey ON public.core_memory_batch_source USING btree (batch_id, history_event_id)
+index|public|core_memory_batch_summary_source|memory_batch_summary_sources_parent|CREATE INDEX memory_batch_summary_sources_parent ON public.core_memory_batch_summary_source USING btree (summary_id, batch_id)
+index|public|core_memory_batch_summary_source|memory_batch_summary_sources_pkey|CREATE UNIQUE INDEX memory_batch_summary_sources_pkey ON public.core_memory_batch_summary_source USING btree (batch_id)
+index|public|core_memory_batch|memory_batches_actor_identity_id_source_hash_key|CREATE UNIQUE INDEX memory_batches_actor_identity_id_source_hash_key ON public.core_memory_batch USING btree (actor_identity_id, source_hash)
+index|public|core_memory_batch|memory_batches_pkey|CREATE UNIQUE INDEX memory_batches_pkey ON public.core_memory_batch USING btree (id)
+index|public|core_memory_summary|memory_summaries_batch|CREATE INDEX memory_summaries_batch ON public.core_memory_summary USING btree (batch_id, id)
+index|public|core_memory_summary|memory_summaries_job_id_key|CREATE UNIQUE INDEX memory_summaries_job_id_key ON public.core_memory_summary USING btree (job_id)
+index|public|core_memory_summary|memory_summaries_pkey|CREATE UNIQUE INDEX memory_summaries_pkey ON public.core_memory_summary USING btree (id)
+index|public|core_memory_summary|memory_summaries_text|CREATE INDEX memory_summaries_text ON public.core_memory_summary USING gin (native_vec)
+index|public|core_memory_summary_revision|memory_summary_revisions_pkey|CREATE UNIQUE INDEX memory_summary_revisions_pkey ON public.core_memory_summary_revision USING btree (summary_id, revision)
+index|public|core_middleterm_control_revision|middleterm_control_revisions_owner|CREATE INDEX middleterm_control_revisions_owner ON public.core_middleterm_control_revision USING btree (narrative_id, history_event_id DESC)
+index|public|core_middleterm_control_revision|middleterm_control_revisions_pkey|CREATE UNIQUE INDEX middleterm_control_revisions_pkey ON public.core_middleterm_control_revision USING btree (history_event_id)
+index|public|core_middleterm_input|middleterm_inputs_actor|CREATE INDEX middleterm_inputs_actor ON public.core_middleterm_input USING btree (actor_identity_id, id DESC)
+index|public|core_middleterm_input|middleterm_inputs_pkey|CREATE UNIQUE INDEX middleterm_inputs_pkey ON public.core_middleterm_input USING btree (id)
+index|public|core_middleterm_input|middleterm_inputs_regeneration|CREATE INDEX middleterm_inputs_regeneration ON public.core_middleterm_input USING btree (regeneration_approval_id, id) WHERE (regeneration_approval_id IS NOT NULL)
+index|public|core_middleterm_input|middleterm_inputs_session_id_request_id_generation_actor_id_key|CREATE UNIQUE INDEX middleterm_inputs_session_id_request_id_generation_actor_id_key ON public.core_middleterm_input USING btree (session_id, request_id, generation, actor_identity_id, input_sha256)
+index|public|core_middleterm_regeneration_approval|middleterm_regeneration_appro_session_id_generation_actor_i_key|CREATE UNIQUE INDEX middleterm_regeneration_appro_session_id_generation_actor_i_key ON public.core_middleterm_regeneration_approval USING btree (session_id, generation, actor_identity_id, approval_token)
+index|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_pkey|CREATE UNIQUE INDEX middleterm_regeneration_approvals_pkey ON public.core_middleterm_regeneration_approval USING btree (history_event_id)
+index|public|core_middleterm_regeneration_approval|middleterm_regeneration_approvals_target|CREATE INDEX middleterm_regeneration_approvals_target ON public.core_middleterm_regeneration_approval USING btree (narrative_id, history_event_id DESC)
+index|public|core_middleterm_regeneration_approval|middleterm_regeneration_discovery|CREATE INDEX middleterm_regeneration_discovery ON public.core_middleterm_regeneration_approval USING btree (session_id, generation, actor_identity_id, last_considered_at NULLS FIRST, history_event_id)
+index|public|core_middleterm_replacement|middleterm_replacements_approval_id_key|CREATE UNIQUE INDEX middleterm_replacements_approval_id_key ON public.core_middleterm_replacement USING btree (approval_id)
+index|public|core_middleterm_replacement|middleterm_replacements_pkey|CREATE UNIQUE INDEX middleterm_replacements_pkey ON public.core_middleterm_replacement USING btree (history_event_id)
+index|public|core_middleterm_replacement|middleterm_replacements_target_history_event_id_session_id__key|CREATE UNIQUE INDEX middleterm_replacements_target_history_event_id_session_id__key ON public.core_middleterm_replacement USING btree (target_history_event_id, session_id, generation)
+index|public|core_middleterm_result|middleterm_results_input_id_key|CREATE UNIQUE INDEX middleterm_results_input_id_key ON public.core_middleterm_result USING btree (input_id)
+index|public|core_middleterm_result|middleterm_results_pkey|CREATE UNIQUE INDEX middleterm_results_pkey ON public.core_middleterm_result USING btree (history_event_id)
+index|public|core_middleterm_source|middleterm_sources_input_id_summary_id_key|CREATE UNIQUE INDEX middleterm_sources_input_id_summary_id_key ON public.core_middleterm_source USING btree (input_id, summary_id)
+index|public|core_middleterm_source|middleterm_sources_pkey|CREATE UNIQUE INDEX middleterm_sources_pkey ON public.core_middleterm_source USING btree (input_id, "position")
+index|public|core_narrator_context_state|narrator_context_states_pkey|CREATE UNIQUE INDEX narrator_context_states_pkey ON public.core_narrator_context_state USING btree (session_id, generation, snapshot_sequence)
+index|public|core_narrator_definition_revision|narrator_definition_revisions_chain|CREATE UNIQUE INDEX narrator_definition_revisions_chain ON public.core_narrator_definition_revision USING btree (definition_id, COALESCE(prior_revision_id, (0)::bigint))
+index|public|core_narrator_definition_revision|narrator_definition_revisions_pkey|CREATE UNIQUE INDEX narrator_definition_revisions_pkey ON public.core_narrator_definition_revision USING btree (revision_id)
+index|public|core_narrator_definition|narrator_definitions_pkey|CREATE UNIQUE INDEX narrator_definitions_pkey ON public.core_narrator_definition USING btree (definition_id)
+index|public|core_narrator_lane_head|narrator_lane_heads_pkey|CREATE UNIQUE INDEX narrator_lane_heads_pkey ON public.core_narrator_lane_head USING btree (session_id, generation)
+index|public|core_narrator_pending_output|narrator_pending_outputs_open|CREATE INDEX narrator_pending_outputs_open ON public.core_narrator_pending_output USING btree (playthrough_id, state) WHERE (state = ANY (ARRAY['pending'::text, 'generated'::text]))
+index|public|core_narrator_pending_output|narrator_pending_outputs_pkey|CREATE UNIQUE INDEX narrator_pending_outputs_pkey ON public.core_narrator_pending_output USING btree (session_id, request_id)
+index|public|core_narrator_pending_output|narrator_pending_outputs_session_id_line_id_key|CREATE UNIQUE INDEX narrator_pending_outputs_session_id_line_id_key ON public.core_narrator_pending_output USING btree (session_id, line_id)
+index|public|core_narrator_state|narrator_states_pkey|CREATE UNIQUE INDEX narrator_states_pkey ON public.core_narrator_state USING btree (state_id)
+index|public|core_narrator_transcript_cursor|narrator_transcript_cursors_pkey|CREATE UNIQUE INDEX narrator_transcript_cursors_pkey ON public.core_narrator_transcript_cursor USING btree (cursor_id)
+index|public|core_narrator_transcript_cursor|narrator_transcript_cursors_state_id_next_entry_id_key|CREATE UNIQUE INDEX narrator_transcript_cursors_state_id_next_entry_id_key ON public.core_narrator_transcript_cursor USING btree (state_id, next_entry_id)
+index|public|core_narrator_transcript_entry|narrator_transcript_entries_pkey|CREATE UNIQUE INDEX narrator_transcript_entries_pkey ON public.core_narrator_transcript_entry USING btree (entry_id)
+index|public|core_narrator_transcript_entry|narrator_transcript_entries_session_id_request_id_role_key|CREATE UNIQUE INDEX narrator_transcript_entries_session_id_request_id_role_key ON public.core_narrator_transcript_entry USING btree (session_id, request_id, role)
 index|synth_meta|playthrough_profiles|playthrough_profiles_name_key|CREATE UNIQUE INDEX playthrough_profiles_name_key ON synth_meta.playthrough_profiles USING btree (name)
 index|synth_meta|playthrough_profiles|playthrough_profiles_pkey|CREATE UNIQUE INDEX playthrough_profiles_pkey ON synth_meta.playthrough_profiles USING btree (id)
 index|synth_meta|profile_job_fields|profile_job_fields_pkey|CREATE UNIQUE INDEX profile_job_fields_pkey ON synth_meta.profile_job_fields USING btree (job_id, field)
@@ -1779,29 +1779,29 @@ index|public|core_rechat_continuation|rechat_continuations_chain_id_round_number
 index|public|core_rechat_continuation|rechat_continuations_pkey|CREATE UNIQUE INDEX rechat_continuations_pkey ON public.core_rechat_continuation USING btree (session_id, request_id)
 index|public|core_rechat_continuation|rechat_continuations_session_id_parent_request_id_key|CREATE UNIQUE INDEX rechat_continuations_session_id_parent_request_id_key ON public.core_rechat_continuation USING btree (session_id, parent_request_id)
 index|public|core_rechat_selection|rechat_selections_pkey|CREATE UNIQUE INDEX rechat_selections_pkey ON public.core_rechat_selection USING btree (session_id, request_id)
-index|synth_meta|relationship_actor_control_events|relationship_actor_control_events_pkey|CREATE UNIQUE INDEX relationship_actor_control_events_pkey ON synth_meta.relationship_actor_control_events USING btree (actor_identity_id, revision)
-index|synth_meta|relationship_actor_controls|relationship_actor_controls_pkey|CREATE UNIQUE INDEX relationship_actor_controls_pkey ON synth_meta.relationship_actor_controls USING btree (actor_identity_id)
-index|synth_meta|relationship_evaluation_sources|relationship_evaluation_sources_pkey|CREATE UNIQUE INDEX relationship_evaluation_sources_pkey ON synth_meta.relationship_evaluation_sources USING btree (evaluation_id, history_event_id)
-index|synth_meta|relationship_evaluations|relationship_evaluations_pkey|CREATE UNIQUE INDEX relationship_evaluations_pkey ON synth_meta.relationship_evaluations USING btree (id)
-index|synth_meta|relationship_evaluations|relationship_evaluations_session_id_request_id_response_his_key|CREATE UNIQUE INDEX relationship_evaluations_session_id_request_id_response_his_key ON synth_meta.relationship_evaluations USING btree (session_id, request_id, response_history_event_id)
-index|synth_meta|relationship_interaction_evaluations|relationship_interaction_eval_session_id_request_id_respons_key|CREATE UNIQUE INDEX relationship_interaction_eval_session_id_request_id_respons_key ON synth_meta.relationship_interaction_evaluations USING btree (session_id, request_id, response_history_event_id, listener_identity_id)
-index|synth_meta|relationship_interaction_evaluations|relationship_interaction_evaluations_pkey|CREATE UNIQUE INDEX relationship_interaction_evaluations_pkey ON synth_meta.relationship_interaction_evaluations USING btree (id)
-index|synth_meta|relationship_interaction_evaluations|relationship_interaction_listener|CREATE INDEX relationship_interaction_listener ON synth_meta.relationship_interaction_evaluations USING btree (listener_identity_id, id)
-index|synth_meta|relationship_interaction_priors|relationship_interaction_priors_pkey|CREATE UNIQUE INDEX relationship_interaction_priors_pkey ON synth_meta.relationship_interaction_priors USING btree (interaction_id, actor_identity_id)
-index|synth_meta|relationship_interaction_result_priors|relationship_interaction_result_priors_pkey|CREATE UNIQUE INDEX relationship_interaction_result_priors_pkey ON synth_meta.relationship_interaction_result_priors USING btree (result_history_event_id, actor_identity_id)
-index|synth_meta|relationship_interaction_results|relationship_interaction_results_interaction_id_key|CREATE UNIQUE INDEX relationship_interaction_results_interaction_id_key ON synth_meta.relationship_interaction_results USING btree (interaction_id)
-index|synth_meta|relationship_interaction_results|relationship_interaction_results_job_id_key|CREATE UNIQUE INDEX relationship_interaction_results_job_id_key ON synth_meta.relationship_interaction_results USING btree (job_id)
-index|synth_meta|relationship_interaction_results|relationship_interaction_results_pkey|CREATE UNIQUE INDEX relationship_interaction_results_pkey ON synth_meta.relationship_interaction_results USING btree (history_event_id)
-index|synth_meta|relationship_response_inputs|relationship_response_inputs_pkey|CREATE UNIQUE INDEX relationship_response_inputs_pkey ON synth_meta.relationship_response_inputs USING btree (history_event_id)
-index|synth_meta|relationship_response_inputs|relationship_response_inputs_session_id_request_id_key|CREATE UNIQUE INDEX relationship_response_inputs_session_id_request_id_key ON synth_meta.relationship_response_inputs USING btree (session_id, request_id)
-index|synth_meta|relationship_response_sources|relationship_response_sources_pkey|CREATE UNIQUE INDEX relationship_response_sources_pkey ON synth_meta.relationship_response_sources USING btree (response_history_event_id, source_history_event_id)
-index|synth_meta|relationship_result_priors|relationship_result_priors_pkey|CREATE UNIQUE INDEX relationship_result_priors_pkey ON synth_meta.relationship_result_priors USING btree (result_history_event_id, prior_history_event_id)
-index|synth_meta|relationship_results|relationship_results_evaluation_id_key|CREATE UNIQUE INDEX relationship_results_evaluation_id_key ON synth_meta.relationship_results USING btree (evaluation_id)
-index|synth_meta|relationship_results|relationship_results_job_id_key|CREATE UNIQUE INDEX relationship_results_job_id_key ON synth_meta.relationship_results USING btree (job_id)
-index|synth_meta|relationship_results|relationship_results_pkey|CREATE UNIQUE INDEX relationship_results_pkey ON synth_meta.relationship_results USING btree (history_event_id)
-index|synth_meta|relationship_revision_sources|relationship_revision_sources_pkey|CREATE UNIQUE INDEX relationship_revision_sources_pkey ON synth_meta.relationship_revision_sources USING btree (relationship_history_event_id, source_history_event_id)
-index|synth_meta|relationship_revisions|relationship_revisions_pair|CREATE INDEX relationship_revisions_pair ON synth_meta.relationship_revisions USING btree (actor_identity_id, subject_identity_id, history_event_id)
-index|synth_meta|relationship_revisions|relationship_revisions_pkey|CREATE UNIQUE INDEX relationship_revisions_pkey ON synth_meta.relationship_revisions USING btree (history_event_id)
+index|public|core_relationship_actor_control_event|relationship_actor_control_events_pkey|CREATE UNIQUE INDEX relationship_actor_control_events_pkey ON public.core_relationship_actor_control_event USING btree (actor_identity_id, revision)
+index|public|core_relationship_actor_control|relationship_actor_controls_pkey|CREATE UNIQUE INDEX relationship_actor_controls_pkey ON public.core_relationship_actor_control USING btree (actor_identity_id)
+index|public|core_relationship_evaluation_source|relationship_evaluation_sources_pkey|CREATE UNIQUE INDEX relationship_evaluation_sources_pkey ON public.core_relationship_evaluation_source USING btree (evaluation_id, history_event_id)
+index|public|core_relationship_evaluation|relationship_evaluations_pkey|CREATE UNIQUE INDEX relationship_evaluations_pkey ON public.core_relationship_evaluation USING btree (id)
+index|public|core_relationship_evaluation|relationship_evaluations_session_id_request_id_response_his_key|CREATE UNIQUE INDEX relationship_evaluations_session_id_request_id_response_his_key ON public.core_relationship_evaluation USING btree (session_id, request_id, response_history_event_id)
+index|public|core_relationship_interaction_evaluation|relationship_interaction_eval_session_id_request_id_respons_key|CREATE UNIQUE INDEX relationship_interaction_eval_session_id_request_id_respons_key ON public.core_relationship_interaction_evaluation USING btree (session_id, request_id, response_history_event_id, listener_identity_id)
+index|public|core_relationship_interaction_evaluation|relationship_interaction_evaluations_pkey|CREATE UNIQUE INDEX relationship_interaction_evaluations_pkey ON public.core_relationship_interaction_evaluation USING btree (id)
+index|public|core_relationship_interaction_evaluation|relationship_interaction_listener|CREATE INDEX relationship_interaction_listener ON public.core_relationship_interaction_evaluation USING btree (listener_identity_id, id)
+index|public|core_relationship_interaction_prior|relationship_interaction_priors_pkey|CREATE UNIQUE INDEX relationship_interaction_priors_pkey ON public.core_relationship_interaction_prior USING btree (interaction_id, actor_identity_id)
+index|public|core_relationship_interaction_result_prior|relationship_interaction_result_priors_pkey|CREATE UNIQUE INDEX relationship_interaction_result_priors_pkey ON public.core_relationship_interaction_result_prior USING btree (result_history_event_id, actor_identity_id)
+index|public|core_relationship_interaction_result|relationship_interaction_results_interaction_id_key|CREATE UNIQUE INDEX relationship_interaction_results_interaction_id_key ON public.core_relationship_interaction_result USING btree (interaction_id)
+index|public|core_relationship_interaction_result|relationship_interaction_results_job_id_key|CREATE UNIQUE INDEX relationship_interaction_results_job_id_key ON public.core_relationship_interaction_result USING btree (job_id)
+index|public|core_relationship_interaction_result|relationship_interaction_results_pkey|CREATE UNIQUE INDEX relationship_interaction_results_pkey ON public.core_relationship_interaction_result USING btree (history_event_id)
+index|public|core_relationship_response_input|relationship_response_inputs_pkey|CREATE UNIQUE INDEX relationship_response_inputs_pkey ON public.core_relationship_response_input USING btree (history_event_id)
+index|public|core_relationship_response_input|relationship_response_inputs_session_id_request_id_key|CREATE UNIQUE INDEX relationship_response_inputs_session_id_request_id_key ON public.core_relationship_response_input USING btree (session_id, request_id)
+index|public|core_relationship_response_source|relationship_response_sources_pkey|CREATE UNIQUE INDEX relationship_response_sources_pkey ON public.core_relationship_response_source USING btree (response_history_event_id, source_history_event_id)
+index|public|core_relationship_result_prior|relationship_result_priors_pkey|CREATE UNIQUE INDEX relationship_result_priors_pkey ON public.core_relationship_result_prior USING btree (result_history_event_id, prior_history_event_id)
+index|public|core_relationship_result|relationship_results_evaluation_id_key|CREATE UNIQUE INDEX relationship_results_evaluation_id_key ON public.core_relationship_result USING btree (evaluation_id)
+index|public|core_relationship_result|relationship_results_job_id_key|CREATE UNIQUE INDEX relationship_results_job_id_key ON public.core_relationship_result USING btree (job_id)
+index|public|core_relationship_result|relationship_results_pkey|CREATE UNIQUE INDEX relationship_results_pkey ON public.core_relationship_result USING btree (history_event_id)
+index|public|core_relationship_revision_source|relationship_revision_sources_pkey|CREATE UNIQUE INDEX relationship_revision_sources_pkey ON public.core_relationship_revision_source USING btree (relationship_history_event_id, source_history_event_id)
+index|public|core_relationship_revision|relationship_revisions_pair|CREATE INDEX relationship_revisions_pair ON public.core_relationship_revision USING btree (actor_identity_id, subject_identity_id, history_event_id)
+index|public|core_relationship_revision|relationship_revisions_pkey|CREATE UNIQUE INDEX relationship_revisions_pkey ON public.core_relationship_revision USING btree (history_event_id)
 index|synth_meta|request_executions|request_executions_pkey|CREATE UNIQUE INDEX request_executions_pkey ON synth_meta.request_executions USING btree (session_id, request_id)
 index|synth_meta|request_executions|request_executions_turn_generation|CREATE INDEX request_executions_turn_generation ON synth_meta.request_executions USING btree (session_id, turn_id, generation, claimed_at)
 index|public|core_dialogue_route|response_routes_pkey|CREATE UNIQUE INDEX response_routes_pkey ON public.core_dialogue_route USING btree (session_id, request_id, line_id)
@@ -1932,35 +1932,35 @@ table|public|core_actor_event_batch|BASE TABLE
 table|public|core_runtime_context|BASE TABLE
 table|public|core_dialogue_origin_policy|BASE TABLE
 table|public|core_dialogue_utterance|BASE TABLE
-table|synth_meta|diary_control_revisions|BASE TABLE
-table|synth_meta|diary_input_sources|BASE TABLE
-table|synth_meta|diary_inputs|BASE TABLE
-table|synth_meta|diary_job_results|BASE TABLE
-table|synth_meta|diary_results|BASE TABLE
+table|public|core_diary_control_revision|BASE TABLE
+table|public|core_diary_input_source|BASE TABLE
+table|public|core_diary_input|BASE TABLE
+table|public|core_diary_job_result|BASE TABLE
+table|public|core_diary_result|BASE TABLE
 table|synth_meta|history_events|BASE TABLE
 table|public|core_media_object|BASE TABLE
-table|synth_meta|memory_batch_control_events|BASE TABLE
-table|synth_meta|memory_batch_controls|BASE TABLE
-table|synth_meta|memory_batch_rebuilds|BASE TABLE
-table|synth_meta|memory_batch_sources|BASE TABLE
-table|synth_meta|memory_batch_summary_sources|BASE TABLE
-table|synth_meta|memory_batches|BASE TABLE
-table|synth_meta|memory_summaries|BASE TABLE
-table|synth_meta|memory_summary_revisions|BASE TABLE
-table|synth_meta|middleterm_control_revisions|BASE TABLE
-table|synth_meta|middleterm_inputs|BASE TABLE
-table|synth_meta|middleterm_regeneration_approvals|BASE TABLE
-table|synth_meta|middleterm_replacements|BASE TABLE
-table|synth_meta|middleterm_results|BASE TABLE
-table|synth_meta|middleterm_sources|BASE TABLE
-table|synth_meta|narrator_context_states|BASE TABLE
-table|synth_meta|narrator_definition_revisions|BASE TABLE
-table|synth_meta|narrator_definitions|BASE TABLE
-table|synth_meta|narrator_lane_heads|BASE TABLE
-table|synth_meta|narrator_pending_outputs|BASE TABLE
-table|synth_meta|narrator_states|BASE TABLE
-table|synth_meta|narrator_transcript_cursors|BASE TABLE
-table|synth_meta|narrator_transcript_entries|BASE TABLE
+table|public|core_memory_batch_control_event|BASE TABLE
+table|public|core_memory_batch_control|BASE TABLE
+table|public|core_memory_batch_rebuild|BASE TABLE
+table|public|core_memory_batch_source|BASE TABLE
+table|public|core_memory_batch_summary_source|BASE TABLE
+table|public|core_memory_batch|BASE TABLE
+table|public|core_memory_summary|BASE TABLE
+table|public|core_memory_summary_revision|BASE TABLE
+table|public|core_middleterm_control_revision|BASE TABLE
+table|public|core_middleterm_input|BASE TABLE
+table|public|core_middleterm_regeneration_approval|BASE TABLE
+table|public|core_middleterm_replacement|BASE TABLE
+table|public|core_middleterm_result|BASE TABLE
+table|public|core_middleterm_source|BASE TABLE
+table|public|core_narrator_context_state|BASE TABLE
+table|public|core_narrator_definition_revision|BASE TABLE
+table|public|core_narrator_definition|BASE TABLE
+table|public|core_narrator_lane_head|BASE TABLE
+table|public|core_narrator_pending_output|BASE TABLE
+table|public|core_narrator_state|BASE TABLE
+table|public|core_narrator_transcript_cursor|BASE TABLE
+table|public|core_narrator_transcript_entry|BASE TABLE
 table|synth_meta|playthrough_profiles|BASE TABLE
 table|synth_meta|profile_job_fields|BASE TABLE
 table|synth_meta|profile_job_inputs|BASE TABLE
@@ -1969,20 +1969,20 @@ table|public|core_protocol_event|BASE TABLE
 table|public|core_rechat_chain|BASE TABLE
 table|public|core_rechat_continuation|BASE TABLE
 table|public|core_rechat_selection|BASE TABLE
-table|synth_meta|relationship_actor_control_events|BASE TABLE
-table|synth_meta|relationship_actor_controls|BASE TABLE
-table|synth_meta|relationship_evaluation_sources|BASE TABLE
-table|synth_meta|relationship_evaluations|BASE TABLE
-table|synth_meta|relationship_interaction_evaluations|BASE TABLE
-table|synth_meta|relationship_interaction_priors|BASE TABLE
-table|synth_meta|relationship_interaction_result_priors|BASE TABLE
-table|synth_meta|relationship_interaction_results|BASE TABLE
-table|synth_meta|relationship_response_inputs|BASE TABLE
-table|synth_meta|relationship_response_sources|BASE TABLE
-table|synth_meta|relationship_result_priors|BASE TABLE
-table|synth_meta|relationship_results|BASE TABLE
-table|synth_meta|relationship_revision_sources|BASE TABLE
-table|synth_meta|relationship_revisions|BASE TABLE
+table|public|core_relationship_actor_control_event|BASE TABLE
+table|public|core_relationship_actor_control|BASE TABLE
+table|public|core_relationship_evaluation_source|BASE TABLE
+table|public|core_relationship_evaluation|BASE TABLE
+table|public|core_relationship_interaction_evaluation|BASE TABLE
+table|public|core_relationship_interaction_prior|BASE TABLE
+table|public|core_relationship_interaction_result_prior|BASE TABLE
+table|public|core_relationship_interaction_result|BASE TABLE
+table|public|core_relationship_response_input|BASE TABLE
+table|public|core_relationship_response_source|BASE TABLE
+table|public|core_relationship_result_prior|BASE TABLE
+table|public|core_relationship_result|BASE TABLE
+table|public|core_relationship_revision_source|BASE TABLE
+table|public|core_relationship_revision|BASE TABLE
 table|synth_meta|request_executions|BASE TABLE
 table|public|core_dialogue_route|BASE TABLE
 table|public|core_runtime_session|BASE TABLE
@@ -2045,9 +2045,9 @@ table|public|core_worldknowledge_audit|BASE TABLE
 table|synth|worldknowledge_catalogs|BASE TABLE
 table|synth|worldknowledge_effective|VIEW
 table|synth|worldknowledge|BASE TABLE
-typmod|synth_meta|diary_job_results|embedding|vector(384)
-typmod|synth_meta|diary_results|embedding|vector(384)
-typmod|synth_meta|memory_summaries|embedding|vector(384)
+typmod|public|core_diary_job_result|embedding|vector(384)
+typmod|public|core_diary_result|embedding|vector(384)
+typmod|public|core_memory_summary|embedding|vector(384)
 typmod|synth|memory_summary|embedding768|vector(768)
 typmod|synth|memory_summary|embedding|vector(384)
 typmod|synth|worldknowledge|vector384|vector(384)

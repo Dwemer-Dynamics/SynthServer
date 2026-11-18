@@ -61,13 +61,13 @@ function synth_diary_request_status($db): string
                     AND h.event_payload->'diary_result'=r.result_payload
                     AND h.event_payload->>'diary_result_sha256'=r.result_sha256
                     AND h.event_payload->>'diary_input_sha256'=i.input_sha256 AS valid_history
-            FROM synth_meta.diary_inputs i JOIN public.core_worker_job j ON j.diary_input_id=i.id
+            FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
                 AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
                 AND j.actor_identity_id=i.actor_identity_id AND j.turn_id=$4 AND j.job_type='diary'
                 AND j.payload->>'schema'='synth.diary.job.v1' AND j.payload->>'context_sequence'=i.context_sequence::text
             JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
                 AND c.snapshot_sequence=i.context_sequence
-            LEFT JOIN synth_meta.diary_results r ON r.input_id=i.id
+            LEFT JOIN public.core_diary_result r ON r.input_id=i.id
             LEFT JOIN synth_meta.history_events h ON h.id=r.history_event_id
             WHERE i.session_id=$1 AND i.request_id=$2 AND i.generation=$3 AND i.context_sequence=$5 AND i.diary_role IN ('npc','narrator','player')
                 AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
@@ -100,9 +100,9 @@ function synth_diary_request_status($db): string
                 }
                 $inputId=intval($job['id']);
                 $sources=$db->fetchOne(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned)." SELECT count(*) AS n,
-                    (SELECT count(*) FROM synth_meta.diary_input_sources WHERE input_id=$inputId) AS total
-                    FROM synth_meta.diary_input_sources s JOIN native_history v ON v.history_event_id=s.history_event_id
-                    JOIN synth_meta.history_events h ON h.id=s.history_event_id JOIN synth_meta.diary_inputs i ON i.id=s.input_id
+                    (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=$inputId) AS total
+                    FROM public.core_diary_input_source s JOIN native_history v ON v.history_event_id=s.history_event_id
+                    JOIN synth_meta.history_events h ON h.id=s.history_event_id JOIN public.core_diary_input i ON i.id=s.input_id
                     WHERE s.input_id=$inputId AND s.source_sha256=encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex')
                         AND EXISTS(SELECT 1 FROM jsonb_array_elements(i.input_payload->'history') evidence
                             WHERE evidence->>'history_event_id'=s.history_event_id::text AND evidence->>'source_sha256'=s.source_sha256)");

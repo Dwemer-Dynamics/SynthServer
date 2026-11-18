@@ -900,7 +900,7 @@ final class RequestStreamingTest extends TestCase
     public function testNativeMemoryJobsKeepEvidenceAndInputLocks(): void
     {
         $source=file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php');
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN synth_meta.memory_batch_sources',$source);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
         $this->assertStringContainsString('synth_memory_lock_job_input($connection,$db,$event,$jobId)',$source);
     }
 
@@ -911,7 +911,7 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame([$table,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
         }
         $this->assertSame(['eventlog','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
-        foreach (['memory_summaries','synth_meta.memory_summaries','eventlog;DELETE FROM log','quests','',[]] as $table) {
+        foreach (['memory_summaries','public.core_memory_summary','eventlog;DELETE FROM log','quests','',[]] as $table) {
             try { synthLegacyRowTarget(['table'=>$table,'rowid'=>1]); $this->fail('Invalid table accepted'); }
             catch (InvalidArgumentException $error) { $this->assertSame('Invalid legacy row target.',$error->getMessage()); }
         }
@@ -1151,7 +1151,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('pg_query_params',$source);
         $this->assertStringNotContainsString('FROM memory_v',$source);
         $this->assertStringContainsString('memory_next_group',$source);
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN synth_meta.memory_batch_sources',$source);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
         $this->assertStringContainsString("hashtextextended('synth-memory:'",$source);
         $this->assertStringContainsString('}, 2000);',$source);
         $migration = file_get_contents(dirname(__DIR__,2).'/debug/db_updates.php');

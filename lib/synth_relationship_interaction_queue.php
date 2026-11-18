@@ -15,7 +15,7 @@ function synth_relationship_enqueue_interaction($db, int $interactionId): ?int
             (job_type,relationship_interaction_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,state,last_error,deadline_at)
             SELECT 'relationship',i.id,i.session_id,i.request_id,$4,i.generation,i.speaker_identity_id,
                 jsonb_build_object('context_sequence',i.context_sequence),$8,$9,clock_timestamp()+INTERVAL '10 minutes'
-            FROM synth_meta.relationship_interaction_evaluations i
+            FROM public.core_relationship_interaction_evaluation i
             WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$5 AND i.context_sequence=$6
                 AND i.input_payload->'owner'=$7::jsonb AND $10::boolean
             ON CONFLICT DO NOTHING RETURNING id",
@@ -38,7 +38,7 @@ function synth_relationship_claim_interaction($db, int $jobId): ?array
     if (!synthRelationshipUsesDedicatedConnector()) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId) {
         $result=@pg_query_params($connection,"SELECT j.relationship_interaction_id FROM public.core_worker_job j
-            JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
+            JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
                 AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
                 AND i.context_sequence::text=j.payload->>'context_sequence' AND i.speaker_identity_id=j.actor_identity_id
             WHERE j.id=$1 AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL

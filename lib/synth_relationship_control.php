@@ -6,7 +6,7 @@ function synth_relationship_control_lock($connection, int $actorId): array
     if (@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-relationship-control:'||$1,0))",[$actorId])===false) {
         throw new RuntimeException('Unable to lock relationship control.');
     }
-    $result=@pg_query_params($connection,'SELECT revision,locked,barrier_event_id FROM synth_meta.relationship_actor_controls WHERE actor_identity_id=$1',[$actorId]);
+    $result=@pg_query_params($connection,'SELECT revision,locked,barrier_event_id FROM public.core_relationship_actor_control WHERE actor_identity_id=$1',[$actorId]);
     if (!$result) throw new RuntimeException('Unable to read relationship control.');
     return pg_fetch_assoc($result) ?: ['revision'=>'0','locked'=>'f','barrier_event_id'=>'0'];
 }
@@ -19,7 +19,7 @@ function synth_relationship_write_allowed($connection, array $event, int $actorI
     if ($control['locked']==='t') return false;
     $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p
         WHERE p.session_id=$1 AND p.request_id=$2 AND p.id>$3
-            AND ($4::bigint IS NULL OR EXISTS(SELECT 1 FROM synth_meta.relationship_response_inputs i
+            AND ($4::bigint IS NULL OR EXISTS(SELECT 1 FROM public.core_relationship_response_input i
                 JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
                 WHERE i.history_event_id=$4 AND i.actor_identity_id=$5 AND origin.id>$3))',
         [$event['session_id'],$event['request_id'],$control['barrier_event_id'],$responseId,$actorId]);

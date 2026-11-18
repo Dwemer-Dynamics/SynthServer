@@ -1129,18 +1129,18 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $input=['schema'=>'synth.memory.input.v1','events'=>[['history_event_id'=>$replyId,'type'=>'chat',
             'gamets'=>1001,'location'=>'Sanctuary Hills','data'=>'Preston Garvey: '.$npcText]]];
         $json=$this->json($input);
-        $result=$this->fixtureDb->execQuery("INSERT INTO synth_meta.memory_batches
+        $result=$this->fixtureDb->execQuery("INSERT INTO public.core_memory_batch
             (actor_identity_id,playthrough_id,session_id,generation,context_sequence,source_hash,input_payload,packed_message,first_gamets,last_gamets)
             VALUES($1,'quest-save-one','quest-session-one',1,1,$2,$3::jsonb,$4,1001,1001) RETURNING id",
             [$this->identityIds['preston'],hash('sha256',$json),$json,'Preston Garvey: '.$npcText]);
         $batchId=(int)pg_fetch_assoc($result)['id'];
-        $this->fixtureDb->execQuery('INSERT INTO synth_meta.memory_batch_sources(batch_id,history_event_id,position) VALUES($1,$2,1)',[$batchId,$replyId]);
+        $this->fixtureDb->execQuery('INSERT INTO public.core_memory_batch_source(batch_id,history_event_id,position) VALUES($1,$2,1)',[$batchId,$replyId]);
         $result=$this->fixtureDb->execQuery("INSERT INTO public.core_worker_job
             (job_type,session_id,request_id,turn_id,generation,actor_identity_id,memory_batch_id,payload,state)
             VALUES('memory','quest-session-one',$1,$2,1,$3,$4,'{\"context_sequence\":1}','ready') RETURNING id",
             [$reply['request_id'],$reply['turn_id'],$this->identityIds['preston'],$batchId]);
         $jobId=(int)pg_fetch_assoc($result)['id'];
-        $this->fixtureDb->execQuery('INSERT INTO synth_meta.memory_summaries(batch_id,job_id,summary) VALUES($1,$2,$3)',
+        $this->fixtureDb->execQuery('INSERT INTO public.core_memory_summary(batch_id,job_id,summary) VALUES($1,$2,$3)',
             [$batchId,$jobId,'Generated interpretation: '.$npcText]);
         $this->naturalReport('That plan is now to leave at noon.','natural-after-model-text');
         $this->assertSame([],$this->firstStepReports(),'Model dialogue and derived memories are not original player report receipts');

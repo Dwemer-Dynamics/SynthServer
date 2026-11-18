@@ -6,14 +6,14 @@ require_once __DIR__.'/synth_relationship_worker.php';
 function synth_relationship_reserve_dispatch($db, bool $interaction=false, bool $deliveryInline=false): ?array
 {
     $after=$interaction ? 'interaction_dispatch_after' : 'relationship_dispatch_after';
-    $control=$interaction ? '' : "AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control
+    $control=$interaction ? '' : "AND NOT EXISTS(SELECT 1 FROM public.core_relationship_actor_control control
         WHERE control.actor_identity_id=c.target_identity_id AND control.locked)";
-    $inlineScope=$deliveryInline ? "AND EXISTS(SELECT 1 FROM synth_meta.relationship_response_inputs response
+    $inlineScope=$deliveryInline ? "AND EXISTS(SELECT 1 FROM public.core_relationship_response_input response
         WHERE response.session_id=e.session_id AND response.request_id=e.request_id
             AND response.response_payload->>'evaluation_mode'='inline'
             AND jsonb_typeof(response.response_payload->'delivery_lines')='array'
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_revision_sources applied
-                JOIN synth_meta.relationship_revisions revision ON revision.history_event_id=applied.relationship_history_event_id
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_revision_source applied
+                JOIN public.core_relationship_revision revision ON revision.history_event_id=applied.relationship_history_event_id
                 JOIN synth_meta.history_events publication ON publication.id=revision.history_event_id
                 WHERE applied.source_history_event_id=response.history_event_id AND revision.actor_identity_id=response.actor_identity_id
                     AND publication.session_id=e.session_id AND publication.generation=e.generation AND publication.request_id=e.request_id))" : '';
@@ -75,7 +75,7 @@ function synth_relationship_dispatch_gift($db, ?callable $generate): ?int
     $gift=$db->fetchOne("SELECT i.id AS evaluation_id,j.id AS job_id,response.history_event_id AS response_id,
             e.session_id,e.request_id,e.turn_id,e.generation,e.event_type,h.context_sequence,
             p.canonical_event,p.event_sha256,TRUE AS retained_gift
-        FROM synth_meta.relationship_response_inputs response
+        FROM public.core_relationship_response_input response
         JOIN synth_meta.history_events h ON h.id=response.history_event_id
         JOIN synth_meta.request_executions e ON e.session_id=response.session_id AND e.request_id=response.request_id
             AND e.generation=h.generation AND e.event_type='action_result' AND e.state='complete' AND e.error_code IS NULL
@@ -87,16 +87,16 @@ function synth_relationship_dispatch_gift($db, ?callable $generate): ?int
         JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=r.playthrough_id
             AND c.target_identity_id=response.actor_identity_id
-        LEFT JOIN synth_meta.relationship_evaluations i ON i.response_history_event_id=response.history_event_id
+        LEFT JOIN public.core_relationship_evaluation i ON i.response_history_event_id=response.history_event_id
             AND i.session_id=e.session_id AND i.request_id=e.request_id AND i.generation=e.generation
         LEFT JOIN public.core_worker_job j ON j.relationship_evaluation_id=i.id
         WHERE response.response_payload->>'verified_gift_action_id'=p.canonical_event#>>'{payload,result,action_id}'
             AND response.response_payload->>'evaluation_mode'='dedicated'
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations earlier
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_evaluation earlier
                 WHERE earlier.actor_identity_id=response.actor_identity_id AND earlier.response_history_event_id<>response.history_event_id
                     AND earlier.input_payload#>>'{received_gift,fact,action_id}'=response.response_payload->>'verified_gift_action_id')
             AND h.recorded_at>clock_timestamp()-INTERVAL '10 minutes'
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control
+            AND NOT EXISTS(SELECT 1 FROM public.core_relationship_actor_control control
                 WHERE control.actor_identity_id=response.actor_identity_id AND (control.locked OR p.id<=control.barrier_event_id))
             AND (j.id IS NULL OR (j.payload->>'schema'='synth.relationship.gift-job.v1'
                 AND j.available_at<=clock_timestamp() AND j.deadline_at>clock_timestamp() AND j.attempts<3
@@ -133,7 +133,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
     $jobId=synth_worker_with_origin($db,$origin,static function(array $event) use($db,$playerOnly) {
         $candidate=$db->withNativeRequestLock(static function($connection,array $event) use($db,$playerOnly) {
             $params=[$event['session_id'],$event['generation'],$event['turn_id'],strval($event['context_sequence'])];
-            $inputScope=$playerOnly ? "AND relationship_evaluation_id IN (SELECT id FROM synth_meta.relationship_evaluations
+            $inputScope=$playerOnly ? "AND relationship_evaluation_id IN (SELECT id FROM public.core_relationship_evaluation
                 WHERE input_payload->>'schema'='synth.relationship.evaluation.v2')" : '';
             $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='cancelled',lease_token=NULL,lease_until=NULL,
                 last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_evaluation_id IS NOT NULL
@@ -144,7 +144,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
                             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence::text=$4)
                         OR NOT EXISTS(SELECT 1 FROM synth_meta.request_executions e
                             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
-                            JOIN synth_meta.relationship_evaluations i ON i.id=j.relationship_evaluation_id AND i.input_payload->'owner'=p.canonical_event
+                            JOIN public.core_relationship_evaluation i ON i.id=j.relationship_evaluation_id AND i.input_payload->'owner'=p.canonical_event
                             WHERE e.session_id=j.session_id AND e.request_id=j.request_id
                                 AND e.generation=j.generation AND e.turn_id=j.turn_id AND e.state='complete'))",$params);
             if (!$result) throw new RuntimeException('Unable to retire obsolete relationship owner');
@@ -163,7 +163,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
             $frozenScope=$playerOnly ? "AND i.input_payload->>'schema'='synth.relationship.evaluation.v2'" : '';
             $result=@pg_query_params($connection,"SELECT i.id,i.session_id,i.request_id,i.generation,i.context_sequence,
                     e.turn_id,e.event_type,p.canonical_event,p.event_sha256
-                FROM synth_meta.relationship_evaluations i
+                FROM public.core_relationship_evaluation i
                 JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
@@ -188,13 +188,13 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
             $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:[])."
                 SELECT response.history_event_id FROM relationship_response_evidence response
                 WHERE response.response_payload->>'evaluation_mode'='dedicated' $responseScope
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_actor_controls control
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_actor_control control
                         JOIN public.core_protocol_event origin ON origin.session_id=response.session_id AND origin.request_id=response.request_id
                         WHERE control.actor_identity_id=response.actor_identity_id AND (control.locked OR origin.id<=control.barrier_event_id))
                     AND NOT EXISTS(SELECT 1 FROM native_relationship_results r WHERE r.response_history_event_id=response.history_event_id)
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_evaluations i
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_evaluation i
                         WHERE i.response_history_event_id=response.history_event_id AND i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$3)
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id
+                    AND NOT EXISTS(SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
                         WHERE i.response_history_event_id=response.history_event_id AND i.session_id=$1 AND i.generation=$2
                             AND r.history_event_id>(SELECT history_event_id FROM public.core_runtime_context
                                 WHERE session_id=$1 AND generation=$2 AND snapshot_sequence::text=$3))
