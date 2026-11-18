@@ -85,7 +85,7 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
         JOIN relationship_revision_history h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff AND r.actor_identity_id=scope.reader_identity_id
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id
+        JOIN public.core_runtime_context origin ON origin.session_id=h.session_id
             AND origin.generation=h.generation AND origin.snapshot_sequence=h.context_sequence
             AND origin.playthrough_id=h.playthrough_id AND origin.target_identity_id=r.actor_identity_id
         WHERE h.event_payload->>'type'='relationship_state'
@@ -190,7 +190,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $head=@pg_query_params($connection,'SELECT max(r.history_event_id) AS id FROM synth_meta.relationship_revisions r
             JOIN synth_meta.history_events h ON h.id=r.history_event_id WHERE h.session_id=$1 AND h.generation=$2
                 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4 AND h.id>(
-                    SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5)',
+                    SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5)',
             [$event['session_id'],$event['generation'],$pair['actor_id'],$pair['subject_id'],$event['context_sequence']]);
         if (!$head) throw new RuntimeException('Unable to check relationship head');
         $headId=pg_fetch_assoc($head)['id'];

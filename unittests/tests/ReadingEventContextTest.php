@@ -88,8 +88,8 @@ final class ReadingEventContextTest extends DatabaseTestCase
         $this->assertSame('complete',array_slice($lines,-1)[0]['payload']['status']);
         $this->assertSame('complete',$row['state']??null,$body.$this->diagnostic());
         $this->assertSame($body,synth_protocol_decode_bytea($row['response_body']));
-        $result=pg_query_params($this->connection,"SELECT p.canonical_event,c.context_payload FROM synth_meta.protocol_events p
-            JOIN synth_meta.context_snapshots c ON c.session_id=p.session_id AND c.generation=p.generation
+        $result=pg_query_params($this->connection,"SELECT p.canonical_event,c.context_payload FROM public.core_protocol_event p
+            JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation
                 AND c.snapshot_sequence=$3 WHERE p.session_id=$1 AND p.request_id=$2",[$event['session_id'],$event['request_id'],$event['payload']['snapshot_sequence']]);
         $capture=pg_fetch_assoc($result);$canonical=json_decode($capture['canonical_event'],true);
         $this->assertSame(0,$canonical['context_sequence']);$this->assertSame($event['payload']['snapshot_sequence'],$canonical['payload']['snapshot_sequence']);

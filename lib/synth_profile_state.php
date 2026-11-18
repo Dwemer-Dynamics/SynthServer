@@ -35,11 +35,11 @@ function synth_profile_history_cte($db, array $event, int $actorId, bool $narrat
             AND h.event_payload->>'profile_input_sha256'=v.input_sha256
         JOIN synth_meta.request_executions e ON e.session_id=v.session_id AND e.request_id=v.request_id
             AND e.generation=v.generation AND e.event_type='profile_refresh' AND e.state='complete'
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
             AND p.canonical_event=v.input_payload->'owner' AND p.canonical_event->>'protocol_version'='2'
             AND p.canonical_event->>'context_sequence'=v.context_sequence::text
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id AND origin.generation=h.generation
+        JOIN public.core_runtime_context origin ON origin.session_id=h.session_id AND origin.generation=h.generation
             AND origin.snapshot_sequence=h.context_sequence AND origin.playthrough_id=h.playthrough_id
         JOIN synth.actor_identities a ON a.id=v.actor_identity_id AND a.playthrough_id=h.playthrough_id AND a.game='fo4'
         WHERE v.input_sha256=encode(sha256(convert_to(v.input_payload::text,'UTF8')),'hex')
@@ -89,7 +89,7 @@ function synth_profile_effective_data($db, array $profile, bool $narrator=false)
     if ($narrator) {
         $context=synth_protocol_current_context($db,$event);
         if (!$context) return $profile;
-        $actorId=intval($db->fetchOne('SELECT player_identity_id FROM synth_meta.context_snapshots WHERE session_id='.$db->escapeLiteral($event['session_id'])
+        $actorId=intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
             .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0);
     }
     $state=synth_profile_visible($db,$event,$actorId,$narrator);
@@ -103,7 +103,7 @@ function synth_profile_capture_input($db, string $name, array $profile): array
     synth_profile_assert_write_target($db,$name);
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];$narrator=$name==='The Narrator';
     $context=synth_protocol_current_context($db,$event);
-    $actorId=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM synth_meta.context_snapshots WHERE session_id='.$db->escapeLiteral($event['session_id'])
+    $actorId=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
         .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
         : $GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['actor_identity_id'];
     if (!$context || $actorId<1) throw new RuntimeException('Native profile input owner unavailable.');
@@ -157,7 +157,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         $visible=synth_profile_visible($db,$event,$actor,$narrator);
         if (($visible['revision'] ?? null)!==$input['prior_revision']) throw new LogicException('Saved profile input changed.');
         $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.profile_revisions v JOIN synth_meta.history_events h ON h.id=v.history_event_id
-            JOIN synth_meta.context_snapshots c ON c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
+            JOIN public.core_runtime_context c ON c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
             WHERE v.session_id=c.session_id AND v.generation=c.generation AND v.actor_identity_id=$4 AND v.profile_role=$5 AND h.id>c.history_event_id',
             [$event['session_id'],$event['generation'],$event['context_sequence'],$actor,$role]);
         if (!$result) throw new RuntimeException('Unable to verify native profile frontier.');

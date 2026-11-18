@@ -46,15 +46,15 @@ function synthBindQuestReaction($db, array $event, array $context): ?array
     require_once __DIR__.'/observation_reaction.php';
     if (!synthObservationReactionAudienceAvailable($context)) return null;
     $result=$db->execQuery("SELECT p.context_payload
-        FROM synth_meta.context_snapshots c
-        JOIN synth_meta.runtime_sessions r ON r.session_id=c.session_id AND r.active_generation=c.generation
+        FROM public.core_runtime_context c
+        JOIN public.core_runtime_session r ON r.session_id=c.session_id AND r.active_generation=c.generation
             AND r.playthrough_id=c.playthrough_id AND r.state='active'
-        JOIN synth_meta.active_agents a ON a.session_id=c.session_id AND a.generation=c.generation
+        JOIN public.core_actor_activation a ON a.session_id=c.session_id AND a.generation=c.generation
             AND a.actor_identity_id=c.target_identity_id AND a.state='active'
-        JOIN synth_meta.context_snapshots p ON p.session_id=c.session_id AND p.generation=c.generation
+        JOIN public.core_runtime_context p ON p.session_id=c.session_id AND p.generation=c.generation
             AND p.playthrough_id=c.playthrough_id AND p.player_identity_id=c.player_identity_id AND p.snapshot_sequence=$4
         WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
-          AND p.snapshot_sequence=(SELECT max(q.snapshot_sequence) FROM synth_meta.context_snapshots q
+          AND p.snapshot_sequence=(SELECT max(q.snapshot_sequence) FROM public.core_runtime_context q
             WHERE q.session_id=c.session_id AND q.generation=c.generation AND q.playthrough_id=c.playthrough_id
               AND q.player_identity_id=c.player_identity_id AND q.snapshot_sequence<c.snapshot_sequence
               AND q.context_payload->>'active_quests_observation' IN ('complete','partial'))",
@@ -80,7 +80,7 @@ function synthBindQuestReaction($db, array $event, array $context): ?array
         }
     }
     if ($known===[]) return null;
-    $first=$db->execQuery("SELECT request_id FROM synth_meta.protocol_events
+    $first=$db->execQuery("SELECT request_id FROM public.core_protocol_event
         WHERE session_id=$1 AND generation=$2 AND event_type='trigger'
           AND canonical_event->'payload'->>'kind'='quest_updated'
           AND canonical_event->>'context_sequence'=$3 ORDER BY id LIMIT 1",

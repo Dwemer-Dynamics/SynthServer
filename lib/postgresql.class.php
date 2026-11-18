@@ -263,7 +263,7 @@ class sql
             if (!$result) throw new RuntimeException('Unable to read native history stage');
             $rows = pg_fetch_all($result) ?: [];
             if ($rows === []) return $this->insertNativeHistory($connection, $event, $data);
-            $snapshot = @pg_query_params($connection, 'SELECT playthrough_id FROM synth_meta.context_snapshots
+            $snapshot = @pg_query_params($connection, 'SELECT playthrough_id FROM public.core_runtime_context
                 WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
                 [$event['session_id'], $event['generation'], $event['context_sequence']]);
             if (!$snapshot) throw new RuntimeException('Unable to read native history stage');
@@ -305,7 +305,7 @@ class sql
     {
         $session = $event['session_id'];
         $contextResult = @pg_query_params($connection,
-            'SELECT playthrough_id,player_identity_id,target_identity_id,context_payload FROM synth_meta.context_snapshots
+            'SELECT playthrough_id,player_identity_id,target_identity_id,context_payload FROM public.core_runtime_context
              WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$session, $event['generation'], $event['context_sequence']]);
         $context = $contextResult ? pg_fetch_assoc($contextResult) : false;
@@ -364,7 +364,7 @@ class sql
     private function closeHearerIdentityIds($connection, array $event, int $sceneSequence, array $keys): array
     {
         $result = @pg_query_params($connection,
-            'SELECT player_identity_id,target_identity_id,audience_identity_ids,context_payload FROM synth_meta.context_snapshots
+            'SELECT player_identity_id,target_identity_id,audience_identity_ids,context_payload FROM public.core_runtime_context
              WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
             [$event['session_id'], $event['generation'], $sceneSequence]);
         $row = $result ? pg_fetch_assoc($result) : false;
@@ -459,10 +459,10 @@ class sql
                 // A context publishes its own positive capture, while its wire binding remains zero.
                 // Recheck the exact admitted bytes and captured payload under the existing session lock.
                 $canonical = synth_protocol_canonical_json($event);
-                $proof = @pg_query_params(self::$link, "SELECT 1 FROM synth_meta.protocol_events p
+                $proof = @pg_query_params(self::$link, "SELECT 1 FROM public.core_protocol_event p
                     JOIN synth_meta.request_executions e USING(session_id,request_id)
-                    JOIN synth_meta.runtime_sessions r ON r.session_id=p.session_id
-                    JOIN synth_meta.context_snapshots c ON c.session_id=p.session_id AND c.generation=p.generation
+                    JOIN public.core_runtime_session r ON r.session_id=p.session_id
+                    JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation
                         AND c.snapshot_sequence=$6 AND c.context_payload=p.canonical_event->'payload'
                     WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3 AND p.turn_id=$7
                         AND p.event_type='context' AND e.event_type='context' AND e.generation=p.generation AND e.turn_id=p.turn_id
@@ -470,7 +470,7 @@ class sql
                         AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=p.generation
                         AND c.playthrough_id=r.playthrough_id AND c.playthrough_id=p.canonical_event#>>'{payload,playthrough_id}'
                         AND c.history_event_id IS NOT NULL
-                        AND NOT EXISTS(SELECT 1 FROM synth_meta.context_snapshots newer WHERE newer.session_id=c.session_id
+                        AND NOT EXISTS(SELECT 1 FROM public.core_runtime_context newer WHERE newer.session_id=c.session_id
                             AND newer.generation=c.generation AND newer.snapshot_sequence>c.snapshot_sequence)",
                     [$event['session_id'], $event['request_id'], $event['generation'], $canonical,
                      hash('sha256',$canonical), $event['payload']['snapshot_sequence'], $event['turn_id']]);

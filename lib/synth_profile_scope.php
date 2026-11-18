@@ -43,11 +43,11 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
         throw new RuntimeException('Native profile queue has no valid owner.');
     }
     $session=$db->escapeLiteral($owner['session_id']);$request=$db->escapeLiteral($owner['request_id']);
-    $origin=$db->fetchOne("SELECT p.canonical_event,p.event_sha256 FROM synth_meta.protocol_events p
+    $origin=$db->fetchOne("SELECT p.canonical_event,p.event_sha256 FROM public.core_protocol_event p
         JOIN synth_meta.request_executions e ON e.session_id=p.session_id AND e.request_id=p.request_id
             AND e.generation=p.generation AND e.turn_id=p.turn_id AND e.event_type=p.event_type
             AND e.request_sha256=p.event_sha256 AND e.state='complete'
-        JOIN synth_meta.runtime_sessions r ON r.session_id=e.session_id AND r.active_generation=e.generation
+        JOIN public.core_runtime_session r ON r.session_id=e.session_id AND r.active_generation=e.generation
             AND r.state='active' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
         WHERE p.session_id=$session AND p.request_id=$request AND p.event_type='profile_refresh'");
     $canonical=synth_protocol_canonical_json($owner);

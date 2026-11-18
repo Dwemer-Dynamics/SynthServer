@@ -136,7 +136,7 @@ final class CharacterFormVoiceTest extends TestCase
                 $this->queries[]=$sql;
                 if (str_contains($sql,'request_executions')) return ['state'=>'claimed','runtime_state'=>'active',
                     'active_generation'=>3,'active_turn_id'=>'turn-curie','active_turn_sequence'=>7];
-                if (str_contains($sql,'context_snapshots')) return ['context_payload'=>$this->context];
+                if (str_contains($sql,'core_runtime_context')) return ['context_payload'=>$this->context];
                 if (str_contains($sql,'actor_identities')) return $this->identity;
                 throw new RuntimeException('Unexpected form voice query: '.$sql);
             }

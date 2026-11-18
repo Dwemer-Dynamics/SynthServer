@@ -68,7 +68,7 @@ function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileDat
             if ($narrator) {
                 // The current canonical snapshot owns Narrator history; profile IDs and roleplay names cannot redirect it.
                 if (!synth_protocol_current_context($db,$event)) return '';
-                $actorId=intval($db->fetchOne('SELECT player_identity_id FROM synth_meta.context_snapshots WHERE session_id='.$db->escapeLiteral($event['session_id'])
+                $actorId=intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
                     .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0);
             }
             $entry=synth_diary_visible($db,$event,$actorId,$narrator);

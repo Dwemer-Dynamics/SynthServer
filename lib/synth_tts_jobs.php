@@ -72,12 +72,12 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
         }
         fclose($file);$file=null;
         $admit=static function($connection) use($db,$event,$input,$hash,$id,$actor,$root,&$keep): int {
-            $origin=@pg_query_params($connection,"SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e
+            $origin=@pg_query_params($connection,"SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e
                 USING(session_id,request_id,generation,turn_id) WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3
                 AND p.event_sha256=e.request_sha256 AND p.event_sha256=$4",[$event['session_id'],$event['request_id'],$event['generation'],
                     hash('sha256',synth_protocol_canonical_json($event))]);
             if (!$origin || !pg_fetch_assoc($origin)) throw new LogicException('Speech ingress mismatch');
-            $prior=@pg_query_params($connection,"SELECT id,payload->>'input_sha256' AS input_sha256 FROM synth_meta.worker_jobs
+            $prior=@pg_query_params($connection,"SELECT id,payload->>'input_sha256' AS input_sha256 FROM public.core_worker_job
                 WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND session_id=$1 AND request_id=$2
                     AND generation=$3 AND utterance_id=$4 ORDER BY id LIMIT 1",[$event['session_id'],$event['request_id'],$event['generation'],$input['utterance_id']]);
             if (!$prior) throw new RuntimeException('Unable to check speech admission');
@@ -87,7 +87,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
             }
             $payload=json_encode(['schema'=>'synth.tts.job.v1','context_sequence'=>$event['context_sequence'],
                 'input_id'=>$id,'input_sha256'=>$hash],JSON_THROW_ON_ERROR);
-            $insert=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
+            $insert=@pg_query_params($connection,"INSERT INTO public.core_worker_job
                 (job_type,session_id,request_id,turn_id,generation,actor_identity_id,utterance_id,cache_key,payload,deadline_at)
                 VALUES('tts',$1,$2,$3,$4,$5,$6,$7,$8::jsonb,clock_timestamp()+INTERVAL '30 seconds') RETURNING id",
                 [$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],$actor,$input['utterance_id'],$input['cache_key'],$payload]);
@@ -113,7 +113,7 @@ function synth_tts_assert_job_lease($db, array $lease): void
 {
     $id=intval($lease['id'] ?? 0);$token=$db->escapeLiteral(strval($lease['token'] ?? ''));
     $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
-    $row=$db->fetchOne("SELECT 1 FROM synth_meta.worker_jobs WHERE id=$id AND job_type='tts'
+    $row=$db->fetchOne("SELECT 1 FROM public.core_worker_job WHERE id=$id AND job_type='tts'
         AND payload->>'schema'='synth.tts.job.v1' AND state='running' AND lease_token=$token
         AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()
         AND session_id=".$db->escapeLiteral($event['session_id'])." AND request_id=".$db->escapeLiteral($event['request_id'])
@@ -121,7 +121,7 @@ function synth_tts_assert_job_lease($db, array $lease): void
         ." AND payload->>'context_sequence'=".$db->escapeLiteral(strval($event['context_sequence'])));
     if (!$row) throw new SYNTHProtocolCancelled('speech_lease_lost');
     if (microtime(true)-($lease['heartbeat_at'] ?? 0)>=1) {
-        $renewed=$db->execQuery("UPDATE synth_meta.worker_jobs SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '5 seconds'),
+        $renewed=$db->execQuery("UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '5 seconds'),
             updated_at=clock_timestamp() WHERE id=$id AND state='running' AND lease_token=$token
             AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
         if ($renewed===false || pg_affected_rows($renewed)!==1) throw new SYNTHProtocolCancelled('speech_lease_lost');
@@ -133,9 +133,9 @@ function synth_tts_assert_job_lease($db, array $lease): void
 function synth_tts_run_job($db, int $jobId, string $root, callable $generate): bool
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Speech worker requires an idle database connection');
-    $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256 FROM synth_meta.worker_jobs j
+    $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256 FROM public.core_worker_job j
         JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_sha256=e.request_sha256
         WHERE j.id=".intval($jobId)." AND j.job_type='tts' AND j.payload->>'schema'='synth.tts.job.v1'
             AND j.state IN ('pending','running')");
@@ -166,7 +166,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
         $actor=synth_tts_job_validate_entry($db,$input,$event,$root);
         if ($actor!==($job['actor_identity_id']===null ? null : intval($job['actor_identity_id']))) throw new LogicException('Speech job actor mismatch');
         $token=$db->withNativeRequestLock(static function($connection) use($jobId): ?string {
-            $claimed=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='running',attempts=attempts+1,
+            $claimed=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='running',attempts=attempts+1,
                 lease_token=$2,lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '5 seconds'),updated_at=clock_timestamp()
                 WHERE id=$1 AND attempts<3 AND available_at<=clock_timestamp() AND deadline_at>clock_timestamp()
                     AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) RETURNING lease_token",
@@ -181,7 +181,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
             $status=synth_read_npc_tts_status($input['cache_key'],$root);
             if (($status['status'] ?? '')!=='ready' || !is_array($status['media'] ?? null)) throw new RuntimeException('Speech media unavailable');
             synth_media_require_ready($db,$status['media']);
-            $done=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',lease_token=NULL,
+            $done=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_token=NULL,
                 lease_until=NULL,last_error=NULL,updated_at=clock_timestamp() WHERE id=$1 AND state='running' AND lease_token=$2
                 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()",[$jobId,$token]);
             if (!$done || pg_affected_rows($done)!==1) throw new RuntimeException('Unable to finish speech attempt');
@@ -192,7 +192,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
             $ownerCancelled=$error instanceof SYNTHProtocolCancelled && $error->getMessage()!=='speech_lease_lost';
             $terminal=$ownerCancelled || $error instanceof LogicException || $error instanceof JsonException;
             $state=$ownerCancelled ? 'cancelled' : 'failed';
-            $result=$db->execQuery("UPDATE synth_meta.worker_jobs SET state=CASE WHEN ".($terminal?'TRUE':'FALSE')."
+            $result=$db->execQuery("UPDATE public.core_worker_job SET state=CASE WHEN ".($terminal?'TRUE':'FALSE')."
                 OR attempts>=3 OR deadline_at<=clock_timestamp() THEN '$state' ELSE 'pending' END,
                 lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '1 second',
                 last_error='attempt_failed',updated_at=clock_timestamp() WHERE id=".intval($jobId)
@@ -201,7 +201,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
         } elseif ($error instanceof SYNTHProtocolCancelled || $error instanceof LogicException || $error instanceof JsonException) {
             // Invalid queued input is terminal, but a competing live attempt keeps its state/token.
             $state=$error instanceof SYNTHProtocolCancelled ? 'cancelled' : 'failed';
-            if ($db->execQuery("UPDATE synth_meta.worker_jobs SET state='$state',lease_token=NULL,lease_until=NULL,
+            if ($db->execQuery("UPDATE public.core_worker_job SET state='$state',lease_token=NULL,lease_until=NULL,
                 last_error='input_or_owner_invalid',updated_at=clock_timestamp() WHERE id=".intval($jobId)
                 ." AND job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
                 AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))")===false) {
@@ -221,17 +221,17 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
 function synth_tts_due_jobs($db): array
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Speech dispatch requires an idle database connection');
-    if ($db->execQuery("UPDATE synth_meta.worker_jobs j SET state=CASE
+    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE
             WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'cancelled' END,
             lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM synth_meta.runtime_sessions r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND r.active_turn_id=j.turn_id AND r.active_turn_sequence::text=j.payload->>'context_sequence'
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.turn_id=j.turn_id
                         AND e.state IN ('claimed','streaming','complete')))")===false) throw new RuntimeException('Unable to retire expired speech work');
-    return array_map(static fn(array $row): int=>intval($row['id']),$db->fetchAll("SELECT id FROM synth_meta.worker_jobs
+    return array_map(static fn(array $row): int=>intval($row['id']),$db->fetchAll("SELECT id FROM public.core_worker_job
         WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND available_at<=clock_timestamp()
             AND deadline_at>clock_timestamp() AND attempts<3
             AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) ORDER BY available_at,id LIMIT 5"));
@@ -241,7 +241,7 @@ function synth_tts_due_jobs($db): array
 function synth_tts_cleanup_job_inputs($db, string $root): int
 {
     $removed=0;
-    foreach($db->fetchAll("SELECT id,payload FROM synth_meta.worker_jobs WHERE job_type='tts'
+    foreach($db->fetchAll("SELECT id,payload FROM public.core_worker_job WHERE job_type='tts'
         AND payload->>'schema'='synth.tts.job.v1' AND state IN ('ready','failed','cancelled','stale')
         AND updated_at<clock_timestamp()-INTERVAL '10 seconds' AND NOT(payload ? 'input_cleanup_state') ORDER BY id LIMIT 20") as $row) {
         $payload=synth_protocol_decode_json($row['payload']);
@@ -254,7 +254,7 @@ function synth_tts_cleanup_job_inputs($db, string $root): int
                 $state='removed';++$removed;
             }
         }
-        if ($db->execQuery("UPDATE synth_meta.worker_jobs SET payload=payload || jsonb_build_object('input_cleanup_state',"
+        if ($db->execQuery("UPDATE public.core_worker_job SET payload=payload || jsonb_build_object('input_cleanup_state',"
             .$db->escapeLiteral($state)."::text) WHERE id=".intval($row['id']))===false) throw new RuntimeException('Unable to record speech input cleanup');
     }
     return $removed;

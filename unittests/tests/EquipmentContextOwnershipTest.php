@@ -35,14 +35,14 @@ final class EquipmentContextOwnershipTest extends DatabaseTestCase
             VALUES('fo4','0x00000014','Fallout4.esm','equipment-owned-save','Stu') RETURNING id")['id']);
         $targetId = intval($db->fetchOne("INSERT INTO synth.actor_identities(game,full_form_id,origin_plugin,playthrough_id,display_name)
             VALUES('fo4','0x0001A4D8','Fallout4.esm','equipment-owned-save','Sturges') RETURNING id")['id']);
-        $db->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
+        $db->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
             VALUES('equipment-owned-session','equipment-owned-save','fo4','flat','test','1.11.240',1)");
         $state = ['actor'=>$player,'weapon_drawn'=>true,'inventory_observation'=>'complete','inventory'=>[
             ['form_id'=>'0x00004822','origin_plugin'=>'Fallout4.esm','display_name'=>'10mm Pistol','form_type'=>43,'equipped'=>true]]];
         foreach ([1=>[$state], 2=>[]] as $sequence => $states) {
             $payload = ['player'=>$player,'target'=>$target,'audience'=>[$target],'actor_states'=>$states,
                 'world'=>['location'=>'Fixture Sanctuary']];
-            $db->execQuery("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,context_payload)
+            $db->execQuery("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,context_payload)
                 VALUES('equipment-owned-session',1,$sequence,'equipment-owned-save',$playerId,$targetId,$1)", [json_encode($payload, JSON_THROW_ON_ERROR)]);
         }
         $event = ['protocol_version'=>2,'session_id'=>'equipment-owned-session','generation'=>1,'context_sequence'=>1,

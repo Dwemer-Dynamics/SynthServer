@@ -331,13 +331,13 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
             p.canonical_event,p.event_sha256,p.event_type,e.turn_id,s.execution_mode,s.input_text,
             CASE WHEN d.request_id IS NULL THEN 'native_typed' ELSE 'origin_policy' END AS origin_source
         FROM native_history n JOIN synth_meta.history_events h ON h.id=n.history_event_id
-        JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
+        JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
         JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id
             AND e.generation=h.generation AND e.state='complete'
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
-        LEFT JOIN synth_meta.dialogue_origin_policies d ON d.session_id=e.session_id AND d.request_id=e.request_id
+        LEFT JOIN public.core_dialogue_origin_policy d ON d.session_id=e.session_id AND d.request_id=e.request_id
         -- Ordinary turns keep their frozen origin; only a native conversation event supplies its own text/mode.
         CROSS JOIN LATERAL (SELECT
             CASE WHEN d.request_id IS NULL THEN coalesce(p.canonical_event#>>'{payload,control,mode}','STANDARD') ELSE d.execution_mode END AS execution_mode,
@@ -386,9 +386,9 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
         $canonical=synth_protocol_canonical_json($event);
         // Recheck the canonical owner on the captured handle, including narrator reads.
         $result=@pg_query_params($connection,"SELECT c.context_payload
-            FROM synth_meta.request_executions e JOIN synth_meta.protocol_events p USING(session_id,request_id)
-            JOIN synth_meta.runtime_sessions r ON r.session_id=e.session_id
-            JOIN synth_meta.context_snapshots c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$4
+            FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+            JOIN public.core_runtime_session r ON r.session_id=e.session_id
+            JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$4
             WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$5
                 AND e.state IN ('claimed','streaming','complete') AND p.canonical_event=$6::jsonb
                 AND p.event_sha256=$7 AND e.request_sha256=p.event_sha256

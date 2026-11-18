@@ -14,7 +14,7 @@ final class CombatContactsFixtureDatabase extends sql
             $this->execQuery("SET LOCAL statement_timeout='2s'");
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
             synth_protocol_assert_request_active();$canonical=synth_protocol_canonical_json($event);
-            $result=$this->execQuery('SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
             if(!pg_fetch_assoc($result))throw new LogicException('combat_fixture_canonical_owner_changed');
@@ -53,10 +53,10 @@ final class CombatContactsTest extends DatabaseTestCase
         $this->database=$GLOBALS['db']=new CombatContactsFixtureDatabase();
         $playerId=synth_protocol_actor_identity_id($this->database,$this->payload['player']);
         $actorId=synth_protocol_actor_identity_id($this->database,$this->payload['target']);
-        $this->database->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,
+        $this->database->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,
             active_generation,capabilities,state,active_turn_id,active_turn_sequence) VALUES('combat-contact-session','save-001','fo4','flat','fixture','fixture',1,$1::jsonb,'active','combat-contact-turn',7)",
             [json_encode($this->event['capabilities'])]);
-        $this->database->execQuery("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload)
+        $this->database->execQuery("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload)
             VALUES('combat-contact-session',1,7,'save-001',$1,$2,$3::jsonb,$4::jsonb)",[$playerId,$actorId,json_encode([$actorId]),json_encode($this->payload)]);
         $this->persistEvent();
         $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;$GLOBALS['SYNTH_NAME']=$this->payload['target']['display_name'];
@@ -75,7 +75,7 @@ final class CombatContactsTest extends DatabaseTestCase
         $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES('combat-contact-session','combat-contact-input','combat-contact-turn',1,$1,$2,'claimed')
             ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$1,event_type=$2",[$hash,$this->event['type']]);
-        $this->database->execQuery("INSERT INTO synth_meta.protocol_events(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
+        $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
             VALUES('combat-contact-session','combat-contact-input','combat-contact-turn',1,$1,$2::jsonb,$3)
             ON CONFLICT(session_id,request_id) DO UPDATE SET canonical_event=$2::jsonb,event_sha256=$3,event_type=$1",[$this->event['type'],$canonical,$hash]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($this->event);
@@ -83,7 +83,7 @@ final class CombatContactsTest extends DatabaseTestCase
 
     private function updatePayload(): void
     {
-        $this->database->execQuery("UPDATE synth_meta.context_snapshots SET context_payload=$1::jsonb WHERE session_id='combat-contact-session'",[json_encode($this->payload)]);
+        $this->database->execQuery("UPDATE public.core_runtime_context SET context_payload=$1::jsonb WHERE session_id='combat-contact-session'",[json_encode($this->payload)]);
     }
 
     private function useAwareness(): array
@@ -122,8 +122,8 @@ final class CombatContactsTest extends DatabaseTestCase
         $original=$this->payload;
         foreach(['other-owner','duplicate-owner','foreign-save','unsafe-label','wrong-generation','retired-session','frame-stale','expired-observation','frame-age-expires-observation'] as $case) {
             $this->payload=$original;
-            $this->database->execQuery("UPDATE synth_meta.runtime_sessions SET state='active',active_generation=1 WHERE session_id='combat-contact-session'");
-            $this->database->execQuery("UPDATE synth_meta.context_snapshots SET received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id='combat-contact-input') WHERE session_id='combat-contact-session'");
+            $this->database->execQuery("UPDATE public.core_runtime_session SET state='active',active_generation=1 WHERE session_id='combat-contact-session'");
+            $this->database->execQuery("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id='combat-contact-input') WHERE session_id='combat-contact-session'");
             if($case==='other-owner')$this->payload['actor_states'][0]['actor']['form_id']='0x00019FD9';
             if($case==='duplicate-owner')$this->payload['actor_states'][]=$this->payload['actor_states'][0];
             if($case==='foreign-save')$this->payload['actor_states'][0]['enemy_awareness']['recent'][0]['actor']['playthrough_id']='other-save';
@@ -131,11 +131,11 @@ final class CombatContactsTest extends DatabaseTestCase
             if($case==='expired-observation')$this->payload['actor_states'][0]['enemy_awareness']['recent'][0]['age_ms']=30001;
             if($case==='frame-age-expires-observation') {
                 $this->payload['actor_states'][0]['enemy_awareness']['recent'][0]['age_ms']=29500;
-                $this->database->execQuery("UPDATE synth_meta.context_snapshots SET received_at=received_at-INTERVAL '2 seconds' WHERE session_id='combat-contact-session'");
+                $this->database->execQuery("UPDATE public.core_runtime_context SET received_at=received_at-INTERVAL '2 seconds' WHERE session_id='combat-contact-session'");
             }
-            if($case==='frame-stale')$this->database->execQuery("UPDATE synth_meta.context_snapshots SET received_at=received_at-INTERVAL '20 seconds' WHERE session_id='combat-contact-session'");
-            if($case==='wrong-generation')$this->database->execQuery("UPDATE synth_meta.runtime_sessions SET active_generation=2 WHERE session_id='combat-contact-session'");
-            if($case==='retired-session')$this->database->execQuery("UPDATE synth_meta.runtime_sessions SET state='halted' WHERE session_id='combat-contact-session'");
+            if($case==='frame-stale')$this->database->execQuery("UPDATE public.core_runtime_context SET received_at=received_at-INTERVAL '20 seconds' WHERE session_id='combat-contact-session'");
+            if($case==='wrong-generation')$this->database->execQuery("UPDATE public.core_runtime_session SET active_generation=2 WHERE session_id='combat-contact-session'");
+            if($case==='retired-session')$this->database->execQuery("UPDATE public.core_runtime_session SET state='halted' WHERE session_id='combat-contact-session'");
             $this->updatePayload();
             if(in_array($case,['wrong-generation','retired-session'],true)) {
                 try {synth_combat_identification_reply($this->database,$this->event);$this->fail($case.' produced speech');}
@@ -198,7 +198,7 @@ final class CombatContactsTest extends DatabaseTestCase
             $this->assertSame('I have not identified the attackers.',synth_combat_identification_reply($this->database,$this->event)['text'],$case);
         }
         $this->payload=$original;$this->updatePayload();
-        $this->database->execQuery("UPDATE synth_meta.context_snapshots SET received_at=received_at-INTERVAL '20 seconds' WHERE session_id='combat-contact-session'");
+        $this->database->execQuery("UPDATE public.core_runtime_context SET received_at=received_at-INTERVAL '20 seconds' WHERE session_id='combat-contact-session'");
         $this->assertSame('I have not identified the attackers.',synth_combat_identification_reply($this->database,$this->event)['text']);
     }
 
@@ -375,8 +375,8 @@ final class CombatContactsTest extends DatabaseTestCase
             foreach($lines as $line) {$this->assertSame($this->event['request_id'],$line['request_id']);$this->assertSame(7,$line['context_sequence']);}
             $this->assertCount(1,$GLOBALS['SYNTH_DEFERRED_TTS']);
             $this->assertSame($dialogue['text'],$GLOBALS['SYNTH_DEFERRED_TTS'][0]['text']);
-            $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
-            $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.rechat_continuations')['n']);
+            $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
+            $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_rechat_continuation')['n']);
             $this->assertSame('complete',$this->database->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='combat-contact-input'")['state']);
             $this->assertSame('2',$this->database->fetchOne("SELECT count(*) AS n FROM synth.eventlog WHERE type IN ('prechat','chat') AND data LIKE "
                 .$this->database->escapeLiteral('%'.$expected.'%'))['n']);
@@ -405,6 +405,6 @@ final class CombatContactsTest extends DatabaseTestCase
             try {include $file;$this->fail('Disabled input reached direct identification.');}
             catch(SYNTHTestRequestTerminated) {$this->assertSame('',$GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY']);}
         } finally {unlink($file);if($saved===null)unset($GLOBALS['PROMPTS']);else$GLOBALS['PROMPTS']=$saved;}
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth_meta.action_intents')['n']);
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
     }
 }

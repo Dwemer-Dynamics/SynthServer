@@ -170,7 +170,7 @@ function synthVisualContextCompleteOwned(array $request, int $recordId, array $f
     try {
         $session = $db->escapeLiteral($request['session_id']);
         $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext($session))");
-        $db->fetchOne("SELECT session_id FROM synth_meta.runtime_sessions WHERE session_id=$session FOR UPDATE");
+        $db->fetchOne("SELECT session_id FROM public.core_runtime_session WHERE session_id=$session FOR UPDATE");
         synth_visual_validate_runtime($db, $request);
         $capture = $db->escapeLiteral($request['capture_id']);
         $record = $db->fetchOne("SELECT request_sha256 FROM public.core_visual_context
@@ -200,7 +200,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
     $session=$db->escapeLiteral($request['session_id']);
     $capture=$db->escapeLiteral($request['capture_id']);
     $generation=intval($request['generation']);$sequence=intval($request['context_sequence']);
-    $context=$db->fetchOne("SELECT playthrough_id,target_identity_id FROM synth_meta.context_snapshots
+    $context=$db->fetchOne("SELECT playthrough_id,target_identity_id FROM public.core_runtime_context
         WHERE session_id=$session AND generation=$generation AND snapshot_sequence=$sequence");
     if (!$context || !$context['target_identity_id'] || empty($request['subject'])) throw new RuntimeException('Visual history requires the frozen subject.');
     $description=synthVisualContextText($fields['description'] ?? '',12000);
@@ -227,7 +227,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         VALUES($1,$2,$3,$4,$5,'visual_capture','complete',
             'application/vnd.synth.visual-result+json',convert_to($6,'UTF8'),NOW())",
             [$request['session_id'],$request['request_id'],$request['turn_id'],$generation,$wireHash,$resultJson])===false
-        || $db->execQuery("INSERT INTO synth_meta.protocol_events
+        || $db->execQuery("INSERT INTO public.core_protocol_event
             (session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
             VALUES($1,$2,$3,$4,'visual_capture',$5::jsonb,$6)",
             [$request['session_id'],$request['request_id'],$request['turn_id'],$generation,$wire,$wireHash])===false) {
@@ -266,14 +266,14 @@ function synthVisualContextVisibleCte($db, array $event): string
             AND h.session_id=v.session_id AND h.generation=v.generation AND h.request_id=v.request_id
             AND h.context_sequence=v.context_sequence AND h.playthrough_id=scope.playthrough_id
             AND h.event_payload->>'type'='visual_result' AND h.event_payload->>'delivery_state'='derived'
-        JOIN synth_meta.context_snapshots origin ON origin.session_id=h.session_id AND origin.generation=h.generation
+        JOIN public.core_runtime_context origin ON origin.session_id=h.session_id AND origin.generation=h.generation
             AND origin.snapshot_sequence=h.context_sequence AND origin.playthrough_id=h.playthrough_id
             AND origin.target_identity_id=v.actor_identity_id
         JOIN synth_meta.request_executions e ON e.session_id=v.session_id AND e.request_id=v.request_id
             AND e.generation=v.generation AND e.event_type='visual_capture' AND e.state='complete'
             AND encode(sha256(e.response_body),'hex')=v.result_sha256
             AND convert_from(e.response_body,'UTF8')::jsonb=v.result_payload
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
             AND p.canonical_event->>'schema'='synth.visual_context.capture.v2'
             AND p.canonical_event->>'protocol_version'='2'
@@ -304,7 +304,7 @@ function synthVisualContextVisibleCte($db, array $event): string
                 AND edit.input_payload->>'capture_id'=edit.capture_id
                 AND edit.input_payload->>'actor_id'=edit.actor_identity_id::text
                 AND edit.input_payload->'description'=COALESCE(to_jsonb(edit.description),'null'::jsonb)
-            JOIN synth_meta.context_snapshots edited_context ON edited_context.session_id=edited_history.session_id
+            JOIN public.core_runtime_context edited_context ON edited_context.session_id=edited_history.session_id
                 AND edited_context.generation=edited_history.generation AND edited_context.snapshot_sequence=edited_history.context_sequence
                 AND edited_context.target_identity_id=edit.actor_identity_id AND edited_context.playthrough_id=edited_history.playthrough_id
             ORDER BY edit.history_event_id DESC LIMIT 1) correction ON TRUE)";

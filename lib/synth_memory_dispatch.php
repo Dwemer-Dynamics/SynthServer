@@ -17,11 +17,11 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
         $selected = $db->execQuery("WITH candidate AS MATERIALIZED (
             SELECT r.session_id,o.request_id,o.turn_id,o.generation,o.event_type,
                 o.canonical_event,o.event_sha256,r.active_turn_sequence AS context_sequence
-            FROM synth_meta.runtime_sessions r
+            FROM public.core_runtime_session r
             CROSS JOIN LATERAL (
                 SELECT e.request_id,e.turn_id,e.generation,e.event_type,p.canonical_event,p.event_sha256
                 FROM synth_meta.request_executions e
-                JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+                JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                     AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                     AND p.event_sha256=e.request_sha256
                 WHERE e.session_id=r.session_id AND e.generation=r.active_generation
@@ -34,9 +34,9 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
                     AND (e.event_type<>'activate' OR p.canonical_event->'payload'->>'source'='manual')
                     -- Closed or non-NPC continuations must not hide this turn's completed NPC dialogue.
                     AND (e.event_type<>'trigger' OR p.canonical_event->'payload'->>'kind' IS DISTINCT FROM 'rechat'
-                        OR EXISTS (SELECT 1 FROM synth_meta.rechat_selections selection
-                            JOIN synth_meta.rechat_continuations continuation USING(session_id,request_id)
-                            JOIN synth_meta.rechat_chains chain
+                        OR EXISTS (SELECT 1 FROM public.core_rechat_selection selection
+                            JOIN public.core_rechat_continuation continuation USING(session_id,request_id)
+                            JOIN public.core_rechat_chain chain
                                 ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
                             WHERE selection.session_id=e.session_id AND selection.request_id=e.request_id
                                 AND selection.prepared_at IS NOT NULL AND selection.role='npc'
@@ -46,13 +46,13 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
                                 AND chain.context_sequence=r.active_turn_sequence AND chain.runtime_variant=r.runtime_variant))
                 ORDER BY e.claimed_at DESC,e.request_id DESC LIMIT 1
             ) o
-            JOIN synth_meta.context_snapshots c ON c.session_id=r.session_id AND c.generation=r.active_generation
+            JOIN public.core_runtime_context c ON c.session_id=r.session_id AND c.generation=r.active_generation
                 AND c.snapshot_sequence=r.active_turn_sequence AND c.playthrough_id=r.playthrough_id
                 AND c.target_identity_id IS NOT NULL AND c.history_event_id IS NOT NULL
             WHERE r.state='active' AND (r.memory_dispatch_after IS NULL OR r.memory_dispatch_after<=clock_timestamp())
             ORDER BY r.memory_dispatch_after NULLS FIRST,r.session_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED
         ), reserved AS (
-            UPDATE synth_meta.runtime_sessions r SET memory_dispatch_after=clock_timestamp()+INTERVAL '30 seconds'
+            UPDATE public.core_runtime_session r SET memory_dispatch_after=clock_timestamp()+INTERVAL '30 seconds'
             FROM candidate c WHERE r.session_id=c.session_id RETURNING r.session_id
         ) SELECT c.* FROM candidate c JOIN reserved USING (session_id)");
         if ($selected === false) throw new RuntimeException('Unable to select memory dispatch');
@@ -65,7 +65,7 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
     $jobId = synth_memory_with_origin($db,$origin,static function(array $event) use ($db,$minimumEvents,$intervalTicks) {
         // Recover due attempts first, then frozen-but-unscheduled inputs. Never endlessly recapture a covered batch.
         $candidate = $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
-            $result = @pg_query_params($connection,"SELECT id FROM synth_meta.worker_jobs
+            $result = @pg_query_params($connection,"SELECT id FROM public.core_worker_job
                 WHERE job_type='memory' AND memory_batch_id IS NOT NULL AND session_id=$1 AND turn_id=$2
                     AND generation=$3 AND payload->>'context_sequence'=$4 AND state IN ('pending','running')
                     AND (deadline_at<=clock_timestamp() OR available_at<=clock_timestamp())
@@ -78,7 +78,7 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
             $result = @pg_query($connection,synth_memory_visible_batch_cte($db,$event)
                 ."SELECT b.id FROM native_memory_batches b
                     WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_summaries s WHERE s.batch_id=b.id)
-                    AND NOT EXISTS (SELECT 1 FROM synth_meta.worker_jobs j WHERE j.memory_batch_id=b.id
+                    AND NOT EXISTS (SELECT 1 FROM public.core_worker_job j WHERE j.memory_batch_id=b.id
                         AND j.job_type='memory' AND (j.state='ready'
                             OR (j.state IN ('pending','running') AND j.deadline_at>clock_timestamp()
                                 AND NOT (j.attempts>=3 AND j.lease_until<=clock_timestamp()))
@@ -90,7 +90,7 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
             if ($batch) return ['batch'=>intval($batch['id'])];
             $context=synth_memory_response_context($connection,$db,$event);
             if (!$context || !$context['target_identity_id']) return ['full'=>true];
-            $result = @pg_query_params($connection,"SELECT count(*) AS n FROM synth_meta.worker_jobs
+            $result = @pg_query_params($connection,"SELECT count(*) AS n FROM public.core_worker_job
                 WHERE job_type='memory' AND memory_batch_id IS NOT NULL AND actor_identity_id=$1
                     AND state IN ('pending','running') AND deadline_at>clock_timestamp()",
                 [$context['target_identity_id']]);

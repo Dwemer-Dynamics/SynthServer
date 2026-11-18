@@ -14,7 +14,7 @@ function synth_relationship_result_state_cte(): string
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence AND h.request_id=i.request_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id AND h.id<=scope.cutoff
-        JOIN synth_meta.worker_jobs j ON j.id=result.job_id AND j.relationship_evaluation_id=i.id AND j.state='ready'
+        JOIN public.core_worker_job j ON j.id=result.job_id AND j.relationship_evaluation_id=i.id AND j.state='ready'
             AND j.job_type='relationship' AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
             AND j.payload->>'context_sequence'=i.context_sequence::text
         WHERE h.event_payload->>'type'='relationship_result' AND h.event_payload->>'delivery_state'='derived'
@@ -23,11 +23,11 @@ function synth_relationship_result_state_cte(): string
             AND encode(sha256(convert_to(result.result_payload::text,'UTF8')),'hex')=h.event_payload->>'result_sha256'
     ), relationship_result_candidates AS MATERIALIZED (
         SELECT i.* FROM relationship_result_origins i
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation
+        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.snapshot_sequence=i.context_sequence AND c.target_identity_id=i.actor_identity_id AND c.playthrough_id=i.playthrough_id
         JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
             AND owner.generation=i.generation AND owner.turn_id=i.turn_id
-        JOIN synth_meta.protocol_events protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
+        JOIN public.core_protocol_event protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'
         JOIN relationship_graph_responses_candidates response ON response.history_event_id=i.response_history_event_id AND response.actor_identity_id=i.actor_identity_id
         LEFT JOIN relationship_graph_responses speech_response ON speech_response.history_event_id=response.history_event_id
@@ -46,8 +46,8 @@ function synth_relationship_result_state_cte(): string
                 AND upper(response.response_payload#>>'{verified_gift,recipient,form_id}')=upper(c.context_payload#>>'{target,form_id}')
                 AND lower(response.response_payload#>>'{verified_gift,recipient,origin_plugin}')=lower(c.context_payload#>>'{target,origin_plugin}')
                 AND response.response_payload#>>'{verified_gift,recipient,playthrough_id}'=c.playthrough_id
-                AND EXISTS(SELECT 1 FROM synth_meta.action_intents action
-                    JOIN synth_meta.action_terminal_results transfer ON transfer.action_id=action.action_id
+                AND EXISTS(SELECT 1 FROM public.core_action_intent action
+                    JOIN public.core_action_result transfer ON transfer.action_id=action.action_id
                         AND transfer.idempotency_key=action.idempotency_key AND transfer.status='succeeded'
                         AND transfer.result=protocol.canonical_event#>'{payload,result}'
                     WHERE owner.event_type='action_result' AND action.session_id=i.session_id AND action.generation=i.generation
@@ -62,8 +62,8 @@ function synth_relationship_result_state_cte(): string
             AND (owner.state='complete' OR (owner.state='cancelled' AND owner.event_type='action_result'
                 AND i.input_payload#>>'{received_gift,fact,action_id}'=response.response_payload->>'verified_gift_action_id'))
             AND (i.input_payload->'context'=c.context_payload OR EXISTS (
-                SELECT 1 FROM synth_meta.action_intents action
-                JOIN synth_meta.action_terminal_results receipt ON receipt.action_id=action.action_id
+                SELECT 1 FROM public.core_action_intent action
+                JOIN public.core_action_result receipt ON receipt.action_id=action.action_id
                     AND receipt.idempotency_key=action.idempotency_key AND receipt.status='succeeded'
                     AND receipt.result=protocol.canonical_event#>'{payload,result}'
                 CROSS JOIN LATERAL (

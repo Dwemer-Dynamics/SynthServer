@@ -125,13 +125,13 @@ function synth_wait_result_context($db,array $event): array
             receipt.received_at AS result_received_at,
             a.full_form_id,a.origin_plugin,a.playthrough_id,source.canonical_event AS origin_event,source.event_sha256 AS origin_sha256,
             receipt.canonical_event AS receipt_event,receipt.event_sha256 AS receipt_sha256,c.context_payload
-        FROM synth_meta.action_intents i JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN synth_meta.protocol_events source ON source.session_id=i.session_id AND source.request_id=i.request_id AND source.generation=i.generation AND source.turn_id=i.turn_id
+        FROM public.core_action_intent i JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
+        JOIN public.core_protocol_event source ON source.session_id=i.session_id AND source.request_id=i.request_id AND source.generation=i.generation AND source.turn_id=i.turn_id
         JOIN synth_meta.request_executions issued ON issued.session_id=source.session_id AND issued.request_id=source.request_id AND issued.request_sha256=source.event_sha256
-        JOIN synth_meta.protocol_events receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id
+        JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id
         JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id AND accepted.request_sha256=receipt.event_sha256
-        JOIN synth_meta.context_snapshots c ON c.session_id=i.session_id AND c.generation=i.generation AND c.snapshot_sequence=".intval($event['context_sequence'])."
-        JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation AND c.snapshot_sequence=".intval($event['context_sequence'])."
+        JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
         WHERE i.action_id=$action AND i.idempotency_key=".$db->escapeLiteral($result['idempotency_key'])." AND i.session_id=$session AND i.generation=$generation AND i.turn_id=$turn
             AND i.state IN ('pending','dispatched','complete') AND source.canonical_event->>'context_sequence'=$sequence
             AND receipt.event_type='action_result' AND accepted.state IN ('claimed','streaming','complete')
@@ -223,13 +223,13 @@ function synth_wait_jev_capture_fresh($db,array $event): bool
         || !is_int($event['context_sequence']??null)||$event['context_sequence']<1)return false;
     $session=$db->escapeLiteral(synth_protocol_session_id($event));
     $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
-    $row=$db->fetchOne("SELECT 1 AS fresh FROM synth_meta.context_snapshots c
-        JOIN synth_meta.runtime_sessions r ON r.session_id=c.session_id
+    $row=$db->fetchOne("SELECT 1 AS fresh FROM public.core_runtime_context c
+        JOIN public.core_runtime_session r ON r.session_id=c.session_id
         WHERE c.session_id=$session AND c.generation=$generation AND c.snapshot_sequence=$sequence
             AND r.state='active' AND r.active_generation=c.generation AND r.runtime_variant='flat'
             AND c.playthrough_id=r.playthrough_id
             AND c.received_at<=clock_timestamp() AND c.received_at>=clock_timestamp()-INTERVAL '5 seconds'
-            AND NOT EXISTS(SELECT 1 FROM synth_meta.context_snapshots newer
+            AND NOT EXISTS(SELECT 1 FROM public.core_runtime_context newer
                 WHERE newer.session_id=c.session_id AND newer.generation=c.generation
                     AND newer.snapshot_sequence>c.snapshot_sequence)");
     return is_array($row) && in_array($row['fresh']??null,[true,'1',1],true);
@@ -317,13 +317,13 @@ function synth_wait_record_consequence($db,array $event,array $outcome): void
 // Only the validated terminal source can grant this special actor-scoped history row; labels grant nothing.
 function synth_wait_history_visibility_sql(): string
 {
-    return "EXISTS(SELECT 1 FROM synth_meta.action_intents wi
-        JOIN synth_meta.action_terminal_results wt ON wt.action_id=wi.action_id AND wt.idempotency_key=wi.idempotency_key
-        JOIN synth_meta.protocol_events wr ON wr.session_id=h.session_id AND wr.request_id=h.request_id AND wr.generation=h.generation AND wr.turn_id=wi.turn_id
+    return "EXISTS(SELECT 1 FROM public.core_action_intent wi
+        JOIN public.core_action_result wt ON wt.action_id=wi.action_id AND wt.idempotency_key=wi.idempotency_key
+        JOIN public.core_protocol_event wr ON wr.session_id=h.session_id AND wr.request_id=h.request_id AND wr.generation=h.generation AND wr.turn_id=wi.turn_id
         JOIN synth_meta.request_executions we ON we.session_id=wr.session_id AND we.request_id=wr.request_id AND we.request_sha256=wr.event_sha256
-        JOIN synth_meta.protocol_events wo ON wo.session_id=wi.session_id AND wo.request_id=wi.request_id AND wo.generation=wi.generation AND wo.turn_id=wi.turn_id
+        JOIN public.core_protocol_event wo ON wo.session_id=wi.session_id AND wo.request_id=wi.request_id AND wo.generation=wi.generation AND wo.turn_id=wi.turn_id
         JOIN synth_meta.request_executions weo ON weo.session_id=wo.session_id AND weo.request_id=wo.request_id AND weo.request_sha256=wo.event_sha256
-        JOIN synth_meta.context_snapshots wc ON wc.session_id=h.session_id AND wc.generation=h.generation AND wc.snapshot_sequence=h.context_sequence AND wc.target_identity_id=wi.actor_identity_id
+        JOIN public.core_runtime_context wc ON wc.session_id=h.session_id AND wc.generation=h.generation AND wc.snapshot_sequence=h.context_sequence AND wc.target_identity_id=wi.actor_identity_id
         JOIN synth.actor_identities wa ON wa.id=wi.actor_identity_id AND wa.playthrough_id=h.playthrough_id
         WHERE h.event_payload->>'type'='infoaction' AND wi.state='complete' AND wi.session_id=h.session_id AND wi.generation=h.generation
             AND wi.actor_identity_id::text=h.event_payload#>>'{synth_wait_consequence,actor_identity_id}'
@@ -364,8 +364,8 @@ function synth_wait_history_visibility_sql(): string
 // Legacy display-name tool logs must not duplicate or supersede the owned consequence.
 function synth_wait_unscoped_history_sql(): string
 {
-    return "(CASE WHEN original.type IN ('funcret','infoaction') THEN EXISTS(SELECT 1 FROM synth_meta.protocol_events raw_receipt
-        JOIN synth_meta.action_intents raw_intent ON raw_intent.action_id=raw_receipt.canonical_event#>>'{payload,result,action_id}'
+    return "(CASE WHEN original.type IN ('funcret','infoaction') THEN EXISTS(SELECT 1 FROM public.core_protocol_event raw_receipt
+        JOIN public.core_action_intent raw_intent ON raw_intent.action_id=raw_receipt.canonical_event#>>'{payload,result,action_id}'
             AND raw_intent.session_id=raw_receipt.session_id AND raw_intent.generation=raw_receipt.generation
         WHERE raw_receipt.session_id=h.session_id AND raw_receipt.request_id=h.request_id AND raw_receipt.generation=h.generation
             AND raw_receipt.event_type='action_result' AND raw_receipt.canonical_event->>'protocol_version'='2'

@@ -58,7 +58,7 @@ function synth_rechat_assert_action_emission($db, array $event, array $action, b
         if (!$requireIntent) return;
         $result=@pg_query_params($connection,"SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id,
                 target.full_form_id AS target_form_id,target.origin_plugin AS target_plugin,target.playthrough_id AS target_playthrough
-            FROM synth_meta.action_intents i JOIN synth.actor_identities a ON a.id=i.actor_identity_id
+            FROM public.core_action_intent i JOIN synth.actor_identities a ON a.id=i.actor_identity_id
             LEFT JOIN synth.actor_identities target ON target.id=i.target_identity_id
             WHERE i.action_id=$1 AND i.idempotency_key=$2 AND i.session_id=$3 AND i.request_id=$4 AND i.generation=$5 AND i.turn_id=$6
                 AND i.state IN ('pending','dispatched') AND i.deadline_at>clock_timestamp()

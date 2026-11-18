@@ -271,19 +271,19 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
     public static function baselineDrift(): array
     {
-        $claims = 'ALTER TABLE synth_meta.social_task_claims ';
-        $deadline = 'column|synth_meta|social_task_claims|deadline_at|timestamp with time zone|timestamptz|NO||';
+        $claims = 'ALTER TABLE public.core_social_task_claim ';
+        $deadline = 'column|public|core_social_task_claim|deadline_at|timestamp with time zone|timestamptz|NO||';
         return [
-            'dropped table' => ['DROP TABLE synth_meta.social_task_claims', 'column|synth_meta|social_task_claims|deadline_at|'],
-            'column type' => [$claims.'ALTER COLUMN generation TYPE integer', 'column|synth_meta|social_task_claims|generation|bigint|int8|NO||'],
+            'dropped table' => ['DROP TABLE public.core_social_task_claim', 'column|public|core_social_task_claim|deadline_at|'],
+            'column type' => [$claims.'ALTER COLUMN generation TYPE integer', 'column|public|core_social_task_claim|generation|bigint|int8|NO||'],
             'nullability' => [$claims.'ALTER COLUMN deadline_at DROP NOT NULL', $deadline],
             'default' => [$claims.'ALTER COLUMN deadline_at SET DEFAULT now()', $deadline],
-            'primary key' => [$claims.'DROP CONSTRAINT social_task_claims_pkey', 'constraint|synth_meta|social_task_claims|social_task_claims_pkey|p|t|PRIMARY KEY'],
-            'foreign key' => [$claims.'DROP CONSTRAINT social_task_claims_task_id_fkey', 'constraint|synth_meta|social_task_claims|social_task_claims_task_id_fkey|f|t|'],
+            'primary key' => [$claims.'DROP CONSTRAINT social_task_claims_pkey', 'constraint|public|core_social_task_claim|social_task_claims_pkey|p|t|PRIMARY KEY'],
+            'foreign key' => [$claims.'DROP CONSTRAINT social_task_claims_task_id_fkey', 'constraint|public|core_social_task_claim|social_task_claims_task_id_fkey|f|t|'],
             'changed check' => [$claims.'DROP CONSTRAINT social_task_claims_generation_check, ADD CONSTRAINT social_task_claims_generation_check CHECK (generation >= 0)',
-                'constraint|synth_meta|social_task_claims|social_task_claims_generation_check|c|t|CHECK ((generation > 0))'],
+                'constraint|public|core_social_task_claim|social_task_claims_generation_check|c|t|CHECK ((generation > 0))'],
             'unique' => [$claims.'DROP CONSTRAINT social_task_claims_session_id_generation_execution_id_key',
-                'constraint|synth_meta|social_task_claims|social_task_claims_session_id_generation_execution_id_key|u|t|'],
+                'constraint|public|core_social_task_claim|social_task_claims_session_id_generation_execution_id_key|u|t|'],
             'index' => ['DROP INDEX synth_meta.memory_summaries_batch', 'index|synth_meta|memory_summaries|memory_summaries_batch|'],
             'vector dimension' => ['ALTER TABLE synth_meta.diary_job_results ALTER COLUMN embedding TYPE public.vector(768) USING NULL',
                 'typmod|synth_meta|diary_job_results|embedding|vector(384)'],
@@ -310,8 +310,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     public function testUnrelatedExtraObjectsDoNotBlockTheBaseline(): void
     {
         $this->rows('CREATE TABLE synth.schema_owner_extra (id integer PRIMARY KEY)');
-        $this->rows('ALTER TABLE synth_meta.social_task_claims ADD COLUMN extra_note text');
-        $this->rows('CREATE INDEX social_task_claims_extra ON synth_meta.social_task_claims (extra_note)');
+        $this->rows('ALTER TABLE public.core_social_task_claim ADD COLUMN extra_note text');
+        $this->rows('CREATE INDEX social_task_claims_extra ON public.core_social_task_claim (extra_note)');
         $this->assertBootstrapSucceeds();
     }
 
@@ -337,17 +337,17 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         // Retired by the schema redesign: the repair path ran the frozen legacy chain's social task schema step.
         self::markTestSkipped('The legacy upgrade chain is retired by the schema redesign.');
         $this->rows("DELETE FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'");
-        $this->rows('DROP TABLE synth_meta.social_task_claims, synth_meta.social_task_events, synth_meta.social_task_inputs');
+        $this->rows('DROP TABLE public.core_social_task_claim, public.core_social_task_event, public.core_social_task_input');
         // A stray table of the same name makes the legacy social task schema file fail as one statement batch.
-        $this->rows('CREATE TABLE synth_meta.social_task_inputs (unexpected integer)');
+        $this->rows('CREATE TABLE public.core_social_task_input (unexpected integer)');
 
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
         self::assertSame([], $this->recorded());
         self::assertNull($this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
-        self::assertNull($this->value("SELECT to_regclass('synth_meta.social_task_events')"));
+        self::assertNull($this->value("SELECT to_regclass('public.core_social_task_event')"));
 
-        $this->rows('DROP TABLE synth_meta.social_task_inputs');
+        $this->rows('DROP TABLE public.core_social_task_input');
         $this->assertBootstrapSucceeds();
         self::assertSame('20261102001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
     }

@@ -86,8 +86,8 @@ function synthPersistActorEvents($db,array $event): void
     $input=$batch;unset($input['age_ms']);
     $player=array_intersect_key($payload['player'],array_flip(['form_id','origin_plugin','playthrough_id']));
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id'],$batch['batch_id']];
-    $result=$db->execQuery("SELECT b.player_payload,b.input_payload FROM synth_meta.actor_event_batches b
-        JOIN synth_meta.runtime_sessions s ON s.session_id=b.session_id
+    $result=$db->execQuery("SELECT b.player_payload,b.input_payload FROM public.core_actor_event_batch b
+        JOIN public.core_runtime_session s ON s.session_id=b.session_id
         WHERE b.session_id=$1 AND b.generation=$2 AND b.playthrough_id=$3 AND b.batch_id=$4
           AND s.active_generation=b.generation AND s.playthrough_id=b.playthrough_id AND s.state='active'",$owner);
     if ($result===false) throw new RuntimeException('actor_event_batch_read_failed');
@@ -99,10 +99,10 @@ function synthPersistActorEvents($db,array $event): void
         return; // A retry never changes the original context, age or knowledge projection.
     }
     $known=synthBindActorEvents($batch,$payload);
-    $result=$db->execQuery("INSERT INTO synth_meta.actor_event_batches
+    $result=$db->execQuery("INSERT INTO public.core_actor_event_batch
         (session_id,generation,playthrough_id,batch_id,context_sequence,request_id,player_payload,input_payload,capture_age_ms)
         SELECT c.session_id,c.generation,c.playthrough_id,$4,c.snapshot_sequence,$6,$7::jsonb,$8::jsonb,$9
-          FROM synth_meta.context_snapshots c JOIN synth_meta.runtime_sessions s USING(session_id)
+          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
          WHERE c.session_id=$1 AND c.generation=$2 AND c.playthrough_id=$3 AND c.snapshot_sequence=$5
            AND s.active_generation=c.generation AND s.playthrough_id=c.playthrough_id AND s.state='active' RETURNING batch_id",
         [...$owner,$payload['snapshot_sequence'],$event['request_id'],json_encode($player,JSON_THROW_ON_ERROR),

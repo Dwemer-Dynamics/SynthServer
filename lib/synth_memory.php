@@ -47,19 +47,19 @@ function synth_memory_enqueue($db, int $batchId): ?int
         if (!$result) throw new RuntimeException('Unable to recheck memory input');
         if (!pg_fetch_assoc($result)) return null;
         $result = @pg_query_params($connection,
-            "UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
+            "UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
                 last_error='lease_expired',updated_at=clock_timestamp()
              WHERE actor_identity_id=$1 AND job_type='memory' AND memory_batch_id IS NOT NULL AND state IN ('pending','running')
                 AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$batch['actor_identity_id']]);
         if (!$result) throw new RuntimeException('Unable to retire expired memory jobs');
         $result = @pg_query_params($connection,
-            "INSERT INTO synth_meta.worker_jobs (job_type,session_id,request_id,turn_id,generation,actor_identity_id,
+            "INSERT INTO public.core_worker_job (job_type,session_id,request_id,turn_id,generation,actor_identity_id,
                 memory_batch_id,payload,deadline_at)
              SELECT 'memory',$1,$2,$3,$4,$5,$6,jsonb_build_object('context_sequence',$7::bigint),clock_timestamp()+INTERVAL '10 minutes'
              WHERE NOT EXISTS (SELECT 1 FROM synth_meta.memory_summaries WHERE batch_id=$6)
-               AND NOT EXISTS (SELECT 1 FROM synth_meta.worker_jobs WHERE memory_batch_id=$6
+               AND NOT EXISTS (SELECT 1 FROM public.core_worker_job WHERE memory_batch_id=$6
                     AND session_id=$1 AND request_id=$2 AND state='failed')
-               AND (SELECT count(*) FROM synth_meta.worker_jobs WHERE actor_identity_id=$5
+               AND (SELECT count(*) FROM public.core_worker_job WHERE actor_identity_id=$5
                     AND job_type='memory' AND memory_batch_id IS NOT NULL AND state IN ('pending','running'))<2
              ON CONFLICT DO NOTHING RETURNING id",
             [$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
@@ -68,7 +68,7 @@ function synth_memory_enqueue($db, int $batchId): ?int
         $created = pg_fetch_assoc($result);
         if ($created) return intval($created['id']);
         $result = @pg_query_params($connection,
-            "SELECT id FROM synth_meta.worker_jobs WHERE memory_batch_id=$1 AND session_id=$2 AND request_id=$3
+            "SELECT id FROM public.core_worker_job WHERE memory_batch_id=$1 AND session_id=$2 AND request_id=$3
              AND generation=$4 AND job_type='memory' AND state IN ('pending','running')",
             [$batchId,$event['session_id'],$event['request_id'],$event['generation']]);
         if (!$result) throw new RuntimeException('Unable to read existing memory job');
@@ -83,7 +83,7 @@ function synth_memory_claim($db, int $jobId): ?array
     return $db->withNativeRequestLock(static function ($connection, array $event) use ($db,$jobId) {
         if (!synth_memory_lock_job_input($connection,$db,$event,$jobId)) return null;
         $result = @pg_query_params($connection,
-            "UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
+            "UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
                 last_error='lease_expired',updated_at=clock_timestamp()
              WHERE id=$1 AND session_id=$2 AND request_id=$3 AND generation=$4 AND job_type='memory'
                 AND memory_batch_id IS NOT NULL AND state IN ('pending','running')
@@ -92,7 +92,7 @@ function synth_memory_claim($db, int $jobId): ?array
         if (!$result) throw new RuntimeException('Unable to retire expired memory attempt');
         $token = bin2hex(random_bytes(16));
         $result = @pg_query_params($connection,
-            "UPDATE synth_meta.worker_jobs SET state='running',attempts=attempts+1,lease_token=$1,
+            "UPDATE public.core_worker_job SET state='running',attempts=attempts+1,lease_token=$1,
                 lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
              WHERE id=$2 AND job_type='memory' AND memory_batch_id IS NOT NULL
                 AND session_id=$3 AND request_id=$4 AND generation=$5
@@ -127,7 +127,7 @@ function synth_memory_checkpoint_locked($connection,array $event,int $jobId,stri
 {
     $result=@pg_query_params($connection,"SELECT j.payload,j.memory_batch_id,
             encode(sha256(convert_to(b.input_payload::text,'UTF8')),'hex') AS input_sha256
-        FROM synth_meta.worker_jobs j JOIN synth_meta.memory_batches b ON b.id=j.memory_batch_id
+        FROM public.core_worker_job j JOIN synth_meta.memory_batches b ON b.id=j.memory_batch_id
         WHERE j.id=$1 AND j.job_type='memory' AND j.session_id=$2 AND j.request_id=$3 AND j.generation=$4
             AND j.turn_id=$5 AND j.payload->>'context_sequence'=$6 AND j.state='running' AND j.lease_token=$7
             AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp() FOR UPDATE OF j",
@@ -159,7 +159,7 @@ function synth_memory_checkpoint_locked($connection,array $event,int $jobId,stri
     $summary=synth_memory_validate_summary($summary);
     $checkpoint=['schema'=>'synth.memory.checkpoint.v1','job_id'=>$jobId,'batch_id'=>intval($job['memory_batch_id']),
         'input_sha256'=>$job['input_sha256'],'summary'=>$summary,'summary_sha256'=>hash('sha256',$summary)];
-    $written=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET
+    $written=@pg_query_params($connection,"UPDATE public.core_worker_job SET
         payload=jsonb_set(payload,'{accepted_summary}',$2::jsonb),updated_at=clock_timestamp()
         WHERE id=$1 AND state='running' AND lease_token=$3 AND lease_until>clock_timestamp()
             AND deadline_at>clock_timestamp() AND NOT (payload ? 'accepted_summary') RETURNING id",
@@ -189,7 +189,7 @@ function synth_memory_complete($db, int $jobId, string $token, string $summary, 
         if ($checkpoint!==null && !hash_equals($checkpoint,$summary)) throw new LogicException('Native memory checkpoint mismatch');
         $result = @pg_query_params($connection,
             "WITH accepted AS (
-                UPDATE synth_meta.worker_jobs SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
+                UPDATE public.core_worker_job SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
                 WHERE id=$1 AND job_type='memory' AND session_id=$2 AND request_id=$3 AND generation=$4
                     AND state='running' AND lease_token=$5 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()
                     AND payload->>'context_sequence'=$7
@@ -207,7 +207,7 @@ function synth_memory_complete($db, int $jobId, string $token, string $summary, 
 // Claims and publication serialize with archive decisions, then recheck complete source visibility.
 function synth_memory_lock_job_input($connection, $db, array $event, int $jobId): bool
 {
-    $result=@pg_query_params($connection,'SELECT actor_identity_id,memory_batch_id FROM synth_meta.worker_jobs
+    $result=@pg_query_params($connection,'SELECT actor_identity_id,memory_batch_id FROM public.core_worker_job
         WHERE id=$1 AND session_id=$2 AND request_id=$3 AND generation=$4 AND job_type=\'memory\'
             AND memory_batch_id IS NOT NULL',[$jobId,$event['session_id'],$event['request_id'],$event['generation']]);
     if (!$result) throw new RuntimeException('Unable to resolve memory job owner');
@@ -228,7 +228,7 @@ function synth_memory_fail($db, int $jobId, string $token): bool
 {
     return $db->withNativeRequestLock(static function ($connection, array $event) use ($jobId,$token) {
         $result = @pg_query_params($connection,
-            "UPDATE synth_meta.worker_jobs SET state=CASE WHEN attempts>=3 OR deadline_at<=clock_timestamp() THEN 'failed' ELSE 'pending' END,
+            "UPDATE public.core_worker_job SET state=CASE WHEN attempts>=3 OR deadline_at<=clock_timestamp() THEN 'failed' ELSE 'pending' END,
                 lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
                 last_error='provider_failed',updated_at=clock_timestamp()
              WHERE id=$1 AND job_type='memory' AND session_id=$2 AND request_id=$3 AND generation=$4
@@ -424,7 +424,7 @@ function synth_memory_response_context($connection, $db, array $event): ?array
             'context_payload'=>json_encode($scene['payload'],JSON_THROW_ON_ERROR)] : null;
     }
     $result=@pg_query_params($connection,'SELECT target_identity_id,playthrough_id,context_payload
-        FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
+        FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$3',
         [$event['session_id'],$event['generation'],$event['context_sequence']]);
     if (!$result) throw new RuntimeException('Unable to read memory owner');
     return pg_fetch_assoc($result) ?: null;
@@ -477,7 +477,7 @@ function synth_memory_rebuild_batch($db): ?int
             || @pg_query_params($connection,'INSERT INTO synth_meta.memory_batch_rebuilds(batch_id,root_batch_id) VALUES($1,$2)',[$id,$source['root_id']])===false) {
             throw new RuntimeException('Unable to freeze rebuild dependencies');
         }
-        if (@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='cancelled',lease_token=NULL,lease_until=NULL,
+        if (@pg_query_params($connection,"UPDATE public.core_worker_job SET state='cancelled',lease_token=NULL,lease_until=NULL,
             last_error='memory_rebuilt',updated_at=clock_timestamp() WHERE job_type='memory' AND state IN ('pending','running')
                 AND memory_batch_id=$1",[$source['id']])===false) throw new RuntimeException('Unable to retire replaced memory work');
         return intval($id);

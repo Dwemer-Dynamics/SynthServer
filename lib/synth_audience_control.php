@@ -64,7 +64,7 @@ function synth_audience_locked_session(\PgSql\Connection $connection, string $se
         "SELECT r.audience_intent, r.audience_reset_epoch, r.state, r.active_generation,
                 r.capabilities ? 'dialogue.everyone' AS capable,
                 (SELECT value FROM synth.conf_opts WHERE id='synth_mode') AS mode
-           FROM synth_meta.runtime_sessions r WHERE r.session_id=$1 FOR UPDATE OF r",
+           FROM public.core_runtime_session r WHERE r.session_id=$1 FOR UPDATE OF r",
         [$sessionId]));
     if (!$row || $row['state'] !== 'active') throw new DomainException('runtime_not_initialized');
     if (intval($row['active_generation']) !== $generation) throw new DomainException('stale_generation');
@@ -95,7 +95,7 @@ function synth_audience_set(\PgSql\Connection $connection, string $sessionId, in
     if ($intent === 'everyone' && !$audience['mode_allows_everyone']) throw new DomainException('audience_mode_incompatible');
     if ($audience['intent'] !== $intent) {
         $updated = synth_audience_query($connection,
-            "UPDATE synth_meta.runtime_sessions SET audience_intent=$3
+            "UPDATE public.core_runtime_session SET audience_intent=$3
               WHERE session_id=$1 AND active_generation=$2 AND state='active'",
             [$sessionId, $generation, $intent]);
         if (pg_affected_rows($updated) !== 1) throw new RuntimeException('audience_write_failed');
@@ -127,7 +127,7 @@ function synth_audience_set_global_mode(\PgSql\Connection $connection, string $m
         [$mode]);
     if (in_array($mode, SYNTH_AUDIENCE_MODES, true)) return 0;
     return pg_affected_rows(synth_audience_query($connection,
-        "UPDATE synth_meta.runtime_sessions
+        "UPDATE public.core_runtime_session
             SET audience_intent='normal', audience_reset_epoch=audience_reset_epoch+1
           WHERE state='active'",
         []));

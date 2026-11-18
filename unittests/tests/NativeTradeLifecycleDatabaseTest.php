@@ -17,7 +17,7 @@ final class TradeFixtureDatabase extends sql
             $this->execQuery("SET LOCAL statement_timeout='2s'");
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))', [$event['session_id']]);
             synth_protocol_assert_request_active(); $canonical = synth_protocol_canonical_json($event);
-            $result = $this->execQuery('SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result = $this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'], $event['request_id'], $canonical, hash('sha256', $canonical)]);
             if (!pg_fetch_assoc($result)) throw new LogicException('trade_fixture_canonical_owner_changed');
@@ -63,10 +63,10 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
         $this->database = $GLOBALS['db'] = new TradeFixtureDatabase();
         $playerId = synth_protocol_actor_identity_id($this->database, $this->payload['player']);
         $actorId = synth_protocol_actor_identity_id($this->database, $this->payload['target']);
-        $this->database->execQuery("INSERT INTO synth_meta.runtime_sessions(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,
+        $this->database->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,
             active_generation,capabilities,state,active_turn_id,active_turn_sequence) VALUES($1,'save-001','fo4','flat','fixture','fixture',1,$2::jsonb,'active','trade-turn',7)",
             [self::SESSION, json_encode(self::CAPABILITIES)]);
-        $this->database->execQuery("INSERT INTO synth_meta.context_snapshots(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload)
+        $this->database->execQuery("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload)
             VALUES($1,1,7,'save-001',$2,$3,'[]'::jsonb,$4::jsonb)", [self::SESSION, $playerId, $actorId, json_encode($this->payload)]);
         $this->persist($this->event);
         $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true; $GLOBALS['SYNTH_NAME'] = $this->payload['target']['display_name'];
@@ -97,7 +97,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
         $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES($1,$2,$3,$4,$5,$6,'claimed') ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$5,event_type=$6",
             [$event['session_id'], $event['request_id'], $event['turn_id'], $event['generation'], $hash, $event['type']]);
-        $this->database->execQuery("INSERT INTO synth_meta.protocol_events(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
+        $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
             VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT(session_id,request_id) DO UPDATE SET canonical_event=$6::jsonb,event_sha256=$7,event_type=$5",
             [$event['session_id'], $event['request_id'], $event['turn_id'], $event['generation'], $event['type'], $canonical, $hash]);
         $GLOBALS['SYNTH_REQUEST_EVENT'] = synth_normalize_json_event($event);
@@ -120,7 +120,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
 
     private function intentRows(): array
     {
-        $rows = []; $result = $this->database->execQuery("SELECT action_id,state,action_name,capability,arguments FROM synth_meta.action_intents WHERE action_name='Barter' ORDER BY created_at, action_id");
+        $rows = []; $result = $this->database->execQuery("SELECT action_id,state,action_name,capability,arguments FROM public.core_action_intent WHERE action_name='Barter' ORDER BY created_at, action_id");
         while ($row = pg_fetch_assoc($result)) $rows[] = $row;
         return $rows;
     }
@@ -165,13 +165,13 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
 
     private function terminal(string $actionId): ?array
     {
-        $row = pg_fetch_assoc($this->database->execQuery('SELECT status,result FROM synth_meta.action_terminal_results WHERE action_id=$1', [$actionId]));
+        $row = pg_fetch_assoc($this->database->execQuery('SELECT status,result FROM public.core_action_result WHERE action_id=$1', [$actionId]));
         return $row ?: null;
     }
 
     private function state(string $actionId): string
     {
-        return pg_fetch_assoc($this->database->execQuery('SELECT state FROM synth_meta.action_intents WHERE action_id=$1', [$actionId]))['state'];
+        return pg_fetch_assoc($this->database->execQuery('SELECT state FROM public.core_action_intent WHERE action_id=$1', [$actionId]))['state'];
     }
 
     public function testOfferIsAValidatedBarterIntentAndMovesNothing(): void
@@ -227,7 +227,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
     {
         $action = $this->offer();
         // The 60 s deadline passed two minutes ago (speech queued, slow answer): inside the 5 minute grace.
-        $this->database->execQuery("UPDATE synth_meta.action_intents SET deadline_at=NOW()-INTERVAL '2 minutes' WHERE action_id=$1", [$action['action_id']]);
+        $this->database->execQuery("UPDATE public.core_action_intent SET deadline_at=NOW()-INTERVAL '2 minutes' WHERE action_id=$1", [$action['action_id']]);
         $told = $this->answer($this->sale($action, 'trade-result-late-grace'));
         self::assertSame('completed', $told['detail']['outcome']);
     }
@@ -284,7 +284,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
 
         // The server enforces the deadline itself: a Yes after expiry is refused and writes nothing.
         $late = $this->offer('Nuka-Cola', 11);
-        $this->database->execQuery("UPDATE synth_meta.action_intents SET deadline_at=NOW()-INTERVAL '6 minutes' WHERE action_id=$1", [$late['action_id']]);
+        $this->database->execQuery("UPDATE public.core_action_intent SET deadline_at=NOW()-INTERVAL '6 minutes' WHERE action_id=$1", [$late['action_id']]);
         try { synth_protocol_persist_action_result($this->database, $this->sale($late, 'trade-result-expired-yes'), self::SESSION); self::fail('An expired sale was accepted'); }
         catch (DomainException $error) { self::assertSame('trade_offer_expired', $error->getMessage()); }
         self::assertNull($this->terminal($late['action_id']));

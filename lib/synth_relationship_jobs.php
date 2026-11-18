@@ -65,7 +65,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             return $schema===($playerOnly ? 'synth.relationship.evaluation.v2' : 'synth.relationship.evaluation.v1') ? intval($existing['id']) : null;
         }
         $canonical=synth_protocol_canonical_json($event);
-        $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.protocol_events p JOIN synth_meta.request_executions e
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e
             ON e.session_id=p.session_id AND e.request_id=p.request_id AND e.request_sha256=p.event_sha256 AND e.state=\'complete\'
             WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4',
             [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
@@ -130,7 +130,7 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
 {
     $result=@pg_query_params($connection,'SELECT i.* FROM synth_meta.relationship_evaluations i
         JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation AND e.state=\'complete\'
-        JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
+        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
             AND p.canonical_event=i.input_payload->\'owner\'
         WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$4 AND i.context_sequence=$5
             AND i.input_sha256=encode(sha256(convert_to(i.input_payload::text,\'UTF8\')),\'hex\')',
@@ -216,11 +216,11 @@ function synth_relationship_queue_has_capacity($connection, array $actorIds): bo
         $scope="job_type='relationship' AND (relationship_evaluation_id IS NOT NULL OR relationship_interaction_id IS NOT NULL)
             AND state IN ('pending','running') AND (actor_identity_id=$1 OR relationship_interaction_id IN (
                 SELECT id FROM synth_meta.relationship_interaction_evaluations WHERE listener_identity_id=$1))";
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
             last_error='lease_expired',updated_at=clock_timestamp() WHERE $scope
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$actorId]);
         if (!$result) throw new RuntimeException('Unable to retire relationship queue work');
-        $result=@pg_query_params($connection,"SELECT count(*) AS n FROM synth_meta.worker_jobs WHERE $scope",[$actorId]);
+        $result=@pg_query_params($connection,"SELECT count(*) AS n FROM public.core_worker_job WHERE $scope",[$actorId]);
         if (!$result) throw new RuntimeException('Unable to read relationship queue capacity');
         if (intval(pg_fetch_assoc($result)['n'])>=2) $capacity=false;
     }
@@ -235,14 +235,14 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
         $input=synth_relationship_evaluation_input($connection,$db,$event,$evaluationId);
         if (!$input) {
             // Persist terminal scheduling evidence so an invalid frozen input cannot monopolize recovery.
-            $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
+            $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
                 (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,state,last_error,deadline_at)
                 SELECT 'relationship',i.id,i.session_id,i.request_id,$4,i.generation,i.actor_identity_id,
                     jsonb_build_object('context_sequence',i.context_sequence),'stale','input_unavailable',clock_timestamp()
                 FROM synth_meta.relationship_evaluations i
                 WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$5 AND i.context_sequence=$6
                     AND i.input_payload->'owner'=$7::jsonb
-                    AND NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs j WHERE j.relationship_evaluation_id=i.id)",
+                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job j WHERE j.relationship_evaluation_id=i.id)",
                 [$evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
                     $event['context_sequence'],synth_protocol_canonical_json($event)]);
             if (!$result) throw new RuntimeException('Unable to retire invalid relationship evaluation');
@@ -253,16 +253,16 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
         if (isset(json_decode($input['input_payload'],true,flags:JSON_THROW_ON_ERROR)['received_gift'])) {
             $jobPayload['schema']='synth.relationship.gift-job.v1';
         }
-        $result=@pg_query_params($connection,"INSERT INTO synth_meta.worker_jobs
+        $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
             (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,deadline_at)
             SELECT 'relationship',$1,$2,$3,$4,$5,$6,$7::jsonb,clock_timestamp()+INTERVAL '10 minutes'
-            WHERE NOT EXISTS(SELECT 1 FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1 AND state IN ('ready','failed','cancelled','stale'))
+            WHERE NOT EXISTS(SELECT 1 FROM public.core_worker_job WHERE relationship_evaluation_id=$1 AND state IN ('ready','failed','cancelled','stale'))
                 AND $8::boolean
             ON CONFLICT DO NOTHING RETURNING id",[$evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],
                 $event['generation'],$input['actor_identity_id'],json_encode($jobPayload,JSON_THROW_ON_ERROR),$capacity ? 't' : 'f']);
         if (!$result) throw new RuntimeException('Unable to enqueue relationship evaluation');
         $created=pg_fetch_assoc($result); if ($created) return intval($created['id']);
-        $result=@pg_query_params($connection,"SELECT id FROM synth_meta.worker_jobs WHERE relationship_evaluation_id=$1
+        $result=@pg_query_params($connection,"SELECT id FROM public.core_worker_job WHERE relationship_evaluation_id=$1
             AND state IN ('pending','running')",[$evaluationId]);
         if (!$result) throw new RuntimeException('Unable to read relationship evaluation replay');
         $existing=pg_fetch_assoc($result); return $existing ? intval($existing['id']) : null;
@@ -274,7 +274,7 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
 {
     if (!synthRelationshipUsesDedicatedConnector()) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId) {
-        $result=@pg_query_params($connection,"SELECT relationship_evaluation_id FROM synth_meta.worker_jobs
+        $result=@pg_query_params($connection,"SELECT relationship_evaluation_id FROM public.core_worker_job
             WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL
                 AND session_id=$2 AND request_id=$3 AND generation=$4 AND turn_id=$5 AND payload->>'context_sequence'=$6",
             [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']]);
@@ -282,7 +282,7 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
         $job=pg_fetch_assoc($result); if (!$job) return null;
         $input=synth_relationship_evaluation_input($connection,$db,$event,intval($job['relationship_evaluation_id']));
         if (!$input) {
-            $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs j SET state='stale',lease_token=NULL,lease_until=NULL,
+            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='stale',lease_token=NULL,lease_until=NULL,
                 last_error='input_unavailable',updated_at=clock_timestamp() FROM synth_meta.relationship_evaluations i
                 WHERE j.id=$1 AND j.relationship_evaluation_id=i.id AND i.input_payload->'owner'=$2::jsonb
                     AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))",
@@ -290,11 +290,11 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
             if (!$result) throw new RuntimeException('Unable to retire invalid relationship input');
             return null;
         }
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='failed',lease_token=NULL,lease_until=NULL,
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
             last_error='lease_expired',updated_at=clock_timestamp() WHERE id=$1 AND state IN ('pending','running')
                 AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$jobId]);
         if (!$result) throw new RuntimeException('Unable to retire expired relationship attempt');
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='running',attempts=attempts+1,lease_token=$2,
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='running',attempts=attempts+1,lease_token=$2,
             lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
             WHERE id=$1 AND attempts<3 AND deadline_at>clock_timestamp() AND available_at<=clock_timestamp()
                 AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) RETURNING id,lease_token,attempts",
@@ -308,7 +308,7 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
 function synth_relationship_fail_evaluation($db, int $jobId, string $token): bool
 {
     return $db->withNativeRequestLock(static function($connection,array $event) use($jobId,$token) {
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state=CASE WHEN attempts>=3 OR deadline_at<=clock_timestamp()
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN attempts>=3 OR deadline_at<=clock_timestamp()
             THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
             last_error='provider_failed',updated_at=clock_timestamp() WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL
                 AND session_id=$2 AND request_id=$3 AND generation=$4 AND payload->>'context_sequence'=$5
@@ -376,7 +376,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
     if (!synthRelationshipUsesDedicatedConnector()) throw new LogicException('Dedicated relationships are disabled');
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId,$token,$modelText) {
         $result=@pg_query_params($connection,"SELECT relationship_evaluation_id,state,lease_token,
-            (lease_until>clock_timestamp() AND deadline_at>clock_timestamp()) AS live FROM synth_meta.worker_jobs
+            (lease_until>clock_timestamp() AND deadline_at>clock_timestamp()) AS live FROM public.core_worker_job
             WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL AND session_id=$2
                 AND request_id=$3 AND generation=$4 AND turn_id=$5 AND payload->>'context_sequence'=$6",
             [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']]);
@@ -414,7 +414,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         if (pg_fetch_assoc($result)) throw new LogicException('Relationship response already evaluated');
         $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_results r JOIN synth_meta.relationship_evaluations i ON i.id=r.evaluation_id
             WHERE i.session_id=$1 AND i.generation=$2 AND i.response_history_event_id=$3 AND i.actor_identity_id=$4 AND r.history_event_id>(
-                SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
+                SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
             [$event['session_id'],$event['generation'],$evaluation['response_history_event_id'],$evaluation['actor_identity_id'],$event['context_sequence']]);
         if (!$result) throw new RuntimeException('Unable to check concurrent relationship result');
         if (pg_fetch_assoc($result)) throw new LogicException('Native relationship evaluation is stale');
@@ -451,7 +451,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
             if ($change['delta']===0 && $type===null) continue;
             synth_relationship_publish($db,$subject['label'],$change['delta'],$type,$subject['relationship']['revision'] ?? null,$input['source_ids'],$resultId);
         }
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
             WHERE id=$1 AND state='running' AND lease_token=$2 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id",[$jobId,$token]);
         if (!$result || !pg_fetch_assoc($result)) throw new SYNTHProtocolCancelled('relationship_lease_lost');
         return $resultId;

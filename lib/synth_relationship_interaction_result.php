@@ -29,7 +29,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId,$token,$modelText) {
         $result=@pg_query_params($connection,"SELECT j.state,j.lease_token,
                 (j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()) AS live,i.*
-            FROM synth_meta.worker_jobs j JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
+            FROM public.core_worker_job j JOIN synth_meta.relationship_interaction_evaluations i ON i.id=j.relationship_interaction_id
                 AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
                 AND i.context_sequence::text=j.payload->>'context_sequence' AND i.speaker_identity_id=j.actor_identity_id
             WHERE j.id=$1 AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
@@ -83,7 +83,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             }
             $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.relationship_revisions r JOIN synth_meta.history_events h ON h.id=r.history_event_id
                 WHERE h.session_id=$1 AND h.generation=$2 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4
-                    AND h.id>(SELECT history_event_id FROM synth_meta.context_snapshots WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
+                    AND h.id>(SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
                 [$event['session_id'],$event['generation'],$actor,$subject,$event['context_sequence']]);
             if (!$result) throw new RuntimeException('Unable to check interaction perspective head');
             if (pg_fetch_assoc($result)) throw new LogicException('NPC interaction perspective is stale');
@@ -137,7 +137,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             if (@pg_query_params($connection,'INSERT INTO synth_meta.relationship_revision_sources VALUES($1,$2)',
                 [$revisionId,$job['response_history_event_id']])===false) throw new RuntimeException('Unable to publish interaction source');
         }
-        $result=@pg_query_params($connection,"UPDATE synth_meta.worker_jobs SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
+        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
             WHERE id=$1 AND state='running' AND lease_token=$2 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id",[$jobId,$token]);
         if (!$result || !pg_fetch_assoc($result)) throw new SYNTHProtocolCancelled('interaction_lease_lost');
         return $resultId;

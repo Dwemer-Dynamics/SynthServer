@@ -22,11 +22,11 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
                 c.context_payload,c.player_identity_id,c.target_identity_id,c.audience_identity_ids,
                 octet_length(e.response_body) AS response_bytes,visible.receipt_speech
             FROM native_history visible JOIN synth_meta.history_events h ON h.id=visible.history_event_id
-            JOIN synth_meta.context_snapshots c ON c.session_id=h.session_id AND c.generation=h.generation
+            JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
                 AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
             JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id
                 AND e.generation=h.generation
-            JOIN synth_meta.protocol_events p ON p.session_id=e.session_id AND p.request_id=e.request_id
+            JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                 AND p.event_sha256=e.request_sha256
             WHERE h.id IN (".implode(',',$ids).") AND h.event_payload->>'type'='chat'
@@ -67,9 +67,9 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
                 $selection=null;
                 if (synth_protocol_owns_rechat($request)) {
                     $selected=@pg_query_params($connection,"SELECT selected.role,selected.identity
-                        FROM synth_meta.rechat_selections selected
-                        JOIN synth_meta.rechat_continuations continuation USING(session_id,request_id)
-                        JOIN synth_meta.rechat_chains chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
+                        FROM public.core_rechat_selection selected
+                        JOIN public.core_rechat_continuation continuation USING(session_id,request_id)
+                        JOIN public.core_rechat_chain chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
                         WHERE selected.session_id=$1 AND selected.request_id=$2 AND selected.prepared_at IS NOT NULL
                             AND selected.role IN ('npc','narrator') AND continuation.status='reserved'
                             AND chain.generation=$3 AND chain.context_sequence=$4 AND chain.turn_id=$5 AND chain.runtime_variant=$6",
@@ -77,7 +77,7 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
                     if (!$selected || !($selection=pg_fetch_assoc($selected))) continue;
                     $selection['identity']=$selection['identity']===null ? null : json_decode($selection['identity'],true,flags:JSON_THROW_ON_ERROR);
                 }
-                $routeResult=@pg_query_params($connection,'SELECT * FROM synth_meta.response_routes
+                $routeResult=@pg_query_params($connection,'SELECT * FROM public.core_dialogue_route
                     WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4 AND utterance_id IS NOT NULL',
                     [$source['session_id'],$source['request_id'],$source['generation'],$source['context_sequence']]);
                 if (!$routeResult) throw new RuntimeException('history_speech_route_query_failed');

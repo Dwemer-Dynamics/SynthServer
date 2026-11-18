@@ -13,8 +13,8 @@ function synth_protocol_inventory_rechat_parent($db, array $root, array $event):
         // Candidate selection reads the root before reservation. Older rechat nodes must already be prepared.
         if ($event['request_id']!==$root['request_id']) {
             $result=@pg_query_params($connection,"SELECT d.chain_id,d.parent_request_id,d.parent_line_id,d.parent_response_sha256
-                FROM synth_meta.rechat_continuations d JOIN synth_meta.rechat_selections s USING(session_id,request_id)
-                JOIN synth_meta.rechat_chains c ON c.id=d.chain_id AND c.session_id=d.session_id
+                FROM public.core_rechat_continuation d JOIN public.core_rechat_selection s USING(session_id,request_id)
+                JOIN public.core_rechat_chain c ON c.id=d.chain_id AND c.session_id=d.session_id
                 WHERE d.session_id=$1 AND d.request_id=$2 AND d.status='reserved'
                     AND s.prepared_at IS NOT NULL AND s.role IN ('npc','narrator')
                     AND c.generation=$3 AND c.context_sequence=$4 AND c.turn_id=$5 AND c.runtime_variant=$6",
@@ -70,21 +70,21 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
             $row=$db->fetchOne("SELECT i.action_name,i.capability,i.request_id AS origin_request_id,a.full_form_id,a.origin_plugin,a.playthrough_id,
                     e.canonical_event,t.result,b.full_form_id AS recipient_form_id,
                     b.origin_plugin AS recipient_plugin,b.playthrough_id AS recipient_playthrough_id
-                FROM synth_meta.action_intents i
+                FROM public.core_action_intent i
                 JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
                 LEFT JOIN synth.actor_identities b ON b.id=i.target_identity_id AND b.game='fo4'
-                JOIN synth_meta.action_terminal_results t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
+                JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
                     AND t.status=t.result->>'status'
-                JOIN synth_meta.protocol_events e ON e.session_id=i.session_id AND e.request_id=i.request_id
+                JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=i.turn_id
                 JOIN synth_meta.request_executions parent ON parent.session_id=e.session_id AND parent.request_id=e.request_id
                     AND parent.state IN ('streaming','complete')
-                JOIN synth_meta.protocol_events receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request
+                JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request
                     AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id AND receipt.event_type='action_result'
                     AND receipt.canonical_event=$canonical::jsonb AND receipt.canonical_event->'payload'->'result'=t.result
                 JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id
                     AND accepted.request_id=receipt.request_id AND accepted.state IN ('claimed','streaming','complete')
-                JOIN synth_meta.runtime_sessions r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+                JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
                 WHERE i.action_id=$action AND i.idempotency_key=$idempotency AND i.session_id=$session
                     AND i.turn_id=$turn AND i.generation=$generation AND i.state='complete'
                     AND r.state='active' AND r.active_generation=$generation AND $turnOwner AND r.runtime_variant=$variant");

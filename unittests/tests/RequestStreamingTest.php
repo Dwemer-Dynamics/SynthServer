@@ -42,7 +42,7 @@ final class RequestStreamingTest extends TestCase
                 if(str_contains($sql,'origin_request_id')) {
                     preg_match("/i.action_id='([^']+)'/",$sql,$match);return $this->rows[$match[1]??'']??null;
                 }
-                if(str_contains($sql,'action_terminal_results')) return $this->terminal;
+                if(str_contains($sql,'core_action_result')) return $this->terminal;
                 if(str_contains($sql,'JOIN synth.actor_identities')) return $this->owner;
                 if(str_contains($sql,'canonical_event')) return ['protocol_version'=>'2','context_sequence'=>'7'];
                 return ['action_id'=>'action-1','idempotency_key'=>'idem-action-1','state'=>'pending','action_name'=>$this->owner['action_name']];
@@ -1287,7 +1287,7 @@ final class RequestStreamingTest extends TestCase
             'capabilities'=>['runtime.retirement'],'payload'=>new stdClass()];
         $this->assertSame('accepted',synth_protocol_claim_request($db,$event)['status']);
         $sql = implode("\n",$db->writes);
-        $this->assertStringContainsString('INSERT INTO synth_meta.runtime_sessions',$sql);
+        $this->assertStringContainsString('INSERT INTO public.core_runtime_session',$sql);
         $this->assertStringContainsString("SET state='halted'",$sql);
         $this->assertStringContainsString("WHERE session_id='session:retired'",$sql);
         $this->assertSame('COMMIT',end($db->writes));
@@ -1338,7 +1338,7 @@ final class RequestStreamingTest extends TestCase
                 public function fetchOne(string $sql): ?array {
                     $this->queries[]=$sql;
                     if (str_contains($sql, 'pg_advisory_xact_lock')) return ['locked'=>true];
-                    if (str_contains($sql, 'FROM synth_meta.runtime_sessions r')) return [
+                    if (str_contains($sql, 'FROM public.core_runtime_session r')) return [
                         'active_generation'=>2,'state'=>'active','playthrough_id'=>'save:one',
                         'runtime_variant'=>'flat','protocol_version'=>2,'capabilities'=>$this->caps];
                     if (str_contains($sql, 'SELECT turn_id, canonical_event')) return [
@@ -1639,7 +1639,7 @@ final class RequestStreamingTest extends TestCase
             public array $writes=[];
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchOne(string $sql): ?array {
-                if (str_contains($sql,'action_terminal_results')) return $this->terminal;
+                if (str_contains($sql,'core_action_result')) return $this->terminal;
                 if (str_contains($sql,'JOIN synth.actor_identities')) return $this->owner;
                 if (str_contains($sql,'canonical_event')) return ['protocol_version'=>'2','context_sequence'=>'7'];
                 return ['action_id'=>'action-1','idempotency_key'=>'idem-action-1','state'=>'pending'];
@@ -1799,12 +1799,12 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $query): array {
                 if (!$this->locked) throw new LogicException('Read outside native lock');
                 if (str_contains($query,'request_executions')) return ['state'=>'streaming','runtime_state'=>'active','active_generation'=>2];
-                if (str_contains($query,'context_snapshots')) return ['context_payload'=>['player'=>[],'world'=>['game_time_ticks'=>321]]];
+                if (str_contains($query,'core_runtime_context')) return ['context_payload'=>['player'=>[],'world'=>['game_time_ticks'=>321]]];
                 return ['id'=>1];
             }
             public function execQuery(string $query): bool {
                 if (!$this->locked) throw new LogicException('Write outside native lock');
-                $this->writes[]=$query;return !($this->failIntent && str_contains($query,'INSERT INTO synth_meta.action_intents'));
+                $this->writes[]=$query;return !($this->failIntent && str_contains($query,'INSERT INTO public.core_action_intent'));
             }
             public function insert($table,$data): bool {
                 if (!$this->locked || $table!=='eventlog') throw new LogicException('Unowned evidence write');
@@ -1825,7 +1825,7 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame(2000,$db->timeout);
             $this->assertFalse($db->locked);
             $this->assertCount(2,$db->writes);
-            $this->assertStringStartsWith('INSERT INTO synth_meta.action_intents',trim($db->writes[1]));
+            $this->assertStringStartsWith('INSERT INTO public.core_action_intent',trim($db->writes[1]));
             $this->assertStringNotContainsString('COMMIT',implode("\n",$db->writes));
             $this->assertStringNotContainsString('BEGIN',implode("\n",$db->writes));
             $this->assertCount(1,$db->history);
@@ -1878,7 +1878,7 @@ final class RequestStreamingTest extends TestCase
         $db = new class {
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
             public function fetchOne(string $sql): array {
-                if (str_contains($sql, 'context_snapshots')) return ['context_payload' => [
+                if (str_contains($sql, 'core_runtime_context')) return ['context_payload' => [
                     'player' => ['form_id' => '0x00000014', 'origin_plugin' => 'Fallout4.esm', 'playthrough_id' => 'save:one', 'display_name' => 'Player'],
                     'target' => ['form_id' => '0x0001A4D7', 'origin_plugin' => 'Fallout4.esm', 'playthrough_id' => 'save:one', 'display_name' => 'Preston'],
                 ]];
@@ -2696,7 +2696,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): ?array
             {
                 $this->queries[] = $sql;
-                if (str_contains($sql, 'context_snapshots')) {
+                if (str_contains($sql, 'core_runtime_context')) {
                     if (!str_contains($sql, "c.session_id='session:one'") || !str_contains($sql, 'c.generation=2')
                         || !str_contains($sql, 'c.snapshot_sequence=7')) return null;
                     return ['context_payload' => ['player' => $this->actor, 'target' => $this->actor,

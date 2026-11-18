@@ -221,7 +221,7 @@ class PrivateNarratorRepository
             if ($row['state'] !== 'generated') throw new NarratorRejected('receipt_conflict');
             $origin = $this->lockedOne($connection, "SELECT 1 FROM synth_meta.request_executions e
                 JOIN synth_meta.narrator_definitions d ON d.definition_id=$3 AND d.edit_generation=$4
-                JOIN synth_meta.runtime_sessions r ON r.session_id=e.session_id AND r.state='active'
+                JOIN public.core_runtime_session r ON r.session_id=e.session_id AND r.state='active'
                     AND r.active_generation=e.generation AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$6
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$5 AND e.event_type='narrator_turn'
                     AND e.state='complete' AND COALESCE(e.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')",

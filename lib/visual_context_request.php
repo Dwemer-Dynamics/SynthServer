@@ -187,9 +187,9 @@ function synth_visual_validate_runtime($db, array $request): array
 {
     $row = $db->fetchOne(
         "SELECT playthrough_id, runtime_variant, active_generation, active_turn_id, active_turn_sequence, capabilities, state,
-            COALESCE((SELECT e.canonical_event->>'protocol_version' FROM synth_meta.protocol_events e
+            COALESCE((SELECT e.canonical_event->>'protocol_version' FROM public.core_protocol_event e
                 WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.event_type='init' LIMIT 1), '1') AS protocol_version "
-        . 'FROM synth_meta.runtime_sessions r WHERE session_id='
+        . 'FROM public.core_runtime_session r WHERE session_id='
         . $db->escapeLiteral($request['session_id']) . ' LIMIT 1'
     );
     if (!$row || strval($row['state'] ?? '') !== 'active') {
@@ -231,7 +231,7 @@ function synth_visual_validate_runtime($db, array $request): array
         $session = $db->escapeLiteral($request['session_id']);
         $turn = $db->escapeLiteral($request['turn_id']);
         $generation = intval($request['generation']);
-        $anchor = $db->fetchOne("SELECT 1 AS acknowledged FROM synth_meta.protocol_events p
+        $anchor = $db->fetchOne("SELECT 1 AS acknowledged FROM public.core_protocol_event p
             JOIN synth_meta.request_executions e USING (session_id, request_id)
             WHERE p.session_id=$session AND p.generation=$generation AND p.turn_id=$turn
                 AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence'='$sequence'

@@ -99,7 +99,7 @@ function synth_rechat_load_candidates($connection, $db, array $event): array
         JOIN synth.actor_identities a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
             AND lower(a.origin_plugin)=lower(captured.actor->>'origin_plugin')
             AND a.playthrough_id=captured.actor->>'playthrough_id'
-        JOIN synth_meta.runtime_sessions s ON s.session_id=$2 AND s.playthrough_id=a.playthrough_id
+        JOIN public.core_runtime_session s ON s.session_id=$2 AND s.playthrough_id=a.playthrough_id
         JOIN synth.core_npc_master n ON n.actor_identity_id=a.id
         JOIN public.core_profiles p ON p.id=n.profile_id
         ORDER BY captured.ordinal FOR SHARE OF n,p",
@@ -152,8 +152,8 @@ function synth_rechat_select_responder($db, array $event): array
         try {
             $proof=synth_rechat_completed_parent($db,$event);
             if ($proof===null) throw new LogicException('rechat_selection_parent_unavailable');
-            $result=@pg_query_params($connection,"SELECT d.*,c.mode,c.policy,c.terminal_reason AS chain_terminal FROM synth_meta.rechat_continuations d
-                JOIN synth_meta.rechat_chains c ON c.id=d.chain_id AND c.session_id=d.session_id
+            $result=@pg_query_params($connection,"SELECT d.*,c.mode,c.policy,c.terminal_reason AS chain_terminal FROM public.core_rechat_continuation d
+                JOIN public.core_rechat_chain c ON c.id=d.chain_id AND c.session_id=d.session_id
                 WHERE d.session_id=$1 AND d.request_id=$2 AND c.generation=$3 AND c.context_sequence=$4
                     AND c.turn_id=$5 AND c.runtime_variant=$6",
                 [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$event['turn_id'],$event['runtime_variant']]);
@@ -164,7 +164,7 @@ function synth_rechat_select_responder($db, array $event): array
                 || !hash_equals($reservation['parent_response_sha256'],$proof['response_sha256'])) {
                 throw new LogicException('rechat_selection_reservation_unavailable');
             }
-            $result=@pg_query_params($connection,'SELECT * FROM synth_meta.rechat_selections WHERE session_id=$1 AND request_id=$2',
+            $result=@pg_query_params($connection,'SELECT * FROM public.core_rechat_selection WHERE session_id=$1 AND request_id=$2',
                 [$event['session_id'],$event['request_id']]);
             if (!$result) throw new RuntimeException('rechat_selection_replay_query_failed');
             $selected=pg_fetch_assoc($result);
@@ -175,7 +175,7 @@ function synth_rechat_select_responder($db, array $event): array
                 if ($reservation['status']==='reserved' && $terminal===null) {
                     $candidates=synth_rechat_load_candidates($connection,$db,$event);
                     $result=@pg_query_params($connection,"SELECT s.role,s.identity,d.round_number
-                        FROM synth_meta.rechat_selections s JOIN synth_meta.rechat_continuations d USING(session_id,request_id)
+                        FROM public.core_rechat_selection s JOIN public.core_rechat_continuation d USING(session_id,request_id)
                         WHERE d.chain_id=$1 AND d.round_number<$2 ORDER BY d.round_number",
                         [$reservation['chain_id'],$reservation['round_number']]);
                     if (!$result) throw new RuntimeException('rechat_selection_history_query_failed');
@@ -205,14 +205,14 @@ function synth_rechat_select_responder($db, array $event): array
                         }
                     }
                 }
-                $result=@pg_query_params($connection,"INSERT INTO synth_meta.rechat_selections
+                $result=@pg_query_params($connection,"INSERT INTO public.core_rechat_selection
                     (session_id,request_id,role,actor_identity_id,npc_id,profile_id,identity,terminal_reason)
                     VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *",
                     [$event['session_id'],$event['request_id'],$role,$actorId,$npcId,$profileId,
                      $identity===null ? null : json_encode($identity,JSON_THROW_ON_ERROR),$terminal]);
                 if (!$result) throw new RuntimeException('rechat_selection_insert_failed');
                 $selected=pg_fetch_assoc($result);
-                if ($terminal!==null && !@pg_query_params($connection,'UPDATE synth_meta.rechat_chains SET terminal_reason=$2 WHERE id=$1',
+                if ($terminal!==null && !@pg_query_params($connection,'UPDATE public.core_rechat_chain SET terminal_reason=$2 WHERE id=$1',
                     [$reservation['chain_id'],$terminal])) throw new RuntimeException('rechat_selection_terminal_failed');
             }
             $selected['identity']=$selected['identity']===null ? null : json_decode($selected['identity'],true,flags:JSON_THROW_ON_ERROR);
