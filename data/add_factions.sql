@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS  synth.factions (
+CREATE TABLE IF NOT EXISTS  public.core_faction (
     name text,
     formid text PRIMARY KEY,
     vendor_cont text,
@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS  synth.factions (
 );
 
 
-ALTER TABLE synth.factions OWNER TO dwemer;
+ALTER TABLE public.core_faction OWNER TO dwemer;
 
 --
--- Name: TABLE factions; Type: COMMENT; Schema: public; Owner: dwemer
+-- Name: TABLE core_faction; Type: COMMENT; Schema: public; Owner: dwemer
 --
 
-COMMENT ON TABLE synth.factions IS 'factions sent from plugin';
+COMMENT ON TABLE public.core_faction IS 'factions sent from plugin';

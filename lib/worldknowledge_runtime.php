@@ -455,7 +455,7 @@ function synthWorldKnowledgeRecordAudit(object $db, array $trace): void
             $value,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         )) . '::jsonb';
-        $sql = 'INSERT INTO synth.worldknowledge_audit ('
+        $sql = 'INSERT INTO public.core_worldknowledge_audit ('
             . 'algorithm_version,status,request_type,npc_name,input_text,normalized_input,catalog_id,catalog_version,'
             . 'grounded_matches,rejected_candidates,tag_decisions,context_tags,fallback,forced_signals,access_decisions,selected_articles,'
             . 'settings,catalog_checksum,prompt_hash,retrieval_elapsed_ms,elapsed_ms'

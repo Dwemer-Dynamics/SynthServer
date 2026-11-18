@@ -143,7 +143,7 @@ if (!function_exists('synthRollbackPruneFutureData')) {
             'diarylog',
             'actions_issued',
             'moods_issued',
-            'quests',
+            'core_quest',
         ] as $table) {
             synthRollbackDelete($table, "gamets>={$targetGamets}", $stats);
         }

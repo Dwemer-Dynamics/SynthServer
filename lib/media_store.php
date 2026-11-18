@@ -263,7 +263,7 @@ function synth_media_register($db, array $media, array $correlation = []): void
     $sha256 = $db->escapeLiteral($media['sha256']);
     $size = intval($media['size']);
     $result = $db->execQuery(
-        "INSERT INTO synth_meta.media_objects AS existing
+        "INSERT INTO public.core_media_object AS existing
             (media_id, storage_key, content_type, byte_length, sha256, state, request_id,
              turn_id, utterance_id, generation, speaker_identity_id, published_at)
          VALUES ({$mediaId}, {$mediaId}, {$contentType}, {$size}, {$sha256}, 'ready', "
@@ -296,7 +296,7 @@ function synth_media_require_ready($db, array $media): void
         throw new SynthMediaException(503, 'media_database_unavailable', 'Media metadata database is unavailable.');
     }
     $row = $db->fetchOne(
-        'SELECT content_type, byte_length, sha256, state FROM synth_meta.media_objects WHERE media_id='
+        'SELECT content_type, byte_length, sha256, state FROM public.core_media_object WHERE media_id='
         . $db->escapeLiteral($media['media_id']) . ' LIMIT 1'
     );
     if (!$row) {

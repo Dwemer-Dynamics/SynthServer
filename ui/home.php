@@ -251,7 +251,7 @@ $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
 $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
 $hasLocations = synth_home_table_exists($db, 'locations');
 $hasGamePlugins = synth_home_table_exists($db, 'game_plugins');
-$hasQuests = synth_home_table_exists($db, 'quests');
+$hasQuests = synth_home_table_exists($db, 'core_quest');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
 $hasBioTemplates = synth_home_table_exists($db, 'bio_templates');
 $hasWorldKnowledge = synth_home_table_exists($db, 'worldknowledge');
@@ -290,7 +290,7 @@ $wordCloudWords = synth_home_word_cloud_words($wordSourceRows);
 $worldRows = $hasEventlog ? synth_home_rows($db, "SELECT data, location, party, gamets, localts, ts FROM eventlog WHERE type='world_context' ORDER BY gamets DESC, ts DESC LIMIT 1") : [];
 $worldContext = isset($worldRows[0]) ? synth_home_json_object($worldRows[0]['party'] ?? '') : [];
 $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
-$activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM quests ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
+$activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
 $latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, content, people, location, localts, gamets FROM diarylog ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
 $latestDiary = $latestDiaryRows[0] ?? [];
 try {

@@ -1999,7 +1999,7 @@ function DataQuestJournal($quest)
     if (empty($quest)||($quest=="None")||true) {
 
         $results = $snapshot !== null ? synthSnapshotQuestRows($snapshot)
-            : $db->fetchAll("SElECT name,id_quest,briefing,briefing2 as notes, status FROM quests ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC");
+            : $db->fetchAll("SElECT name,id_quest,briefing,briefing2 as notes, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC");
         $finalRow = [];
         foreach ($results as $row) {
             if (isset($finalRow[$row["id_quest"]])) {
@@ -2025,7 +2025,7 @@ function DataQuestJournal($quest)
     } else {
         $lastDialogFull = array();
         $results = $db->fetchAll("SElECT  name,id_quest,briefing,data
-      FROM quests where lower(id_quest)=lower('$quest') or lower(name)=lower('$quest') ");
+      FROM core_quest where lower(id_quest)=lower('$quest') or lower(name)=lower('$quest') ");
         $lastOne = -1;
         $data = array();
         if (!$results) {
@@ -3494,7 +3494,7 @@ function DataGetCurrentTask(string $scope = 'journal')
     $snapshot = $scope==='speaker' ? synth_protocol_speaker_quest_snapshot($db) : synth_protocol_prompt_snapshot($db);
     if (($snapshot['_synth_quest_prompt_scope'] ?? '')==='none') return '';
     $results = $snapshot !== null ? array_slice(synthSnapshotQuestRows($snapshot), 0, 8)
-        : $db->fetchAll("SElECT name, briefing as description,gamets,status FROM quests order by CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets desc LIMIT 8");
+        : $db->fetchAll("SElECT name, briefing as description,gamets,status FROM core_quest order by CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets desc LIMIT 8");
     if (!$results) {
         if ($snapshot !== null) {
             return "\n\n#Active Quests\n" . (array_key_exists('active_quests', $snapshot)

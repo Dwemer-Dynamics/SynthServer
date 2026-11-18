@@ -52,7 +52,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 public ?array $media=null;
                 public function escapeLiteral($value): string { return "'".$value."'"; }
                 public function fetchOne($sql): ?array {
-                    return str_contains($sql,'synth_meta.media_objects') ? $this->media : ['state'=>'running','within_deadline'=>'t'];
+                    return str_contains($sql,'public.core_media_object') ? $this->media : ['state'=>'running','within_deadline'=>'t'];
                 }
             };
             $this->assertSame('pending',synth_tts_resolve_job_status($db,$read,$root)['status']);

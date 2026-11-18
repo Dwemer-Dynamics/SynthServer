@@ -1312,7 +1312,7 @@ final class RequestStreamingTest extends TestCase
             foreach (['main_synth_pipeline.php','gamedata.php'] as $path) {
                 $this->assertStringNotContainsString('synthMaybeHandleIncomingGametsRollback(',file_get_contents(dirname(__DIR__,2).'/'.$path));
             }
-            $this->assertStringContainsString('$db->delete(\'quests\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+            $this->assertStringContainsString('$db->delete(\'core_quest\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
         } finally {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
             $GLOBALS['db'] = $previousDb;
@@ -2370,8 +2370,8 @@ final class RequestStreamingTest extends TestCase
             'objectives' => ['Join Preston Garvey in Sanctuary'],
         ]]);
 
-        $this->assertSame("DELETE FROM synth.quests WHERE sess='save-fo4-001'", $db->queries[0]);
-        $this->assertStringContainsString('INSERT INTO synth.quests', $db->queries[1]);
+        $this->assertSame("DELETE FROM public.core_quest WHERE sess='save-fo4-001'", $db->queries[0]);
+        $this->assertStringContainsString('INSERT INTO public.core_quest', $db->queries[1]);
         $this->assertStringContainsString('When Freedom Calls', $db->queries[1]);
         $this->assertStringContainsString('Join Preston Garvey in Sanctuary', $db->queries[1]);
         $this->assertStringContainsString('save-fo4-001', $db->queries[1]);

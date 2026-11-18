@@ -133,7 +133,7 @@ if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
             );
             try {
                 $rows = $db->fetchAll(
-                    'SELECT name FROM synth.factions WHERE upper(formid) IN (' . implode(',', $quoted) . ')'
+                    'SELECT name FROM public.core_faction WHERE upper(formid) IN (' . implode(',', $quoted) . ')'
                 );
                 foreach ((array)$rows as $row) {
                     $factionSignals[] = (string)($row['name'] ?? '');

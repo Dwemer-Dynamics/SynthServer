@@ -276,7 +276,7 @@ final class QuestAccessPolicyTest extends TestCase
         $decisions = [synthWorldKnowledgeAccessDecision($this->row(), ['knowall']),
             synthWorldKnowledgeAccessDecision($this->row('quest_unreviewed_future'), ['knowall'])];
         synthWorldKnowledgeRecordAudit($db, ['access_decisions' => $decisions]);
-        $this->assertStringContainsString('INSERT INTO synth.worldknowledge_audit', $db->query);
+        $this->assertStringContainsString('INSERT INTO public.core_worldknowledge_audit', $db->query);
         $this->assertStringNotContainsString(self::ADVANCED_SECRET, $db->query);
         $this->assertStringNotContainsString(self::BASIC_SECRET, $db->query);
     }

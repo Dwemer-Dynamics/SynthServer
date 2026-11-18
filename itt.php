@@ -104,7 +104,7 @@ try {
         throw new SynthVisualRequestException(409, 'media_reference_mismatch', 'Media reference does not match the published object.');
     }
     $mediaRow = $db->fetchOne(
-        'SELECT content_type, byte_length, sha256, state FROM synth_meta.media_objects WHERE media_id='
+        'SELECT content_type, byte_length, sha256, state FROM public.core_media_object WHERE media_id='
         . $db->escapeLiteral($media['media_id']) . ' LIMIT 1'
     );
     if (!$mediaRow || strval($mediaRow['state'] ?? '') !== 'ready'

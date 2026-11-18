@@ -144,7 +144,7 @@ $db=new class($published,$cancel) {
     public function escapeLiteral($v): string {return "'".str_replace("'","''",strval($v))."'";}
     public function execQuery($sql) {if(str_contains($sql,'UPDATE synth_meta.request_executions'))$this->completions[]=$sql;return true;}
     public function fetchOne($sql) {
-        if(str_contains($sql,'FROM synth_meta.media_objects'))return ['state'=>'ready','content_type'=>'audio/wav','byte_length'=>$this->published['size'],'sha256'=>$this->published['sha256']];
+        if(str_contains($sql,'FROM public.core_media_object'))return ['state'=>'ready','content_type'=>'audio/wav','byte_length'=>$this->published['size'],'sha256'=>$this->published['sha256']];
         $cancelled=$this->cancel && ($GLOBALS['STT_LAST_DIAGNOSTIC']['stage']??'')==='recognized_empty';
         return ['state'=>$cancelled?'cancelled':'claimed','error_code'=>$cancelled?'turn_cancelled':null,'runtime_state'=>'active','active_generation'=>2,'active_turn_id'=>'turn:stt','active_turn_sequence'=>7];
     }

@@ -1074,7 +1074,7 @@ CREATE SEQUENCE synth.eventlog_rowid_seq
 -- end-statement
 ALTER SEQUENCE synth.eventlog_rowid_seq OWNED BY synth.eventlog.rowid;
 -- end-statement
-CREATE TABLE synth.factions (
+CREATE TABLE public.core_faction (
     name text,
     formid text NOT NULL,
     vendor_cont text,
@@ -1084,7 +1084,7 @@ CREATE TABLE synth.factions (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-COMMENT ON TABLE synth.factions IS 'factions sent from plugin';
+COMMENT ON TABLE public.core_faction IS 'factions sent from plugin';
 -- end-statement
 CREATE TABLE synth.game_plugins (
     plugin_name text NOT NULL,
@@ -1403,7 +1403,7 @@ CREATE TABLE public.core_prompt (
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 -- end-statement
-CREATE TABLE synth.quests (
+CREATE TABLE public.core_quest (
     ts text NOT NULL,
     sess character varying(1024),
     id_quest character varying(1024) NOT NULL,
@@ -1425,14 +1425,14 @@ CREATE TABLE synth.quests (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE SEQUENCE synth.quests_rowid_seq
+CREATE SEQUENCE public.quests_rowid_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.quests_rowid_seq OWNED BY synth.quests.rowid;
+ALTER SEQUENCE public.quests_rowid_seq OWNED BY public.core_quest.rowid;
 -- end-statement
 CREATE TABLE synth.relationship_eval_queue (
     id integer NOT NULL,
@@ -1570,7 +1570,7 @@ CREATE SEQUENCE public.tts_connector_id_seq
 -- end-statement
 ALTER SEQUENCE public.tts_connector_id_seq OWNED BY public.core_tts_connector.id;
 -- end-statement
-CREATE TABLE synth.visual_context (
+CREATE TABLE public.core_visual_context (
     id bigint NOT NULL,
     capture_id text NOT NULL,
     session_id text,
@@ -1611,14 +1611,14 @@ CREATE TABLE synth.visual_context (
     CONSTRAINT visual_context_runtime_variant_check CHECK ((runtime_variant = ANY (ARRAY['flat'::text, 'vr'::text])))
 );
 -- end-statement
-CREATE SEQUENCE synth.visual_context_id_seq
+CREATE SEQUENCE public.visual_context_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.visual_context_id_seq OWNED BY synth.visual_context.id;
+ALTER SEQUENCE public.visual_context_id_seq OWNED BY public.core_visual_context.id;
 -- end-statement
 CREATE TABLE synth.worldknowledge (
     topic character varying NOT NULL,
@@ -1646,7 +1646,7 @@ CREATE TABLE synth.worldknowledge (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE TABLE synth.worldknowledge_audit (
+CREATE TABLE public.core_worldknowledge_audit (
     audit_id bigint NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     algorithm_version text NOT NULL,
@@ -1673,14 +1673,14 @@ CREATE TABLE synth.worldknowledge_audit (
     CONSTRAINT worldknowledge_audit_status_check CHECK ((status = ANY (ARRAY['grounded'::text, 'no_match'::text, 'fallback_succeeded'::text, 'fallback_unresolved'::text, 'fallback_failed'::text, 'fallback_disabled'::text, 'fallback_unconfigured'::text, 'disabled'::text, 'ineligible'::text, 'unavailable'::text, 'not_run'::text, 'legacy'::text])))
 );
 -- end-statement
-CREATE SEQUENCE synth.worldknowledge_audit_audit_id_seq
+CREATE SEQUENCE public.worldknowledge_audit_audit_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.worldknowledge_audit_audit_id_seq OWNED BY synth.worldknowledge_audit.audit_id;
+ALTER SEQUENCE public.worldknowledge_audit_audit_id_seq OWNED BY public.core_worldknowledge_audit.audit_id;
 -- end-statement
 CREATE TABLE synth.worldknowledge_catalogs (
     catalog_id text NOT NULL,
@@ -1972,7 +1972,7 @@ CREATE SEQUENCE synth_meta.history_events_id_seq
 -- end-statement
 ALTER SEQUENCE synth_meta.history_events_id_seq OWNED BY synth_meta.history_events.id;
 -- end-statement
-CREATE TABLE synth_meta.media_objects (
+CREATE TABLE public.core_media_object (
     media_id text NOT NULL,
     cache_key text,
     storage_key text NOT NULL,
@@ -2772,7 +2772,7 @@ CREATE TABLE synth_meta.social_task_inputs (
     CONSTRAINT social_task_inputs_task_id_check CHECK ((task_id ~ '^social:[0-9a-f]{32}$'::text))
 );
 -- end-statement
-CREATE TABLE synth_meta.visual_description_revisions (
+CREATE TABLE public.core_visual_description_revision (
     history_event_id bigint NOT NULL,
     capture_id text NOT NULL,
     actor_identity_id bigint NOT NULL,
@@ -2784,7 +2784,7 @@ CREATE TABLE synth_meta.visual_description_revisions (
     CONSTRAINT visual_description_revisions_input_payload_check CHECK (((jsonb_typeof(input_payload) = 'object'::text) AND (NOT ((input_payload ->> 'schema'::text) IS DISTINCT FROM 'synth.visual.manual.v1'::text))))
 );
 -- end-statement
-CREATE TABLE synth_meta.visual_results (
+CREATE TABLE public.core_visual_result (
     history_event_id bigint NOT NULL,
     capture_id text NOT NULL,
     session_id text NOT NULL,
@@ -2880,7 +2880,7 @@ ALTER TABLE ONLY synth.memory_summary ALTER COLUMN rowid SET DEFAULT nextval('sy
 -- end-statement
 ALTER TABLE ONLY synth.moods_issued ALTER COLUMN rowid SET DEFAULT nextval('synth.moods_issued_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.quests ALTER COLUMN rowid SET DEFAULT nextval('synth.quests_rowid_seq'::regclass);
+ALTER TABLE ONLY public.core_quest ALTER COLUMN rowid SET DEFAULT nextval('public.quests_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY synth.relationship_eval_queue ALTER COLUMN id SET DEFAULT nextval('synth.relationship_eval_queue_id_seq'::regclass);
 -- end-statement
@@ -2892,11 +2892,11 @@ ALTER TABLE ONLY synth.rolemaster ALTER COLUMN rowid SET DEFAULT nextval('synth.
 -- end-statement
 ALTER TABLE ONLY synth.speech ALTER COLUMN rowid SET DEFAULT nextval('synth.speech_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.visual_context ALTER COLUMN id SET DEFAULT nextval('synth.visual_context_id_seq'::regclass);
+ALTER TABLE ONLY public.core_visual_context ALTER COLUMN id SET DEFAULT nextval('public.visual_context_id_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY synth.worldknowledge ALTER COLUMN entry_id SET DEFAULT nextval('synth.worldknowledge_entry_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.worldknowledge_audit ALTER COLUMN audit_id SET DEFAULT nextval('synth.worldknowledge_audit_audit_id_seq'::regclass);
+ALTER TABLE ONLY public.core_worldknowledge_audit ALTER COLUMN audit_id SET DEFAULT nextval('public.worldknowledge_audit_audit_id_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY synth_meta.diary_inputs ALTER COLUMN id SET DEFAULT nextval('synth_meta.diary_inputs_id_seq'::regclass);
 -- end-statement
@@ -4313,7 +4313,7 @@ SELECT pg_catalog.setval('synth.npc_master_id_seq', 2189, true);
 -- end-statement
 SELECT pg_catalog.setval('public.profiles_id_seq', 4, true);
 -- end-statement
-SELECT pg_catalog.setval('synth.quests_rowid_seq', 1, false);
+SELECT pg_catalog.setval('public.quests_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.relationship_eval_queue_id_seq', 1, false);
 -- end-statement
@@ -4329,9 +4329,9 @@ SELECT pg_catalog.setval('public.stt_connector_id_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('public.tts_connector_id_seq', 2, true);
 -- end-statement
-SELECT pg_catalog.setval('synth.visual_context_id_seq', 1, false);
+SELECT pg_catalog.setval('public.visual_context_id_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.worldknowledge_audit_audit_id_seq', 1, false);
+SELECT pg_catalog.setval('public.worldknowledge_audit_audit_id_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.worldknowledge_entry_id_seq', 1015, true);
 -- end-statement
@@ -4414,7 +4414,7 @@ ALTER TABLE ONLY synth.descriptions_custom
 ALTER TABLE ONLY synth.descriptions
     ADD CONSTRAINT descriptions_pkey PRIMARY KEY (plugin, baseid);
 -- end-statement
-ALTER TABLE ONLY synth.factions
+ALTER TABLE ONLY public.core_faction
     ADD CONSTRAINT factions_pkey PRIMARY KEY (formid);
 -- end-statement
 ALTER TABLE ONLY synth.game_plugins
@@ -4462,13 +4462,13 @@ ALTER TABLE ONLY public.core_stt_connector
 ALTER TABLE ONLY public.core_tts_connector
     ADD CONSTRAINT tts_connector_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth.visual_context
+ALTER TABLE ONLY public.core_visual_context
     ADD CONSTRAINT visual_context_capture_id_key UNIQUE (capture_id);
 -- end-statement
-ALTER TABLE ONLY synth.visual_context
+ALTER TABLE ONLY public.core_visual_context
     ADD CONSTRAINT visual_context_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth.worldknowledge_audit
+ALTER TABLE ONLY public.core_worldknowledge_audit
     ADD CONSTRAINT worldknowledge_audit_pkey PRIMARY KEY (audit_id);
 -- end-statement
 ALTER TABLE ONLY synth.worldknowledge_catalogs
@@ -4531,10 +4531,10 @@ ALTER TABLE ONLY synth_meta.history_events
 ALTER TABLE ONLY synth_meta.history_events
     ADD CONSTRAINT history_events_pkey PRIMARY KEY (id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.media_objects
+ALTER TABLE ONLY public.core_media_object
     ADD CONSTRAINT media_objects_cache_key_key UNIQUE (cache_key);
 -- end-statement
-ALTER TABLE ONLY synth_meta.media_objects
+ALTER TABLE ONLY public.core_media_object
     ADD CONSTRAINT media_objects_pkey PRIMARY KEY (media_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_batch_control_events
@@ -4774,16 +4774,16 @@ ALTER TABLE ONLY synth_meta.social_task_inputs
 ALTER TABLE ONLY synth_meta.social_task_inputs
     ADD CONSTRAINT social_task_inputs_pkey PRIMARY KEY (task_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_description_revisions
+ALTER TABLE ONLY public.core_visual_description_revision
     ADD CONSTRAINT visual_description_revisions_pkey PRIMARY KEY (history_event_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_capture_id_key UNIQUE (capture_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_pkey PRIMARY KEY (history_event_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_session_id_request_id_key UNIQUE (session_id, request_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.worker_jobs
@@ -4873,23 +4873,23 @@ CREATE INDEX idx_speech_utterance_id ON synth.speech USING btree (utterance_id);
 -- end-statement
 CREATE INDEX memory_summary_tsv_idx ON synth.memory_summary USING gin (native_vec);
 -- end-statement
-CREATE INDEX visual_context_actor_idx ON synth.visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL);
+CREATE INDEX visual_context_actor_idx ON public.core_visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL);
 -- end-statement
-CREATE INDEX visual_context_cell_idx ON synth.visual_context USING btree (lower(cell_id), active, captured_at DESC);
+CREATE INDEX visual_context_cell_idx ON public.core_visual_context USING btree (lower(cell_id), active, captured_at DESC);
 -- end-statement
-CREATE INDEX visual_context_image_idx ON synth.visual_context USING btree (image_sha256);
+CREATE INDEX visual_context_image_idx ON public.core_visual_context USING btree (image_sha256);
 -- end-statement
-CREATE INDEX visual_context_location_idx ON synth.visual_context USING btree (lower(worldspace_name), lower(location_name), active, captured_at DESC);
+CREATE INDEX visual_context_location_idx ON public.core_visual_context USING btree (lower(worldspace_name), lower(location_name), active, captured_at DESC);
 -- end-statement
-CREATE INDEX visual_context_media_idx ON synth.visual_context USING btree (media_id) WHERE (media_id IS NOT NULL);
+CREATE INDEX visual_context_media_idx ON public.core_visual_context USING btree (media_id) WHERE (media_id IS NOT NULL);
 -- end-statement
-CREATE INDEX visual_context_runtime_request_idx ON synth.visual_context USING btree (session_id, generation, request_id, captured_at DESC);
+CREATE INDEX visual_context_runtime_request_idx ON public.core_visual_context USING btree (session_id, generation, request_id, captured_at DESC);
 -- end-statement
-CREATE INDEX visual_context_subject_idx ON synth.visual_context USING btree (subject_type, subject_key, active, captured_at DESC);
+CREATE INDEX visual_context_subject_idx ON public.core_visual_context USING btree (subject_type, subject_key, active, captured_at DESC);
 -- end-statement
-CREATE INDEX worldknowledge_audit_created_idx ON synth.worldknowledge_audit USING btree (created_at DESC);
+CREATE INDEX worldknowledge_audit_created_idx ON public.core_worldknowledge_audit USING btree (created_at DESC);
 -- end-statement
-CREATE INDEX worldknowledge_audit_status_idx ON synth.worldknowledge_audit USING btree (status, created_at DESC);
+CREATE INDEX worldknowledge_audit_status_idx ON public.core_worldknowledge_audit USING btree (status, created_at DESC);
 -- end-statement
 CREATE INDEX worldknowledge_catalog_lookup_idx ON synth.worldknowledge USING btree (catalog_id, catalog_version) WHERE (source_kind = 'factory'::text);
 -- end-statement
@@ -4919,7 +4919,7 @@ CREATE UNIQUE INDEX history_events_quest_batch_owner ON synth_meta.history_event
 -- end-statement
 CREATE INDEX history_events_quest_observation_owner ON synth_meta.history_events USING btree (session_id, generation, playthrough_id, id DESC) WHERE ((event_payload ->> 'type'::text) = 'quest_observation'::text);
 -- end-statement
-CREATE INDEX media_objects_dispatch ON synth_meta.media_objects USING btree (state, generation, created_at);
+CREATE INDEX media_objects_dispatch ON public.core_media_object USING btree (state, generation, created_at);
 -- end-statement
 CREATE INDEX memory_batch_rebuilds_root ON synth_meta.memory_batch_rebuilds USING btree (root_batch_id, batch_id);
 -- end-statement
@@ -4961,9 +4961,9 @@ CREATE INDEX runtime_sessions_playthrough_state ON synth_meta.runtime_sessions U
 -- end-statement
 CREATE INDEX social_task_events_task ON synth_meta.social_task_events USING btree (task_id, history_event_id DESC);
 -- end-statement
-CREATE INDEX visual_description_capture_history ON synth_meta.visual_description_revisions USING btree (capture_id, actor_identity_id, history_event_id DESC);
+CREATE INDEX visual_description_capture_history ON public.core_visual_description_revision USING btree (capture_id, actor_identity_id, history_event_id DESC);
 -- end-statement
-CREATE INDEX visual_results_actor_history ON synth_meta.visual_results USING btree (actor_identity_id, history_event_id DESC);
+CREATE INDEX visual_results_actor_history ON public.core_visual_result USING btree (actor_identity_id, history_event_id DESC);
 -- end-statement
 CREATE UNIQUE INDEX worker_jobs_active_memory_batch ON synth_meta.worker_jobs USING btree (memory_batch_id) WHERE ((job_type = 'memory'::text) AND (memory_batch_id IS NOT NULL) AND (state = ANY (ARRAY['pending'::text, 'running'::text, 'ready'::text])));
 -- end-statement
@@ -5029,13 +5029,13 @@ ALTER TABLE ONLY public.core_stt_connector
 ALTER TABLE ONLY public.core_tts_connector
     ADD CONSTRAINT tts_connector_api_badge_id_fkey FOREIGN KEY (api_badge_id) REFERENCES public.core_api_badge(id);
 -- end-statement
-ALTER TABLE ONLY synth.visual_context
+ALTER TABLE ONLY public.core_visual_context
     ADD CONSTRAINT visual_context_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id) ON DELETE SET NULL;
 -- end-statement
-ALTER TABLE ONLY synth.visual_context
-    ADD CONSTRAINT visual_context_media_id_fkey FOREIGN KEY (media_id) REFERENCES synth_meta.media_objects(media_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.core_visual_context
+    ADD CONSTRAINT visual_context_media_id_fkey FOREIGN KEY (media_id) REFERENCES public.core_media_object(media_id) ON DELETE RESTRICT;
 -- end-statement
-ALTER TABLE ONLY synth.visual_context
+ALTER TABLE ONLY public.core_visual_context
     ADD CONSTRAINT visual_context_session_id_fkey FOREIGN KEY (session_id) REFERENCES synth_meta.runtime_sessions(session_id) ON DELETE SET NULL;
 -- end-statement
 ALTER TABLE ONLY synth.worldknowledge
@@ -5134,7 +5134,7 @@ ALTER TABLE ONLY synth_meta.history_events
 ALTER TABLE ONLY synth_meta.history_events
     ADD CONSTRAINT history_events_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.media_objects
+ALTER TABLE ONLY public.core_media_object
     ADD CONSTRAINT media_objects_speaker_identity_id_fkey FOREIGN KEY (speaker_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.memory_batch_control_events
@@ -5500,25 +5500,25 @@ ALTER TABLE ONLY synth_meta.social_task_inputs
 ALTER TABLE ONLY synth_meta.social_task_inputs
     ADD CONSTRAINT social_task_inputs_recipient_identity_id_fkey FOREIGN KEY (recipient_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_description_revisions
+ALTER TABLE ONLY public.core_visual_description_revision
     ADD CONSTRAINT visual_description_revisions_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_description_revisions
-    ADD CONSTRAINT visual_description_revisions_capture_id_fkey FOREIGN KEY (capture_id) REFERENCES synth_meta.visual_results(capture_id);
+ALTER TABLE ONLY public.core_visual_description_revision
+    ADD CONSTRAINT visual_description_revisions_capture_id_fkey FOREIGN KEY (capture_id) REFERENCES public.core_visual_result(capture_id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_description_revisions
+ALTER TABLE ONLY public.core_visual_description_revision
     ADD CONSTRAINT visual_description_revisions_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_actor_identity_id_fkey FOREIGN KEY (actor_identity_id) REFERENCES synth.actor_identities(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_history_event_id_fkey FOREIGN KEY (history_event_id) REFERENCES synth_meta.history_events(id);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_session_id_generation_context_sequence_fkey FOREIGN KEY (session_id, generation, context_sequence) REFERENCES synth_meta.context_snapshots(session_id, generation, snapshot_sequence);
 -- end-statement
-ALTER TABLE ONLY synth_meta.visual_results
+ALTER TABLE ONLY public.core_visual_result
     ADD CONSTRAINT visual_results_session_id_request_id_fkey FOREIGN KEY (session_id, request_id) REFERENCES synth_meta.request_executions(session_id, request_id);
 -- end-statement
 ALTER TABLE ONLY synth_meta.worker_jobs

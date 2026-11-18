@@ -470,7 +470,7 @@ function handleWorldFactionsUpdate(array $data): array
 
     $replace = filter_var($data['replace'] ?? false, FILTER_VALIDATE_BOOLEAN);
     if ($replace) {
-        $db->execQuery("TRUNCATE TABLE synth.factions");
+        $db->execQuery("TRUNCATE TABLE public.core_faction");
     }
 
     $saved = 0;
@@ -491,7 +491,7 @@ function handleWorldFactionsUpdate(array $data): array
         $vendorContSql = synth_db_escape($db, $vendorCont);
 
         $db->execQuery(
-            "INSERT INTO synth.factions (name, formid, vendor_cont) VALUES " .
+            "INSERT INTO public.core_faction (name, formid, vendor_cont) VALUES " .
             "('{$nameSql}', '{$formidSql}', '{$vendorContSql}') " .
             "ON CONFLICT (formid) DO UPDATE SET name=EXCLUDED.name, vendor_cont=EXCLUDED.vendor_cont"
         );
@@ -1252,7 +1252,7 @@ function handleActiveQuestsUpdate(array $data): void
         $ts = time();
     }
     // Legacy telemetry owns only its projection, never a native playthrough's journal.
-    $db->delete('quests', "sess='synth_active_quest'");
+    $db->delete('core_quest', "sess='synth_active_quest'");
 
     $inserted = 0;
     foreach ($quests as $quest) {
@@ -1307,7 +1307,7 @@ function handleActiveQuestsUpdate(array $data): void
         $objectivesJson = json_encode($objectives, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $questJson = json_encode($quest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        $db->insert('quests', [
+        $db->insert('core_quest', [
             'ts' => (string)$ts,
             'gamets' => $gamets,
             'name' => $name,
@@ -1744,7 +1744,7 @@ function synthApplyActorProfileRules(array $currentData, array $data, NpcMaster 
             static fn($formId) => "'" . $db->escape($formId) . "'",
             $factionFormIds
         ));
-        foreach ($db->fetchAll("SELECT name FROM synth.factions WHERE formid IN ({$formIdLiterals})") as $factionRow) {
+        foreach ($db->fetchAll("SELECT name FROM public.core_faction WHERE formid IN ({$formIdLiterals})") as $factionRow) {
             $name = trim((string)($factionRow['name'] ?? ''));
             if ($name !== '') {
                 $factionNames[] = $name;
@@ -2284,7 +2284,7 @@ function handleMarketStockUpdate(array $data): void {
 
     $stockJson = $db->escape(json_encode($stock));
 
-    $sql = "UPDATE synth.factions
+    $sql = "UPDATE public.core_faction
                SET stock = '{$stockJson}'::jsonb,caps=$caps,player_rank=$rank
              WHERE formid = '{$factionFormId}'";
 

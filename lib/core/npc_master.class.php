@@ -1718,7 +1718,7 @@ FROM restore
      */
     public function getAllfactions($where = "TRUE")
     {
-        $query = "SELECT * FROM factions WHERE $where";
+        $query = "SELECT * FROM core_faction WHERE $where";
         return $this->db->fetchAll($query);
     }
 

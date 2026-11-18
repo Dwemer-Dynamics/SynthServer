@@ -90,7 +90,7 @@ function worldknowledgeAuditCountRows(bool $matchedOnly = false, string $status 
 
     try {
         $whereSql = worldknowledgeAuditBuildWhereClause($matchedOnly, $status, $db);
-        $row = $db->fetchOne('SELECT COUNT(*) AS total FROM synth.worldknowledge_audit ' . $whereSql);
+        $row = $db->fetchOne('SELECT COUNT(*) AS total FROM public.core_worldknowledge_audit ' . $whereSql);
         return intval($row['total'] ?? 0);
     } catch (Throwable $exception) {
         Logger::warn("worldknowledge_audit count failed: " . $exception->getMessage());
@@ -117,7 +117,7 @@ function worldknowledgeAuditFetchRows(int $limit = 50, int $offset = 0, bool $ma
                     grounded_matches, rejected_candidates, tag_decisions, context_tags, fallback,
                     forced_signals, access_decisions, selected_articles, settings, prompt_hash,
                     retrieval_elapsed_ms, elapsed_ms
-             FROM synth.worldknowledge_audit
+             FROM public.core_worldknowledge_audit
              ' . $whereSql . '
              ORDER BY created_at DESC
              LIMIT ' . intval($safeLimit) . '

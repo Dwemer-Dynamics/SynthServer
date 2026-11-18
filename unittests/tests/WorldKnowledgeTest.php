@@ -516,7 +516,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             foreach ($poison as $key => $value) $GLOBALS[$key] = $value;
             $manager = new \Synth\Managers\WorldKnowledgeManager($db, ['WORLDKNOWLEDGE_INFINIUM' => false],
                 new \Synth\Core\SettingsRepository($db));
-            $db->execQuery('DELETE FROM synth.worldknowledge_audit');
+            $db->execQuery('DELETE FROM public.core_worldknowledge_audit');
 
             $advancedBlock = $context($manager, $npc('commonwealth,minutemen'), true);
             $this->assertStringContainsString($advanced, $advancedBlock);
@@ -537,7 +537,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
 
             foreach ($poison as $key => $value) $this->assertSame($value, $GLOBALS[$key] ?? null, $key);
             $audit = $db->fetchAll("SELECT status, settings->'sources'->>'enabled' AS source
-                FROM synth.worldknowledge_audit ORDER BY audit_id");
+                FROM public.core_worldknowledge_audit ORDER BY audit_id");
             $this->assertSame(['grounded', 'grounded', 'disabled', 'grounded'], array_column($audit, 'status'));
             $this->assertSame(['core_profile', 'npc', 'core_profile', 'core_profile'], array_column($audit, 'source'));
         } finally {
