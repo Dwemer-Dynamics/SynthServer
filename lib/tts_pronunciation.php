@@ -93,7 +93,7 @@ final class SynthTtsPronunciationDictionary
         $rows = $GLOBALS['db']->fetchAll(
             'SELECT id, source_text, spoken_text, npc_names, races, oghma_tags,
                     is_builtin, enabled, created_at, updated_at
-             FROM synth.' . self::TABLE . '
+             FROM public.' . self::TABLE . '
              ORDER BY is_builtin DESC, LOWER(source_text), id
              LIMIT 1024'
         );
@@ -181,7 +181,7 @@ final class SynthTtsPronunciationDictionary
         }
 
         return $GLOBALS['db']->execQuery(
-            'UPDATE synth.' . self::TABLE . '
+            'UPDATE public.' . self::TABLE . '
              SET enabled = ' . ($enabled ? 'TRUE' : 'FALSE') . ', updated_at = CURRENT_TIMESTAMP
              WHERE id = ' . intval($id)
         ) !== false;
@@ -194,7 +194,7 @@ final class SynthTtsPronunciationDictionary
         }
 
         return $GLOBALS['db']->execQuery(
-            'DELETE FROM synth.' . self::TABLE . '
+            'DELETE FROM public.' . self::TABLE . '
              WHERE id = ' . intval($id) . ' AND is_builtin = FALSE'
         ) !== false;
     }
