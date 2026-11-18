@@ -839,3 +839,13 @@ attribution and hearers. The v2 protocol README describes legacy fallback and co
 ## Conversation continuity and line lifecycle
 
 The optional `dialogue.conversation` capability (v2, with `dialogue.turn_ownership`; acknowledged by `conversation: true` on the init status) adds a client-created `conversation_id` to `input_text`, `input_audio` and every `trigger`. The server stores it with the admitted event, echoes it on every `response_start` on both dialogue lanes, prefers same-conversation history rows when history fills its row limit, and scopes an explicit cancel by it. With it a `speech_receipt` may report `skipped` (stored unheard) and an `interrupted` line stays in context marked ` [cut off]`, never heard. The `cancel` event gains `{"scope","reason","conversation_id"}`; `scope: conversation` revokes every in-flight or completed-undelivered request of that conversation. No schema migration: the id lives in the stored canonical events and `skipped` reuses the `failed` utterance state. The v2 protocol README is the normative text.
+
+## Optional wake-up channel
+
+The optional v2 `notify.wake` capability lets a client that opted in (INI) connect a WebSocket and receive content-free
+hints that stored speech state changed, so its wait for ready speech ends early. It never carries a message, identifier
+or secret, never replaces fetching over this protocol, and never changes a response: polling remains the default and
+the fallback. A server answers the init with status `notify_wake: {"port": N}` only when `bin/notify-server.php` is
+running; otherwise (or for an older server or client) nothing is sent and the client polls as before. Hint frames
+(`synth.notify.hint.v1`: `welcome`, then `wake` with topic `speech`) are defined by
+`protocol/v2/schemas/notify-hint.schema.json`; see `protocol/v2/README.md` and `managers/Notification/README.md`.

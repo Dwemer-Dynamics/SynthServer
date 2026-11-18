@@ -61,6 +61,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | GameRpc | none | missing | TBD |
 | ListenerManager | none | missing | TBD |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
+| Notification (wake-up hints) | `managers/Notification/` (`NotifyServer`, `NotifyPublisher`, `NotifyConfig`, `NotifyHint`) | done (opt-in) | this PR |
 | MemoryManager | `service/processors/native_memory` | in progress | TBD |
 | MessageHandler (durable outbound queue) | `processor/`, response queue UI | missing as a manager | TBD |
 | Narrator | `managers/PrivateNarratorManager.php`, `core/contracts/narrator.php` | in progress | TBD (talking objects) |
@@ -94,7 +95,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | #82 (adapter only); authored relationships #67 |
 | `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | #82 |
 | TTS and profile workers | `service/tts_worker.php`, `processor/*_worker.php` | SYNTH-specific | n/a |
-| `bin/notify-server.php` (WebSocket to the plugin) | none; the client polls | missing | TBD |
+| `bin/notify-server.php` (WebSocket to the plugin) | `bin/notify-server.php`, `managers/Notification/`; opt-in wake-up hint only (`notify.wake`), no message content; the client still fetches over HTTP and polls by default; not started by `service/manager.php` | done (opt-in) | this PR; client: SYNTH `codex/notify-client` |
 | `bin/` maintenance scripts (`message-maintenance`, `npc-biographies`, `item-descriptions`, `oghma-catalog`) | `tools/` (biography, voice catalog, Fallout content import) | SYNTH-specific | n/a |
 
 ## Config, extensions, UI, tests

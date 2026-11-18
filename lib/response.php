@@ -552,6 +552,15 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($socialTasks) $statusPayload['social_tasks'] = true;
     if ($locationAncestry) $statusPayload['location_ancestry'] = true;
     if ($locationCatalog) $statusPayload['location_catalog'] = true;
+    // The wake-up channel is acknowledged only to a v2 init that asked for it and only while it is running, so a
+    // client never tries to connect to a channel that is not there.
+    if (($event['type'] ?? '') === 'init' && ($event['protocol_version'] ?? 1) === 2
+        && str_starts_with($status, 'init_') && str_ends_with($status, '_accepted')
+        && in_array('notify.wake', $event['capabilities'] ?? [], true)) {
+        require_once dirname(__DIR__).'/managers/Notification/NotifyPublisher.php';
+        $notifyPort = \Synth\Managers\Notification\NotifyPublisher::acknowledgedPort();
+        if ($notifyPort !== null) $statusPayload['notify_wake'] = ['port' => $notifyPort];
+    }
     if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
     if ($readingEvents) $statusPayload['reading_events'] = true;
     if ($nativeTurn) $statusPayload['native_turn'] = true;
