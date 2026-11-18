@@ -4,17 +4,20 @@ namespace Synth\Core\Entities;
 
 use Doctrine\ORM\Mapping as ORM;
 
-// Read-only mapping of the two columns settings reads use. The table, its key and every write stay owned by
-// lib/core/database_schema/general_settings.sql, debug/db_updates.php and lib/settings.php; Doctrine never
-// creates, alters, migrates or flushes it.
+// Read-only mapping of the general scope of core_config_setting (the two columns settings reads use). Every write
+// stays in lib/settings.php; Doctrine never creates, alters, migrates or flushes the table.
 #[ORM\Entity(readOnly: true)]
-#[ORM\Table(name: 'general_settings', schema: 'synth')]
+#[ORM\Table(name: 'core_config_setting', schema: 'public')]
 class GeneralSetting
 {
     #[ORM\Id]
     #[ORM\Column(type: 'text')]
+    private string $scope;
+
+    #[ORM\Id]
+    #[ORM\Column(name: 'config_key', type: 'text')]
     private string $id;
 
-    #[ORM\Column(type: 'text', nullable: true)]
+    #[ORM\Column(name: 'config_value', type: 'text', nullable: true)]
     private ?string $value = null;
 }

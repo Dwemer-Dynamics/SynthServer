@@ -838,10 +838,6 @@ column|public|core_plugins|partial_index|integer|int4|NO|0|
 column|public|core_plugins|plugin_name|text|text|NO||
 column|public|core_plugins|small_file_compile_index|integer|int4|NO|0|
 column|public|core_plugins|updated_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
-column|synth|general_settings|description|text|text|YES|''::text|
-column|synth|general_settings|id|text|text|NO||
-column|synth|general_settings|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
-column|synth|general_settings|value|text|text|YES||
 column|public|core_config_preset|created_at|timestamp without time zone|timestamp|NO|CURRENT_TIMESTAMP|
 column|public|core_config_preset|id|integer|int4|NO||
 column|public|core_config_preset|name|character varying|varchar|NO||60
@@ -1637,7 +1633,6 @@ constraint|public|core_item_description_custom|descriptions_custom_pkey|p|t|PRIM
 constraint|public|core_item_description|descriptions_pkey|p|t|PRIMARY KEY (plugin, baseid)
 constraint|public|core_faction|factions_pkey|p|t|PRIMARY KEY (formid)
 constraint|public|core_plugins|game_plugins_pkey|p|t|PRIMARY KEY (plugin_name)
-constraint|synth|general_settings|general_settings_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_config_preset|global_settings_presets_name_check|c|t|CHECK ((length(btrim((name)::text)) > 0))
 constraint|public|core_config_preset|global_settings_presets_pkey|p|t|PRIMARY KEY (id)
 constraint|public|core_config_preset|global_settings_presets_snapshot_check|c|t|CHECK ((jsonb_typeof(snapshot) = 'object'::text))
@@ -1871,7 +1866,6 @@ index|synth|eventlog|idx_eventlog_people_trgm|CREATE INDEX idx_eventlog_people_t
 index|synth|eventlog|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utterance_id ON synth.eventlog USING btree (utterance_id)
 index|public|core_faction|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON public.core_faction USING btree (formid)
 index|public|core_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON public.core_plugins USING btree (plugin_name)
-index|synth|general_settings|general_settings_pkey|CREATE UNIQUE INDEX general_settings_pkey ON synth.general_settings USING btree (id)
 index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
 index|public|core_config_preset|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON public.core_config_preset USING btree (id)
 index|public|core_npc_profile_rule|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON public.core_npc_profile_rule USING btree (id)
@@ -2000,7 +1994,6 @@ table|synth|diarylog|BASE TABLE
 table|synth|eventlog|BASE TABLE
 table|public|core_faction|BASE TABLE
 table|public|core_plugins|BASE TABLE
-table|synth|general_settings|BASE TABLE
 table|public|core_config_preset|BASE TABLE
 table|public|core_npc_profile_rule|BASE TABLE
 table|public|core_location|BASE TABLE

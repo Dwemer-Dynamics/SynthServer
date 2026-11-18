@@ -301,11 +301,11 @@ final class MemoryTest extends DatabaseTestCase
     {
         $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"] = false;
         $testDb = new sql();
-        $testDb->upsertRowOnConflict('general_settings', [
-            'id' => 'FEATURES@MEMORY_EMBEDDING@USE_TEXT2VEC',
-            'value' => 'false',
+        $testDb->upsertRowOnConflict('core_config_setting', [
+            'scope' => 'general', 'config_key' => 'FEATURES@MEMORY_EMBEDDING@USE_TEXT2VEC',
+            'config_value' => 'false',
             'description' => 'Use deterministic PostgreSQL full-text memory recall in this test.',
-        ], 'id');
+        ], 'scope, config_key');
         $testDb->close();
     }
 

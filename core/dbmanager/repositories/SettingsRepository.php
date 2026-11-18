@@ -22,7 +22,7 @@ class SettingsRepository
     public function value(string $id): ?string
     {
         try {
-            $rows = $this->entities()->createQuery('SELECT s.id, s.value FROM '.GeneralSetting::class.' s WHERE s.id = :id')
+            $rows = $this->entities()->createQuery('SELECT s.id, s.value FROM '.GeneralSetting::class." s WHERE s.scope = 'general' AND s.id = :id")
                 ->setParameter('id', $id)->setMaxResults(1)->getArrayResult();
         } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
             // As before: execQuery() has logged the failure, and an unreadable setting reads as absent.
@@ -40,8 +40,8 @@ class SettingsRepository
         $entities = $this->entities(); // loads the Composer autoloader before any Doctrine class is named
         $mapping = (new ResultSetMapping())->addScalarResult('id', 'id')->addScalarResult('value', 'value');
         try {
-            $rows = $entities->createNativeQuery('SELECT id, value FROM synth.general_settings
-                WHERE id = ANY(CAST(? AS text[]))', $mapping)->setParameter(1, $keys)->getScalarResult();
+            $rows = $entities->createNativeQuery("SELECT config_key AS id, config_value AS value FROM public.core_config_setting
+                WHERE scope = 'general' AND config_key = ANY(CAST(? AS text[]))", $mapping)->setParameter(1, $keys)->getScalarResult();
         } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
             throw new \RuntimeException('Unable to read general settings', 0, $error);
         }

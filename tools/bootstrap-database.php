@@ -60,8 +60,8 @@ $seedRows = $db->fetchAll("
     SELECT 'descriptions', COUNT(*), COUNT(DISTINCT lower(plugin || ':' || baseid))
       FROM public.core_item_description
     UNION ALL
-    SELECT 'general_settings', COUNT(*), COUNT(DISTINCT id)
-      FROM synth.general_settings
+    SELECT 'general_settings', COUNT(*), COUNT(DISTINCT config_key)
+      FROM public.core_config_setting WHERE scope = 'general'
 ");
 
 $seedMinimums = [

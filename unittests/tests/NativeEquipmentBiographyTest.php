@@ -27,7 +27,7 @@ final class NativeEquipmentBiographyTest extends TestCase
                 { return "'" . str_replace("'", "''", strval($value)) . "'"; }
                 public function fetchOne(string $sql): array
                 {
-                    if (str_contains($sql, 'general_settings')) return [];
+                    if (str_contains($sql, 'core_config_setting')) return [];
                     $target = str_contains($sql, "npc_name = 'Equipment Fixture Target'");
                     return ['npc_name' => $target ? 'Equipment Fixture Target' : 'Equipment Fixture NPC',
                         'race' => 'Human', 'metadata' => json_encode($target ? $this->target : $this->own),
