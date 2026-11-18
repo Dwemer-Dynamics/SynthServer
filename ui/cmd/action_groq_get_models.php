@@ -21,23 +21,28 @@ if ($method === 'POST') {
 
     // Read JSON data from the request
     $jsonDataInput = json_decode(file_get_contents("php://input"), true);
-    $apiBadgeId = $jsonDataInput['api_badge_id'] ?? null;
+    $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($jsonDataInput['api_key_id'] ?? null);
 
-    if (empty($apiBadgeId)) {
+    if ($apiBadgeId === null) {
         echo json_encode(['error' => 'API badge ID required']);
         exit;
     }
 
     // Fetch the API key from the database
     $apiBadge = new ApiBadge();
-    $badgeRow = $apiBadge->getById((int)$apiBadgeId);
+    $badgeRow = $apiBadge->getById($apiBadgeId);
 
     if (!$badgeRow || empty($badgeRow['api_key'])) {
-        echo json_encode(['error' => 'API key not found for badge ID ' . $apiBadgeId]);
+        echo json_encode(['error' => 'API key not found']);
         exit;
     }
 
-    $apiKey = $badgeRow['api_key'];
+    // The one resolver: a global key is released only for the Groq API's origin.
+    $apiKey = (new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS['db']))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($apiBadgeId), 'https://api.groq.com/openai/v1/models', 'Groq');
+    if ($apiKey === '') {
+        echo json_encode(['error' => 'API key not found']);
+        exit;
+    }
 
     // Set the request headers
     $headers = [
