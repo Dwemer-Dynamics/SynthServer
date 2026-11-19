@@ -6,6 +6,7 @@ Post tasks.
 */
 
 // Helper function to properly check boolean values (handles string "false" from form submissions)
+require_once __DIR__ . '/../lib/classes/Logger.php';
 if (!function_exists('isWorldKnowledgeSettingEnabled')) {
     function isWorldKnowledgeSettingEnabled($value) {
         if ($value === null) return false;
@@ -36,7 +37,7 @@ if ($minimeEnabled) {
     if (in_array($gameRequest[0], ["inputtext", "inputtext_s"])) {
         if (sizeof($memoryInjectionCtx) == 0 && empty($GLOBALS['MEMORY_STRICT_FALLBACK_ATTEMPTED'])) {
             // In case main memory search didnt return resutls because minime activated and user is nt directly asking a question
-            error_log("[POST MEMORY SEARCH]");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'POST MEMORY SEARCH', "");
             $GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"] = true;
 
             $GLOBALS["MEMORY_THRESHOLD_MODIFIER"] = 0.5;
@@ -46,7 +47,7 @@ if ($minimeEnabled) {
                 $gameRequestCopy    = $gameRequest;
                 $gameRequestCopy[0] = "infoaction";
                 $gameRequestCopy[3] = "#MEMORY: {$GLOBALS["SYNTH_NAME"]} remembers this: [$memoryInjection]";
-                error_log("[POST MEMORY SEARCH], memory found ($memoryInjection)");
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'POST MEMORY SEARCH', ", memory found ($memoryInjection)");
                 logEvent($gameRequestCopy, $GLOBALS["SYNTH_NAME"]); // Memory log only avaibale to current NPC.
             }
 
@@ -175,7 +176,7 @@ if ($minimeEnabled) {
             
             $topic = ["generated_tags" => $detectedGenre];
 
-            error_log("[minimePostScene] Detected genre: {$topic["generated_tags"]} from buffer $buffer");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'minimePostScene', "Detected genre: {$topic["generated_tags"]} from buffer $buffer");
         } else {
             Logger::info("[SCENE CLASSIFIER] Disabled, skipping scene genre detection");
         }

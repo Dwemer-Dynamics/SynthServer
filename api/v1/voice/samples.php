@@ -12,6 +12,7 @@ declare(strict_types=1);
 use Synth\Managers\VoiceSample\VoicePreviewManager;
 use Synth\Managers\VoiceSample\VoiceSampleStore;
 
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 ob_start();
 
 /**
@@ -87,7 +88,7 @@ if ($npcId !== null) {
         ]);
         $row = (new VoicePreviewManager($enginePath))->findNpc($npcId);
     } catch (Throwable $e) {
-        error_log('[SYNTH voice samples] NPC lookup failed: ' . get_class($e));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH voice samples', 'NPC lookup failed: ' . get_class($e));
         synthVoiceSamplesRespond(['ok' => false, 'error' => 'The NPC database is unavailable.'], 503);
     }
     if ($row === null) {
@@ -104,7 +105,7 @@ if ($npcId !== null) {
 try {
     $samples = $voice === '' ? [] : VoiceSampleStore::listSamples($enginePath . 'data' . DIRECTORY_SEPARATOR . 'voices', $voice, $withHash);
 } catch (Throwable $e) {
-    error_log('[SYNTH voice samples] List failed: ' . get_class($e));
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH voice samples', 'List failed: ' . get_class($e));
     synthVoiceSamplesRespond(['ok' => false, 'error' => 'Voice samples are unavailable.'], 503);
 }
 $payload = ['ok' => true, 'voice_samples' => $samples, 'count' => count($samples)];

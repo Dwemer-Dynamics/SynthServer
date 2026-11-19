@@ -108,6 +108,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
 | `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |
 | PSR-4 autoload | added in this PR; `require_once` lists still used | in progress | this PR |
+| `lib/Logger` (`Chevo\Lib\Logger`: required classifier, level, caller line, `error_log`) | `Synth\Lib\Logger` in `lib/classes/Logger.php` (PSR-4 `Synth\Lib\`): classifier + level, caller `file:line`, secret redaction, the named `log/` file sinks with rotation, one error/exception/fatal handler installed once. `lib/logger.php` is a shim over it. Direct `error_log` calls are converted in files no other session owns; the rest are listed in the PR | parity (class and handler); call-site conversion continues | this PR |
 | Coding standards | [CODING-STANDARDS.md](CODING-STANDARDS.md) | parity | this PR |
 
 ## In-flight work map
