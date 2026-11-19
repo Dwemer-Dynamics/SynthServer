@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
-// POST /api/v1/save/created: the player made a save. SYNTH has no save-created signal today (the client does
-// not send one), so there is nothing to adapt; the route answers 501 until the signal exists.
-synthApiRefuse(501, 'Not implemented', 'not_implemented');
+use Synth\Api\V1\LegacyEntry;
+
+// POST /api/v1/save/created: the player made a save. The client announces it with a `save_created` event, which main.php
+// routes to api/v2 and records through SessionManager and SaveState.
+LegacyEntry::requireEventType(['save_created']);
+require LegacyEntry::script('main.php');

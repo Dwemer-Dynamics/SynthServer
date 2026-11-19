@@ -32,6 +32,7 @@ $synthApiRoutes = [
     'npc/add' => [['POST'], 'npc/add.php'],
     'books/read' => [['POST'], 'books/read.php'],
     'locations/save' => [['POST'], 'locations/save.php'],
+    'narrator/checkpoint' => [['POST'], 'narrator/checkpoint.php'],
     'tts/studio' => [['POST'], 'tts/studio.php'],
     'tts/voice-preview' => [['POST'], 'tts/voice-preview.php'],
     'tts/voice-sample' => [['POST'], 'tts/voice-sample.php'],

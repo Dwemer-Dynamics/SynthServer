@@ -27,6 +27,9 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
     try {
         // Validated and logged only until the catalog has storage: no row is written, so there is nothing to claim.
         if ($route === 'location_catalog') { synth_api_v2_location_catalog($output, $event); return; }
+        // A save signal carries no turn: it is validated and recorded through the session manager, takes no request claim
+        // and replays freely (the record is idempotent per save).
+        if ($route === 'save_created') { synth_api_v2_save_created($app, $output, $event); return; }
         $legacy(synthPlayer2HealthMarkGameActivity(...));
         $claim = synth_protocol_claim_request($app->db, $event, true);
         if (($claim['status'] ?? '') === 'replay') { synth_protocol_emit_replay($claim); return; }
@@ -64,6 +67,14 @@ function synth_api_v2_location_catalog(ProtocolOutput $output, array $event): vo
     $review = LocationCatalog::review($event['payload']);
     LocationCatalog::logRequest($event, $review);
     $output->ack('location_catalog_accepted', ['detail' => LocationCatalog::detail($review)]);
+}
+
+// The player made a save. SessionManager owns the meaning (SaveState holds the save policy); nothing is stored yet, so
+// the acknowledgement only confirms the signal was accepted for the named playthrough.
+function synth_api_v2_save_created(Bootstrap $app, ProtocolOutput $output, array $event): void
+{
+    $app->sessions()->saveCreated($event);
+    $output->ack('save_created_accepted');
 }
 
 // Legacy compatibility for one adapter call: the game-activity marker (player2 health options), the TTS

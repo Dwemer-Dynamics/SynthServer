@@ -973,6 +973,11 @@ function synth_protocol_validate_payload(string $type, $payload, int $version = 
         $payload=synth_private_narrator_validate_payload($type,$payload);
     } elseif ($type === 'location_catalog') {
         $payload = \Synth\Managers\LocationManager\LocationCatalog::validatePayload($payload);
+    } elseif ($type === 'save_created') {
+        synth_protocol_expect_exact_keys($payload, ['playthrough_id'], [], 'payload');
+        if ($version !== 2 || !synth_protocol_valid_id($payload['playthrough_id'] ?? null)) {
+            synth_protocol_fail('invalid_payload', 422, [['field' => 'payload.playthrough_id', 'issue' => 'invalid_id']]);
+        }
     } elseif ($type === 'cancel') {
         $extended = $version === 2 && (array_key_exists('scope', $payload) || array_key_exists('reason', $payload)
             || array_key_exists('conversation_id', $payload));
@@ -998,7 +1003,7 @@ function synth_protocol_validate_event(array $event): array
 
     $types = ['init', 'input_text', 'input_audio', 'context', 'activate', 'trigger', 'profile_refresh', 'diary_request', 'action_result', 'cancel', 'halt'];
     if ($version === 2) array_push($types,'control','social_task_request','social_task_progress','speech_receipt',
-        'narrator_command','narrator_turn','narrator_receipt','location_catalog');
+        'narrator_command','narrator_turn','narrator_receipt','location_catalog','save_created');
     $valid = in_array($version, [1, 2], true)
         && $event['schema'] === 'synth.event.v' . $version
         && in_array($event['type'], $types, true)
@@ -1068,6 +1073,8 @@ function synth_protocol_validate_event(array $event): array
     if ($event['type'] === 'location_catalog' && !\Synth\Managers\LocationManager\LocationCatalog::isSupported($event))
         synth_protocol_fail('invalid_payload', 422, [['field' => 'capabilities', 'issue' => 'location_catalog_capability_required']]);
     $event['payload'] = synth_protocol_validate_payload($event['type'], $event['payload'], $event['protocol_version']);
+    if ($event['type'] === 'save_created' && (!isset($seen['session.save_created']) || intval($event['context_sequence'] ?? -1) !== 0))
+        synth_protocol_fail('invalid_payload', 422, [['field' => 'capabilities', 'issue' => 'save_created_capability_required']]);
     \Synth\Managers\Conversation\ConversationManager::validateEvent($event, $seen);
     if ($event['type'] === 'action_result' && in_array($event['payload']['result']['schema'] ?? '',
         ['synth.action.result.v2', 'synth.action.transfer-result.v2'], true)) {

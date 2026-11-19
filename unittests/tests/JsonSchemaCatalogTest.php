@@ -2315,4 +2315,24 @@ PHP;
         } finally { @unlink($controlFile); }
         $this->assertStringContainsString('invalid_text',$output);
     }
+
+    public function testSaveCreatedEventIsValidatedAndRecordedThroughTheSessionManager(): void
+    {
+        $root=dirname(__DIR__,2);
+        require_once $root.'/lib/request.php';
+        $event=json_decode(file_get_contents($root.'/protocol/v2/fixtures/valid/save-created.json'),true,flags:JSON_THROW_ON_ERROR);
+        $this->assertSame($event,synth_protocol_validate_event($event));
+        $sessions=new \Synth\Managers\SessionManager(new \Synth\Managers\SaveState(new \Synth\Core\SaveRepository(null)));
+        $this->assertSame(['playthrough_id'=>'playthrough-001','session_id'=>$event['session_id'],'generation'=>$event['generation']],$sessions->saveCreated($event));
+        $files=glob($root.'/protocol/v2/fixtures/invalid/save-created-*.json');
+        $this->assertCount(4,$files);
+        foreach ($files as $file) {
+            $script='require '.var_export($root.'/lib/request.php',true).'; synth_protocol_validate_event(json_decode(file_get_contents('.var_export($file,true).'),true)); echo "ACCEPTED";';
+            $output=strval(shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script)));
+            $this->assertStringNotContainsString('ACCEPTED',$output,basename($file));
+        }
+        $ungranted=$event;$ungranted['capabilities']=[];
+        $this->expectException(\DomainException::class);
+        $sessions->saveCreated($ungranted);
+    }
 }
