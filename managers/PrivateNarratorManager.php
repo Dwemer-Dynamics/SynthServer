@@ -10,7 +10,6 @@ use Synth\Drivers\Tts\TtsWrapper;
 
 require_once dirname(__DIR__).'/core/contracts/narrator.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/PrivateNarratorRepository.php';
-require_once dirname(__DIR__).'/drivers/tts/TtsWrapper.php';
 
 // One private narrator request: a state/select/cancel command, a typed, push-to-talk or scene turn, or the receipt
 // of a reply. Narrator content is kept in its own tables and never becomes NPC dialogue, history, diary or memory.

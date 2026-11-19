@@ -3,8 +3,6 @@
 namespace Synth\Drivers\Llm;
 
 
-require_once __DIR__.'/LlmDriverInterface.php';
-require_once __DIR__.'/OpenAiCompatibleDriver.php';
 
 // Auto Chat's player connector (CORE_CONNECTOR_PLAYER) as one bounded plain-text completion. Unlike
 // OpenAiCompatibleDriver it accepts the Quickstart-managed openaijson row with that row's own transport: timeout,

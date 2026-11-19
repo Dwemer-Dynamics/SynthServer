@@ -73,6 +73,5 @@ if (!in_array($method, $synthApiMethods, true)) {
     return;
 }
 
-require_once __DIR__ . '/v1/LegacyEntry.php';
 require __DIR__ . '/v1/' . $synthApiHandler;
 return;

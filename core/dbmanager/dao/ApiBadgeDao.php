@@ -16,11 +16,8 @@ use Synth\Core\Entities\System\ApiBadge;
 use Synth\Core\SharedApiKeyException;
 use Synth\Core\SharedApiKeyStore;
 
-require_once dirname(__DIR__, 2).'/contracts/ApiKeyRef.php';
-require_once dirname(__DIR__, 2).'/entities/system/ApiBadge.php';
 require_once dirname(__DIR__).'/EntityManagerFactory.php';
 require_once dirname(__DIR__).'/SharedApiKeyStore.php';
-require_once __DIR__.'/ConnectorReferences.php';
 
 /** Lists, reads, creates, edits and deletes API keys in either store. Keys are credentials: nothing here logs one. */
 final class ApiBadgeDao

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Synth\Managers\Notification;
 
-require_once __DIR__ . '/NotifyConfig.php';
-require_once __DIR__ . '/NotifyHint.php';
 
 /**
  * Tells the running notification channel that the plugin should look again. It is a best-effort hint: every call

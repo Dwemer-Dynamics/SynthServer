@@ -19,8 +19,6 @@ use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
 require_once __DIR__.'/EntityManagerFactory.php';
-require_once __DIR__.'/Types/PreciseDateTimeType.php';
-require_once __DIR__.'/dao/ConfigSettingDao.php';
 
 final class Database
 {

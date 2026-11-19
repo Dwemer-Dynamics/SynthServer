@@ -2,9 +2,6 @@
 require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
-require_once dirname(__DIR__).'/managers/LocationManager/LocationCatalog.php';
-require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
-require_once dirname(__DIR__).'/managers/Narrator/NarratorObjectIdentity.php';
 
 const SYNTH_PROTOCOL_MAX_JSON_BYTES = 1048576;
 const SYNTH_PROTOCOL_MAX_JSON_DEPTH = 32;
@@ -283,7 +280,6 @@ function synth_protocol_validate_actor_state($value, string $field, int $version
         $value['actor_stats']=synth_protocol_validate_actor_stats($value['actor_stats'],$field.'.actor_stats');
     }
     if (array_key_exists('actor_condition',$value)) {
-        require_once dirname(__DIR__).'/managers/ContextManager/ActorConditionValidator.php';
         $value['actor_condition']=\Synth\Managers\ContextManager\ActorConditionValidator::validate($value['actor_condition'],$field.'.actor_condition');
     }
     if (array_key_exists('enemy_awareness',$value)) {

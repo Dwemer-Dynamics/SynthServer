@@ -37,7 +37,6 @@ if (file_exists($melotts_pronunciation_file)) {
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use Logger;
 

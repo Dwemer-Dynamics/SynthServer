@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__).'/managers/Narrator/NarratorObjectIdentity.php';
 
 // Private narrator save hook for the shared context claim. A context publication records the lane's applied private
 // narrator state by opaque ID only; a lane's first publication restores it from the exact loaded_context anchor

@@ -23,7 +23,6 @@ final class EntityManagerFactory
         }
         require_once $autoload;
         require_once __DIR__.'/SharedSessionDriver.php';
-        require_once dirname(__DIR__).'/entities/base/AbstractConfigSetting.php';
 
         $config = new Configuration();
         $config->setMetadataDriverImpl(new AttributeDriver([dirname(__DIR__).'/entities/base']));

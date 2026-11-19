@@ -6,12 +6,9 @@ use Synth\Core\PlacedCharacter;
 use Synth\Core\TurnRequest;
 
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
-require_once __DIR__.'/SaveState.php';
 require_once dirname(__DIR__).'/lib/synth_biography.php';
 require_once dirname(__DIR__).'/lib/synth_location.php';
 require_once dirname(__DIR__).'/lib/synth_condition_prompt.php';
-require_once __DIR__.'/ContextManager/ActorConditionValidator.php';
-require_once __DIR__.'/ContextManager/ConditionProjector.php';
 require_once dirname(__DIR__).'/lib/synth_control.php';
 require_once dirname(__DIR__).'/lib/quest_knowledge.php';
 

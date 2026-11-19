@@ -8,7 +8,6 @@ $path = __DIR__ . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $path;
 require_once $path . 'lib/RequestBody.php';
 require_once $path . 'lib/voice_sample.php';
-require_once $path . 'managers/VoiceSample/VoiceSampleStore.php';
 require_once $path . 'lib/runtime_bootstrap.php';
 require_once $path . 'lib/fuz_convert.php';
 require_once $path . 'lib/voice_clone_sync.php';
