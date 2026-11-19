@@ -39,7 +39,7 @@ final class HistoryRead
         }
         $session = $db->fetchOne('SELECT runtime_variant, active_generation, capabilities FROM public.core_runtime_session WHERE session_id='
             . $db->escapeLiteral($sessionId) . ' AND playthrough_id=' . $db->escapeLiteral($playthroughId) . " AND state='active'");
-        if (!is_array($session)) {
+        if (!is_array($session) || $session === []) {
             throw new \DomainException('session not active');
         }
         $generation = intval($session['active_generation']);

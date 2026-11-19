@@ -14,9 +14,10 @@ use Synth\Managers\SaveState\HistoryRead;
 // The small Synth\Lib classes and the two read-only readers behind context/history and npc/view.
 final class ChevoLibAndReadersTest extends DatabaseTestCase
 {
-    protected function tearDown(): void
+    public function tearDown(): void
     {
         PlayerName::set(null);
+        parent::tearDown();
     }
 
     public function testPlayerNameSubstitutesGenericWordsOnly(): void

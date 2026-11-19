@@ -39,7 +39,7 @@ final class NpcViewRead
         }
         $active = $db->fetchOne('SELECT 1 AS active FROM public.core_runtime_session WHERE session_id=' . $db->escapeLiteral($sessionId)
             . ' AND playthrough_id=' . $db->escapeLiteral($playthroughId) . " AND state='active'");
-        if (!is_array($active)) {
+        if (!is_array($active) || $active === []) {
             throw new \DomainException('session not active');
         }
         $entityManager = EntityManagerFactory::forSharedSession($db);
