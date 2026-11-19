@@ -33,7 +33,7 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 | `config` (`index`, `player-tts`) | `ui/global_settings.php`, `conf/` | in progress | #65 |
 | `context/event` | `api/v1/context/event.php` (`context` event via `main.php`) | parity (adapter) | this PR |
 | `dialogue` (`request`, `spoken`, `cancel`) | `api/v1/dialogue/*` adapters over `main.php` (`api/v2` conversation dispatch behind it) | parity (adapter); lifecycle work continues | this PR; TBD (conversation lifecycle) |
-| `editing` (generic edit API) | `/api/v1/edit` answers 501 (`api/v1/editing/index.php`) | missing (501 stub) | TBD (edit API PR) |
+| `editing` (generic edit API) | `api/v1/editing/index.php`: `GET /edit`, `/edit/{entity}/_schema`, list/read/PATCH for the `config` entity (entity, scope, field and key allowlists; management guards; generic errors) | partial (config entity only; no create/delete, no DB-entity editor yet) | this PR |
 | `extensions` | `api/v1/extensions.php`: `GET /extensions`, `POST /extensions/{id}/{enable,disable}`; id checked against the registry allowlist, same-origin guard, generic errors; `ext/relationship_system` kept | parity (list, enable, disable) | this PR |
 | `health` | `api/v1/health.php` over root `health.php` (read-only readiness, 503 contract; `health/{live,db,api-keys-configured,npcs-available,llm}`) | parity (adapter) | this PR; TBD (health notice) |
 | `locations/save` | `api/v1/locations/save.php` (`location_catalog` event via `main.php`; no storage yet) | parity (adapter) | this PR; TBD (locations) |
@@ -56,7 +56,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | ActionsManager (actions, companion orders, confirmed trading) | `functions/`, `lib/synth_*_actions.php` | in progress | TBD (orders/actions, trade confirmation); #68 two-step actions |
 | BookManager | none | in progress | TBD (reading) |
 | CharacterManager | `managers/CharacterManager.php` | in progress | TBD (domain move) |
-| ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
+| ConfigManager (scoped settings) | `managers/ConfigManager/ConfigManager.php` over `ConfigSettingDao`: five storage scopes (get/set/delete/all), validated `setEditable()` from `conf_schema.json`, `explain()` (Global -> profile -> NPC, global-only keys skipped). `lib/settings.php` helpers and the config pages (`global_settings`, `home`, `llm_connectors`, `tts_connectors`, `xtts_clone`) call it | partial: schema-derived definitions, not the dotted-key registry of #65; `getForCharacter`, `applyToGlobals` and `$expected` writes not built | #65, this PR |
 | ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
 | ExtensionManager | none (`ext/relationship_system` legacy) | parity for the config-file model (manifest validation, enable/disable and failure state in `conf/extensions.json`, 2 filters + 2 events, error isolation, auto-disable after 5 consecutive failures, optional deferred events, API and UI); no per-extension tables or handler time limits | this PR |
 | GameRpc | none | missing | TBD |
@@ -103,7 +103,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-| `config/config.inc.tmpl.php` | `conf/` (`conf_loader.php`, `conf_schema.json`) | in progress (moves last) | TBD |
+| `config/config.inc.tmpl.php` | `config/config.inc.tmpl.php` (connection plus `game_id`, `allowed_hosts`) read by `ConfigFile`; `conf/conf.sample.php` stays as the compatibility shim | partial: template and reader done, the runtime bootstrap does not read it yet (bootstrap session) | this PR |
 | `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | parity (reference is `talk-awareness`; page `ui/extensions.php` in Config Hub) | this PR |
 | Health route (`/api/v1/health`) | `api/v1/health.php` over `health.php`, 200 or 503 | parity (adapter) | this PR; TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
