@@ -8,6 +8,7 @@
 // Full Prompt then is $PROMPT_HEAD + $SYNTH_PERS + $COMMAND_PROMPT + CONTEXT + requirement + cue
 
 // Common patterns to use in most functions
+require_once __DIR__ . '/../lib/classes/Logger.php';
 $maxWordsLimit = intval($GLOBALS["MAX_WORDS_LIMIT"] ?? 0);
 $MAXIMUM_WORDS=($maxWordsLimit>0)?"(Maximum {$maxWordsLimit} words)":"";
 $GLOBALS["MAXIMUM_WORDS"] = $MAXIMUM_WORDS;
@@ -47,7 +48,7 @@ if (!function_exists('synthLoadManagedPromptTemplate')) {
             if (class_exists('Logger')) {
                 Logger::warn("[$logContext] Failed to load prompt from database, using hardcoded fallback: " . $e->getMessage());
             } else {
-                error_log("[$logContext] Failed to load prompt from database, using hardcoded fallback: " . $e->getMessage());
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'dialogue_prompt', "[$logContext] Failed to load prompt from database, using hardcoded fallback: " . $e->getMessage());
             }
         }
 

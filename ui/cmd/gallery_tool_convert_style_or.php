@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {
@@ -91,11 +92,11 @@ if ($method === 'POST') {
  
  switch ($mime) {
  case 'image/jpeg':
- error_log("[GALLERY REIMAGINE] Applying filter image jpeg <$mime> on $filteredImagePath");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GALLERY REIMAGINE', "Applying filter image jpeg <$mime> on $filteredImagePath");
  imagejpeg($image, $filteredImagePath) or die(json_encode(["status" => "error", "msg" => "Failed to apply filter"]));
  break;
  case 'image/png':
- error_log("[GALLERY REIMAGINE] Applying filter imagepng <$mime> on $filteredImagePath");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GALLERY REIMAGINE', "Applying filter imagepng <$mime> on $filteredImagePath");
  imagepng($image, $filteredImagePath) or die(json_encode(["status" => "error", "msg" => "Failed to apply filter"]));
  break;
  case 'image/gif':
@@ -113,7 +114,7 @@ if ($method === 'POST') {
  }
 
  if (! file_exists($filteredImagePath)) {
- error_log("[GALLERY REIMAGINE] $filteredImagePath does not exists");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GALLERY REIMAGINE', "$filteredImagePath does not exists");
 
  }
  }
@@ -182,7 +183,7 @@ if ($method === 'POST') {
 
  // Optionally, save the description to a file (uncomment if needed)
  file_put_contents("/tmp/" . uniqid('desc_') . '.txt', $description);
- error_log($description);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_convert_style_or', $description);
  // Step 2: Generate a new image from the description
  $generate_payload = [
  "model" => "google/gemini-2.5-flash-image-preview",

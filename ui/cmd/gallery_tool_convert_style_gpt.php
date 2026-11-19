@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../lib/classes/Logger.php';
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'POST') {
@@ -77,7 +78,7 @@
             "prompt"         => "Convert image-0 to a semi-realistic style, like a high-quality CGI render. Reimagine the whole picture, while preserving concepts like tattos, eye color, hair style, hair color, clothing, make-up and environment. $extra. $hints. $userHint",
         ];
 
-        error_log(print_r($fields["prompt"],true));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_convert_style_gpt', print_r($fields["prompt"],true));
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);

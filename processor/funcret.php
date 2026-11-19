@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 if (!function_exists('synthActionShouldEmitDebugNotification')) {
 	function synthActionShouldEmitDebugNotification($functionCodeName)
 	{
@@ -164,7 +165,7 @@ if (isset($returnFunction[2])) {
 	// Patch. 
 	$returnFunction[2] = trim($returnFunction[2]);
 
-	error_log("[SYNTH] Checking <$functionCodeName> <{$returnFunction[1]}>");
+	\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH', "Checking <$functionCodeName> <{$returnFunction[1]}>");
 
 	$followupEnabled = !empty($followupConfig['enabled']);
 	$followupPrompt = trim(strval($followupConfig['prompt'] ?? ''));
@@ -183,7 +184,7 @@ if (isset($returnFunction[2])) {
 		: 1;
 
 	if ($useFunctionsAgain && $followupChainLimit > 0 && $currentFollowupChainDepth >= $followupChainLimit) {
-		error_log("[SYNTH] Follow-up action chaining disabled for {$functionCodeName}: depth {$currentFollowupChainDepth} reached limit {$followupChainLimit}");
+		\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH', "Follow-up action chaining disabled for {$functionCodeName}: depth {$currentFollowupChainDepth} reached limit {$followupChainLimit}");
 		$useFunctionsAgain = false;
 	}
 

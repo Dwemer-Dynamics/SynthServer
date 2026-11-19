@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 ob_start();
 session_start();
 
@@ -63,6 +64,6 @@ try {
     synthLocalLlmRespond(['ok' => false, 'message' => $e->getMessage()], 400);
 } catch (Throwable $e) {
     // Avoid returning provider responses, submitted credentials, or internal SQL.
-    error_log('[LOCAL LLM SETUP] ' . get_class($e) . ': setup operation failed.');
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'LOCAL LLM SETUP', get_class($e) . ': setup operation failed.');
     synthLocalLlmRespond(['ok' => false, 'message' => 'Local model setup failed. Check the server logs.'], 500);
 }
