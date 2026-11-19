@@ -1461,10 +1461,10 @@ final class RequestStreamingTest extends TestCase
         $root = dirname(__DIR__,2);
         $pipeline = file_get_contents($root.'/main_synth_pipeline.php');
         $this->assertStringContainsString('if ($error instanceof SYNTHProtocolCancelled) throw $error;', $pipeline);
-        foreach (['xtts-fastapi','chatterbox','pockettts','cartesia','inworld'] as $driver) {
-            $this->assertStringContainsString('synth_speech_cache_valid(',file_get_contents($root.'/tts/tts-'.$driver.'.php'));
+        foreach (['XttsFastApi','Chatterbox','PocketTts','Cartesia','Inworld'] as $driver) {
+            $this->assertStringContainsString('synth_speech_cache_valid(',file_get_contents($root.'/drivers/tts/Drivers/'.$driver.'Driver.php'));
         }
-        foreach (array_merge(glob($root.'/stt/*.php'),glob($root.'/tts/*.php')) as $path) {
+        foreach (array_merge(glob($root.'/stt/*.php'),glob($root.'/tts/*.php'),glob($root.'/drivers/tts/Drivers/*.php')) as $path) {
             $source = file_get_contents($path);
             if (!str_contains($source,'synth_speech_')) continue;
             $this->assertStringContainsString("'/lib/provider_stream.php'",$source,$path);
