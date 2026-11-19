@@ -195,13 +195,24 @@ final class ApiV1RoutesTest extends TestCase
         self::assertSame('Route not found', json_decode($body, true)['error'] ?? null);
     }
 
-    public function testUnimplementedRoutesAnswer501(): void
+    // The edit API describes itself without touching the database; every refusal below is decided before any read.
+    public function testEditApiDescribesItselfAndRefusesWhatIsNotAllowlisted(): void
     {
-        foreach ([['GET', '/api/v1/edit'], ['PUT', '/api/v1/edit/npc/1']] as [$method, $path]) {
-            [$status, $body] = $this->call($method, $path, $method === 'GET' ? null : '{}');
-            self::assertSame(501, $status, $path);
-            self::assertSame('not_implemented', json_decode($body, true)['code'] ?? null, $path);
-        }
+        [$status, $body] = $this->call('GET', '/api/v1/edit');
+        self::assertSame(200, $status);
+        $decoded = json_decode($body, true);
+        self::assertSame(['config'], array_column($decoded['entities'], 'name'));
+        self::assertSame(['value'], $decoded['entities'][0]['writable_fields']);
+
+        [$status, $body] = $this->call('PUT', '/api/v1/edit/npc/1', '{}');
+        self::assertSame([404, 'unknown_entity'], [$status, json_decode($body, true)['code'] ?? null]);
+        [$status] = $this->call('GET', '/api/v1/edit/config/a/b');
+        self::assertSame(404, $status);
+        [$status, , $allow] = $this->call('POST', '/api/v1/edit');
+        self::assertSame([405, 'GET, HEAD'], [$status, $allow]);
+        // A cross-origin browser write is refused before the body is read.
+        [$status] = $this->call('PATCH', '/api/v1/edit/config/CONTEXT_HISTORY', '{"value":5}', ['Content-Type: application/json', 'Origin: http://evil.example']);
+        self::assertSame(403, $status);
     }
 
     public function testExtensionRoutesListRefuseAndNeverLeakDetails(): void

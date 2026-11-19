@@ -82,6 +82,20 @@ function synth_home_table_columns($db, string $table): array
     return [];
 }
 
+// A stored setting through ConfigManager; an unreadable table reads as the fallback, as synth_home_value() does.
+function synth_home_setting($db, string $scope, string $key, $fallback = null)
+{
+    try {
+        require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
+        return \Synth\Managers\ConfigManager\ConfigManager::forSession($db)->get($scope, $key) ?? $fallback;
+    } catch (Throwable $e) {
+        if (class_exists('Logger')) {
+            Logger::warn("Home dashboard setting read failed: " . $e->getMessage());
+        }
+    }
+    return $fallback;
+}
+
 function synth_home_value($db, string $query, string $key, $fallback = null)
 {
     try {
@@ -384,8 +398,8 @@ try {
     // Keep runtime fallback.
 }
 
-$currentMode = $hasConfOpts ? synth_home_value($db, "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode' LIMIT 1", 'value', 'STANDARD') : 'STANDARD';
-$currentModelSlot = $hasConfOpts ? (int)synth_home_value($db, "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model' LIMIT 1", 'value', 1) : 1;
+$currentMode = $hasConfOpts ? synth_home_setting($db, 'conf', 'synth_mode', 'STANDARD') : 'STANDARD';
+$currentModelSlot = $hasConfOpts ? (int)synth_home_setting($db, 'conf', 'synth_profile_model', 1) : 1;
 $modelLabels = [1 => 'Standard', 2 => 'Fast', 3 => 'Powerful', 4 => 'Experimental'];
 $currentModel = $modelLabels[$currentModelSlot] ?? 'Standard';
 $ttsConnectorCount = $hasTtsConnector ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_tts_connector", 'total', 0) : 0;
@@ -401,14 +415,17 @@ $latestLocalTimestamp = $latestEvent['localts'] ?? ($latestEvent['ts'] ?? null);
 $falloutStatCategories = synthFalloutStatCategories();
 $falloutStats = [];
 if ($hasConfOpts) {
-    $statIds = array_map(static function (string $statName) use ($db): string {
-        return "'" . $db->escape($statName) . "'";
-    }, synthFalloutStatNames());
-    if ($statIds !== []) {
-        foreach (synth_home_rows($db, "SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key IN (" . implode(',', $statIds) . ")") as $statRow) {
-            $statName = (string)($statRow['id'] ?? '');
-            if ($statName !== '' && is_numeric($statRow['value'] ?? null)) {
-                $falloutStats[$statName] = max(0, (int)$statRow['value']);
+    $statNames = synthFalloutStatNames();
+    if ($statNames !== []) {
+        try {
+            require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
+            $statRows = \Synth\Managers\ConfigManager\ConfigManager::forSession($db)->getMany('conf', array_values($statNames));
+        } catch (Throwable $e) {
+            $statRows = [];
+        }
+        foreach ($statRows as $statName => $statValue) {
+            if (is_numeric($statValue)) {
+                $falloutStats[(string)$statName] = max(0, (int)$statValue);
             }
         }
     }
