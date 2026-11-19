@@ -2,14 +2,18 @@
 
 use PHPUnit\Framework\TestCase;
 use Synth\Workers\Memory\MemoryWorker;
+use Synth\Workers\Memory\MiddleTermWorker;
+use Synth\Workers\Profiles\ProfileAutofillWorker;
 use Synth\Workers\Relationships\RelationshipWorker;
+use Synth\Workers\Speech\SpeechWorker;
 use Synth\Workers\Supervisor\WorkerScheduler;
 use Synth\Workers\WorkerLimits;
 use Synth\Workers\WorkerRegistry;
 use Synth\Workers\WorkerReport;
 
-foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'WorkerRegistry', 'Legacy/LegacyDispatchWorker', 'Memory/MemoryWorker',
-    'Relationships/RelationshipWorker', 'Supervisor/WorkerScheduler'] as $file) {
+foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'WorkerRegistry', 'Legacy/LegacyDispatchWorker', 'Legacy/LegacyTaskWorker',
+    'Memory/MemoryWorker', 'Memory/MiddleTermWorker', 'Profiles/DynamicProfileWorker', 'Profiles/ProfileAutofillWorker',
+    'Player2/Player2HealthWorker', 'Relationships/RelationshipWorker', 'Speech/SpeechWorker', 'Supervisor/WorkerScheduler'] as $file) {
     require_once dirname(__DIR__, 2) . '/workers/' . $file . '.php';
 }
 
@@ -18,11 +22,94 @@ final class WorkerFrameworkTest extends TestCase
 {
     public function testRegistryListsAndCreatesWorkersAndRejectsUnknownNames(): void
     {
-        $this->assertSame(['memory', 'relationship'], WorkerRegistry::names());
+        $this->assertSame(['memory', 'relationship', 'middleterm', 'dynamicprofile', 'player2health', 'tts', 'profile'], WorkerRegistry::names());
         $this->assertInstanceOf(MemoryWorker::class, WorkerRegistry::create('memory'));
         $this->assertSame('relationship', WorkerRegistry::create('relationship')->name());
         $this->expectException(InvalidArgumentException::class);
         WorkerRegistry::create('nope');
+    }
+
+    public function testEveryLaneWorkerIsRegisteredAndHasAFixedCadence(): void
+    {
+        $this->assertSame(['general', 'speech'], array_keys(WorkerRegistry::LANES));
+        $this->assertNull(WorkerRegistry::lane('nope'));
+        foreach (WorkerRegistry::LANES as $workers) {
+            foreach ($workers as $name) {
+                $this->assertContains($name, WorkerRegistry::names());
+                $this->assertArrayHasKey($name, WorkerRegistry::FIXED_SECONDS);
+            }
+        }
+        // The on-demand profile worker is in no lane, so no supervisor polls it.
+        $this->assertSame([], array_intersect(['profile'], array_merge(...array_values(WorkerRegistry::LANES))));
+        $this->assertSame(1, WorkerRegistry::FIXED_SECONDS['tts']);
+    }
+
+    public function testSpeechWorkerLaunchesOneBoundedDispatchWindow(): void
+    {
+        $calls = [];
+        $worker = new SpeechWorker(function (string $script, array $arguments) use (&$calls): array {
+            $calls[] = [basename($script), $arguments];
+            return [0, ''];
+        });
+        $report = $worker->run(new WorkerLimits(5, 10));
+        $this->assertSame([['tts_dispatch.php', ['--loop', '--max-seconds=10']]], $calls);
+        $this->assertSame(WorkerReport::DONE, $report->status());
+
+        $failed = (new SpeechWorker(static fn (string $script, array $arguments): array => [1, '']))->run(new WorkerLimits(1, 10));
+        $this->assertSame(WorkerReport::FAILED, $failed->status());
+    }
+
+    public function testTaskWorkerPassesItsTaskNameToTheTaskDispatcher(): void
+    {
+        $calls = [];
+        $worker = new MiddleTermWorker(function (string $script, array $arguments) use (&$calls): array {
+            $calls[] = [basename($script), $arguments];
+            return [0, "Legacy task completed.\n"];
+        });
+        $report = $worker->run(new WorkerLimits(1, 60));
+        $this->assertSame([['task_dispatch.php', ['middleterm']]], $calls);
+        $this->assertSame(1, $report->unitsDone);
+    }
+
+    public function testProfileWorkerNeedsAJobInsideTheJobDirectory(): void
+    {
+        $launched = false;
+        $launcher = function () use (&$launched): array {
+            $launched = true;
+            return [0, ''];
+        };
+        $this->assertSame(WorkerReport::IDLE, (new ProfileAutofillWorker($launcher))->run(new WorkerLimits(1, 60))->status());
+        $outside = tempnam(sys_get_temp_dir(), 'job') ?: '';
+        try {
+            $report = (new ProfileAutofillWorker($launcher, ['job' => $outside]))->run(new WorkerLimits(1, 60));
+        } finally {
+            @unlink($outside);
+        }
+        $this->assertSame(WorkerReport::IDLE, $report->status());
+        $this->assertFalse($launched);
+        $this->assertSame(0, (new ProfileAutofillWorker())->pendingUnits());
+    }
+
+    public function testProfileWorkerRunsAJobFileFromTheJobDirectory(): void
+    {
+        $directory = dirname(__DIR__, 2) . '/data/tmp/profile_autofill_jobs';
+        if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {
+            $this->markTestSkipped('Job directory unavailable.');
+        }
+        $job = $directory . '/workerframeworktest-' . bin2hex(random_bytes(4)) . '.json';
+        file_put_contents($job, '{}');
+        $calls = [];
+        try {
+            $report = (new ProfileAutofillWorker(function (string $script, array $arguments) use (&$calls): array {
+                $calls[] = [basename($script), $arguments];
+                return [0, ''];
+            }, ['job' => $job]))->run(new WorkerLimits(1, 60));
+        } finally {
+            @unlink($job);
+        }
+        $this->assertSame(WorkerReport::DONE, $report->status());
+        $this->assertSame('profile_autofill_worker.php', $calls[0][0]);
+        $this->assertSame(realpath(dirname($job)) . DIRECTORY_SEPARATOR . basename($job), $calls[0][1][0]);
     }
 
     public function testLimitsRejectNonPositiveValuesAndStopAfterMaxUnits(): void
@@ -97,6 +184,32 @@ final class WorkerFrameworkTest extends TestCase
         $scheduler->record('b', WorkerReport::DONE, 0, 190.0);
         $scheduler->record('b', WorkerReport::DONE, 0, 310.0);
         $this->assertSame(430.0, $scheduler->dueAt('b'));
+    }
+
+    public function testSchedulerKeepsAFixedCadenceWhateverTheRunDid(): void
+    {
+        $scheduler = new WorkerScheduler(['a', 'b'], 2, 30, 120, ['a' => 5, 'b' => 1]);
+        $scheduler->record('b', WorkerReport::DONE, 0, 100.0);
+        $this->assertSame(101.0, $scheduler->dueAt('b'));
+        $scheduler->record('b', WorkerReport::DONE, 0, 101.0);
+        $this->assertSame(102.0, $scheduler->dueAt('b'));
+        $scheduler->record('a', WorkerReport::MORE_PENDING, 3, 110.0);
+        $this->assertSame(115.0, $scheduler->dueAt('a'));
+        // Doing work does not wake a later worker that has its own cadence.
+        $this->assertSame(102.0, $scheduler->dueAt('b'));
+        $scheduler->record('a', WorkerReport::FAILED, 0, 120.0);
+        $this->assertSame(125.0, $scheduler->dueAt('a'));
+    }
+
+    public function testStartScriptDefaultsToTheSupervisorAndKeepsTheManagerBehindAFlag(): void
+    {
+        $script = file_get_contents(dirname(__DIR__, 2) . '/service/start.sh');
+        $this->assertStringContainsString('bin/worker-supervisor.php" --lane="$lane"', $script);
+        $this->assertStringContainsString('run_worker_lane speech 1 --max-seconds=10', $script);
+        $this->assertStringContainsString('run_worker_lane general 5', $script);
+        $this->assertStringContainsString('SYNTH_LEGACY_MANAGER', $script);
+        $this->assertStringContainsString('service/manager.php', $script);
+        $this->assertStringContainsString('nc -lk -s 127.0.0.1', $script);
     }
 
     public function testSchedulerMakesLaterWorkersDueAfterAnEarlierOneDidWork(): void

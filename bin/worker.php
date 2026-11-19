@@ -7,7 +7,8 @@
  *   php bin/worker.php <name> --check
  *   php bin/worker.php <name> [--max-units=N] [--max-seconds=S] [--loop] [--sleep=S]
  *
- * "list" prints the workers. "--check" counts the pending work without calling
+ * "list" prints the workers. "--job=<file>" is the one option a worker may take of its own
+ * (the on-demand "profile" worker). "--check" counts the pending work without calling
  * a provider or writing anything. Otherwise the worker does at most N units
  * (default 1) or S seconds (default 120) of work. Every run prints one JSON
  * line and exits with: 0 done, 3 more work pending, 4 nothing could be done
@@ -46,7 +47,7 @@ if ($name === '' || $name === 'list') {
 }
 
 try {
-    $worker = WorkerRegistry::create($name);
+    $worker = WorkerRegistry::create($name, $options);
     if (isset($options['check'])) {
         $pending = $worker->pendingUnits();
         echo json_encode(['worker' => $name, 'units_pending' => $pending], JSON_THROW_ON_ERROR) . PHP_EOL;

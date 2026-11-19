@@ -10,6 +10,9 @@
  *   up to `maxIdleSeconds`; a run that did work resets the wait.
  * - Workers listed after one that did work become due at once, because they
  *   may work on what it produced.
+ * - A worker with a fixed cadence ignores all of the above: it runs again that
+ *   many seconds after each run, whatever the run did. This keeps the interval
+ *   of a job that used to run on a timer, such as the legacy manager's five-second tick.
  */
 declare(strict_types=1);
 
@@ -28,12 +31,14 @@ final class WorkerScheduler
 
     /**
      * @param list<string> $workers In the order they feed each other; all are due at once.
+     * @param array<string, int> $fixedSeconds Seconds between runs, by worker name, for workers with a fixed cadence.
      */
     public function __construct(
         private readonly array $workers,
         private readonly int $pendingSeconds = 2,
         private readonly int $idleSeconds = 30,
         private readonly int $maxIdleSeconds = 300,
+        private readonly array $fixedSeconds = [],
     ) {
         if ($workers === [] || $pendingSeconds < 0 || $idleSeconds < 1 || $maxIdleSeconds < $idleSeconds) {
             throw new InvalidArgumentException('The scheduler needs at least one worker and idle <= max idle.');
@@ -84,6 +89,12 @@ final class WorkerScheduler
             throw new InvalidArgumentException("Unknown worker '{$worker}'.");
         }
 
+        if (isset($this->fixedSeconds[$worker])) {
+            $this->dueAt[$worker] = $now + $this->fixedSeconds[$worker];
+
+            return;
+        }
+
         if ($status === WorkerReport::MORE_PENDING) {
             $this->dueAt[$worker] = $now + $this->pendingSeconds;
             $this->idleWait[$worker] = $this->idleSeconds;
@@ -97,6 +108,9 @@ final class WorkerScheduler
 
         if ($unitsDone > 0) {
             foreach (array_slice($this->workers, (int) array_search($worker, $this->workers, true) + 1) as $later) {
+                if (isset($this->fixedSeconds[$later])) {
+                    continue;
+                }
                 $this->dueAt[$later] = min($this->dueAt[$later], $now);
                 $this->idleWait[$later] = $this->idleSeconds;
             }

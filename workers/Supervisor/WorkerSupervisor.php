@@ -6,13 +6,15 @@
  *
  * Each run is its own PHP process, so a crash or leak never takes the supervisor
  * down and every run starts with fresh settings and a fresh database connection.
- * The supervisor itself never opens the database. One supervisor runs per
- * installation: a second one finds the lock file held and exits.
+ * The supervisor itself never opens the database. One supervisor runs per lane
+ * (see WorkerRegistry::LANES) in an installation: a second one for the same lane
+ * finds the lock file held and exits. The default lane keeps the original file names.
  */
 declare(strict_types=1);
 
 namespace Synth\Workers\Supervisor;
 
+use InvalidArgumentException;
 use RuntimeException;
 use Synth\Workers\WorkerReport;
 
@@ -23,6 +25,11 @@ final class WorkerSupervisor
 
     private const WORKER_SCRIPT = __DIR__ . '/../../bin/worker.php';
     private const HEARTBEAT_SECONDS = 30;
+
+    public const DEFAULT_LANE = 'general';
+
+    private readonly string $heartbeatFile;
+    private readonly string $lockFile;
 
     private bool $stopRequested = false;
 
@@ -41,7 +48,14 @@ final class WorkerSupervisor
         private readonly WorkerScheduler $scheduler,
         private readonly array $workers,
         private readonly int $maxSeconds = 120,
+        string $lane = self::DEFAULT_LANE,
     ) {
+        if (preg_match('/^[a-z]+$/', $lane) !== 1) {
+            throw new InvalidArgumentException('A lane name is lowercase letters only.');
+        }
+        $suffix = $lane === self::DEFAULT_LANE ? '' : '-' . $lane;
+        $this->heartbeatFile = dirname(self::HEARTBEAT_FILE) . '/worker-supervisor' . $suffix . '.json';
+        $this->lockFile = dirname(self::LOCK_FILE) . '/worker-supervisor' . $suffix . '.lock';
         $this->startedAt = microtime(true);
     }
 
@@ -81,7 +95,7 @@ final class WorkerSupervisor
         }
 
         self::log('Stopped.');
-        @unlink(self::HEARTBEAT_FILE);
+        @unlink($this->heartbeatFile);
         flock($this->lock, LOCK_UN);
 
         return true;
@@ -151,12 +165,12 @@ final class WorkerSupervisor
             'workers' => $runs,
         ];
 
-        $temporary = self::HEARTBEAT_FILE . '.' . getmypid() . '.tmp';
+        $temporary = $this->heartbeatFile . '.' . getmypid() . '.tmp';
         if (file_put_contents($temporary, json_encode($heartbeat, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) === false) {
             self::log("Unable to write {$temporary}.");
             return;
         }
-        rename($temporary, self::HEARTBEAT_FILE);
+        rename($temporary, $this->heartbeatFile);
     }
 
     /**
@@ -164,9 +178,9 @@ final class WorkerSupervisor
      */
     private function acquireLock(): bool
     {
-        $lock = fopen(self::LOCK_FILE, 'c');
+        $lock = fopen($this->lockFile, 'c');
         if ($lock === false) {
-            throw new RuntimeException('Unable to open ' . self::LOCK_FILE . '.');
+            throw new RuntimeException('Unable to open ' . $this->lockFile . '.');
         }
         if (!flock($lock, LOCK_EX | LOCK_NB)) {
             fclose($lock);

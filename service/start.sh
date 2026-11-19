@@ -55,6 +55,57 @@ stop_service_child() {
     return 0
 }
 
+# Runtime. The default is the worker supervisor (bin/worker-supervisor.php, one process per lane in
+# WorkerRegistry::LANES). SYNTH_LEGACY_MANAGER=1 or --legacy-manager starts the previous runtime instead
+# (the shell speech loop plus service/manager.php); it is kept for one release and then removed.
+LEGACY_MANAGER=0
+if [ "${SYNTH_LEGACY_MANAGER:-0}" = "1" ] || [ "${1:-}" = "--legacy-manager" ]; then
+    LEGACY_MANAGER=1
+elif [ ! -f "$SERVER_ROOT/vendor/autoload.php" ]; then
+    echo "[START] vendor/autoload.php is missing; starting the legacy manager instead of the worker supervisor." >> "$SERVICE_LOG"
+    LEGACY_MANAGER=1
+fi
+
+TTS_SUPERVISOR_PID=""
+GENERAL_LANE_PID=""
+MANAGER_PID=""
+SLEEP_PID=""
+
+# Stop and reap the children this supervisor owns, even while a manager tick is busy.
+cleanup_service_children() {
+    trap - EXIT TERM INT
+    for child_pid in "$LISTENER_PID" "$TTS_SUPERVISOR_PID" "$GENERAL_LANE_PID" "$MANAGER_PID" "$SLEEP_PID"; do
+        if [[ "$child_pid" =~ ^[1-9][0-9]*$ ]]; then kill "$child_pid" 2>/dev/null; fi
+    done
+    for child_pid in "$LISTENER_PID" "$TTS_SUPERVISOR_PID" "$GENERAL_LANE_PID" "$MANAGER_PID" "$SLEEP_PID"; do
+        # The nested lane supervisors have their own one-second child shutdown bound.
+        stop_service_child "$child_pid" 40
+    done
+}
+
+# Keep one lane supervisor running: restart it after $2 seconds whenever it exits.
+# Speech deadlines cannot wait for slower profile/memory tasks, so speech is a lane of its own.
+run_worker_lane() {
+    local lane="$1"
+    local restart_delay="$2"
+    shift 2
+    (
+        exec 9>&-
+        trap 'stop_service_child "$lane_pid"; exit' TERM INT
+        while true; do
+            php "$SERVER_ROOT/bin/worker-supervisor.php" --lane="$lane" "$@" &>> "$SERVICE_LOG" &
+            lane_pid=$!
+            wait "$lane_pid"
+            lane_pid=""
+            sleep "$restart_delay" &
+            lane_pid=$!
+            wait "$lane_pid"
+            lane_pid=""
+        done
+    ) &
+}
+
+if [ "$LEGACY_MANAGER" = "1" ]; then
 # Speech deadlines cannot wait for slower profile/memory tasks in the manager.
 (
     exec 9>&-
@@ -72,24 +123,11 @@ stop_service_child() {
 ) &
 TTS_SUPERVISOR_PID=$!
 
-MANAGER_PID=""
-SLEEP_PID=""
-# Stop and reap the children this supervisor owns, even while a manager tick is busy.
-cleanup_service_children() {
-    trap - EXIT TERM INT
-    for child_pid in "$LISTENER_PID" "$TTS_SUPERVISOR_PID" "$MANAGER_PID" "$SLEEP_PID"; do
-        if [[ "$child_pid" =~ ^[1-9][0-9]*$ ]]; then kill "$child_pid" 2>/dev/null; fi
-    done
-    for child_pid in "$LISTENER_PID" "$TTS_SUPERVISOR_PID" "$MANAGER_PID" "$SLEEP_PID"; do
-        # The nested speech supervisor has its own one-second child shutdown bound.
-        stop_service_child "$child_pid" 40
-    done
-}
 trap cleanup_service_children EXIT
 trap 'exit 0' TERM INT
 
 # Main loop
-while true; do 
+while true; do
     php "$SERVER_ROOT/service/manager.php" &>> "$SERVICE_LOG" 9>&- &
     MANAGER_PID=$!
     wait "$MANAGER_PID"
@@ -99,3 +137,16 @@ while true; do
     wait "$SLEEP_PID"
     SLEEP_PID=""
 done
+fi
+
+# Default runtime: a speech lane (a 10-second dispatch window, restarted after 1 second) and a general lane.
+run_worker_lane speech 1 --max-seconds=10
+TTS_SUPERVISOR_PID=$!
+run_worker_lane general 5
+GENERAL_LANE_PID=$!
+
+trap cleanup_service_children EXIT
+trap 'exit 0' TERM INT
+
+# The lanes restart their own supervisors; this process only has to stay alive, which keeps the heartbeat port bound.
+wait "$GENERAL_LANE_PID"

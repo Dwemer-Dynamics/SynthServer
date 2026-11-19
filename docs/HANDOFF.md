@@ -573,8 +573,9 @@ factory identity bundle; see [FALLOUT-CONTENT.md](FALLOUT-CONTENT.md).
 - The database is `synth` on loopback PostgreSQL. The local role defaults to
   `dwemer`/`dwemer` (`conf/conf.sample.php`, `lib/db_connection_settings.php`). These are
   loopback-only development defaults. Never expose PostgreSQL or Apache beyond loopback.
-- The background processor (`service/start.sh`, `service/manager.php`) runs memory,
-  relationship and TTS workers. `health.php` reports the database, schema, migration ledger and
+- The background processor (`service/start.sh`) runs the worker supervisor (`bin/worker-supervisor.php`: a general lane with the
+  memory, relationship, middleterm, dynamicprofile and player2health workers, and a speech lane with the TTS dispatcher);
+  `service/manager.php` is the one-release fallback behind `SYNTH_LEGACY_MANAGER=1`. `health.php` reports the database, schema, migration ledger and
   (advisory) processor state.
   It can be supervised or started directly with `service/start.sh`. The SYNTH UI and legacy game
   traffic through `main.php` also start it on demand. Explicit v2 dialogue (`/talk` and speech
