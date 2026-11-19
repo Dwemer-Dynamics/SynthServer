@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Runs every automated test: new tests in tests/, the existing suites in unittests/ (disposable PostgreSQL needed). -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         cacheResult="false"
+         colors="true">
+    <testsuites>
+        <testsuite name="tests">
+            <directory>tests</directory>
+        </testsuite>
+        <testsuite name="unittests">
+            <directory>unittests/tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="PHPUNIT_TEST" value="true"/>
+    </php>
+</phpunit>
