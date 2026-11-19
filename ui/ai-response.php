@@ -726,7 +726,7 @@ function synthAiResponseBuildUrl($page, $limit, array $extraParams = [])
     return "ai-response.php?" . http_build_query($params);
 }
 
-$db = $GLOBALS["db"];
+$db = \Synth\Bootstrap::db();
 $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 50;
 $limit = max(10, min(500, $limit));
 $page = isset($_GET["page"]) ? intval($_GET["page"]) : 1;

@@ -64,7 +64,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         $directorSuggestionPrompt = null;
         try {
-            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'directorSuggestionSystem'");
+            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'directorSuggestionSystem'");
             if ($promptData) {
                 $directorSuggestionPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
@@ -217,7 +217,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
             $action = make_replacements("$noteContent");
 
             // Insert into database
-            $GLOBALS["db"]->insert(
+            \Synth\Bootstrap::db()->insert(
                 'core_director_note',
                 array(
                     'localts' => time(),
@@ -250,7 +250,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
 
         if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
-            $pluginVersionRow = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
+            $pluginVersionRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)
                     synthQueueCommandResponse(

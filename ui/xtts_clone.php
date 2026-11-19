@@ -95,7 +95,7 @@ if (!function_exists('synthTtsStudioResolveConnectorRow')) {
         }
 
         $profileUsageMap = [];
-        $usageRows = $GLOBALS["db"]->fetchAll(
+        $usageRows = \Synth\Bootstrap::db()->fetchAll(
             "SELECT tts_connector_id, COUNT(*) AS c FROM core_profiles WHERE tts_connector_id IS NOT NULL GROUP BY tts_connector_id"
         );
         foreach ($usageRows as $usageRow) {
@@ -103,7 +103,7 @@ if (!function_exists('synthTtsStudioResolveConnectorRow')) {
         }
 
         $playerConnectorId = 0;
-        $playerRow = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
+        $playerRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
         if (is_array($playerRow)) {
             $playerConnectorId = intval($playerRow['value'] ?? 0);
         }
@@ -1100,7 +1100,7 @@ if (isset($_GET['action']) && ($_GET['action'] === 'test_cartesia' || $_GET['act
             require_once(__DIR__ . '/../tts/tts-inworld.php');
             return getInworldCachedVoicesMap();
         }
-        $db = $GLOBALS["db"];
+        $db = \Synth\Bootstrap::db();
         $prefix = $provider . '_voice_id_';
         $prefixEscaped = $db->escape($prefix);
         $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
@@ -1554,7 +1554,7 @@ function getClonedVoices($provider) {
         require_once(__DIR__ . '/../tts/tts-inworld.php');
         return getInworldCachedVoicesMap();
     }
-    $db = $GLOBALS["db"];
+    $db = \Synth\Bootstrap::db();
     $prefix = $provider . '_voice_id_';
     $prefixEscaped = $db->escape($prefix);
     $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
@@ -1571,7 +1571,7 @@ function isProviderConfigured($provider) {
     if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) {
         return false;
     }
-    $db = $GLOBALS["db"];
+    $db = \Synth\Bootstrap::db();
     $providerLower = strtolower($provider);
     require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
     $row = (new \Synth\Core\ApiBadgeRepository($db))->keyByLowerLabel($providerLower);
@@ -1587,7 +1587,7 @@ function getCartesiaConfigurationStatus(): array
     $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
     if ($apiBadgeId !== null && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-        $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);
+        $badgeRow = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);
     }
     if (!$hasApiCredential) {
@@ -1638,7 +1638,7 @@ function getInworldConfigurationStatus(): array
     $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
     if ($apiBadgeId !== null && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-        $badgeRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyById($apiBadgeId);
+        $badgeRow = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);
     }
     if (!$hasApiCredential) {
@@ -2167,7 +2167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Cartesia clear cache handler
     if (isset($_POST['action']) && $_POST['action'] === 'clear_cartesia_cache') {
-        $db = $GLOBALS["db"];
+        $db = \Synth\Bootstrap::db();
         $legacyPrefixEscaped = $db->escape('cartesia_voice_id_');
         $scopedPrefixEscaped = $db->escape('cartesia_voice_scope_');
         $metadataPrefixEscaped = $db->escape('cartesia_voice_meta_');
@@ -2376,7 +2376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Inworld clear cache handler
     if (isset($_POST['action']) && $_POST['action'] === 'clear_inworld_cache') {
-        $db = $GLOBALS["db"];
+        $db = \Synth\Bootstrap::db();
         $legacyPrefixEscaped = $db->escape('inworld_voice_id_');
         $scopedPrefixEscaped = $db->escape('inworld_voice_scope_');
         $metadataPrefixEscaped = $db->escape('inworld_voice_meta_');

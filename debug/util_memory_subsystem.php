@@ -632,7 +632,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                         embedding <-> $vectorString ASC
                     LIMIT 5 OFFSET 0
                 ";
-            $memory = $GLOBALS["db"]->fetchAll($finalQuery);
+            $memory = \Synth\Bootstrap::db()->fetchAll($finalQuery);
         }
         print_r(array_reverse($memory));
 
