@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // A voice preview failure that carries the HTTP status and fixed client-facing text for the route to answer with.
 
-namespace Synth\Managers\VoiceSample;
+namespace Synth\Managers\TtsStudio;
 
 use RuntimeException;
 

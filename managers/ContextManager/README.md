@@ -1,6 +1,11 @@
-# ContextManager: actor condition
+# ContextManager
 
-Turn context helpers for `Synth\Managers\ContextManager`.
+`Synth\Managers\ContextManager\ContextManager` builds the bounded turn context: situation, heard history,
+latest diary and quest knowledge. `managers/ContextManager.php` is a legacy alias hook.
+
+## Actor condition
+
+Turn context helpers beside it.
 
 - `ActorConditionValidator` validates the optional v2 `actor_states[].actor_condition` object
   (capability `context.actor_condition`, acknowledged by init status `actor_condition: true`). It is called
