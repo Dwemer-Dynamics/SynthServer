@@ -139,7 +139,7 @@ function countMemories()
             return intval(pg_fetch_assoc($result)['n']);
         },2000);
     }
-	$row = $GLOBALS["db"]->fetchOne("SELECT count(*) AS n FROM public.core_memory");
+	$row = $GLOBALS["db"]->fetchOne("SELECT count(*) AS n FROM public.core_memory WHERE source_type='summary'");
 	return intval($row["n"] ?? 0);
 }
 
@@ -158,7 +158,7 @@ function deleteElement($id, $onlyEmbedding = false)
 	if ($onlyEmbedding) {
 		$GLOBALS["db"]->execQuery("UPDATE public.core_memory SET embedding = NULL WHERE rowid = {$cleanId}");
 	} else {
-		$GLOBALS["db"]->execQuery("DELETE FROM public.core_memory WHERE rowid = {$cleanId}");
+		$GLOBALS["db"]->execQuery("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = {$cleanId}");
 	}
 
 	return true;

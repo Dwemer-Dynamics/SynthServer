@@ -244,7 +244,7 @@ function synth_home_word_cloud_words(array $rows): array
 
 $hasEventlog = synth_home_table_exists($db, 'core_context_event');
 $hasNpcMaster = synth_home_table_exists($db, 'core_npc_master');
-$hasDiary = synth_home_table_exists($db, 'diarylog');
+$hasDiary = synth_home_table_exists($db, 'core_memory');
 $hasMemorySummary = synth_home_table_exists($db, 'core_memory');
 $hasConfOpts = synth_home_table_exists($db, 'core_config_setting');
 $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
@@ -260,8 +260,8 @@ $hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_c
 $eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event", 'total', 0) : 0;
 $chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event WHERE type='chat'", 'total', 0) : 0;
 $npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc_master", 'total', 0) : 0;
-$diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM diarylog", 'total', 0) : 0;
-$memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory", 'total', 0) : 0;
+$diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='diary'", 'total', 0) : 0;
+$memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='summary'", 'total', 0) : 0;
 
 // Installed libraries are separate from the NPCs already encountered in a save.
 $characterTemplateCount = null;
@@ -291,7 +291,7 @@ $worldRows = $hasEventlog ? synth_home_rows($db, "SELECT data, location, party, 
 $worldContext = isset($worldRows[0]) ? synth_home_json_object($worldRows[0]['party'] ?? '') : [];
 $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
 $activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
-$latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, content, people, location, localts, gamets FROM diarylog ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
+$latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, summary AS content, companions AS people, location, localts, gamets FROM core_memory WHERE source_type='diary' ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
 $latestDiary = $latestDiaryRows[0] ?? [];
 try {
     $writtenDiaries=synth_diary_browser_summary($db);

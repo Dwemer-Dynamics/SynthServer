@@ -209,7 +209,7 @@ if (isset($_GET["export"]) && ($_GET["export"] == "diary")) {
  header("Content-Type: text/csv");
  header("Content-Disposition: attachment; filename=diarylog.txt");
 
- $data = $db->fetchAll("select topic,content from diarylog order by rowid desc");
+ $data = $db->fetchAll("select topic,summary AS content from core_memory where source_type='diary' order by rowid desc");
  $n = 1;
  foreach ($data as $row) {
  if ($n == 0) {
@@ -691,7 +691,7 @@ if (isset($_POST["animation"])) {
  // Include game timestamp utilities if not already included
  require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 
- $results = $db->fetchAll("select A.*, ROWID FROM diarylog A order by gamets desc,rowid desc limit 150 offset 0");
+ $results = $db->fetchAll("select A.topic, A.summary AS content, A.tags, A.companions AS people, A.location, A.localts, A.gamets, A.ts, A.sess, A.rowid FROM core_memory A where A.source_type='diary' order by gamets desc,rowid desc limit 150 offset 0");
 
  // Define column headers mapping
  $columnHeaders = [
@@ -855,6 +855,7 @@ if (isset($_POST["animation"])) {
  // 3. Fetch data from database
  $results = $db->fetchAll("SELECT gamets_truncated, n, summary, companions, tags, classifier, uid, ROWID as rowid, packed_message, native_vec
  FROM core_memory
+ WHERE source_type='summary'
  ORDER BY gamets_truncated DESC, rowid DESC
  LIMIT 150");
 

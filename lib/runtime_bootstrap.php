@@ -69,7 +69,6 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'public.core_catalog_version',
             'public.core_item_description',
             'public.core_item_description_custom',
-            'synth.diarylog',
             'public.core_context_event',
             'public.core_faction',
             'public.core_plugins',

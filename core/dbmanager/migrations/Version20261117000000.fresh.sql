@@ -985,29 +985,6 @@ CREATE TABLE public.core_catalog_version (
     CONSTRAINT core_catalog_version_pkey PRIMARY KEY (catalog_key)
 );
 -- end-statement
-CREATE TABLE synth.diarylog (
-    ts text NOT NULL,
-    sess character varying(1024),
-    topic text,
-    content text,
-    tags text,
-    people text,
-    localts bigint NOT NULL,
-    location text,
-    gamets bigint NOT NULL,
-    rowid bigint NOT NULL
-)
-WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
--- end-statement
-CREATE SEQUENCE synth.diarylog_rowid_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
--- end-statement
-ALTER SEQUENCE synth.diarylog_rowid_seq OWNED BY synth.diarylog.rowid;
--- end-statement
 CREATE TABLE public.core_context_event (
     type character varying(128),
     data text,
@@ -1180,14 +1157,22 @@ CREATE TABLE public.core_memory (
     packed_message text,
     summary text,
     classifier text,
-    uid integer NOT NULL,
+    uid integer,
     rowid integer NOT NULL,
     embedding public.vector(384),
     companions text,
     embedding768 public.vector(768),
     tags text,
     scope text,
-    native_vec tsvector
+    native_vec tsvector,
+    source_type text DEFAULT 'summary'::text NOT NULL,
+    topic text,
+    location text,
+    localts bigint,
+    gamets bigint,
+    ts text,
+    sess character varying(1024),
+    CONSTRAINT core_memory_source_type_check CHECK ((source_type = ANY (ARRAY['summary'::text, 'diary'::text])))
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
@@ -2800,8 +2785,6 @@ ALTER TABLE ONLY public.core_stt_connector ALTER COLUMN id SET DEFAULT nextval('
 -- end-statement
 ALTER TABLE ONLY public.core_tts_connector ALTER COLUMN id SET DEFAULT nextval('public.tts_connector_id_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.diarylog ALTER COLUMN rowid SET DEFAULT nextval('synth.diarylog_rowid_seq'::regclass);
--- end-statement
 ALTER TABLE ONLY public.core_context_event ALTER COLUMN rowid SET DEFAULT nextval('public.eventlog_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_npc_profile_rule ALTER COLUMN id SET DEFAULT nextval('public.import_rules_id_seq'::regclass);
@@ -4221,8 +4204,6 @@ SELECT pg_catalog.setval('synth.core_npc_master_history_history_id_seq', 1, fals
 -- end-statement
 SELECT pg_catalog.setval('public.core_tts_pronunciation_id_seq', 6, true);
 -- end-statement
-SELECT pg_catalog.setval('synth.diarylog_rowid_seq', 1, false);
--- end-statement
 SELECT pg_catalog.setval('public.eventlog_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('public.global_settings_presets_id_seq', 1, false);
@@ -4764,8 +4745,6 @@ CREATE INDEX idx_core_npc_master_history_actor_identity ON synth.core_npc_master
 -- end-statement
 CREATE INDEX idx_core_npc_master_history_restore ON synth.core_npc_master_history USING btree (npc_id, gamets_last_updated DESC NULLS LAST, created DESC, history_id DESC);
 -- end-statement
-CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC);
--- end-statement
 CREATE INDEX idx_eventlog_delivery_state ON public.core_context_event USING btree (delivery_state);
 -- end-statement
 CREATE INDEX idx_eventlog_gamets_pos ON public.core_context_event USING btree (gamets) WHERE (gamets > 0);
@@ -4787,6 +4766,8 @@ CREATE INDEX idx_speech_speaker_trgm ON synth.speech USING gin (speaker gin_trgm
 CREATE INDEX idx_speech_utterance_id ON synth.speech USING btree (utterance_id);
 -- end-statement
 CREATE INDEX memory_summary_tsv_idx ON public.core_memory USING gin (native_vec);
+-- end-statement
+CREATE INDEX idx_core_memory_diary_companions ON public.core_memory USING btree (lower(TRIM(BOTH FROM companions)), gamets DESC, localts DESC, rowid DESC) WHERE (source_type = 'diary'::text);
 -- end-statement
 CREATE INDEX visual_context_actor_idx ON public.core_visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL);
 -- end-statement

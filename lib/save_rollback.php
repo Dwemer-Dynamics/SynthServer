@@ -140,7 +140,6 @@ if (!function_exists('synthRollbackPruneFutureData')) {
         foreach ([
             'core_context_event',
             'speech',
-            'diarylog',
             'actions_issued',
             'core_quest',
         ] as $table) {

@@ -58,7 +58,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '48dc9b449c99be233489d68cb2d1550f5e6dda995521398737b8063b5fa4d543';
+    private const FRESH_INSTALL_SHA256 = 'd2bdf048597b35adc491042730fa9c9b5cc8ce007847741115a8ca59296b1080';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
