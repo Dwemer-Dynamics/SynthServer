@@ -118,7 +118,7 @@ function synthPersistObservedDialogue($db,array $event): void
          WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
            AND s.active_generation=c.generation AND s.state='active'
     ), publication AS (
-        INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         SELECT 'backgroundchat',$6,playthrough_id,$7,$8,$8,'',$9,$10,'received',
             session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *

@@ -150,7 +150,7 @@ function synthNpcManagerHistory(array $input): array
     );
     $rows = $GLOBALS['db']->fetchAll(
         "SELECT a.rowid, a.type, a.data, a.people, a.gamets, a.localts, a.ts, a.sess
-         FROM eventlog a
+         FROM core_context_event a
          WHERE {$allowedTypesWhere} AND {$visibleWhere} AND {$peopleWhere}
          ORDER BY a.localts DESC, a.rowid DESC, a.gamets DESC, a.ts DESC
          LIMIT {$limit}"
@@ -158,7 +158,7 @@ function synthNpcManagerHistory(array $input): array
     $visibleTypesWhere = synthBuildVisibleEventLogWhereClause($GLOBALS['db'], '', $hiddenEventTypes);
     $eventTypes = $GLOBALS['db']->fetchAll(
         "SELECT a.type, COUNT(*) AS total
-         FROM eventlog a
+         FROM core_context_event a
          WHERE {$allowedTypesWhere} AND {$visibleTypesWhere} AND {$peopleWhere}
          GROUP BY a.type
          ORDER BY a.type ASC"
@@ -291,7 +291,7 @@ function synthNpcManagerInjectEvent(array $input): array
 
     $recipients = synthNpcManagerResolveEventRecipients($input, $npc);
     $people = '|' . implode('|', array_column($recipients, 'name')) . '|';
-    $rowId = $GLOBALS['db']->insertReturningId('eventlog', [
+    $rowId = $GLOBALS['db']->insertReturningId('core_context_event', [
         'ts' => max(0, intval(DataLastKnownTS())) + 1,
         'gamets' => max(0, intval(DataLastKnownGameTS())),
         'type' => 'inputtext',
@@ -325,7 +325,7 @@ function synthNpcManagerDeleteEvent(array $input): array
     $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($GLOBALS['db'], $npcName, 'a.people');
     $visibleWhere = synthBuildVisibleEventLogWhereClause($GLOBALS['db']);
     $event = $GLOBALS['db']->fetchOne(
-        "SELECT a.rowid FROM eventlog a WHERE a.rowid = {$rowId} AND {$visibleWhere} AND {$peopleWhere} LIMIT 1"
+        "SELECT a.rowid FROM core_context_event a WHERE a.rowid = {$rowId} AND {$visibleWhere} AND {$peopleWhere} LIMIT 1"
     );
     if (!$event) {
         throw new InvalidArgumentException('Event is not available in this NPC history');

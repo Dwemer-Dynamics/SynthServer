@@ -160,7 +160,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                     UPDATE public.core_worker_job SET state='ready',lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp()
                     WHERE id=$1 AND state='running' AND lease_token=$2 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id
                 ), publication AS (
-                    INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
+                    INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                     SELECT 'middleterm_result','Accepted native narrative memory',$3,$4,$5,$5,'','','','derived',$6,$7,$8,$9 FROM accepted RETURNING *
                 ), history AS (
                     INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)

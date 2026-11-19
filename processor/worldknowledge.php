@@ -104,7 +104,7 @@ if (!function_exists('synthWorldKnowledgeSanitizeInputText')) {
                 $rows = synthWorldKnowledgeNativeDialogueRows($db, $event);
             } else {
                 $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($db, $npcName);
-                $rows = $db->fetchAll("SELECT type, data FROM eventlog WHERE type IN ('inputtext','chat','rechat')"
+                $rows = $db->fetchAll("SELECT type, data FROM core_context_event WHERE type IN ('inputtext','chat','rechat')"
                     . " AND {$peopleWhere} ORDER BY rowid DESC LIMIT 6");
             }
         } catch (SYNTHProtocolCancelled $cancelled) {
@@ -140,7 +140,7 @@ if ($requestType === 'rechat' && ($event['protocol_version'] ?? 1) === 2) {
     $lastChat = synthWorldKnowledgeNativeDialogueRows($db, $event, true, 1)[0] ?? null;
     $inputText = trim(strval($lastChat['data'] ?? ''));
 } elseif ($requestType === 'rechat' && $db && method_exists($db, 'fetchOne')) {
-    $lastChat = $db->fetchOne("SELECT data FROM eventlog WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
+    $lastChat = $db->fetchOne("SELECT data FROM core_context_event WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
     $inputText = trim(strval($lastChat['data'] ?? ''));
 } else {
     $inputText = trim(strval($gameRequest[3] ?? ''));

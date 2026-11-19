@@ -2331,7 +2331,7 @@ function lastNames($n, $eventypes)
             . " AND (type<>'chat' OR {$visibleChat})"
             . " ORDER BY gamets DESC,ts DESC,rowid DESC LIMIT {$m}");
     } else {
-        $lastRecords = $db->fetchAll("SELECT data from eventlog where type in ('".implode("','",$eventypes)."') order by gamets desc limit $m offset 0");
+        $lastRecords = $db->fetchAll("SELECT data from core_context_event where type in ('".implode("','",$eventypes)."') order by gamets desc limit $m offset 0");
     }
 
     $uppercaseWords=[];
@@ -2804,7 +2804,7 @@ function getGametsLimitFor($actor) {
             (MAX(gamets) - MIN(gamets)) * 0.0000024 AS hour_threshold
         FROM (
             SELECT gamets
-            FROM eventlog
+            FROM core_context_event
             WHERE type='chat'
             AND {$visibleChatStateSql}
             and people LIKE '%$actorEscaped%'
@@ -3823,7 +3823,7 @@ function synthLatestNearbyActorStatusMapForRechat(): array
         return [];
     }
 
-    $rows = $db->fetchAll("SELECT party, localts, ts FROM eventlog WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $rows = $db->fetchAll("SELECT party, localts, ts FROM core_context_event WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
         return [];
     }
@@ -4927,7 +4927,7 @@ function lookupConversationPeopleSourceOfTruth($speakerName, $targetName, $maxAg
     $cutoff = time() - $ageSeconds;
     $rows = $db->fetchAll(
         "SELECT rowid, type, data, people
-         FROM eventlog
+         FROM core_context_event
          WHERE localts > {$cutoff}
            AND type IN ('chat','prechat','inputtext','inputtext_s','narrator_inputtext')
            AND people IS NOT NULL
@@ -5476,7 +5476,7 @@ function logEvent($dataArray,$forcePeople='')
             $insertData = array_merge($insertData, $extraColumns);
         }
 
-        $insertResult = $db->insert('eventlog', $insertData);
+        $insertResult = $db->insert('core_context_event', $insertData);
     }
 }
 

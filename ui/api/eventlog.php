@@ -67,7 +67,7 @@ if ($includeRelationshipRows
 }
 
 // Total count for pagination continues to describe the physical eventlog table only.
-$countQuery = "SELECT COUNT(*) as total FROM eventlog WHERE $typeFilter";
+$countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $typeFilter";
 $countResult = $db->fetchAll($countQuery);
 $totalRecords = $countResult[0]['total'];
 $totalPages = $limit > 0 ? ceil($totalRecords / $limit) : 1;
@@ -77,7 +77,7 @@ if ($sinceGamets > 0) {
     // Filter by game timestamp - get events since a specific in-game time
     $results = $db->fetchAll(
         "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM eventlog a
+         FROM core_context_event a
          WHERE $typeFilter
          AND gamets >= $sinceGamets
          ORDER BY $eventLogOrderBy
@@ -87,7 +87,7 @@ if ($sinceGamets > 0) {
     // Filter by rowid - for incremental updates
     $results = $db->fetchAll(
         "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM eventlog a
+         FROM core_context_event a
          WHERE $typeFilter
          AND rowid > $sinceRowId
          ORDER BY $eventLogOrderBy
@@ -97,7 +97,7 @@ if ($sinceGamets > 0) {
     // Normal paginated query - get most recent events by game timestamp (gamets)
     $results = $db->fetchAll(
         "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM eventlog a
+         FROM core_context_event a
          WHERE $typeFilter
          ORDER BY $eventLogOrderBy
          LIMIT $limit OFFSET $offset"

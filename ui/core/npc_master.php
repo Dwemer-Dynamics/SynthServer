@@ -291,7 +291,7 @@ h1.api-title {
 $GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
 $npc = new NpcMaster();
 
-$lastInfoRow=$GLOBALS["db"]->fetchOne("select max(gamets) as gamets from eventlog where type='infosave'");
+$lastInfoRow=$GLOBALS["db"]->fetchOne("select max(gamets) as gamets from core_context_event where type='infosave'");
 $LAST_INFOSAVE_EVENT=$lastInfoRow["gamets"];
 
 // Helper: resolve race icon web path if file exists

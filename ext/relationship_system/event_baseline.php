@@ -59,7 +59,7 @@ if (!function_exists('synthRelBuildEventBaseline')) {
         $escapedName = $db->escape($npcName);
         $rows = $db->fetchAll(
             "SELECT rowid, type, data, gamets, people, location
-             FROM eventlog
+             FROM core_context_event
              WHERE type NOT IN ('prechat','setconf','status_msg','user_input','npc_snapshot','playerinfo')
                AND (
                     POSITION(LOWER('{$escapedName}') IN LOWER(COALESCE(people, ''))) > 0

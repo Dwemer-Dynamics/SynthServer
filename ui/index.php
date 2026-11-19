@@ -145,15 +145,15 @@ $indexAction = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? strval($_POST['in
 if ($indexAction !== '') {
  $deleteCount = intval($_POST['delete_last'] ?? 0);
  if ($indexAction === 'reset_events') {
-  $db->delete("eventlog", "true");
+  $db->delete("core_context_event", "true");
   $redirect = "index.php?table=eventlog";
  } elseif ($indexAction === 'delete_last' && in_array($deleteCount, [20, 50, 100], true)) {
   // Count comes from the allowlist above.
   $db->query("
- DELETE FROM eventlog
+ DELETE FROM core_context_event
  WHERE rowid IN (
  SELECT rowid
- FROM eventlog
+ FROM core_context_event
  WHERE type NOT IN ('prechat','rechat','request','nearby_actors')
  ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
  LIMIT $deleteCount
@@ -291,7 +291,7 @@ if (isset($_POST["animation"])) {
 
  $results = $db->fetchAll(
  "SELECT type, data, gamets, localts, ts, ROWID
- FROM eventlog a
+ FROM core_context_event a
  WHERE type NOT IN ('prechat','rechat','request','user_input','infosave','init','playerinfo','world_context','nearby_actors','nearby_items','points_of_interest')
  ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
  LIMIT $limit OFFSET $offset"
@@ -348,7 +348,7 @@ if (isset($_POST["animation"])) {
  $nextPage = $page + 1;
 
  // Get total count for pagination
- $countQuery = "SELECT COUNT(*) as total FROM eventlog WHERE type NOT IN ('prechat','rechat','request','user_input','infosave','init','world_context','nearby_actors','nearby_items','points_of_interest')";
+ $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE type NOT IN ('prechat','rechat','request','user_input','infosave','init','world_context','nearby_actors','nearby_items','points_of_interest')";
  $countResult = $db->fetchAll($countQuery);
  $totalRecords = $countResult[0]['total'];
  $totalPages = ceil($totalRecords / $limit);
@@ -455,7 +455,7 @@ if (isset($_POST["animation"])) {
  }
 
  if (isset($_GET["table"]) && ($_GET["table"] == "cache")) {
- $results = $db->fetchAll("select A.*,ROWID FROM eventlog a order by ts desc");
+ $results = $db->fetchAll("select A.*,ROWID FROM core_context_event a order by ts desc");
  echo "<h1 class='my-2'>Event Log</h1>";
  print_array_as_table($results);
  }

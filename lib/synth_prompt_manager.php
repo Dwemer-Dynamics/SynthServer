@@ -46,7 +46,7 @@ function synth_prompt_manager_recent_context(object $db, string $speaker, string
     $playerEscaped = synth_db_escape($db, $playerName);
     $rows = $db->fetchAll("
         SELECT type, data, people, location, gamets, party
-        FROM synth.eventlog
+        FROM public.core_context_event
         WHERE sess='synth'
           AND (
               people ILIKE '%{$speakerEscaped}%'

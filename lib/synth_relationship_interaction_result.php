@@ -89,7 +89,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             if (pg_fetch_assoc($result)) throw new LogicException('NPC interaction perspective is stale');
         }
         $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_interaction_result','Native NPC interaction evaluation',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (
@@ -116,7 +116,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             $revisionJson=json_encode($revision,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
             $detailsJson=json_encode((object)$details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
             $result=@pg_query_params($connection,"WITH publication AS (
-                INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+                INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                     synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                 VALUES('relationship_state','Native NPC interaction perspective',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
             ), history AS (

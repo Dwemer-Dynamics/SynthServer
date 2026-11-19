@@ -687,10 +687,10 @@ function fallout_month_explained($s_fallout_month_name) {
 
 
 function DataLastKnownGameTS() {
-// retrieve gamets from eventlog
+// retrieve gamets from core_context_event
     global $db;
 
-    $lastLoc=$db->fetchAll("SELECT MAX(gamets) AS m_gts FROM eventlog WHERE (gamets > 0) LIMIT 1");
+    $lastLoc=$db->fetchAll("SELECT MAX(gamets) AS m_gts FROM core_context_event WHERE (gamets > 0) LIMIT 1");
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DataLastKnownGameTS: NO record found");
     } else { // ok
@@ -709,10 +709,10 @@ function DataLastKnownGameTS() {
 
 
 function DataLastKnownTS() {
-// retrieve gamets from eventlog
+// retrieve gamets from core_context_event
     global $db;
 
-    $lastLoc=$db->fetchAll("SELECT MAX(ts) AS m_gts FROM eventlog WHERE (gamets > 0)");
+    $lastLoc=$db->fetchAll("SELECT MAX(ts) AS m_gts FROM core_context_event WHERE (gamets > 0)");
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DataLastKnownTS: NO record found");
     } else { // ok
@@ -745,7 +745,7 @@ function DataLastKnownGameTS_record() {
         "convert_gamets2gregorian_date(gamets) as fallout_gregorian_date, ".
         "((gamets * 0.0000001) - floor(gamets * 0.0000001)) as fallout_time, ".
         "rowid ".
-        " FROM eventlog WHERE (gamets > 0) ORDER BY gamets desc, ts desc LIMIT 1");
+        " FROM core_context_event WHERE (gamets > 0) ORDER BY gamets desc, ts desc LIMIT 1");
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         $arr_result["exitcode"] = -1;
         Logger::warn("DataLastKnownGameTS_record: NO match found");
