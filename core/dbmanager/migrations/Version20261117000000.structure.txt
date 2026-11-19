@@ -880,17 +880,17 @@ column|synth|memory_v|message|text|text|YES||
 column|synth|memory_v|speaker|text|text|YES||
 column|synth|memory_v|ts|bigint|int8|YES||
 column|synth|memory_v|uid|integer|int4|YES||
-column|synth|memory|event|character varying|varchar|YES||64
-column|synth|memory|gamets|bigint|int8|NO||
-column|synth|memory|listener|text|text|YES||
-column|synth|memory|localts|integer|int4|YES||
-column|synth|memory|message|text|text|YES||
-column|synth|memory|momentum|text|text|YES||
-column|synth|memory|rowid|bigint|int8|NO|nextval('memory_rowid_seq'::regclass)|
-column|synth|memory|session|text|text|YES||
-column|synth|memory|speaker|text|text|YES||
-column|synth|memory|ts|bigint|int8|YES||
-column|synth|memory|uid|integer|int4|NO|nextval('memory_uid_seq'::regclass)|
+column|public|core_memory_log|event|character varying|varchar|YES||64
+column|public|core_memory_log|gamets|bigint|int8|NO||
+column|public|core_memory_log|listener|text|text|YES||
+column|public|core_memory_log|localts|integer|int4|YES||
+column|public|core_memory_log|message|text|text|YES||
+column|public|core_memory_log|momentum|text|text|YES||
+column|public|core_memory_log|rowid|bigint|int8|NO|nextval('memory_rowid_seq'::regclass)|
+column|public|core_memory_log|session|text|text|YES||
+column|public|core_memory_log|speaker|text|text|YES||
+column|public|core_memory_log|ts|bigint|int8|YES||
+column|public|core_memory_log|uid|integer|int4|NO|nextval('memory_uid_seq'::regclass)|
 column|public|core_prompt|created_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 column|public|core_prompt|custom_prompt|text|text|YES||
 column|public|core_prompt|default_prompt|text|text|NO||
@@ -1981,7 +1981,7 @@ table|public|core_location|BASE TABLE
 table|synth|log|BASE TABLE
 table|public|core_memory|BASE TABLE
 table|synth|memory_v|VIEW
-table|synth|memory|BASE TABLE
+table|public|core_memory_log|BASE TABLE
 table|public|core_prompt|BASE TABLE
 table|public|core_quest|BASE TABLE
 table|public|core_relationship_eval_queue|BASE TABLE

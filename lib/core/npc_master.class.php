@@ -1687,12 +1687,12 @@ FROM restore
 
         // memory.speaker and memory.listener
         $GLOBALS["db"]->execQuery("
-                    UPDATE memory
+                    UPDATE core_memory_log
                     SET speaker = '$newName'
                     WHERE speaker = '$oldName'
                 ");
         $GLOBALS["db"]->execQuery("
-                    UPDATE memory
+                    UPDATE core_memory_log
                     SET listener = '$newName'
                     WHERE listener = '$oldName'
                 ");

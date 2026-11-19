@@ -2299,7 +2299,7 @@ function logMemory($speaker, $listener, $message, $momentum, $gamets,$event,$ts)
     global $db;
 
     $db->insert(
-        'memory',
+        'core_memory_log',
         array(
                 'localts' => time(),
                 'speaker' => $speaker,
@@ -2560,7 +2560,7 @@ function lastKeyWords($n, $eventypes='')
 
     $m=$n+1;
 
-    $lastRecords = $db->fetchAll("SELECT message from memory order by gamets desc limit $m offset 0");
+    $lastRecords = $db->fetchAll("SELECT message from core_memory_log order by gamets desc limit $m offset 0");
     $words=[];
     $uniqueArray=[];
     $uppercaseWords = [];

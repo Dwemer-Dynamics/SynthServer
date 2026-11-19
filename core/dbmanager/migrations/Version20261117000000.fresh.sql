@@ -1127,7 +1127,7 @@ CREATE SEQUENCE synth.log_rowid_seq
 -- end-statement
 ALTER SEQUENCE synth.log_rowid_seq OWNED BY synth.log.rowid;
 -- end-statement
-CREATE TABLE synth.memory (
+CREATE TABLE public.core_memory_log (
     speaker text,
     message text,
     session text,
@@ -1142,14 +1142,14 @@ CREATE TABLE synth.memory (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE SEQUENCE synth.memory_rowid_seq
+CREATE SEQUENCE public.memory_rowid_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.memory_rowid_seq OWNED BY synth.memory.rowid;
+ALTER SEQUENCE public.memory_rowid_seq OWNED BY public.core_memory_log.rowid;
 -- end-statement
 CREATE TABLE public.core_memory (
     gamets_truncated bigint NOT NULL,
@@ -1186,7 +1186,7 @@ CREATE SEQUENCE public.memory_summary_rowid_seq
 -- end-statement
 ALTER SEQUENCE public.memory_summary_rowid_seq OWNED BY public.core_memory.rowid;
 -- end-statement
-CREATE SEQUENCE synth.memory_uid_seq
+CREATE SEQUENCE public.memory_uid_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -1194,7 +1194,7 @@ CREATE SEQUENCE synth.memory_uid_seq
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.memory_uid_seq OWNED BY synth.memory.uid;
+ALTER SEQUENCE public.memory_uid_seq OWNED BY public.core_memory_log.uid;
 -- end-statement
 CREATE TABLE synth.speech (
     sess character varying(1024),
@@ -1250,7 +1250,7 @@ CREATE VIEW synth.memory_v AS
             '-'::text AS speaker,
             '-'::text AS listener,
             memory.ts
-           FROM synth.memory
+           FROM public.core_memory_log memory
           WHERE ((memory.message !~~ 'Dear Diary%'::text) AND (memory.message <> ''::text))
         UNION ALL
          SELECT ((((('(Context Location:'::text || speech.location) || ') '::text) || speech.speaker) || ': '::text) || speech.speech),
@@ -2791,9 +2791,9 @@ ALTER TABLE ONLY public.core_npc_profile_rule ALTER COLUMN id SET DEFAULT nextva
 -- end-statement
 ALTER TABLE ONLY synth.log ALTER COLUMN rowid SET DEFAULT nextval('synth.log_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.memory ALTER COLUMN uid SET DEFAULT nextval('synth.memory_uid_seq'::regclass);
+ALTER TABLE ONLY public.core_memory_log ALTER COLUMN uid SET DEFAULT nextval('public.memory_uid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.memory ALTER COLUMN rowid SET DEFAULT nextval('synth.memory_rowid_seq'::regclass);
+ALTER TABLE ONLY public.core_memory_log ALTER COLUMN rowid SET DEFAULT nextval('public.memory_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_memory ALTER COLUMN rowid SET DEFAULT nextval('public.memory_summary_rowid_seq'::regclass);
 -- end-statement
@@ -4214,11 +4214,11 @@ SELECT pg_catalog.setval('public.llm_connector_id_seq', 7, true);
 -- end-statement
 SELECT pg_catalog.setval('synth.log_rowid_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.memory_rowid_seq', 1, false);
+SELECT pg_catalog.setval('public.memory_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('public.memory_summary_rowid_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.memory_uid_seq', 1, false);
+SELECT pg_catalog.setval('public.memory_uid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.npc_master_id_seq', 2189, true);
 -- end-statement

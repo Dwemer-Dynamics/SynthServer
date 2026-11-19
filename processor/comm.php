@@ -272,7 +272,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         }
     }
     $db->delete("core_memory", " 1=1 ");
-    $db->delete("memory", " 1=1 ");
+    $db->delete("core_memory_log", " 1=1 ");
 
     //die(print_r($gameRequest,true));
     $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");
@@ -830,7 +830,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
             }
         }
         $db->delete("core_memory", "gamets_truncated>$lastSave  ");
-        $db->delete("memory", "gamets>$lastSave  ");
+        $db->delete("core_memory_log", "gamets>$lastSave  ");
 
         //die(print_r($gameRequest,true));
         $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");

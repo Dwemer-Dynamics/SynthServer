@@ -907,7 +907,7 @@ final class RequestStreamingTest extends TestCase
     public function testLegacyRowTargetsRejectSqlFragmentsAndNativeNamespaces(): void
     {
         require_once dirname(__DIR__,2).'/lib/legacy_row_management.php';
-        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'public.core_memory','memory'=>'synth.memory','memory_summary'=>'public.core_memory'] as $table=>$target) {
+        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'public.core_memory','memory'=>'public.core_memory_log','memory_summary'=>'public.core_memory'] as $table=>$target) {
             $this->assertSame([$target,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
         }
         $this->assertSame(['public.core_context_event','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
