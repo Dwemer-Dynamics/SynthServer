@@ -39,7 +39,7 @@ nothing. The `world_context` history row still compares only the display fields.
 
 ## Integration API
 
-For the turn-context owner (`managers/ContextManager.php` or the prompt builder). Both functions
+For the turn-context owner (`managers/ContextManager/ContextManager.php` or the prompt builder). Both functions
 re-validate the given world and return nothing for an invalid or absent ancestry.
 
 - `synth_location_ancestry_facts(?array $world): ?array` returns `end`, `complete` (only for
