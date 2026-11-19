@@ -411,7 +411,7 @@ For Stu (CHIM 4 / chevo owner). **Questions 1 to 8: user decision (2026-11-17), 
 1. **Copy chevo's `core/dbmanager` layout and `Database` class; no shared package.**
 2. **`core_context_event` stays as chevo has it.** SYNTH's extra fields (`delivery_state`, `synth_*` correlation) go in `context_metadata`.
 3. **Identity: adopt chevo's `core_npc.character_id` plus `core_npc_actor(refid, plugin)`.** `playthrough_id` goes on events only.
-4. **`playthrough_id` is a `guid`.**
+4. **`playthrough_id` is a `guid` (deferred, 2026-11-19).** The wire protocol (`protocol/v1` and `v2` schemas, mirrored with the game client) and many fixtures define it as the free-form string `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`, so changing the stored type is a protocol and client change, not only a schema change. Until the client guarantees UUIDs, existing tables keep `text` with their current check; **new tables use `uuid` for identifiers the server or client mints** (runtime actor ids) and `text` for `playthrough_id`. The full switch is a separate protocol, client and fixture change, to be taken only if the owner asks for it.
 5. **World knowledge uses neutral names, `core_worldknowledge_*`.**
 6. **`diarylog` folds into `core_memory` with `source_type='diary'`.**
 7. **A `core_prompt` table is acceptable.**

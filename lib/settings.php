@@ -7,6 +7,28 @@ if (!function_exists('synthSettingsDb')) {
     }
 }
 
+if (!function_exists('synthSettingsManagerUsable')) {
+    // ConfigManager needs the real legacy session (execQuery and a catalogue connection); lightweight stand-ins keep the SQL path.
+    function synthSettingsManagerUsable(): bool
+    {
+        $db = synthSettingsDb();
+        return is_object($db) && method_exists($db, 'execQuery') && method_exists($db, 'getCatalogueSqlConnection');
+    }
+}
+
+if (!function_exists('synthSettingsManager')) {
+    // The ConfigManager over the legacy session; the class itself loads this file, so it is required lazily.
+    function synthSettingsManager(): \Synth\Managers\ConfigManager\ConfigManager
+    {
+        require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
+        static $managers = null;
+        $managers ??= new \WeakMap();
+        $db = synthSettingsDb();
+        // One manager per session object, so a page that reads many settings builds one EntityManager.
+        return $managers[$db] ??= \Synth\Managers\ConfigManager\ConfigManager::forSession($db);
+    }
+}
+
 if (!function_exists('synthSettingsStringifyValue')) {
     function synthSettingsStringifyValue($value): string
     {
@@ -849,8 +871,8 @@ if (!function_exists('synthPromptContextOptionEnabled')) {
     }
 }
 
-if (!function_exists('synthGetGeneralSettingRow')) {
-    function synthGetGeneralSettingRow(string $id): array
+if (!function_exists('synthGetGeneralSettingRowLegacy')) {
+    function synthGetGeneralSettingRowLegacy(string $id): array
     {
         $db = synthSettingsDb();
         if (!$db) {
@@ -865,6 +887,27 @@ if (!function_exists('synthGetGeneralSettingRow')) {
         $query = "SELECT config_key AS id, config_value AS value, description, updated_at FROM public.core_config_setting WHERE scope = 'general' AND config_key = " . $db->escapeLiteral($safeId) . " LIMIT 1";
         $row = $db->fetchOne($query);
         return is_array($row) ? $row : [];
+    }
+}
+
+if (!function_exists('synthGetGeneralSettingRow')) {
+    function synthGetGeneralSettingRow(string $id): array
+    {
+        if (!synthSettingsManagerUsable()) {
+            return synthGetGeneralSettingRowLegacy($id);
+        }
+
+        // Thin hook over ConfigManager (managers/ConfigManager); the row shape is the legacy one.
+        if (!synthSettingsDb() || trim($id) === '') {
+            return [];
+        }
+
+        foreach (synthSettingsManager()->all('general') as $row) {
+            if ($row['id'] === trim($id)) {
+                return $row;
+            }
+        }
+        return [];
     }
 }
 
@@ -904,8 +947,8 @@ if (!function_exists('synthGetGeneralSettingFloat')) {
     }
 }
 
-if (!function_exists('synthGetAllGeneralSettings')) {
-    function synthGetAllGeneralSettings(): array
+if (!function_exists('synthGetAllGeneralSettingsLegacy')) {
+    function synthGetAllGeneralSettingsLegacy(): array
     {
         $db = synthSettingsDb();
         if (!$db) {
@@ -922,8 +965,27 @@ if (!function_exists('synthGetAllGeneralSettings')) {
     }
 }
 
-if (!function_exists('synthSetGeneralSetting')) {
-    function synthSetGeneralSetting(string $id, $value, ?string $description = null): bool
+if (!function_exists('synthGetAllGeneralSettings')) {
+    function synthGetAllGeneralSettings(): array
+    {
+        if (!synthSettingsManagerUsable()) {
+            return synthGetAllGeneralSettingsLegacy();
+        }
+
+        if (!synthSettingsDb()) {
+            return [];
+        }
+
+        try {
+            return synthSettingsManager()->all('general');
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+}
+
+if (!function_exists('synthSetGeneralSettingLegacy')) {
+    function synthSetGeneralSettingLegacy(string $id, $value, ?string $description = null): bool
     {
         $db = synthSettingsDb();
         if (!$db) {
@@ -950,6 +1012,25 @@ if (!function_exists('synthSetGeneralSetting')) {
         ";
 
         return $db->execQuery($query) !== false;
+    }
+}
+
+if (!function_exists('synthSetGeneralSetting')) {
+    function synthSetGeneralSetting(string $id, $value, ?string $description = null): bool
+    {
+        if (!synthSettingsManagerUsable()) {
+            return synthSetGeneralSettingLegacy($id, $value, $description);
+        }
+
+        if (!synthSettingsDb()) {
+            return false;
+        }
+
+        try {
+            return synthSettingsManager()->set('general', $id, $value, $description);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }
 
