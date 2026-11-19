@@ -959,7 +959,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? $GLOBALS["MINIME_T5"] :
                 // Respect current in-game mode when selecting active connector slot.
                 $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
                     ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
-                    : $GLOBALS["db"]->fetchOne("SELECT value FROM conf_opts WHERE id='synth_profile_model'");
+                    : $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
                 $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
                     ? (int)$result['value']
                     : 1;
@@ -1224,7 +1224,7 @@ if ($gameRequest[0]=="diary") {
     $cooldownKey = "DIARY_LAST_TIMESTAMP_" . $npcName;
 
     // Fetch the last diary trigger timestamp for this specific NPC
-    $diaryRecord = $GLOBALS["db"]->fetchAll("SELECT value FROM conf_opts WHERE id='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
+    $diaryRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
 
     // Check if the timestamp exists in the database
     if (!empty($diaryRecord)) {
@@ -1240,14 +1240,11 @@ if ($gameRequest[0]=="diary") {
 
     // Update the timestamp in the database for this specific NPC
     $currentTimestamp = time();
-    $GLOBALS["db"]->upsertRowOnConflict(
-        "conf_opts",
+    $GLOBALS["db"]->upsertRowOnConflict('public.core_config_setting',
         array(
-            "id"    => $cooldownKey,
-            "value" => $currentTimestamp
-        ),
-        'id'
-    );
+            'scope' => 'conf', 'config_key' => $cooldownKey,
+            'config_value' => $currentTimestamp
+        ), 'scope, config_key');
 }
 
 
@@ -1330,7 +1327,7 @@ if (in_array($gameRequest[0],["combatbark"])) {
     $cooldownKey = "COMBAT_BARK_LAST_TIMESTAMP";
 
     // Fetch the last combat bark trigger timestamp
-    $combatBarkRecord = $GLOBALS["db"]->fetchAll("SELECT value FROM conf_opts WHERE id='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
+    $combatBarkRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
 
     // Check if the timestamp exists in the database
     if (!empty($combatBarkRecord)) {
@@ -1346,14 +1343,11 @@ if (in_array($gameRequest[0],["combatbark"])) {
 
     // Update the timestamp in the database to the current time
     $currentTimestamp = time();
-    $GLOBALS["db"]->upsertRowOnConflict(
-        "conf_opts",
+    $GLOBALS["db"]->upsertRowOnConflict('public.core_config_setting',
         array(
-            "id"    => $cooldownKey,
-            "value" => $currentTimestamp
-        ),
-        'id'
-    );
+            'scope' => 'conf', 'config_key' => $cooldownKey,
+            'config_value' => $currentTimestamp
+        ), 'scope, config_key');
 
     $localGameRequest=$gameRequest;
     $localGameRequest[0]="infoaction";
@@ -1852,7 +1846,7 @@ if ($gameRequest[0] == "narrator_welcome") {
         $db = $GLOBALS['db'];
         $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
             ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
-            : $db->fetchOne("SELECT value FROM conf_opts WHERE id='synth_profile_model'");
+            : $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
         $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
             ? (int)$result['value']
             : 1;
@@ -1940,7 +1934,7 @@ if ($gameRequest[0] == "narrator_quest_comment") {
         $db = $GLOBALS['db'];
         $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
             ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
-            : $db->fetchOne("SELECT value FROM conf_opts WHERE id='synth_profile_model'");
+            : $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
         $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
             ? (int)$result['value']
             : 1;

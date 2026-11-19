@@ -168,7 +168,7 @@ class player2json
         // Check for hardcoded IP address override in conf_opts table
         if (isset($GLOBALS["db"]) && is_object($GLOBALS["db"])) {
             try {
-                $hostIpRecord = $GLOBALS["db"]->fetchAll("SELECT value FROM conf_opts WHERE id='Network/HOST_IP'");
+                $hostIpRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/HOST_IP'");
                 if (!empty($hostIpRecord) && !empty(trim($hostIpRecord[0]['value']))) {
                     $hardcodedIp = trim($hostIpRecord[0]['value']);
                     

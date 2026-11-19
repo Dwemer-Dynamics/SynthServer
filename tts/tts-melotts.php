@@ -58,7 +58,7 @@ $GLOBALS['SYNTH_TTS_DRIVERS']['melotts'] = $GLOBALS["TTS_IN_USE"]=function($text
         $codename=preg_replace('/[^a-zA-Z0-9_+]/u', '', $codename);
 
         $cn=$GLOBALS["db"]->escape("Voicetype/$codename");
-        $vtype=$GLOBALS["db"]->fetchAll("select value from conf_opts where id='$cn'");
+        $vtype=$GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='$cn'");
         $voicetypeString=(isOk($vtype))?$vtype[0]["value"]:'';
         $voicetype=explode("\\",$voicetypeString);
         $voice=isset($voicetype[3]) ? strtolower($voicetype[3]) : '';

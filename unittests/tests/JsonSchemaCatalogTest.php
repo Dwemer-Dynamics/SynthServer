@@ -1926,7 +1926,7 @@ class RemoteIdentityFixture {
 }
 function curl_exec($handle) { $GLOBALS['requests'][]=['fixture-curl-failure',60]; return false; }
 stream_wrapper_unregister('https'); stream_wrapper_register('https',RemoteIdentityFixture::class);
-$GLOBALS['db']=new class { public int $reads=0; public int $writes=0; public string $id=''; public function escape($value) { return $value; } public function fetchOne($sql) { ++$this->reads; if(!str_starts_with($sql,'SELECT value FROM conf_opts')) throw new LogicException('Unexpected SQL'); return ['value'=>$this->id]; } public function execQuery($sql) { ++$this->writes; throw new LogicException('Unexpected cache mutation'); } };
+$GLOBALS['db']=new class { public int $reads=0; public int $writes=0; public string $id=''; public function escape($value) { return $value; } public function fetchOne($sql) { ++$this->reads; if(!str_starts_with($sql,'SELECT config_value AS value FROM public.core_config_setting')) throw new LogicException('Unexpected SQL'); return ['value'=>$this->id]; } public function execQuery($sql) { ++$this->writes; throw new LogicException('Unexpected cache mutation'); } };
 $results=[]; $bounds=[];
 foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
     $create='getOrCreate'.$title.'Voice'; $list=$driver==='cartesia'?'listExistingCartesiaVoices':'listExistingInworldWorkspaceVoices';
@@ -1990,7 +1990,7 @@ PHP;
     {
         $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/synth_tts_plan.php"; '
             .'require $root."/tts/tts-cartesia.php"; require $root."/tts/tts-inworld.php"; '. <<<'PHP'
-$GLOBALS['db']=new class { public int $reads=0; public function escape($value) { return $value; } public function fetchOne($sql) { if(str_starts_with($sql,'SELECT value FROM conf_opts')) return ['value'=>'fixture-captured-remote']; ++$this->reads; throw new RuntimeException('Unplanned settings read'); } public function fetchAll($sql) { return $this->fetchOne($sql); } };
+$GLOBALS['db']=new class { public int $reads=0; public function escape($value) { return $value; } public function fetchOne($sql) { if(str_starts_with($sql,'SELECT config_value AS value FROM public.core_config_setting')) return ['value'=>'fixture-captured-remote']; ++$this->reads; throw new RuntimeException('Unplanned settings read'); } public function fetchAll($sql) { return $this->fetchOne($sql); } };
 $rows=[]; $scopes=[];
 foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
     $getter='get'.$title.'ActiveConfig'; $resolver='resolve'.$title.'ConnectorRow'; $hydrate='hydrate'.$title.'ConnectorGlobals';

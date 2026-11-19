@@ -88,7 +88,7 @@ function synth_ambient_npc_prepare($db, array $event): ?array
         if (!$result) throw new RuntimeException('ambient_owner_query_failed');
         if (!($row=pg_fetch_assoc($result))) throw new LogicException('ambient_fresh_owner_unavailable');
         if ($row['cooling_down']==='t') return null;
-        $mode=@pg_query_params($connection,"SELECT value FROM synth.conf_opts WHERE id=$1",['synth_mode']);
+        $mode=@pg_query_params($connection,"SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key=$1",['synth_mode']);
         if (!$mode) throw new RuntimeException('ambient_mode_query_failed');
         $modeRow=pg_fetch_assoc($mode);
         if ($modeRow!==false && ($modeRow['value'] ?? '')!=='STANDARD') return null;

@@ -1300,7 +1300,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
         }
 
         try {
-            $playerNameFromDb = $db->fetchOne("SELECT value FROM conf_opts WHERE id='PLAYER_NAME'");
+            $playerNameFromDb = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='PLAYER_NAME'");
         } catch (\Throwable $e) {
             $playerNameFromDb = [];
         }

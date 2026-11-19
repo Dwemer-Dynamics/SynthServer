@@ -106,7 +106,7 @@ function synthLocalLlmCurrentSetup(): array
     ];
     foreach (['Network/HOST_IP' => 'host_ip', 'Network/WSL_IP' => 'wsl_ip'] as $id => $field) {
         if (!isset($GLOBALS['db'])) break;
-        $row = $GLOBALS['db']->fetchOne('SELECT value FROM conf_opts WHERE id=' . $GLOBALS['db']->escapeLiteral($id));
+        $row = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key=" . $GLOBALS['db']->escapeLiteral($id));
         $setup[$field] = trim(strval($row['value'] ?? ''));
     }
     if ($setup['host_ip'] !== '') {
@@ -162,7 +162,7 @@ function synthLocalLlmApplySetup(array $raw): array
         if (!$db->query("SELECT pg_advisory_xact_lock(hashtext('synth_local_llm_setup'))")) {
             throw new RuntimeException('Could not lock local model setup.');
         }
-        $player2 = $db->fetchOne("SELECT value FROM conf_opts WHERE id='PLAYER2_FORCE_ALL_LLM'");
+        $player2 = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='PLAYER2_FORCE_ALL_LLM'");
         if (synthLocalLlmBoolish($player2['value'] ?? false)) {
             throw new InvalidArgumentException('Turn off Use Player 2 for LLMs and save Quickstart before applying local routing.');
         }

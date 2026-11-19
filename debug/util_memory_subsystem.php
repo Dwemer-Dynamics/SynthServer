@@ -644,7 +644,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
             echo "Using pgvector search" . PHP_EOL;
 
-            $currentWorldKnowledgeTopic_req = $db->fetchOne("SELECT value FROM conf_opts WHERE id='current_worldknowledge_topic'");
+            $currentWorldKnowledgeTopic_req = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic'");
             $currentWorldKnowledgeTopic     = getArrayKey($currentWorldKnowledgeTopic_req, "value");
 
             // Get location and context keywords

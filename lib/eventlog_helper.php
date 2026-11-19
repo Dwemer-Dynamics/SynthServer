@@ -804,7 +804,7 @@ if (!function_exists('synthGetPersistedEventLogHiddenTypes')) {
     function synthGetPersistedEventLogHiddenTypes($db)
     {
         $confKey = 'synth_eventlog_hidden_types';
-        $row = $db->fetchOne("SELECT value FROM conf_opts WHERE id='" . $db->escape($confKey) . "' LIMIT 1");
+        $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($confKey) . "' LIMIT 1");
         $rawValue = trim((string)($row['value'] ?? ''));
         if ($rawValue === '') {
             return [];
@@ -826,14 +826,14 @@ if (!function_exists('synthSavePersistedEventLogHiddenTypes')) {
         $normalizedTypes = synthNormalizeEventLogTypeList($types);
 
         if (empty($normalizedTypes)) {
-            $db->delete('conf_opts', "id='" . $db->escape($confKey) . "'");
+            $db->delete('public.core_config_setting', "scope = 'conf' AND config_key = '" . $db->escape($confKey) . "'");
             return true;
         }
 
-        return $db->upsertRowOnConflict('conf_opts', [
-            'id' => $confKey,
-            'value' => json_encode(array_values($normalizedTypes), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        ], 'id');
+        return $db->upsertRowOnConflict('public.core_config_setting', [
+            'scope' => 'conf', 'config_key' => $confKey,
+            'config_value' => json_encode(array_values($normalizedTypes), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ], 'scope, config_key');
     }
 }
 

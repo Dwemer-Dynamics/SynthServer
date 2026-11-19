@@ -56,7 +56,7 @@ try {
     }
     $oldKey = $GLOBALS['db']->escape(getInworldVoiceCacheKey($voice, $config));
     $escapedId = $GLOBALS['db']->escape($oldId);
-    $shared = $GLOBALS['db']->fetchOne("SELECT id FROM conf_opts WHERE value='{$escapedId}' AND id<>'{$oldKey}' LIMIT 1");
+    $shared = $GLOBALS['db']->fetchOne("SELECT config_key AS id FROM public.core_config_setting WHERE scope='conf' AND config_value='{$escapedId}' AND config_key<>'{$oldKey}' LIMIT 1");
     if ($shared) throw new RuntimeException('Remote ID is shared by another cached voice; retain it');
     $remoteName = substr(synth_planned_cloud_voice_cache_name('inworld', $voice), 0, 60);
     if (getExistingInworldVoiceIdByName($remoteName, $config) !== $oldId) {

@@ -374,7 +374,7 @@ user request: actor \"a\" leaves the place
 
         
         if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
-            $pluginVersionRow = $GLOBALS['db']->fetchOne("SELECT value FROM conf_opts WHERE id='plugin_dll_version'");
+            $pluginVersionRow = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)
                     synthQueueCommandResponse(

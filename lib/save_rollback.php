@@ -84,7 +84,7 @@ if (!function_exists('synthRollbackDelete')) {
 if (!function_exists('synthRollbackClearConfOpt')) {
     function synthRollbackClearConfOpt(string $id, array &$stats): void
     {
-        if (!synthRollbackTableExists('conf_opts')) {
+        if (!synthRollbackTableExists('core_config_setting')) {
             return;
         }
 
@@ -94,7 +94,7 @@ if (!function_exists('synthRollbackClearConfOpt')) {
         }
 
         $escaped = $db->escape($id);
-        synthRollbackDelete('conf_opts', "id='{$escaped}'", $stats);
+        synthRollbackDelete('core_config_setting', "scope='conf' AND config_key='{$escaped}'", $stats);
     }
 }
 

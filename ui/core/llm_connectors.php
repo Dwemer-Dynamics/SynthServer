@@ -207,11 +207,11 @@ $llm = new LLMConnector();
 $WSL_IP = '';
 $HOST_IP = '';
 try {
- $row = $GLOBALS["db"]->fetchOne("SELECT value FROM conf_opts WHERE id='Network/WSL_IP' LIMIT 1");
+ $row = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/WSL_IP' LIMIT 1");
  if (isset($row["value"])) $WSL_IP = $row["value"];
 } catch (Exception $e) {}
 try {
- $row = $GLOBALS["db"]->fetchOne("SELECT value FROM conf_opts WHERE id='Network/HOST_IP' LIMIT 1");
+ $row = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/HOST_IP' LIMIT 1");
  if (isset($row["value"])) $HOST_IP = $row["value"];
 } catch (Exception $e) {}
 

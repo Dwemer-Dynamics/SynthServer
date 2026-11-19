@@ -34,13 +34,13 @@ function synthClaimRpgCommentCooldown($db, array $event): bool
 {
     $key = synthRpgCommentCooldownKey($db, $event);
     $window = synthRpgCommentCompanion($event) ? 30 : 60;
-    $result = $db->execQuery("INSERT INTO synth.conf_opts AS cooldown (id,value)
-        VALUES ($1, floor(extract(epoch FROM clock_timestamp()))::bigint::text)
-        ON CONFLICT (id) DO UPDATE SET value=EXCLUDED.value
-        WHERE CASE WHEN cooldown.value ~ '^[0-9]{1,12}$'
-            THEN cooldown.value::bigint <= EXCLUDED.value::bigint - $2::bigint
+    $result = $db->execQuery("INSERT INTO public.core_config_setting AS cooldown (scope, config_key, config_value)
+        VALUES ('conf', $1, floor(extract(epoch FROM clock_timestamp()))::bigint::text)
+        ON CONFLICT (scope, config_key) DO UPDATE SET config_value=EXCLUDED.config_value
+        WHERE CASE WHEN cooldown.config_value ~ '^[0-9]{1,12}$'
+            THEN cooldown.config_value::bigint <= EXCLUDED.config_value::bigint - $2::bigint
             ELSE true END
-        RETURNING id", [$key, $window]);
+        RETURNING config_key", [$key, $window]);
     if ($result === false) throw new RuntimeException('rpg_cooldown_claim_failed');
     return pg_num_rows($result) === 1;
 }

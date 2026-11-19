@@ -63,7 +63,7 @@ function synth_audience_locked_session(\PgSql\Connection $connection, string $se
     $row = pg_fetch_assoc(synth_audience_query($connection,
         "SELECT r.audience_intent, r.audience_reset_epoch, r.state, r.active_generation,
                 r.capabilities ? 'dialogue.everyone' AS capable,
-                (SELECT value FROM synth.conf_opts WHERE id='synth_mode') AS mode
+                (SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode') AS mode
            FROM public.core_runtime_session r WHERE r.session_id=$1 FOR UPDATE OF r",
         [$sessionId]));
     if (!$row || $row['state'] !== 'active') throw new DomainException('runtime_not_initialized');
@@ -122,8 +122,8 @@ function synth_audience_set_global_mode(\PgSql\Connection $connection, string $m
     if (!synth_control_valid_change('mode', $mode)) throw new DomainException('invalid_control');
     synth_audience_lock_gate($connection, true);
     synth_audience_query($connection,
-        "INSERT INTO synth.conf_opts (id, value) VALUES ('synth_mode', $1)
-         ON CONFLICT (id) DO UPDATE SET value=EXCLUDED.value",
+        "INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_mode', $1)
+         ON CONFLICT (scope, config_key) DO UPDATE SET config_value=EXCLUDED.config_value",
         [$mode]);
     if (in_array($mode, SYNTH_AUDIENCE_MODES, true)) return 0;
     return pg_affected_rows(synth_audience_query($connection,
