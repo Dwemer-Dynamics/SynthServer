@@ -61,4 +61,5 @@ data/CurrentModel_*.json
 
 # Local extension state (enabled list, settings) and per-extension data
 /conf/extensions.json
+/conf/extensions.json.lock
 /data/extensions/*
