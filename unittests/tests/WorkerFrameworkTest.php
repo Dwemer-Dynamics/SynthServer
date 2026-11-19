@@ -201,6 +201,29 @@ final class WorkerFrameworkTest extends TestCase
         $this->assertSame(125.0, $scheduler->dueAt('a'));
     }
 
+    public function testCommandLineEntryPointsListWorkersAndRejectAnUnknownLane(): void
+    {
+        $root = dirname(__DIR__, 2);
+        if (!is_file($root . '/vendor/autoload.php')) {
+            $this->markTestSkipped('Composer autoloader unavailable.');
+        }
+        $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        $run = static function (array $command) use ($null): array {
+            $process = proc_open($command, [0 => ['file', $null, 'r'], 1 => ['pipe', 'w'], 2 => ['file', $null, 'w']], $pipes);
+            $output = (string) stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            return [proc_close($process), $output];
+        };
+        [$code, $output] = $run([PHP_BINARY, $root . '/bin/worker.php', 'list']);
+        $this->assertSame(0, $code);
+        $this->assertCount(count(WorkerRegistry::names()), array_filter(explode("\n", trim($output))));
+        $this->assertStringContainsString('"worker":"profile"', $output);
+        [$code] = $run([PHP_BINARY, $root . '/bin/worker-supervisor.php', '--lane=nope']);
+        $this->assertSame(1, $code);
+        [$code] = $run([PHP_BINARY, $root . '/service/task_dispatch.php', 'rolemaster']);
+        $this->assertSame(2, $code);
+    }
+
     public function testStartScriptDefaultsToTheSupervisorAndKeepsTheManagerBehindAFlag(): void
     {
         $script = file_get_contents(dirname(__DIR__, 2) . '/service/start.sh');
