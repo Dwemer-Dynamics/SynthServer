@@ -192,7 +192,7 @@ global $request;
 global $talkedSoFar;
 global $enginePath;
 
-require_once(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."phpunit.class.php");
+require_once(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."tests".DIRECTORY_SEPARATOR."Fixtures".DIRECTORY_SEPARATOR."phpunit.class.php");
 $GLOBALS["db"] = new sql();
 $GLOBALS["contextData"]=[];
 $GLOBALS["contextDataHistoric"]=[];

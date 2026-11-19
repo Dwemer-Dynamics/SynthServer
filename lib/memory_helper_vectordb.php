@@ -60,7 +60,7 @@ function storeMemory($embeddings, $text, $id, $category='past dialogues' )
 		return false;
 	}
 
-	$GLOBALS["db"]->execQuery("update memory_summary set embedding='[" . $embedding_str . "]' where rowid=$id");
+	$GLOBALS["db"]->execQuery("update core_memory set embedding='[" . $embedding_str . "]' where rowid=$id");
 	return true;
 }
 
@@ -139,7 +139,7 @@ function countMemories()
             return intval(pg_fetch_assoc($result)['n']);
         },2000);
     }
-	$row = $GLOBALS["db"]->fetchOne("SELECT count(*) AS n FROM synth.memory_summary");
+	$row = $GLOBALS["db"]->fetchOne("SELECT count(*) AS n FROM public.core_memory");
 	return intval($row["n"] ?? 0);
 }
 
@@ -156,9 +156,9 @@ function deleteElement($id, $onlyEmbedding = false)
 	}
 
 	if ($onlyEmbedding) {
-		$GLOBALS["db"]->execQuery("UPDATE synth.memory_summary SET embedding = NULL WHERE rowid = {$cleanId}");
+		$GLOBALS["db"]->execQuery("UPDATE public.core_memory SET embedding = NULL WHERE rowid = {$cleanId}");
 	} else {
-		$GLOBALS["db"]->execQuery("DELETE FROM synth.memory_summary WHERE rowid = {$cleanId}");
+		$GLOBALS["db"]->execQuery("DELETE FROM public.core_memory WHERE rowid = {$cleanId}");
 	}
 
 	return true;

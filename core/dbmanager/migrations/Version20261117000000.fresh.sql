@@ -1174,7 +1174,7 @@ CREATE SEQUENCE synth.memory_rowid_seq
 -- end-statement
 ALTER SEQUENCE synth.memory_rowid_seq OWNED BY synth.memory.rowid;
 -- end-statement
-CREATE TABLE synth.memory_summary (
+CREATE TABLE public.core_memory (
     gamets_truncated bigint NOT NULL,
     n integer,
     packed_message text,
@@ -1191,7 +1191,7 @@ CREATE TABLE synth.memory_summary (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE SEQUENCE synth.memory_summary_rowid_seq
+CREATE SEQUENCE public.memory_summary_rowid_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -1199,7 +1199,7 @@ CREATE SEQUENCE synth.memory_summary_rowid_seq
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.memory_summary_rowid_seq OWNED BY synth.memory_summary.rowid;
+ALTER SEQUENCE public.memory_summary_rowid_seq OWNED BY public.core_memory.rowid;
 -- end-statement
 CREATE SEQUENCE synth.memory_uid_seq
     AS integer
@@ -2812,7 +2812,7 @@ ALTER TABLE ONLY synth.memory ALTER COLUMN uid SET DEFAULT nextval('synth.memory
 -- end-statement
 ALTER TABLE ONLY synth.memory ALTER COLUMN rowid SET DEFAULT nextval('synth.memory_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.memory_summary ALTER COLUMN rowid SET DEFAULT nextval('synth.memory_summary_rowid_seq'::regclass);
+ALTER TABLE ONLY public.core_memory ALTER COLUMN rowid SET DEFAULT nextval('public.memory_summary_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_quest ALTER COLUMN rowid SET DEFAULT nextval('public.quests_rowid_seq'::regclass);
 -- end-statement
@@ -4235,7 +4235,7 @@ SELECT pg_catalog.setval('synth.log_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.memory_rowid_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.memory_summary_rowid_seq', 1, false);
+SELECT pg_catalog.setval('public.memory_summary_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('synth.memory_uid_seq', 1, false);
 -- end-statement
@@ -4786,7 +4786,7 @@ CREATE INDEX idx_speech_speaker_trgm ON synth.speech USING gin (speaker gin_trgm
 -- end-statement
 CREATE INDEX idx_speech_utterance_id ON synth.speech USING btree (utterance_id);
 -- end-statement
-CREATE INDEX memory_summary_tsv_idx ON synth.memory_summary USING gin (native_vec);
+CREATE INDEX memory_summary_tsv_idx ON public.core_memory USING gin (native_vec);
 -- end-statement
 CREATE INDEX visual_context_actor_idx ON public.core_visual_context USING btree (actor_identity_id, captured_at DESC) WHERE (actor_identity_id IS NOT NULL);
 -- end-statement

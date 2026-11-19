@@ -2,6 +2,7 @@
 
 // Thin hook: resolves the Gemini key and keyword hints, then the SttWrapper "gemini" driver does the call.
 // The vocal tone it reports is cached here for the context builders (getPlayerTone) and put in front of the transcript.
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once dirname(__DIR__) . '/drivers/stt/SttWrapper.php';
 
 $localPath = dirname(__FILE__) . '/../';
@@ -29,7 +30,7 @@ function stt($filePath)
             $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel($label);
             if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
         } catch (Throwable $_e) {
-            error_log("STT Gemini: DB error looking up {$label} badge: " . $_e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'stt-gemini', "STT Gemini: DB error looking up {$label} badge: " . $_e->getMessage());
         }
     }
 
