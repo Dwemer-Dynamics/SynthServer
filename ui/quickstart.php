@@ -366,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
         if (!synthRuntimeDatabaseEncodingIsSupported()) {
             throw new RuntimeException("SYNTH database encoding is not supported.");
         }
-        require_once($rootPath . "debug" . DIRECTORY_SEPARATOR . "db_updates.php");
+        synthRuntimeApplySchemaMigrations($rootPath);
         if (synthRuntimeNeedsDbUpdates()) {
             throw new RuntimeException("SYNTH database is not ready.");
         }

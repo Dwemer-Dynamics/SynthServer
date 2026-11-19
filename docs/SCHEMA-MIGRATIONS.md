@@ -9,17 +9,21 @@
 > relations named `core_*`; and the shared test fixture installs the baseline through `tools/bootstrap-database.php` instead of
 > importing the default SQL and running the legacy chain. Text below that names `Version20261115000000` means this baseline.
 
+> **The legacy upgrade chain is retired.** `debug/db_updates.php`, `data/database_default.sql`, `applyLegacyChainWithoutLedger()`
+> and the owner's legacy session and lock no longer exist. SYNTH is pre-alpha with no upgrade path: a database built any
+> other way is recreated (`bin/install-db.php`, or an empty database plus `tools/bootstrap-database.php`), never repaired.
+> Passages below that describe the chain, the compatibility entry or the legacy-upgrade step are history.
+
 Doctrine Migrations owns versioned schema changes through `core/dbmanager/SchemaMigrations.php`.
-`debug/db_updates.php` is frozen as the legacy bootstrap baseline. The first migration recognizes that
-baseline on an existing install after verifying it, changing no schema and no row. On an empty database it
-installs that baseline itself ([Fresh install](#fresh-install)). Later schema changes are new classes in
-`core/dbmanager/migrations/` (namespace `Synth\Migrations`), never new `db_updates.php` blocks. This
+The first migration installs the baseline into an empty database ([Fresh install](#fresh-install)), or verifies a
+database that already is exactly that baseline, changing no schema and no row, and refuses anything partial or drifted.
+Later schema changes are new classes in `core/dbmanager/migrations/` (namespace `Synth\Migrations`). This
 foundation adds no migration beyond the baseline. It does not redesign actor identity, application writes,
 transactions or ORM use.
 
 ## Source
 
-- `core/dbmanager/SchemaMigrations.php`: the owner (connection, locks, legacy step, Doctrine run, revert).
+- `core/dbmanager/SchemaMigrations.php`: the owner (connection, lock, Doctrine run, revert).
   `connect()`'s optional `$additionalMigrations` is a test seam only: already-declared classes registered
   beside the tree's, so a later migration can be proven without shipping one.
 - `core/dbmanager/migrations.php`: Doctrine configuration. The version table is
@@ -32,7 +36,7 @@ transactions or ORM use.
   baseline. `Version20261117000000.fresh.sql` is generated data too: the statements that install the baseline
   on an empty database.
 - `lib/runtime_bootstrap.php` (`synthRuntimeApplySchemaMigrations`): the entry used by
-  `tools/bootstrap-database.php` and by `debug/db_updates.php`. `synthRuntimeSchemaMigrationStatus` is the
+  `tools/bootstrap-database.php` and the Quickstart page. `synthRuntimeSchemaMigrationStatus` is the
   read-only counterpart used by `health.php` (see Readiness).
 - `composer.json` / `composer.lock`: adds `doctrine/migrations` 3.9.8 and `symfony/stopwatch` v7.4.8; every
   other locked package is unchanged.
@@ -42,15 +46,8 @@ transactions or ORM use.
 All of them reach `SchemaMigrations::migrate()` under the same lock:
 
 - `tools/bootstrap-database.php` (`synthRuntimeEnsureDbUpdates`).
-- `debug/db_updates.php` is a compatibility entry. Requiring it (the dashboard home, Quickstart, the STT, ITT and
-  TTS connector pages, older tests) delegates to the owner and returns. Only the owner's own include, flagged
-  by `SchemaMigrations::isRunningLegacyBody()`, continues into the frozen chain, so there is no recursion
-  and no unlocked chain run.
-- `applyLegacyChainWithoutLedger()` runs only the chain, under the same locks, and records nothing. It
-  refuses a database that has any migration record. `DatabaseTestCase` uses it to build a true pre-ledger
-  legacy fixture. `SchemaMigrationOwnerTest` builds its fixture in a fresh child process instead: in the
-  PHPUnit process, `synth_ensure_synthnpcs_view()`'s per-process flag skips the view (and its version row)
-  for every class after the first.
+- The Quickstart save path calls `synthRuntimeApplySchemaMigrations`, which reaches the same owner.
+
 
 ## Run order
 
@@ -87,9 +84,7 @@ verifies and records again.
 
 ## Fresh install
 
-An empty database is installed by the baseline migration, not by the legacy chain and not by importing
-`data/database_default.sql`. Normal bootstrap (`tools/bootstrap-database.php`, every `debug/db_updates.php`
-caller) and `tools/create-synth-db-wsl.ps1` take this path; the provisioner no longer imports any SQL itself.
+An empty database is installed by the baseline migration. Normal bootstrap (`tools/bootstrap-database.php`) and `tools/create-synth-db-wsl.ps1` take this path; the provisioner no longer imports any SQL itself.
 
 - Empty means (`Version20261117000000::isEmptyDatabase()`): no schema besides `public` and `synth_meta`, and in
   those two no relation, function or standalone type that is not an extension member, apart from the Doctrine
@@ -229,7 +224,7 @@ Quickstart GET runs one runtime bootstrap (`conf.php` read once) with `throw_db_
 short HTTP 503 page that links to `health.php` unless the database is reachable, uses UTF8, passes the runtime
 gate, has a `current` ledger and has its vendor dependencies installed; only then does it load the render
 settings, and it reads the active STT connector without writing it. A GET never migrates. A save checks the
-encoding, runs the owner through `debug/db_updates.php`, rechecks the gate and answers any failure with a fixed
+encoding, runs the owner through `synthRuntimeApplySchemaMigrations`, rechecks the gate and answers any failure with a fixed
 JSON 503 before any settings save. `tools/bootstrap-database.php` uses the same single bootstrap, checks UTF8
 before migrating and exits nonzero when PostgreSQL is unreachable.
 
@@ -510,8 +505,8 @@ not replace the baseline's own verification.
   values are set in the UI after installing. Existing databases are unaffected.
 - A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
   a SYNTH install; such a database is usually refused by verification and is never reset.
-- `bin/install-db.php` (an explicit reset command, command line only; web requests are refused) still imports
-  `data/database_default.sql` and runs the chain, which stay as legacy-upgrade sources until rollout step 8 of the redesign.
+- `bin/install-db.php` (an explicit reset command, command line only; web requests are refused) drops every application schema and `public`, recreates the two extensions and runs
+  `tools/bootstrap-database.php`, so the baseline migration installs into an empty database.
   The shared `DatabaseTestCase` fixture no longer does: it installs the baseline through `tools/bootstrap-database.php`
   (the fresh path); `SchemaMigrationOwnerTest` still builds the legacy install as its comparison reference.
 - The fresh path was proven on disposable PostgreSQL 17.11 only, not on an installed database, through the WSL
