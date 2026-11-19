@@ -1377,7 +1377,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertFalse(is_resource($stream));
         foreach (['openrouterjson','openaijson','google_openaijson','groqjson','player2json','koboldcppjson'] as $driver) {
             $this->assertStringContainsString("'".$driver."'",file_get_contents(dirname(__DIR__,2).'/lib/synth_memory_worker.php'));
-            $source = file_get_contents(dirname(__DIR__,2).'/connector/'.$driver.'.php');
+            $source = self::providerDriverSource($driver);
             $this->assertStringContainsString('synth_provider_open(', $source);
             $this->assertStringContainsString('synth_provider_line($this->primary_handler)', $source);
             $this->assertStringContainsString('synth_provider_close($this->primary_handler)', $source);
@@ -2828,7 +2828,7 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame('Next line', $second['message']);
             $this->assertSame(array_slice($messages, 2), array_slice($result, 2));
             foreach (['openrouterjson', 'openaijson', 'groqjson', 'google_openaijson', 'player2json'] as $driver) {
-                $source = file_get_contents(dirname(__DIR__, 2).'/connector/'.$driver.'.php');
+                $source = self::providerDriverSource($driver);
                 $this->assertStringContainsString('array_values(synth_provider_dialogue_context($contextData))', $source);
                 if (in_array($driver, ['openrouterjson', 'openaijson', 'groqjson'], true)) {
                     $process = substr($source, strpos($source, 'public function process()'));
@@ -2862,7 +2862,7 @@ final class RequestStreamingTest extends TestCase
             if ($previous === null) unset($GLOBALS['SYNTH_REQUEST_EVENT']); else $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
         }
         foreach (['openrouterjson', 'openaijson', 'google_openaijson', 'groqjson', 'player2json'] as $driver) {
-            $source = file_get_contents(dirname(__DIR__, 2).'/connector/'.$driver.'.php');
+            $source = self::providerDriverSource($driver);
             $this->assertSame(2, substr_count($source, 'synth_provider_action_history('), $driver.' must use the same encoding for history and audit');
             $this->assertStringContainsString('synth_provider_tool_result($lastAction, strval($element["content"]), $element[\'_synth_action_status\'] ?? null)', $source);
         }
@@ -3241,5 +3241,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('combatbark', $request[0]);
         $payload = json_decode($request[3], true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('Preston Garvey', $payload['actor_states'][0]['actor']['display_name']);
+    }
+    /** Source of a stateful provider, which lives in drivers/llm/Drivers/ behind its connector/ hook. */
+    private static function providerDriverSource(string $driver): string
+    {
+        require_once dirname(__DIR__, 2).'/drivers/llm/LlmWrapper.php';
+        $class = \Synth\Drivers\Llm\LlmWrapper::PROVIDER_DRIVERS[$driver];
+        return file_get_contents(dirname(__DIR__, 2).'/drivers/llm/Drivers/'.$class.'.php');
     }
 }
