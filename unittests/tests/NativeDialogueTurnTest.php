@@ -586,7 +586,7 @@ final class NativeDialogueTurnTest extends TestCase
                 public function withClaimedRequestLock(SYNTHClaimedRequest $owner, callable $operation, int $statementTimeoutMs = 0)
                 {
                     // The quest reader takes its own claim lock first; it is unavailable here, so only the diary read is scripted.
-                    if ((new ReflectionFunction($operation))->getClosureScopeClass()?->getName()!==ContextManager::class) {
+                    if ((new ReflectionFunction($operation))->getClosureScopeClass()?->getName()!==SynthManagersContextManagerContextManager::class) {
                         $this->questLocks[]=[$owner->event,$statementTimeoutMs];
                         throw new RuntimeException('quest knowledge unavailable');
                     }
