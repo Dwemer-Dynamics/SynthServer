@@ -12,6 +12,8 @@ if (PHP_SAPI !== 'cli') {
 
 $enginePath = dirname(__DIR__).DIRECTORY_SEPARATOR;
 
+require_once($enginePath."lib".DIRECTORY_SEPARATOR."autoload.php");
+
 require_once($enginePath."conf".DIRECTORY_SEPARATOR."conf.php");
 require_once($enginePath."lib".DIRECTORY_SEPARATOR."db_connection_settings.php");
 

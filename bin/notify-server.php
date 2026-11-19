@@ -23,7 +23,7 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../lib/autoload.php';
 
 $options = [];
 foreach (array_slice($argv, 1) as $argument) {
