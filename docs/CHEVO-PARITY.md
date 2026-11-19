@@ -80,8 +80,8 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 
 | chevo area | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-=======
 | `drivers/llm` (Interface, `LLMWrapper`, `Drivers/`) | Done: `LlmDriverInterface` and `LlmWrapper`; `OpenAiCompatibleDriver` and `PlayerRewriteDriver` are built and called through the wrapper. `connector/*` classes load through `LlmWrapper::legacyConnector()`. Left: the provider logic in `connector/` still lives there (stateful `open/process/close/fast_request`) and moves into `Drivers/` one provider at a time | in progress | this PR |
+| `drivers/tts` (Interface, `TTSWrapper`, `Drivers/`, audio, storage) | `TtsDriverInterface`, `TtsWrapper`, `ProfileSpeechDriver` and `NarratorSpeechDriver` (through `TtsSynthesisInterface`) are behind the wrapper. Each `tts/tts-*.php` provider is a driver in `Drivers/<Name>Driver.php` (`TtsProviderInterface`) registered by a thin hook via `TtsProviderRegistry`. Audio is `SpeechAudio`, storage is `SpeechStorage`; `lib/speech_cache.php` and `lib/npc_tts_status.php` delegate to them. The provider bodies still read the legacy TTS globals; typed provider settings move with the connector entities | parity (shape); provider settings in progress | this PR; #63 (connector entities) |
 | `drivers/stt` | Done: `SttDriverInterface`, `SttWrapper`, one driver per provider (whisper, parakeet, localwhisper, azure, deepgram, gemini, inworld, none); `stt/stt-*.php` are thin hooks that resolve globals and API badge keys | done | this PR |
 | `drivers/itt` | Done: `IttDriverInterface`, `IttWrapper`, drivers for openai, openrouter, google_openai, custom, llamacpp; `itt/itt-*.php` and `lib/itt_service.php` are thin hooks | done | this PR |
 
