@@ -136,7 +136,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
             'emitted'
         );
         $db->update(
-            'eventlog',
+            'core_context_event',
             "delivery_state='aborted'",
             "type='chat' AND synth_session_id IS NULL AND {$inFlightDeliverySql}"
         );
@@ -145,7 +145,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
         Logger::warn("[INIT] Could not abort stale in-flight dialogue rows: " . $e->getMessage());
     }
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
@@ -225,7 +225,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
             if ($canTrigger) {
                 // Queue the event in eventlog so it shows up in context
                 $db->insert(
-                    'eventlog',
+                    'core_context_event',
                     array(
                         'ts' => $gameRequest[1],
                         'gamets' => $gameRequest[2],
@@ -261,7 +261,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
 
 if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about this)
     $now=time();
-    $db->delete("eventlog", " 1=1");
+    $db->delete("core_context_event", " 1=1");
     $db->delete("core_quest", " 1=1");
     $db->delete("speech", " 1=1 ");
     $db->delete("diarylog", " 1=1 ");
@@ -278,7 +278,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     //die(print_r($gameRequest,true));
     $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
@@ -360,7 +360,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 'emitted'
             );
             $db->execQuery(
-                "UPDATE synth.eventlog
+                "UPDATE public.core_context_event
                  SET delivery_state='aborted'
                  WHERE type='chat' AND synth_session_id IS NULL
                    AND utterance_id IN (" . implode(",", $quotedIds) . ")
@@ -443,7 +443,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
             $speechUtteranceIdEscaped = $db->escape($speechUtteranceId);
             $matchedRows = $db->fetchAll(
                 "SELECT rowid
-                 FROM eventlog
+                 FROM core_context_event
                  WHERE type='chat'
                    AND utterance_id='{$speechUtteranceIdEscaped}'
                    AND {$nonAbortedChatStateSql}
@@ -525,7 +525,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     // Fast path: same gamets linkage if available.
                     $sameGametsChatRows = $db->fetchAll(
                         "SELECT rowid, gamets, data
-                         FROM eventlog
+                         FROM core_context_event
                          WHERE gamets={$speechGamets}
                            AND type='chat'
                            AND {$nonAbortedChatStateSql}
@@ -554,7 +554,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 if ($chatRowId <= 0) {
                     $recentChatRows = $db->fetchAll(
                         "SELECT rowid, gamets, data
-                         FROM eventlog
+                         FROM core_context_event
                          WHERE type='chat'
                            AND {$nonAbortedChatStateSql}
                            AND localts>" . (time() - 180) . "
@@ -661,7 +661,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                         if ($rowIdToUpdate <= 0) {
                             continue;
                         }
-                        $db->update("eventlog", "delivery_state='spoken'", "rowid={$rowIdToUpdate} AND {$nonAbortedChatStateSql}");
+                        $db->update("core_context_event", "delivery_state='spoken'", "rowid={$rowIdToUpdate} AND {$nonAbortedChatStateSql}");
                     }
                 }
             } elseif (!empty($matchedUtteranceRowIds)) {
@@ -669,7 +669,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     if ($matchedRowId <= 0) {
                         continue;
                     }
-                    $db->update("eventlog", "delivery_state='spoken'", "rowid={$matchedRowId} AND {$nonAbortedChatStateSql}");
+                    $db->update("core_context_event", "delivery_state='spoken'", "rowid={$matchedRowId} AND {$nonAbortedChatStateSql}");
                 }
             }
         }
@@ -689,7 +689,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     }
 
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
@@ -763,7 +763,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 } else {
                     // Queue the event in eventlog so it shows up in context
                     $db->insert(
-                        'eventlog',
+                        'core_context_event',
                         array(
                             'ts' => $gameRequest[1],
                             'gamets' => $gameRequest[2],
@@ -816,11 +816,11 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         Logger::warn("TimelineBreak: Snapshot attempt (playerdied) failed: ".$e->getMessage());
     }
 
-    $lastSaveHistory=$db->fetchAll("select gamets from eventlog where type='infosave' order by ts desc limit 1 offset 0");
+    $lastSaveHistory=$db->fetchAll("select gamets from core_context_event where type='infosave' order by ts desc limit 1 offset 0");
     if (isset($lastSaveHistory[0]["ts"])) {
         $lastSave=$lastSaveHistory[0]["ts"];
         
-        $db->delete("eventlog", "gamets>$lastSave ");
+        $db->delete("core_context_event", "gamets>$lastSave ");
         
         $db->delete("speech", "gamets>$lastSave  ");
         $db->delete("diarylog", "gamets>$lastSave  ");
@@ -837,7 +837,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         //die(print_r($gameRequest,true));
         $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");
         $db->insert(
-            'eventlog',
+            'core_context_event',
             array(
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -1148,7 +1148,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
     // Log the goodnight event
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
@@ -1173,7 +1173,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
     $elapsed=($gameRequest[2]-$lastgameTs["value"])* 0.0000024;
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],

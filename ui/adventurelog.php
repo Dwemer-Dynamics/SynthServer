@@ -194,7 +194,7 @@ function handle_csv_export($conn, $schema) {
  // Get the most recent date from the eventlog
  $latestDateQuery = "
  SELECT to_char(to_timestamp(localts::double precision) AT TIME ZONE 'UTC', 'YYYY-MM-DD') as event_date
- FROM {$schema}.eventlog
+ FROM public.core_context_event
  WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
  ORDER BY localts DESC
  LIMIT 1
@@ -227,7 +227,7 @@ function handle_csv_export($conn, $schema) {
  // Prepare the SQL query with explicit casting
  $query = "
  SELECT type, data, people, location, localts, gamets
- FROM {$schema}.eventlog
+ FROM public.core_context_event
  WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
  AND to_timestamp(localts::double precision) BETWEEN to_timestamp($startOfDay) AND to_timestamp($endOfDay)
  ORDER BY localts ASC
@@ -236,7 +236,7 @@ function handle_csv_export($conn, $schema) {
  // Export CSV for all data without date filtering
  $query = "
  SELECT type, data, people, location, localts, gamets
- FROM {$schema}.eventlog
+ FROM public.core_context_event
  WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
  ORDER BY localts ASC
  ";
@@ -442,7 +442,7 @@ $allDatesQuery = "
  ELSE
  localts
  END as sort_field
- FROM {$schema}.eventlog
+ FROM public.core_context_event
  WHERE type IN ('im_alive', 'chat', 'infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
  AND gamets > 0
  ORDER BY sort_field ASC
@@ -708,7 +708,7 @@ if ($shouldFetchEvents) {
 
  $query = "
  SELECT type, data, people, location, localts, gamets
- FROM {$schema}.eventlog
+ FROM public.core_context_event
  WHERE type IN ('im_alive', 'chat', 'infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
  AND (
  CASE

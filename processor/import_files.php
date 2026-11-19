@@ -15,7 +15,7 @@ function synthLogCsvImportAuditEvent($eventType, $message, $timestamp, $game_tim
         return;
     }
 
-    $db->insert('eventlog', [
+    $db->insert('core_context_event', [
         'ts' => $timestamp,
         'gamets' => $game_timestamp,
         'type' => 'status_msg',

@@ -113,7 +113,7 @@ function synth_middleterm_approve_regeneration($db,array $input): array
         $payload=json_encode(['schema'=>'synth.middleterm.regeneration.v1','scope'=>$input,'plan'=>$plan],JSON_THROW_ON_ERROR);
         if (strlen($payload)>1000000) throw new LengthException('Regeneration approval exceeds its storage bound.');
         $result=@pg_query_params($connection,"WITH value AS (SELECT $1::jsonb AS payload), publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('middleterm_regeneration','Confirmed native narrative regeneration',$2,0,$3,$3,'','','','derived',$4,$5,$6,NULL) RETURNING *
         ), history AS (

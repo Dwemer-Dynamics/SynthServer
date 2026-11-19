@@ -1164,7 +1164,7 @@ function synth_protocol_persist_observation_history(
          WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
            AND s.active_generation=c.generation AND s.state='active'
     ), publication AS (
-        INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         SELECT $6,$7,playthrough_id,$8,$9,$9,$10,$11,$12,'received',
             session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
@@ -1244,7 +1244,7 @@ function synth_protocol_persist_environment_snapshots(
             continue;
         }
         if ($db->execQuery(
-            "INSERT INTO synth.eventlog
+            "INSERT INTO public.core_context_event
                 (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
              VALUES ({$typeSql}, {$dataSql}, {$sessionSql}, {$gamets}, {$now}, {$now},
                      {$peopleSql}, '', {$partySql}, 'received')"
@@ -1260,7 +1260,7 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
     $playthroughId = strval($event['payload']['playthrough_id'] ?? '');
     $playthroughSql = $db->escapeLiteral($playthroughId);
     $latest = $db->fetchOne(
-        "SELECT party FROM synth.eventlog WHERE type='world_context' AND sess={$playthroughSql}
+        "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess={$playthroughSql}
           ORDER BY rowid DESC LIMIT 1"
     );
     $previous = is_array($latest['party'] ?? null)
@@ -1318,7 +1318,7 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
         return;
     }
     if ($db->execQuery(
-        "INSERT INTO synth.eventlog
+        "INSERT INTO public.core_context_event
             (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
          VALUES ('world_context', {$contextSql}, {$playthroughSql}, {$gamets}, {$now}, {$now},
                  '|The Narrator|', {$contextSql}, {$payloadSql}, 'received')"
@@ -1981,7 +1981,7 @@ require_once __DIR__.'/synth_gift_menu.php';
             if (!$context) throw new RuntimeException('Action issuance context unavailable.');
             // A funccall is issuance evidence, not a claim that the action succeeded or was witnessed.
             // The native event writer captures this row and the intent in the same caller-owned transaction.
-            if (!$db->insert('eventlog', [
+            if (!$db->insert('core_context_event', [
                 'type' => 'funccall', 'data' => $action['action_id'],
                 'gamets' => intval($context['payload']['world']['game_time_ticks'] ?? 0),
                 'ts' => intval($GLOBALS['gameRequest'][1] ?? time()), 'localts' => time(),

@@ -84,8 +84,8 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     $GLOBALS["db"] = new sql();
     $db = $GLOBALS["db"];
 
-    $latsRid=$db->fetchAll("select * from eventlog order by rowid desc LIMIT 1 OFFSET 0");
-    $res=$db->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from eventlog where rowid={$latsRid[0]["rowid"]}");
+    $latsRid=$db->fetchAll("select * from core_context_event order by rowid desc LIMIT 1 OFFSET 0");
+    $res=$db->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from core_context_event where rowid={$latsRid[0]["rowid"]}");
     $res[0]["ts"]=$res[0]["ts"]+1;
     $res[0]["gamets"]=$res[0]["gamets"]+1;
 
@@ -555,7 +555,7 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext","ch
     // if user has made input after initial request, so we can abort it.
     // $db = new sql();
     $db->insert(
-        'eventlog',
+        'core_context_event',
         array(
             'ts' => $gameRequest[1],
             'gamets' => $gameRequest[2],
@@ -1607,8 +1607,8 @@ if (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
         // Is this doing something?
         $semaphore_timeout = $GLOBALS["SEMAPHORES_TIMEOUT"] ?? 300;
         if (!SemaphoreWait("MAIN", $semaphore_timeout, 1007, function() use ($db, $gameRequest) {
-            //$user_input_after=$db->fetchAll("select count(*) as N from eventlog where type='user_input' and ts>$gameRequest[1]"); // 72 ms
-            $user_input_after=$db->fetchAll("SELECT rowid as N FROM eventlog WHERE type='user_input' AND ts>{$gameRequest[1]} ORDER BY rowid DESC LIMIT 1 "); // faster, 1.5 ms
+            //$user_input_after=$db->fetchAll("select count(*) as N from core_context_event where type='user_input' and ts>$gameRequest[1]"); // 72 ms
+            $user_input_after=$db->fetchAll("SELECT rowid as N FROM core_context_event WHERE type='user_input' AND ts>{$gameRequest[1]} ORDER BY rowid DESC LIMIT 1 "); // faster, 1.5 ms
             if (isset($user_input_after[0])) {
                 if (isset($user_input_after[0]["N"]))
                     if (intval($user_input_after[0]["N"])>0) {
@@ -1629,18 +1629,18 @@ if (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
     // AND only if The Narrator wasn't the last speaker (prevent consecutive narrations)
     if (!empty($GLOBALS["RANDOM_NARATION"]) && $GLOBALS["RANDOM_NARATION"] && $gameRequest[0] === "rechat" && sizeof($rechatHistory) >= 1) {
         // Check if the last event was a narration event (if so, skip to prevent consecutive narrations)
-        $lastEvent = $db->fetchOne("SELECT type FROM eventlog WHERE type IN ('rechat', 'narration') ORDER BY gamets DESC, ts DESC LIMIT 1");
+        $lastEvent = $db->fetchOne("SELECT type FROM core_context_event WHERE type IN ('rechat', 'narration') ORDER BY gamets DESC, ts DESC LIMIT 1");
         $wasLastNarration = ($lastEvent && $lastEvent['type'] === 'narration');
 
         // Check cooldown - ensure at least N non-narration events occurred since last narration
         $cooldownRounds = isset($GLOBALS["RANDOM_NARRATION_COOLDOWN"]) ? intval($GLOBALS["RANDOM_NARRATION_COOLDOWN"]) : 2;
         $eventsSinceNarration = $db->fetchOne("
             SELECT COUNT(*) as count
-            FROM eventlog
+            FROM core_context_event
             WHERE type IN ('rechat', 'inputtext', 'inputtext_s')
             AND gamets > (
                 SELECT COALESCE(MAX(gamets), 0)
-                FROM eventlog
+                FROM core_context_event
                 WHERE type = 'narration'
             )
         ");
@@ -2354,7 +2354,7 @@ if ($gameRequest[0] != "diary") {
     $trimmedData = trim($data);
     if (in_array($trimmedData, $combatGrunts)) {
         $shouldLog = false;
-        error_log("[FILTER] Blocked combat grunt from eventlog: {$trimmedData}");
+        error_log("[FILTER] Blocked combat grunt from core_context_event: {$trimmedData}");
     }
 
     if ($shouldLog) {
@@ -2407,7 +2407,7 @@ if ($gameRequest[0] != "diary") {
         ]);
         // Auto Chat's generated player row is a deterministic stage of this owner, inserted or reused once.
         if ($synthAutoChat && $gameRequest[0] === 'inputtext') synth_autochat_record_history($db, $eventlogInsert);
-        else $db->insert('eventlog', $eventlogInsert);
+        else $db->insert('core_context_event', $eventlogInsert);
         Logger::phaseEnd("eventlog_insert", [
             "type" => $gameRequest[0] ?? "",
             "npc" => $GLOBALS["SYNTH_NAME"] ?? "",
@@ -3338,7 +3338,7 @@ if (sizeof($talkedSoFar) == 0) {
 
         } else {
 
-            $lastPlayerLine=$db->fetchAll("SELECT data from eventlog where type in ('inputtext','inputtext_s') order by gamets desc limit 1 offset 0");
+            $lastPlayerLine=$db->fetchAll("SELECT data from core_context_event where type in ('inputtext','inputtext_s') order by gamets desc limit 1 offset 0");
             if (php_sapi_name()!="cli" || getenv('PHPUNIT_TEST'))	{
                 if (in_array($gameRequest[0],["inputtext","inputtext_s"]))
                     // logMemory($GLOBALS["SYNTH_NAME"], $GLOBALS["PLAYER_NAME"], "{$lastPlayerLine[0]["data"]} \n\r {$GLOBALS["SYNTH_NAME"]}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2],$gameRequest[1]);
@@ -3384,7 +3384,7 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     echo PHP_EOL;
     file_put_contents("log/debug_comm_".basename(__FILE__).".log", print_r($GLOBALS["DEBUG_DATA"], true));
 
-    //$db->delete("eventlog", "sess='cli'");
+    //$db->delete("core_context_event", "sess='cli'");
 
 }
 
