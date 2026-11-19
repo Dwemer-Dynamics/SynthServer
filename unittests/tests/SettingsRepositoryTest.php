@@ -125,6 +125,30 @@ final class SettingsRepositoryTest extends DatabaseTestCase
         }
     }
 
+    // The DAO base: Database::bootWith() configures ConfigSettingDao, and a loaded row reaches callers only as the
+    // untracked system copy.
+    public function testConfigSettingDaoReturnsSystemCopiesAndIsConfiguredByDatabase(): void
+    {
+        require_once dirname(__DIR__, 2).'/core/dbmanager/Database.php';
+        require_once dirname(__DIR__, 2).'/core/entities/system/ConfigSetting.php';
+        $db = new sql();
+        try {
+            $this->seed($db);
+            $entities = EntityManagerFactory::forSharedSession($db);
+            \Synth\Core\DbManager\Database::bootWith($entities);
+            $dao = \Synth\Core\DbManager\Dao\ConfigSettingDao::shared();
+            $this->assertSame('alpha', $dao->value('general', 'SYNTH_TEST_ALPHA'));
+            $mapped = $dao->find('general', 'SYNTH_TEST_ALPHA');
+            $this->assertNotNull($mapped);
+            $setting = \Synth\Core\Entities\System\ConfigSetting::fromMapped($mapped);
+            $this->assertSame(['general', 'SYNTH_TEST_ALPHA', 'alpha'], [$setting->scope(), $setting->key(), $setting->value()]);
+            $this->assertNotSame($mapped, $setting);
+            $this->assertNull($dao->find('conf', 'SYNTH_TEST_ALPHA'), 'scopes are separate');
+        } finally {
+            $db->close();
+        }
+    }
+
     public function testDoctrineOwnsNoTransactionOrWriteOnTheSharedSession(): void
     {
         $db = new sql();

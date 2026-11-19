@@ -23,10 +23,10 @@ final class EntityManagerFactory
         }
         require_once $autoload;
         require_once __DIR__.'/SharedSessionDriver.php';
-        require_once __DIR__.'/entities/GeneralSetting.php';
+        require_once dirname(__DIR__).'/entities/base/AbstractConfigSetting.php';
 
         $config = new Configuration();
-        $config->setMetadataDriverImpl(new AttributeDriver([__DIR__.'/entities', dirname(__DIR__).'/entities/base']));
+        $config->setMetadataDriverImpl(new AttributeDriver([dirname(__DIR__).'/entities/base']));
         if (PHP_VERSION_ID >= 80400) {
             $config->enableNativeLazyObjects(true);
         } else {
