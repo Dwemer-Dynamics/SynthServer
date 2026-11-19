@@ -907,7 +907,7 @@ final class RequestStreamingTest extends TestCase
     public function testLegacyRowTargetsRejectSqlFragmentsAndNativeNamespaces(): void
     {
         require_once dirname(__DIR__,2).'/lib/legacy_row_management.php';
-        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'synth.memory_summary'] as $table=>$target) {
+        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'public.core_memory'] as $table=>$target) {
             $this->assertSame([$target,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
         }
         $this->assertSame(['public.core_context_event','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
@@ -1062,7 +1062,7 @@ final class RequestStreamingTest extends TestCase
         foreach (['synth_memory_visible_batch_cte','pg_query_params','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
-        $this->assertStringNotContainsString('FROM synth.memory_summary',$source);
+        $this->assertStringNotContainsString('FROM public.core_memory',$source);
         $this->assertStringContainsString('native_memory_batches AS MATERIALIZED',file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php'));
         $minime=file_get_contents(dirname(__DIR__,2).'/lib/minimet5_service.php');
         $this->assertStringContainsString("'detect:' : 'extract:'",$minime);
