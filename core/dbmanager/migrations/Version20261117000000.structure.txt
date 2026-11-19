@@ -864,19 +864,19 @@ column|synth|log|prompt|text|text|YES||
 column|synth|log|response|text|text|YES||
 column|synth|log|rowid|bigint|int8|NO|nextval('log_rowid_seq'::regclass)|
 column|synth|log|url|text|text|YES||
-column|synth|memory_summary|classifier|text|text|YES||
-column|synth|memory_summary|companions|text|text|YES||
-column|synth|memory_summary|embedding768|USER-DEFINED|vector|YES||
-column|synth|memory_summary|embedding|USER-DEFINED|vector|YES||
-column|synth|memory_summary|gamets_truncated|bigint|int8|NO||
-column|synth|memory_summary|native_vec|tsvector|tsvector|YES||
-column|synth|memory_summary|n|integer|int4|YES||
-column|synth|memory_summary|packed_message|text|text|YES||
-column|synth|memory_summary|rowid|integer|int4|NO|nextval('memory_summary_rowid_seq'::regclass)|
-column|synth|memory_summary|scope|text|text|YES||
-column|synth|memory_summary|summary|text|text|YES||
-column|synth|memory_summary|tags|text|text|YES||
-column|synth|memory_summary|uid|integer|int4|NO||
+column|public|core_memory|classifier|text|text|YES||
+column|public|core_memory|companions|text|text|YES||
+column|public|core_memory|embedding768|USER-DEFINED|vector|YES||
+column|public|core_memory|embedding|USER-DEFINED|vector|YES||
+column|public|core_memory|gamets_truncated|bigint|int8|NO||
+column|public|core_memory|native_vec|tsvector|tsvector|YES||
+column|public|core_memory|n|integer|int4|YES||
+column|public|core_memory|packed_message|text|text|YES||
+column|public|core_memory|rowid|integer|int4|NO|nextval('memory_summary_rowid_seq'::regclass)|
+column|public|core_memory|scope|text|text|YES||
+column|public|core_memory|summary|text|text|YES||
+column|public|core_memory|tags|text|text|YES||
+column|public|core_memory|uid|integer|int4|NO||
 column|synth|memory_v|gamets|bigint|int8|YES||
 column|synth|memory_v|listener|text|text|YES||
 column|synth|memory_v|message|text|text|YES||
@@ -1857,7 +1857,7 @@ index|public|core_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pke
 index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
 index|public|core_config_preset|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON public.core_config_preset USING btree (id)
 index|public|core_npc_profile_rule|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON public.core_npc_profile_rule USING btree (id)
-index|synth|memory_summary|memory_summary_tsv_idx|CREATE INDEX memory_summary_tsv_idx ON synth.memory_summary USING gin (native_vec)
+index|public|core_memory|memory_summary_tsv_idx|CREATE INDEX memory_summary_tsv_idx ON public.core_memory USING gin (native_vec)
 index|public|core_prompt|prompts_pkey|CREATE UNIQUE INDEX prompts_pkey ON public.core_prompt USING btree (prompt_key)
 index|public|core_relationship_eval_queue|relationship_eval_queue_npc_id_key|CREATE UNIQUE INDEX relationship_eval_queue_npc_id_key ON public.core_relationship_eval_queue USING btree (npc_id)
 index|public|core_relationship_eval_queue|relationship_eval_queue_pkey|CREATE UNIQUE INDEX relationship_eval_queue_pkey ON public.core_relationship_eval_queue USING btree (id)
@@ -1983,7 +1983,7 @@ table|public|core_config_preset|BASE TABLE
 table|public|core_npc_profile_rule|BASE TABLE
 table|public|core_location|BASE TABLE
 table|synth|log|BASE TABLE
-table|synth|memory_summary|BASE TABLE
+table|public|core_memory|BASE TABLE
 table|synth|memory_v|VIEW
 table|synth|memory|BASE TABLE
 table|public|core_prompt|BASE TABLE
@@ -2002,8 +2002,8 @@ table|public|core_worldknowledge_article|BASE TABLE
 typmod|public|core_diary_job_result|embedding|vector(384)
 typmod|public|core_diary_result|embedding|vector(384)
 typmod|public|core_memory_summary|embedding|vector(384)
-typmod|synth|memory_summary|embedding768|vector(768)
-typmod|synth|memory_summary|embedding|vector(384)
+typmod|public|core_memory|embedding768|vector(768)
+typmod|public|core_memory|embedding|vector(384)
 typmod|public|core_worldknowledge_article|vector384|vector(384)
 column|public|core_catalog_version|catalog_key|text|text|NO||
 column|public|core_catalog_version|version|bigint|int8|NO||

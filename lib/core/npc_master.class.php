@@ -1699,7 +1699,7 @@ FROM restore
 
         // memory_summary.companions (pipe-separated list)
         $GLOBALS["db"]->execQuery("
-                    UPDATE memory_summary
+                    UPDATE core_memory
                     SET companions = REPLACE(companions, '$oldName', '$newName')
                     WHERE companions LIKE CONCAT('%', '$oldName', '%')
                 ");
