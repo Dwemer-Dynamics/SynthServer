@@ -9,7 +9,7 @@
  */
 declare(strict_types=1);
 
-namespace Synth\Managers\HealthCheck;
+namespace Synth\Managers\ServerStatus;
 
 final class HealthCheckManager
 {

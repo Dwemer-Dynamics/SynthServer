@@ -5,7 +5,7 @@ declare(strict_types=1);
 // Read-only inspection of the stored voice samples (data/voices) and the silent-sample check used by imports.
 // Nothing here writes, deletes or contacts a provider.
 
-namespace Synth\Managers\VoiceSample;
+namespace Synth\Managers\TtsStudio;
 
 use InvalidArgumentException;
 
