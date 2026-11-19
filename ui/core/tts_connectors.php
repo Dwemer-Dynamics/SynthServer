@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__, 2) . '/managers/ConfigManager/ConfigManager.php';
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
 
@@ -479,7 +480,7 @@ if ($ttsAction && isset($_POST['clone'])) {
 if ($ttsAction && isset($_POST['delete'])) {
  $deleteId = intval($_POST['delete']);
  $inUseProfiles = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_profiles WHERE tts_connector_id = {$deleteId}");
- $inUsePlayer = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' AND config_value = '" . $GLOBALS["db"]->escape(strval($deleteId)) . "'");
+ $inUsePlayer = ['c' => (\Synth\Managers\ConfigManager\ConfigManager::shared()->get('player', 'tts_connector_id') === strval($deleteId)) ? 1 : 0];
  $totalUse = intval($inUseProfiles['c'] ?? 0) + intval($inUsePlayer['c'] ?? 0);
  if ($totalUse > 0) {
  header('Location: ' . ttsNoticeUrl('Cannot delete a connector that is still assigned.', ['edit' => $deleteId]));
@@ -549,7 +550,7 @@ $usageMap = [];
 foreach ($usageRows as $row) {
  $usageMap[strval($row['tts_connector_id'] ?? '')] = intval($row['c'] ?? 0);
 }
-$playerTtsValue = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
+$playerTtsValue = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('player', 'tts_connector_id', '')];
 $playerConnectorId = trim(strval($playerTtsValue['value'] ?? ''));
 if ($playerConnectorId !== '') {
  if (!isset($usageMap[$playerConnectorId])) {

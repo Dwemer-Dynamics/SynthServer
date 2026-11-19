@@ -2,7 +2,8 @@
 
 // The one read point for core_config_setting. Reads are array or scalar hydrated, never the identity map, so each call sees
 // the row as the shared session sees it now: a direct legacy write, even one still uncommitted in the caller's transaction,
-// is visible to the next read. No read locks. Writes stay in lib/settings.php for now; the entity is mapped read-only.
+// is visible to the next read. No read locks. The entity is mapped read-only, so the writes (upsert, delete) are
+// parameterized DBAL statements on the same session; only ConfigManager calls them.
 
 declare(strict_types=1);
 
@@ -98,5 +99,67 @@ final class ConfigSettingDao
         }
 
         return $values;
+    }
+
+    /**
+     * Every stored row of one scope, ordered by key, as id, value ('' for NULL), description and updated_at; throws when
+     * unreadable.
+     *
+     * @return list<array{id: string, value: string, description: string, updated_at: ?string}>
+     */
+    public function all(string $scope): array
+    {
+        $mapping = (new ResultSetMapping())->addScalarResult('config_key', 'id')->addScalarResult('config_value', 'value')
+            ->addScalarResult('description', 'description')->addScalarResult('updated_at', 'updated_at');
+        try {
+            $rows = $this->entityManager->createNativeQuery(
+                'SELECT config_key, config_value, description, updated_at FROM public.core_config_setting WHERE scope = ? ORDER BY config_key ASC',
+                $mapping
+            )->setParameter(1, $scope)->getScalarResult();
+        } catch (DbalException|DriverException $error) {
+            throw new RuntimeException('Unable to read '.$scope.' settings', 0, $error);
+        }
+
+        return array_map(static fn(array $row): array => [
+            'id' => strval($row['id']),
+            'value' => strval($row['value'] ?? ''),
+            'description' => strval($row['description'] ?? ''),
+            'updated_at' => isset($row['updated_at']) ? strval($row['updated_at']) : null,
+        ], $rows);
+    }
+
+    /**
+     * Stores one setting, replacing any previous value. A null description keeps the stored one (or '' for a new row).
+     * Returns false when the statement fails, as the legacy writer did.
+     */
+    public function upsert(string $scope, string $key, string $value, ?string $description = null): bool
+    {
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'INSERT INTO public.core_config_setting (scope, config_key, config_value, description, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) '
+                .'ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value, '
+                .'description = CASE WHEN CAST(? AS boolean) THEN EXCLUDED.description ELSE public.core_config_setting.description END, updated_at = CURRENT_TIMESTAMP',
+                [$scope, $key, $value, $description ?? '', $description !== null ? 'true' : 'false']
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes one setting (back to its default); true when the statement ran, whether or not a row existed. */
+    public function delete(string $scope, string $key): bool
+    {
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'DELETE FROM public.core_config_setting WHERE scope = ? AND config_key = ?',
+                [$scope, $key]
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
     }
 }

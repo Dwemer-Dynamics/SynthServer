@@ -5,8 +5,8 @@ use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'request.php';
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'synth_protocol_state.php';
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'provider_stream.php';
-require_once dirname(__DIR__, 2).'/lib/synth_memory.php';
-require_once dirname(__DIR__, 2).'/lib/synth_memory_worker.php';
+require_once dirname(__DIR__, 2).'/managers/MemoryManager/Native/synth_memory.php';
+require_once dirname(__DIR__, 2).'/workers/Memory/Native/synth_memory_worker.php';
 require_once dirname(__DIR__, 2).'/lib/synth_memory_dispatch.php';
 
 final class RequestStreamingTest extends TestCase
@@ -874,7 +874,7 @@ final class RequestStreamingTest extends TestCase
 
     public function testDiaryVisibilityValidationIsMaterializedBeforeReceiptJoins(): void
     {
-        $source=file_get_contents(dirname(__DIR__,2).'/lib/synth_diary_state.php');
+        $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_diary_state.php');
         $this->assertStringContainsString('diary_scoped_inputs AS MATERIALIZED',$source);
         $this->assertStringContainsString('diary_visible_sources AS MATERIALIZED',$source);
         $this->assertStringContainsString('source.history_event_id=visible.history_event_id AND input.actor_identity_id=visible.reader_identity_id',$source);
@@ -883,7 +883,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('accepted.history_event_id<=scope.cutoff',$source);
         $this->assertStringContainsString('FROM diary_valid_inputs i',$source);
         $this->assertStringContainsString("r.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex')",$source);
-        $worker=file_get_contents(dirname(__DIR__,2).'/lib/synth_diary_jobs.php');
+        $worker=file_get_contents(dirname(__DIR__,2).'/workers/Memory/Native/synth_diary_jobs.php');
         $this->assertStringContainsString("hash('sha256',\$value['content'])",$worker);
         $this->assertStringContainsString('CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END',$worker);
     }
@@ -899,7 +899,7 @@ final class RequestStreamingTest extends TestCase
 
     public function testNativeMemoryJobsKeepEvidenceAndInputLocks(): void
     {
-        $source=file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php');
+        $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
         $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
         $this->assertStringContainsString('synth_memory_lock_job_input($connection,$db,$event,$jobId)',$source);
     }
@@ -1058,12 +1058,12 @@ final class RequestStreamingTest extends TestCase
             try { synth_memory_vector_json($invalid); $this->fail('Invalid vector accepted'); }
             catch (InvalidArgumentException $error) { $this->assertStringStartsWith('Invalid memory vector',$error->getMessage()); }
         }
-        $source=file_get_contents(dirname(__DIR__,2).'/lib/synth_memory_recall.php');
+        $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory_recall.php');
         foreach (['synth_memory_visible_batch_cte','pg_query_params','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
         $this->assertStringNotContainsString('FROM public.core_memory',$source);
-        $this->assertStringContainsString('native_memory_batches AS MATERIALIZED',file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php'));
+        $this->assertStringContainsString('native_memory_batches AS MATERIALIZED',file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php'));
         $minime=file_get_contents(dirname(__DIR__,2).'/lib/minimet5_service.php');
         $this->assertStringContainsString("'detect:' : 'extract:'",$minime);
         $this->assertStringContainsString("hash('sha256',_minimeServiceBaseUrl()",$minime);
@@ -1123,7 +1123,7 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame('Memory providers require an idle database connection',$error->getMessage());
         }
         $this->assertFalse($called);
-        $source = file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php');
+        $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
         foreach (['attempts<3',"INTERVAL '2 minutes'",'clock_timestamp()','lease_token=$5',"last_error='provider_failed'"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
@@ -1145,7 +1145,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertNull(synth_memory_build_batch([array_replace($row,['data'=>str_repeat('x',65537)])],1,1000));
         $this->assertSame('first',synth_memory_build_batch([$row,array_replace($row,['data'=>str_repeat('x',65536)])],1,1000)['packed_message']);
         $this->assertCount(150,synth_memory_build_batch(array_fill(0,151,$row),1,1000)['input_payload']['events']);
-        $source = file_get_contents(dirname(__DIR__,2).'/lib/synth_memory.php');
+        $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
         $this->assertStringContainsString('withNativeRequestLock',$source);
         $this->assertStringContainsString('synth_memory_visible_batch_cte($db, $event)',$source);
         $this->assertStringContainsString('pg_query_params',$source);
@@ -1376,7 +1376,7 @@ final class RequestStreamingTest extends TestCase
         synth_provider_close($stream);
         $this->assertFalse(is_resource($stream));
         foreach (['openrouterjson','openaijson','google_openaijson','groqjson','player2json','koboldcppjson'] as $driver) {
-            $this->assertStringContainsString("'".$driver."'",file_get_contents(dirname(__DIR__,2).'/lib/synth_memory_worker.php'));
+            $this->assertStringContainsString("'".$driver."'",file_get_contents(dirname(__DIR__,2).'/workers/Memory/Native/synth_memory_worker.php'));
             $source = self::providerDriverSource($driver);
             $this->assertStringContainsString('synth_provider_open(', $source);
             $this->assertStringContainsString('synth_provider_line($this->primary_handler)', $source);

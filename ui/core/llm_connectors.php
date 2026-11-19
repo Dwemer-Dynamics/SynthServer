@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__, 2) . '/managers/ConfigManager/ConfigManager.php';
 $enginePath = __DIR__ . "/../../";
 
 // Connector create, clone and delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
@@ -207,12 +208,10 @@ $llm = new LLMConnector();
 $WSL_IP = '';
 $HOST_IP = '';
 try {
- $row = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/WSL_IP' LIMIT 1");
- if (isset($row["value"])) $WSL_IP = $row["value"];
+ $WSL_IP = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'Network/WSL_IP', '');
 } catch (Exception $e) {}
 try {
- $row = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/HOST_IP' LIMIT 1");
- if (isset($row["value"])) $HOST_IP = $row["value"];
+ $HOST_IP = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'Network/HOST_IP', '');
 } catch (Exception $e) {}
 
 // Lightweight partial to render only the editor UI (for embedding)
