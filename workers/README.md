@@ -41,10 +41,11 @@ later), so the contracts survive that change unchanged.
 | `middleterm` | `Memory/MiddleTermWorker` | manager task `middleterm`, via `service/task_dispatch.php` |
 | `dynamicprofile` | `Profiles/DynamicProfileWorker` | manager task `dynamicprofile`, via `service/task_dispatch.php` |
 | `player2health` | `Player2/Player2HealthWorker` | manager task `player2health`, via `service/task_dispatch.php` |
+| `extension-events` | `ExtensionEvents/ExtensionEventsWorker` | native: drains `ExtensionManager`'s `FileEventQueue` (no database) |
 | `tts` | `Speech/SpeechWorker` | `service/tts_dispatch.php --loop --max-seconds=N` (one dispatch window per run) |
 | `profile` | `Profiles/ProfileAutofillWorker` | `processor/profile_autofill_worker.php`, on demand only |
 
-They extend `Legacy/LegacyDispatchWorker` (the task workers through `Legacy/LegacyTaskWorker`), a thin adapter: each pass launches the dispatch script in a
+All but `extension-events` extend `Legacy/LegacyDispatchWorker` (the task workers through `Legacy/LegacyTaskWorker`), a thin adapter: each pass launches the dispatch script in a
 fresh CLI process (it opens its own connection), counts a pass as one unit when the script prints its
 completion line, and treats a non-zero exit as a failed unit without relaying any output. The legacy
 dispatch scripts still reserve and lease their own jobs, so running them through the supervisor and
@@ -61,7 +62,7 @@ The supervisor runs one **lane** per process (`WorkerRegistry::LANES`), so slow 
 
 | Lane | Workers | Cadence (`WorkerRegistry::FIXED_SECONDS`) |
 | --- | --- | --- |
-| `general` | `memory`, `relationship`, `middleterm`, `dynamicprofile`, `player2health` | 5 seconds after each run, what the manager's tick was |
+| `general` | `memory`, `relationship`, `middleterm`, `dynamicprofile`, `player2health`, `extension-events` | 5 seconds after each run, what the manager's tick was |
 | `speech` | `tts` | 1 second after each run (10-second dispatch window, the dispatcher polls every 0.5 s inside it) |
 
 `profile` is in no lane: `synthSpawnProfileAutofillWorker` starts `php bin/worker.php profile --job=<file>` detached for each

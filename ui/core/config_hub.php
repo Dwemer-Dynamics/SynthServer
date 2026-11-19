@@ -32,17 +32,17 @@ include(__DIR__ . DIRECTORY_SEPARATOR . "../tmpl/head.html");
 $validTabs = [
     'npc', 'globals', 'profiles', 'llm', 'ttscfg', 'sttcfg', 'pipvision', 'keys',
     'player', 'narrator', 'worldknowledge', 'npcbio', 'items', 'actions',
-    'prompts', 'serverplugins', 'xtts'
+    'prompts', 'serverplugins', 'extensions', 'xtts'
 ];
 $configSections = [
     'settings' => ['label' => 'Settings', 'tabs' => ['globals' => 'Global Settings', 'profiles' => 'Profiles', 'npc' => 'SYNTH NPCs', 'player' => 'Player', 'narrator' => 'Narration']],
     'ai-voice' => ['label' => 'AI & Voice', 'tabs' => ['llm' => 'LLM', 'ttscfg' => 'TTS', 'xtts' => 'TTS Studio', 'sttcfg' => 'STT', 'pipvision' => 'ITT', 'keys' => 'API Keys']],
-    'world-behavior' => ['label' => 'World & Behavior', 'tabs' => ['npcbio' => 'NPC Biographies', 'worldknowledge' => 'World Knowledge', 'items' => 'Descriptions', 'actions' => 'Action Editor', 'prompts' => 'Prompts Manager', 'serverplugins' => 'Server Plugins']],
+    'world-behavior' => ['label' => 'World & Behavior', 'tabs' => ['npcbio' => 'NPC Biographies', 'worldknowledge' => 'World Knowledge', 'items' => 'Descriptions', 'actions' => 'Action Editor', 'prompts' => 'Prompts Manager', 'serverplugins' => 'Server Plugins', 'extensions' => 'Extensions']],
 ];
 $tabIcons = [
     'npc' => '&#x1F31F;', 'profiles' => '&#x1F5C3;&#xFE0F;', 'player' => '&#x1F464;', 'narrator' => '&#x1F5E3;&#xFE0F;', 'npcbio' => '&#x1FAAA;',
     'llm' => '&#x1F9E0;', 'ttscfg' => '&#x1F50A;', 'xtts' => '&#x1F4E2;', 'sttcfg' => '&#x1F3A4;', 'pipvision' => '&#x1F5BC;&#xFE0F;', 'keys' => '&#x1F511;',
-    'globals' => '&#x1F310;', 'worldknowledge' => '&#x1F4DC;', 'items' => '&#x1F4D6;', 'actions' => '&#x2694;&#xFE0F;', 'prompts' => '&#x1F4AC;', 'serverplugins' => '&#x1F9E9;',
+    'globals' => '&#x1F310;', 'worldknowledge' => '&#x1F4DC;', 'items' => '&#x1F4D6;', 'actions' => '&#x2694;&#xFE0F;', 'prompts' => '&#x1F4AC;', 'serverplugins' => '&#x1F9E9;', 'extensions' => '&#x1F50C;',
 ];
 $initialTab = isset($_GET['tab']) ? trim((string)$_GET['tab']) : 'npc';
 if (!in_array($initialTab, $validTabs, true)) {
@@ -188,6 +188,11 @@ main { padding: 0 10px 8px; height: calc(100vh - var(--hub-navbar-offset)); }
         <div id="serverplugins" class="tab-content">
             <div class="embed-wrap">
                 <iframe class="embed" loading="lazy" src="about:blank" data-src="<?php echo $webRoot; ?>/ui/server_plugins.php?embed=1"></iframe>
+            </div>
+        </div>
+        <div id="extensions" class="tab-content">
+            <div class="embed-wrap">
+                <iframe class="embed" loading="lazy" src="about:blank" data-src="<?php echo $webRoot; ?>/ui/extensions.php?embed=1"></iframe>
             </div>
         </div>
     </div>

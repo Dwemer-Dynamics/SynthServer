@@ -6,7 +6,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
 {
     public function testNarratorInputTextHidesDisabledNarratorPrivateActionsByDefault(): void
     {
-        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'phpunit.class.php';
+        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'tests'.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'phpunit.class.php';
 
         $db = new sql();
         $GLOBALS['db'] = $db;
@@ -54,7 +54,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
 
     public function testNarratorCheatmodeDoesNotExposeUnadvertisedActions(): void
     {
-        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'phpunit.class.php';
+        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'tests'.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'phpunit.class.php';
 
         $db = new sql();
         $GLOBALS['db'] = $db;
@@ -86,7 +86,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
 
     public function testNarratorPickupItemIsRejectedWhenCapabilityIsUnavailable(): void
     {
-        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'phpunit.class.php';
+        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'tests'.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'phpunit.class.php';
 
         $db = new sql();
         $GLOBALS['db'] = $db;
@@ -124,7 +124,7 @@ final class NarratorPromptActionTest extends DatabaseTestCase
 
     public function testNarratorGiveCapsIsRejectedWhenCapabilityIsUnavailable(): void
     {
-        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'phpunit.class.php';
+        require_once __DIR__.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'..'.DIRECTORY_SEPARATOR.'tests'.DIRECTORY_SEPARATOR.'Fixtures'.DIRECTORY_SEPARATOR.'phpunit.class.php';
 
         $db = new sql();
         $GLOBALS['db'] = $db;

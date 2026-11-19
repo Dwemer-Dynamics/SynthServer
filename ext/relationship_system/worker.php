@@ -79,19 +79,12 @@ if ($daemon && function_exists('pcntl_fork')) {
     @file_put_contents($logFile, date('[Y-m-d H:i:s]') . " TRACE: Daemon mode without pcntl, PID=" . getmypid() . "\n", FILE_APPEND);
 }
 
-// Set up error handler to catch fatal errors and log them
-set_error_handler(function($errno, $errstr, $errfile, $errline) use ($logFile) {
-    $msg = date('[Y-m-d H:i:s]') . " PHP Error ({$errno}): {$errstr} in {$errfile}:{$errline}\n";
-    @file_put_contents($logFile, $msg, FILE_APPEND);
-    return false; // Let PHP handle it too
-});
+// Single SYNTH error/exception/fatal handler, writing to this worker's own log. The shutdown hook only cleans up.
+require_once $enginePath . 'lib/classes/Logger.php';
+\Synth\Lib\Logger::setHandlerLog($logFile);
+\Synth\Lib\Logger::installHandlers();
 
-register_shutdown_function(function() use ($logFile, $pidFile) {
-    $error = error_get_last();
-    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        $msg = date('[Y-m-d H:i:s]') . " FATAL: {$error['message']} in {$error['file']}:{$error['line']}\n";
-        @file_put_contents($logFile, $msg, FILE_APPEND);
-    }
+register_shutdown_function(function() use ($pidFile) {
     // Clean up PID file on exit
     @unlink($pidFile);
 });

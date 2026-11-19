@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 function synthNormalizePromptInjectionKey(string $value): string
 {
     $value = strtolower(trim($value));
@@ -37,7 +38,7 @@ function synthPromptInjectionContentToText($content, string $slot, array $contex
         try {
             $content = call_user_func($content, $slot, $context);
         } catch (Throwable $e) {
-            error_log("[PromptInjections] Injection callback failed for {$slot}: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'PromptInjections', "Injection callback failed for {$slot}: " . $e->getMessage());
             return '';
         }
     }
@@ -145,7 +146,7 @@ function synthBuildActorProfileEnrichmentText(string $actorName, string $actorTy
         try {
             $result = call_user_func($entry['callback'], $actorName, $actorType, $context);
         } catch (Throwable $e) {
-            error_log("[PromptInjections] Actor profile enricher failed for {$actorName}: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'PromptInjections', "Actor profile enricher failed for {$actorName}: " . $e->getMessage());
             continue;
         }
 

@@ -147,7 +147,7 @@ if (!function_exists('synthRollbackPruneFutureData')) {
             synthRollbackDelete($table, "gamets>={$targetGamets}", $stats);
         }
 
-        synthRollbackDelete('memory_summary', "gamets_truncated>{$targetGamets}", $stats);
+        synthRollbackDelete('core_memory', "gamets_truncated>{$targetGamets}", $stats);
         synthRollbackDelete('memory', "gamets>{$targetGamets}", $stats);
 
         synthRollbackDelete('responselog', "1=1", $stats);

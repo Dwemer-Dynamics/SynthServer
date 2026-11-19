@@ -4122,7 +4122,7 @@ function PackIntoSummary($onlyMissingDiary=false)
     global $db;
 
     if ($onlyMissingDiary) {
-        $results = $db->query("insert into memory_summary (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
+        $results = $db->query("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
         select gamets,1,message,message,'diary',uid,
             case
                 when nullif(trim(speaker), '') is null then ''
@@ -4131,13 +4131,13 @@ function PackIntoSummary($onlyMissingDiary=false)
             'global'
         from memory
         where event in ('diary','auto_diary')
-        and uid not in (select uid from memory_summary where classifier in  ('diary','auto_diary'))");
+        and uid not in (select uid from core_memory where classifier in  ('diary','auto_diary'))");
 
         $maxRow=0;
 
     } else {
         $lastGameTsRecord = $GLOBALS["db"]->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
-        $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from memory_summary order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
+        $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from core_memory order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
 
         $maxRow = isset($results[0]["gamets_truncated"]) ? intval($results[0]["gamets_truncated"]) : 0;
         $minRow = intval($lastGameTsRecord["gamets"]);
@@ -4150,7 +4150,7 @@ function PackIntoSummary($onlyMissingDiary=false)
         }
         // Queue boundaries are hard-cut by location changes. Dialogue rows inherit
         // the most recent world-context location so they remain in the scene queue.
-        $query="insert into memory_summary (gamets_truncated,n,packed_message,summary,classifier,uid,scope,companions)
+        $query="insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,scope,companions)
                                 with source_rows as (
                                     select
                                         uid,
@@ -4285,7 +4285,7 @@ function PackIntoSummary($onlyMissingDiary=false)
 
         $results = $db->query($query);
 
-        $results = $db->query("insert into memory_summary (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
+        $results = $db->query("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
                                     select gamets,1,message,message,'diary',uid,
                                         case
                                             when nullif(trim(speaker), '') is null then ''
@@ -4980,7 +4980,7 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
                 'classifier'
             );
             $row = $GLOBALS['db']->fetchOne(
-                "SELECT summary, gamets_truncated FROM synth.memory_summary"
+                "SELECT summary, gamets_truncated FROM public.core_memory"
                 . " WHERE classifier='dialogue'"
                 . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
                 . " AND gamets_truncated < " . intval($contextWindowFloor)
@@ -5011,7 +5011,7 @@ function dataGetMemoryScopeConditionSql($npcName)
         $npcEsc = $GLOBALS["db"]->escape($npcName);
         try {
             $scopedMemory = $GLOBALS["db"]->fetchOne(
-                "SELECT 1 FROM memory_summary WHERE scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
+                "SELECT 1 FROM core_memory WHERE scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
             );
             if (is_array($scopedMemory) && count($scopedMemory) > 0) {
                 return "scope='$npcEsc'";
@@ -5175,7 +5175,7 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
         SELECT summary,gamets_truncated,
         ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any,
         ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all
-        FROM memory_summary A
+        FROM core_memory A
         where native_vec @@to_tsquery('$kwStringAny')
         and not (native_vec @@to_tsquery('#Reminiscence'))
         and $scopeConditionSql
@@ -5410,7 +5410,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                          $rankCombinedSql AS rank_fts,
                          (embedding <-> $vectorString) - $rankCombinedSql AS mixed_distance,
                          summary
-                    FROM synth.memory_summary
+                    FROM public.core_memory
                     WHERE embedding IS NOT NULL
                     and $scopeConditionSql
                     and $companionConditionSql
@@ -5442,7 +5442,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                         embedding <-> $vectorString as distance,
                          ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any_fts,
                          ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all_fts
-                    FROM synth.memory_summary
+                    FROM public.core_memory
                     WHERE embedding IS NOT NULL
                     and companions like '%{$GLOBALS["db"]->escape($npcfilter)}%'
                     ORDER BY (embedding <-> $vectorString)-ts_rank(native_vec, to_tsquery('$kwStringAny'))

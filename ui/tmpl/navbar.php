@@ -245,7 +245,7 @@ $configurationPages = [
  'core_profiles.php', 'llm_connectors.php', 'tts_connectors.php', 'stt_connectors.php', 'itt_connectors.php',
  'api_badge.php', 'global_settings.php', 'description_upload.php', 'npc_upload.php',
  'worldknowledge_upload.php', 'function_editor.php', 'xtts_clone.php', 'prompts_manager.php',
- 'synth_setup.php', 'quickstart.php',
+ 'synth_setup.php', 'quickstart.php', 'extensions.php',
 ];
 $controlPanelPages = [
  'control_panel.php', 'request_logs.php', 'worldknowledge_audit.php', 'audit.php',

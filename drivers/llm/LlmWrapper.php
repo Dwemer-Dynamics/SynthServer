@@ -12,17 +12,28 @@ require_once __DIR__ . '/LlmDriverInterface.php';
 /**
  * The single entry point application code uses for an LLM call.
  *
- * Two shapes live here until the legacy providers move into Drivers/:
+ * Two shapes live here:
  * - Typed drivers (OpenAiCompatibleDriver, PlayerRewriteDriver): the wrapper is itself the Synth\Core\LlmDriver the
  *   managers receive. It asks each driver in order whether it supports the stored connector row and streams through
  *   the first that does; none is "provider_unsupported", the same refusal a lone driver gave.
- * - Legacy connectors (connector/*.php): legacyConnector() validates the driver name and returns the stateful
- *   connector object with its open/process/close/fast_request API, so call sites no longer build paths themselves.
+ * - Stateful providers: legacyConnector() validates the driver name and returns the provider driver from Drivers/
+ *   (open/process/close/fast_request). connector/<name>.php are thin hooks that keep the legacy global class names;
+ *   a provider file added to connector/ outside the built-in set still loads as before.
  */
 final class LlmWrapper implements LlmDriver
 {
     /** Files in connector/ that are helpers, not providers. */
     private const NOT_PROVIDERS = ['__jpd', 'parse_simple_yaml'];
+
+    /** Provider name (the connector row's driver) => class in drivers/llm/Drivers/. */
+    public const PROVIDER_DRIVERS = [
+        'openaijson' => 'OpenAiJsonDriver',
+        'openrouterjson' => 'OpenRouterJsonDriver',
+        'groqjson' => 'GroqJsonDriver',
+        'koboldcppjson' => 'KoboldCppJsonDriver',
+        'player2json' => 'Player2JsonDriver',
+        'google_openaijson' => 'GoogleOpenAiJsonDriver',
+    ];
 
     /** @param list<LlmDriver> $drivers asked in order; the first one that supports a connector streams it */
     public function __construct(private readonly array $drivers)
@@ -79,6 +90,13 @@ final class LlmWrapper implements LlmDriver
     {
         if (!self::hasLegacyConnector($driver, $root)) {
             throw new \InvalidArgumentException("LLM connector \"{$driver}\" is not available.");
+        }
+        if (isset(self::PROVIDER_DRIVERS[$driver])) {
+            $class = self::PROVIDER_DRIVERS[$driver];
+            require_once __DIR__ . '/Drivers/' . $class . '.php';
+            $class = __NAMESPACE__ . '\\Drivers\\' . $class;
+
+            return new $class();
         }
         require_once self::connectorFile($driver, $root);
 

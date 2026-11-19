@@ -78,7 +78,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'public.core_location',
             'synth.log',
             'synth.memory',
-            'synth.memory_summary',
+            'public.core_memory',
             'public.core_prompt',
             'public.core_quest',
             'public.core_relationship_eval_queue',

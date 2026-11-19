@@ -13,7 +13,8 @@ use Synth\Workers\WorkerReport;
 
 foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'WorkerRegistry', 'Legacy/LegacyDispatchWorker', 'Legacy/LegacyTaskWorker',
     'Memory/MemoryWorker', 'Memory/MiddleTermWorker', 'Profiles/DynamicProfileWorker', 'Profiles/ProfileAutofillWorker',
-    'Player2/Player2HealthWorker', 'Relationships/RelationshipWorker', 'Speech/SpeechWorker', 'Supervisor/WorkerScheduler'] as $file) {
+    'Player2/Player2HealthWorker', 'Relationships/RelationshipWorker', 'ExtensionEvents/ExtensionEventsWorker', 'Speech/SpeechWorker',
+    'Supervisor/WorkerScheduler'] as $file) {
     require_once dirname(__DIR__, 2) . '/workers/' . $file . '.php';
 }
 
@@ -22,7 +23,7 @@ final class WorkerFrameworkTest extends TestCase
 {
     public function testRegistryListsAndCreatesWorkersAndRejectsUnknownNames(): void
     {
-        $this->assertSame(['memory', 'relationship', 'middleterm', 'dynamicprofile', 'player2health', 'tts', 'profile'], WorkerRegistry::names());
+        $this->assertSame(['memory', 'relationship', 'middleterm', 'dynamicprofile', 'player2health', 'tts', 'profile', 'extension-events'], WorkerRegistry::names());
         $this->assertInstanceOf(MemoryWorker::class, WorkerRegistry::create('memory'));
         $this->assertSame('relationship', WorkerRegistry::create('relationship')->name());
         $this->expectException(InvalidArgumentException::class);

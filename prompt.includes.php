@@ -4,6 +4,7 @@
 
 
 // IF GLOBAL INPUTCHAT (NO TARGET)
+require_once __DIR__ . '/lib/classes/Logger.php';
 $promptIncludesStartTime = (isset($startTime) && is_numeric($startTime)) ? $startTime : microtime(true);
 $gameRequest = (isset($gameRequest) && is_array($gameRequest)) ? $gameRequest : [];
 for ($promptIncludeIndex = 0; $promptIncludeIndex <= 4; $promptIncludeIndex++) {
@@ -20,13 +21,13 @@ $currentNpcData = (isset($currentNpcData) && is_array($currentNpcData)) ? $curre
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
 // Prompt values depend on the active actor, request and capability set. Rebuild
 // them for every pipeline invocation, including long-lived workers and tests.
 require(__DIR__ . DIRECTORY_SEPARATOR . "prompts/prompts.php");
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
 $PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? $GLOBALS["PROMPT_HEAD"] : "Let\'s roleplay in the Universe of Fallout. I\'m {$GLOBALS["PLAYER_NAME"]} ";
 
@@ -34,7 +35,7 @@ $PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? $GLOBALS["PROMPT_HEAD"] : "Let\
  * Info gathering to mangle function definitions. This will enforce some parameters to be fixed-
  */
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 $FUNCTION_PARM_MOVETO=DataPosibleMoveToTargets();		// Move_To is actor-only; locations should use TravelTo.
 if (!isset($FUNCTION_PARM_MOVETO))
 	$FUNCTION_PARM_MOVETO=[];
@@ -46,13 +47,13 @@ if (!isset($FUNCTION_PARM_INSPECT))
 	$FUNCTION_PARM_INSPECT=[];
 $FUNCTION_PARM_INSPECT[]=$GLOBALS["PLAYER_NAME"];
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 require(__DIR__.DIRECTORY_SEPARATOR."prompts".DIRECTORY_SEPARATOR."command_prompt.php");
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 require_once(__DIR__.DIRECTORY_SEPARATOR . "functions" . DIRECTORY_SEPARATOR . "functions.php");
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
 /* This will use the extra key from PROMPTS array to do some things 
  (enable/disable, force mod, change token limit oe define a transformer (non IA related) function.
