@@ -487,7 +487,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             case 'player combat':$payload['actor_states'][0]['in_combat']=true;break;
             case 'audience unavailable':$payload['audience_observation']='unavailable';break;
             case 'scene unavailable':unset($payload['world']['scene']);break;
-            case 'private mode':$this->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_mode','WHISPER') ON CONFLICT (scope, config_key) DO UPDATE SET value='WHISPER'");break;
+            case 'private mode':$this->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_mode','WHISPER') ON CONFLICT (scope, config_key) DO UPDATE SET config_value='WHISPER'");break;
             case 'wrong physical target':$payload['target']['form_id']='0x00001234';break;
             case 'foreign listener':$payload['audience'][1]['playthrough_id']='another-save';break;
             case 'cooldown':

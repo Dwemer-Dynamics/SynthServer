@@ -126,7 +126,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                         $this->globalLatestReads++;
                         throw new LogicException('Native rechat cannot borrow the global latest chat.');
                     }
-                    return str_contains($sql,"id='current_worldknowledge_topic'") ? ['value'=>'quest_when_freedom_calls'] : null;
+                    return str_contains($sql,"config_key='current_worldknowledge_topic'") ? ['value'=>'quest_when_freedom_calls'] : null;
                 }
                 public function escape(string $text): string { return str_replace("'","''",$text); }
                 public function escapeLiteral(string $text): string { return "'".$this->escape($text)."'"; }
