@@ -37,7 +37,7 @@ later), so the contracts survive that change unchanged.
 | Name | Class | Wraps (legacy, unchanged) |
 | --- | --- | --- |
 | `memory` | `Memory/MemoryWorker` | `service/memory_dispatch.php` (thin hook over `Memory/MemoryRunner`) |
-| `relationship` | `Relationships/RelationshipWorker` | `service/relationship_dispatch.php` |
+| `relationship` | `Relationships/RelationshipWorker` | `service/relationship_dispatch.php` (thin hook over `Relationships/RelationshipRunner`) |
 | `middleterm` | `Memory/MiddleTermWorker` | manager task `middleterm`, via `service/task_dispatch.php` |
 | `dynamicprofile` | `Profiles/DynamicProfileWorker` | manager task `dynamicprofile`, via `service/task_dispatch.php` |
 | `player2health` | `Player2/Player2HealthWorker` | manager task `player2health`, via `service/task_dispatch.php` |
@@ -53,7 +53,7 @@ through `service/manager.php` at once is safe but redundant. `pendingUnits()` re
 dispatch script cannot count without reserving work; `--check` therefore only says "a pass is worth
 trying". A native worker class replaces its adapter when the logic moves out of `service/`.
 
-`service/tts_worker.php <job-id>` (one speech job), `service/memory_worker.php` and `service/relationship_worker.php`
+`service/tts_worker.php <job-id>` (one speech job), `service/memory_worker.php` and `service/relationship_worker.php` (the latter is a hook into `Relationships/RelationshipRunner`)
 are the per-job runners that the dispatchers launch; they are the work itself and stay where they are.
 
 ## Lanes and cadence
