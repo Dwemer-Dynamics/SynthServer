@@ -2,11 +2,14 @@
 
 namespace Synth\Drivers\Tts;
 
+require_once __DIR__.'/TtsSynthesisInterface.php';
+
 // Private narrator speech: the narrator profile's own TTS connector and the definition's voice, synthesized once per
 // reply outside any database transaction and published as immutable media. There is no server-wide or NPC fallback;
 // a reply that cannot be voiced is a terminal failure, because only completed audio can enter the transcript.
-final class NarratorSpeechDriver
+final class NarratorSpeechDriver implements TtsSynthesisInterface
 {
+    public const NAME = 'narrator-speech';
     private const PORTABLE = ['xtts-fastapi', 'chatterbox', 'pockettts', 'cartesia', 'inworld'];
     public const DEADLINE_MS = 30000;
 
@@ -16,8 +19,22 @@ final class NarratorSpeechDriver
      */
     public function __construct(private $db, private string $root, private array $serverConfig, private \Closure $legacy) {}
 
-    /** Explicit TTS plan inputs for one narrator definition revision; null when the profile has no portable speech. */
-    public function settings(array $profile, string $name, string $voice): ?array
+    public function getName(): string { return self::NAME; }
+
+    /**
+     * Explicit TTS plan inputs for one narrator definition revision; null when the profile has no portable speech.
+     *
+     * @param array $npcRow the narrator identity: npc_name (the configured narrator name) and voiceid (the definition's voice)
+     * @param array $profile the narrator profile row
+     */
+    public function settings(array $npcRow, array $profile): ?array
+    {
+        $name = trim(strval($npcRow['npc_name'] ?? ''));
+        $voice = trim(strval($npcRow['voiceid'] ?? ''));
+        return $this->resolve($profile, $name, $voice);
+    }
+
+    private function resolve(array $profile, string $name, string $voice): ?array
     {
         return ($this->legacy)(function () use ($profile, $name, $voice): ?array {
             require_once dirname(__DIR__, 2).'/lib/core/tts_connector.class.php';
@@ -44,6 +61,13 @@ final class NarratorSpeechDriver
                 $inputs['LLM_LANG'] = preg_replace('/[^a-z\-]/i', '', strtolower(trim($language)));
             return $inputs;
         });
+    }
+
+    /** The narrator is voiced inline: queue() synthesizes the line now and returns its cache key (correlation rides on the speaker). */
+    public function queue(array $speaker, string $lineId, string $text, array $settings): string
+    {
+        $spoken = $this->synthesize(strval($speaker['display_name'] ?? ''), $lineId, $text, $settings, (array)($speaker['correlation'] ?? []));
+        return strval($spoken['cache_key']);
     }
 
     /** Synthesizes and publishes one reply; returns a ready synth.speech.v1 payload or throws speech_unavailable. */

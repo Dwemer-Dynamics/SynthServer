@@ -1,5 +1,7 @@
 <?php
 
-$GLOBALS['SYNTH_TTS_DRIVERS']['phpunit'] = $GLOBALS["TTS_IN_USE"]=function($textString, $mood , $stringforhash) {
-    return "soundcache/" . md5(trim($stringforhash)) . ".wav";
-};
+// Thin hook: the PhpUnit provider now lives in drivers/tts/Drivers/PhpUnitDriver.php.
+require_once dirname(__DIR__) . '/drivers/tts/TtsProviderRegistry.php';
+require_once dirname(__DIR__) . '/drivers/tts/Drivers/PhpUnitDriver.php';
+
+\Synth\Drivers\Tts\TtsProviderRegistry::register(new \Synth\Drivers\Tts\Drivers\PhpUnitDriver());

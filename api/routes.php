@@ -32,6 +32,10 @@ $synthApiRoutes = [
     'npc/add' => [['POST'], 'npc/add.php'],
     'books/read' => [['POST'], 'books/read.php'],
     'locations/save' => [['POST'], 'locations/save.php'],
+    'tts/studio' => [['POST'], 'tts/studio.php'],
+    'tts/voice-preview' => [['POST'], 'tts/voice-preview.php'],
+    'tts/voice-sample' => [['POST'], 'tts/voice-sample.php'],
+    'tts/voice-samples' => [['POST'], 'tts/voice-samples.php'],
 ];
 
 if (preg_match('#^messages/([^/]+)$#', $route, $synthApiMessage) === 1) {
