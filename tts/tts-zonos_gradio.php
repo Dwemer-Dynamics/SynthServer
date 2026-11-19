@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/lib/autoload.php';
 
 // Thin hook: the ZonosGradio provider now lives in drivers/tts/Drivers/ZonosGradioDriver.php.
 require_once dirname(__DIR__) . '/drivers/tts/Drivers/ZonosGradioDriver.php';
