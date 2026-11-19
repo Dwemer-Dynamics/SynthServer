@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/autoload.php';
 require_once __DIR__ . '/synth_combat_target.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
