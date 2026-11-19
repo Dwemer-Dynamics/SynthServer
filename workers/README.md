@@ -36,7 +36,7 @@ later), so the contracts survive that change unchanged.
 
 | Name | Class | Wraps (legacy, unchanged) |
 | --- | --- | --- |
-| `memory` | `Memory/MemoryWorker` | `service/memory_dispatch.php` |
+| `memory` | `Memory/MemoryWorker` | `service/memory_dispatch.php` (thin hook over `Memory/MemoryRunner`) |
 | `relationship` | `Relationships/RelationshipWorker` | `service/relationship_dispatch.php` |
 | `middleterm` | `Memory/MiddleTermWorker` | manager task `middleterm`, via `service/task_dispatch.php` |
 | `dynamicprofile` | `Profiles/DynamicProfileWorker` | manager task `dynamicprofile`, via `service/task_dispatch.php` |
