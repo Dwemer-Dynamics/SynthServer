@@ -43,5 +43,7 @@ rewriting, `/api/index.php/v1/<route>` works.
 Tests: `unittests/tests/ApiV1RoutesTest.php` sends the same probe to the legacy script and the new route and
 requires the same answer.
 
+See [api/v2/README.md](../v2/README.md) for the internal native-dispatch layer behind `main.php`.
+
 TODO (separate PRs): the generic edit API (`edit`), and moving each
 handler's logic behind a manager as its domain moves (see `docs/CHEVO-PARITY.md`).

@@ -27,7 +27,7 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 
 | chevo area | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
-| Router and versioned routes | `api/index.php` -> `api/routes.php` -> `api/v1/<area>/` (thin adapters over the root entry points, which stay as they are); `api/v2/dispatch.php`, `routes.php` | parity (entry shape); handlers move behind managers as domains move | this PR |
+| Router and versioned routes | `api/index.php` -> `api/routes.php` -> `api/v1/<area>/` (thin adapters over the root entry points, which stay as they are); `api/v2/dispatch.php`, `routes.php` stay as the internal native-dispatch layer behind `main.php`, not a public version ([api/v2/README.md](../api/v2/README.md)) | parity (entry shape); handlers move behind managers as domains move | this PR |
 | Request boundary (`index.php` + `.htaccess` deny by default; `lib/LocalAccess`, `SameOriginRequest`, `RequestBody`; `Content-Length` limits in `api/index.php`) | `.htaccess` allowlist read by `router.php`; `Synth\Lib\{LocalAccess,SameOriginRequest,RequestBody}` behind `lib/management_request_guard.php`; 411/413 limits for `speech/transcribe`, `vision/describe`, `voice/*`; no web `display_errors`; [REQUEST-BOUNDARY.md](REQUEST-BOUNDARY.md) | parity (`debug/` stays in place: frozen schema chain and middleterm still use it) | this PR |
 | `books/read` | `api/v1/books/read.php`: a `context` event carrying `reading_event`, via `main.php` | parity (adapter) | this PR |
 | `config` (`index`, `player-tts`) | `ui/global_settings.php`, `conf/` | in progress | #65 |
