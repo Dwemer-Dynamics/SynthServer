@@ -99,7 +99,7 @@ final class Bootstrap
         return new PrivateNarratorManager(new PrivateNarratorRepository($this->db, $owner),
             new LlmWrapper([new OpenAiCompatibleDriver($output->assertActive(...),
                 static fn(array $row): array => $legacy(fn() => $connectors->dialogueProviderConfig($row)))]),
-            new NarratorSpeechDriver($this->db, $this->root, $this->speechConfig(), $legacy),
+            new TtsWrapper(new NarratorSpeechDriver($this->db, $this->root, $this->speechConfig(), $legacy)),
             $output, fn(array $media): string => $legacy(fn() => $this->transcribe($media)),
             fn(): array => synth_protocol_original_context($this->db, $event) ?? []);
     }
