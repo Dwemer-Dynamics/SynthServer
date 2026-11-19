@@ -37,5 +37,5 @@ rewriting, `/api/index.php/v1/<route>` works.
 Tests: `unittests/tests/ApiV1RoutesTest.php` sends the same probe to the legacy script and the new route and
 requires the same answer.
 
-TODO (separate PRs): the generic edit API (`edit`), extension routes, a save-created signal, and moving each
+TODO (separate PRs): the generic edit API (`edit`), extension routes, and moving each
 handler's logic behind a manager as its domain moves (see `docs/CHEVO-PARITY.md`).

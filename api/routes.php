@@ -32,6 +32,7 @@ $synthApiRoutes = [
     'npc/add' => [['POST'], 'npc/add.php'],
     'books/read' => [['POST'], 'books/read.php'],
     'locations/save' => [['POST'], 'locations/save.php'],
+    'narrator/checkpoint' => [['POST'], 'narrator/checkpoint.php'],
 ];
 
 if (preg_match('#^messages/([^/]+)$#', $route, $synthApiMessage) === 1) {

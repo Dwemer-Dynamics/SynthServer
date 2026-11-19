@@ -29,6 +29,19 @@ class SaveState
         return $this->saves->conversationRows($event, $targetName, self::CONTEXT_STATES, $limit);
     }
 
+    // The save signal of the named playthrough, validated; no row is written until the save schema lands, so the
+    // record is the structured log line and the returned summary.
+    public function created(array $event): array
+    {
+        $playthrough = $event['payload']['playthrough_id'] ?? null;
+        if (($event['type'] ?? '') !== 'save_created' || !is_string($playthrough) || $playthrough === '')
+            throw new \DomainException('save_created_invalid');
+        $summary = ['playthrough_id' => $playthrough, 'session_id' => strval($event['session_id'] ?? ''),
+            'generation' => intval($event['generation'] ?? 0)];
+        \Logger::info('[save] created playthrough='.$playthrough.' session='.$summary['session_id'].' generation='.$summary['generation']);
+        return $summary;
+    }
+
     public function heard(string $state): bool
     {
         return in_array($state, self::HEARD_STATES, true);
