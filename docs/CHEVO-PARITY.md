@@ -49,31 +49,33 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 
 ## Managers (`managers/<Name>/`)
 
-SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folder when it moves.
+A domain is a folder `managers/<Name>/` (PSR-4, `Synth\Managers\<Name>\*`). The managers moved so far keep a thin
+`class_alias` hook at their old flat path (`managers/<Name>.php`) for legacy callers; the flat files that remain are
+SYNTH-specific (see the last row).
 
 | chevo manager | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | ActionsManager (actions, companion orders, confirmed trading) | `functions/`, `lib/synth_*_actions.php` | in progress | TBD (orders/actions, trade confirmation); #68 two-step actions |
 | BookManager | none | in progress | TBD (reading) |
-| CharacterManager | `managers/CharacterManager.php` | in progress | TBD (domain move) |
+| CharacterManager | `managers/CharacterManager/CharacterManager.php` (legacy hook `managers/CharacterManager.php`) | folder (resolution only; observations stay with their domains) | this PR |
 | ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
-| ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
+| ContextManager | `managers/ContextManager/` (`ContextManager`, `ConditionProjector`, `ActorConditionValidator`; legacy hook `managers/ContextManager.php`) | folder; one implementation | this PR; TBD (active effects) |
 | ExtensionManager | none (`ext/relationship_system` legacy) | parity for the config-file model (manifest validation, enable/disable and failure state in `conf/extensions.json`, 2 filters + 2 events, error isolation, auto-disable after 5 consecutive failures, optional deferred events, API and UI); no per-extension tables or handler time limits | this PR |
 | GameRpc | `managers/GameRpc/` (`GameRpcClient` contract, exceptions, `UnwiredGameRpcClient`); no game-side channel exists and nothing calls it | contract only | this PR |
 | ListenerManager | `managers/ListenerManager/ListenerRouter` (pure parse and rotation, same rules as legacy `parseDialogueListenerNames`); the legacy functions stay live | in progress (no name matching, segmentation or aliases) | this PR |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
 | Notification (wake-up hints) | `managers/Notification/` (`NotifyServer`, `NotifyPublisher`, `NotifyConfig`, `NotifyHint`) | done (opt-in) | this PR |
 | MemoryManager | `managers/MemoryManager/` (`Native/`: memory recall and ranking, vector helper, diary state, middle-term policy); `lib/synth_memory*`, `lib/synth_diary*`, `lib/synth_middleterm*`, `lib/memory_*` are thin hooks. Moved, not rewritten: still procedural with request-scoped `$db`; no `MemoryManagerInterface` and no DAO use yet | in progress (consolidated, not class-based) | this PR |
+| Narrator | `managers/Narrator/` (`PrivateNarratorManager`, `PrivateNarratorProtocol`, `NarratorObjectIdentity` for talking objects; legacy hooks `managers/PrivateNarratorManager.php` and `lib/synth_private_narrator.php`), contract stays in `core/contracts/narrator.php` | folder; one implementation | this PR |
 | MessageHandler (durable outbound queue) | `managers/MessageHandler/MessageStatusReader` (read side over the TTS job, status file and media registry behind `GET /api/v1/messages/<id>`); no queue table, so no create, cancel, expiry or delivered state | in progress (read side only; needs the queue table) | this PR; schema #63 |
-| Narrator | `managers/PrivateNarratorManager.php`, `core/contracts/narrator.php` | in progress | TBD (talking objects) |
 | NpcRegistration | `gamedata.php` | in progress | #66 |
 | OghmaManager | n/a (Skyrim knowledge); SYNTH has `WorldKnowledgeManager` | SYNTH-specific | n/a |
-| PromptManager | `managers/PromptManager.php`, `prompts/` | in progress | TBD (domain move) |
+| PromptManager | `managers/PromptManager/PromptManager.php` (legacy hook `managers/PromptManager.php`), `prompts/`; the unused `lib/synth_prompt_manager.php` is removed | folder; one implementation | this PR |
 | ReferenceResolver | none | in progress | #66 |
 | RumorManager | none (placeholder in chevo) | missing | n/a |
-| SaveState | `managers/SaveState.php` | in progress | TBD (domain move) |
-| ServerStatus | `health.php`, `ui/system_health.php` | in progress | TBD (health notice) |
-| TtsStudio | `ui/` voice pages | in progress | TBD |
+| SaveState | `managers/SaveState/SaveState.php` (legacy hook `managers/SaveState.php`) | folder | this PR |
+| ServerStatus | `managers/ServerStatus/HealthCheckManager.php`, `health.php` (thin dispatcher), `ui/system_health.php` | folder (health checks); TBD (health notice) | this PR |
+| TtsStudio | `managers/TtsStudio/` (`VoiceSampleStore`, `VoicePreviewManager`), `api/v1/voice/`, `ui/xtts_clone.php`, `vsx.php` | folder (voice samples and preview); UI pages stay | this PR |
 | WorldManager | `WorldKnowledgeManager`, observed equipment | in progress | TBD |
 | (no chevo equivalent) `SpeechManager`, `SessionManager`, `ReceiptManager`, `DialogueManager` | flat files | SYNTH-specific | n/a |
 

@@ -2613,10 +2613,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Handle individual WAV files
             $fileType = mime_content_type($fileTmpPath);
 
-            require_once($enginePath . "managers" . DIRECTORY_SEPARATOR . "VoiceSample" . DIRECTORY_SEPARATOR . "VoiceSampleStore.php");
+            require_once($enginePath . "managers" . DIRECTORY_SEPARATOR . "TtsStudio" . DIRECTORY_SEPARATOR . "VoiceSampleStore.php");
             if ($fileExtension !== 'wav' || ($fileType !== 'audio/wav' && $fileType !== 'audio/x-wav')) {
                 $message .= "<p style='color:red;'>Error: Please upload a valid .wav file. (" . htmlspecialchars($fileName) . ")</p>";
-            } elseif (\Synth\Managers\VoiceSample\VoiceSampleStore::isSilentWav($fileTmpPath) === true) {
+            } elseif (\Synth\Managers\TtsStudio\VoiceSampleStore::isSilentWav($fileTmpPath) === true) {
                 $message .= "<p style='color:red;'>Error: " . htmlspecialchars($fileName) . " is silent (the audio contains no sound), so it was not saved.</p>";
             } else {
                 $destinationPath = $saveDir . $fileName;
@@ -2801,13 +2801,13 @@ $ttsPronunciationEditRow = null;
 // Voice Samples tab state: stored sample metadata, NPCs with a saved voice, and the dashboard session token the
 // preview needs. The token is minted here, before any page output.
 if ($activeTab === 'samples') {
-    $voiceSampleManagerPath = $enginePath . "managers" . DIRECTORY_SEPARATOR . "VoiceSample" . DIRECTORY_SEPARATOR;
+    $voiceSampleManagerPath = $enginePath . "managers" . DIRECTORY_SEPARATOR . "TtsStudio" . DIRECTORY_SEPARATOR;
     require_once($voiceSampleManagerPath . "VoiceSampleStore.php");
     require_once($voiceSampleManagerPath . "VoicePreviewException.php");
     require_once($voiceSampleManagerPath . "VoicePreviewManager.php");
     $voiceSamplesCsrf = synthManagementCsrfToken();
-    $voiceSamplesList = \Synth\Managers\VoiceSample\VoiceSampleStore::listSamples($enginePath . 'data' . DIRECTORY_SEPARATOR . 'voices');
-    $voiceSamplesNpcs = (new \Synth\Managers\VoiceSample\VoicePreviewManager($enginePath))->listNpcsWithVoice();
+    $voiceSamplesList = \Synth\Managers\TtsStudio\VoiceSampleStore::listSamples($enginePath . 'data' . DIRECTORY_SEPARATOR . 'voices');
+    $voiceSamplesNpcs = (new \Synth\Managers\TtsStudio\VoicePreviewManager($enginePath))->listNpcsWithVoice();
 }
 
 if ($activeTab === 'pronunciations') {

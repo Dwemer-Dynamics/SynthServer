@@ -9,8 +9,8 @@ declare(strict_types=1);
 // required. It is POST so that a cross-site page cannot read it, and it writes nothing. The SHA-256 is computed only
 // when asked for and only for one voice (voice_id or npc_id), never for the whole folder.
 
-use Synth\Managers\VoiceSample\VoicePreviewManager;
-use Synth\Managers\VoiceSample\VoiceSampleStore;
+use Synth\Managers\TtsStudio\VoicePreviewManager;
+use Synth\Managers\TtsStudio\VoiceSampleStore;
 
 require_once __DIR__ . '/../../../lib/classes/Logger.php';
 ob_start();
@@ -36,7 +36,7 @@ function synthVoiceSamplesRespond(array $payload, int $status = 200): never
 }
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
-$managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'VoiceSample' . DIRECTORY_SEPARATOR;
+$managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'TtsStudio' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
 require_once $managerPath . 'VoiceSampleStore.php';
