@@ -63,3 +63,6 @@ data/CurrentModel_*.json
 /conf/extensions.json
 /conf/extensions.json.lock
 /data/extensions/*
+
+# Local connection file (config/config.inc.tmpl.php is the tracked template)
+/config/config.inc.php

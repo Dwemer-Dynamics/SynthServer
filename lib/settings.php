@@ -7,6 +7,19 @@ if (!function_exists('synthSettingsDb')) {
     }
 }
 
+if (!function_exists('synthSettingsManager')) {
+    // The ConfigManager over the legacy session; the class itself loads this file, so it is required lazily.
+    function synthSettingsManager(): \Synth\Managers\ConfigManager\ConfigManager
+    {
+        require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
+        static $managers = null;
+        $managers ??= new \WeakMap();
+        $db = synthSettingsDb();
+        // One manager per session object, so a page that reads many settings builds one EntityManager.
+        return $managers[$db] ??= \Synth\Managers\ConfigManager\ConfigManager::forSession($db);
+    }
+}
+
 if (!function_exists('synthSettingsStringifyValue')) {
     function synthSettingsStringifyValue($value): string
     {
@@ -852,19 +865,17 @@ if (!function_exists('synthPromptContextOptionEnabled')) {
 if (!function_exists('synthGetGeneralSettingRow')) {
     function synthGetGeneralSettingRow(string $id): array
     {
-        $db = synthSettingsDb();
-        if (!$db) {
+        // Thin hook over ConfigManager (managers/ConfigManager); the row shape is the legacy one.
+        if (!synthSettingsDb() || trim($id) === '') {
             return [];
         }
 
-        $safeId = trim($id);
-        if ($safeId === '') {
-            return [];
+        foreach (synthSettingsManager()->all('general') as $row) {
+            if ($row['id'] === trim($id)) {
+                return $row;
+            }
         }
-
-        $query = "SELECT config_key AS id, config_value AS value, description, updated_at FROM public.core_config_setting WHERE scope = 'general' AND config_key = " . $db->escapeLiteral($safeId) . " LIMIT 1";
-        $row = $db->fetchOne($query);
-        return is_array($row) ? $row : [];
+        return [];
     }
 }
 
@@ -907,49 +918,30 @@ if (!function_exists('synthGetGeneralSettingFloat')) {
 if (!function_exists('synthGetAllGeneralSettings')) {
     function synthGetAllGeneralSettings(): array
     {
-        $db = synthSettingsDb();
-        if (!$db) {
+        if (!synthSettingsDb()) {
             return [];
         }
 
         try {
-            $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value, description, updated_at FROM public.core_config_setting WHERE scope = 'general' ORDER BY config_key ASC");
+            return synthSettingsManager()->all('general');
         } catch (\Throwable $e) {
             return [];
         }
-
-        return is_array($rows) ? $rows : [];
     }
 }
 
 if (!function_exists('synthSetGeneralSetting')) {
     function synthSetGeneralSetting(string $id, $value, ?string $description = null): bool
     {
-        $db = synthSettingsDb();
-        if (!$db) {
+        if (!synthSettingsDb()) {
             return false;
         }
 
-        $safeId = trim($id);
-        if ($safeId === '') {
+        try {
+            return synthSettingsManager()->set('general', $id, $value, $description);
+        } catch (\Throwable $e) {
             return false;
         }
-
-        $valueLiteral = $db->escapeLiteral(synthSettingsStringifyValue($value));
-        $descriptionSql = ($description === null)
-            ? "description"
-            : $db->escapeLiteral($description);
-
-        $query = "
-            INSERT INTO public.core_config_setting (scope, config_key, config_value, description, updated_at)
-            VALUES ('general', " . $db->escapeLiteral($safeId) . ", {$valueLiteral}, " . (($description === null) ? "''" : $descriptionSql) . ", CURRENT_TIMESTAMP)
-            ON CONFLICT (scope, config_key) DO UPDATE SET
-                config_value = EXCLUDED.config_value,
-                description = " . (($description === null) ? "public.core_config_setting.description" : "EXCLUDED.description") . ",
-                updated_at = CURRENT_TIMESTAMP
-        ";
-
-        return $db->execQuery($query) !== false;
     }
 }
 
