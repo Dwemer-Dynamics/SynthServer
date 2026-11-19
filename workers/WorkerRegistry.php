@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Synth\Workers;
 
 use InvalidArgumentException;
+use Synth\Workers\ExtensionEvents\ExtensionEventsWorker;
 use Synth\Workers\Memory\MemoryWorker;
 use Synth\Workers\Relationships\RelationshipWorker;
 
@@ -17,6 +18,7 @@ final class WorkerRegistry
     private const WORKERS = [
         MemoryWorker::NAME => MemoryWorker::class,
         RelationshipWorker::NAME => RelationshipWorker::class,
+        ExtensionEventsWorker::NAME => ExtensionEventsWorker::class,
     ];
 
     /**

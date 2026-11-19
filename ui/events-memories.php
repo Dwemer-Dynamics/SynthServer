@@ -395,7 +395,7 @@ if ($eventsAction !== '') {
  } elseif ($eventsAction === 'reset_events') {
  $db->delete("core_context_event", "true");
  } elseif ($eventsAction === 'delete_memory' && intval($eventsValue) > 0) {
- $db->delete('memory_summary', "rowid = " . intval($eventsValue));
+ $db->delete('core_memory', "rowid = " . intval($eventsValue));
  $redirectParams = ['tab' => 'memory', 'deleted' => 1];
  } else {
  synthManagementRefuse(400, 'Unknown or incomplete Events and Memories action.');
@@ -473,7 +473,7 @@ if (isset($_POST['save_memory_edit'])) {
 
  if ($rowid > 0) {
  $db->update(
- 'memory_summary',
+ 'core_memory',
  "summary = '" . $db->escape($summary) . "',
  tags = '" . $db->escape($tags) . "',
  companions = '" . $db->escape($companions) . "'",
@@ -994,7 +994,7 @@ function getTimeColor($time) {
 
  $results = $db->fetchAll(
  "SELECT gamets_truncated, n, summary, companions, tags, classifier, scope, ROWID as rowid, packed_message, native_vec
- FROM memory_summary
+ FROM core_memory
  ORDER BY gamets_truncated DESC, rowid DESC
  LIMIT 150"
  );

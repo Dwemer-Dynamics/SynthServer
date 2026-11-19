@@ -11,6 +11,7 @@
  * connection attempts when the service is down.
  */
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 function _minimeServiceBaseUrl() {
     $defaultUrl = 'http://127.0.0.1:8082';
     $configuredUrl = $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['TXTAI_URL'] ?? $defaultUrl;
@@ -62,7 +63,7 @@ function _minimeServiceAvailable() {
     } else {
         $available = false;
         // Only log once per request
-        error_log("[MiniMeT5] Service not available at {$host}:{$port} - skipping MiniMe calls this request");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'MiniMeT5', "Service not available at {$host}:{$port} - skipping MiniMe calls this request");
     }
 
     return $available;

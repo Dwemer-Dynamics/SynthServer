@@ -34,14 +34,29 @@ An extension lists every hook it uses in `hooks`; registering an unlisted hook s
   they cost one `is_file()` check and return the input.
 - A handler that throws, or a filter returning an invalid value, is logged and skipped; the value continues
   unchanged and other extensions still run. A load failure disables only that extension (`failures()`).
-- Not built yet (chevo has them): auto-disable after repeated failures, handler time limits, per-extension
-  migrations/tables, UI and HTTP management.
+- **Auto-disable**: every failure (throwing handler, invalid filter result, load failure) is counted per extension
+  in `conf/extensions.json` (`failures`). A success resets the count. At `FAILURE_LIMIT` (5) consecutive
+  failures the extension is removed from `enabled` and recorded in `auto_disabled`; an explicit `enable` clears
+  both. The state file is only written when a count changes.
+- Not built (chevo has them): handler time limits, per-extension migrations/tables.
 
-## Seam for the ExtensionEvents worker
+## Management
 
-`emit()` runs event handlers inline unless a `DeferredEventSink` is passed to the constructor, in which case it
-calls `defer($extensionId, $hook, $payload)` once per extension. The future `workers/ExtensionEvents` worker
-stores those rows and calls `ExtensionManager::deliver($extensionId, $hook, $payload)`. Nothing in this PR queues.
+- HTTP: `GET /api/v1/extensions`, `POST /api/v1/extensions/{id}/enable|disable` (`api/v1/extensions.php`). The id
+  must be an installed folder or still listed as enabled; answers carry a status code
+  (`enabled`, `disabled`, `invalid`, `load_failed`, `auto_disabled`), never exception text.
+- UI: `ui/extensions.php` (Config Hub, World & Behavior > Extensions).
+- CLI: `php bin/extensions.php`.
+
+## Deferred events and the ExtensionEvents worker
+
+`emit()` runs event handlers inline unless a `DeferredEventSink` is installed, in which case it calls
+`defer($extensionId, $hook, $payload)` once per extension. `ExtensionManager::instance()` installs the
+file-backed `FileEventQueue` (`data/extensions/events/`, capped at 500 events of 64 KB, a full queue drops the
+new event) only when `conf/extensions.json` sets `"deferred_events": true`, because nothing delivers events
+unless the worker runs: `php bin/worker.php extension-events` (or the supervisor). The worker claims events,
+calls `ExtensionManager::deliver()`, and drops events whose extension was disabled meanwhile. Events are
+best-effort and consumed once; the default stays inline delivery.
 
 ## Writing an extension
 

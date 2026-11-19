@@ -4,7 +4,7 @@
 function synthLegacyRowTarget(array $input): array
 {
     $tables=['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','cache'=>'public.core_context_event','log'=>'synth.log',
-        'diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'synth.memory_summary'];
+        'diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'public.core_memory'];
     $table=$input['table'] ?? null;
     $id=$input['rowid'] ?? null;
     if (!is_string($table) || !isset($tables[$table]) || (!is_int($id) && !is_string($id))

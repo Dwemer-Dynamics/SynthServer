@@ -53,7 +53,7 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
         $root=dirname(__DIR__,2);
         $bootstrap='$root='.var_export($root,true).';'
             .'require_once $root."/lib/runtime_bootstrap.php";'
-            .'require_once $root."/lib/phpunit.class.php";'
+            .'require_once $root."/tests/Fixtures/phpunit.class.php";'
             .'require $root."/conf/conf.sample.php";'
             .'synthRuntimeImportConfigVariables(get_defined_vars());'
             .'$GLOBALS["db"]=$db=new sql();'

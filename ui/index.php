@@ -161,7 +161,7 @@ if ($indexAction !== '') {
  ");
   $redirect = "index.php?table=eventlog";
  } elseif ($indexAction === 'delete_memory' && intval($_POST['rowid'] ?? 0) > 0) {
-  $db->delete('memory_summary', "rowid = " . intval($_POST['rowid']));
+  $db->delete('core_memory', "rowid = " . intval($_POST['rowid']));
   $redirect = "index.php?table=memory_summary&deleted=1";
  } elseif ($indexAction === 'clean_log') {
   $db->delete("log", "true");
@@ -830,7 +830,7 @@ if (isset($_POST["animation"])) {
 
  // Update the database
  $db->update(
- 'memory_summary',
+ 'core_memory',
  "summary = '" . $db->escape($summary) . "',
  tags = '" . $db->escape($tags) . "',
  companions = '" . $db->escape($companions) . "'",
@@ -854,7 +854,7 @@ if (isset($_POST["animation"])) {
 
  // 3. Fetch data from database
  $results = $db->fetchAll("SELECT gamets_truncated, n, summary, companions, tags, classifier, uid, ROWID as rowid, packed_message, native_vec
- FROM memory_summary
+ FROM core_memory
  ORDER BY gamets_truncated DESC, rowid DESC
  LIMIT 150");
 

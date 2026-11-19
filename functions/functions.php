@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once dirname(__DIR__).'/lib/synth_jev_actions.php';
 
 // Functions to be provided to OpenAI
@@ -12,7 +13,7 @@ if (!function_exists('synthTraceFunctionsIncludePhase')) {
     }
 }
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'functions', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
 
 function synthCanonicalActionCodes()
 {
@@ -1990,13 +1991,13 @@ $enabledFunctionSet = array_fill_keys($GLOBALS["ENABLED_FUNCTIONS"], true);
 foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
     $codeName = getFunctionCodeName($v["name"]);
     if ($codeName === false) {
-        error_log("[FUNCTION] Warning: Could not get code name for function: {$v["name"]}");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'FUNCTION', "Warning: Could not get code name for function: {$v["name"]}");
         unset($GLOBALS["FUNCTIONS"][$n]);
         continue;
     }
     $codeName = synthNormalizeActionCodeName($codeName);
     if (!isset($enabledFunctionSet[$codeName])) {
-        error_log("[FUNCTION] Removing $n {$v["name"]}:$codeName");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'FUNCTION', "Removing $n {$v["name"]}:$codeName");
         unset($GLOBALS["FUNCTIONS"][$n]);
         continue;
     } 
@@ -2115,6 +2116,6 @@ $GLOBALS["action_post_process_fnct_ex"][]=function($actions) {
     return synthPostProcessNarratorActions(is_array($actions) ? $actions : []);
 };
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'functions', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
 
 ?>

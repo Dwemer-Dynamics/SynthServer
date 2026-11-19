@@ -5,19 +5,20 @@
  * This replaces the T5-based minimeTopic function for multilingual support
  */
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 function LLMTopic($text, $language = 'ja') {
     $startTime = microtime(true);
 
     // Check if we have a valid WorldKnowledge connector configured
     if (!isset($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]) || empty($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"])) {
-        error_log("[WORLDKNOWLEDGE LLM] CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured");
         return false;
     }
 
     // Check cache first
     $cacheKey = md5("topic_extraction_" . $text);
     if (isset($GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey])) {
-        error_log("[WORLDKNOWLEDGE LLM] Using cached topic for: " . substr($text, 0, 50));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Using cached topic for: " . substr($text, 0, 50));
         return $GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey];
     }
 
@@ -27,7 +28,7 @@ function LLMTopic($text, $language = 'ja') {
         $connectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
 
         if (!$connectorData) {
-            error_log("[WORLDKNOWLEDGE LLM] Failed to load connector ID: " . $GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load connector ID: " . $GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
             return false;
         }
 
@@ -41,10 +42,10 @@ function LLMTopic($text, $language = 'ja') {
             $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'custom_worldknowledge'");
             if ($promptData) {
                 $systemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
-                error_log("[WORLDKNOWLEDGE LLM] Loaded prompt from database (custom: " . (!empty($promptData['custom_prompt']) ? 'yes' : 'no') . ")");
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Loaded prompt from database (custom: " . (!empty($promptData['custom_prompt']) ? 'yes' : 'no') . ")");
             }
         } catch (Exception $e) {
-            error_log("[WORLDKNOWLEDGE LLM] Failed to load prompt from database: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load prompt from database: " . $e->getMessage());
         }
 
         // Final fallback to default prompt if nothing was loaded (matches database default)
@@ -72,7 +73,7 @@ Output: Railroad
 Input: 'Used chems in combat'
 Output: chem
 PROMPT;
-            error_log("[WORLDKNOWLEDGE LLM] Using hardcoded fallback prompt (database unavailable)");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Using hardcoded fallback prompt (database unavailable)");
         }
 
         $userPrompt = "Text: " . $text;
@@ -94,7 +95,7 @@ PROMPT;
         $response = callLLMFast($contextData, $customParms);
 
         if (!$response) {
-            error_log("[WORLDKNOWLEDGE LLM] Failed to get response from LLM");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to get response from LLM");
             return false;
         }
 
@@ -108,7 +109,7 @@ PROMPT;
 
         // Validate the topic (should be a simple word or phrase)
         if (empty($topic) || strlen($topic) > 100) {
-            error_log("[WORLDKNOWLEDGE LLM] Invalid topic extracted: " . $topic);
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Invalid topic extracted: " . $topic);
             return false;
         }
 
@@ -122,12 +123,12 @@ PROMPT;
         // Cache the result
         $GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey] = $result;
 
-        error_log("[WORLDKNOWLEDGE LLM] Extracted topic: '$topic' in {$elapsedTime}s from: " . substr($text, 0, 50));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Extracted topic: '$topic' in {$elapsedTime}s from: " . substr($text, 0, 50));
 
         return $result;
 
     } catch (Exception $e) {
-        error_log("[WORLDKNOWLEDGE LLM] Exception during topic extraction: " . $e->getMessage());
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Exception during topic extraction: " . $e->getMessage());
         return false;
     }
 }
@@ -138,7 +139,7 @@ PROMPT;
  */
 function callLLMFast($contextData, $customParms = []) {
     if (!isset($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]) || empty($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"])) {
-        error_log("[WORLDKNOWLEDGE LLM] CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured in callLLMFast");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured in callLLMFast");
         return false;
     }
 
@@ -146,7 +147,7 @@ function callLLMFast($contextData, $customParms = []) {
     $connectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
 
     if (!$connectorData) {
-        error_log("[WORLDKNOWLEDGE LLM] Failed to load connector in callLLMFast");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load connector in callLLMFast");
         return false;
     }
 
@@ -197,14 +198,14 @@ function callLLMFast($contextData, $customParms = []) {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        error_log("[WORLDKNOWLEDGE LLM] HTTP error $httpCode: $response");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "HTTP error $httpCode: $response");
         return false;
     }
 
     $responseData = json_decode($response, true);
 
     if (!isset($responseData['choices'][0]['message']['content'])) {
-        error_log("[WORLDKNOWLEDGE LLM] Invalid response format: " . substr($response, 0, 200));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Invalid response format: " . substr($response, 0, 200));
         return false;
     }
 

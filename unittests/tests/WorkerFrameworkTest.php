@@ -9,7 +9,7 @@ use Synth\Workers\WorkerRegistry;
 use Synth\Workers\WorkerReport;
 
 foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'WorkerRegistry', 'Legacy/LegacyDispatchWorker', 'Memory/MemoryWorker',
-    'Relationships/RelationshipWorker', 'Supervisor/WorkerScheduler'] as $file) {
+    'Relationships/RelationshipWorker', 'ExtensionEvents/ExtensionEventsWorker', 'Supervisor/WorkerScheduler'] as $file) {
     require_once dirname(__DIR__, 2) . '/workers/' . $file . '.php';
 }
 
@@ -18,7 +18,7 @@ final class WorkerFrameworkTest extends TestCase
 {
     public function testRegistryListsAndCreatesWorkersAndRejectsUnknownNames(): void
     {
-        $this->assertSame(['memory', 'relationship'], WorkerRegistry::names());
+        $this->assertSame(['memory', 'relationship', 'extension-events'], WorkerRegistry::names());
         $this->assertInstanceOf(MemoryWorker::class, WorkerRegistry::create('memory'));
         $this->assertSame('relationship', WorkerRegistry::create('relationship')->name());
         $this->expectException(InvalidArgumentException::class);

@@ -1,6 +1,7 @@
 <?php
 
 /* SYNTH Voice Sample Extractor. Audio stays in the user's runtime, not the package. */
+require_once __DIR__ . '/lib/classes/Logger.php';
 ob_start();
 ini_set('display_errors', '0');
 $path = __DIR__ . DIRECTORY_SEPARATOR;
@@ -131,11 +132,11 @@ try {
 } catch (InvalidArgumentException | JsonException $error) {
     $status = 400;
     $response['error'] = $error->getMessage();
-    error_log('[SYNTH VSX] Rejected sample: ' . $error->getMessage());
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH VSX', 'Rejected sample: ' . $error->getMessage());
 } catch (Throwable $error) {
     $status = in_array($error->getCode(), [404, 405, 409, 411, 413, 423], true) ? $error->getCode() : 500;
     $response['error'] = $status === 500 ? 'Voice import failed; check server logs' : $error->getMessage();
-    error_log('[SYNTH VSX] ' . $error->getMessage());
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH VSX', $error->getMessage());
 } finally {
     foreach (array_unique($temporary) as $file) if (is_file($file)) @unlink($file);
     if (is_resource($lock)) { flock($lock, LOCK_UN); fclose($lock); }

@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 $method = $_SERVER['REQUEST_METHOD'];
 set_time_limit(300);
 
@@ -180,7 +181,7 @@ Camera Tilt Up,Camera Tilt Down,Handheld Shot, Following Shot,Orbiting Shot,",
  die(json_encode(["status" => "error", "msg" => "No description returned"]));
  }
 
- error_log($description);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_animate_replicate', $description);
 
  $apiBadge = new ApiBadge();
  $apiKeyData = $apiBadge->getByLabel("replicate");
@@ -240,10 +241,10 @@ Camera Tilt Up,Camera Tilt Down,Handheld Shot, Following Shot,Orbiting Shot,",
 // Decodificar JSON
  $responseData = json_decode($output, true);
 
- error_log(print_r($responseData, true));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_animate_replicate', print_r($responseData, true));
  //https://api.replicate.com/v1/predictions/15kwfzdw7srme0css3qbb11zdc
  if (empty($responseData["output"])) {
- error_log("Generation still in process. ".print_r($responseData["urls"],true));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_animate_replicate', "Generation still in process. ".print_r($responseData["urls"],true));
  sleep(30);
  // Long generation?? retry.
  $ch = curl_init($responseData["urls"]["get"]);
@@ -262,13 +263,13 @@ Camera Tilt Up,Camera Tilt Down,Handheld Shot, Following Shot,Orbiting Shot,",
 
 // Manejar errores
  if (curl_errno($ch)) {
- error_log("[REPLICATE ANIMATE] Error: ".curl_error($ch));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REPLICATE ANIMATE', "Error: ".curl_error($ch));
  die(json_encode(["status" => "error " . curl_error($ch)]));
 
  } else {
  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
  if ($httpCode !== 200 && $httpCode !== 201 && $httpCode !== 202) {
- error_log("[REPLICATE ANIMATE] Error: ".$httpCode);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REPLICATE ANIMATE', "Error: ".$httpCode);
  die(json_encode(["status" => "error $httpCode"]));
 
  }
@@ -278,7 +279,7 @@ Camera Tilt Up,Camera Tilt Down,Handheld Shot, Following Shot,Orbiting Shot,",
 
  $responseData = json_decode($output, true);
 
- error_log(print_r($responseData, true));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_tool_animate_replicate', print_r($responseData, true));
 
  }
     $filename = $enginePath . "data" . DIRECTORY_SEPARATOR . "pictures" . DIRECTORY_SEPARATOR . "gallery" . DIRECTORY_SEPARATOR . uniqid('image_repli_', true) . '.mp4';

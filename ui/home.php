@@ -244,7 +244,7 @@ function synth_home_word_cloud_words(array $rows): array
 $hasEventlog = synth_home_table_exists($db, 'core_context_event');
 $hasNpcMaster = synth_home_table_exists($db, 'core_npc_master');
 $hasDiary = synth_home_table_exists($db, 'diarylog');
-$hasMemorySummary = synth_home_table_exists($db, 'memory_summary');
+$hasMemorySummary = synth_home_table_exists($db, 'core_memory');
 $hasConfOpts = synth_home_table_exists($db, 'core_config_setting');
 $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
 $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
@@ -260,7 +260,7 @@ $eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FRO
 $chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event WHERE type='chat'", 'total', 0) : 0;
 $npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc_master", 'total', 0) : 0;
 $diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM diarylog", 'total', 0) : 0;
-$memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM memory_summary", 'total', 0) : 0;
+$memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory", 'total', 0) : 0;
 
 // Installed libraries are separate from the NPCs already encountered in a save.
 $characterTemplateCount = null;

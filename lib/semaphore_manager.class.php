@@ -1,6 +1,7 @@
 <?php
 // Simple semaphore helper with static methods. Exposes resources in $GLOBALS["SEMAPHORES"] for existing audit callers.
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 class SemaphoreManager {
     protected static $semaphores = [];
     protected static $acquired = [];
@@ -61,7 +62,7 @@ class SemaphoreManager {
     public static function wait(string $id, int $timeout = 300, int $tick_ms = 1003, $callback = null): bool {
         $semaphore = self::get($id);
         if (!$semaphore) {
-            error_log("*TRACE: [SemaphoreManager] " . self::runId() . " Failed to get semaphore for id '{$id}'");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'semaphore_manager.class', "*TRACE: [SemaphoreManager] " . self::runId() . " Failed to get semaphore for id '{$id}'");
             return false;
         }
 
