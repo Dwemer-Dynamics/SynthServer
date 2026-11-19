@@ -1,6 +1,7 @@
 <?php
 // Local-only, single-voice operation; dry-run by default and never calls a cloud provider.
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+require_once dirname(__DIR__) . '/lib/autoload.php';
 require_once dirname(__DIR__) . '/lib/voice_catalog.php';
 $options = getopt('', ['catalog:', 'voice:', 'apply']);
 try {

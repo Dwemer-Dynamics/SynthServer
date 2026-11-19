@@ -26,7 +26,7 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../lib/autoload.php';
 
 $arguments = array_slice($argv, 1);
 $name = $arguments[0] ?? '';

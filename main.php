@@ -5,6 +5,7 @@ ini_set("display_errors", "0");
 
 $root = __DIR__;
 
+require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "autoload.php";
 require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "logger.php";
 
 Logger::bootstrapRequestId("main");

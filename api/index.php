@@ -51,6 +51,7 @@ unset($synthApiPath, $synthApiMatch);
 // A body is bounded before any handler reads it: a missing Content-Length answers 411 and one above the route's
 // limit 413. A multipart recording is not readable from php://input, so its declared length is the guard; JSON
 // routes also read through Synth\Lib\RequestBody, which never pulls more than the limit from the connection.
+require_once dirname(__DIR__) . '/lib/autoload.php';
 require_once dirname(__DIR__) . '/lib/RequestBody.php';
 $synthApiBodyLimits = [
     'speech/transcribe' => 16777216 + 65536, // a 16 MiB recording plus multipart framing
