@@ -106,7 +106,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | in progress (draft PR; reference is `talk-awareness`) | TBD |
 | Health route (`/api/v1/health`) | `api/v1/health.php` over `health.php`, 200 or 503 | parity (adapter) | this PR; TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
-| `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |
+| `tests/` + root `phpunit.xml` | `tests/` (suite `tests`) and `unittests/` (suite `unittests`) under one root `phpunit.xml`, `tests/bootstrap.php`, PHPUnit in root `require-dev`; the test `sql` adapter lives in `tests/Fixtures/phpunit.class.php`; CI runs both | parity (follow-up: `tts/tts-phpunit.php` moves with the TTS PR) | this PR |
 | PSR-4 autoload | added in this PR; `require_once` lists still used | in progress | this PR |
 | Coding standards | [CODING-STANDARDS.md](CODING-STANDARDS.md) | parity | this PR |
 

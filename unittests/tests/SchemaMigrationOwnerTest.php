@@ -101,7 +101,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function startDirectUpdates(string $before = ''): array
     {
         $code = '$root='.var_export(dirname(__DIR__, 2), true).';'
-            .'require_once $root."/lib/runtime_bootstrap.php"; require_once $root."/lib/phpunit.class.php";'
+            .'require_once $root."/lib/runtime_bootstrap.php"; require_once $root."/tests/Fixtures/phpunit.class.php";'
             .'require $root."/conf/conf.sample.php"; synthRuntimeImportConfigVariables(get_defined_vars());'
             .'$GLOBALS["db"] = $db = new sql();'.$before
             .'try { require $root."/debug/db_updates.php"; } catch (\Throwable $e) { fwrite(STDERR, $e->getMessage()."\n"); exit(3); }'
@@ -139,7 +139,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                     THEN 1 ELSE 0 END AS unmet")['unmet'] === '1';
             }
             [$root, $file, $later] = array_slice($argv, 1);
-            require_once $root.'/lib/runtime_bootstrap.php'; require_once $root.'/lib/phpunit.class.php';
+            require_once $root.'/lib/runtime_bootstrap.php'; require_once $root.'/tests/Fixtures/phpunit.class.php';
             require $root.'/conf/conf.sample.php'; synthRuntimeImportConfigVariables(get_defined_vars());
             require_once $root.'/lib/db_connection_settings.php'; require_once $root.'/core/dbmanager/SchemaMigrations.php';
             $GLOBALS['db'] = $db = new sql();
