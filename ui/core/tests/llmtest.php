@@ -37,7 +37,6 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  pre { white-space:pre-wrap; color:var(--synth-text); background:var(--synth-surface-3); padding:10px; border-radius:var(--synth-radius-sm); border:1px solid var(--synth-border); }
  h1 { margin:0 0 10px; font-size:20px; color:var(--synth-accent); }
  </style><main class="test-wrap"><h1>LLM Connector Test</h1><?php
- ini_set('display_errors', 1);
  error_reporting(E_ALL);
 
  // Resolve connector id from multiple sources for robustness

@@ -984,7 +984,7 @@ Converted GET actions are confirmed POSTs carrying one session token (`synthMana
 delete-all, memory delete and hidden event types; AI Response and Request Log clear; vector memory delete-all and
 compact (compact calls the AI connector); profile create, clone, delete and default reassignment; LLM and TTS
 connector create, clone and delete; NPC delete; and API key delete (transport only). Old links answer 400 and
-token failures answer 403, both before bootstrap. Array values for action keys answer 400. `ui/cmd/install-db.php` has no web route.
+token failures answer 403, both before bootstrap. Array values for action keys answer 400. `bin/install-db.php` has no web route.
 
 `ui/index.php` GET only reads or redirects. The bare URL redirects to Home before session or configuration work;
 Home shows the setup page first when PHP's PostgreSQL extension is missing.

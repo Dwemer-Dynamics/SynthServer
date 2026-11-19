@@ -54,6 +54,13 @@ if ($route === 'extensions' || str_starts_with($route, 'extensions/')) {
     return;
 }
 
+// The dashboard's voice routes are scripts of their own that answer their own methods and guard (they are
+// management routes, not game endpoints); they run behind the body limits set in `index.php`.
+if ($route === 'voice/preview.php' || $route === 'voice/samples.php') {
+    require __DIR__ . '/v1/' . $route;
+    return;
+}
+
 if (!isset($synthApiRoutes[$route])) {
     synthApiRefuse(404, 'Route not found');
     return;

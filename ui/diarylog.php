@@ -5,7 +5,6 @@ session_start();
 date_default_timezone_set('UTC');
 // Enable error reporting (for development purposes)
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
 
 // Include game timestamp utilities
 $rootPath = dirname(__DIR__) . DIRECTORY_SEPARATOR;

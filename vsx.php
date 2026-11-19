@@ -6,6 +6,7 @@ ob_start();
 ini_set('display_errors', '0');
 $path = __DIR__ . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $path;
+require_once $path . 'lib/RequestBody.php';
 require_once $path . 'lib/voice_sample.php';
 require_once $path . 'managers/VoiceSample/VoiceSampleStore.php';
 require_once $path . 'lib/runtime_bootstrap.php';
@@ -38,6 +39,10 @@ $temporary = [];
 $lock = null;
 try {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') throw new RuntimeException('Method Not Allowed', 405);
+    // The declared length is settled before the upload is parsed: a sample is at most 8 MiB plus multipart framing.
+    $bodyStatus = \Synth\Lib\RequestBody::refusalStatus($_SERVER, 8388608 + 65536);
+    if ($bodyStatus === 411) throw new RuntimeException('Content-Length is required', 411);
+    if ($bodyStatus === 413) throw new RuntimeException('Voice upload is too large (8 MiB maximum)', 413);
     $raw = $_POST['metadata'] ?? '';
     if (!is_string($raw)) throw new InvalidArgumentException('Invalid voice sample metadata');
     // Echo only bounded ownership fields, including for validation failures.
@@ -129,7 +134,7 @@ try {
     $response['error'] = $error->getMessage();
     \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH VSX', 'Rejected sample: ' . $error->getMessage());
 } catch (Throwable $error) {
-    $status = in_array($error->getCode(), [404, 405, 409, 423], true) ? $error->getCode() : 500;
+    $status = in_array($error->getCode(), [404, 405, 409, 411, 413, 423], true) ? $error->getCode() : 500;
     $response['error'] = $status === 500 ? 'Voice import failed; check server logs' : $error->getMessage();
     \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH VSX', $error->getMessage());
 } finally {

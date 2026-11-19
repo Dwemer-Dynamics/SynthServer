@@ -22,7 +22,6 @@ if ($regexpVal == 0) {
     ];
 
     $context = stream_context_create($options);
-    ini_set('display_errors', 1);
     error_reporting(E_ALL);
     ob_start();
     $file_headers = get_headers($file, false, $context);

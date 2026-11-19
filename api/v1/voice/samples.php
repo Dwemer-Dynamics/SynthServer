@@ -38,6 +38,7 @@ function synthVoiceSamplesRespond(array $payload, int $status = 200): never
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
 $managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'VoiceSample' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
+require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
 require_once $managerPath . 'VoiceSampleStore.php';
 
 $refusal = synthManagementRequestRefusal($_SERVER, 'browser');
@@ -55,7 +56,7 @@ $length = $_SERVER['CONTENT_LENGTH'] ?? null;
 if (!is_string($length) || !ctype_digit($length) || (int) $length > 4096) {
     synthVoiceSamplesRespond(['ok' => false, 'error' => 'Send a JSON body of at most 4096 bytes with a Content-Length.'], is_string($length) && ctype_digit($length) ? 413 : 411);
 }
-$raw = file_get_contents('php://input', false, null, 0, 4097);
+$raw = \Synth\Lib\RequestBody::read();
 $request = is_string($raw) ? json_decode($raw, true, 4) : null;
 if (!is_array($request) || array_is_list($request) || array_diff(array_keys($request), ['csrf_token', 'voice_id', 'npc_id', 'include_hash'])) {
     synthVoiceSamplesRespond(['ok' => false, 'error' => 'Invalid request.'], 400);

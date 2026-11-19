@@ -510,7 +510,7 @@ not replace the baseline's own verification.
   values are set in the UI after installing. Existing databases are unaffected.
 - A non-empty database without a ledger still takes the legacy chain, including one that is neither empty nor
   a SYNTH install; such a database is usually refused by verification and is never reset.
-- `ui/cmd/install-db.php` (an explicit reset command, command line only; web requests are refused) still imports
+- `bin/install-db.php` (an explicit reset command, command line only; web requests are refused) still imports
   `data/database_default.sql` and runs the chain, which stay as legacy-upgrade sources until rollout step 8 of the redesign.
   The shared `DatabaseTestCase` fixture no longer does: it installs the baseline through `tools/bootstrap-database.php`
   (the fresh path); `SchemaMigrationOwnerTest` still builds the legacy install as its comparison reference.
