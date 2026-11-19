@@ -30,7 +30,11 @@ Every kind now has an Interface and a Wrapper (class names follow the PHP casing
   The caller resolves settings and the API key through `ApiBadge` and the shared key store; drivers never do.
 - `llm/`: `LlmWrapper` is the `SynthCorelmdriver` the managers receive and streams through the first driver that
   supports the stored connector row. `LlmWrapper::legacyConnector()` loads a `connector/*` class by plain name.
-- `tts/`: `TtsWrapper` forwards to a `TtsDriverInterface` driver (`ProfileSpeechDriver`).
+- `tts/`: `TtsWrapper` forwards to a `TtsDriverInterface` driver: `ProfileSpeechDriver` (queued NPC speech) or `NarratorSpeechDriver`
+  (voiced inline, through `TtsSynthesisInterface::synthesize()`). Each provider is `Drivers/<Name>Driver.php`
+  (`TtsProviderInterface`); `tts/tts-<key>.php` is a thin hook that registers it with `TtsProviderRegistry`. `SpeechAudio`
+  (WAV validation, transcoding, publication into `soundcache/`) and `SpeechStorage` (status files, published media)
+  hold the audio and storage handling; `lib/speech_cache.php` and `lib/npc_tts_status.php` are function delegates.
 
 ## Legacy
 

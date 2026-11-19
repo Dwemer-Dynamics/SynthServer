@@ -1602,7 +1602,7 @@ foreach (['POCKETTTS','CHATTERBOX','XTTSFASTAPI'] as $provider) {
 $seen=[];
 // Stop after real adapter text preparation, before any transport/file/FFmpeg work.
 $GLOBALS['HOOKS']['XTTS_TEXTMODIFIER']=[static function($text) use (&$seen) {
-    $seen[]=[$GLOBALS['TTSFUNCTION'],$text,basename((new ReflectionFunction($GLOBALS['TTS_IN_USE']))->getFileName())];
+    $seen[]=[$GLOBALS['TTSFUNCTION'],$text,basename((new ReflectionClass((new ReflectionFunction($GLOBALS['TTS_IN_USE']))->getStaticVariables()['provider']))->getFileName())];
     throw new RuntimeException('fixture-before-transport');
 }];
 foreach ($order as $driver) {
@@ -1613,7 +1613,8 @@ foreach ($order as $driver) {
 echo json_encode($seen);
 PHP;
             $output=(string)shell_exec(escapeshellarg(PHP_BINARY).' -r '.escapeshellarg($script));
-            $expected=array_map(static fn($driver)=>[$driver,'十','tts-'.$driver.'.php'],$order);
+            $files=['pockettts'=>'PocketTtsDriver.php','chatterbox'=>'ChatterboxDriver.php','xtts-fastapi'=>'XttsFastApiDriver.php'];
+            $expected=array_map(static fn($driver)=>[$driver,'十',$files[$driver]],$order);
             $this->assertSame($expected,json_decode($output,true,flags:JSON_THROW_ON_ERROR),implode(' -> ',$order));
         }
     }
