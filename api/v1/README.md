@@ -28,7 +28,8 @@ unchanged and the client does not call these routes yet.
 | `tts/voice-sample` | POST | `voice/samples.php` with `voice_id` or `npc_id` required | none; management guard and dashboard token |
 | `save/created` | POST | none | 501: the client sends no save-created signal |
 | `edit`, `edit/...` | any | none | 501: the generic edit API is a later PR |
-| `extensions`, `extensions/...` | any | none | 501: follows ExtensionManager's API |
+| `extensions` | GET | `ExtensionManager` | n/a (list) |
+| `extensions/{id}/enable`, `extensions/{id}/disable` | POST | `ExtensionManager` | n/a (id must be in the registry; same-origin guard) |
 
 A known route with another method answers 405 with `Allow`; an unknown route answers 404; a request of another
 route's type answers 422 `route_type_mismatch`. Errors use the legacy `synth.error.response.v1` envelope with
@@ -41,5 +42,5 @@ rewriting, `/api/index.php/v1/<route>` works.
 Tests: `unittests/tests/ApiV1RoutesTest.php` sends the same probe to the legacy script and the new route and
 requires the same answer.
 
-TODO (separate PRs): the generic edit API (`edit`), extension routes, a save-created signal, and moving each
+TODO (separate PRs): the generic edit API (`edit`), a save-created signal, and moving each
 handler's logic behind a manager as its domain moves (see `docs/CHEVO-PARITY.md`).

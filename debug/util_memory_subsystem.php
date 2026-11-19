@@ -55,11 +55,11 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     // Determine query based on whether we're syncing all or just missing vectors
     if ($onlyFix == false) {
         if ($forceAll) {
-            $countQuery = "SELECT COUNT(*) AS n FROM memory_summary WHERE summary IS NOT NULL";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM memory_summary WHERE summary IS NOT NULL";
+            $countQuery = "SELECT COUNT(*) AS n FROM core_memory WHERE summary IS NOT NULL";
+            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE summary IS NOT NULL";
         } else {
-            $countQuery = "SELECT COUNT(*) AS count FROM memory_summary WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM memory_summary WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
+            $countQuery = "SELECT COUNT(*) AS count FROM core_memory WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
+            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
         }
 
         $results                = $db->fetchOne($countQuery);
@@ -101,9 +101,9 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
             }
 
             // Save extracted tags and update native_vec (FTS vector)
-            $db->update("memory_summary", "tags='" . $db->escape($tagsCol) . "'", "rowid={$row["rowid"]}");
-            $db->execQuery("UPDATE memory_summary SET scope='global' WHERE rowid={$row["rowid"]} AND scope IS NULL");
-            $db->execQuery("UPDATE memory_summary SET native_vec = setweight(to_tsvector(coalesce(tags, '')), 'A') || setweight(to_tsvector(coalesce(summary, '')), 'B') WHERE rowid={$row["rowid"]}");
+            $db->update("core_memory", "tags='" . $db->escape($tagsCol) . "'", "rowid={$row["rowid"]}");
+            $db->execQuery("UPDATE core_memory SET scope='global' WHERE rowid={$row["rowid"]} AND scope IS NULL");
+            $db->execQuery("UPDATE core_memory SET native_vec = setweight(to_tsvector(coalesce(tags, '')), 'A') || setweight(to_tsvector(coalesce(summary, '')), 'B') WHERE rowid={$row["rowid"]}");
 
             $processed_counter++;
             echo "Updated vector for memory ID {$row["rowid"]}. (Processed {$processed_counter} of {$memories_to_sync_count})" . PHP_EOL;
@@ -117,9 +117,9 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     echo "Completing companions field (method 1)..." . PHP_EOL;
     $pfi      = ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] + 0) * 100000;
 
-    $db->execQuery("UPDATE memory_summary SET companions=NULL WHERE btrim(COALESCE(companions, ''), '|, ') = ''");
+    $db->execQuery("UPDATE core_memory SET companions=NULL WHERE btrim(COALESCE(companions, ''), '|, ') = ''");
 
-    $missingCompanions = $db->fetchAll("SELECT * FROM memory_summary WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions = $db->fetchAll("SELECT * FROM core_memory WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
     $n=0;
     foreach ($missingCompanions as $row) {
         $peopleRows = $db->fetchAll("SELECT people FROM core_context_event WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
@@ -149,7 +149,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
 
         if (!empty($npcInMemory)) {
             $peopleFmt = $db->escape("|" . implode("|", array_values(array_unique($npcInMemory))) . "|");
-            $db->query("UPDATE memory_summary SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
+            $db->query("UPDATE core_memory SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
         }
         if ($n++ % 100 == 0) {
             echo "Completed $n/".sizeof($missingCompanions).PHP_EOL;
@@ -159,7 +159,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     // --- Fix companions field (second method) ---
     echo "Completing companions field (method 2)..." . PHP_EOL;
     $n=0;
-    $missingCompanions2 = $db->fetchAll("SELECT * FROM memory_summary WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions2 = $db->fetchAll("SELECT * FROM core_memory WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
     foreach ($missingCompanions2 as $row) {
         $peopleRow = $db->fetchOne("SELECT STRING_AGG(DISTINCT person, '|') AS people FROM synth.memory_v CROSS JOIN LATERAL unnest(array[speaker, listener]) AS participant(person) WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
         $npcs      = [];
@@ -182,7 +182,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
 
         if (!empty($npcInMemory)) {
             $peopleFmt = $db->escape("|" . implode("|", array_values(array_unique($npcInMemory))) . "|");
-            $db->query("UPDATE memory_summary SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
+            $db->query("UPDATE core_memory SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
         }
         if ($n++ % 100 == 0) {
             echo "Completed $n/".sizeof($missingCompanions2).PHP_EOL;
@@ -326,14 +326,14 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         }
 
         $npcEsc = $db->escape($npcName);
-        $lastScoped = $db->fetchOne("SELECT COALESCE(MAX(gamets_truncated), 0) AS max_gamets FROM memory_summary WHERE scope='$npcEsc'");
+        $lastScoped = $db->fetchOne("SELECT COALESCE(MAX(gamets_truncated), 0) AS max_gamets FROM core_memory WHERE scope='$npcEsc'");
         $lastScopedGamets = intval($lastScoped["max_gamets"] ?? 0);
 
         // Individual summaries are selected by NPC presence in source events/dialogue windows,
         // not by text mention checks in global packed summaries.
         $pendingRows = $db->fetchAll("
             SELECT ms.rowid, ms.uid, ms.gamets_truncated, ms.summary, ms.packed_message
-            FROM memory_summary ms
+            FROM core_memory ms
             WHERE ms.summary IS NOT NULL
               AND (ms.scope IS NULL OR ms.scope='global')
               AND ms.gamets_truncated > $lastScopedGamets
@@ -418,7 +418,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
                 break;
             }
 
-            $previousMemoryReq = $db->fetchOne("SELECT summary FROM memory_summary WHERE scope='$npcEsc' AND summary IS NOT NULL ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1");
+            $previousMemoryReq = $db->fetchOne("SELECT summary FROM core_memory WHERE scope='$npcEsc' AND summary IS NOT NULL ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1");
             $previousMemory = trim((string)($previousMemoryReq["summary"] ?? ''));
 
             $prompt = [];
@@ -442,7 +442,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
             $uidToUse = $maxUid > 0 ? $maxUid : intval($batch[sizeof($batch) - 1]["rowid"] ?? 1);
 
             $db->insert(
-                'memory_summary',
+                'core_memory',
                 array(
                     'gamets_truncated' => $maxGamets,
                     'n' => sizeof($batch),
@@ -626,7 +626,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                          ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any_fts,
                          ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all_fts,
                          (embedding <-> $vectorString) - ts_rank(native_vec, to_tsquery('$kwStringAny')) AS mixed_distance
-                    FROM synth.memory_summary
+                    FROM public.core_memory
                     WHERE embedding IS NOT NULL
                     ORDER BY
                         embedding <-> $vectorString ASC
@@ -672,7 +672,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
         echo "Starting fixing..." . PHP_EOL;
         $db = new sql();
-        $db->execQuery("update memory_summary set companions=null where classifier='dialogue'");
+        $db->execQuery("update core_memory set companions=null where classifier='dialogue'");
 
         resyncMemorySummaries($db, false,true);
 
@@ -716,7 +716,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Packing complete. Max gamets_truncated row ID from existing summaries: {$maxRow}" . PHP_EOL;
 
         echo "Checking for new entries to summarize and compact..." . PHP_EOL;
-        $count_query              = "select COUNT(*) as count from memory_summary where (gamets_truncated>{$maxRow} or summary is null)  ";
+        $count_query              = "select COUNT(*) as count from core_memory where (gamets_truncated>{$maxRow} or summary is null)  ";
         $count_result_res_compact = $db->query($count_query);
         $count_result_arr         = $db->fetchArray($count_result_res_compact);
         $entries_to_process_count = $count_result_arr ? (int) $count_result_arr['count'] : 0;
@@ -738,7 +738,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
                 error_log("Using connector {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
 
-                $results_query = "select gamets_truncated,packed_message,uid,classifier,rowid,companions from memory_summary where (gamets_truncated>{$maxRow} or summary is null)  order by gamets_truncated asc ";
+                $results_query = "select gamets_truncated,packed_message,uid,classifier,rowid,companions from core_memory where (gamets_truncated>{$maxRow} or summary is null)  order by gamets_truncated asc ";
                 $results       = $db->query($results_query);
 
                 $toUpdate = [];
@@ -752,7 +752,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     }
                 }
 
-                $prevMemory = $db->fetchOne("SELECT gamets_truncated, packed_message,  uid, classifier, rowid,companions,summary FROM memory_summary WHERE gamets_truncated < {$row["gamets_truncated"]} ORDER BY gamets_truncated DESC LIMIT 1");
+                $prevMemory = $db->fetchOne("SELECT gamets_truncated, packed_message,  uid, classifier, rowid,companions,summary FROM core_memory WHERE gamets_truncated < {$row["gamets_truncated"]} ORDER BY gamets_truncated DESC LIMIT 1");
                 // Summarization logic begins
                 if ($row["classifier"] == "diary") {
                     $TEST_TEXT = $row["packed_message"];
@@ -890,8 +890,8 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     }
                 }
                 if ($current_summary_to_save) {
-                    $db->execQuery("update memory_summary set summary='" . $db->escape($current_summary_to_save) . "',tags='" . $db->escape($tagsCol) . "',scope=COALESCE(scope,'global') where rowid={$row["rowid"]}");
-                    $db->execQuery("update memory_summary SET native_vec = setweight(to_tsvector(coalesce(tags, '')),'A')||setweight(to_tsvector(coalesce(summary, '')),'B') where rowid={$row["rowid"]}");
+                    $db->execQuery("update core_memory set summary='" . $db->escape($current_summary_to_save) . "',tags='" . $db->escape($tagsCol) . "',scope=COALESCE(scope,'global') where rowid={$row["rowid"]}");
+                    $db->execQuery("update core_memory SET native_vec = setweight(to_tsvector(coalesce(tags, '')),'A')||setweight(to_tsvector(coalesce(summary, '')),'B') where rowid={$row["rowid"]}");
                 }
 
                 // Original embedding call within loop (conditionally for $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])
@@ -929,7 +929,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Deleting memory_summary" . PHP_EOL;
 
         $db      = new sql();
-        $results = $db->query("delete from memory_summary");
+        $results = $db->query("delete from core_memory");
 
         $maxRow = PackIntoSummary();
 

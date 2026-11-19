@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . "synth_runtime.php";
 
 function synth_prompt_manager_get(object $db, string $promptKey, string $fallback, array $replacements = []): string
@@ -19,7 +20,7 @@ function synth_prompt_manager_get(object $db, string $promptKey, string $fallbac
                 $prompt = strval($row['prompt']);
             }
         } catch (Throwable $e) {
-            error_log("[SYNTH PromptManager] prompt lookup failed for {$promptKey}: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH PromptManager', "prompt lookup failed for {$promptKey}: " . $e->getMessage());
         }
     }
 

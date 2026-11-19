@@ -10,6 +10,7 @@ declare(strict_types=1);
 use Synth\Managers\VoiceSample\VoicePreviewException;
 use Synth\Managers\VoiceSample\VoicePreviewManager;
 
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 ob_start();
 
 /**
@@ -81,7 +82,7 @@ try {
             'load_tts_connector' => false, 'load_player_name' => true, 'seed_narrator' => false,
         ]);
     } catch (Throwable $e) {
-        error_log('[SYNTH voice preview] Bootstrap failed: ' . get_class($e));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH voice preview', 'Bootstrap failed: ' . get_class($e));
         throw new VoicePreviewException(503, 'unavailable', 'The SYNTH database is unavailable.');
     }
     $result = (new VoicePreviewManager($enginePath))->preview($npcId, $text);

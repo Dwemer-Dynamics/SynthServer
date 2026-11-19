@@ -156,7 +156,7 @@ abstract class DatabaseTestCase extends TestCase
     {
         $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
         require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."runtime_bootstrap.php");
-        require_once($path.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."phpunit.class.php");
+        require_once($path.DIRECTORY_SEPARATOR."tests".DIRECTORY_SEPARATOR."Fixtures".DIRECTORY_SEPARATOR."phpunit.class.php");
 
         // Mirror runtime bootstrap: load and import defaults before managed-setting seeds run.
         require($path.DIRECTORY_SEPARATOR."conf".DIRECTORY_SEPARATOR."conf.sample.php");

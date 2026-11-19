@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/lib/classes/Logger.php';
 ini_set('display_errors','0');
 header('Content-Type: application/x-ndjson; charset=utf-8');
 header('Cache-Control: no-store');
@@ -22,6 +23,6 @@ try {
 } catch (SYNTHProtocolCancelled|LogicException $error) {
     synth_protocol_fail('diary_owner_unavailable',409);
 } catch (Throwable $error) {
-    error_log('[SYNTH diary] Status read unavailable.');
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH diary', 'Status read unavailable.');
     synth_reject_json_request(503,'Diary status temporarily unavailable',['code'=>'diary_status_unavailable','retryable'=>true]);
 }

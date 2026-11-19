@@ -68,6 +68,8 @@ jobs:
       - name: Install focused test dependencies
         working-directory: unittests
         run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Install root test dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist --no-plugins --no-scripts
       - name: Audit tracked server tree
         shell: pwsh
         run: ./tools/audit-release-tree.ps1
@@ -81,6 +83,8 @@ jobs:
       - name: Run PHPUnit and disposable PostgreSQL checks
         working-directory: unittests
         run: ./vendor/bin/phpunit --colors=always
+      - name: Run root tests suite
+        run: ./vendor/bin/phpunit --testsuite tests --colors=always
       - name: Record evidence boundary
         if: always()
         run: |

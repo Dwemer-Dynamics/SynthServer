@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'voice_clone_sync.php';
 require_once __DIR__ . '/media_store.php';
 
@@ -392,11 +393,11 @@ if (!function_exists('synth_voice_clone_materialize_game_sample')) {
         }
 
         if (is_file($target) && @filesize($target) > 44) {
-            error_log("[SYNTH Voice] Materialized voice sample {$sampleName}.wav from {$source}");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH Voice', "Materialized voice sample {$sampleName}.wav from {$source}");
             return realpath($target) ?: $target;
         }
 
-        error_log("[SYNTH Voice] Failed to materialize voice sample {$sampleName}.wav from {$source}");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH Voice', "Failed to materialize voice sample {$sampleName}.wav from {$source}");
         return '';
     }
 }

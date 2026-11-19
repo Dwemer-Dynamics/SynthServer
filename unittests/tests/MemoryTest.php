@@ -48,7 +48,7 @@ final class MemoryTest extends DatabaseTestCase
             dataGetMemoryScopeConditionSql('Scoped Memory Readiness Test')
         );
 
-        $this->assertTrue($GLOBALS['db']->insert('memory_summary', [
+        $this->assertTrue($GLOBALS['db']->insert('core_memory', [
             'gamets_truncated' => 100,
             'n' => 1,
             'packed_message' => 'Scoped memory source',
@@ -312,7 +312,7 @@ final class MemoryTest extends DatabaseTestCase
     private function insertStimpackMemory() {
         $testDb = new sql();
         $this->assertTrue($testDb->insert(
-            'memory_summary',
+            'core_memory',
             array(
                 'gamets_truncated' => 0,
                 'n' => 0,
@@ -326,7 +326,7 @@ final class MemoryTest extends DatabaseTestCase
                 'native_vec'=> "'stimpak':2A,9B,22B 'town':3A,10B 'seller':1A,21B"
             )
         ));
-        $stored = $testDb->fetchOne("SELECT summary, native_vec::text AS native_vec FROM memory_summary WHERE uid=0 LIMIT 1");
+        $stored = $testDb->fetchOne("SELECT summary, native_vec::text AS native_vec FROM core_memory WHERE uid=0 LIMIT 1");
         $this->assertStringContainsString('stimpak', strval($stored['native_vec'] ?? ''));
         $testDb->close();
     }

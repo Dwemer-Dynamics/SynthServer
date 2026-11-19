@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
     require_once(__DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."emote_moods.php");
 
     global $FUNC_LIST;
@@ -226,10 +227,10 @@
                 if (!synth_jev_action_code_allowed(strval($fname))) continue;
 
                 if (!in_array($fname,$GLOBALS["ENABLED_FUNCTIONS"])) {
-                    error_log("[FUNCTIONS] Skipping disabled function: {$function["name"]} <$fname>");
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'FUNCTIONS', "Skipping disabled function: {$function["name"]} <$fname>");
                     continue;
                 } else {
-                    error_log("[FUNCTIONS] NOT Skipping function: {$function["name"]} <$fname>");
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'FUNCTIONS', "NOT Skipping function: {$function["name"]} <$fname>");
                 }
 
                 $actionDescription = function_exists('synthGetPromptActionDescription')

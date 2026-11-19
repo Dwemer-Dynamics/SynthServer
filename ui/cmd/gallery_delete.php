@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {
@@ -37,7 +38,7 @@ if ($method === 'POST') {
     else if ($lastFolder=="uploads")
         $filename  = "$enginePath/data/pictures/gallery/uploads/" .basename($source);
 
-    error_log("Will delete $filename");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_delete', "Will delete $filename");
     if ($filename)
         unlink($filename);
     
@@ -53,7 +54,7 @@ if ($method === 'POST') {
     else if ($lastFolder=="uploads")
         $filename  = "$enginePath/data/pictures/gallery/uploads/" .basename($source);
 
-    error_log("Will delete $filename");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'gallery_delete', "Will delete $filename");
     if ($filename)
         unlink($filename);
 

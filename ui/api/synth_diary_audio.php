@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 ob_start();
 error_reporting(E_ERROR);
 
@@ -193,7 +194,7 @@ try {
     if (class_exists('Logger')) {
         Logger::error('[DIARY AUDIO] ' . $e->getMessage());
     } else {
-        error_log('[DIARY AUDIO] ' . $e->getMessage());
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'DIARY AUDIO', $e->getMessage());
     }
     http_response_code(422);
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

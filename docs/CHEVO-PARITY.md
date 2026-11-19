@@ -33,7 +33,7 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 | `context/event` | `api/v1/context/event.php` (`context` event via `main.php`) | parity (adapter) | this PR |
 | `dialogue` (`request`, `spoken`, `cancel`) | `api/v1/dialogue/*` adapters over `main.php` (`api/v2` conversation dispatch behind it) | parity (adapter); lifecycle work continues | this PR; TBD (conversation lifecycle) |
 | `editing` (generic edit API) | `/api/v1/edit` answers 501 (`api/v1/editing/index.php`) | missing (501 stub) | TBD (edit API PR) |
-| `extensions` | `/api/v1/extensions` answers 501 (`api/v1/extensions.php`); draft PR: `talk-awareness` reference; `ext/relationship_system` kept | in progress (501 stub) | TBD |
+| `extensions` | `api/v1/extensions.php`: `GET /extensions`, `POST /extensions/{id}/{enable,disable}`; id checked against the registry allowlist, same-origin guard, generic errors; `ext/relationship_system` kept | parity (list, enable, disable) | this PR |
 | `health` | `api/v1/health.php` over root `health.php` (read-only readiness, 503 contract; `health/{live,db,api-keys-configured,npcs-available,llm}`) | parity (adapter) | this PR; TBD (health notice) |
 | `locations/save` | `api/v1/locations/save.php` (`location_catalog` event via `main.php`; no storage yet) | parity (adapter) | this PR; TBD (locations) |
 | `messages` (response queue delivery) | `GET /api/v1/messages/<id>` over `tts_status.php` (id is the TTS cache key); `processor/`, `ui/response_queue.php` | parity (adapter, delivery state only) | this PR |
@@ -57,7 +57,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | CharacterManager | `managers/CharacterManager.php` | in progress | TBD (domain move) |
 | ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
 | ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
-| ExtensionManager | none (`ext/relationship_system` legacy) | in progress (draft PR: manifest validation, enable/disable in `conf/extensions.json`, 2 filters + 2 events, error isolation; no tables, auto-disable or UI yet) | TBD |
+| ExtensionManager | none (`ext/relationship_system` legacy) | parity for the config-file model (manifest validation, enable/disable and failure state in `conf/extensions.json`, 2 filters + 2 events, error isolation, auto-disable after 5 consecutive failures, optional deferred events, API and UI); no per-extension tables or handler time limits | this PR |
 | GameRpc | none | missing | TBD |
 | ListenerManager | none | missing | TBD |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
@@ -80,8 +80,8 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 
 | chevo area | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
+=======
 | `drivers/llm` (Interface, `LLMWrapper`, `Drivers/`) | Done: `LlmDriverInterface` and `LlmWrapper`; `OpenAiCompatibleDriver` and `PlayerRewriteDriver` are built and called through the wrapper. `connector/*` classes load through `LlmWrapper::legacyConnector()`. Left: the provider logic in `connector/` still lives there (stateful `open/process/close/fast_request`) and moves into `Drivers/` one provider at a time | in progress | this PR |
-| `drivers/tts` (Interface, `TTSWrapper`, `Drivers/`, audio, storage) | `TtsDriverInterface`, `TtsWrapper`, `ProfileSpeechDriver` and `NarratorSpeechDriver` (through `TtsSynthesisInterface`) are behind the wrapper. Each `tts/tts-*.php` provider is a driver in `Drivers/<Name>Driver.php` (`TtsProviderInterface`) registered by a thin hook via `TtsProviderRegistry`. Audio is `SpeechAudio`, storage is `SpeechStorage`; `lib/speech_cache.php` and `lib/npc_tts_status.php` delegate to them. The provider bodies still read the legacy TTS globals; typed provider settings move with the connector entities | parity (shape); provider settings in progress | this PR; #63 (connector entities) |
 | `drivers/stt` | Done: `SttDriverInterface`, `SttWrapper`, one driver per provider (whisper, parakeet, localwhisper, azure, deepgram, gemini, inworld, none); `stt/stt-*.php` are thin hooks that resolve globals and API badge keys | done | this PR |
 | `drivers/itt` | Done: `IttDriverInterface`, `IttWrapper`, drivers for openai, openrouter, google_openai, custom, llamacpp; `itt/itt-*.php` and `lib/itt_service.php` are thin hooks | done | this PR |
 
@@ -90,7 +90,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | `workers/*.php` (storage-agnostic) | done | #82 |
-| `ExtensionEvents` worker | none | missing (seam: `DeferredEventSink` in ExtensionManager) | TBD |
+| `ExtensionEvents` worker | `workers/ExtensionEvents/ExtensionEventsWorker` (`extension-events`), draining `FileEventQueue` (`data/extensions/events/`, no table); queue is used only when `conf/extensions.json` sets `deferred_events` | done | this PR |
 | `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}`; registered via `workers/Memory/MemoryWorker` (thin adapter over `service/memory_dispatch.php`) | in progress | #82 (adapter only) |
 | `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | #82 (adapter only); authored relationships #67 |
 | `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | #82 |
@@ -103,11 +103,12 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | `config/config.inc.tmpl.php` | `conf/` (`conf_loader.php`, `conf_schema.json`) | in progress (moves last) | TBD |
-| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | in progress (draft PR; reference is `talk-awareness`) | TBD |
+| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | parity (reference is `talk-awareness`; page `ui/extensions.php` in Config Hub) | this PR |
 | Health route (`/api/v1/health`) | `api/v1/health.php` over `health.php`, 200 or 503 | parity (adapter) | this PR; TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
-| `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |
+| `tests/` + root `phpunit.xml` | `tests/` (suite `tests`) and `unittests/` (suite `unittests`) under one root `phpunit.xml`, `tests/bootstrap.php`, PHPUnit in root `require-dev`; the test `sql` adapter lives in `tests/Fixtures/phpunit.class.php`; CI runs both | parity (follow-up: `tts/tts-phpunit.php` moves with the TTS PR) | this PR |
 | PSR-4 autoload | added in this PR; `require_once` lists still used | in progress | this PR |
+| `lib/Logger` (`Chevo\Lib\Logger`: required classifier, level, caller line, `error_log`) | `Synth\Lib\Logger` in `lib/classes/Logger.php` (PSR-4 `Synth\Lib\`): classifier + level, caller `file:line`, secret redaction, the named `log/` file sinks with rotation, one error/exception/fatal handler installed once. `lib/logger.php` is a shim over it. Direct `error_log` calls are converted in files no other session owns; the rest are listed in the PR | parity (class and handler); call-site conversion continues | this PR |
 | Coding standards | [CODING-STANDARDS.md](CODING-STANDARDS.md) | parity | this PR |
 
 ## In-flight work map

@@ -38,8 +38,9 @@ later), so the contracts survive that change unchanged.
 | --- | --- | --- |
 | `memory` | `Memory/MemoryWorker` | `service/memory_dispatch.php` |
 | `relationship` | `Relationships/RelationshipWorker` | `service/relationship_dispatch.php` |
+| `extension-events` | `ExtensionEvents/ExtensionEventsWorker` | native: drains `ExtensionManager`'s `FileEventQueue` (no database) |
 
-Both extend `Legacy/LegacyDispatchWorker`, a thin adapter: each pass launches the dispatch script in a
+`memory` and `relationship` extend `Legacy/LegacyDispatchWorker`, a thin adapter: each pass launches the dispatch script in a
 fresh CLI process (it opens its own connection), counts a pass as one unit when the script prints its
 completion line, and treats a non-zero exit as a failed unit without relaying any output. The legacy
 dispatch scripts still reserve and lease their own jobs, so running them through the supervisor and

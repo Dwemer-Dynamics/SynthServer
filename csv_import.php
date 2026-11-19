@@ -2,6 +2,7 @@
 
 /* CSV Import entry point - handles automatic CSV uploads from the SYNTH plugin. */
 
+require_once __DIR__ . '/lib/classes/Logger.php';
 error_reporting(E_ALL);
 
 $path = dirname(__FILE__) . DIRECTORY_SEPARATOR;
@@ -23,7 +24,7 @@ try {
     require_once($path . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 } catch (Throwable $e) {
     http_response_code(500);
-    error_log("SYNTH CSV Import bootstrap failed: " . $e->getMessage());
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'csv_import', "SYNTH CSV Import bootstrap failed: " . $e->getMessage());
     echo json_encode([
         'success' => false,
         'error' => 'Server bootstrap failed',

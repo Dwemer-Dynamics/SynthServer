@@ -4,7 +4,7 @@ require_once __DIR__.'/DatabaseTestCase.php';
 require_once dirname(__DIR__,2).'/lib/request.php';
 require_once dirname(__DIR__,2).'/lib/response.php';
 require_once dirname(__DIR__,2).'/lib/synth_wait_actions.php';
-require_once dirname(__DIR__,2).'/lib/phpunit.class.php';
+require_once dirname(__DIR__,2).'/tests/Fixtures/phpunit.class.php';
 
 final class NativeWaitFixtureDatabase extends sql
 {
