@@ -15,6 +15,7 @@ try {
         || basename($oldPath) !== 'original.wav') throw new InvalidArgumentException('Expected this voice\'s catalog backup');
     $details = json_decode(strval(file_get_contents($root . '/data/voices/' . $voice . '.json')), true);
     if (($details['selection'] ?? '') !== 'curated_catalog') throw new RuntimeException('Import an approved replacement first');
+    require_once $root . '/lib/autoload.php';
     require $root . '/conf/conf.php';
     require_once $root . '/lib/postgresql.class.php';
     $GLOBALS['db'] = new sql();
