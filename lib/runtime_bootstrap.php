@@ -3,6 +3,7 @@
 // First, so a refused cross-origin management request stops before configuration or database work.
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "management_request_guard.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "autoload.php");
+require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "bootstrap.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "settings.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "synth_runtime.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "logger.php");
@@ -300,22 +301,7 @@ if (!function_exists('synthRuntimeReadConfiguration')) {
     // configuration names are kept, and anything the files print is discarded so it cannot corrupt a JSON answer.
     function synthRuntimeReadConfiguration(string $enginePath): array
     {
-        $confDir = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . "conf" . DIRECTORY_SEPARATOR;
-        $files = array_values(array_filter([$confDir . "conf.sample.php", $confDir . "conf.php"], 'is_file'));
-        ob_start();
-        try {
-            $config = (static function (array $__files): array {
-                foreach ($__files as $__file) {
-                    require $__file;
-                }
-                unset($__files, $__file);
-                return get_defined_vars();
-            })($files);
-        } finally {
-            ob_end_clean();
-        }
-        return array_filter($config, static fn($name): bool => is_string($name) && preg_match('/^[A-Z0-9_]+$/', $name) === 1,
-            ARRAY_FILTER_USE_KEY);
+        return \Synth\Bootstrap::readConfiguration(rtrim($enginePath, DIRECTORY_SEPARATOR));
     }
 }
 
@@ -467,57 +453,7 @@ if (!function_exists('synthRuntimeIsReadOnlyWebRequest')) {
 if (!function_exists('synthRuntimeBootstrap')) {
     function synthRuntimeBootstrap(string $enginePath, array $options = []): void
     {
-        $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $GLOBALS["ENGINE_PATH"] = $enginePath;
-        Logger::bootstrapRequestId("rt");
-        // rotate_logs (default true, false for web GET/HEAD): viewing a page never renames logs; an explicit option wins.
-        if ($options['rotate_logs'] ?? !synthRuntimeIsReadOnlyWebRequest()) {
-            Logger::rotateKnownLogs($enginePath);
-        }
-
-        $confPath = $enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php";
-        $confSamplePath = $enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.sample.php";
-
-        if (file_exists($confSamplePath)) {
-            require($confSamplePath);
-        }
-        if (file_exists($confPath)) {
-            require($confPath);
-        }
-
-        synthRuntimeImportConfigVariables(get_defined_vars());
-
-        if (empty($GLOBALS["DBDRIVER"])) {
-            throw new \RuntimeException("DBDRIVER is not configured during runtime bootstrap.");
-        }
-
-        require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "{$GLOBALS["DBDRIVER"]}.class.php");
-        $needsDbConnection = !isset($GLOBALS["db"]) || !($GLOBALS["db"] instanceof sql);
-        if (!$needsDbConnection) {
-            try {
-                $needsDbConnection = !$GLOBALS["db"]->query("SELECT 1");
-            } catch (\Throwable $e) {
-                $needsDbConnection = true;
-            }
-        }
-        if ($needsDbConnection && !empty($options['throw_db_connection_errors'])) {
-            // Opt-in for setup entries: conf.php was read once above; connect with only its SYNTH_DB_* values so an
-            // unreachable PostgreSQL throws instead of the legacy constructor's plaintext exit.
-            if ($GLOBALS["DBDRIVER"] !== 'postgresql') {
-                throw new \RuntimeException("PostgreSQL is not configured.");
-            }
-            $settings = [];
-            foreach ($GLOBALS as $name => $value) {
-                if (is_string($name) && str_starts_with($name, 'SYNTH_DB_')) {
-                    $settings[$name] = $value;
-                }
-            }
-            $GLOBALS["db"] = new sql($settings);
-        } elseif ($needsDbConnection) {
-            $GLOBALS["db"] = new sql();
-        }
-
-        synthRuntimeApplyBootstrapOptions($enginePath, $options);
+        \Synth\Bootstrap::runtime($enginePath, $options);
     }
 }
 
