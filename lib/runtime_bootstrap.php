@@ -76,7 +76,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'public.core_plugins',
             'public.core_config_preset',
             'public.core_npc_profile_rule',
-            'public.core_location',
+            'public.core_location_legacy',
             'synth.log',
             'public.core_memory_log',
             'public.core_memory',

@@ -20,12 +20,12 @@ final class IttConnectorDao
     /** One row by id, or null. */
     public function find(int $id): ?AbstractIttConnector
     {
-        return $this->entityManager->find(AbstractIttConnector::class, $id);
+        return $this->fresh()->find(AbstractIttConnector::class, $id);
     }
 
     /** Every row, ordered by id. @return list<AbstractIttConnector> */
     public function findAll(): array
     {
-        return array_values($this->entityManager->getRepository(AbstractIttConnector::class)->findBy([], ['id' => 'ASC']));
+        return array_values($this->fresh()->getRepository(AbstractIttConnector::class)->findBy([], ['id' => 'ASC']));
     }
 }

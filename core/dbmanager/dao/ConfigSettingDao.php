@@ -26,6 +26,13 @@ final class ConfigSettingDao
     {
     }
 
+    private function fresh(): EntityManagerInterface
+    {
+        $this->entityManager->clear();
+
+        return $this->entityManager;
+    }
+
     /** Called once by Database::boot(): makes this DAO's static reads use the shared EntityManager. */
     public static function configure(EntityManagerInterface $entityManager): void
     {
@@ -47,7 +54,7 @@ final class ConfigSettingDao
     /** The mapped row of one setting, or null when it has no row. Prefer value() for plain reads. */
     public function find(string $scope, string $key): ?AbstractConfigSetting
     {
-        return $this->entityManager->find(AbstractConfigSetting::class, ['scope' => $scope, 'key' => $key]);
+        return $this->fresh()->find(AbstractConfigSetting::class, ['scope' => $scope, 'key' => $key]);
     }
 
     /** Raw stored value ('' for a NULL value), or null when the setting has no row or the table is unreadable. */

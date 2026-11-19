@@ -3912,7 +3912,7 @@ function locationsTableColumns()
         $rows = $db->fetchAll(
             "SELECT column_name
                FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'core_location'"
+              WHERE table_schema = 'public' AND table_name = 'core_location_legacy'"
         );
         foreach ($rows as $row) {
             $column = strtolower((string) ($row["column_name"] ?? ""));
@@ -3975,7 +3975,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
 
     $rows = $db->fetchAll(
         "SELECT " . implode(", ", $selectFields) . "
-           FROM core_location
+           FROM core_location_legacy
           WHERE " . implode(" OR ", $whereClauses)
     );
 
@@ -6356,8 +6356,8 @@ function call_llm_internal() {
                             error_log("[ACTION POSTFILTER TravelTo]  $localtarget => {$mang4[0]} => $destination");
 
                             $destinationName=$GLOBALS["db"]->escape(trim($destination));
-                            $dbDestination=$GLOBALS["db"]->fetchOne("SELECT name, similarity(name, '$destinationName') AS sim,formid FROM core_location ORDER BY sim DESC LIMIT 1");
-                            $dbDestinationRegion=$GLOBALS["db"]->fetchOne("SELECT name, similarity(worldspace, '$destinationName') AS sim,formid FROM core_location ORDER BY sim DESC LIMIT 1");
+                            $dbDestination=$GLOBALS["db"]->fetchOne("SELECT name, similarity(name, '$destinationName') AS sim,formid FROM core_location_legacy ORDER BY sim DESC LIMIT 1");
+                            $dbDestinationRegion=$GLOBALS["db"]->fetchOne("SELECT name, similarity(worldspace, '$destinationName') AS sim,formid FROM core_location_legacy ORDER BY sim DESC LIMIT 1");
 
                             $contextDestinations=DataPosibleLocationsToGo();
 

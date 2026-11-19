@@ -248,7 +248,7 @@ $hasMemorySummary = synth_home_table_exists($db, 'core_memory');
 $hasConfOpts = synth_home_table_exists($db, 'core_config_setting');
 $hasTtsConnector = synth_home_table_exists($db, 'core_tts_connector');
 $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
-$hasLocations = synth_home_table_exists($db, 'core_location');
+$hasLocations = synth_home_table_exists($db, 'core_location_legacy');
 $hasGamePlugins = synth_home_table_exists($db, 'core_plugins');
 $hasQuests = synth_home_table_exists($db, 'core_quest');
 $hasAuditRequest = synth_home_table_exists($db, 'audit_request');
@@ -343,7 +343,7 @@ if ($hasAuditRequest) {
 $locationRows = [];
 $locationCount = 0;
 if ($hasLocations) {
-    $locationColumns = synth_home_table_columns($db, 'core_location');
+    $locationColumns = synth_home_table_columns($db, 'core_location_legacy');
     $locationSelect = ['name', 'formid'];
     if (in_array('worldspace', $locationColumns, true)) {
         $locationSelect[] = 'worldspace';
@@ -351,8 +351,8 @@ if ($hasLocations) {
     if (in_array('updated_at', $locationColumns, true)) {
         $locationSelect[] = 'updated_at';
     }
-    $locationCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_location", 'total', 0);
-    $locationRows = synth_home_rows($db, "SELECT " . implode(', ', $locationSelect) . " FROM core_location ORDER BY name ASC LIMIT 250");
+    $locationCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_location_legacy", 'total', 0);
+    $locationRows = synth_home_rows($db, "SELECT " . implode(', ', $locationSelect) . " FROM core_location_legacy ORDER BY name ASC LIMIT 250");
 }
 $gamePluginRows = [];
 $gamePluginCount = 0;

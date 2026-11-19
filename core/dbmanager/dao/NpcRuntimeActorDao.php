@@ -24,14 +24,14 @@ final class NpcRuntimeActorDao
     /** The actor of one client-minted id in one playthrough, or null. */
     public function find(string $playthroughId, string $runtimeActorId): ?AbstractNpcRuntimeActor
     {
-        return $this->entityManager->find(AbstractNpcRuntimeActor::class,
+        return $this->fresh()->find(AbstractNpcRuntimeActor::class,
             ['playthroughId' => $playthroughId, 'runtimeActorId' => strtolower($runtimeActorId)]);
     }
 
     /** The active actor last seen under a form id (FFxxxxxx), or null: a hint lookup, never an identity match. */
     public function findActiveByFormId(string $playthroughId, string $formId): ?AbstractNpcRuntimeActor
     {
-        return $this->entityManager->getRepository(AbstractNpcRuntimeActor::class)
+        return $this->fresh()->getRepository(AbstractNpcRuntimeActor::class)
             ->findOneBy(['playthroughId' => $playthroughId, 'lastFormId' => strtoupper($formId), 'status' => 'active']);
     }
 

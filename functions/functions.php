@@ -235,7 +235,7 @@ function synthResolveLocationForTravelAction($destinationName)
             "WHEN lower(COALESCE(name, '')) = lower('{$escapedDestination}') THEN 3 " .
             "WHEN lower(COALESCE(worldspace, '')) = lower('{$escapedDestination}') THEN 2 " .
             "ELSE 0 END AS exact_rank " .
-            "FROM public.core_location " .
+            "FROM public.core_location_legacy " .
             "WHERE COALESCE(name, '') <> '' " .
             "ORDER BY exact_rank DESC, sim DESC, name ASC " .
             "LIMIT 1"
