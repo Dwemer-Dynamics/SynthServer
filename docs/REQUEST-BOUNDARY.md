@@ -33,7 +33,7 @@ body. The development router answers the dashboard to a direct loopback client o
 | `api/index.php/v1/**` | the same routes where mod_rewrite is off |
 | `ui/` and `ui/<page>.php` | dashboard pages, except the include-only `ui/profile_loader.php` |
 | `ui/core/<page>.php` | dashboard core pages (profiles, connectors, NPC master, API badges) |
-| `ui/cmd/<script>.php` | dashboard actions (delete row, gallery tools, AI profile actions), except the include-only `ai_profile_generation_*` |
+| `ui/cmd/<script>.php` | dashboard actions (delete row, gallery tools, AI profile actions), except the include-only `ai_profile_generation_*` and the retired `install-db.php` |
 | `ui/api/<script>.php` | dashboard JSON endpoints |
 | `ui/addons/pmstt/index.html`, `pmstt_speech.php` | the push-to-talk add-on |
 | `ui/tools/check_url.php`, `server_version.php` | URL check and version display used by the dashboard |
