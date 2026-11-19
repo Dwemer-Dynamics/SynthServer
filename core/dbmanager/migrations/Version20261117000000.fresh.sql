@@ -270,7 +270,7 @@ BEGIN
             full_seq_name text;
         BEGIN
             -- Extract just the sequence name (without schema prefix)
-            -- From: nextval('synth.eventlog_rowid_seq'::regclass)
+            -- From: nextval('public.eventlog_rowid_seq'::regclass)
             -- Or:   nextval('eventlog_rowid_seq'::regclass)
             -- Get: eventlog_rowid_seq
 
@@ -1008,7 +1008,7 @@ CREATE SEQUENCE synth.diarylog_rowid_seq
 -- end-statement
 ALTER SEQUENCE synth.diarylog_rowid_seq OWNED BY synth.diarylog.rowid;
 -- end-statement
-CREATE TABLE synth.eventlog (
+CREATE TABLE public.core_context_event (
     type character varying(128),
     data text,
     sess character varying(1024),
@@ -1028,14 +1028,14 @@ CREATE TABLE synth.eventlog (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-CREATE SEQUENCE synth.eventlog_rowid_seq
+CREATE SEQUENCE public.eventlog_rowid_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
 -- end-statement
-ALTER SEQUENCE synth.eventlog_rowid_seq OWNED BY synth.eventlog.rowid;
+ALTER SEQUENCE public.eventlog_rowid_seq OWNED BY public.core_context_event.rowid;
 -- end-statement
 CREATE TABLE public.core_faction (
     name text,
@@ -1246,9 +1246,9 @@ CREATE VIEW synth.memory_v AS
             NULLIF("substring"(eventlog.data, '"origin_line"[[:space:]]*:[[:space:]]*"([^"]+)"'::text), ''::text) AS json_origin_line,
             NULLIF("substring"(eventlog.data, '"text"[[:space:]]*:[[:space:]]*"([^"]+)"'::text), ''::text) AS json_text,
             COALESCE(NULLIF("substring"(eventlog.data, '"text"[[:space:]]*:[[:space:]]*"([^"]+)"'::text), ''::text), NULLIF("substring"(eventlog.data, '"message"[[:space:]]*:[[:space:]]*"([^"]+)"'::text), ''::text), NULLIF("substring"(eventlog.data, '"origin_line"[[:space:]]*:[[:space:]]*"([^"]+)"'::text), ''::text), eventlog.data) AS decoded_text
-           FROM synth.eventlog
+           FROM public.core_context_event eventlog
           WHERE ((eventlog.data IS NOT NULL) AND (eventlog.data <> ''::text) AND ((eventlog.delivery_state IS NULL) OR (eventlog.delivery_state <> ALL (ARRAY['aborted'::text, 'failed'::text, 'cancelled'::text]))) AND ((eventlog.type)::text = ANY (ARRAY['inputtext'::text, 'inputtext_s'::text, 'narrator_inputtext'::text, 'chat'::text, 'backgroundchat'::text, 'narration'::text, 'conversation_start'::text, 'conversation_end'::text, 'world_context'::text, 'infoaction'::text, 'funcret'::text, 'death'::text, 'combatend'::text, 'combatbark'::text, 'itemfound'::text, 'itemtransfer'::text])) AND (((eventlog.type)::text <> 'world_context'::text) OR (eventlog.data IS DISTINCT FROM ( SELECT previous_world.data
-                   FROM synth.eventlog previous_world
+                   FROM public.core_context_event previous_world
                   WHERE (((previous_world.type)::text = 'world_context'::text) AND ((previous_world.gamets < eventlog.gamets) OR ((previous_world.gamets = eventlog.gamets) AND (previous_world.rowid < eventlog.rowid))))
                   ORDER BY previous_world.gamets DESC, previous_world.rowid DESC
                  LIMIT 1))))
@@ -2802,7 +2802,7 @@ ALTER TABLE ONLY public.core_tts_connector ALTER COLUMN id SET DEFAULT nextval('
 -- end-statement
 ALTER TABLE ONLY synth.diarylog ALTER COLUMN rowid SET DEFAULT nextval('synth.diarylog_rowid_seq'::regclass);
 -- end-statement
-ALTER TABLE ONLY synth.eventlog ALTER COLUMN rowid SET DEFAULT nextval('synth.eventlog_rowid_seq'::regclass);
+ALTER TABLE ONLY public.core_context_event ALTER COLUMN rowid SET DEFAULT nextval('public.eventlog_rowid_seq'::regclass);
 -- end-statement
 ALTER TABLE ONLY public.core_npc_profile_rule ALTER COLUMN id SET DEFAULT nextval('public.import_rules_id_seq'::regclass);
 -- end-statement
@@ -4223,7 +4223,7 @@ SELECT pg_catalog.setval('public.core_tts_pronunciation_id_seq', 6, true);
 -- end-statement
 SELECT pg_catalog.setval('synth.diarylog_rowid_seq', 1, false);
 -- end-statement
-SELECT pg_catalog.setval('synth.eventlog_rowid_seq', 1, false);
+SELECT pg_catalog.setval('public.eventlog_rowid_seq', 1, false);
 -- end-statement
 SELECT pg_catalog.setval('public.global_settings_presets_id_seq', 1, false);
 -- end-statement
@@ -4724,9 +4724,9 @@ CREATE UNIQUE INDEX core_profiles_slot_unique_idx ON public.core_profiles USING 
 -- end-statement
 CREATE UNIQUE INDEX core_tts_pronunciation_unique_entry ON public.core_tts_pronunciation USING btree (lower((source_text)::text), md5(((((lower((npc_names)::text) || ''::text) || lower((races)::text)) || ''::text) || lower((oghma_tags)::text))), is_builtin);
 -- end-statement
-CREATE INDEX event_log_type ON synth.eventlog USING btree (type);
+CREATE INDEX event_log_type ON public.core_context_event USING btree (type);
 -- end-statement
-CREATE INDEX eventlog_native_owner ON synth.eventlog USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL);
+CREATE INDEX eventlog_native_owner ON public.core_context_event USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL);
 -- end-statement
 CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text));
 -- end-statement
@@ -4766,17 +4766,17 @@ CREATE INDEX idx_core_npc_master_history_restore ON synth.core_npc_master_histor
 -- end-statement
 CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC);
 -- end-statement
-CREATE INDEX idx_eventlog_delivery_state ON synth.eventlog USING btree (delivery_state);
+CREATE INDEX idx_eventlog_delivery_state ON public.core_context_event USING btree (delivery_state);
 -- end-statement
-CREATE INDEX idx_eventlog_gamets_pos ON synth.eventlog USING btree (gamets) WHERE (gamets > 0);
+CREATE INDEX idx_eventlog_gamets_pos ON public.core_context_event USING btree (gamets) WHERE (gamets > 0);
 -- end-statement
-CREATE INDEX idx_eventlog_gamets_ts_pos ON synth.eventlog USING btree (gamets DESC, ts DESC);
+CREATE INDEX idx_eventlog_gamets_ts_pos ON public.core_context_event USING btree (gamets DESC, ts DESC);
 -- end-statement
-CREATE INDEX idx_eventlog_people_trgm ON synth.eventlog USING gin (people gin_trgm_ops);
+CREATE INDEX idx_eventlog_people_trgm ON public.core_context_event USING gin (people gin_trgm_ops);
 -- end-statement
-CREATE INDEX idx_eventlog_people_trgm2 ON synth.eventlog USING gin (data gin_trgm_ops);
+CREATE INDEX idx_eventlog_people_trgm2 ON public.core_context_event USING gin (data gin_trgm_ops);
 -- end-statement
-CREATE INDEX idx_eventlog_utterance_id ON synth.eventlog USING btree (utterance_id);
+CREATE INDEX idx_eventlog_utterance_id ON public.core_context_event USING btree (utterance_id);
 -- end-statement
 CREATE INDEX idx_speech_gamets_pos ON synth.speech USING btree (gamets) WHERE (gamets > 0);
 -- end-statement

@@ -665,7 +665,7 @@ function DataLastDataFor($actor, $lastNelements = -10)
       when type like 'info%' or type like 'death%' or  type like 'funcret%' or type like 'location%' or data like '%background chat%' then 'The Narrator:'
       else ''
     end||a.data  as data
-    FROM  eventlog a WHERE data like '%$actor%'
+    FROM  core_context_event a WHERE data like '%$actor%'
     and type<>'combatend'
     and type<>'bored' and type<>'init' and type<>'lockpicked' and type<>'info' and type<>'funcret'  and type<>'quest'
     and type<>'user_input'
@@ -1413,7 +1413,7 @@ function synthLatestPointsOfInterestPayload()
 {
     global $db;
 
-    $rows = $db->fetchAll("SELECT party FROM eventlog WHERE type='points_of_interest' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='points_of_interest' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
@@ -2160,7 +2160,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
         }
 
 
-        $results = $db->fetchAll("SELECT gamets,data,ts,type FROM eventlog where type in ('infoaction','itemfound','itemtransfer') order by gamets desc LIMIT 10 OFFSET 0");
+        $results = $db->fetchAll("SELECT gamets,data,ts,type FROM core_context_event where type in ('infoaction','itemfound','itemtransfer') order by gamets desc LIMIT 10 OFFSET 0");
         $rawData=[];
         foreach ($results as $row) {
             $eventData = $row["data"];
@@ -2173,7 +2173,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
             $lastDialogFull[$row["ts"]]= array('role' => 'user', 'content' => "The Narrator: {$eventData}");
         }
 
-        $results = $db->fetchAll("SELECT gamets,party,ts FROM eventlog where type='world_context' and COALESCE(party, '') <> '' order by gamets desc LIMIT 10 OFFSET 0");
+        $results = $db->fetchAll("SELECT gamets,party,ts FROM core_context_event where type='world_context' and COALESCE(party, '') <> '' order by gamets desc LIMIT 10 OFFSET 0");
         $rawData=[];
         foreach ($results as $row) {
             $payload = json_decode($row["party"] ?? "", true);
@@ -2202,7 +2202,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
         ksort($lastDialogFull);
 
         $results = $db->fetchAll("SELECT gamets,data,ts
-            FROM eventlog
+            FROM core_context_event
             WHERE type in ('inputtext','inputtext_s','narrator_inputtext')
               AND people like '%$actorcn%'
             ORDER BY gamets desc, ts desc");
@@ -2554,7 +2554,7 @@ function synthShouldExcludeEventFromPromptContext(array $row): bool
     }
 
     // These are current-state snapshots injected through live prompt sections,
-    // not durable history. Replaying them from eventlog makes stale actors/items
+    // not durable history. Replaying them from core_context_event makes stale actors/items
     // appear in later NPC prompts.
     if (in_array($type, $snapshotEventTypes, true)) {
         return true;
@@ -2612,7 +2612,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
     $nativeEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
     $nativeHistory = ($nativeEvent['protocol_version'] ?? 1) === 2;
-    $historySource = $nativeHistory ? 'native_history' : 'eventlog';
+    $historySource = $nativeHistory ? 'native_history' : 'core_context_event';
     $historyPrefix = $nativeHistory ? synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true) : '';
     $identityColumns = $nativeHistory ? ',history_event_id,utterance_id,reader_identity_id,reader_player_id,speaker_identity_id,response_role,response_actor_identity_id' : '';
     // dialogue.conversation: rows of the request's own conversation fill the row limit first (the same fixed
@@ -3533,7 +3533,7 @@ function DataLastRetFunc($actor, $lastNelements = -2)
 {
     global $db;
     $lastDialogFull = array();
-    $results = $db->fetchAll("select  a.data  as data  FROM  eventlog a
+    $results = $db->fetchAll("select  a.data  as data  FROM  core_context_event a
     WHERE data like '%$actor%' and type in ('funcret')  order by gamets desc,ts desc LIMIT 1 OFFSET 0");
     $lastData = "";
     foreach ($results as $row) {
@@ -3585,7 +3585,7 @@ function DataActorHasDied($actor)
     $lastDialogFull = array();
     $cnActor = $db->escape($actor);
 
-    $rows = $GLOBALS["db"]->fetchAll("select 1 as n,gamets from eventlog where type='death'
+    $rows = $GLOBALS["db"]->fetchAll("select 1 as n,gamets from core_context_event where type='death'
         and (data like '%defeated $cnActor%' or data like '%killed $cnActor%')
         order by gamets desc limit 1");
     if ($rows)
@@ -3642,7 +3642,7 @@ function synthLatestWorldContextPayload(): ?array
 
     $rows = $db->fetchAll(
         "SELECT party, data
-           FROM eventlog
+           FROM core_context_event
           WHERE type='world_context'
             AND COALESCE(party, '') <> ''
           ORDER BY localts DESC, ts DESC, rowid DESC
@@ -4136,7 +4136,7 @@ function PackIntoSummary($onlyMissingDiary=false)
         $maxRow=0;
 
     } else {
-        $lastGameTsRecord = $GLOBALS["db"]->fetchOne("select gamets as gamets from eventlog order by gamets desc LIMIT 1"); // 2.1ms
+        $lastGameTsRecord = $GLOBALS["db"]->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
         $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from memory_summary order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
 
         $maxRow = isset($results[0]["gamets_truncated"]) ? intval($results[0]["gamets_truncated"]) : 0;
@@ -4336,7 +4336,7 @@ function DataRechatHistory()
     global $db;
     // Include only actual rechat turns. Player input is not part of the rechat budget.
     // Keep the row payload so callers can scope the count to the current speaker.
-    $lastRechat=$db->fetchAll("select type,data,gamets FROM  eventlog a  WHERE type in ('rechat','narration')
+    $lastRechat=$db->fetchAll("select type,data,gamets FROM  core_context_event a  WHERE type in ('rechat','narration')
     and localts>".(time()-120)."  order by gamets desc,ts desc LIMIT 10 OFFSET 0");
 
     return $lastRechat;
@@ -4563,7 +4563,7 @@ function synthLatestNearbyActorsPayload()
 {
     global $db;
 
-    $rows = $db->fetchAll("SELECT party FROM eventlog WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
@@ -4677,7 +4677,7 @@ function synthLatestNearbyItemsPayload()
 {
     global $db;
 
-    $rows = $db->fetchAll("SELECT party FROM eventlog WHERE type='nearby_items' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_items' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
@@ -6115,12 +6115,12 @@ function call_llm_internal() {
             $totalProcessedData.=$extractedData;
             $extractedData="";
             $buffer=$remainingData;
-            //$user_input_after=$GLOBALS["db"]->fetchAll("select count(*) as N from eventlog where type='user_input' and ts>$gameRequest[1]"); //9.0ms
+            //$user_input_after=$GLOBALS["db"]->fetchAll("select count(*) as N from core_context_event where type='user_input' and ts>$gameRequest[1]"); //9.0ms
 
 
         }
         // This is intended to stop the generation as soon as user input is detected, so we will attend new request instead of keeping generating this
-        $user_input_after=$GLOBALS["db"]->fetchAll("select rowid as N from eventlog where type='user_input' and ts>$gameRequest[1] LIMIT 1"); // 2.1ms, faster than count(*)
+        $user_input_after=$GLOBALS["db"]->fetchAll("select rowid as N from core_context_event where type='user_input' and ts>$gameRequest[1] LIMIT 1"); // 2.1ms, faster than count(*)
         if (isset($user_input_after[0]))
             if (isset($user_input_after[0]["N"]))
                 if ($user_input_after[0]["N"]>0) {
@@ -7905,7 +7905,7 @@ function getInGameSkillDataFor($npcName) {
 WITH npc_weapons AS (
   SELECT
     TRIM(SUBSTRING(data FROM 'using weapon\s+(.+)$')) AS weapon
-  FROM synth.eventlog
+  FROM public.core_context_event
   WHERE type = 'death' AND data LIKE '%$npcEscapedName has defeated%'
 )
 

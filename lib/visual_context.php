@@ -234,7 +234,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         throw new RuntimeException('Visual history request ownership could not be persisted.');
     }
     if ($db->execQuery("WITH publication AS (
-        INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         VALUES('visual_result','Accepted native image description',$5,$6,$7,$7,'','','','derived',
             $1,$2,$3,$4) RETURNING *

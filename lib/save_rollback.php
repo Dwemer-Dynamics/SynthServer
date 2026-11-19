@@ -138,7 +138,7 @@ if (!function_exists('synthRollbackPruneFutureData')) {
         }
 
         foreach ([
-            'eventlog',
+            'core_context_event',
             'speech',
             'diarylog',
             'actions_issued',

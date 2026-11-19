@@ -230,9 +230,9 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     public function testDashboardIndexRefusesDestructiveLinksAndRendersConfirmedPostControls(): void
     {
         $db=$this->db();
-        $db->insert('eventlog',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Dashboard fixture','sess'=>'pending',
+        $db->insert('core_context_event',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Dashboard fixture','sess'=>'pending',
             'localts'=>10,'people'=>'||','location'=>'','party'=>'[]']);
-        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM eventlog')['n'];
+        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM core_context_event')['n'];
         $before=$count();
         foreach (['reset','cleanlog','delete_last','delete_memory','reinstall'] as $legacy) {
             self::assertStringContainsString('no longer available by link',$this->render('ui/index.php',[$legacy=>'1','table'=>'eventlog']));
@@ -250,9 +250,9 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     public function testEventsAndMemoriesRunWithoutLocalOverrideAndRefuseUnconfirmedActions(): void
     {
         $db=$this->db();
-        $db->insert('eventlog',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Events fixture','sess'=>'pending',
+        $db->insert('core_context_event',['ts'=>'100','gamets'=>'200','type'=>'chat','data'=>'Events fixture','sess'=>'pending',
             'localts'=>10,'people'=>'||','location'=>'','party'=>'[]']);
-        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM eventlog')['n'];
+        $count=static fn(): int => (int)$db->fetchOne('SELECT COUNT(*) AS n FROM core_context_event')['n'];
         $before=$count();
         foreach (['delete_last'=>'20','reset'=>'true','delete_memory'=>'1','hide_event_type'=>'chat','clear_hidden_event_types'=>'1'] as $key=>$value) {
             self::assertStringContainsString('no longer available by link',

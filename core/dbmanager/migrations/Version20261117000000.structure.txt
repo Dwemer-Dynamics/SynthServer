@@ -803,22 +803,22 @@ column|synth|diarylog|sess|character varying|varchar|YES||1024
 column|synth|diarylog|tags|text|text|YES||
 column|synth|diarylog|topic|text|text|YES||
 column|synth|diarylog|ts|text|text|NO||
-column|synth|eventlog|data|text|text|YES||
-column|synth|eventlog|delivery_state|text|text|YES||
-column|synth|eventlog|gamets|bigint|int8|NO||
-column|synth|eventlog|localts|bigint|int8|NO||
-column|synth|eventlog|location|text|text|YES||
-column|synth|eventlog|party|text|text|YES||
-column|synth|eventlog|people|text|text|YES||
-column|synth|eventlog|rowid|bigint|int8|NO|nextval('eventlog_rowid_seq'::regclass)|
-column|synth|eventlog|sess|character varying|varchar|YES||1024
-column|synth|eventlog|synth_context_sequence|bigint|int8|YES||
-column|synth|eventlog|synth_generation|bigint|int8|YES||
-column|synth|eventlog|synth_request_id|text|text|YES||
-column|synth|eventlog|synth_session_id|text|text|YES||
-column|synth|eventlog|ts|bigint|int8|YES||
-column|synth|eventlog|type|character varying|varchar|YES||128
-column|synth|eventlog|utterance_id|text|text|YES||
+column|public|core_context_event|data|text|text|YES||
+column|public|core_context_event|delivery_state|text|text|YES||
+column|public|core_context_event|gamets|bigint|int8|NO||
+column|public|core_context_event|localts|bigint|int8|NO||
+column|public|core_context_event|location|text|text|YES||
+column|public|core_context_event|party|text|text|YES||
+column|public|core_context_event|people|text|text|YES||
+column|public|core_context_event|rowid|bigint|int8|NO|nextval('eventlog_rowid_seq'::regclass)|
+column|public|core_context_event|sess|character varying|varchar|YES||1024
+column|public|core_context_event|synth_context_sequence|bigint|int8|YES||
+column|public|core_context_event|synth_generation|bigint|int8|YES||
+column|public|core_context_event|synth_request_id|text|text|YES||
+column|public|core_context_event|synth_session_id|text|text|YES||
+column|public|core_context_event|ts|bigint|int8|YES||
+column|public|core_context_event|type|character varying|varchar|YES||128
+column|public|core_context_event|utterance_id|text|text|YES||
 column|public|core_faction|caps|numeric|numeric|YES||
 column|public|core_faction|formid|text|text|NO||
 column|public|core_faction|name|text|text|YES||
@@ -1844,14 +1844,14 @@ index|public|core_tts_pronunciation|core_tts_pronunciation_unique_entry|CREATE U
 index|public|core_item_description_custom|descriptions_custom_pkey|CREATE UNIQUE INDEX descriptions_custom_pkey ON public.core_item_description_custom USING btree (plugin, baseid)
 index|public|core_item_description|descriptions_pkey|CREATE UNIQUE INDEX descriptions_pkey ON public.core_item_description USING btree (plugin, baseid)
 index|synth|diarylog|idx_diarylog_people_gamets|CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC)
-index|synth|eventlog|event_log_type|CREATE INDEX event_log_type ON synth.eventlog USING btree (type)
-index|synth|eventlog|eventlog_native_owner|CREATE INDEX eventlog_native_owner ON synth.eventlog USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL)
-index|synth|eventlog|idx_eventlog_delivery_state|CREATE INDEX idx_eventlog_delivery_state ON synth.eventlog USING btree (delivery_state)
-index|synth|eventlog|idx_eventlog_gamets_pos|CREATE INDEX idx_eventlog_gamets_pos ON synth.eventlog USING btree (gamets) WHERE (gamets > 0)
-index|synth|eventlog|idx_eventlog_gamets_ts_pos|CREATE INDEX idx_eventlog_gamets_ts_pos ON synth.eventlog USING btree (gamets DESC, ts DESC)
-index|synth|eventlog|idx_eventlog_people_trgm2|CREATE INDEX idx_eventlog_people_trgm2 ON synth.eventlog USING gin (data gin_trgm_ops)
-index|synth|eventlog|idx_eventlog_people_trgm|CREATE INDEX idx_eventlog_people_trgm ON synth.eventlog USING gin (people gin_trgm_ops)
-index|synth|eventlog|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utterance_id ON synth.eventlog USING btree (utterance_id)
+index|public|core_context_event|event_log_type|CREATE INDEX event_log_type ON public.core_context_event USING btree (type)
+index|public|core_context_event|eventlog_native_owner|CREATE INDEX eventlog_native_owner ON public.core_context_event USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL)
+index|public|core_context_event|idx_eventlog_delivery_state|CREATE INDEX idx_eventlog_delivery_state ON public.core_context_event USING btree (delivery_state)
+index|public|core_context_event|idx_eventlog_gamets_pos|CREATE INDEX idx_eventlog_gamets_pos ON public.core_context_event USING btree (gamets) WHERE (gamets > 0)
+index|public|core_context_event|idx_eventlog_gamets_ts_pos|CREATE INDEX idx_eventlog_gamets_ts_pos ON public.core_context_event USING btree (gamets DESC, ts DESC)
+index|public|core_context_event|idx_eventlog_people_trgm2|CREATE INDEX idx_eventlog_people_trgm2 ON public.core_context_event USING gin (data gin_trgm_ops)
+index|public|core_context_event|idx_eventlog_people_trgm|CREATE INDEX idx_eventlog_people_trgm ON public.core_context_event USING gin (people gin_trgm_ops)
+index|public|core_context_event|idx_eventlog_utterance_id|CREATE INDEX idx_eventlog_utterance_id ON public.core_context_event USING btree (utterance_id)
 index|public|core_faction|factions_pkey|CREATE UNIQUE INDEX factions_pkey ON public.core_faction USING btree (formid)
 index|public|core_plugins|game_plugins_pkey|CREATE UNIQUE INDEX game_plugins_pkey ON public.core_plugins USING btree (plugin_name)
 index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQUE INDEX global_settings_presets_name_unique ON public.core_config_preset USING btree (lower((name)::text))
@@ -1976,7 +1976,7 @@ table|public|core_tts_pronunciation|BASE TABLE
 table|public|core_item_description_custom|BASE TABLE
 table|public|core_item_description|BASE TABLE
 table|synth|diarylog|BASE TABLE
-table|synth|eventlog|BASE TABLE
+table|public|core_context_event|BASE TABLE
 table|public|core_faction|BASE TABLE
 table|public|core_plugins|BASE TABLE
 table|public|core_config_preset|BASE TABLE
