@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 session_start();
 
@@ -72,9 +73,9 @@ function process_event_row($row, $for_csv = false) {
 
  // Add debug logging for gamets conversion
  if (isset($row['gamets']) && $row['gamets'] > 0) {
- error_log("Debug - Raw gamets: " . $row['gamets']);
- error_log("Debug - Converted time: " . convert_gamets2fallout_long_date2($row['gamets']));
- error_log("Debug - Raw location: " . $row['location']);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Raw gamets: " . $row['gamets']);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Converted time: " . convert_gamets2fallout_long_date2($row['gamets']));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Raw location: " . $row['location']);
  }
 
  // **Step 1: Check the 'type' column**
@@ -421,7 +422,7 @@ if ($useFalloutTime) {
  if (isset($_GET['month']) && isset($_GET['year'])) {
  $currentFalloutMonth = $falloutMonths[$month] ?? 'January';
  $currentFalloutYear = $year;
- error_log("Debug - Using URL parameters: month={$currentFalloutMonth}, year={$currentFalloutYear}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Using URL parameters: month={$currentFalloutMonth}, year={$currentFalloutYear}");
  }
 }
 
@@ -447,13 +448,13 @@ $allDatesQuery = "
  ORDER BY sort_field ASC
 ";
 
-error_log("Debug - SQL Query: {$allDatesQuery}");
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - SQL Query: {$allDatesQuery}");
 
 $allDatesResult = pg_query($conn, $allDatesQuery);
 
 if ($allDatesResult) {
- error_log("Debug - Processing events for month: {$falloutMonths[$month]}");
- error_log("Debug - Looking for events in year: {$year}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Processing events for month: {$falloutMonths[$month]}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Looking for events in year: {$year}");
 
  while ($dateRow = pg_fetch_assoc($allDatesResult)) {
  if (!$useFalloutTime) {
@@ -487,11 +488,11 @@ if ($allDatesResult) {
  $eventMonth = intval(gmdate('m', $ts_time));
  $eventYear = intval(ltrim(gmdate('Y', $ts_time), '0'));
 
- error_log("Debug - Event found: Month={$eventMonth}, Year={$eventYear}, Day={$eventDay}");
- error_log("Debug - Looking for: Month={$month}, Year={$year}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Event found: Month={$eventMonth}, Year={$eventYear}, Day={$eventDay}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Looking for: Month={$month}, Year={$year}");
 
  if ($eventMonth == $month && $eventYear == $year) {
- error_log("Debug - Adding event for day {$eventDay}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Adding event for day {$eventDay}");
  $allEventDates[] = [
  'fallout_date' => convert_gamets2fallout_long_date_no_time($gamets),
  'fallout_month' => $falloutMonths[$eventMonth],
@@ -701,9 +702,9 @@ if ($shouldFetchEvents) {
  }
 
  // Modify the SQL query to fetch records for the selected day with explicit casting
- error_log("Debug - Selected date: " . $selectedDate);
- error_log("Debug - Start of day: " . $startOfDay);
- error_log("Debug - End of day: " . $endOfDay);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Selected date: " . $selectedDate);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Start of day: " . $startOfDay);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - End of day: " . $endOfDay);
 
  $query = "
  SELECT type, data, people, location, localts, gamets
@@ -723,7 +724,7 @@ if ($shouldFetchEvents) {
  ORDER BY localts ASC
  ";
 
- error_log("Debug - SQL Query: " . $query);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - SQL Query: " . $query);
  $result = pg_query($conn, $query);
 
  if (!$result) {
@@ -733,7 +734,7 @@ if ($shouldFetchEvents) {
 
  // Log the number of rows returned
  $numRows = pg_num_rows($result);
- error_log("Debug - Number of rows returned: " . $numRows);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Number of rows returned: " . $numRows);
 } else {
  $result = false;
 }
