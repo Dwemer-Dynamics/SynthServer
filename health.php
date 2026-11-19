@@ -61,15 +61,15 @@ register_shutdown_function(static function () use (&$response, &$answered, $answ
 // Granular checks: health.php?check=live|db|api-keys|npcs|llm|all. Without ?check= the full readiness answer below
 // is unchanged. "live" answers before any configuration, database or provider is touched.
 if (isset($_GET['check'])) {
-    require_once $root . DIRECTORY_SEPARATOR . 'managers' . DIRECTORY_SEPARATOR . 'HealthCheck' . DIRECTORY_SEPARATOR . 'HealthCheckManager.php';
+    require_once $root . DIRECTORY_SEPARATOR . 'managers' . DIRECTORY_SEPARATOR . 'ServerStatus' . DIRECTORY_SEPARATOR . 'HealthCheckManager.php';
     $check = is_string($_GET['check']) ? $_GET['check'] : '';
-    if (!in_array($check, \Synth\Managers\HealthCheck\HealthCheckManager::checkNames(), true)) {
-        $answer(['status' => 'error', 'error' => 'Unknown check. Use one of: ' . implode(', ', \Synth\Managers\HealthCheck\HealthCheckManager::checkNames()) . '.'],
+    if (!in_array($check, \Synth\Managers\ServerStatus\HealthCheckManager::checkNames(), true)) {
+        $answer(['status' => 'error', 'error' => 'Unknown check. Use one of: ' . implode(', ', \Synth\Managers\ServerStatus\HealthCheckManager::checkNames()) . '.'],
             false, 400);
         exit;
     }
     if ($check === 'live') {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::live($response['service'], $response['version']);
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::live($response['service'], $response['version']);
         $answer($body, true, $code);
         exit;
     }
@@ -95,18 +95,18 @@ if (isset($_GET['check'])) {
     }
     // api-keys, npcs and llm need the database and the Composer autoloader; the db check needs only the connection.
     if ($check === 'all') {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::all($db, $failure);
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::all($db, $failure);
     } elseif ($check === 'db') {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::database($db, $failure);
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::database($db, $failure);
     } elseif ($db === null) {
         $code = 503;
         $body = ['check' => $check, 'status' => 'error', 'error' => $failure ?? 'SYNTH cannot connect to PostgreSQL.'];
     } elseif ($check === 'api-keys') {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::apiKeys();
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::apiKeys();
     } elseif ($check === 'npcs') {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::npcs($db);
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::npcs($db);
     } else {
-        [$code, $body] = \Synth\Managers\HealthCheck\HealthCheckManager::llm();
+        [$code, $body] = \Synth\Managers\ServerStatus\HealthCheckManager::llm();
     }
     $answer($body, $code === 200, $code);
     exit;

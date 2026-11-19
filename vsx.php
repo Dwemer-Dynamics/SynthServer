@@ -8,7 +8,7 @@ $path = __DIR__ . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $path;
 require_once $path . 'lib/RequestBody.php';
 require_once $path . 'lib/voice_sample.php';
-require_once $path . 'managers/VoiceSample/VoiceSampleStore.php';
+require_once $path . 'managers/TtsStudio/VoiceSampleStore.php';
 require_once $path . 'lib/runtime_bootstrap.php';
 require_once $path . 'lib/fuz_convert.php';
 require_once $path . 'lib/voice_clone_sync.php';
@@ -103,7 +103,7 @@ try {
             throw new InvalidArgumentException('Voice conversion failed or speech sample is shorter than 3 seconds');
         }
         // Silence teaches a provider nothing: refuse all-zero decoded audio before it can replace or become a sample.
-        \Synth\Managers\VoiceSample\VoiceSampleStore::assertAudible($converted);
+        \Synth\Managers\TtsStudio\VoiceSampleStore::assertAudible($converted);
         synthVsxCheckSession($metadata);
         $staged = $voiceDir . '/.' . $voice . '.' . bin2hex(random_bytes(8)) . '.wav';
         $temporary[] = $staged;

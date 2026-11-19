@@ -2,9 +2,9 @@
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../managers/HealthCheck/HealthCheckManager.php';
+require_once __DIR__ . '/../../managers/ServerStatus/HealthCheckManager.php';
 
-use Synth\Managers\HealthCheck\HealthCheckManager;
+use Synth\Managers\ServerStatus\HealthCheckManager;
 
 final class HealthChecksTest extends TestCase
 {
@@ -142,10 +142,10 @@ final class HealthChecksTest extends TestCase
     {
         $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'synth-health-wiring-' . bin2hex(random_bytes(4));
         mkdir($root . '/lib', 0700, true);
-        mkdir($root . '/managers/HealthCheck', 0700, true);
+        mkdir($root . '/managers/ServerStatus', 0700, true);
         $source = dirname(__DIR__, 2);
         copy($source . '/health.php', $root . '/health.php');
-        copy($source . '/managers/HealthCheck/HealthCheckManager.php', $root . '/managers/HealthCheck/HealthCheckManager.php');
+        copy($source . '/managers/ServerStatus/HealthCheckManager.php', $root . '/managers/ServerStatus/HealthCheckManager.php');
         file_put_contents($root . '/lib/runtime_bootstrap.php', <<<'STUB'
 <?php
 class Logger { public static function suspendFileWrites(): void {} }
@@ -189,11 +189,11 @@ STUB);
         } finally {
             proc_terminate($process);
             proc_close($process);
-            foreach (['/lib/runtime_bootstrap.php', '/health.php', '/managers/HealthCheck/HealthCheckManager.php'] as $file) {
+            foreach (['/lib/runtime_bootstrap.php', '/health.php', '/managers/ServerStatus/HealthCheckManager.php'] as $file) {
                 @unlink($root . $file);
             }
             @rmdir($root . '/lib');
-            @rmdir($root . '/managers/HealthCheck');
+            @rmdir($root . '/managers/ServerStatus');
             @rmdir($root . '/managers');
             @rmdir($root);
         }

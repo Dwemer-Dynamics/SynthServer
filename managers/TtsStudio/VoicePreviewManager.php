@@ -9,7 +9,7 @@ declare(strict_types=1);
 // NPC, profile and connector rows are read through the existing legacy classes (NpcMaster, CoreProfile,
 // TTSConnector) until the system entity classes exist; this manager is the single place that knows that.
 
-namespace Synth\Managers\VoiceSample;
+namespace Synth\Managers\TtsStudio;
 
 use CoreProfile;
 use NpcMaster;

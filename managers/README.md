@@ -13,10 +13,14 @@ through `drivers/`, and may call another manager through its public interface. I
 
 ## Legacy flat files
 
-`CharacterManager.php`, `ContextManager.php`, `DialogueManager.php`, `PrivateNarratorManager.php`,
-`PromptManager.php`, `ReceiptManager.php`, `SaveState.php`, `SessionManager.php`, `SpeechManager.php`
-and `WorldKnowledgeManager.php` (namespace `Synth\Managers\*`) stay where they are until their domain
-moves into a `managers/<Name>/` folder. Do not add new flat files; add a folder.
+`DialogueManager.php`, `ReceiptManager.php`, `SessionManager.php`, `SpeechManager.php` and
+`WorldKnowledgeManager.php` (namespace `Synth\Managers\*`) stay where they are until their domain moves into a
+`managers/<Name>/` folder. Do not add new flat files; add a folder.
+
+`CharacterManager.php`, `ContextManager.php`, `PrivateNarratorManager.php`, `PromptManager.php` and `SaveState.php` are
+not implementations any more: each is a two-line hook (`require_once` plus `class_alias`) so the old class names
+(`Synth\Managers\SaveState`, ...) keep resolving for `bootstrap.php` and other legacy callers. New code uses the
+folder namespaces (`Synth\Managers\SaveState\SaveState`, ...); a hook is deleted once its last caller moves.
 
 ## Adding a manager
 
