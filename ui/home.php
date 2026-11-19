@@ -242,7 +242,7 @@ function synth_home_word_cloud_words(array $rows): array
     return $words;
 }
 
-$hasEventlog = synth_home_table_exists($db, 'eventlog');
+$hasEventlog = synth_home_table_exists($db, 'core_context_event');
 $hasNpcMaster = synth_home_table_exists($db, 'core_npc_master');
 $hasDiary = synth_home_table_exists($db, 'diarylog');
 $hasMemorySummary = synth_home_table_exists($db, 'memory_summary');
@@ -257,8 +257,8 @@ $hasBioTemplates = synth_home_table_exists($db, 'core_npc_biography_template');
 $hasWorldKnowledge = synth_home_table_exists($db, 'core_worldknowledge_article');
 $hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_catalog');
 
-$eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog", 'total', 0) : 0;
-$chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM eventlog WHERE type='chat'", 'total', 0) : 0;
+$eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event", 'total', 0) : 0;
+$chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event WHERE type='chat'", 'total', 0) : 0;
 $npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc_master", 'total', 0) : 0;
 $diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM diarylog", 'total', 0) : 0;
 $memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM memory_summary", 'total', 0) : 0;
@@ -281,13 +281,13 @@ if ($hasWorldKnowledge && $hasWorldKnowledgeCatalogs
         'total');
 }
 
-$latestEventRow = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM eventlog ORDER BY ts DESC LIMIT 1") : [];
+$latestEventRow = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM core_context_event ORDER BY ts DESC LIMIT 1") : [];
 $latestEvent = $latestEventRow[0] ?? [];
-$recentDialogue = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM eventlog WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 5") : [];
-$eventTypeRows = $hasEventlog ? synth_home_rows($db, "SELECT type, COUNT(*) AS event_count FROM eventlog GROUP BY type ORDER BY COUNT(*) DESC, type ASC") : [];
-$wordSourceRows = $hasEventlog ? synth_home_rows($db, "SELECT data FROM eventlog WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 500") : [];
+$recentDialogue = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM core_context_event WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 5") : [];
+$eventTypeRows = $hasEventlog ? synth_home_rows($db, "SELECT type, COUNT(*) AS event_count FROM core_context_event GROUP BY type ORDER BY COUNT(*) DESC, type ASC") : [];
+$wordSourceRows = $hasEventlog ? synth_home_rows($db, "SELECT data FROM core_context_event WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 500") : [];
 $wordCloudWords = synth_home_word_cloud_words($wordSourceRows);
-$worldRows = $hasEventlog ? synth_home_rows($db, "SELECT data, location, party, gamets, localts, ts FROM eventlog WHERE type='world_context' ORDER BY gamets DESC, ts DESC LIMIT 1") : [];
+$worldRows = $hasEventlog ? synth_home_rows($db, "SELECT data, location, party, gamets, localts, ts FROM core_context_event WHERE type='world_context' ORDER BY gamets DESC, ts DESC LIMIT 1") : [];
 $worldContext = isset($worldRows[0]) ? synth_home_json_object($worldRows[0]['party'] ?? '') : [];
 $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
 $activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];

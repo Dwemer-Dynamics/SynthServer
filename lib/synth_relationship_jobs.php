@@ -419,7 +419,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         if (!$result) throw new RuntimeException('Unable to check concurrent relationship result');
         if (pg_fetch_assoc($result)) throw new LogicException('Native relationship evaluation is stale');
         $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_result','Native relationship evaluation',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (

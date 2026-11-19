@@ -457,7 +457,7 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
             ." AND i.diary_role='$role' AND r.history_event_id>c.history_event_id");
         if ($pending) throw new LogicException('A diary result awaits a new acknowledged snapshot.');
         $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('diary_result','Accepted native diary reflection',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (
             INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)

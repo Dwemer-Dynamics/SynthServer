@@ -70,7 +70,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'public.core_item_description',
             'public.core_item_description_custom',
             'synth.diarylog',
-            'synth.eventlog',
+            'public.core_context_event',
             'public.core_faction',
             'public.core_plugins',
             'public.core_config_preset',

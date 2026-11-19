@@ -27,8 +27,8 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
     $results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from memory_summary where summary is not null"); // 0.5ms, faster
     $lastMemory = intval($results[0]["gamets_truncated"]);
 
-    //$results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from eventlog ORDER BY gamets desc limit 1");
-    $results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from eventlog"); // faster
+    //$results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");
+    $results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event"); // faster
     $maxRow = intval($results[0]["gamets"]);
 
     $allEnabledMtNpc=$GLOBALS["db"]->fetchAll("

@@ -279,8 +279,8 @@ function aiProfileGenerate(array $options): array
     $GLOBALS["SCRIPTLINE_LISTENER"] = "";
     $GLOBALS["SCRIPTLINE_ANIMATION"] = "";
 
-    $res = $db->fetchAll("select max(gamets) as last_gamets from eventlog");
-    $res2 = $db->fetchAll("select max(ts) as ts from eventlog where gamets='{$res[0]["last_gamets"]}'");
+    $res = $db->fetchAll("select max(gamets) as last_gamets from core_context_event");
+    $res2 = $db->fetchAll("select max(ts) as ts from core_context_event where gamets='{$res[0]["last_gamets"]}'");
     $last_gamets = $res[0]["last_gamets"] + 1;
     $gameRequest = ["inputtext", "0", $last_gamets, $name];
     $last_ts = $res2[0]["ts"] ?? time();

@@ -67,7 +67,7 @@ try {
 
     $rows = $db->fetchAll(
         "SELECT data, type, gamets, ts
-         FROM eventlog
+         FROM core_context_event
          WHERE type IN ('inputtext','inputtext_s')
          ORDER BY gamets DESC, ts DESC
          LIMIT 200"

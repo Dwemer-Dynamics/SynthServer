@@ -437,7 +437,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->assertSame(0,$first['token'],'the first /talk prompt precedes its own line');
             $this->assertArrayHasKey('newer',$this->revisions,'a revision was published while the first /talk was in flight');
             $this->profilePrompt('first_talk',$first,'older',$this->canonical($session,$value['dialogue_request_id']));
-            $heard=$this->query("SELECT h.id,h.request_id,e.data FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            $heard=$this->query("SELECT h.id,h.request_id,e.data FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
                 WHERE h.session_id=$1 AND e.type='chat' AND strpos(e.data,$2)>0 ORDER BY h.id",[$session,self::TOKEN]);
             $this->report('heard_rows',$heard);
             $this->assertCount(1,$heard,'exactly one heard row after two accepted receipts');
@@ -455,7 +455,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->report('anchors',['older'=>$older,'newer'=>$newer,'heard_row'=>$row]);
             $this->assertLessThan($row,$older,'older anchor frontier excludes the heard row');
             $this->assertGreaterThanOrEqual($row,$newer,'newer anchor frontier covers the heard row');
-            $this->assertSame(1,intval($this->query("SELECT count(*) AS n FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            $this->assertSame(1,intval($this->query("SELECT count(*) AS n FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
                 WHERE h.session_id=$1 AND e.type='chat' AND e.utterance_id IS NOT NULL",[$session])[0]['n']),'one heard NPC line in the session');
             // Accepted after the newer anchor; no snapshot of this session will ever acknowledge it.
             $this->revisions['unacknowledged']=$this->publish($this->refresh($session,intval($value['newer_anchor']['context_sequence'])),self::UNACKNOWLEDGED);
@@ -541,7 +541,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
             $this->assertCount(1,$utterance);
             $this->assertSame('presented',$utterance[0]['state']);
             $this->assertSame($value['receipt_request_id'],$utterance[0]['receipt_request_id']);
-            $heard=$this->query("SELECT h.id FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+            $heard=$this->query("SELECT h.id FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
                 WHERE h.session_id=$1 AND e.type='chat' AND strpos(e.data,$2)>0",[$session,'LVT5512']);
             $this->assertCount(1,$heard,'exactly one heard row for the text-only line');
             $this->assertSame(0,intval($this->query("SELECT count(*) AS n FROM public.core_worker_job WHERE job_type='tts'")[0]['n']),'no speech job without a connector');
@@ -955,7 +955,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         $this->assertCount(7,$this->providerRequests());
         $this->assertCount(2,self::ndjson($this->llmDir.'/stt_requests.ndjson'));
         $this->assertCount(1,self::ndjson($this->llmDir.'/tts_requests.ndjson'));
-        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+        $this->assertSame('0',$this->query("SELECT count(*) AS n FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
             WHERE strpos(e.data,'LAI')>0")[0]['n'],'no raw intent in history');
         $this->report('autochat',array_diff_key($this->autochat,['rewrite_url'=>0,'fake_base'=>0]));
     }
@@ -1034,7 +1034,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
     }
     // The root's player history rows (the generated stage is type inputtext).
     private function autochatRows(string $session,string $request): array {
-        return $this->query("SELECT h.id,e.type,e.data,e.utterance_id FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+        return $this->query("SELECT h.id,e.type,e.data,e.utterance_id FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
             WHERE h.session_id=$1 AND h.request_id=$2 AND e.type LIKE 'inputtext%'",[$session,$request]);
     }
     private function autochatRoutes(string $session,string $request): array {
@@ -1380,7 +1380,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         return $new[0];
     }
     private function convHistory(string $session): array {
-        return $this->query("SELECT e.delivery_state,e.data FROM synth_meta.history_events h JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+        return $this->query("SELECT e.delivery_state,e.data FROM synth_meta.history_events h JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
             WHERE h.session_id=$1 AND e.type='chat' ORDER BY h.id",[$session]);
     }
     private function convWaitNotLive(string $session,string $request): array {
@@ -1514,7 +1514,7 @@ final class LoopbackDialogueTest extends DatabaseTestCase
         // The legacy stream may still record its route before its next liveness check; the line is never enrolled, so it
         // can never be receipted or heard, and the client had already abandoned the response.
         $routes=count($this->query('SELECT line_id FROM public.core_dialogue_route WHERE session_id=$1 AND request_id=$2',[$session,$held]));
-        $this->assertStringNotContainsString('CVL700',implode("\n",array_column($this->query("SELECT e.data FROM synth.eventlog e WHERE e.data LIKE '%CVL700%'"),'data')),'nothing late reached history');
+        $this->assertStringNotContainsString('CVL700',implode("\n",array_column($this->query("SELECT e.data FROM public.core_context_event e WHERE e.data LIKE '%CVL700%'"),'data')),'nothing late reached history');
         $this->conv['cancel']=['request'=>$value['cancel_request_id'],'revoked_at_ack'=>$atAck,'final'=>$final,'late_routes'=>$routes,'provider_release_read'=>$released];
         $this->newProviderRequests();
         $this->script($this->ordinaryReply('Turn G line CVG800.'));

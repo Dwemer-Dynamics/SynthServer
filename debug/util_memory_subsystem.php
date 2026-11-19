@@ -122,7 +122,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     $missingCompanions = $db->fetchAll("SELECT * FROM memory_summary WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
     $n=0;
     foreach ($missingCompanions as $row) {
-        $peopleRows = $db->fetchAll("SELECT people FROM eventlog WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
+        $peopleRows = $db->fetchAll("SELECT people FROM core_context_event WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
         $npcs       = [];
         foreach ($peopleRows as $p) {
             if (! empty($p["people"])) {
@@ -340,7 +340,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
               AND (
                     EXISTS (
                         SELECT 1
-                        FROM eventlog ev
+                        FROM core_context_event ev
                         WHERE ev.gamets > ms.gamets_truncated - $pfi
                           AND ev.gamets <= ms.gamets_truncated + $pfi
                           AND (

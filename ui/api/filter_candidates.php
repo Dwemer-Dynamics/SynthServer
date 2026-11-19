@@ -101,7 +101,7 @@ function filterCandidateQueryRecentRows(sql $db, array $types): array
         SELECT rowid, type, data, party
         FROM (
             SELECT rowid, type, data, party
-            FROM eventlog
+            FROM core_context_event
             ORDER BY rowid DESC
             LIMIT 5000
         ) recent
@@ -259,7 +259,7 @@ function filterCandidateBuildEventTypes(sql $db): array
         SELECT type, COUNT(*) AS count
         FROM (
             SELECT rowid, type
-            FROM eventlog
+            FROM core_context_event
             ORDER BY rowid DESC
             LIMIT 5000
         ) recent

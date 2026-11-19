@@ -378,9 +378,9 @@ final class CombatContactsTest extends DatabaseTestCase
             $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
             $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_rechat_continuation')['n']);
             $this->assertSame('complete',$this->database->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='combat-contact-input'")['state']);
-            $this->assertSame('2',$this->database->fetchOne("SELECT count(*) AS n FROM synth.eventlog WHERE type IN ('prechat','chat') AND data LIKE "
+            $this->assertSame('2',$this->database->fetchOne("SELECT count(*) AS n FROM public.core_context_event WHERE type IN ('prechat','chat') AND data LIKE "
                 .$this->database->escapeLiteral('%'.$expected.'%'))['n']);
-            $this->assertSame('1',$this->database->fetchOne("SELECT count(*) AS n FROM synth.eventlog WHERE type='inputtext' AND data LIKE "
+            $this->assertSame('1',$this->database->fetchOne("SELECT count(*) AS n FROM public.core_context_event WHERE type='inputtext' AND data LIKE "
                 .$this->database->escapeLiteral('%'.$question.'%'))['n']);
         } finally {
             unlink($file);
