@@ -5,6 +5,8 @@ namespace Synth\Core;
 use Synth\Core\Contracts\ApiKeyRef;
 use Synth\Core\DbManager\Dao\ApiBadgeDao;
 
+require_once dirname(__DIR__).'/SharedApiKeyStore.php';
+
 
 // The long-standing array-returning entry to API keys, now a thin call-through to Synth\Core\DbManager\Dao\ApiBadgeDao (which
 // presents the global shared keys and the SYNTH-only keys as one list). A key's "id" here is its reference string:
