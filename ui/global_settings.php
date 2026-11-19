@@ -363,7 +363,14 @@ function normalize_posted_value(string $type, $posted)
  return trim(strval($posted));
 }
 
-$generalSettingRows = synthGetAllGeneralSettings();
+// Settings are read and written through ConfigManager; the posted names come from the page's own field list.
+require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
+$gsConfig = \Synth\Managers\ConfigManager\ConfigManager::forSession($GLOBALS["db"]);
+try {
+ $generalSettingRows = $gsConfig->all('general');
+} catch (\Throwable $e) {
+ $generalSettingRows = [];
+}
 $generalSettingRowMap = [];
 foreach ($generalSettingRows as $row) {
  if (is_array($row) && isset($row['id'])) {
@@ -402,7 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
  }
 
  $description = current_description($name, $generalSettingRowMap);
- if (!synthSetGeneralSetting($name, $value, $description)) {
+ if (!$gsConfig->set('general', $name, $value, $description)) {
  $didSave = false;
  }
  $savedValues[$name] = $value;
@@ -417,7 +424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
  foreach ($specialBooleans as $name) {
  $value = normalize_posted_value('boolean', $_POST[$name] ?? 'false');
  $description = current_description($name, $generalSettingRowMap);
- if (!synthSetGeneralSetting($name, $value, $description)) {
+ if (!$gsConfig->set('general', $name, $value, $description)) {
  $didSave = false;
  }
  $savedValues[$name] = $value;
@@ -431,12 +438,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
  'enabled_nearby_actor_subsections' => array_values(array_map('strval', $_POST['prompt_context_enabled_nearby_actor_subsections'] ?? [])),
  ]);
  $promptContextDescription = current_description('PROMPT_CONTEXT_OPTIONS', $generalSettingRowMap);
- if (!synthSetGeneralSetting('PROMPT_CONTEXT_OPTIONS', $postedPromptContextOptions, $promptContextDescription)) {
+ if (!$gsConfig->set('general', 'PROMPT_CONTEXT_OPTIONS', $postedPromptContextOptions, $promptContextDescription)) {
  $didSave = false;
  }
 
  $memoryCompatDescription = current_description('FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARYS', $generalSettingRowMap);
- if (!synthSetGeneralSetting('FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARYS', true, $memoryCompatDescription)) {
+ if (!$gsConfig->set('general', 'FEATURES@MEMORY_EMBEDDING@AUTO_CREATE_SUMMARYS', true, $memoryCompatDescription)) {
  $didSave = false;
  }
 

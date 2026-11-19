@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
 // Get the relative web path from document root to our application
 $scriptPath = $_SERVER['SCRIPT_NAME'];
 $webRoot = dirname(dirname($scriptPath)); // Go up two levels from the script location
@@ -103,10 +104,7 @@ if (!function_exists('synthTtsStudioResolveConnectorRow')) {
         }
 
         $playerConnectorId = 0;
-        $playerRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
-        if (is_array($playerRow)) {
-            $playerConnectorId = intval($playerRow['value'] ?? 0);
-        }
+        $playerConnectorId = \Synth\Managers\ConfigManager\ConfigManager::shared()->getInt('player', 'tts_connector_id', 0);
 
         usort($rows, function ($a, $b) use ($profileUsageMap, $playerConnectorId) {
             $aId = intval($a['id'] ?? 0);

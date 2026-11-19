@@ -15,6 +15,11 @@ use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\IttConnectorDao;
+use Synth\Core\DbManager\Dao\LlmConnectorDao;
+use Synth\Core\DbManager\Dao\ProfileDao;
+use Synth\Core\DbManager\Dao\SttConnectorDao;
+use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
@@ -30,7 +35,14 @@ final class Database
      *
      * @var list<class-string>
      */
-    public const DAOS = [ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class];
+    public const DAOS = [
+        ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
+        LlmConnectorDao::class,
+        TtsConnectorDao::class,
+        SttConnectorDao::class,
+        IttConnectorDao::class,
+        ProfileDao::class,
+    ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
     public const TYPES = [

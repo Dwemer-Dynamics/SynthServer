@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Expects `$route` (the path after `/api/v1/`) and `$method`. Every row maps a route to the allowed methods
  * and a handler script under `api/v1/<area>/`. The handler validates and adapts; it never reimplements the
  * logic of the legacy entry point it calls. A known route with another method answers 405, an unknown one 404.
- * `edit` answers 501 until the generic edit API lands; `extensions` routes itself in `v1/extensions.php`.
+ * `edit` and `extensions` route themselves (`v1/editing/index.php`, `v1/extensions.php`).
  */
 
 /** @var array<string, array{0: list<string>, 1: string}> $synthApiRoutes */

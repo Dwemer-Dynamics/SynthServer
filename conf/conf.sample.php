@@ -1,5 +1,11 @@
 <?php
 
+// Compatibility shim and installation defaults. The database connection and the few pre-database values now have a
+// home of their own, config/config.inc.php (template: config/config.inc.tmpl.php, read by ConfigManager\ConfigFile);
+// every other value below is a stored setting (core_config_setting) once the dashboard saves it. This file and
+// conf/conf.php keep working unchanged for installations that still use them.
+
+
 //[Main Configuration]
 $SYNTH_GAME_ID="fo4";
 $SYNTH_WORLD_NAME="Commonwealth";
