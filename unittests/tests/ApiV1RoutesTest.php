@@ -225,6 +225,19 @@ final class ApiV1RoutesTest extends TestCase
         self::assertSame($this->call('GET', '/api/v1/health/live'), $this->call('GET', '/api/index.php/v1/health/live'));
     }
 
+    public function testTtsRoutesAreGuardedAdaptersOverTheVoiceHandlers(): void
+    {
+        // Without the dashboard token each route answers the guard's refusal before any database or provider work.
+        self::assertSame(403, $this->call('POST', '/api/v1/tts/voice-preview', json_encode(['npc_id' => 1]))[0]);
+        self::assertSame($this->call('POST', '/api/v1/voice/samples.php', json_encode(['voice_id' => 'x'])), $this->call('POST', '/api/v1/tts/voice-samples', json_encode(['voice_id' => 'x'])));
+        self::assertSame(403, $this->call('POST', '/api/v1/tts/voice-sample', json_encode(['voice_id' => 'x']))[0]);
+        [$status, $body] = $this->call('POST', '/api/v1/tts/studio', '{}');
+        self::assertSame(403, $status);
+        self::assertSame('error', json_decode($body, true)['status'] ?? null);
+        [$status, , $allow] = $this->call('GET', '/api/v1/tts/studio');
+        self::assertSame([405, 'POST'], [$status, $allow]);
+    }
+
     public function testRealScriptsUnderApiV1KeepWorking(): void
     {
         [$status, $body] = $this->call('POST', '/api/v1/voice/preview.php', json_encode(['npc_id' => 1, 'text' => 'Hello']));
