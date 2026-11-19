@@ -59,12 +59,12 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
 | ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
 | ExtensionManager | none (`ext/relationship_system` legacy) | parity for the config-file model (manifest validation, enable/disable and failure state in `conf/extensions.json`, 2 filters + 2 events, error isolation, auto-disable after 5 consecutive failures, optional deferred events, API and UI); no per-extension tables or handler time limits | this PR |
-| GameRpc | none | missing | TBD |
-| ListenerManager | none | missing | TBD |
+| GameRpc | `managers/GameRpc/` (`GameRpcClient` contract, exceptions, `UnwiredGameRpcClient`); no game-side channel exists and nothing calls it | contract only | this PR |
+| ListenerManager | `managers/ListenerManager/ListenerRouter` (pure parse and rotation, same rules as legacy `parseDialogueListenerNames`); the legacy functions stay live | in progress (no name matching, segmentation or aliases) | this PR |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
 | Notification (wake-up hints) | `managers/Notification/` (`NotifyServer`, `NotifyPublisher`, `NotifyConfig`, `NotifyHint`) | done (opt-in) | this PR |
 | MemoryManager | `service/processors/native_memory` | in progress | TBD |
-| MessageHandler (durable outbound queue) | `processor/`, response queue UI | missing as a manager | TBD |
+| MessageHandler (durable outbound queue) | `managers/MessageHandler/MessageStatusReader` (read side over the TTS job, status file and media registry behind `GET /api/v1/messages/<id>`); no queue table, so no create, cancel, expiry or delivered state | in progress (read side only; needs the queue table) | this PR; schema #63 |
 | Narrator | `managers/PrivateNarratorManager.php`, `core/contracts/narrator.php` | in progress | TBD (talking objects) |
 | NpcRegistration | `gamedata.php` | in progress | #66 |
 | OghmaManager | n/a (Skyrim knowledge); SYNTH has `WorldKnowledgeManager` | SYNTH-specific | n/a |
