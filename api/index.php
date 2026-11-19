@@ -57,6 +57,9 @@ $synthApiBodyLimits = [
     'vision/describe' => 1048576,            // a visual-context event; the image itself goes to media.php
     'voice/preview.php' => 4096,
     'voice/samples.php' => 4096,
+    'tts/voice-preview' => 4096,
+    'tts/voice-sample' => 4096,
+    'tts/voice-samples' => 4096,
 ];
 if ($method === 'POST' && isset($synthApiBodyLimits[$route])) {
     $synthApiBodyStatus = \Synth\Lib\RequestBody::refusalStatus($_SERVER, $synthApiBodyLimits[$route]);

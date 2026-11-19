@@ -67,7 +67,8 @@ limit 413, then reads are bounded through `Synth\Lib\RequestBody`.
 | --- | --- |
 | `POST speech/transcribe` | 16 MiB recording plus 64 KiB multipart framing |
 | `POST vision/describe` | 1 MiB (the event; the image goes to `media.php`) |
-| `POST voice/preview.php`, `voice/samples.php` | 4096 bytes |
+| `POST voice/preview.php`, `voice/samples.php`, `tts/voice-preview`, `tts/voice-sample`, `tts/voice-samples` | 4096 bytes |
+| `POST tts/studio` | not limited here: it accepts an empty body and reads at most 1 KiB itself |
 
 `vsx.php` (the voice sample upload, not routed through the API) applies the same check: 8 MiB plus 64 KiB.
 
