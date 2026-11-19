@@ -15,6 +15,11 @@ use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\IttConnectorDao;
+use Synth\Core\DbManager\Dao\LlmConnectorDao;
+use Synth\Core\DbManager\Dao\ProfileDao;
+use Synth\Core\DbManager\Dao\SttConnectorDao;
+use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
@@ -27,6 +32,11 @@ require_once __DIR__.'/dao/ConfigSettingDao.php';
 require_once __DIR__.'/dao/NpcActorDao.php';
 require_once __DIR__.'/dao/NpcRuntimeActorDao.php';
 require_once __DIR__.'/dao/PluginManifestRevisionDao.php';
+require_once __DIR__.'/dao/LlmConnectorDao.php';
+require_once __DIR__.'/dao/TtsConnectorDao.php';
+require_once __DIR__.'/dao/SttConnectorDao.php';
+require_once __DIR__.'/dao/IttConnectorDao.php';
+require_once __DIR__.'/dao/ProfileDao.php';
 
 final class Database
 {
@@ -35,7 +45,14 @@ final class Database
      *
      * @var list<class-string>
      */
-    public const DAOS = [ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class];
+    public const DAOS = [
+        ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
+        LlmConnectorDao::class,
+        TtsConnectorDao::class,
+        SttConnectorDao::class,
+        IttConnectorDao::class,
+        ProfileDao::class,
+    ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
     public const TYPES = [
