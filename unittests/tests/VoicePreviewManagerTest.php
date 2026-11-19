@@ -1,11 +1,11 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use Synth\Managers\VoiceSample\VoicePreviewException;
-use Synth\Managers\VoiceSample\VoicePreviewManager;
+use Synth\Managers\TtsStudio\VoicePreviewException;
+use Synth\Managers\TtsStudio\VoicePreviewManager;
 
-require_once dirname(__DIR__, 2) . '/managers/VoiceSample/VoicePreviewException.php';
-require_once dirname(__DIR__, 2) . '/managers/VoiceSample/VoicePreviewManager.php';
+require_once dirname(__DIR__, 2) . '/managers/TtsStudio/VoicePreviewException.php';
+require_once dirname(__DIR__, 2) . '/managers/TtsStudio/VoicePreviewManager.php';
 
 final class VoicePreviewManagerTest extends TestCase
 {
@@ -74,9 +74,9 @@ final class VoicePreviewManagerTest extends TestCase
         file_put_contents($dir . DIRECTORY_SEPARATOR . 'abc.txt', 'log');
         $script = $dir . DIRECTORY_SEPARATOR . 'run.php';
         file_put_contents($script, '<?php
-require ' . var_export(dirname(__DIR__, 2) . '/managers/VoiceSample/VoicePreviewException.php', true) . ';
-require ' . var_export(dirname(__DIR__, 2) . '/managers/VoiceSample/VoicePreviewManager.php', true) . ';
-$m = new Synth\Managers\VoiceSample\VoicePreviewManager(' . var_export($dir . DIRECTORY_SEPARATOR, true) . ');
+require ' . var_export(dirname(__DIR__, 2) . '/managers/TtsStudio/VoicePreviewException.php', true) . ';
+require ' . var_export(dirname(__DIR__, 2) . '/managers/TtsStudio/VoicePreviewManager.php', true) . ';
+$m = new Synth\Managers\TtsStudio\VoicePreviewManager(' . var_export($dir . DIRECTORY_SEPARATOR, true) . ');
 $r = new ReflectionClass($m);
 $r->getMethod("registerShutdownCleanup")->invoke($m);
 $p = $r->getProperty("pendingFiles");

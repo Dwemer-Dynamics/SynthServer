@@ -15,12 +15,18 @@ use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\NpcActorDao;
+use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
+use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
 use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
 require_once __DIR__.'/EntityManagerFactory.php';
 require_once __DIR__.'/Types/PreciseDateTimeType.php';
 require_once __DIR__.'/dao/ConfigSettingDao.php';
+require_once __DIR__.'/dao/NpcActorDao.php';
+require_once __DIR__.'/dao/NpcRuntimeActorDao.php';
+require_once __DIR__.'/dao/PluginManifestRevisionDao.php';
 
 final class Database
 {
@@ -29,7 +35,7 @@ final class Database
      *
      * @var list<class-string>
      */
-    public const DAOS = [ConfigSettingDao::class];
+    public const DAOS = [ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
     public const TYPES = [

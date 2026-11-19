@@ -593,7 +593,7 @@ The original 152-check evidence below remains historical, not the updated probe 
   renewable private leases fence retries, cancellation and replacement attempts.
 - Existing scheduler invokes one native dispatch independently of automatic
   short-term summary enablement. Explicit NPC policy still overrides profile inheritance.
-- Both main_synth_pipeline.php and synth_prompt_manager.php use native saved recall
+- Both main_synth_pipeline.php and the (since removed) synth_prompt_manager.php used native saved recall
   without a legacy middle_term_memory fallback. Legacy requests retain their reader.
 - A disposable clone of synth_parity_context_20260904 passes 152 checks: schema
   reapplication; empty rollback and populated refusal; 4/5 and 9/10 thresholds;
