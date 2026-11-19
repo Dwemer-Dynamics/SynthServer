@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__.'/autoload.php';
 require_once __DIR__.'/synth_jev_actions.php';
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
