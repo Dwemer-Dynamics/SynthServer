@@ -26,48 +26,127 @@ use Synth\Managers\SpeechManager;
 use Synth\Managers\WorldKnowledgeManager;
 
 require_once __DIR__.'/lib/autoload.php';
-require_once __DIR__.'/lib/postgresql.class.php';
-require_once __DIR__.'/lib/settings.php';
-require_once __DIR__.'/lib/core/llm_connector.class.php';
-require_once __DIR__.'/managers/DialogueManager.php';
-require_once __DIR__.'/managers/PrivateNarratorManager.php';
-require_once __DIR__.'/managers/ReceiptManager.php';
-require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
-require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
-require_once __DIR__.'/drivers/llm/LlmWrapper.php';
-require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
-require_once __DIR__.'/drivers/tts/TtsWrapper.php';
-require_once __DIR__.'/drivers/tts/ProfileSpeechDriver.php';
 
-// Composition root of the native dialogue API: server configuration, the shared PostgreSQL connection and the
-// dialogue services. Configuration is read into this object; it writes no runtime globals.
+// The one composition root: server configuration, the shared PostgreSQL connection and the dialogue services.
+// boot() (native dialogue API) keeps configuration in this object and writes no runtime globals; runtime() (legacy
+// pages, CLI and workers, via lib/runtime_bootstrap.php) also installs the compatibility globals legacy files read.
 final class Bootstrap
 {
+    private static ?self $current = null;
+    private static bool $loaded = false;
+
     private function __construct(public readonly string $root, public readonly array $config, public readonly \sql $db) {}
+
+    // Legacy files the dialogue services still need and the autoloader cannot find; loaded on first use so the
+    // legacy runtime session (lib/runtime_bootstrap.php) can start through this class without pulling them in.
+    private static function load(): void
+    {
+        if (self::$loaded) return;
+        self::$loaded = true;
+        require_once __DIR__.'/lib/postgresql.class.php';
+        require_once __DIR__.'/lib/settings.php';
+        require_once __DIR__.'/lib/core/llm_connector.class.php';
+        require_once __DIR__.'/managers/DialogueManager.php';
+        require_once __DIR__.'/managers/PrivateNarratorManager.php';
+        require_once __DIR__.'/managers/ReceiptManager.php';
+        require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
+        require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
+        require_once __DIR__.'/drivers/llm/LlmWrapper.php';
+        require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
+        require_once __DIR__.'/drivers/tts/TtsWrapper.php';
+        require_once __DIR__.'/drivers/tts/ProfileSpeechDriver.php';
+    }
+
+    /** The instance the legacy runtime session started (Bootstrap::runtime), or null before it ran. */
+    public static function current(): ?self
+    {
+        return self::$current;
+    }
 
     public static function boot(string $root): self
     {
-        $config = self::configuration($root);
+        self::load();
+        $config = self::readConfiguration($root);
         if (($config['DBDRIVER'] ?? '') !== 'postgresql') throw new \RuntimeException('PostgreSQL is not configured');
         return new self($root, $config, new \sql($config));
     }
 
-    // conf.sample.php then conf.php in one isolated scope; only upper-case configuration names are kept.
-    private static function configuration(string $root): array
+    // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case
+    // configuration names are kept, and anything the files print is discarded so it cannot corrupt a JSON answer.
+    public static function readConfiguration(string $root): array
     {
         $files = array_values(array_filter([$root.'/conf/conf.sample.php', $root.'/conf/conf.php'], 'is_file'));
-        $config = (static function (array $__files): array {
-            foreach ($__files as $__file) require $__file;
-            unset($__files, $__file);
-            return get_defined_vars();
-        })($files);
+        ob_start();
+        try {
+            $config = (static function (array $__files): array {
+                foreach ($__files as $__file) require $__file;
+                unset($__files, $__file);
+                return get_defined_vars();
+            })($files);
+        } finally {
+            ob_end_clean();
+        }
         return array_filter($config, static fn($name) => is_string($name) && preg_match('/^[A-Z0-9_]+$/', $name) === 1,
             ARRAY_FILTER_USE_KEY);
+    }
+
+    /**
+     * The legacy runtime session (the one composition root behind lib/runtime_bootstrap.php): configuration, the
+     * compatibility globals legacy files still read, the shared database handle, then the requested settings loads.
+     * $options as documented on synthRuntimeBootstrap().
+     */
+    public static function runtime(string $enginePath, array $options = []): void
+    {
+        $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $GLOBALS['ENGINE_PATH'] = $enginePath;
+        \Logger::bootstrapRequestId('rt');
+        // rotate_logs (default true, false for web GET/HEAD): viewing a page never renames logs; an explicit option wins.
+        if ($options['rotate_logs'] ?? !synthRuntimeIsReadOnlyWebRequest()) {
+            \Logger::rotateKnownLogs($enginePath);
+        }
+
+        $config = self::readConfiguration($enginePath);
+        synthRuntimeImportConfigVariables($config);
+        if (empty($GLOBALS['DBDRIVER'])) {
+            throw new \RuntimeException('DBDRIVER is not configured during runtime bootstrap.');
+        }
+
+        require_once $enginePath.'lib'.DIRECTORY_SEPARATOR."{$GLOBALS['DBDRIVER']}.class.php";
+        $needsDbConnection = !isset($GLOBALS['db']) || !($GLOBALS['db'] instanceof \sql);
+        if (!$needsDbConnection) {
+            try {
+                $needsDbConnection = !$GLOBALS['db']->query('SELECT 1');
+            } catch (\Throwable $e) {
+                $needsDbConnection = true;
+            }
+        }
+        if ($needsDbConnection && !empty($options['throw_db_connection_errors'])) {
+            // Opt-in for setup entries: connect with only the SYNTH_DB_* values so an unreachable PostgreSQL throws
+            // instead of the legacy constructor's plaintext exit.
+            if ($GLOBALS['DBDRIVER'] !== 'postgresql') {
+                throw new \RuntimeException('PostgreSQL is not configured.');
+            }
+            $settings = [];
+            foreach ($GLOBALS as $name => $value) {
+                if (is_string($name) && str_starts_with($name, 'SYNTH_DB_')) {
+                    $settings[$name] = $value;
+                }
+            }
+            $GLOBALS['db'] = new \sql($settings);
+        } elseif ($needsDbConnection) {
+            $GLOBALS['db'] = new \sql();
+        }
+        if ($GLOBALS['db'] instanceof \sql) {
+            self::$current = new self($enginePath, $config, $GLOBALS['db']);
+        }
+
+        synthRuntimeApplyBootstrapOptions($enginePath, $options);
     }
 
     /** @param \Closure $legacy scoped legacy adapter call (see synth_api_v2_legacy_scope) */
     public function dialogue(TurnOutput $output, \SYNTHClaimedRequest $owner, \Closure $legacy): DialogueManager
     {
+        self::load();
         $saves = new SaveState(new SaveRepository($this->db));
         // Shared connector normalization and API badge lookup; credentials stay inside the driver call.
         $connectors = new \LLMConnector();
@@ -83,11 +162,13 @@ final class Bootstrap
     /** Speech receipts: only the claimed snapshot binding and the owned receipt write; no turn services. */
     public function sessions(): SessionManager
     {
+        self::load();
         return new SessionManager(new SaveState(new SaveRepository($this->db)));
     }
 
     public function receipts(\SYNTHClaimedRequest $owner): ReceiptManager
     {
+        self::load();
         return new ReceiptManager(new SessionManager(new SaveState(new SaveRepository($this->db))),
             new UtteranceRepository($this->db, $owner, UtteranceRepository::DELIVERY_RECEIPTS));
     }
@@ -95,6 +176,7 @@ final class Bootstrap
     /** Private narrator requests: the same claimed owner, LLM driver family and legacy adapter scope. */
     public function privateNarrator(NarratorOutput $output, \SYNTHClaimedRequest $owner, \Closure $legacy): PrivateNarratorManager
     {
+        self::load();
         $connectors = new \LLMConnector();
         $event = $owner->event;
         return new PrivateNarratorManager(new PrivateNarratorRepository($this->db, $owner),
