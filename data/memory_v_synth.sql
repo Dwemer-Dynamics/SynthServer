@@ -71,7 +71,7 @@ FROM (
            '-'::text AS speaker,
            '-'::text AS listener,
            memory.ts
-    FROM synth.memory
+    FROM public.core_memory_log memory
     WHERE memory.message !~~ 'Dear Diary%'::text
       AND memory.message <> ''::text
 

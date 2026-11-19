@@ -778,7 +778,7 @@ if (isset($_POST["animation"])) {
  }
  </style>";
 
- $results = $db->fetchAll("select A.*, ROWID as rowid FROM memory A order by gamets desc,rowid desc limit 150 offset 0");
+ $results = $db->fetchAll("select A.*, ROWID as rowid FROM core_memory_log A order by gamets desc,rowid desc limit 150 offset 0");
 
  // Define column headers mapping
  $columnHeaders = [

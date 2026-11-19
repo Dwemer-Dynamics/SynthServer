@@ -4129,7 +4129,7 @@ function PackIntoSummary($onlyMissingDiary=false)
                 else '|' || trim(both '|' from trim(speaker)) || '|'
             end,
             'global'
-        from memory
+        from core_memory_log
         where event in ('diary','auto_diary')
         and uid not in (select uid from core_memory where source_type='summary' AND classifier in  ('diary','auto_diary'))");
 
@@ -4292,7 +4292,7 @@ function PackIntoSummary($onlyMissingDiary=false)
                                             else '|' || trim(both '|' from trim(speaker)) || '|'
                                         end,
                                         'global'
-                                    from memory
+                                    from core_memory_log
                                     where event='diary'
                                     and gamets>$maxRow
                                 ");
@@ -6696,7 +6696,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
     $fn=$GLOBALS["db"]->escape($followerName);
 
     // Check if already recorded - with error handling
-    $already = @$GLOBALS["db"]->fetchAll("select 1 as t from memory where event='first_met' and message like '%met {$fn}%'");
+    $already = @$GLOBALS["db"]->fetchAll("select 1 as t from core_memory_log where event='first_met' and message like '%met {$fn}%'");
     if ($already === false) {
         Logger::warn("[AddFirstTimeMet] Query to memory table failed for follower: {$followerName}");
         return;
@@ -6746,7 +6746,7 @@ function DataRetrieveFirstTimeMet($s_player_name, $s_npc_name) {
 
 		$db_rec = $db->fetchAll("SELECT speaker,listener,
 			message,gamets,momentum,rowid
-			FROM memory
+			FROM core_memory_log
 			WHERE event = 'first_met' AND gamets > 0 AND
 			((speaker = '{$s_player}' AND listener = '$s_npc') OR
 			(listener = '{$s_player}' AND speaker = '$s_npc'))
@@ -6793,7 +6793,7 @@ function GetFirstTimeMetMemory($s_player_name, $s_npc_name) {
 
 		$db_rec = $db->fetchAll("SELECT speaker,listener,
 			message,gamets,momentum,rowid
-			FROM memory
+			FROM core_memory_log
 			WHERE event = 'first_met' AND gamets > 0 AND
 			((speaker = '{$s_player}' AND listener = '$s_npc') OR
 			(listener = '{$s_player}' AND speaker = '$s_npc'))

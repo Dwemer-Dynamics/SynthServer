@@ -76,7 +76,7 @@ if (!function_exists('synthRuntimeNeedsDbUpdates')) {
             'public.core_npc_profile_rule',
             'public.core_location',
             'synth.log',
-            'synth.memory',
+            'public.core_memory_log',
             'public.core_memory',
             'public.core_prompt',
             'public.core_quest',
