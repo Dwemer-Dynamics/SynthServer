@@ -369,7 +369,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             )
         );
         $testDb->insert(
-            'eventlog',
+            'core_context_event',
             array(
                 'ts' => "0",
                 'gamets' => "0",
@@ -420,7 +420,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             )
         );
         $testDb->insert(
-            'eventlog',
+            'core_context_event',
             array(
                 'ts' => "0",
                 'gamets' => "0",

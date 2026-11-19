@@ -89,7 +89,7 @@ final class HistoricContextTest extends DatabaseTestCase
         $this->assertNotFalse($connection);
         pg_query_params(
             $connection,
-            "INSERT INTO eventlog (ts, gamets, type, data, sess, localts, people, location, party, delivery_state)
+            "INSERT INTO core_context_event (ts, gamets, type, data, sess, localts, people, location, party, delivery_state)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             [
                 (string)$ts,

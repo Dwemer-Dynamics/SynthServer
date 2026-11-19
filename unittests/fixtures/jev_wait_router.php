@@ -53,7 +53,7 @@ try {
     if (synth_protocol_supports_gift_menu($event)) $GLOBALS['ENABLED_FUNCTIONS'][]='OpenInventory';
     if(($_SERVER['HTTP_X_FIXTURE_DISABLE_ACTION']??'')==='1')$GLOBALS['ENABLED_FUNCTIONS']=[];
     // Preserve the ordinary authenticated input history before considering direct handoff.
-    $db->insert('eventlog',['type'=>'inputtext','data'=>$gameRequest[3],'gamets'=>1000,'ts'=>time(),
+    $db->insert('core_context_event',['type'=>'inputtext','data'=>$gameRequest[3],'gamets'=>1000,'ts'=>time(),
         'localts'=>time(),'sess'=>$event['session_id'],'people'=>'','location'=>'Synthetic settlement','party'=>'']);
     while(ob_get_level()>0)ob_end_clean();
     $GLOBALS['SYNTH_RESPONSE_STREAMING']=($_SERVER['HTTP_X_FIXTURE_STREAMING']??'1')==='1';

@@ -19,7 +19,7 @@ WITH event_source AS (
             NULLIF(substring(eventlog.data from '"origin_line"[[:space:]]*:[[:space:]]*"([^"]+)"'), ''),
             eventlog.data
         ) AS decoded_text
-    FROM synth.eventlog
+    FROM public.core_context_event eventlog
     WHERE eventlog.data IS NOT NULL
       AND eventlog.data <> ''
       AND (eventlog.delivery_state IS NULL OR eventlog.delivery_state NOT IN ('aborted', 'failed', 'cancelled'))
@@ -47,7 +47,7 @@ WITH event_source AS (
           eventlog.type::text <> 'world_context'
           OR eventlog.data IS DISTINCT FROM (
               SELECT previous_world.data
-              FROM synth.eventlog previous_world
+              FROM public.core_context_event previous_world
               WHERE previous_world.type::text = 'world_context'
                 AND (
                     previous_world.gamets < eventlog.gamets

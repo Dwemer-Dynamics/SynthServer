@@ -211,7 +211,7 @@ class sql
     public function insert($table, $data)
     {
         $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
-        if (!in_array($table, ['eventlog', 'synth.eventlog'], true)
+        if (!in_array($table, ['core_context_event', 'public.core_context_event'], true)
             || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
             || !is_array($event) || ($event['protocol_version'] ?? 1) !== 2
             || intval($event['context_sequence'] ?? 0) < 1) {
@@ -252,10 +252,10 @@ class sql
                 h.session_id,h.request_id,h.generation,h.context_sequence,h.playthrough_id,h.scene_context_sequence,
                 h.event_payload::text AS event_payload';
             $result = @pg_query_params($connection,
-                "SELECT {$columns} FROM synth.eventlog e LEFT JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid
+                "SELECT {$columns} FROM public.core_context_event e LEFT JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid
                  WHERE e.synth_session_id=$1 AND e.synth_request_id=$2 AND e.utterance_id=$3
                  UNION ALL
-                 SELECT {$columns} FROM synth_meta.history_events h LEFT JOIN synth.eventlog e ON e.rowid=h.eventlog_rowid
+                 SELECT {$columns} FROM synth_meta.history_events h LEFT JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
                  WHERE h.session_id=$1 AND h.request_id=$2 AND h.event_payload->>'utterance_id'=$3
                     AND (e.rowid IS NULL OR e.synth_session_id IS DISTINCT FROM $1 OR e.synth_request_id IS DISTINCT FROM $2
                         OR e.utterance_id IS DISTINCT FROM $3)",
@@ -346,7 +346,7 @@ class sql
         if ($privateHearers !== null) $hearers = json_encode(array_values(array_unique($privateHearers)), JSON_THROW_ON_ERROR);
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
         // A projected Close row records exactly which snapshot identities could hear it; others keep raw scene reconstruction.
-        $query = 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
+        $query = 'WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
             INSERT INTO synth_meta.history_events
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,

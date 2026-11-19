@@ -103,7 +103,7 @@ final class CommTest extends DatabaseTestCase
         require dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'main.php';
 
         $testDb = new sql();
-        $rows = $testDb->fetchAll('SELECT * FROM eventlog ORDER BY rowid DESC LIMIT 1;');
+        $rows = $testDb->fetchAll('SELECT * FROM core_context_event ORDER BY rowid DESC LIMIT 1;');
         $testDb->close();
 
         $this->assertSame('chat', $rows[0]['type']);
@@ -116,7 +116,7 @@ final class CommTest extends DatabaseTestCase
         require('conf.php');
 
         $testDb = new sql();
-        $testDb->insert('eventlog', [
+        $testDb->insert('core_context_event', [
             'ts' => '100',
             'gamets' => '200',
             'type' => 'chat',
@@ -136,7 +136,7 @@ final class CommTest extends DatabaseTestCase
 
         $testDb = new sql();
         $rows = $testDb->fetchAll(
-            "SELECT delivery_state FROM eventlog WHERE utterance_id='utt_abort_1' ORDER BY rowid DESC LIMIT 1;"
+            "SELECT delivery_state FROM core_context_event WHERE utterance_id='utt_abort_1' ORDER BY rowid DESC LIMIT 1;"
         );
         $testDb->close();
 

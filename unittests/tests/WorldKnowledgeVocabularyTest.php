@@ -122,7 +122,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function __construct(private array $rows) {}
                 public function fetchAll(string $sql): array { return str_contains($sql,'worldknowledge_effective') ? $this->rows : []; }
                 public function fetchOne(string $sql): ?array {
-                    if (str_contains($sql,"FROM eventlog WHERE type='chat'")) {
+                    if (str_contains($sql,"FROM core_context_event WHERE type='chat'")) {
                         $this->globalLatestReads++;
                         throw new LogicException('Native rechat cannot borrow the global latest chat.');
                     }

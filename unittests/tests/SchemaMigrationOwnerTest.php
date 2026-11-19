@@ -231,7 +231,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $parts = [];
         foreach (['public.core_catalog_version', 'public.core_config_setting', 'public.core_profiles', 'synth.core_npc_master',
-                     'public.core_prompt', 'public.core_action', 'synth.eventlog', 'public.core_npc_biography_template'] as $table) {
+                     'public.core_prompt', 'public.core_action', 'public.core_context_event', 'public.core_npc_biography_template'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
         return implode(' ', $parts);
@@ -240,7 +240,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function populateLegacyInstall(): void
     {
         $this->rows("INSERT INTO public.core_config_setting (scope, config_key, config_value, description) VALUES ('general', 'SCHEMA_OWNER_FIXTURE', 'kept', 'test row')");
-        $this->rows("INSERT INTO synth.eventlog (type, data, sess, gamets, localts, ts) VALUES ('inputtext', 'Sole Survivor: hello', 'pending', 7, 8, 9)");
+        $this->rows("INSERT INTO public.core_context_event (type, data, sess, gamets, localts, ts) VALUES ('inputtext', 'Sole Survivor: hello', 'pending', 7, 8, 9)");
         $this->rows("INSERT INTO synth.core_npc_master (npc_name, npc_static_bio) VALUES ('schema owner fixture', 'Kept verbatim.')");
         $this->rows("UPDATE public.core_prompt SET custom_prompt = 'Kept local prompt.' WHERE prompt_key = 'synth_system_prompt'");
     }
@@ -673,7 +673,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame(md5('public'), $install['extension pg_trgm']);
         self::assertSame(['extension pg_trgm' => md5('synth')], array_diff_assoc(self::$legacyInstall, $install));
         self::assertSame(['extension pg_trgm' => md5('public')], array_diff_assoc($install, self::$legacyInstall));
-        self::assertCount(4, $this->rows("SELECT indexname FROM pg_indexes WHERE schemaname = 'synth' AND indexdef LIKE '%gin_trgm_ops%'"));
+        self::assertCount(4, $this->rows("SELECT indexname FROM pg_indexes WHERE schemaname IN ('synth','public') AND indexdef LIKE '%gin_trgm_ops%'"));
     }
 
     // A failure anywhere in the plan (here a later migration after the baseline) rolls the whole install back, including

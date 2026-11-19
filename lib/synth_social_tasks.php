@@ -134,7 +134,7 @@ function synth_social_resolve_location(array $contexts,array $recipient,string $
 function synth_social_history($connection,array $event,array $context,string $taskId,array $state,string $note): int {
     $scope=synth_social_scope_event($event);$now=time();$playthrough=$context['player']['playthrough_id'];
     $result=@pg_query_params($connection,"WITH publication AS (
-        INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         VALUES('social_task_note',$1,$2,$3,$4,$4,'','','','derived',$5,$6,$7,$8) RETURNING *
       ) INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)

@@ -3,8 +3,8 @@
 // Only existing legacy table views may name a deletion target; schema names and SQL fragments are not inputs.
 function synthLegacyRowTarget(array $input): array
 {
-    $tables=['responselog'=>'responselog','eventlog'=>'eventlog','cache'=>'eventlog','log'=>'log',
-        'diarylog'=>'diarylog','memory'=>'memory','memory_summary'=>'memory_summary'];
+    $tables=['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','cache'=>'public.core_context_event','log'=>'synth.log',
+        'diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'synth.memory_summary'];
     $table=$input['table'] ?? null;
     $id=$input['rowid'] ?? null;
     if (!is_string($table) || !isset($tables[$table]) || (!is_int($id) && !is_string($id))
@@ -23,8 +23,8 @@ function synthDeleteLegacyRow($db, array $input): bool
     }
     if (!$db->isTransactionIdle()) throw new LogicException('Row deletion requires an idle database connection.');
     return $db->withManagementTransaction(static function($connection) use ($table,$id) {
-        $result=@pg_query_params($connection,"DELETE FROM synth.$table WHERE rowid=$1"
-            .($table==='eventlog' ? ' AND synth_session_id IS NULL' : '').' RETURNING rowid',[$id]);
+        $result=@pg_query_params($connection,"DELETE FROM $table WHERE rowid=$1"
+            .($table==='public.core_context_event' ? ' AND synth_session_id IS NULL' : '').' RETURNING rowid',[$id]);
         if ($result===false) throw new RuntimeException('Unable to delete legacy row.');
         $deleted=pg_num_rows($result);
         if ($deleted>1) throw new RuntimeException('Ambiguous legacy row ID.');

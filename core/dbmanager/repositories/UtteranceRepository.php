@@ -315,7 +315,7 @@ class UtteranceRepository
         if (!$snapshot) throw new \RuntimeException('Native history context unavailable');
         $scope = $privateListener === null ? null : json_encode(
             [intval($snapshot['player_identity_id']), $privateListener], JSON_THROW_ON_ERROR);
-        $result = @pg_query_params($connection, 'WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
+        $result = @pg_query_params($connection, 'WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
             INSERT INTO synth_meta.history_events
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns) + 1).',rowid,

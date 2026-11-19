@@ -29,7 +29,7 @@ if (!$adminConn) {
 
 $eventlog = 0; $worldknowledge = 0; $last = 0; $fallout = '';
 // Use fast estimates for counts where possible
-$q1 = @pg_query_params($adminConn, "SELECT COALESCE(n_live_tup,0)::bigint AS est FROM pg_stat_all_tables WHERE schemaname=$1 AND relname='eventlog'", [$schema]);
+$q1 = @pg_query_params($adminConn, "SELECT COALESCE(n_live_tup,0)::bigint AS est FROM pg_stat_all_tables WHERE schemaname='public' AND relname='core_context_event'", []);
 if ($q1 && ($r = @pg_fetch_assoc($q1))) { $eventlog = (int)$r['est']; }
 $rex = @pg_query_params($adminConn, "SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name='worldknowledge' LIMIT 1", [$schema]);
 $hasO = ($rex && @pg_fetch_assoc($rex)) ? true : false;
@@ -37,7 +37,7 @@ if ($hasO) {
     $q2 = @pg_query_params($adminConn, "SELECT COALESCE(n_live_tup,0)::bigint AS est FROM pg_stat_all_tables WHERE schemaname=$1 AND relname='worldknowledge'", [$schema]);
     if ($q2 && ($r2 = @pg_fetch_assoc($q2))) { $worldknowledge = (int)$r2['est']; }
 }
-$q3 = @pg_query($adminConn, "SELECT MAX(gamets) AS mx FROM {$schema}.eventlog");
+$q3 = @pg_query($adminConn, "SELECT MAX(gamets) AS mx FROM public.core_context_event");
 if ($q3 && ($r3 = @pg_fetch_assoc($q3)) && !is_null($r3['mx'])) { $last = (int)$r3['mx']; }
 if ($last > 0) { $fallout = convert_gamets2fallout_long_date($last); }
 

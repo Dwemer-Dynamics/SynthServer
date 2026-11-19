@@ -205,7 +205,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
     public static function revocations(): array {return [['cancel'],['load']];}
     public function testProductionPipelineInvokesHandoffAfterOwnedInputAndBeforeModelWork(): void {
         $source=file_get_contents(dirname(__DIR__,2).'/main_synth_pipeline.php');
-        $input=strpos($source,'$db->insert(\'eventlog\', $eventlogInsert)');
+        $input=strpos($source,'$db->insert(\'core_context_event\', $eventlogInsert)');
         $decision=strpos($source,'synth_jev_prepare_actions($db,');
         $handoff=strpos($source,'synth_wait_try_jev_handoff($db,');
         $refresh=strpos($source,'synthRefreshJsonResponseState();',$decision);

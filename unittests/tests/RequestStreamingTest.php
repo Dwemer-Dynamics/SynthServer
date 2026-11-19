@@ -907,10 +907,10 @@ final class RequestStreamingTest extends TestCase
     public function testLegacyRowTargetsRejectSqlFragmentsAndNativeNamespaces(): void
     {
         require_once dirname(__DIR__,2).'/lib/legacy_row_management.php';
-        foreach (['responselog','eventlog','log','diarylog','memory','memory_summary'] as $table) {
-            $this->assertSame([$table,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
+        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'synth.diarylog','memory'=>'synth.memory','memory_summary'=>'synth.memory_summary'] as $table=>$target) {
+            $this->assertSame([$target,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
         }
-        $this->assertSame(['eventlog','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
+        $this->assertSame(['public.core_context_event','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
         foreach (['memory_summaries','public.core_memory_summary','eventlog;DELETE FROM log','quests','',[]] as $table) {
             try { synthLegacyRowTarget(['table'=>$table,'rowid'=>1]); $this->fail('Invalid table accepted'); }
             catch (InvalidArgumentException $error) { $this->assertSame('Invalid legacy row target.',$error->getMessage()); }
@@ -1186,10 +1186,10 @@ final class RequestStreamingTest extends TestCase
             'n.depth<64','ANY(n.path)','MIN(history_event_id)','h.id<=s.cutoff','jsonb_to_record(h.event_payload)'] as $guard) {
             $this->assertStringContainsString($guard,$query);
         }
-        $this->assertStringNotContainsString('FROM synth.eventlog',$query);
+        $this->assertStringNotContainsString('FROM public.core_context_event',$query);
         $source = file_get_contents(dirname(__DIR__,2).'/lib/data_functions.php');
         $history = explode('function buildHistoricContext(', $source, 2)[1];
-        $this->assertStringContainsString("\$historySource = \$nativeHistory ? 'native_history' : 'eventlog'",$history);
+        $this->assertStringContainsString("\$historySource = \$nativeHistory ? 'native_history' : 'core_context_event'",$history);
         $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true)',$history);
         foreach (['c.target_identity_id IS NOT NULL','origin.snapshot_sequence=COALESCE(h.scene_context_sequence,h.context_sequence)',
             'origin.playthrough_id=h.playthrough_id','COUNT(DISTINCT id)=1 AND MIN(id)=s.reader_identity_id',
@@ -1209,7 +1209,7 @@ final class RequestStreamingTest extends TestCase
     {
         $source = file_get_contents(dirname(__DIR__,2).'/lib/postgresql.class.php');
         $owned = explode('private function insertRow', explode('public function insert($table, $data)', $source, 2)[1], 2)[0];
-        $this->assertStringContainsString("['eventlog', 'synth.eventlog']", $owned);
+        $this->assertStringContainsString("['core_context_event', 'public.core_context_event']", $owned);
         $this->assertStringContainsString("SYNTH_PROTOCOL_REQUEST_CLAIMED", $owned);
         $this->assertStringContainsString("BEGIN ISOLATION LEVEL READ COMMITTED", $owned);
         $this->assertStringContainsString("SHOW transaction_isolation", $owned);
@@ -1225,7 +1225,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('ROLLBACK', $owned);
         $schema = file_get_contents(dirname(__DIR__,2).'/lib/core/database_schema/synth_protocol.sql');
         $this->assertStringContainsString('FOREIGN KEY (session_id, generation, context_sequence)', $schema);
-        $this->assertStringNotContainsString('UPDATE synth.eventlog', $schema);
+        $this->assertStringNotContainsString('UPDATE public.core_context_event', $schema);
     }
 
     public function testSavedContextResolutionIsExactAndNeverInfersHistory(): void
@@ -1807,7 +1807,7 @@ final class RequestStreamingTest extends TestCase
                 $this->writes[]=$query;return !($this->failIntent && str_contains($query,'INSERT INTO public.core_action_intent'));
             }
             public function insert($table,$data): bool {
-                if (!$this->locked || $table!=='eventlog') throw new LogicException('Unowned evidence write');
+                if (!$this->locked || $table!=='core_context_event') throw new LogicException('Unowned evidence write');
                 $this->history[]=$data;return true;
             }
         };
@@ -2989,7 +2989,7 @@ final class RequestStreamingTest extends TestCase
 
         synth_protocol_persist_world_context($db, $event, $world);
         $this->assertCount(1, $db->queries);
-        $this->assertStringContainsString('INSERT INTO synth.eventlog', $db->queries[0]);
+        $this->assertStringContainsString('INSERT INTO public.core_context_event', $db->queries[0]);
         $this->assertStringContainsString('request-context-001', $db->queries[0]);
 
         $db->queries = [];
