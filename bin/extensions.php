@@ -5,7 +5,7 @@ declare(strict_types=1);
 // Manage SYNTH server extensions:  php bin/extensions.php list | validate | enable <id> | disable <id>
 // Writes only conf/extensions.json (the enabled list). It never reads or writes the database.
 
-require_once dirname(__DIR__).'/managers/ExtensionManager/ExtensionManager.php';
+require_once dirname(__DIR__).'/lib/autoload.php';
 
 use Synth\Managers\ExtensionManager\ExtensionManager;
 

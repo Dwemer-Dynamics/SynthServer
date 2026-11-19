@@ -2,6 +2,7 @@
 
 // First, so a refused cross-origin management request stops before configuration or database work.
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "management_request_guard.php");
+require_once(__DIR__ . DIRECTORY_SEPARATOR . "autoload.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "settings.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "synth_runtime.php");
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "logger.php");
