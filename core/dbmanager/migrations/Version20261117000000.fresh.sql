@@ -898,7 +898,8 @@ CREATE TABLE synth.core_npc_master_history (
     core text,
     base text,
     tags text,
-    actor_identity_id bigint
+    actor_identity_id bigint,
+    scope_playthrough_id text
 );
 -- end-statement
 CREATE SEQUENCE synth.core_npc_master_history_history_id_seq

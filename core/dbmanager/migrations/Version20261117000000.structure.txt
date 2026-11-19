@@ -2082,3 +2082,4 @@ index|public|core_plugin_manifest_revision|core_plugin_manifest_revision_unique|
 table|public|core_npc_actor|BASE TABLE
 table|public|core_npc_runtime_actor|BASE TABLE
 table|public|core_plugin_manifest_revision|BASE TABLE
+column|synth|core_npc_master_history|scope_playthrough_id|text|text|YES||
