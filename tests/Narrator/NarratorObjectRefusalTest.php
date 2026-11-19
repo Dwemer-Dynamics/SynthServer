@@ -7,6 +7,7 @@ use Synth\Core\LlmDriver;
 use Synth\Core\NarratorOutput;
 use Synth\Core\PrivateNarratorRepository;
 use Synth\Drivers\Tts\NarratorSpeechDriver;
+use Synth\Drivers\Tts\TtsWrapper;
 use Synth\Managers\PrivateNarratorManager;
 
 require_once dirname(__DIR__, 2) . '/managers/PrivateNarratorManager.php';
@@ -25,7 +26,7 @@ final class NarratorObjectRefusalTest extends TestCase
         $output->method('terminal')->willReturnCallback(static function (string $code) use (&$codes): void { $codes[] = $code; });
         $repository = $this->createMock(PrivateNarratorRepository::class);
         $repository->expects($this->never())->method($this->anything());
-        $speech = (new \ReflectionClass(NarratorSpeechDriver::class))->newInstanceWithoutConstructor();
+        $speech = new TtsWrapper((new \ReflectionClass(NarratorSpeechDriver::class))->newInstanceWithoutConstructor());
         $manager = new PrivateNarratorManager($repository, $this->createMock(LlmDriver::class), $speech, $output,
             static fn(): string => '', static fn(): array => []);
         $manager->handle(['type' => $type, 'request_id' => 'r1', 'turn_id' => 't1', 'generation' => 1, 'payload' => $payload]);
