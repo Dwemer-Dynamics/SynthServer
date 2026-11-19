@@ -25,6 +25,7 @@ use Synth\Managers\SessionManager;
 use Synth\Managers\SpeechManager;
 use Synth\Managers\WorldKnowledgeManager;
 
+require_once __DIR__.'/lib/autoload.php';
 require_once __DIR__.'/lib/postgresql.class.php';
 require_once __DIR__.'/lib/settings.php';
 require_once __DIR__.'/lib/core/llm_connector.class.php';
