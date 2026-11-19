@@ -33,7 +33,7 @@ planned yet), `SYNTH-specific` (no chevo counterpart; stays product-specific).
 | `context/event` | `api/v1/context/event.php` (`context` event via `main.php`) | parity (adapter) | this PR |
 | `dialogue` (`request`, `spoken`, `cancel`) | `api/v1/dialogue/*` adapters over `main.php` (`api/v2` conversation dispatch behind it) | parity (adapter); lifecycle work continues | this PR; TBD (conversation lifecycle) |
 | `editing` (generic edit API) | `/api/v1/edit` answers 501 (`api/v1/editing/index.php`) | missing (501 stub) | TBD (edit API PR) |
-| `extensions` | `/api/v1/extensions` answers 501 (`api/v1/extensions.php`); draft PR: `talk-awareness` reference; `ext/relationship_system` kept | in progress (501 stub) | TBD |
+| `extensions` | `api/v1/extensions.php`: `GET /extensions`, `POST /extensions/{id}/{enable,disable}`; id checked against the registry allowlist, same-origin guard, generic errors; `ext/relationship_system` kept | parity (list, enable, disable) | this PR |
 | `health` | `api/v1/health.php` over root `health.php` (read-only readiness, 503 contract; `health/{live,db,api-keys-configured,npcs-available,llm}`) | parity (adapter) | this PR; TBD (health notice) |
 | `locations/save` | `api/v1/locations/save.php` (`location_catalog` event via `main.php`; no storage yet) | parity (adapter) | this PR; TBD (locations) |
 | `messages` (response queue delivery) | `GET /api/v1/messages/<id>` over `tts_status.php` (id is the TTS cache key); `processor/`, `ui/response_queue.php` | parity (adapter, delivery state only) | this PR |
@@ -57,7 +57,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | CharacterManager | `managers/CharacterManager.php` | in progress | TBD (domain move) |
 | ConfigManager (scoped settings) | `lib/`, `ui/global_settings.php` | in progress | #65 |
 | ContextManager | `managers/ContextManager.php` | in progress | TBD (domain move; active effects) |
-| ExtensionManager | none (`ext/relationship_system` legacy) | in progress (draft PR: manifest validation, enable/disable in `conf/extensions.json`, 2 filters + 2 events, error isolation; no tables, auto-disable or UI yet) | TBD |
+| ExtensionManager | none (`ext/relationship_system` legacy) | parity for the config-file model (manifest validation, enable/disable and failure state in `conf/extensions.json`, 2 filters + 2 events, error isolation, auto-disable after 5 consecutive failures, optional deferred events, API and UI); no per-extension tables or handler time limits | this PR |
 | GameRpc | none | missing | TBD |
 | ListenerManager | none | missing | TBD |
 | LocationManager | `lib/` location ancestry | in progress | TBD (locations) |
@@ -90,7 +90,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | `WorkerInterface`, `WorkerRegistry`, `WorkerLimits`, `WorkerReport` | `workers/*.php` (storage-agnostic) | done | #82 |
-| `ExtensionEvents` worker | none | missing (seam: `DeferredEventSink` in ExtensionManager) | TBD |
+| `ExtensionEvents` worker | `workers/ExtensionEvents/ExtensionEventsWorker` (`extension-events`), draining `FileEventQueue` (`data/extensions/events/`, no table); queue is used only when `conf/extensions.json` sets `deferred_events` | done | this PR |
 | `MemoryContext`, `MemorySources`, `MemoryEmbedding`, `MiddleTerm` workers | `service/memory_worker.php`, `service/processors/{native_memory,middleterm}`; registered via `workers/Memory/MemoryWorker` (thin adapter over `service/memory_dispatch.php`) | in progress | #82 (adapter only) |
 | `Relationships` worker | `service/relationship_worker.php`, `service/processors/native_relationship`; registered via `workers/Relationships/RelationshipWorker` (thin adapter over `service/relationship_dispatch.php`) | in progress | #82 (adapter only); authored relationships #67 |
 | `Supervisor`, `bin/worker.php`, `bin/worker-supervisor.php` | `workers/Supervisor/*`, `bin/worker.php`, `bin/worker-supervisor.php`; `service/manager.php` and `service/start.sh` unchanged and still the default runtime | done (opt-in) | #82 |
@@ -103,7 +103,7 @@ SYNTH managers are flat files today (`managers/*.php`); a domain becomes a folde
 | chevo item | SYNTH today | Status | Owner PR |
 | --- | --- | --- | --- |
 | `config/config.inc.tmpl.php` | `conf/` (`conf_loader.php`, `conf_schema.json`) | in progress (moves last) | TBD |
-| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | in progress (draft PR; reference is `talk-awareness`) | TBD |
+| `extensions/` (`extension.json`, hooks, `time-awareness` reference) | `ext/relationship_system` | parity (reference is `talk-awareness`; page `ui/extensions.php` in Config Hub) | this PR |
 | Health route (`/api/v1/health`) | `api/v1/health.php` over `health.php`, 200 or 503 | parity (adapter) | this PR; TBD (health notice) |
 | `ui/` (Slim/Twig over `/api/v1/edit`) | `ui/` PHP pages with raw SQL | missing (SYNTH keeps its own UI) | TBD |
 | `tests/` | `unittests/` with its own vendor | in progress: `tests/` is the target, `unittests/` stays for now | this PR |

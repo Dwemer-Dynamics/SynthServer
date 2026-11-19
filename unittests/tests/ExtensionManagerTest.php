@@ -129,6 +129,122 @@ final class ExtensionManagerTest extends TestCase
         $this->manager()->enable('wrong');
     }
 
+    public function testRepeatedFailuresSwitchTheExtensionOffAndEnableClearsIt(): void
+    {
+        $this->install('flaky', 'Flaky', '$r->filter(Hooks::DIALOGUE_PROMPT_MESSAGES, fn(array $p): array => throw new \\RuntimeException("always"));');
+        $manager = $this->manager();
+        $manager->enable('flaky');
+        $messages = [['role' => 'user', 'content' => 'u']];
+        for ($i = 1; $i < ExtensionManager::FAILURE_LIMIT; $i++) {
+            $manager->applyPrompt($messages, []);
+            $this->assertTrue($manager->discover()['flaky']['enabled'], "still enabled after {$i} failures");
+        }
+        $manager->applyPrompt($messages, []);
+        $this->assertFalse($manager->discover()['flaky']['enabled']);
+        $this->assertSame('auto_disabled', $manager->summary()[0]['status']);
+        $state = json_decode((string) file_get_contents($this->root . '/conf/extensions.json'), true);
+        $this->assertSame([], $state['enabled']);
+        $this->assertArrayHasKey('flaky', $state['auto_disabled']);
+        $logged = count($this->log);
+        $manager->applyPrompt($messages, []);
+        $this->assertCount($logged, $this->log, 'a switched-off extension is not run again');
+        $this->assertSame($messages, $manager->applyPrompt($messages, []));
+
+        $manager->enable('flaky');
+        $this->assertSame('enabled', $this->manager()->summary()[0]['status']);
+        $state = json_decode((string) file_get_contents($this->root . '/conf/extensions.json'), true);
+        $this->assertSame([], (array) $state['auto_disabled']);
+        $this->assertSame([], (array) $state['failures']);
+    }
+
+    public function testASuccessfulRunResetsTheFailureCount(): void
+    {
+        $this->install('mixed', 'Blend','$r->filter(Hooks::DIALOGUE_PROMPT_MESSAGES, function (array $p): array { if (($p["npc_name"] ?? "") === "bad") throw new \\RuntimeException("x"); return $p; });');
+        $manager = $this->manager();
+        $manager->enable('mixed');
+        $messages = [['role' => 'user', 'content' => 'u']];
+        for ($round = 0; $round < 3; $round++) {
+            for ($i = 0; $i < ExtensionManager::FAILURE_LIMIT - 1; $i++) $manager->applyPrompt($messages, ['npc_name' => 'bad']);
+            $manager->applyPrompt($messages, ['npc_name' => 'good']);
+        }
+        $this->assertTrue($manager->discover()['mixed']['enabled']);
+    }
+
+    public function testSummaryAndKnownIdsOnlyExposeStatusCodes(): void
+    {
+        $this->install('fine', 'Fine', '');
+        $this->install('wrong', 'Wrong', '', ['api' => '^9.0']);
+        $manager = $this->manager();
+        $this->assertSame(['fine', 'wrong'], $manager->knownIds());
+        $rows = array_column($manager->summary(), null, 'id');
+        $this->assertSame('disabled', $rows['fine']['status']);
+        $this->assertSame('invalid', $rows['wrong']['status']);
+        $this->assertArrayNotHasKey('errors', $rows['wrong']);
+        $manager->enable('fine');
+        $this->assertSame('enabled', array_column($manager->summary(), null, 'id')['fine']['status']);
+    }
+
+    public function testDeferredEventsAreQueuedAndDeliveredByTheWorker(): void
+    {
+        foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'ExtensionEvents/ExtensionEventsWorker'] as $file) {
+            require_once dirname(__DIR__, 2) . '/workers/' . $file . '.php';
+        }
+        $this->install('queued', 'Queued', '$r->on(Hooks::DIALOGUE_REPLY_COMPLETED, function (array $p): void { file_put_contents(' . var_export($this->root . '/seen', true) . ', $p["x"], FILE_APPEND); });');
+        $queue = new \Synth\Managers\ExtensionManager\FileEventQueue($this->root . '/data/extensions/events');
+        $manager = new ExtensionManager($this->root, null, $queue, function (string $m): void { $this->log[] = $m; });
+        $manager->enable('queued');
+        $manager->emit(Hooks::DIALOGUE_REPLY_COMPLETED, ['x' => 'a']);
+        $manager->emit(Hooks::DIALOGUE_REPLY_COMPLETED, ['x' => 'b']);
+        $this->assertFalse(file_exists($this->root . '/seen'), 'nothing runs inline once a sink is installed');
+        $worker = new \Synth\Workers\ExtensionEvents\ExtensionEventsWorker($this->root);
+        $this->assertSame(2, $worker->pendingUnits());
+        $report = $worker->run(new \Synth\Workers\WorkerLimits(1, 60));
+        $this->assertSame(\Synth\Workers\WorkerReport::MORE_PENDING, $report->status());
+        $report = $worker->run(new \Synth\Workers\WorkerLimits(10, 60));
+        $this->assertSame(\Synth\Workers\WorkerReport::DONE, $report->status());
+        $this->assertSame('ab', file_get_contents($this->root . '/seen'));
+        $this->assertSame(0, $worker->pendingUnits());
+
+        // An event for an extension that has since been disabled is dropped without running it.
+        $manager->emit(Hooks::DIALOGUE_REPLY_COMPLETED, ['x' => 'c']);
+        $manager->disable('queued');
+        $report = $worker->run(new \Synth\Workers\WorkerLimits(10, 60));
+        $this->assertSame(1, $report->unitsSkipped);
+        $this->assertSame('ab', file_get_contents($this->root . '/seen'));
+    }
+
+    public function testWorkerCountsHandlerFailuresTowardAutoDisable(): void
+    {
+        foreach (['WorkerInterface', 'WorkerLimits', 'WorkerReport', 'ExtensionEvents/ExtensionEventsWorker'] as $file) {
+            require_once dirname(__DIR__, 2) . '/workers/' . $file . '.php';
+        }
+        $this->install('bad', 'Bad', '$r->on(Hooks::DIALOGUE_REPLY_COMPLETED, fn(array $p) => throw new \\RuntimeException("event boom"));');
+        $queue = new \Synth\Managers\ExtensionManager\FileEventQueue($this->root . '/data/extensions/events');
+        $manager = new ExtensionManager($this->root, null, $queue, function (string $m): void { $this->log[] = $m; });
+        $manager->enable('bad');
+        for ($i = 0; $i < ExtensionManager::FAILURE_LIMIT + 2; $i++) $manager->emit(Hooks::DIALOGUE_REPLY_COMPLETED, ['i' => $i]);
+        $report = (new \Synth\Workers\ExtensionEvents\ExtensionEventsWorker($this->root))->run(new \Synth\Workers\WorkerLimits(20, 60));
+        $this->assertFalse($this->manager()->discover()['bad']['enabled']);
+        $this->assertSame(0, $queue->count());
+        $this->assertSame(2, $report->unitsSkipped, 'events after the switch-off are dropped');
+    }
+
+    public function testQueueDropsOversizedEventsAndIgnoresForeignClaims(): void
+    {
+        $queue = new \Synth\Managers\ExtensionManager\FileEventQueue($this->root . '/events');
+        $queue->defer('x', Hooks::GAME_CONTEXT_RECEIVED, ['blob' => str_repeat('a', \Synth\Managers\ExtensionManager\FileEventQueue::MAX_BYTES)]);
+        $this->assertSame(0, $queue->count());
+        $queue->defer('x', Hooks::GAME_CONTEXT_RECEIVED, ['n' => 1]);
+        $claimed = $queue->claim(5);
+        $this->assertCount(1, $claimed);
+        $this->assertSame(['n' => 1], $claimed[0]['payload']);
+        file_put_contents($this->root . '/outside.claim', '{}');
+        $queue->acknowledge($this->root . '/outside.claim');
+        $this->assertFileExists($this->root . '/outside.claim');
+        $queue->acknowledge($claimed[0]['claim']);
+        $this->assertFileDoesNotExist($claimed[0]['claim']);
+    }
+
     public function testReferenceExtensionRecordsTalkAndAddsSection(): void
     {
         $real = new ExtensionManager(dirname(__DIR__, 2), $this->root . '/state.json');

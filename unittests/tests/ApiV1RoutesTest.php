@@ -186,11 +186,38 @@ final class ApiV1RoutesTest extends TestCase
 
     public function testUnimplementedRoutesAnswer501(): void
     {
-        foreach ([['GET', '/api/v1/edit'], ['PUT', '/api/v1/edit/npc/1'], ['GET', '/api/v1/extensions'], ['POST', '/api/v1/save/created']] as [$method, $path]) {
+        foreach ([['GET', '/api/v1/edit'], ['PUT', '/api/v1/edit/npc/1'], ['POST', '/api/v1/save/created']] as [$method, $path]) {
             [$status, $body] = $this->call($method, $path, $method === 'GET' ? null : '{}');
             self::assertSame(501, $status, $path);
             self::assertSame('not_implemented', json_decode($body, true)['code'] ?? null, $path);
         }
+    }
+
+    public function testExtensionRoutesListRefuseAndNeverLeakDetails(): void
+    {
+        [$status, $body] = $this->call('GET', '/api/v1/extensions');
+        self::assertSame(200, $status);
+        $decoded = json_decode($body, true);
+        self::assertTrue($decoded['ok'] ?? false);
+        self::assertContains('talk-awareness', array_column($decoded['extensions'], 'id'));
+        self::assertSame(['id', 'name', 'version', 'description', 'enabled', 'status', 'failures'], array_keys($decoded['extensions'][0]));
+
+        [$status, , $allow] = $this->call('POST', '/api/v1/extensions', '');
+        self::assertSame([405, 'GET, HEAD'], [$status, $allow]);
+        [$status, , $allow] = $this->call('GET', '/api/v1/extensions/talk-awareness/enable');
+        self::assertSame([405, 'POST'], [$status, $allow]);
+
+        // Ids outside the registry (unknown, traversal-shaped, wrong case) are refused before any state is touched.
+        foreach (['nope', 'Talk-Awareness', 'talk-awareness%2F..'] as $id) {
+            [$status, $body] = $this->call('POST', "/api/v1/extensions/$id/enable", '');
+            self::assertSame(404, $status, $id);
+            self::assertStringNotContainsString('/', (string) (json_decode($body, true)['error'] ?? ''), $id);
+        }
+        [$status] = $this->call('POST', '/api/v1/extensions/talk-awareness/explode', '');
+        self::assertSame(404, $status);
+        // A cross-origin browser request is refused.
+        [$status] = $this->call('POST', '/api/v1/extensions/talk-awareness/disable', '', ['Content-Type: application/json', 'Origin: http://evil.example']);
+        self::assertSame(403, $status);
     }
 
     public function testPathInfoFormReachesTheSameRoute(): void
