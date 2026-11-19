@@ -1,4 +1,4 @@
-# VoiceSample
+# TtsStudio (voice samples and preview)
 
 Inspects the stored voice samples under `data/voices` and previews an NPC's saved voice.
 

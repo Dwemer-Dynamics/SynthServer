@@ -7,8 +7,8 @@ declare(strict_types=1);
 // allowlist, same-origin evidence) and the dashboard session token are both required, before any database or
 // provider work. The logic lives in VoicePreviewManager; this entry point validates and answers.
 
-use Synth\Managers\VoiceSample\VoicePreviewException;
-use Synth\Managers\VoiceSample\VoicePreviewManager;
+use Synth\Managers\TtsStudio\VoicePreviewException;
+use Synth\Managers\TtsStudio\VoicePreviewManager;
 
 require_once __DIR__ . '/../../../lib/classes/Logger.php';
 ob_start();
@@ -32,7 +32,7 @@ function synthVoicePreviewFail(int $status, string $code, string $message): neve
 }
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
-$managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'VoiceSample' . DIRECTORY_SEPARATOR;
+$managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'TtsStudio' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
 

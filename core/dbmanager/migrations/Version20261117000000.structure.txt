@@ -2015,3 +2015,71 @@ constraint|public|core_config_setting|core_config_setting_pkey|p|t|PRIMARY KEY (
 constraint|public|core_memory|core_memory_source_type_check|c|t|CHECK ((source_type = ANY (ARRAY['summary'::text, 'diary'::text])))
 index|public|core_config_setting|core_config_setting_pkey|CREATE UNIQUE INDEX core_config_setting_pkey ON public.core_config_setting USING btree (scope, config_key)
 table|public|core_config_setting|BASE TABLE
+column|public|core_npc_actor|actor_class|text|text|YES||
+column|public|core_npc_actor|base_formid|character varying|varchar|YES||16
+column|public|core_npc_actor|base_plugin|text|text|YES||
+column|public|core_npc_actor|character_id|integer|int4|NO||
+column|public|core_npc_actor|gender|text|text|YES||
+column|public|core_npc_actor|name|text|text|YES||
+column|public|core_npc_actor|plugin|character varying|varchar|NO||255
+column|public|core_npc_actor|race|text|text|YES||
+column|public|core_npc_actor|refid|character varying|varchar|NO||16
+column|public|core_npc_actor|replaced_character_id|integer|int4|YES||
+column|public|core_npc_actor|replaced_name|text|text|YES||
+column|public|core_npc_actor|template_formid|character varying|varchar|YES||16
+column|public|core_npc_actor|template_plugin|text|text|YES||
+column|public|core_npc_runtime_actor|actor_class|text|text|YES||
+column|public|core_npc_runtime_actor|base_local_id|character varying|varchar|YES||8
+column|public|core_npc_runtime_actor|base_plugin|text|text|YES||
+column|public|core_npc_runtime_actor|character_id|integer|int4|NO||
+column|public|core_npc_runtime_actor|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_npc_runtime_actor|fingerprint|character|bpchar|YES||64
+column|public|core_npc_runtime_actor|first_seen_gamets|bigint|int8|YES||
+column|public|core_npc_runtime_actor|gender|text|text|YES||
+column|public|core_npc_runtime_actor|last_form_id|character|bpchar|NO||8
+column|public|core_npc_runtime_actor|last_seen_gamets|bigint|int8|YES||
+column|public|core_npc_runtime_actor|name|character varying|varchar|NO||255
+column|public|core_npc_runtime_actor|playthrough_id|text|text|NO||
+column|public|core_npc_runtime_actor|race_local_id|character varying|varchar|YES||8
+column|public|core_npc_runtime_actor|race_plugin|text|text|YES||
+column|public|core_npc_runtime_actor|replaced_by_runtime_actor_id|uuid|uuid|YES||
+column|public|core_npc_runtime_actor|runtime_actor_id|uuid|uuid|NO||
+column|public|core_npc_runtime_actor|spawn_context|jsonb|jsonb|NO|'{}'::jsonb|
+column|public|core_npc_runtime_actor|spawn_kind|character varying|varchar|NO|'unknown'::character varying|32
+column|public|core_npc_runtime_actor|status|character varying|varchar|NO|'active'::character varying|16
+column|public|core_npc_runtime_actor|template_local_id|character varying|varchar|YES||8
+column|public|core_npc_runtime_actor|template_plugin|text|text|YES||
+column|public|core_npc_runtime_actor|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_plugin_manifest_revision|first_seen_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_plugin_manifest_revision|game_version|text|text|YES||
+column|public|core_plugin_manifest_revision|id|bigint|int8|NO||
+column|public|core_plugin_manifest_revision|manifest_sha256|character|bpchar|NO||64
+column|public|core_plugin_manifest_revision|playthrough_id|text|text|NO||
+column|public|core_plugin_manifest_revision|plugins|jsonb|jsonb|NO||
+column|public|core_plugin_manifest_revision|runtime_variant|text|text|YES||
+column|synth|core_npc_master|scope_playthrough_id|text|text|YES||
+constraint|public|core_npc_actor|core_npc_actor_character_id_fkey|f|t|FOREIGN KEY (character_id) REFERENCES core_npc_master(id) ON DELETE CASCADE
+constraint|public|core_npc_actor|core_npc_actor_pkey|p|t|PRIMARY KEY (refid, plugin)
+constraint|public|core_npc_actor|core_npc_actor_plugin_check|c|t|CHECK (((plugin)::text = lower((plugin)::text)))
+constraint|public|core_npc_actor|core_npc_actor_refid_check|c|t|CHECK (((refid)::text ~ '^[0-9a-f]{1,8}$'::text))
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_character_id_fkey|f|t|FOREIGN KEY (character_id) REFERENCES core_npc_master(id) ON DELETE RESTRICT
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_last_form_id_check|c|t|CHECK ((last_form_id ~ '^[Ff][Ff][0-9A-Fa-f]{6}$'::text))
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_pkey|p|t|PRIMARY KEY (playthrough_id, runtime_actor_id)
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_spawn_context_check|c|t|CHECK ((jsonb_typeof(spawn_context) = 'object'::text))
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_spawn_kind_check|c|t|CHECK (((spawn_kind)::text = ANY (ARRAY['leveled_spawn'::text, 'workshop_settler'::text, 'quest_alias'::text, 'script_placed'::text, 'summoned_or_cloned'::text, 'unknown'::text])))
+constraint|public|core_npc_runtime_actor|core_npc_runtime_actor_status_check|c|t|CHECK (((status)::text = ANY (ARRAY['active'::text, 'not_in_save'::text, 'retired'::text, 'replaced'::text])))
+constraint|public|core_plugin_manifest_revision|core_plugin_manifest_revision_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_plugin_manifest_revision|core_plugin_manifest_revision_plugins_check|c|t|CHECK ((jsonb_typeof(plugins) = 'array'::text))
+constraint|public|core_plugin_manifest_revision|core_plugin_manifest_revision_sha_check|c|t|CHECK ((manifest_sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_plugin_manifest_revision|core_plugin_manifest_revision_unique|u|t|UNIQUE (playthrough_id, manifest_sha256)
+index|public|core_npc_actor|core_npc_actor_character_idx|CREATE INDEX core_npc_actor_character_idx ON public.core_npc_actor USING btree (character_id)
+index|public|core_npc_actor|core_npc_actor_pkey|CREATE UNIQUE INDEX core_npc_actor_pkey ON public.core_npc_actor USING btree (refid, plugin)
+index|public|core_npc_runtime_actor|core_npc_runtime_actor_active_form_idx|CREATE UNIQUE INDEX core_npc_runtime_actor_active_form_idx ON public.core_npc_runtime_actor USING btree (playthrough_id, last_form_id) WHERE ((status)::text = 'active'::text)
+index|public|core_npc_runtime_actor|core_npc_runtime_actor_fingerprint_idx|CREATE INDEX core_npc_runtime_actor_fingerprint_idx ON public.core_npc_runtime_actor USING btree (playthrough_id, fingerprint) WHERE ((status)::text <> 'retired'::text)
+index|public|core_npc_runtime_actor|core_npc_runtime_actor_pkey|CREATE UNIQUE INDEX core_npc_runtime_actor_pkey ON public.core_npc_runtime_actor USING btree (playthrough_id, runtime_actor_id)
+index|public|core_plugin_manifest_revision|core_plugin_manifest_revision_pkey|CREATE UNIQUE INDEX core_plugin_manifest_revision_pkey ON public.core_plugin_manifest_revision USING btree (id)
+index|public|core_plugin_manifest_revision|core_plugin_manifest_revision_unique|CREATE UNIQUE INDEX core_plugin_manifest_revision_unique ON public.core_plugin_manifest_revision USING btree (playthrough_id, manifest_sha256)
+table|public|core_npc_actor|BASE TABLE
+table|public|core_npc_runtime_actor|BASE TABLE
+table|public|core_plugin_manifest_revision|BASE TABLE
+column|synth|core_npc_master_history|scope_playthrough_id|text|text|YES||

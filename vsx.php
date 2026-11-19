@@ -102,7 +102,7 @@ try {
             throw new InvalidArgumentException('Voice conversion failed or speech sample is shorter than 3 seconds');
         }
         // Silence teaches a provider nothing: refuse all-zero decoded audio before it can replace or become a sample.
-        \Synth\Managers\VoiceSample\VoiceSampleStore::assertAudible($converted);
+        \Synth\Managers\TtsStudio\VoiceSampleStore::assertAudible($converted);
         synthVsxCheckSession($metadata);
         $staged = $voiceDir . '/.' . $voice . '.' . bin2hex(random_bytes(8)) . '.wav';
         $temporary[] = $staged;

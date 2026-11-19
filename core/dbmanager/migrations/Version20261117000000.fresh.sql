@@ -856,7 +856,8 @@ CREATE TABLE synth.core_npc_master (
     core text,
     base text,
     tags text,
-    actor_identity_id bigint
+    actor_identity_id bigint,
+    scope_playthrough_id text
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
@@ -897,7 +898,8 @@ CREATE TABLE synth.core_npc_master_history (
     core text,
     base text,
     tags text,
-    actor_identity_id bigint
+    actor_identity_id bigint,
+    scope_playthrough_id text
 );
 -- end-statement
 CREATE SEQUENCE synth.core_npc_master_history_history_id_seq
@@ -5437,4 +5439,75 @@ ALTER TABLE ONLY public.core_worker_job
 -- end-statement
 ALTER TABLE ONLY public.core_worker_job
     ADD CONSTRAINT worker_jobs_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.core_runtime_session(session_id);
+-- end-statement
+CREATE TABLE public.core_npc_actor (
+    refid character varying(16) NOT NULL,
+    plugin character varying(255) NOT NULL,
+    character_id integer NOT NULL,
+    name text,
+    gender text,
+    race text,
+    actor_class text,
+    base_plugin text,
+    base_formid character varying(16),
+    template_plugin text,
+    template_formid character varying(16),
+    replaced_character_id integer,
+    replaced_name text,
+    CONSTRAINT core_npc_actor_pkey PRIMARY KEY (refid, plugin),
+    CONSTRAINT core_npc_actor_character_id_fkey FOREIGN KEY (character_id) REFERENCES synth.core_npc_master(id) ON DELETE CASCADE,
+    CONSTRAINT core_npc_actor_plugin_check CHECK ((plugin = lower((plugin)::text))),
+    CONSTRAINT core_npc_actor_refid_check CHECK (((refid)::text ~ '^[0-9a-f]{1,8}$'::text))
+);
+-- end-statement
+CREATE INDEX core_npc_actor_character_idx ON public.core_npc_actor USING btree (character_id);
+-- end-statement
+CREATE TABLE public.core_npc_runtime_actor (
+    playthrough_id text NOT NULL,
+    runtime_actor_id uuid NOT NULL,
+    character_id integer NOT NULL,
+    last_form_id character(8) NOT NULL,
+    name character varying(255) NOT NULL,
+    race_plugin text,
+    race_local_id character varying(8),
+    gender text,
+    actor_class text,
+    base_plugin text,
+    base_local_id character varying(8),
+    template_plugin text,
+    template_local_id character varying(8),
+    fingerprint character(64),
+    spawn_kind character varying(32) DEFAULT 'unknown'::character varying NOT NULL,
+    spawn_context jsonb DEFAULT '{}'::jsonb NOT NULL,
+    status character varying(16) DEFAULT 'active'::character varying NOT NULL,
+    replaced_by_runtime_actor_id uuid,
+    first_seen_gamets bigint,
+    last_seen_gamets bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT core_npc_runtime_actor_pkey PRIMARY KEY (playthrough_id, runtime_actor_id),
+    CONSTRAINT core_npc_runtime_actor_character_id_fkey FOREIGN KEY (character_id) REFERENCES synth.core_npc_master(id) ON DELETE RESTRICT,
+    CONSTRAINT core_npc_runtime_actor_last_form_id_check CHECK ((last_form_id ~ '^[Ff][Ff][0-9A-Fa-f]{6}$'::text)),
+    CONSTRAINT core_npc_runtime_actor_spawn_context_check CHECK ((jsonb_typeof(spawn_context) = 'object'::text)),
+    CONSTRAINT core_npc_runtime_actor_spawn_kind_check CHECK (((spawn_kind)::text = ANY (ARRAY['leveled_spawn'::text, 'workshop_settler'::text, 'quest_alias'::text, 'script_placed'::text, 'summoned_or_cloned'::text, 'unknown'::text]))),
+    CONSTRAINT core_npc_runtime_actor_status_check CHECK (((status)::text = ANY (ARRAY['active'::text, 'not_in_save'::text, 'retired'::text, 'replaced'::text])))
+);
+-- end-statement
+CREATE UNIQUE INDEX core_npc_runtime_actor_active_form_idx ON public.core_npc_runtime_actor USING btree (playthrough_id, last_form_id) WHERE ((status)::text = 'active'::text);
+-- end-statement
+CREATE INDEX core_npc_runtime_actor_fingerprint_idx ON public.core_npc_runtime_actor USING btree (playthrough_id, fingerprint) WHERE ((status)::text <> 'retired'::text);
+-- end-statement
+CREATE TABLE public.core_plugin_manifest_revision (
+    id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+    playthrough_id text NOT NULL,
+    manifest_sha256 character(64) NOT NULL,
+    plugins jsonb NOT NULL,
+    runtime_variant text,
+    game_version text,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT core_plugin_manifest_revision_pkey PRIMARY KEY (id),
+    CONSTRAINT core_plugin_manifest_revision_plugins_check CHECK ((jsonb_typeof(plugins) = 'array'::text)),
+    CONSTRAINT core_plugin_manifest_revision_sha_check CHECK ((manifest_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT core_plugin_manifest_revision_unique UNIQUE (playthrough_id, manifest_sha256)
+);
 -- end-statement

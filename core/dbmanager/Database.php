@@ -15,6 +15,9 @@ use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\NpcActorDao;
+use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
+use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
 use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
@@ -27,7 +30,7 @@ final class Database
      *
      * @var list<class-string>
      */
-    public const DAOS = [ConfigSettingDao::class];
+    public const DAOS = [ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
     public const TYPES = [
