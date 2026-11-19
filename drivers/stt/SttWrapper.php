@@ -16,7 +16,6 @@ use Synth\Drivers\Stt\Exception\SttConfigurationException;
 use Synth\Drivers\Stt\Exception\SttException;
 
 // Plain require_once so the legacy hooks work without the Composer autoloader (the unit-test fixtures copy this folder).
-require_once __DIR__ . '/../../lib/classes/Logger.php';
 foreach (['Exception/SttException', 'Exception/SttConfigurationException', 'SttRequest', 'SttResult', 'SttDriverInterface',
     'Drivers/SttHttp', 'Drivers/OpenAiCompatibleSttDriver', 'Drivers/WhisperDriver', 'Drivers/ParakeetDriver', 'Drivers/NoneDriver',
     'Drivers/AzureDriver', 'Drivers/DeepgramDriver', 'Drivers/GeminiDriver', 'Drivers/InworldDriver',
@@ -95,7 +94,7 @@ final class SttWrapper
             return $result->text;
         } catch (SttException $e) {
             $diagnostic = $e->diagnostic();
-            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SttWrapper', 'STT ' . $driver . ': ' . $e->getMessage());
+            error_log('STT ' . $driver . ': ' . $e->getMessage());
 
             return '';
         }
