@@ -995,6 +995,7 @@ function getTimeColor($time) {
  $results = $db->fetchAll(
  "SELECT gamets_truncated, n, summary, companions, tags, classifier, scope, ROWID as rowid, packed_message, native_vec
  FROM core_memory
+ WHERE source_type='summary'
  ORDER BY gamets_truncated DESC, rowid DESC
  LIMIT 150"
  );

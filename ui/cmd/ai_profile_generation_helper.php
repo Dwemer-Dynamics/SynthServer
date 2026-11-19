@@ -90,8 +90,8 @@ $sqlfilter = " and gamets<$lastItNumber and type<>'prechat' and type<>'itemfound
         ];
     }
 
-    $diaryQuery = "SELECT content,gamets,topic FROM diarylog
-        where people='$npcNameEsc' and gamets>$lastItNumber and (topic='Sent Letter' or topic='Journal Note')
+    $diaryQuery = "SELECT summary AS content,gamets,topic FROM public.core_memory
+        where source_type='diary' and companions='$npcNameEsc' and gamets>$lastItNumber and (topic='Sent Letter' or topic='Journal Note')
         order by gamets desc ,ts desc limit 5 offset 0";
     $diaryEntries = $db->fetchAll($diaryQuery);
 

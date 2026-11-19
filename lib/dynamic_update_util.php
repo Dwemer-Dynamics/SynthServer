@@ -174,14 +174,16 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
             $location = DataLastKnownLocation();
             $momentum=time();
             $db->insert(
-                'diarylog',
+                'core_memory',
                 array(
+                    'source_type' => 'diary',
                     'ts' => $gameRequest[1],
                     'gamets' => $gameRequest[2],
+                    'gamets_truncated' => $gameRequest[2],
                     'topic' => $topic . " (Nearby diary: $eventType)",
-                    'content' => trim($buffer),
+                    'summary' => trim($buffer),
                     'tags' => "Nearby-diary,$eventType",
-                    'people' => $npcName,
+                    'companions' => $npcName,
                     'location' => $location,
                     'sess' => $momentum,
                     'localts' => time()
@@ -553,14 +555,16 @@ function generatePlayerDiary($gameRequest, $eventType)
         $momentum = time();
 
         $db->insert(
-            'diarylog',
+            'core_memory',
             array(
+                'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
+                'gamets_truncated' => $gameRequest[2],
                 'topic' => $topic . " (Player diary: $eventType)",
-                'content' => trim($buffer),
+                'summary' => trim($buffer),
                 'tags' => "Player-diary,$eventType",
-                'people' => $playerName,
+                'companions' => $playerName,
                 'location' => $location,
                 'sess' => $momentum,
                 'localts' => time()
@@ -1283,14 +1287,16 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
         $location = DataLastKnownLocation();
         $momentum=time();
         $db->insert(
-            'diarylog',
+            'core_memory',
             array(
+                'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
+                'gamets_truncated' => $gameRequest[2],
                 'topic' => $topic . " (Auto-diary: $eventType)",
-                'content' => trim($buffer),
+                'summary' => trim($buffer),
                 'tags' => "Auto-diary,$eventType",
-                'people' => $followerName,
+                'companions' => $followerName,
                 'location' => $location,
                 'sess' => $momentum,
                 'localts' => time()

@@ -23,8 +23,8 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
     require_once $enginePath . 'lib/synth_middleterm_jobs.php';
     synth_middleterm_dispatch($GLOBALS['db']);
 
-    //$results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where summary is not null order by gamets_truncated desc limit 1"); //0.8ms
-    $results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where summary is not null"); // 0.5ms, faster
+    //$results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null order by gamets_truncated desc limit 1"); //0.8ms
+    $results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null"); // 0.5ms, faster
     $lastMemory = intval($results[0]["gamets_truncated"]);
 
     //$results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");

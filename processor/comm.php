@@ -264,10 +264,9 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     $db->delete("core_context_event", " 1=1");
     $db->delete("core_quest", " 1=1");
     $db->delete("speech", " 1=1 ");
-    $db->delete("diarylog", " 1=1 ");
 
     if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
-        $results = $db->query("select gamets_truncated,uid from core_memory where gamets_truncated>{$gameRequest[2]}");
+        $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>{$gameRequest[2]}");
         while ($memoryRow = $db->fetchArray($results)) {
             deleteElement($memoryRow["uid"]);
         }
@@ -823,10 +822,9 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         $db->delete("core_context_event", "gamets>$lastSave ");
         
         $db->delete("speech", "gamets>$lastSave  ");
-        $db->delete("diarylog", "gamets>$lastSave  ");
 
         if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
-            $results = $db->query("select gamets_truncated,uid from core_memory where gamets_truncated>$lastSave");
+            $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>$lastSave");
             while ($memoryRow = $db->fetchArray($results)) {
                 deleteElement($memoryRow["uid"]);
             }

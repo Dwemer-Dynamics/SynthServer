@@ -75,9 +75,9 @@ function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileDat
         } else {
             $escapedName = $db->escape($safeNpcName);
             $entry = $db->fetchOne(
-                "SELECT topic, content
-                 FROM diarylog
-                 WHERE lower(trim(people)) = lower('{$escapedName}')
+                "SELECT topic, summary AS content
+                 FROM public.core_memory
+                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower('{$escapedName}')
                  ORDER BY gamets DESC, localts DESC, rowid DESC
                  LIMIT 1"
             );

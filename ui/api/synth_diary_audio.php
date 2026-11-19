@@ -43,7 +43,7 @@ try {
 
     $db = $GLOBALS['db'];
     $entry = $db->fetchOne(
-        'SELECT rowid, content, people FROM synth.diarylog WHERE rowid = ' . intval($entryId) . ' LIMIT 1'
+        "SELECT rowid, summary AS content, companions AS people FROM public.core_memory WHERE source_type = 'diary' AND rowid = " . intval($entryId) . ' LIMIT 1'
     );
     if (!is_array($entry) || empty($entry)) {
         http_response_code(404);

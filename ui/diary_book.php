@@ -41,7 +41,7 @@ if ($person === '') {
     exit;
 }
 
-$result = pg_query_params($conn, "SELECT rowid, content, people, location, localts, gamets FROM {$schema}.diarylog WHERE people LIKE $1", ['%'.$person.'%']);
+$result = pg_query_params($conn, "SELECT rowid, summary AS content, companions AS people, location, localts, gamets FROM public.core_memory WHERE source_type = 'diary' AND companions LIKE $1", ['%'.$person.'%']);
 $entries = [];
 if ($result) {
     while ($row = pg_fetch_assoc($result)) { $entries[] = $row; }

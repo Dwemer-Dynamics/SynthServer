@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  }
 
  // Delete the diary entry
- $query = "DELETE FROM {$schema}.diarylog WHERE rowid = $1";
+ $query = "DELETE FROM public.core_memory WHERE source_type = 'diary' AND rowid = $1";
  $result = pg_query_params($conn, $query, [$rowid]);
 
  if ($result) {
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  // Check for delete all action
  if (isset($_POST['action']) && $_POST['action'] === 'delete_all') {
  // Delete all diary entries
- $query = "DELETE FROM {$schema}.diarylog";
+ $query = "DELETE FROM public.core_memory WHERE source_type = 'diary'";
  $result = pg_query($conn, $query);
 
  if ($result) {
@@ -101,11 +101,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
  // Update the diary entry
  $query = "
- UPDATE {$schema}.diarylog
+ UPDATE public.core_memory
  SET
  topic = $1,
- content = $2
- WHERE rowid = $3
+ summary = $2
+ WHERE source_type = 'diary' AND rowid = $3
  ";
 
  $result = pg_query_params($conn, $query, [
@@ -142,9 +142,9 @@ function getPeopleList($conn, $schema) {
  WITH split_people AS (
  SELECT
  d.rowid,
- trim(unnest(string_to_array(trim(d.people, '|'), '|'))) as person
- FROM {$schema}.diarylog d
- WHERE d.people IS NOT NULL AND d.people != ''
+ trim(unnest(string_to_array(trim(d.companions, '|'), '|'))) as person
+ FROM public.core_memory d
+ WHERE d.source_type = 'diary' AND d.companions IS NOT NULL AND d.companions != ''
  AND d.topic NOT IN ('Sent Letter', 'Journal Note')
  )
  SELECT
@@ -181,9 +181,9 @@ function getEntriesByPerson($conn, $schema, $person) {
  error_log("Searching for person: " . $person);
 
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE people LIKE $1
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND companions LIKE $1
  AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY localts DESC
  ";
@@ -301,9 +301,9 @@ function handle_csv_export($conn, $schema) {
  // People filter mode - get entries for specific person
  $person = urldecode($_GET['person']);
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE people LIKE '%' || $1 || '%'
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND companions LIKE '%' || $1 || '%'
  AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY localts DESC
  ";
@@ -311,9 +311,9 @@ function handle_csv_export($conn, $schema) {
  } elseif ($isFalloutView && isset($_GET['month']) && isset($_GET['year']) && isset($_GET['day'])) {
  // Fallout calendar mode
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE gamets > 0
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND gamets > 0
  AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY gamets ASC
  ";
@@ -328,9 +328,9 @@ function handle_csv_export($conn, $schema) {
  $endOfDay = $dtSelectedEnd->getTimestamp();
 
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE localts >= $1 AND localts <= $2
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND localts >= $1 AND localts <= $2
  AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY localts ASC
  ";
@@ -344,9 +344,9 @@ function handle_csv_export($conn, $schema) {
  } else {
  // Export all entries
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE topic NOT IN ('Sent Letter', 'Journal Note')
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY localts ASC
  ";
  $result = pg_query($conn, $query);
@@ -576,15 +576,15 @@ if ($useFalloutTime) {
  EXTRACT(DAY FROM gamets) as day,
  EXTRACT(MONTH FROM gamets) as month,
  EXTRACT(YEAR FROM gamets) as year
- FROM {$schema}.diarylog
- WHERE EXTRACT(MONTH FROM gamets) = $month
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND EXTRACT(MONTH FROM gamets) = $month
  AND EXTRACT(YEAR FROM gamets) = $year
  AND topic NOT IN ('Sent Letter', 'Journal Note')";
 } else {
  $sql = "SELECT DISTINCT
  TO_CHAR(localts AT TIME ZONE 'UTC', 'YYYY-MM-DD') as date
- FROM {$schema}.diarylog
- WHERE EXTRACT(MONTH FROM localts AT TIME ZONE 'UTC') = $month
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND EXTRACT(MONTH FROM localts AT TIME ZONE 'UTC') = $month
  AND EXTRACT(YEAR FROM localts AT TIME ZONE 'UTC') = $year
  AND topic NOT IN ('Sent Letter', 'Journal Note')";
 }
@@ -607,8 +607,8 @@ $allDatesQuery = "
  ELSE
  localts
  END as sort_field
- FROM {$schema}.diarylog
- WHERE gamets > 0
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND gamets > 0
  AND topic NOT IN ('Sent Letter', 'Journal Note')
  ORDER BY sort_field ASC
 ";
@@ -866,9 +866,9 @@ if ($shouldFetchEvents) {
 
  // Modify the SQL query to fetch records for the selected day with explicit casting
  $query = "
- SELECT rowid, topic, content, tags, people, location, localts, gamets
- FROM {$schema}.diarylog
- WHERE (
+ SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
+ FROM public.core_memory
+ WHERE source_type = 'diary' AND (
  CASE
  WHEN " . ($useFalloutTime ? 'true' : 'false') . " THEN
  -- For Fallout mode, we'll filter in PHP instead of SQL

@@ -793,16 +793,6 @@ column|public|core_item_description|baseid|character varying|varchar|NO||128
 column|public|core_item_description|description|text|text|YES||
 column|public|core_item_description|name|text|text|YES||
 column|public|core_item_description|plugin|text|text|NO|''::text|
-column|synth|diarylog|content|text|text|YES||
-column|synth|diarylog|gamets|bigint|int8|NO||
-column|synth|diarylog|localts|bigint|int8|NO||
-column|synth|diarylog|location|text|text|YES||
-column|synth|diarylog|people|text|text|YES||
-column|synth|diarylog|rowid|bigint|int8|NO|nextval('diarylog_rowid_seq'::regclass)|
-column|synth|diarylog|sess|character varying|varchar|YES||1024
-column|synth|diarylog|tags|text|text|YES||
-column|synth|diarylog|topic|text|text|YES||
-column|synth|diarylog|ts|text|text|NO||
 column|public|core_context_event|data|text|text|YES||
 column|public|core_context_event|delivery_state|text|text|YES||
 column|public|core_context_event|gamets|bigint|int8|NO||
@@ -876,7 +866,14 @@ column|public|core_memory|rowid|integer|int4|NO|nextval('memory_summary_rowid_se
 column|public|core_memory|scope|text|text|YES||
 column|public|core_memory|summary|text|text|YES||
 column|public|core_memory|tags|text|text|YES||
-column|public|core_memory|uid|integer|int4|NO||
+column|public|core_memory|source_type|text|text|NO|'summary'::text|
+column|public|core_memory|topic|text|text|YES||
+column|public|core_memory|location|text|text|YES||
+column|public|core_memory|localts|bigint|int8|YES||
+column|public|core_memory|gamets|bigint|int8|YES||
+column|public|core_memory|ts|text|text|YES||
+column|public|core_memory|sess|character varying|varchar|YES||1024
+column|public|core_memory|uid|integer|int4|YES||
 column|synth|memory_v|gamets|bigint|int8|YES||
 column|synth|memory_v|listener|text|text|YES||
 column|synth|memory_v|message|text|text|YES||
@@ -1843,7 +1840,6 @@ index|public|core_tts_pronunciation|core_tts_pronunciation_pkey|CREATE UNIQUE IN
 index|public|core_tts_pronunciation|core_tts_pronunciation_unique_entry|CREATE UNIQUE INDEX core_tts_pronunciation_unique_entry ON public.core_tts_pronunciation USING btree (lower((source_text)::text), md5(((((lower((npc_names)::text) || ''::text) || lower((races)::text)) || ''::text) || lower((oghma_tags)::text))), is_builtin)
 index|public|core_item_description_custom|descriptions_custom_pkey|CREATE UNIQUE INDEX descriptions_custom_pkey ON public.core_item_description_custom USING btree (plugin, baseid)
 index|public|core_item_description|descriptions_pkey|CREATE UNIQUE INDEX descriptions_pkey ON public.core_item_description USING btree (plugin, baseid)
-index|synth|diarylog|idx_diarylog_people_gamets|CREATE INDEX idx_diarylog_people_gamets ON synth.diarylog USING btree (lower(TRIM(BOTH FROM people)), gamets DESC, localts DESC, rowid DESC)
 index|public|core_context_event|event_log_type|CREATE INDEX event_log_type ON public.core_context_event USING btree (type)
 index|public|core_context_event|eventlog_native_owner|CREATE INDEX eventlog_native_owner ON public.core_context_event USING btree (synth_session_id, synth_generation, rowid) WHERE (synth_session_id IS NOT NULL)
 index|public|core_context_event|idx_eventlog_delivery_state|CREATE INDEX idx_eventlog_delivery_state ON public.core_context_event USING btree (delivery_state)
@@ -1858,6 +1854,7 @@ index|public|core_config_preset|global_settings_presets_name_unique|CREATE UNIQU
 index|public|core_config_preset|global_settings_presets_pkey|CREATE UNIQUE INDEX global_settings_presets_pkey ON public.core_config_preset USING btree (id)
 index|public|core_npc_profile_rule|import_rules_pkey|CREATE UNIQUE INDEX import_rules_pkey ON public.core_npc_profile_rule USING btree (id)
 index|public|core_memory|memory_summary_tsv_idx|CREATE INDEX memory_summary_tsv_idx ON public.core_memory USING gin (native_vec)
+index|public|core_memory|idx_core_memory_diary_companions|CREATE INDEX idx_core_memory_diary_companions ON public.core_memory USING btree (lower(TRIM(BOTH FROM companions)), gamets DESC, localts DESC, rowid DESC) WHERE (source_type = 'diary'::text)
 index|public|core_prompt|prompts_pkey|CREATE UNIQUE INDEX prompts_pkey ON public.core_prompt USING btree (prompt_key)
 index|public|core_relationship_eval_queue|relationship_eval_queue_npc_id_key|CREATE UNIQUE INDEX relationship_eval_queue_npc_id_key ON public.core_relationship_eval_queue USING btree (npc_id)
 index|public|core_relationship_eval_queue|relationship_eval_queue_pkey|CREATE UNIQUE INDEX relationship_eval_queue_pkey ON public.core_relationship_eval_queue USING btree (id)
@@ -1975,7 +1972,6 @@ table|public|core_tts_connector|BASE TABLE
 table|public|core_tts_pronunciation|BASE TABLE
 table|public|core_item_description_custom|BASE TABLE
 table|public|core_item_description|BASE TABLE
-table|synth|diarylog|BASE TABLE
 table|public|core_context_event|BASE TABLE
 table|public|core_faction|BASE TABLE
 table|public|core_plugins|BASE TABLE
@@ -2016,5 +2012,6 @@ column|public|core_config_setting|config_value|text|text|YES||
 column|public|core_config_setting|description|text|text|NO|''::text|
 column|public|core_config_setting|updated_at|timestamp without time zone|timestamp|YES|CURRENT_TIMESTAMP|
 constraint|public|core_config_setting|core_config_setting_pkey|p|t|PRIMARY KEY (scope, config_key)
+constraint|public|core_memory|core_memory_source_type_check|c|t|CHECK ((source_type = ANY (ARRAY['summary'::text, 'diary'::text])))
 index|public|core_config_setting|core_config_setting_pkey|CREATE UNIQUE INDEX core_config_setting_pkey ON public.core_config_setting USING btree (scope, config_key)
 table|public|core_config_setting|BASE TABLE

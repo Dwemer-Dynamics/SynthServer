@@ -55,11 +55,11 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     // Determine query based on whether we're syncing all or just missing vectors
     if ($onlyFix == false) {
         if ($forceAll) {
-            $countQuery = "SELECT COUNT(*) AS n FROM core_memory WHERE summary IS NOT NULL";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE summary IS NOT NULL";
+            $countQuery = "SELECT COUNT(*) AS n FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL";
+            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL";
         } else {
-            $countQuery = "SELECT COUNT(*) AS count FROM core_memory WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
+            $countQuery = "SELECT COUNT(*) AS count FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
+            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
         }
 
         $results                = $db->fetchOne($countQuery);
@@ -119,7 +119,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
 
     $db->execQuery("UPDATE core_memory SET companions=NULL WHERE btrim(COALESCE(companions, ''), '|, ') = ''");
 
-    $missingCompanions = $db->fetchAll("SELECT * FROM core_memory WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions = $db->fetchAll("SELECT * FROM core_memory WHERE source_type='summary' AND (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
     $n=0;
     foreach ($missingCompanions as $row) {
         $peopleRows = $db->fetchAll("SELECT people FROM core_context_event WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
@@ -159,7 +159,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     // --- Fix companions field (second method) ---
     echo "Completing companions field (method 2)..." . PHP_EOL;
     $n=0;
-    $missingCompanions2 = $db->fetchAll("SELECT * FROM core_memory WHERE (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions2 = $db->fetchAll("SELECT * FROM core_memory WHERE source_type='summary' AND (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
     foreach ($missingCompanions2 as $row) {
         $peopleRow = $db->fetchOne("SELECT STRING_AGG(DISTINCT person, '|') AS people FROM synth.memory_v CROSS JOIN LATERAL unnest(array[speaker, listener]) AS participant(person) WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
         $npcs      = [];
@@ -326,7 +326,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         }
 
         $npcEsc = $db->escape($npcName);
-        $lastScoped = $db->fetchOne("SELECT COALESCE(MAX(gamets_truncated), 0) AS max_gamets FROM core_memory WHERE scope='$npcEsc'");
+        $lastScoped = $db->fetchOne("SELECT COALESCE(MAX(gamets_truncated), 0) AS max_gamets FROM core_memory WHERE source_type='summary' AND scope='$npcEsc'");
         $lastScopedGamets = intval($lastScoped["max_gamets"] ?? 0);
 
         // Individual summaries are selected by NPC presence in source events/dialogue windows,
@@ -334,7 +334,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         $pendingRows = $db->fetchAll("
             SELECT ms.rowid, ms.uid, ms.gamets_truncated, ms.summary, ms.packed_message
             FROM core_memory ms
-            WHERE ms.summary IS NOT NULL
+            WHERE source_type='summary' AND ms.summary IS NOT NULL
               AND (ms.scope IS NULL OR ms.scope='global')
               AND ms.gamets_truncated > $lastScopedGamets
               AND (
@@ -418,7 +418,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
                 break;
             }
 
-            $previousMemoryReq = $db->fetchOne("SELECT summary FROM core_memory WHERE scope='$npcEsc' AND summary IS NOT NULL ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1");
+            $previousMemoryReq = $db->fetchOne("SELECT summary FROM core_memory WHERE source_type='summary' AND scope='$npcEsc' AND summary IS NOT NULL ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1");
             $previousMemory = trim((string)($previousMemoryReq["summary"] ?? ''));
 
             $prompt = [];
@@ -627,7 +627,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                          ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all_fts,
                          (embedding <-> $vectorString) - ts_rank(native_vec, to_tsquery('$kwStringAny')) AS mixed_distance
                     FROM public.core_memory
-                    WHERE embedding IS NOT NULL
+                    WHERE source_type='summary' AND embedding IS NOT NULL
                     ORDER BY
                         embedding <-> $vectorString ASC
                     LIMIT 5 OFFSET 0
@@ -716,7 +716,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Packing complete. Max gamets_truncated row ID from existing summaries: {$maxRow}" . PHP_EOL;
 
         echo "Checking for new entries to summarize and compact..." . PHP_EOL;
-        $count_query              = "select COUNT(*) as count from core_memory where (gamets_truncated>{$maxRow} or summary is null)  ";
+        $count_query              = "select COUNT(*) as count from core_memory where source_type='summary' AND (gamets_truncated>{$maxRow} or summary is null)  ";
         $count_result_res_compact = $db->query($count_query);
         $count_result_arr         = $db->fetchArray($count_result_res_compact);
         $entries_to_process_count = $count_result_arr ? (int) $count_result_arr['count'] : 0;
@@ -738,7 +738,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
                 error_log("Using connector {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
 
-                $results_query = "select gamets_truncated,packed_message,uid,classifier,rowid,companions from core_memory where (gamets_truncated>{$maxRow} or summary is null)  order by gamets_truncated asc ";
+                $results_query = "select gamets_truncated,packed_message,uid,classifier,rowid,companions from core_memory where source_type='summary' AND (gamets_truncated>{$maxRow} or summary is null)  order by gamets_truncated asc ";
                 $results       = $db->query($results_query);
 
                 $toUpdate = [];
@@ -752,7 +752,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     }
                 }
 
-                $prevMemory = $db->fetchOne("SELECT gamets_truncated, packed_message,  uid, classifier, rowid,companions,summary FROM core_memory WHERE gamets_truncated < {$row["gamets_truncated"]} ORDER BY gamets_truncated DESC LIMIT 1");
+                $prevMemory = $db->fetchOne("SELECT gamets_truncated, packed_message,  uid, classifier, rowid,companions,summary FROM core_memory WHERE source_type='summary' AND gamets_truncated < {$row["gamets_truncated"]} ORDER BY gamets_truncated DESC LIMIT 1");
                 // Summarization logic begins
                 if ($row["classifier"] == "diary") {
                     $TEST_TEXT = $row["packed_message"];
@@ -929,7 +929,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Deleting memory_summary" . PHP_EOL;
 
         $db      = new sql();
-        $results = $db->query("delete from core_memory");
+        $results = $db->query("delete from core_memory where source_type='summary'");
 
         $maxRow = PackIntoSummary();
 

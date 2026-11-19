@@ -4131,13 +4131,13 @@ function PackIntoSummary($onlyMissingDiary=false)
             'global'
         from memory
         where event in ('diary','auto_diary')
-        and uid not in (select uid from core_memory where classifier in  ('diary','auto_diary'))");
+        and uid not in (select uid from core_memory where source_type='summary' AND classifier in  ('diary','auto_diary'))");
 
         $maxRow=0;
 
     } else {
         $lastGameTsRecord = $GLOBALS["db"]->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
-        $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from core_memory order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
+        $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from core_memory where source_type='summary' order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
 
         $maxRow = isset($results[0]["gamets_truncated"]) ? intval($results[0]["gamets_truncated"]) : 0;
         $minRow = intval($lastGameTsRecord["gamets"]);
@@ -4981,7 +4981,7 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
             );
             $row = $GLOBALS['db']->fetchOne(
                 "SELECT summary, gamets_truncated FROM public.core_memory"
-                . " WHERE classifier='dialogue'"
+                . " WHERE source_type='summary' AND classifier='dialogue'"
                 . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
                 . " AND gamets_truncated < " . intval($contextWindowFloor)
                 . " AND {$scopeConditionSql} AND {$companionConditionSql}"
@@ -5011,7 +5011,7 @@ function dataGetMemoryScopeConditionSql($npcName)
         $npcEsc = $GLOBALS["db"]->escape($npcName);
         try {
             $scopedMemory = $GLOBALS["db"]->fetchOne(
-                "SELECT 1 FROM core_memory WHERE scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
+                "SELECT 1 FROM core_memory WHERE source_type='summary' AND scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
             );
             if (is_array($scopedMemory) && count($scopedMemory) > 0) {
                 return "scope='$npcEsc'";
@@ -5176,7 +5176,7 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
         ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any,
         ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all
         FROM core_memory A
-        where native_vec @@to_tsquery('$kwStringAny')
+        where source_type='summary' AND native_vec @@to_tsquery('$kwStringAny')
         and not (native_vec @@to_tsquery('#Reminiscence'))
         and $scopeConditionSql
         and $companionConditionSql
@@ -5411,7 +5411,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                          (embedding <-> $vectorString) - $rankCombinedSql AS mixed_distance,
                          summary
                     FROM public.core_memory
-                    WHERE embedding IS NOT NULL
+                    WHERE source_type='summary' AND embedding IS NOT NULL
                     and $scopeConditionSql
                     and $companionConditionSql
                     and (gamets_truncated<$timeThreshold or $timeThreshold=0)
@@ -5443,7 +5443,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                          ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any_fts,
                          ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all_fts
                     FROM public.core_memory
-                    WHERE embedding IS NOT NULL
+                    WHERE source_type='summary' AND embedding IS NOT NULL
                     and companions like '%{$GLOBALS["db"]->escape($npcfilter)}%'
                     ORDER BY (embedding <-> $vectorString)-ts_rank(native_vec, to_tsquery('$kwStringAny'))
                     LIMIT 5 OFFSET 0
