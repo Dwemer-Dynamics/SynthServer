@@ -38,9 +38,14 @@ later), so the contracts survive that change unchanged.
 | --- | --- | --- |
 | `memory` | `Memory/MemoryWorker` | `service/memory_dispatch.php` |
 | `relationship` | `Relationships/RelationshipWorker` | `service/relationship_dispatch.php` |
+| `middleterm` | `Memory/MiddleTermWorker` | manager task `middleterm`, via `service/task_dispatch.php` |
+| `dynamicprofile` | `Profiles/DynamicProfileWorker` | manager task `dynamicprofile`, via `service/task_dispatch.php` |
+| `player2health` | `Player2/Player2HealthWorker` | manager task `player2health`, via `service/task_dispatch.php` |
 | `extension-events` | `ExtensionEvents/ExtensionEventsWorker` | native: drains `ExtensionManager`'s `FileEventQueue` (no database) |
+| `tts` | `Speech/SpeechWorker` | `service/tts_dispatch.php --loop --max-seconds=N` (one dispatch window per run) |
+| `profile` | `Profiles/ProfileAutofillWorker` | `processor/profile_autofill_worker.php`, on demand only |
 
-`memory` and `relationship` extend `Legacy/LegacyDispatchWorker`, a thin adapter: each pass launches the dispatch script in a
+All but `extension-events` extend `Legacy/LegacyDispatchWorker` (the task workers through `Legacy/LegacyTaskWorker`), a thin adapter: each pass launches the dispatch script in a
 fresh CLI process (it opens its own connection), counts a pass as one unit when the script prints its
 completion line, and treats a non-zero exit as a failed unit without relaying any output. The legacy
 dispatch scripts still reserve and lease their own jobs, so running them through the supervisor and
@@ -48,7 +53,22 @@ through `service/manager.php` at once is safe but redundant. `pendingUnits()` re
 dispatch script cannot count without reserving work; `--check` therefore only says "a pass is worth
 trying". A native worker class replaces its adapter when the logic moves out of `service/`.
 
-TTS (`service/tts_worker.php`) and profile workers are SYNTH-specific and are not registered yet.
+`service/tts_worker.php <job-id>` (one speech job), `service/memory_worker.php` and `service/relationship_worker.php`
+are the per-job runners that the dispatchers launch; they are the work itself and stay where they are.
+
+## Lanes and cadence
+
+The supervisor runs one **lane** per process (`WorkerRegistry::LANES`), so slow work in one lane never delays another:
+
+| Lane | Workers | Cadence (`WorkerRegistry::FIXED_SECONDS`) |
+| --- | --- | --- |
+| `general` | `memory`, `relationship`, `middleterm`, `dynamicprofile`, `player2health`, `extension-events` | 5 seconds after each run, what the manager's tick was |
+| `speech` | `tts` | 1 second after each run (10-second dispatch window, the dispatcher polls every 0.5 s inside it) |
+
+`profile` is in no lane: `synthSpawnProfileAutofillWorker` starts `php bin/worker.php profile --job=<file>` detached for each
+request, as it started the script before. A worker without a fixed cadence uses the scheduler's idle back-off.
+Each lane has its own lock and heartbeat: `log/worker-supervisor.{lock,json}` (general) and
+`log/worker-supervisor-speech.{lock,json}`.
 
 ## Commands
 
@@ -59,8 +79,14 @@ php bin/worker.php <name> [--max-units=N] [--max-seconds=S] [--loop [--sleep=S]]
 php bin/worker-supervisor.php [--workers=a,b] [--idle-seconds=30] [--max-idle-seconds=300] [--max-seconds=120]
 ```
 
-Nothing starts the supervisor by default. `service/start.sh` and `service/manager.php` are unchanged,
-so runtime behaviour is the same until a deployment chooses to run the supervisor.
+## Runtime
+
+`service/start.sh` is the one launcher (the launcher and `lib/background_processor.php` start it and probe
+the heartbeat port 12348 that it keeps bound, unchanged). It starts the `speech` and `general` supervisors, each
+restarted if it exits. `SYNTH_LEGACY_MANAGER=1` (or `start.sh --legacy-manager`) starts the previous runtime instead,
+the shell speech loop plus `service/manager.php`; it stays for one release and is also used when
+`vendor/autoload.php` is missing. Do not run both at once: the legacy manager's `native_memory` and
+`native_relationship` tasks are hooks over the same registry workers.
 
 ## Legacy
 

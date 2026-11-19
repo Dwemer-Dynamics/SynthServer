@@ -1,7 +1,13 @@
 <?php
 
 if (PHP_SAPI!=='cli') { http_response_code(404);exit; }
-if ($argc>2 || ($argc===2 && $argv[1]!=='--loop')) { fwrite(STDERR,"Usage: php service/tts_dispatch.php [--loop]\n");exit(2); }
+// --max-seconds=N ends the loop after N seconds (the "tts" worker's dispatch window); without it the loop runs until stopped.
+$maxSeconds=null;
+if ($argc>3 || ($argc>=2 && $argv[1]!=='--loop') || ($argc===3 && !preg_match('/^--max-seconds=([1-9][0-9]{0,4})$/D',$argv[2],$window))) {
+    fwrite(STDERR,"Usage: php service/tts_dispatch.php [--loop [--max-seconds=N]]\n");exit(2);
+}
+if ($argc===3) $maxSeconds=intval($window[1]);
+$startedAt=microtime(true);
 $root=dirname(__DIR__);
 require_once $root.'/lib/runtime_bootstrap.php';
 require_once $root.'/lib/synth_tts_worker.php';
@@ -23,7 +29,7 @@ try {
         synth_tts_cleanup_job_inputs($GLOBALS['db'],$root);
         if ($argc===1) break;
         usleep(500000);
-    } while ($running);
+    } while ($running && ($maxSeconds===null || microtime(true)-$startedAt<$maxSeconds));
 } catch (Throwable) {
     error_log('[SYNTH TTS] Durable speech dispatcher stopped');
     exit(1);

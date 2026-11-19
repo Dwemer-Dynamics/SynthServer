@@ -1,8 +1,9 @@
 <?php
 
+// Thin hook over the worker registry: the manager runs the "memory" worker, so the registry is the one place that knows how.
 $GLOBALS['TASKS']['native_memory']['fn'] = static function() {
-    $process = proc_open([PHP_BINARY,dirname(__DIR__,2).'/memory_dispatch.php'],
-        [0=>['file','/dev/null','r'],1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$pipes);
-    // Do not relay provider output or inherited legacy-manager state into scheduler logs.
-    if (!is_resource($process) || proc_close($process)!==0) throw new RuntimeException('Native dispatch failed');
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $report = \Synth\Workers\WorkerRegistry::create('memory')->run(new \Synth\Workers\WorkerLimits(1, 120));
+    // Provider output is never relayed; the adapter already reduced a failed pass to a generic report.
+    if ($report->status() === \Synth\Workers\WorkerReport::FAILED) throw new RuntimeException('Native memory dispatch failed');
 };

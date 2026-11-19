@@ -20,13 +20,14 @@ use Synth\Workers\WorkerReport;
 
 abstract class LegacyDispatchWorker implements WorkerInterface
 {
-    /** @var Closure(string): array{0: int, 1: string} Runs a script in a fresh process; returns its exit code and standard output. */
+    /** @var Closure(string, list<string>): array{0: int, 1: string} Runs a script in a fresh process; returns its exit code and standard output. */
     private readonly Closure $launcher;
 
     /**
-     * @param Closure(string): array{0: int, 1: string}|null $launcher Replaces the process launcher; used by tests.
+     * @param Closure(string, list<string>): array{0: int, 1: string}|null $launcher Replaces the process launcher; used by tests.
+     * @param array<string, string|true> $options Options of the command line (`bin/worker.php <name> --job=...`); most workers take none.
      */
-    public function __construct(?Closure $launcher = null)
+    public function __construct(?Closure $launcher = null, protected readonly array $options = [])
     {
         $this->launcher = $launcher ?? self::launchProcess(...);
     }
@@ -40,6 +41,16 @@ abstract class LegacyDispatchWorker implements WorkerInterface
      * Returns the text the script prints when it did a unit of work.
      */
     abstract protected function doneMarker(): string;
+
+    /**
+     * Returns the command-line arguments passed to the script; none unless a worker overrides this.
+     *
+     * @return list<string>
+     */
+    protected function arguments(): array
+    {
+        return [];
+    }
 
     /**
      * Returns 1: a dispatch script cannot count without reserving work, so one pass is always worth trying.
@@ -61,7 +72,7 @@ abstract class LegacyDispatchWorker implements WorkerInterface
                 break;
             }
             $attempted++;
-            [$exitCode, $output] = ($this->launcher)($script);
+            [$exitCode, $output] = ($this->launcher)($script, $this->arguments());
             if ($exitCode !== 0) {
                 // The script's own messages are generic by design; nothing from a provider is relayed.
                 $report->addFailure($this->script(), "exit code {$exitCode}");
@@ -81,12 +92,13 @@ abstract class LegacyDispatchWorker implements WorkerInterface
     /**
      * Starts the script with the current PHP binary in a fresh process; its error output is discarded.
      *
+     * @param list<string> $arguments
      * @return array{0: int, 1: string}
      */
-    private static function launchProcess(string $script): array
+    private static function launchProcess(string $script, array $arguments = []): array
     {
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-        $process = proc_open([PHP_BINARY, $script], [0 => ['file', $null, 'r'], 1 => ['pipe', 'w'], 2 => ['file', $null, 'w']], $pipes);
+        $process = proc_open([PHP_BINARY, $script, ...$arguments], [0 => ['file', $null, 'r'], 1 => ['pipe', 'w'], 2 => ['file', $null, 'w']], $pipes);
         if (!is_resource($process)) {
             return [1, ''];
         }
