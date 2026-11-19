@@ -48,5 +48,31 @@ $route = trim((string) ($synthApiMatch[1] ?? ''), '/');
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 unset($synthApiPath, $synthApiMatch);
 
+// A body is bounded before any handler reads it: a missing Content-Length answers 411 and one above the route's
+// limit 413. A multipart recording is not readable from php://input, so its declared length is the guard; JSON
+// routes also read through Synth\Lib\RequestBody, which never pulls more than the limit from the connection.
+require_once dirname(__DIR__) . '/lib/RequestBody.php';
+$synthApiBodyLimits = [
+    'speech/transcribe' => 16777216 + 65536, // a 16 MiB recording plus multipart framing
+    'vision/describe' => 1048576,            // a visual-context event; the image itself goes to media.php
+    'voice/preview.php' => 4096,
+    'voice/samples.php' => 4096,
+    'tts/voice-preview' => 4096,
+    'tts/voice-sample' => 4096,
+    'tts/voice-samples' => 4096,
+];
+if ($method === 'POST' && isset($synthApiBodyLimits[$route])) {
+    $synthApiBodyStatus = \Synth\Lib\RequestBody::refusalStatus($_SERVER, $synthApiBodyLimits[$route]);
+    if ($synthApiBodyStatus !== null) {
+        synthApiRefuse(
+            $synthApiBodyStatus,
+            $synthApiBodyStatus === 411 ? 'Content-Length is required' : 'The request body is too large',
+            $synthApiBodyStatus === 411 ? 'length_required' : 'too_large'
+        );
+        return;
+    }
+    \Synth\Lib\RequestBody::limit($synthApiBodyLimits[$route]);
+}
+
 require __DIR__ . '/routes.php';
 return;

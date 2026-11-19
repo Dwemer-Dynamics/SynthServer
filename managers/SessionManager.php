@@ -40,6 +40,14 @@ final class SessionManager
         return new TurnRequest($event, $context);
     }
 
+    // The player wrote a save: only a negotiated v2 signal counts, and SaveState records it.
+    public function saveCreated(array $event): array
+    {
+        if (($event['protocol_version'] ?? 1) !== 2 || !in_array('session.save_created', $event['capabilities'] ?? [], true))
+            throw new \DomainException('save_created_not_negotiated');
+        return $this->saves->created($event);
+    }
+
     public function heard(string $state): bool
     {
         return $this->saves->heard($state);

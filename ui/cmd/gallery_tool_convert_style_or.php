@@ -32,7 +32,6 @@ if ($method === 'POST') {
  require_once $enginePath . "lib/core/llm_connector.class.php";
 
  error_reporting(E_ALL);
- ini_set('display_errors', 1);
 
  $apiBadge = new ApiBadge();
  $apiKeyData = $apiBadge->getByLabel("openrouter");

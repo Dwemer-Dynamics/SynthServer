@@ -80,6 +80,11 @@ final class Bootstrap
     }
 
     /** Speech receipts: only the claimed snapshot binding and the owned receipt write; no turn services. */
+    public function sessions(): SessionManager
+    {
+        return new SessionManager(new SaveState(new SaveRepository($this->db)));
+    }
+
     public function receipts(\SYNTHClaimedRequest $owner): ReceiptManager
     {
         return new ReceiptManager(new SessionManager(new SaveState(new SaveRepository($this->db))),

@@ -1443,8 +1443,6 @@ $isEmbed = (isset($_GET['embed']) && $_GET['embed'] == '1');
 $debugPaneLink = false;
 
 // Enable error reporting (for development purposes)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // Tab state from URL parameter
@@ -4103,7 +4101,7 @@ $ttsPronunciationNotice = $ttsPronunciationNotices[strval($_GET['pron'] ?? '')] 
                 <p>Sync just needs to be ran ONE TIME after initial setup of a new instance.</p>
                 <p>Empty voice cache is acceptable - new NPC voices will be cached automatically.</p>
                 <p>For cloud setup instructions, see our <a href="https://dwemerdynamics.com/synth/remote-hosting-guide.html" style="color: yellow;" target="_blank" rel="noopener noreferrer">Cloud XTTS Guide</a>.</p>
-                <p>Cached voices are stored in <code>data/voices</code>. <a href="<?php echo $webRoot; ?>/data/voices" style="color: yellow;" target="_blank">View Cache Directory</a></p>
+                <p>Cached voices are stored in <code>data/voices</code>.</p>
                 <div class="button-group">
                     <input type="submit" name="upload_all" value="Sync Voice Cache" class="action-button edit">
                 </div>
@@ -4255,7 +4253,7 @@ $ttsPronunciationNotice = $ttsPronunciationNotices[strval($_GET['pron'] ?? '')] 
                 <p>Sync just needs to be ran ONE TIME after initial setup of a new instance.</p>
                 <p>Empty voice cache is acceptable - new NPC voices will be cached automatically.</p>
                 <p>For cloud setup instructions, see our <a href="https://dwemerdynamics.com/synth/remote-hosting-guide.html" style="color: yellow;" target="_blank" rel="noopener noreferrer">Cloud XTTS Guide</a>.</p>
-                <p>Cached voices are stored in <code>data/voices</code>. <a href="<?php echo $webRoot; ?>/data/voices" style="color: yellow;" target="_blank">View Cache Directory</a></p>
+                <p>Cached voices are stored in <code>data/voices</code>.</p>
                 <div class="button-group">
                     <input type="submit" name="upload_all" value="Sync Voice Cache" class="action-button edit">
                 </div>
@@ -4396,7 +4394,7 @@ $ttsPronunciationNotice = $ttsPronunciationNotices[strval($_GET['pron'] ?? '')] 
                 <p>Sync just needs to be ran ONE TIME after initial setup of a new instance.</p>
                 <p>Empty voice cache is acceptable - new NPC voices will be cached automatically.</p>
                 <p>For cloud setup instructions, see our <a href="https://dwemerdynamics.com/synth/remote-hosting-guide.html" style="color: yellow;" target="_blank" rel="noopener noreferrer">Cloud XTTS Guide</a>.</p>
-                <p>Cached voices are stored in <code>data/voices</code>. <a href="<?php echo $webRoot; ?>/data/voices" style="color: yellow;" target="_blank">View Cache Directory</a></p>
+                <p>Cached voices are stored in <code>data/voices</code>.</p>
                 <div class="button-group">
                     <input type="submit" name="upload_all" value="Sync Voice Cache" class="action-button edit">
                 </div>

@@ -15,6 +15,8 @@ unchanged and the client does not call these routes yet.
 | `dialogue/cancel` | POST | `main.php` | `cancel` |
 | `user/input` | POST | `main.php` | `input_text`, `input_audio` |
 | `save/loaded` | POST | `main.php` | `init` |
+| `save/created` | POST | `main.php` | `save_created` |
+| `narrator/checkpoint` | POST | `main.php` | `narrator_command`, `narrator_receipt` |
 | `locations/save` | POST | `main.php` | `location_catalog` |
 | `books/read` | POST | `main.php` | `context` with `payload.reading_event` |
 | `npc/add` | POST | `gamedata.php` | `actor_profile` |
@@ -26,7 +28,6 @@ unchanged and the client does not call these routes yet.
 | `tts/voice-preview` | POST | `voice/preview.php` | none; management guard and dashboard token |
 | `tts/voice-samples` | POST | `voice/samples.php` | none; management guard and dashboard token |
 | `tts/voice-sample` | POST | `voice/samples.php` with `voice_id` or `npc_id` required | none; management guard and dashboard token |
-| `save/created` | POST | none | 501: the client sends no save-created signal |
 | `edit`, `edit/...` | any | none | 501: the generic edit API is a later PR |
 | `extensions` | GET | `ExtensionManager` | n/a (list) |
 | `extensions/{id}/enable`, `extensions/{id}/disable` | POST | `ExtensionManager` | n/a (id must be in the registry; same-origin guard) |
@@ -42,5 +43,5 @@ rewriting, `/api/index.php/v1/<route>` works.
 Tests: `unittests/tests/ApiV1RoutesTest.php` sends the same probe to the legacy script and the new route and
 requires the same answer.
 
-TODO (separate PRs): the generic edit API (`edit`), a save-created signal, and moving each
+TODO (separate PRs): the generic edit API (`edit`), and moving each
 handler's logic behind a manager as its domain moves (see `docs/CHEVO-PARITY.md`).

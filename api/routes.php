@@ -32,6 +32,7 @@ $synthApiRoutes = [
     'npc/add' => [['POST'], 'npc/add.php'],
     'books/read' => [['POST'], 'books/read.php'],
     'locations/save' => [['POST'], 'locations/save.php'],
+    'narrator/checkpoint' => [['POST'], 'narrator/checkpoint.php'],
     'tts/studio' => [['POST'], 'tts/studio.php'],
     'tts/voice-preview' => [['POST'], 'tts/voice-preview.php'],
     'tts/voice-sample' => [['POST'], 'tts/voice-sample.php'],
@@ -50,6 +51,13 @@ if ($route === 'edit' || str_starts_with($route, 'edit/')) {
 
 if ($route === 'extensions' || str_starts_with($route, 'extensions/')) {
     require __DIR__ . '/v1/extensions.php';
+    return;
+}
+
+// The dashboard's voice routes are scripts of their own that answer their own methods and guard (they are
+// management routes, not game endpoints); they run behind the body limits set in `index.php`.
+if ($route === 'voice/preview.php' || $route === 'voice/samples.php') {
+    require __DIR__ . '/v1/' . $route;
     return;
 }
 

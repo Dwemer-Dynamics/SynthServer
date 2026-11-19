@@ -85,10 +85,20 @@ if (!function_exists('synthSpawnProfileAutofillWorker')) {
         }
 
         $php = synthProfileAutofillPhpBinary();
+        // The worker registry owns how the job runs: `bin/worker.php profile --job=<file>`. A tree without
+        // the registry's autoloader keeps running the job script directly.
+        $registryEntry = $root . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'worker.php';
+        $arguments = is_file($registryEntry) && is_file($root . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php')
+            ? [$registryEntry, 'profile', '--job=' . $jobPath]
+            : [$worker, $jobPath];
         if (DIRECTORY_SEPARATOR === '\\') {
-            $command = 'cmd /C start "" /B "' . str_replace('"', '\"', $php) . '" "' . str_replace('"', '\"', $worker) . '" "' . str_replace('"', '\"', $jobPath) . '" >NUL 2>NUL';
+            $command = 'cmd /C start "" /B "' . str_replace('"', '\"', $php) . '"';
+            foreach ($arguments as $argument) {
+                $command .= ' "' . str_replace('"', '\"', $argument) . '"';
+            }
+            $command .= ' >NUL 2>NUL';
         } else {
-            $command = 'nohup ' . escapeshellarg($php) . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($jobPath) . ' > /dev/null 2>&1 < /dev/null &';
+            $command = 'nohup ' . escapeshellarg($php) . ' ' . implode(' ', array_map('escapeshellarg', $arguments)) . ' > /dev/null 2>&1 < /dev/null &';
         }
 
         $handle = @popen($command, 'r');

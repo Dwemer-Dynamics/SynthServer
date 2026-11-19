@@ -1,8 +1,9 @@
 <?php
 
-// Deferred inline, dedicated player and NPC-pair lanes share the existing scheduled manager.
-$GLOBALS['TASKS']['native_relationship']['fn']=static function() {
-    $process=proc_open([PHP_BINARY,dirname(__DIR__,2).'/relationship_dispatch.php'],
-        [0=>['file','/dev/null','r'],1=>['file','/dev/null','w'],2=>['file','/dev/null','w']],$pipes);
-    if (!is_resource($process) || proc_close($process)!==0) throw new RuntimeException('Native relationship dispatch failed');
+// Thin hook over the worker registry: the manager runs the "relationship" worker, so the registry is the one place that knows how.
+$GLOBALS['TASKS']['native_relationship']['fn'] = static function() {
+    require_once dirname(__DIR__, 3) . '/vendor/autoload.php';
+    $report = \Synth\Workers\WorkerRegistry::create('relationship')->run(new \Synth\Workers\WorkerLimits(1, 120));
+    // Provider output is never relayed; the adapter already reduced a failed pass to a generic report.
+    if ($report->status() === \Synth\Workers\WorkerReport::FAILED) throw new RuntimeException('Native relationship dispatch failed');
 };

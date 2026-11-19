@@ -12,7 +12,6 @@ $TITLE = " SYNTH - Descriptions";
 
 // Enable error reporting (for development purposes)
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
 
 $dbSettings = synthDbConnectionSettings('synth');
 $dbname = $dbSettings['dbname'];

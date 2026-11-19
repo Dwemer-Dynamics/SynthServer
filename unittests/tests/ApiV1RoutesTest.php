@@ -29,7 +29,7 @@ final class ApiV1RoutesTest extends TestCase
         unset($env['PHPUNIT_TEST']);
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $this->server = proc_open(
-            [PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $root, $root . DIRECTORY_SEPARATOR . 'router.php'],
+            [PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $root, dirname(__DIR__) . '/fixtures/legacy_reference_router.php'],
             [0 => ['file', $null, 'r'], 1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']],
             $pipes,
             $root,
@@ -93,6 +93,8 @@ final class ApiV1RoutesTest extends TestCase
             'user/input' => ['user/input', 'input_text'],
             'save/loaded' => ['save/loaded', 'init'],
             'locations/save' => ['locations/save', 'location_catalog'],
+            'save/created' => ['save/created', 'save_created'],
+            'narrator/checkpoint' => ['narrator/checkpoint', 'narrator_command'],
         ];
     }
 
@@ -114,6 +116,15 @@ final class ApiV1RoutesTest extends TestCase
     public function testEventRouteRefusesAnotherRoutesType(string $route): void
     {
         [$status, $body] = $this->call('POST', "/api/v1/$route", json_encode(['type' => 'equipment']));
+        self::assertSame(422, $status);
+        self::assertSame('route_type_mismatch', json_decode($body, true)['code'] ?? null);
+    }
+
+    public function testNarratorCheckpointAcceptsACommandAndAReceiptButNotATurn(): void
+    {
+        $receipt = json_encode(['type' => 'narrator_receipt']);
+        self::assertSame($this->call('POST', '/main.php', $receipt), $this->call('POST', '/api/v1/narrator/checkpoint', $receipt));
+        [$status, $body] = $this->call('POST', '/api/v1/narrator/checkpoint', json_encode(['type' => 'narrator_turn']));
         self::assertSame(422, $status);
         self::assertSame('route_type_mismatch', json_decode($body, true)['code'] ?? null);
     }
@@ -186,7 +197,7 @@ final class ApiV1RoutesTest extends TestCase
 
     public function testUnimplementedRoutesAnswer501(): void
     {
-        foreach ([['GET', '/api/v1/edit'], ['PUT', '/api/v1/edit/npc/1'], ['POST', '/api/v1/save/created']] as [$method, $path]) {
+        foreach ([['GET', '/api/v1/edit'], ['PUT', '/api/v1/edit/npc/1']] as [$method, $path]) {
             [$status, $body] = $this->call($method, $path, $method === 'GET' ? null : '{}');
             self::assertSame(501, $status, $path);
             self::assertSame('not_implemented', json_decode($body, true)['code'] ?? null, $path);

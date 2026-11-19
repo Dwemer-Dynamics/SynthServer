@@ -12,7 +12,7 @@ if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true) && empt
 }
 
 // Former destructive GET links are refused and the confirmed POST controls below must carry the session token,
-// both before bootstrap. Reinstall has no web route at all (ui/cmd/install-db.php is command-line only).
+// both before bootstrap. Reinstall has no web route at all (bin/install-db.php is command-line only).
 synthManagementActionGate(['clean', 'reset', 'cleanlog', 'delete_last', 'delete_memory', 'reinstall'], ['index_action'], ['rowid']);
 
 if (session_status() === PHP_SESSION_NONE) {

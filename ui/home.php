@@ -14,7 +14,6 @@ if (session_status() === PHP_SESSION_NONE) {
 
 date_default_timezone_set('UTC');
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
 
 $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 
