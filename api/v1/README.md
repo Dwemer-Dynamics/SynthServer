@@ -22,6 +22,10 @@ unchanged and the client does not call these routes yet.
 | `speech/transcribe` | POST | `stt.php` | multipart, validated by `stt.php` |
 | `vision/describe` | POST | `itt.php` | JSON, validated by `itt.php` |
 | `messages/<id>` | GET | `tts_status.php` (`cache_key`) | n/a |
+| `tts/studio` | POST | `ui/api/player_tts_preview.php` | none; management guard and dashboard token |
+| `tts/voice-preview` | POST | `voice/preview.php` | none; management guard and dashboard token |
+| `tts/voice-samples` | POST | `voice/samples.php` | none; management guard and dashboard token |
+| `tts/voice-sample` | POST | `voice/samples.php` with `voice_id` or `npc_id` required | none; management guard and dashboard token |
 | `save/created` | POST | none | 501: the client sends no save-created signal |
 | `edit`, `edit/...` | any | none | 501: the generic edit API is a later PR |
 | `extensions` | GET | `ExtensionManager` | n/a (list) |

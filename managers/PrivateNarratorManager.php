@@ -6,11 +6,11 @@ use Synth\Core\LlmDriver;
 use Synth\Core\NarratorOutput;
 use Synth\Core\NarratorRejected;
 use Synth\Core\PrivateNarratorRepository;
-use Synth\Drivers\Tts\NarratorSpeechDriver;
+use Synth\Drivers\Tts\TtsWrapper;
 
 require_once dirname(__DIR__).'/core/contracts/narrator.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/PrivateNarratorRepository.php';
-require_once dirname(__DIR__).'/drivers/tts/NarratorSpeechDriver.php';
+require_once dirname(__DIR__).'/drivers/tts/TtsWrapper.php';
 
 // One private narrator request: a state/select/cancel command, a typed, push-to-talk or scene turn, or the receipt
 // of a reply. Narrator content is kept in its own tables and never becomes NPC dialogue, history, diary or memory.
@@ -29,7 +29,7 @@ final class PrivateNarratorManager
      * @param \Closure():array $context the request's claimed context snapshot (synth_protocol_original_context shape)
      */
     public function __construct(private PrivateNarratorRepository $narrators, private LlmDriver $llm,
-        private NarratorSpeechDriver $speech, private NarratorOutput $output, private \Closure $transcribe,
+        private TtsWrapper $speech, private NarratorOutput $output, private \Closure $transcribe,
         private \Closure $context) {}
 
     public function handle(array $event): void
@@ -74,7 +74,7 @@ final class PrivateNarratorManager
         $source = $this->narrators->profile($revision['profile_id'] === null ? null : intval($revision['profile_id']));
         if ($source === null || !$this->llm->supports($source['connector'])) throw new NarratorRejected('narrator_provider_unsupported');
         $name = trim($revision['name']);
-        $speech = $this->speech->settings($source['profile'], $name, trim($revision['voice']));
+        $speech = $this->speech->settings(['npc_name' => $name, 'voiceid' => trim($revision['voice'])], $source['profile']);
         if ($speech === null) throw new NarratorRejected('narrator_speech_unavailable');
         $context = ($this->context)();
         $player = trim(strval($context['player']['display_name'] ?? '')) ?: 'Player';
