@@ -211,7 +211,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             if (!$existing) throw new RuntimeException('Unable to check relationship response replay');
             if (pg_fetch_assoc($existing)) return;
             $result=@pg_query_params($connection,"WITH publication AS (
-                INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+                INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                     synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                 VALUES('relationship_response','Accepted native model speech',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
             ), history AS (

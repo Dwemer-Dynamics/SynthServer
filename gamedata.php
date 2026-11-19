@@ -543,7 +543,7 @@ function handleDialogueDeliveryUpdate(array $data): void
     if ($utteranceId !== '') {
         $utteranceEscaped = synth_db_escape($db, $utteranceId);
         $db->update(
-            'synth.eventlog',
+            'public.core_context_event',
             "delivery_state='{$stateEscaped}'",
             "type='chat' AND utterance_id='{$utteranceEscaped}' AND {$nonAbortedSql}"
         );
@@ -564,7 +564,7 @@ function handleDialogueDeliveryUpdate(array $data): void
         $where .= " AND people ILIKE '%{$speakerEscaped}%'";
     }
 
-    $row = $db->fetchOne("SELECT rowid FROM synth.eventlog WHERE {$where} ORDER BY rowid DESC LIMIT 1");
+    $row = $db->fetchOne("SELECT rowid FROM public.core_context_event WHERE {$where} ORDER BY rowid DESC LIMIT 1");
     $rowId = intval($row['rowid'] ?? 0);
     if ($rowId <= 0) {
         $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? ''));
@@ -576,7 +576,7 @@ function handleDialogueDeliveryUpdate(array $data): void
         return;
     }
 
-    $db->update('synth.eventlog', "delivery_state='{$stateEscaped}'", "rowid={$rowId} AND {$nonAbortedSql}");
+    $db->update('public.core_context_event', "delivery_state='{$stateEscaped}'", "rowid={$rowId} AND {$nonAbortedSql}");
     Logger::debug("[gamedata.php] dialogue_delivery {$state} for row {$rowId}");
 }
 
@@ -679,7 +679,7 @@ function handleWorldContextUpdate(array $data): void
     }
     $recentCutoff = time() - 120;
     $db->execQuery(
-        "UPDATE eventlog SET gamets={$gamets} " .
+        "UPDATE core_context_event SET gamets={$gamets} " .
         "WHERE sess='synth' AND gamets<=5 AND localts>={$recentCutoff}"
     );
 
@@ -700,7 +700,7 @@ function handleWorldContextUpdate(array $data): void
     $payload['worldspace'] = $worldspace;
 
     $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $db->insert('eventlog', [
+    $db->insert('core_context_event', [
         'ts' => $ts,
         'gamets' => $gamets,
         'type' => 'world_context',
@@ -767,7 +767,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
     if ($gamets <= 0) {
         return ['deferred' => true, 'reason' => 'missing_gamets'];
     }
-    $previousRow = $db->fetchOne("SELECT party FROM eventlog WHERE type='nearby_actors' ORDER BY rowid DESC LIMIT 1");
+    $previousRow = $db->fetchOne("SELECT party FROM core_context_event WHERE type='nearby_actors' ORDER BY rowid DESC LIMIT 1");
     $previousSnapshot = is_array($previousRow)
         ? (json_decode((string)($previousRow['party'] ?? ''), true) ?: [])
         : [];
@@ -806,7 +806,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
     }
 
     $worldContext = [];
-    $worldContextRow = $db->fetchOne("SELECT party FROM eventlog WHERE type='world_context' ORDER BY gamets DESC, rowid DESC LIMIT 1");
+    $worldContextRow = $db->fetchOne("SELECT party FROM core_context_event WHERE type='world_context' ORDER BY gamets DESC, rowid DESC LIMIT 1");
     if (is_array($worldContextRow)) {
         $decodedWorldContext = json_decode((string)($worldContextRow['party'] ?? ''), true);
         if (is_array($decodedWorldContext)) {
@@ -898,7 +898,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
         'delivery_state' => 'received',
     ];
 
-    $db->insert('eventlog', array_merge($baseRow, [
+    $db->insert('core_context_event', array_merge($baseRow, [
         'type' => 'nearby_actors',
         'data' => "nearby actors: {$peoplePipe}",
     ]));
@@ -1141,7 +1141,7 @@ function handleNearbyItemsUpdate(array $data): void
         'delivery_state' => 'received',
     ];
 
-    $db->insert('eventlog', array_merge($baseRow, [
+    $db->insert('core_context_event', array_merge($baseRow, [
         'type' => 'nearby_items',
         'data' => 'nearby items: ' . $itemCount,
     ]));
@@ -1221,7 +1221,7 @@ function handlePointsOfInterestUpdate(array $data): void
         'delivery_state' => 'received',
     ];
 
-    $db->insert('eventlog', array_merge($baseRow, [
+    $db->insert('core_context_event', array_merge($baseRow, [
         'type' => 'points_of_interest',
         'data' => 'points of interest: ' . implode(', ', $poiNames),
     ]));
@@ -1360,7 +1360,7 @@ function handleTradeSummaryUpdate(array $data): void
     $peoplePipe = empty($people) ? '' : '|' . implode('|', $people) . '|';
     $payloadJson = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    $db->insert('eventlog', [
+    $db->insert('core_context_event', [
         'ts' => $ts,
         'gamets' => $gamets,
         'type' => 'itemtransfer',

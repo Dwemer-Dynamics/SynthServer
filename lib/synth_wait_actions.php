@@ -303,7 +303,7 @@ function synth_wait_record_consequence($db,array $event,array $outcome): void
         'action'=>$outcome['action'],'verified'=>$outcome['verified'],'result'=>$result,'message'=>$outcome['message'],
         'origin_sha256'=>$outcome['origin_sha256']];
     if($outcome['proof']!==null)$meta['proof']=$outcome['proof'];
-    $query="WITH publication AS (INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+    $query="WITH publication AS (INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         VALUES('infoaction',$1,$2,$3,$4,$4,'',$5,'','emitted',$6,$7,$8,$9) RETURNING *)
         INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)

@@ -105,7 +105,7 @@ final class CanonicalRegionResolutionTest extends DatabaseTestCase
         ], JSON_UNESCAPED_SLASHES);
         pg_query_params(
             $connection,
-            "INSERT INTO eventlog (ts, gamets, type, data, sess, localts, people, location, party)
+            "INSERT INTO core_context_event (ts, gamets, type, data, sess, localts, people, location, party)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
             ["0", (string) $gameTs, "world_context", $contextData ?? "world context: {$location}", "synth", $localTs, "|The Narrator|", $location, $payload]
         );

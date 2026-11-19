@@ -214,7 +214,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $storedDetails=$details ?? array_diff_key($state ?? [],array_flip(['revision','aff','type']));
         $detailsJson=json_encode((object)$storedDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_state','Native relationship state publication',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (

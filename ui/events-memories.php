@@ -393,7 +393,7 @@ if ($eventsAction !== '') {
  $redirectParams = $eventLogCurrentPageParams;
  $redirectParams['deleted'] = intval($deleteResult['deleted_count'] ?? 0);
  } elseif ($eventsAction === 'reset_events') {
- $db->delete("eventlog", "true");
+ $db->delete("core_context_event", "true");
  } elseif ($eventsAction === 'delete_memory' && intval($eventsValue) > 0) {
  $db->delete('memory_summary', "rowid = " . intval($eventsValue));
  $redirectParams = ['tab' => 'memory', 'deleted' => 1];
@@ -421,7 +421,7 @@ if (isset($_POST['delete_selected']) && !empty($_POST['rowids'])) {
 
  if (count($sanitizedRowids) > 0) {
  $rowidsStr = implode(',', $sanitizedRowids);
- $existingRows = $db->fetchAll("SELECT rowid FROM eventlog WHERE rowid IN ($rowidsStr)");
+ $existingRows = $db->fetchAll("SELECT rowid FROM core_context_event WHERE rowid IN ($rowidsStr)");
  $existingRowids = [];
  foreach ($existingRows as $existingRow) {
  $existingRowid = intval($existingRow['rowid'] ?? 0);
@@ -434,7 +434,7 @@ if (isset($_POST['delete_selected']) && !empty($_POST['rowids'])) {
 
  if (count($existingRowids) > 0) {
  $existingRowidsStr = implode(',', $existingRowids);
- $query = "DELETE FROM eventlog WHERE rowid IN ($existingRowidsStr)";
+ $query = "DELETE FROM core_context_event WHERE rowid IN ($existingRowidsStr)";
  Logger::info("Executing delete query: $query");
  $db->query($query);
  }
@@ -574,14 +574,14 @@ function getTimeColor($time) {
  $offset = ($page - 1) * $limit;
 
  // Total/pagination still describes the physical eventlog table only.
- $countQuery = "SELECT COUNT(*) as total FROM eventlog WHERE $eventLogVisibleWhereClause";
+ $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $eventLogVisibleWhereClause";
  $countResult = $db->fetchAll($countQuery);
  $totalRecords = $countResult[0]['total'];
  $totalPages = ceil($totalRecords / $limit);
 
  $results = $db->fetchAll(
  "SELECT type, data, people, gamets, localts, ts, rowid
- FROM eventlog a
+ FROM core_context_event a
  WHERE $eventLogVisibleWhereClause
  ORDER BY " . synthGetEventLogUiOrderBy() . "
  LIMIT $limit OFFSET $offset"
@@ -685,7 +685,7 @@ function getTimeColor($time) {
  $nextPage = $page + 1;
 
  // Get total count for pagination
- $countQuery = "SELECT COUNT(*) as total FROM eventlog WHERE $eventLogVisibleWhereClause";
+ $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $eventLogVisibleWhereClause";
  $countResult = $db->fetchAll($countQuery);
  $totalRecords = $countResult[0]['total'];
  $totalPages = ceil($totalRecords / $limit);

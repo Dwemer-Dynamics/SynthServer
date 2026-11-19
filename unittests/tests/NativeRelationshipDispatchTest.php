@@ -16,14 +16,14 @@ final class NativeRelationshipDispatchFixtureDatabase
         return $result;
     }
     public function insert(string $table,array $data): bool {
-        if ($table!=='eventlog' || ($data['type'] ?? '')!=='funccall') throw new LogicException('Unexpected fixture insert');
+        if ($table!=='core_context_event' || ($data['type'] ?? '')!=='funccall') throw new LogicException('Unexpected fixture insert');
         $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
         $data['synth_session_id']=$event['session_id'];$data['synth_generation']=$event['generation'];
         $data['synth_context_sequence']=$event['context_sequence'];$data['synth_request_id']=$event['request_id'];
         $columns=array_keys($data);$values=implode(',',array_map(static fn($i)=>'$'.($i+1),array_keys($columns)));
         $playthrough=$this->fetchOne('SELECT playthrough_id FROM public.core_runtime_context WHERE session_id='.$this->escapeLiteral($event['session_id'])
             .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['playthrough_id'];
-        $query='WITH inserted AS (INSERT INTO synth.eventlog ('.implode(',',$columns).') VALUES ('.$values.') RETURNING *)
+        $query='WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',',$columns).') VALUES ('.$values.') RETURNING *)
             INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(inserted) FROM inserted';
         $this->execQuery($query,[...array_values($data),$playthrough]);return true;
@@ -813,7 +813,7 @@ PHP;
             return json_decode($output,true,flags:JSON_THROW_ON_ERROR)+['diagnostic'=>$diagnostic];
         };
         $rows=fn(): array => pg_fetch_all($this->query("SELECT e.data,e.utterance_id,e.delivery_state,h.event_payload->>'delivery_state' AS payload_state
-            FROM synth.eventlog e JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid WHERE h.request_id='relationship-autochat'")) ?: [];
+            FROM public.core_context_event e JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid WHERE h.request_id='relationship-autochat'")) ?: [];
         // Same logical stage re-entered (new processing time) is reused; other text or game time is a conflict.
         $first=$run('Thanks for the help.,Thanks for the help.,Something else.,Thanks for the help.@2000');
         $this->assertSame(['stored','stored','native_history_stage_conflict','native_history_stage_conflict'],$first['results'],$first['diagnostic']);
@@ -826,11 +826,11 @@ PHP;
         // A history payload that disagrees with its eventlog row, or a stage row of another generation, is never reused.
         $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||'{\"data\":\"Nora: Other.\"}'::jsonb WHERE request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth_meta.history_events h SET event_payload=to_jsonb(e) FROM synth.eventlog e WHERE h.eventlog_rowid=e.rowid AND h.request_id='relationship-autochat'");
+        $this->query("UPDATE synth_meta.history_events h SET event_payload=to_jsonb(e) FROM public.core_context_event e WHERE h.eventlog_rowid=e.rowid AND h.request_id='relationship-autochat'");
         $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth.eventlog SET synth_generation=synth_generation+1 WHERE synth_request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_context_event SET synth_generation=synth_generation+1 WHERE synth_request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth.eventlog SET synth_generation=synth_generation-1 WHERE synth_request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_context_event SET synth_generation=synth_generation-1 WHERE synth_request_id='relationship-autochat'");
         // The root stage is written with no scene and no hearer projection; a row claiming either is not this stage.
         $this->query("UPDATE synth_meta.history_events SET scene_context_sequence=context_sequence WHERE request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
@@ -841,12 +841,12 @@ PHP;
         $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
         $this->assertCount(1,$rows());
         // A second row under the same stage key is never reconciled by picking one.
-        $this->query("INSERT INTO synth.eventlog(type,data,sess,localts,ts,gamets,people,location,party,utterance_id,synth_session_id,
+        $this->query("INSERT INTO public.core_context_event(type,data,sess,localts,ts,gamets,people,location,party,utterance_id,synth_session_id,
                 synth_generation,synth_context_sequence,synth_request_id) SELECT type,data,sess,localts,ts,gamets,people,location,party,
-                utterance_id,synth_session_id,synth_generation,synth_context_sequence,synth_request_id FROM synth.eventlog WHERE synth_request_id='relationship-autochat'");
+                utterance_id,synth_session_id,synth_generation,synth_context_sequence,synth_request_id FROM public.core_context_event WHERE synth_request_id='relationship-autochat'");
         $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,'relationship-dispatch-save',max(rowid),'{}'::jsonb
-            FROM synth.eventlog WHERE synth_request_id='relationship-autochat' GROUP BY 1,2,3,4");
+            FROM public.core_context_event WHERE synth_request_id='relationship-autochat' GROUP BY 1,2,3,4");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
         $this->query("UPDATE public.core_runtime_session SET active_turn_sequence=2 WHERE session_id='relationship-dispatch-session'");
         $this->assertSame(['cancelled'],$run('Thanks for the help.')['results']);

@@ -772,7 +772,7 @@ if (!function_exists('synthGetVisibleEventLogTypes')) {
 
         return $db->fetchAll("
             SELECT type, COUNT(*) AS total
-            FROM eventlog
+            FROM core_context_event
             WHERE {$visibleWhereClause}
             GROUP BY type
             ORDER BY type ASC
@@ -852,7 +852,7 @@ if (!function_exists('synthDeleteLatestVisibleEventLogRows')) {
         $visibleWhereClause = synthBuildVisibleEventLogWhereClause($db, $selectedType, $additionalExcludedTypes);
         $targetRows = $db->fetchAll("
             SELECT rowid
-            FROM eventlog
+            FROM core_context_event
             WHERE {$visibleWhereClause}
             ORDER BY " . synthGetEventLogUiOrderBy() . "
             LIMIT {$deleteCount}
@@ -868,7 +868,7 @@ if (!function_exists('synthDeleteLatestVisibleEventLogRows')) {
 
         if (!empty($targetRowids)) {
             $targetRowidsStr = implode(',', $targetRowids);
-            $db->query("DELETE FROM eventlog WHERE rowid IN ({$targetRowidsStr})");
+            $db->query("DELETE FROM core_context_event WHERE rowid IN ({$targetRowidsStr})");
         }
 
         return [
@@ -893,7 +893,7 @@ if (!function_exists('synthDeleteEventLogRow')) {
         }
 
         $visibleWhereClause = synthBuildVisibleEventLogWhereClause($db);
-        $existing = $db->fetchOne("SELECT rowid FROM eventlog WHERE rowid={$rowId} AND {$visibleWhereClause} LIMIT 1");
+        $existing = $db->fetchOne("SELECT rowid FROM core_context_event WHERE rowid={$rowId} AND {$visibleWhereClause} LIMIT 1");
         if (!$existing) {
             return [
                 'ok' => true,
@@ -903,7 +903,7 @@ if (!function_exists('synthDeleteEventLogRow')) {
             ];
         }
 
-        if (!$db->delete('eventlog', "rowid={$rowId}")) {
+        if (!$db->delete('core_context_event', "rowid={$rowId}")) {
             return [
                 'ok' => false,
                 'rowid' => $rowId,

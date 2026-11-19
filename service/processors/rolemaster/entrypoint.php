@@ -44,8 +44,8 @@ $GLOBALS["TASKS"]["rolemaster"]["fn"]=function() {
     }
 
     // Some functions need this setted
-    //$res=$GLOBALS["db"]->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from eventlog order by gamets desc limit 1 offset 0");
-    $res=$GLOBALS["db"]->fetchAll("SELECT max(gamets)+1 as gamets, max(ts)+1 as ts FROM eventlog "); // without order is faster, pgsql can use a better exec plan
+    //$res=$GLOBALS["db"]->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from core_context_event order by gamets desc limit 1 offset 0");
+    $res=$GLOBALS["db"]->fetchAll("SELECT max(gamets)+1 as gamets, max(ts)+1 as ts FROM core_context_event "); // without order is faster, pgsql can use a better exec plan
     if ($res) {
         $GLOBALS["gameRequest"]=["inputtext"];
         $GLOBALS["gameRequest"][2]=$res[0]["gamets"]+1;

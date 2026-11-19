@@ -57,12 +57,12 @@ final class WaitConsequenceFixtureDatabase
         }
     }
     public function insert($table,array $data): bool {
-        if(!in_array($table,['eventlog','synth.eventlog'],true))throw new LogicException('Fixture insert outside history');
+        if(!in_array($table,['core_context_event','public.core_context_event'],true))throw new LogicException('Fixture insert outside history');
         return $this->withNativeRequestLock(function($connection,array $event) use($data) {
             unset($data['rowid']);$data['synth_session_id']=$event['session_id'];$data['synth_generation']=$event['generation'];$data['synth_context_sequence']=$event['context_sequence'];$data['synth_request_id']=$event['request_id'];
             $context=synth_protocol_current_context($this,$event);$columns=array_keys($data);foreach($columns as $column)if(!preg_match('/^[a-z_]+$/D',$column))throw new LogicException('Fixture column');
             $values=implode(',',array_map(static fn($i)=>'$'.($i+1),array_keys($columns)));
-            $sql='WITH publication AS (INSERT INTO synth.eventlog('.implode(',',$columns).') VALUES('.$values.') RETURNING *) INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(publication) FROM publication';
+            $sql='WITH publication AS (INSERT INTO public.core_context_event('.implode(',',$columns).') VALUES('.$values.') RETURNING *) INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(publication) FROM publication';
             $this->execQuery($sql,[...array_values($data),$context['player']['playthrough_id']]);return true;
         });
     }
@@ -164,7 +164,7 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     public function testLegacyNameScopedFuncretAndSuccessTemplateCannotLeakToOtherNearbyNpc(): void {
         $this->actor['display_name']='Codsworth';$this->payload['target']=$this->actor;$this->payload['audience']=[$this->actor,$this->other];
         $this->snapshot('wait-recall',1,2,0);$this->select('wait-recall',1,2,'input_text',['text'=>'Wait here.']);$intent=$this->intent();$this->receipt($intent,$this->terminalResult($intent));
-        foreach(['funcret','infoaction'] as $type)$this->fixtureDb->insert('eventlog',['type'=>$type,'data'=>'Codsworth waits and stands at the place.','gamets'=>1000,'ts'=>1000,'localts'=>1000,'sess'=>'wait-recall-save','people'=>'|Settler|','location'=>'Synthetic Sanctuary','party'=>'','delivery_state'=>'emitted']);
+        foreach(['funcret','infoaction'] as $type)$this->fixtureDb->insert('core_context_event',['type'=>$type,'data'=>'Codsworth waits and stands at the place.','gamets'=>1000,'ts'=>1000,'localts'=>1000,'sess'=>'wait-recall-save','people'=>'|Settler|','location'=>'Synthetic Sanctuary','party'=>'','delivery_state'=>'emitted']);
         $this->finish();$frontier=(int)$this->fixtureDb->fetchOne('SELECT max(id) AS id FROM synth_meta.history_events')['id'];$this->snapshot('wait-recall',1,3,$frontier,$this->other,null,800000);$this->select('wait-recall',1,3,'input_text',['text'=>'What did Codsworth do?']);
         $this->assertSame([],$this->visible());$this->assertNull(synth_memory_capture_batch($this->fixtureDb,1));
     }

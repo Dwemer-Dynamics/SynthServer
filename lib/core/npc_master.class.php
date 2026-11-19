@@ -228,7 +228,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             } elseif (function_exists('DataLastKnownGameTS')) {
                 $gamets = (float)DataLastKnownGameTS();
             } else {
-                $row = $GLOBALS['db']->fetchOne("SELECT MAX(gamets) AS gamets FROM eventlog WHERE type = 'infosave'");
+                $row = $GLOBALS['db']->fetchOne("SELECT MAX(gamets) AS gamets FROM core_context_event WHERE type = 'infosave'");
                 $gamets = (float)($row['gamets'] ?? 0);
             }
 
@@ -1668,7 +1668,7 @@ FROM restore
 
         // eventlog.people (pipe-separated list)
         $GLOBALS["db"]->execQuery("
-                    UPDATE eventlog
+                    UPDATE core_context_event
                     SET people = REPLACE(people, '$oldName', '$newName')
                     WHERE people LIKE CONCAT('%', '$oldName', '%')
                 ");

@@ -168,7 +168,7 @@ final class WorldKnowledgePrewarAccessTest extends TestCase
                 return null;
             }
             public function fetchAll(string $sql): array {
-                if (!str_contains($sql, 'FROM eventlog') || !str_contains($sql, "type='world_context'")) {
+                if (!str_contains($sql, 'FROM core_context_event') || !str_contains($sql, "type='world_context'")) {
                     throw new LogicException('Unexpected world fixture query');
                 }
                 return [];

@@ -164,7 +164,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         if (pg_fetch_assoc($result)) throw new LogicException('A newer profile result awaits an acknowledged snapshot.');
         $context=synth_protocol_current_context($db,$event);$playthrough=$context['player']['playthrough_id'];
         $result=@pg_query_params($connection,"WITH value AS (SELECT $1::jsonb AS input,$2::jsonb AS fields), publication AS (
-            INSERT INTO synth.eventlog(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
+            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('profile_result','Accepted native profile development',$3,$4,$5,$5,'','','','derived',$6,$7,$8,$9) RETURNING *
         ), history AS (
             INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
