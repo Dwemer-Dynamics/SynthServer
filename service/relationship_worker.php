@@ -7,5 +7,4 @@ if ($argc!==2 || !preg_match('/^[1-9][0-9]{0,17}$/D',$argv[1])) {
     fwrite(STDERR,"Usage: php service/relationship_worker.php <job-id>\n");exit(2);
 }
 $enginePath=dirname(__DIR__).DIRECTORY_SEPARATOR;
-require_once $enginePath.'workers/Relationships/RelationshipRunner.php';
 exit(\Synth\Workers\Relationships\RelationshipRunner::runJob($enginePath,intval($argv[1])));
