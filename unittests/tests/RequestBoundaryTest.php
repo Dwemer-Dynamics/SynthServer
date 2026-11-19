@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Synth\Lib\LocalAccess;
 use Synth\Lib\RequestBody;
@@ -18,7 +19,7 @@ final class RequestBoundaryTest extends TestCase
     private function route(string $path): array
     {
         $script = '$_SERVER["REQUEST_URI"]=' . var_export($path, true) . ';'
-            . '$r=(static function(){return require ' . var_export(dirname(__DIR__, 2) . '/router.php', true) . ';})();'
+            . 'ob_start();$r=(static function(){return require ' . var_export(dirname(__DIR__, 2) . '/router.php', true) . ';})();ob_end_clean();'
             . 'echo ($r===false?"serve":"handled"),"|",http_response_code();';
         $out = trim((string) shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($script)));
         [$verdict, $status] = explode('|', $out . '|0');
@@ -55,27 +56,58 @@ final class RequestBoundaryTest extends TestCase
         }
     }
 
-    /** @dataProvider clientAndDashboardPaths */
+    #[DataProvider('clientAndDashboardPaths')]
     public function testAllowedPathIsServed(string $path): void
     {
         $verdict = $this->route($path);
         $this->assertSame('serve', $verdict[0], $path);
     }
 
-    /** @dataProvider deniedPaths */
+    #[DataProvider('deniedPaths')]
     public function testUnlistedPathIsNotFound(string $path): void
     {
         $this->assertSame(['handled', 404], $this->route($path), $path);
     }
 
-    public function testRootAndApiPathsGoToTheSameEntryAsApache(): void
+    public function testRootRedirectsToTheDashboardLikeApache(): void
     {
-        $script = '$_SERVER["REQUEST_URI"]="/"; ob_start(); require ' . var_export(dirname(__DIR__, 2) . '/router.php', true)
-            . '; ob_end_clean(); echo http_response_code(),"|",implode(",",headers_list());';
-        $root = trim((string) shell_exec(escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($script)));
-        $this->assertStringStartsWith('302|', $root);
-        $this->assertStringContainsString('Location: /ui/', $root);
-        $this->assertSame(['handled', 404], $this->route('/api/v2/x'));
+        $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        if ($socket === false) {
+            self::markTestSkipped('No loopback port available');
+        }
+        $port = (int) explode(':', stream_socket_get_name($socket, false))[1];
+        fclose($socket);
+        $root = dirname(__DIR__, 2);
+        $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+        $server = proc_open([PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $root, $root . '/router.php'],
+            [0 => ['file', $null, 'r'], 1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']], $pipes, $root);
+        try {
+            for ($i = 0; $i < 50 && !($probe = @fsockopen('127.0.0.1', $port)); $i++) {
+                usleep(100000);
+            }
+            $location = '';
+            $call = static function (string $path) use ($port, &$location): int {
+                $ch = curl_init("http://127.0.0.1:$port$path");
+                curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+                    CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$location): int {
+                        if (stripos($line, 'Location:') === 0) {
+                            $location = trim(substr($line, 9));
+                        }
+                        return strlen($line);
+                    }]);
+                curl_exec($ch);
+                $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                return $status;
+            };
+            $this->assertSame(302, $call('/'));
+            $this->assertSame('/ui/', $location);
+            $this->assertSame(404, $call('/debug/db_updates.php'));
+            $this->assertSame(404, $call('/api/v2/dispatch.php'));
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+        }
     }
 
     public function testHtaccessEndsInTheDenyingFrontController(): void
