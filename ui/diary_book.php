@@ -4,7 +4,6 @@ session_start();
 
 date_default_timezone_set('UTC');
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
 
 $rootPath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 // conf/conf.php is an optional operator override of the tracked sample (and the environment for the database).

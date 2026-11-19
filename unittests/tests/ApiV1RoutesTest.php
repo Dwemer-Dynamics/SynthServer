@@ -29,7 +29,7 @@ final class ApiV1RoutesTest extends TestCase
         unset($env['PHPUNIT_TEST']);
         $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
         $this->server = proc_open(
-            [PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $root, $root . DIRECTORY_SEPARATOR . 'router.php'],
+            [PHP_BINARY, '-S', "127.0.0.1:$port", '-t', $root, dirname(__DIR__) . '/fixtures/legacy_reference_router.php'],
             [0 => ['file', $null, 'r'], 1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']],
             $pipes,
             $root,

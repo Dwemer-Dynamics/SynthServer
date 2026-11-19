@@ -1,10 +1,53 @@
+# Deny by default: every request that does not match an allowed rule below goes to index.php, which answers
+# 404 (or sends the bare root to the dashboard). Nothing else in this tree is reachable from the web: not
+# debug/, tools/, bin/, the other root scripts, processor/ and service/ workers, conf/, log/ or data/.
+#
+# The rules are read in order and the first match wins. router.php (the development server) reads the same
+# rules from this file, so Apache and `php -S` cannot disagree. A new web-reachable path needs a rule here;
+# docs/REQUEST-BOUNDARY.md says why each one exists.
+#
 # No CORS grant: native and plugin clients are not browsers and need none, and the dashboard calls itself
 # same-origin. Management scripts also refuse cross-origin browser requests (lib/management_request_guard.php).
+# Without mod_rewrite the version one routes still work as /api/index.php/v1/<route>.
 
-# The version one API: /api/v1/<route> is answered by api/index.php unless it names a real script
-# (api/v1/voice/*.php). Without mod_rewrite the same routes work as /api/index.php/v1/<route>.
 <IfModule mod_rewrite.c>
 RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^api/v1(/.*)?$ api/index.php [L,QSA]
+
+# The front controller: the root, unknown paths and the redirect to the dashboard.
+RewriteRule ^index\.php$ - [L]
+
+# The SYNTH game client's endpoints (the F4SE plugin posts to these).
+RewriteRule ^(?:main|itt|diary_status|tts_status|vsx)\.php$ - [L]
+RewriteRule ^media\.php/media/[a-f0-9]{64}$ - [L]
+RewriteRule ^processor/npc_tts_play\.php$ - [L]
+
+# Readiness probe: the dashboard (system health, quickstart) and the launcher poll it.
+RewriteRule ^health\.php$ - [L]
+
+# The version one API: api/index.php answers every /api/v1 path, including the dashboard's voice scripts.
+RewriteRule ^api/v1(?:/.*)?$ api/index.php [L,QSA]
+RewriteRule ^api/index\.php(?:/v1(?:/.*)?)?$ - [L]
+
+# Dashboard pages and endpoints. Include-only helpers are left out, as are ui/tests, ui/core/tests, ui/tools,
+# ui/tmp, ui/data, ui/tmpl and ui/lib, except the exact scripts the dashboard itself opens.
+RewriteRule ^ui/?$ - [L]
+RewriteRule ^ui/(?!profile_loader\.php$)[A-Za-z0-9_-]+\.php$ - [L]
+RewriteRule ^ui/core/[A-Za-z0-9_-]+\.php$ - [L]
+RewriteRule ^ui/cmd/(?!ai_profile_generation_)[A-Za-z0-9_-]+\.php$ - [L]
+RewriteRule ^ui/api/[A-Za-z0-9_-]+\.php$ - [L]
+RewriteRule ^ui/addons/pmstt/(?:index\.html|pmstt_speech\.php)$ - [L]
+RewriteRule ^ui/tools/(?:check_url|server_version)\.php$ - [L]
+RewriteRule ^ui/tests/(?:itt-test|stt-test|tts-test|vector-compact-chromadb|vector-delete-memory_summary)\.php$ - [L]
+RewriteRule ^ui/core/tests/(?:apikey_test|llmtest)\.php$ - [L]
+
+# Dashboard static assets.
+RewriteRule ^ui/(?:css|js|images|addons/pmstt)/.+\.(?:css|js|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf)$ - [L,NC]
+
+# Generated media the dashboard plays or shows: cached speech and the image gallery and portraits.
+RewriteRule ^soundcache/.+\.(?:wav|mp3|ogg)$ - [L,NC]
+RewriteRule ^data/pictures/.+\.(?:jpe?g|png|webp|gif|mp4)$ - [L,NC]
+RewriteRule ^data/fonts/[^/]+\.(?:ttf|otf|woff2?)$ - [L,NC]
+
+# Everything else.
+RewriteRule ^ index.php [QSA,L]
 </IfModule>

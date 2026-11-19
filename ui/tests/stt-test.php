@@ -84,7 +84,6 @@ if ($STTFUNCTION == "azure") {
  //$error_message = "Unknown STT function: $STTFUNCTION";
 }
 
-ini_set('display_errors', 1);
 
 $transcription = '';
 $error_message = '';

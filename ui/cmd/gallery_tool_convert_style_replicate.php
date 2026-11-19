@@ -9,7 +9,6 @@ if ($method === 'POST') {
  $startTime = microtime(true);
 
  error_reporting(E_ALL);
- ini_set('display_errors', 1);
 
  $enginePath = dirname((__FILE__)) . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
  require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";

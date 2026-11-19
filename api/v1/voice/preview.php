@@ -33,6 +33,7 @@ function synthVoicePreviewFail(int $status, string $code, string $message): neve
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
 $managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'VoiceSample' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
+require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
 require_once $managerPath . 'VoicePreviewException.php';
 require_once $managerPath . 'VoicePreviewManager.php';
 
@@ -54,7 +55,7 @@ if (!is_string($length) || !ctype_digit($length)) {
 if ((int) $length > 4096) {
     synthVoicePreviewFail(413, 'too_large', 'The request is too large.');
 }
-$raw = file_get_contents('php://input', false, null, 0, 4097);
+$raw = \Synth\Lib\RequestBody::read();
 $request = is_string($raw) ? json_decode($raw, true, 4) : null;
 if (!is_array($request) || array_is_list($request) || array_diff(array_keys($request), ['npc_id', 'text', 'csrf_token'])) {
     synthVoicePreviewFail(400, 'invalid_input', 'Send a JSON object with npc_id and text.');

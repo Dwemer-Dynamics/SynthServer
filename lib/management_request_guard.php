@@ -5,23 +5,18 @@
 // the dashboard's only trust is the Apache loopback rule plus a Host-header allowlist that blocks DNS rebinding.
 // Requiring this file enforces the policy once, before the
 // including page touches configuration, the database or the filesystem. CLI runs and native API scripts outside
-// these directories are never affected.
+// these directories are never affected. The host, origin and address rules live in Synth\Lib\LocalAccess and
+// Synth\Lib\SameOriginRequest; the functions below keep their names and delegate to them.
+
+require_once __DIR__ . '/LocalAccess.php';
+require_once __DIR__ . '/SameOriginRequest.php';
 
 if (!function_exists('synthManagementOriginMatches')) {
     // Exact scheme, host and port match of a serialized origin against this request's Host. Forwarded headers are
     // ignored, so a TLS-terminating or Host-rewriting proxy must preserve Host and the scheme.
     function synthManagementOriginMatches(string $origin, array $server): bool
     {
-        $https = $server['HTTPS'] ?? '';
-        $scheme = is_string($https) && $https !== '' && strtolower($https) !== 'off' ? 'https' : 'http';
-        $host = $server['HTTP_HOST'] ?? null;
-        $authority = '(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::([0-9]{1,5}))?';
-        $port = static fn(array $m, int $i): int => ($m[$i] ?? '') !== '' ? (int) $m[$i] : ($scheme === 'https' ? 443 : 80);
-        return is_string($host)
-            && preg_match("~^(https?)://$authority$~iD", $origin, $o) === 1
-            && preg_match("~^$authority$~iD", $host, $h) === 1
-            && strtolower($o[1]) === $scheme && strtolower($o[2]) === strtolower($h[1])
-            && ($originPort = $port($o, 3)) === $port($h, 2) && $originPort >= 1 && $originPort <= 65535;
+        return \Synth\Lib\SameOriginRequest::originMatches($origin, $server);
     }
 }
 
@@ -37,40 +32,20 @@ if (!function_exists('synthManagementHostRefusalMessage')) {
     // is null for anything that is not a plain hostname, IPv4 literal or bracketed IPv6 literal with an optional port.
     function synthManagementHostName(mixed $authority): ?string
     {
-        if (!is_string($authority) || strlen($authority) > 255
-            || preg_match('~^(\[[0-9a-f:.]+\]|[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.?)(?::([0-9]{1,5}))?$~iD', $authority, $m) !== 1) {
-            return null;
-        }
-        $host = strtolower(rtrim($m[1], '.'));
-        if ($host === '' || (isset($m[3]) && $m[3] !== '' && (int) $m[3] > 65535)) {
-            return null;
-        }
-        return $host;
+        return \Synth\Lib\LocalAccess::hostName($authority);
     }
 
-    // True for an IPv4 literal or a bracketed IPv6 literal. A literal cannot be DNS-rebound: the browser sends it
-    // only when the page itself was opened by that address, which is then a different origin from any attacker page.
+    // True for an IPv4 literal or a bracketed IPv6 literal (see LocalAccess::isIpLiteral).
     function synthManagementHostIsIpLiteral(string $host): bool
     {
-        if ($host !== '' && $host[0] === '[') {
-            return filter_var(substr($host, 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-        }
-        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        return \Synth\Lib\LocalAccess::isIpLiteral($host);
     }
 
     // Operator hostnames (not IP literals, which are always allowed) from "a,b c;d". Ports are ignored, wildcards and
     // anything that is not a plain hostname are dropped.
     function synthManagementParseAllowedHosts(mixed $value): array
     {
-        $tokens = is_array($value) ? $value : preg_split('~[\s,;]+~', is_string($value) ? $value : '', -1, PREG_SPLIT_NO_EMPTY);
-        $hosts = [];
-        foreach ($tokens as $token) {
-            $host = synthManagementHostName($token);
-            if ($host !== null && !synthManagementHostIsIpLiteral($host)) {
-                $hosts[$host] = true;
-            }
-        }
-        return array_keys($hosts);
+        return \Synth\Lib\LocalAccess::parseAllowedHosts($value);
     }
 
     // SYNTH_ALLOWED_HOSTS from the environment, else conf/conf.php. Read lazily, only for a non-loopback hostname.
@@ -102,18 +77,13 @@ if (!function_exists('synthManagementHostRefusalMessage')) {
     // machine's own host name, or an operator-listed name. $extraHosts replaces the configured list (tests).
     function synthManagementHostAllowed(array $server, ?array $extraHosts = null): bool
     {
-        $host = synthManagementHostName($server['HTTP_HOST'] ?? null);
+        $host = \Synth\Lib\LocalAccess::hostName($server['HTTP_HOST'] ?? null);
         if ($host === null) {
             return false;
         }
-        if ($host === 'localhost' || str_ends_with($host, '.localhost') || synthManagementHostIsIpLiteral($host)) {
-            return true;
-        }
-        $own = gethostname();
-        if (is_string($own) && $own !== '' && $host === strtolower($own)) {
-            return true;
-        }
-        return in_array($host, $extraHosts ?? synthManagementConfiguredHosts(), true);
+        // The configured list is read lazily, only for a name that is not loopback, an IP literal or this machine.
+        return \Synth\Lib\LocalAccess::hostAllowed($server, [])
+            || \Synth\Lib\LocalAccess::hostAllowed($server, $extraHosts ?? synthManagementConfiguredHosts());
     }
 }
 
@@ -152,34 +122,7 @@ if (!function_exists('synthManagementRequestRefusal')) {
         if (!synthManagementHostAllowed($server, $extraHosts)) {
             return synthManagementHostRefusalMessage();
         }
-        $method = strtoupper(strval($server['REQUEST_METHOD'] ?? 'GET'));
-        $site = $server['HTTP_SEC_FETCH_SITE'] ?? null;
-        $origin = $server['HTTP_ORIGIN'] ?? null;
-        $referer = $server['HTTP_REFERER'] ?? null;
-        $crossOrigin = 'Cross-origin management requests are not allowed. Open the SYNTH dashboard directly and try again.';
-
-        if ($site !== null && !in_array($site, ['same-origin', 'none'], true)) {
-            return $crossOrigin;
-        }
-        if ($origin !== null) {
-            return is_string($origin) && synthManagementOriginMatches($origin, $server) ? null : $crossOrigin;
-        }
-        if ($site !== null) {
-            return null;
-        }
-        if ($referer !== null) {
-            $parts = is_string($referer) ? parse_url($referer) : false;
-            $refererOrigin = is_array($parts) && isset($parts['scheme'], $parts['host']) && !isset($parts['user'])
-                ? $parts['scheme'] . '://' . (str_contains($parts['host'], ':') && $parts['host'][0] !== '[' ? '[' . $parts['host'] . ']' : $parts['host'])
-                    . (isset($parts['port']) ? ':' . $parts['port'] : '')
-                : '';
-            return $refererOrigin !== '' && synthManagementOriginMatches($refererOrigin, $server) ? null : $crossOrigin;
-        }
-        if (($getHasEffect || !in_array($method, ['GET', 'HEAD'], true))
-            && str_contains(strval($server['HTTP_USER_AGENT'] ?? ''), 'Mozilla/')) {
-            return 'This browser did not identify the request origin. Reload the SYNTH dashboard page and try again.';
-        }
-        return null;
+        return \Synth\Lib\SameOriginRequest::refusal($server, $getHasEffect);
     }
 }
 
