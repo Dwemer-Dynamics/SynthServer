@@ -18,7 +18,7 @@ final class LlmConnectorDao
     /** One row by id, or null. */
     public function find(int $id): ?AbstractLlmConnector
     {
-        return $this->entityManager->find(AbstractLlmConnector::class, $id);
+        return $this->fresh()->find(AbstractLlmConnector::class, $id);
     }
 
     /** The id of the connector whose label equals this one, ignoring case, or null. */
@@ -49,6 +49,6 @@ final class LlmConnectorDao
     /** Every row, ordered by id. @return list<AbstractLlmConnector> */
     public function findAll(): array
     {
-        return array_values($this->entityManager->getRepository(AbstractLlmConnector::class)->findBy([], ['id' => 'ASC']));
+        return array_values($this->fresh()->getRepository(AbstractLlmConnector::class)->findBy([], ['id' => 'ASC']));
     }
 }

@@ -1094,7 +1094,7 @@ CREATE SEQUENCE public.llm_connector_id_seq
 -- end-statement
 ALTER SEQUENCE public.llm_connector_id_seq OWNED BY public.core_llm_connector.id;
 -- end-statement
-CREATE TABLE public.core_location (
+CREATE TABLE public.core_location_legacy (
     name text,
     formid bigint,
     worldspace text,
@@ -1108,7 +1108,7 @@ CREATE TABLE public.core_location (
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
-COMMENT ON TABLE public.core_location IS 'locations sent from plugin';
+COMMENT ON TABLE public.core_location_legacy IS 'locations sent from plugin';
 -- end-statement
 CREATE TABLE synth.log (
     localts bigint NOT NULL,
@@ -5508,5 +5508,118 @@ CREATE TABLE public.core_plugin_manifest_revision (
     CONSTRAINT core_plugin_manifest_revision_plugins_check CHECK ((jsonb_typeof(plugins) = 'array'::text)),
     CONSTRAINT core_plugin_manifest_revision_sha_check CHECK ((manifest_sha256 ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT core_plugin_manifest_revision_unique UNIQUE (playthrough_id, manifest_sha256)
+);
+-- end-statement
+CREATE TABLE public.core_worldspace (
+    worldspace_id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    plugin text NOT NULL,
+    baseid integer NOT NULL,
+    editor_id text,
+    name text,
+    parent_worldspace_id integer,
+    map_worldspace_id integer,
+    CONSTRAINT core_worldspace_pkey PRIMARY KEY (worldspace_id),
+    CONSTRAINT core_worldspace_ref_key UNIQUE (plugin, baseid),
+    CONSTRAINT core_worldspace_baseid_check CHECK (((baseid >= 0) AND (baseid <= 16777215))),
+    CONSTRAINT core_worldspace_plugin_check CHECK ((plugin = lower(plugin))),
+    CONSTRAINT core_worldspace_parent_fkey FOREIGN KEY (parent_worldspace_id) REFERENCES public.core_worldspace(worldspace_id) ON DELETE SET NULL,
+    CONSTRAINT core_worldspace_map_fkey FOREIGN KEY (map_worldspace_id) REFERENCES public.core_worldspace(worldspace_id) ON DELETE SET NULL
+);
+-- end-statement
+CREATE TABLE public.core_location (
+    location_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+    kind text DEFAULT 'game'::text NOT NULL,
+    plugin text NOT NULL,
+    baseid integer NOT NULL,
+    name text NOT NULL,
+    editor_id text,
+    parent_plugin text,
+    parent_baseid integer,
+    parent_location_id bigint,
+    region_location_id bigint,
+    keywords jsonb DEFAULT '[]'::jsonb NOT NULL,
+    tags jsonb DEFAULT '[]'::jsonb NOT NULL,
+    map_worldspace_id integer,
+    map_x double precision,
+    map_y double precision,
+    position_source text DEFAULT 'none'::text NOT NULL,
+    last_catalog_sha256 character(64),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT core_location_pkey PRIMARY KEY (location_id),
+    CONSTRAINT core_location_ref_key UNIQUE (plugin, baseid),
+    CONSTRAINT core_location_baseid_check CHECK (((baseid >= 0) AND (baseid <= 16777215))),
+    CONSTRAINT core_location_kind_check CHECK ((kind = 'game'::text)),
+    CONSTRAINT core_location_keywords_check CHECK ((jsonb_typeof(keywords) = 'array'::text)),
+    CONSTRAINT core_location_tags_check CHECK ((jsonb_typeof(tags) = 'array'::text)),
+    CONSTRAINT core_location_plugin_check CHECK ((plugin = lower(plugin))),
+    CONSTRAINT core_location_position_check CHECK ((((map_x IS NULL) = (map_y IS NULL)) AND (NOT ((map_x = (0)::double precision) AND (map_y = (0)::double precision))))),
+    CONSTRAINT core_location_position_source_check CHECK ((position_source = ANY (ARRAY['map_marker'::text, 'world_marker'::text, 'center_marker'::text, 'parent'::text, 'none'::text]))),
+    CONSTRAINT core_location_sha_check CHECK (((last_catalog_sha256 IS NULL) OR (last_catalog_sha256 ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT core_location_parent_fkey FOREIGN KEY (parent_location_id) REFERENCES public.core_location(location_id) ON DELETE SET NULL,
+    CONSTRAINT core_location_region_fkey FOREIGN KEY (region_location_id) REFERENCES public.core_location(location_id) ON DELETE SET NULL,
+    CONSTRAINT core_location_map_fkey FOREIGN KEY (map_worldspace_id) REFERENCES public.core_worldspace(worldspace_id) ON DELETE SET NULL
+);
+-- end-statement
+CREATE INDEX core_location_parent_ref_idx ON public.core_location USING btree (parent_plugin, parent_baseid);
+-- end-statement
+CREATE INDEX core_location_map_idx ON public.core_location USING btree (map_worldspace_id, map_x, map_y) WHERE (map_x IS NOT NULL);
+-- end-statement
+CREATE TABLE public.core_location_marker (
+    marker_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+    location_id bigint NOT NULL,
+    marker_type text NOT NULL,
+    plugin text NOT NULL,
+    baseid integer NOT NULL,
+    cell_plugin text,
+    cell_baseid integer,
+    interior boolean DEFAULT false NOT NULL,
+    worldspace_id integer,
+    x double precision,
+    y double precision,
+    z double precision,
+    disabled boolean DEFAULT false NOT NULL,
+    CONSTRAINT core_location_marker_pkey PRIMARY KEY (marker_id),
+    CONSTRAINT core_location_marker_ref_key UNIQUE (location_id, marker_type, plugin, baseid),
+    CONSTRAINT core_location_marker_type_check CHECK ((marker_type = ANY (ARRAY['map_marker'::text, 'location_center'::text, 'outside_entrance'::text, 'inside_entrance'::text, 'boss_treasure'::text, 'world_marker'::text, 'workshop'::text]))),
+    CONSTRAINT core_location_marker_interior_check CHECK (((NOT interior) OR (worldspace_id IS NULL))),
+    CONSTRAINT core_location_marker_location_fkey FOREIGN KEY (location_id) REFERENCES public.core_location(location_id) ON DELETE CASCADE,
+    CONSTRAINT core_location_marker_worldspace_fkey FOREIGN KEY (worldspace_id) REFERENCES public.core_worldspace(worldspace_id) ON DELETE SET NULL
+);
+-- end-statement
+CREATE TABLE public.core_location_state (
+    playthrough_id text NOT NULL,
+    location_id bigint NOT NULL,
+    cleared boolean,
+    discovered boolean,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT core_location_state_pkey PRIMARY KEY (playthrough_id, location_id),
+    CONSTRAINT core_location_state_location_fkey FOREIGN KEY (location_id) REFERENCES public.core_location(location_id) ON DELETE CASCADE
+);
+-- end-statement
+CREATE TABLE public.core_relationship_config (
+    playthrough_id text NOT NULL,
+    source_character_id integer NOT NULL,
+    target_character_id integer NOT NULL,
+    relation_detail text,
+    custom_info text,
+    private_notes text,
+    automatic_updates_locked boolean DEFAULT false NOT NULL,
+    baseline_affinity smallint,
+    baseline_type character varying(50),
+    revision bigint DEFAULT 1 NOT NULL,
+    affinity_baseline_revision bigint DEFAULT 0 NOT NULL,
+    type_baseline_revision bigint DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT core_relationship_config_pkey PRIMARY KEY (playthrough_id, source_character_id, target_character_id),
+    CONSTRAINT core_relationship_config_pair_check CHECK ((source_character_id <> target_character_id)),
+    CONSTRAINT core_relationship_config_detail_check CHECK (((relation_detail IS NULL) OR (char_length(relation_detail) <= 512))),
+    CONSTRAINT core_relationship_config_info_check CHECK (((custom_info IS NULL) OR (char_length(custom_info) <= 4096))),
+    CONSTRAINT core_relationship_config_notes_check CHECK (((private_notes IS NULL) OR (char_length(private_notes) <= 4096))),
+    CONSTRAINT core_relationship_config_affinity_check CHECK (((baseline_affinity IS NULL) OR ((baseline_affinity >= '-100'::integer) AND (baseline_affinity <= 100)))),
+    CONSTRAINT core_relationship_config_type_check CHECK (((baseline_type IS NULL) OR ((baseline_type)::text ~ '^[a-z][a-z0-9_-]{0,49}$'::text))),
+    CONSTRAINT core_relationship_config_revision_check CHECK ((revision >= 1)),
+    CONSTRAINT core_relationship_config_baseline_revisions_check CHECK (((affinity_baseline_revision >= 0) AND (affinity_baseline_revision <= revision) AND (type_baseline_revision >= 0) AND (type_baseline_revision <= revision)))
 );
 -- end-statement

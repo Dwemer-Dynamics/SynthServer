@@ -18,7 +18,7 @@ final class ProfileDao
     /** One row by id, or null. */
     public function find(int $id): ?AbstractProfile
     {
-        return $this->entityManager->find(AbstractProfile::class, $id);
+        return $this->fresh()->find(AbstractProfile::class, $id);
     }
 
     /** The id of the profile with this exact name, or null. */
@@ -89,6 +89,6 @@ final class ProfileDao
     /** Every row, ordered by id. @return list<AbstractProfile> */
     public function findAll(): array
     {
-        return array_values($this->entityManager->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
+        return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
 }
