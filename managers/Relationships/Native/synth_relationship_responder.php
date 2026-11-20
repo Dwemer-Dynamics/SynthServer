@@ -30,7 +30,7 @@ function synth_relationship_responder($db, array $event, array $context): ?array
         if (is_array($identity) && $key($identity)===$actorKey) $matches[$actorKey]=$identity;
     }
     if (count($matches)!==1) return null;
-    $result=$db->execQuery("SELECT id FROM synth.actor_identities WHERE game='fo4'
+    $result=$db->execQuery("SELECT id FROM public.core_actor_identity WHERE game='fo4'
         AND upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3",
         [$actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id']]);
     $row=$result ? $db->fetchArray($result) : null;
@@ -60,7 +60,7 @@ function synth_relationship_responder_context_sql(string $event): string
 function synth_relationship_responder_sql(string $event, string $actorId, string $context): string
 {
     return "EXISTS (SELECT 1 FROM public.core_protocol_event responder_owner
-        JOIN synth_meta.request_executions responder_execution ON responder_execution.session_id=responder_owner.session_id
+        JOIN public.core_request_execution responder_execution ON responder_execution.session_id=responder_owner.session_id
             AND responder_execution.request_id=responder_owner.request_id AND responder_execution.generation=responder_owner.generation
             AND responder_execution.turn_id=responder_owner.turn_id AND responder_execution.event_type=responder_owner.event_type
             AND responder_execution.request_sha256=responder_owner.event_sha256
@@ -70,7 +70,7 @@ function synth_relationship_responder_sql(string $event, string $actorId, string
             AND responder_root.generation=responder_owner.generation AND responder_root.playthrough_id=responder_runtime.playthrough_id
             AND responder_root.snapshot_sequence=CASE WHEN ($event)->>'context_sequence' ~ '^[1-9][0-9]{0,15}$'
                 THEN (($event)->>'context_sequence')::bigint ELSE NULL END
-        JOIN synth.actor_identities responder_actor ON responder_actor.id=($actorId) AND responder_actor.game='fo4'
+        JOIN public.core_actor_identity responder_actor ON responder_actor.id=($actorId) AND responder_actor.game='fo4'
             AND responder_actor.playthrough_id=responder_root.playthrough_id AND responder_actor.id<>responder_root.player_identity_id
         LEFT JOIN public.core_rechat_selection responder_selection ON responder_selection.session_id=responder_owner.session_id
             AND responder_selection.request_id=responder_owner.request_id

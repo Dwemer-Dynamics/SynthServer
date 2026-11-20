@@ -71,12 +71,12 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
             'baseid' => 'Fallout4.esm|0001DB4C',
             'voice' => 'CreatureDeathclaw',
         ]);
-        $created = $db->fetchOne("SELECT * FROM synth.core_npc_master WHERE npc_name='Runtime Deathclaw'");
+        $created = $db->fetchOne("SELECT * FROM public.core_npc WHERE npc_name='Runtime Deathclaw'");
         self::assertSame('Fallout4.esm|0001DB4C', $created['base'] ?? null);
         self::assertNotSame('CreatureDeathclaw', $created['voiceid'] ?? null);
 
         $db->execQuery("
-            UPDATE synth.core_npc_master
+            UPDATE public.core_npc
             SET voiceid='manual_test_voice', npc_static_bio='Manual biography.', lock_profile=1,
                 extended_data=jsonb_build_object('voice_metadata', jsonb_build_object('source', 'manual'))
             WHERE npc_name='Runtime Deathclaw'
@@ -87,7 +87,7 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
         ]);
         $preserved = $db->fetchOne("
             SELECT voiceid, npc_static_bio, lock_profile, extended_data
-            FROM synth.core_npc_master WHERE npc_name='Runtime Deathclaw'
+            FROM public.core_npc WHERE npc_name='Runtime Deathclaw'
         ");
         self::assertSame('manual_test_voice', $preserved['voiceid'] ?? null);
         self::assertSame('Manual biography.', $preserved['npc_static_bio'] ?? null);

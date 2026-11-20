@@ -9,7 +9,7 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
     private function actor(string $save, string $reference, string $name): int
     {
         $db = $this->db();
-        return intval($db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name)
+        return intval($db->fetchOne("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name)
             VALUES('fo4',".$db->escapeLiteral($save).",'Fallout4.esm',".$db->escapeLiteral($reference).",".$db->escapeLiteral($name).") RETURNING id")['id']);
     }
 
@@ -34,9 +34,9 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
         $this->context('label-session-old', 'label-save-old', $oldPlayer, '2026-10-06 00:00:00+00');
         $this->context('label-session-latest', 'label-save-latest', $latestPlayer, '2026-10-07 00:00:00+00');
         $db->execQuery("UPDATE public.core_runtime_session SET updated_at='2026-10-09 00:00:00+00' WHERE session_id='label-session-old'");
-        $db->execQuery("UPDATE synth.actor_identities SET last_seen_at='2026-10-09 00:00:00+00' WHERE id=$oldSturges");
-        $db->execQuery("UPDATE synth.actor_identities SET last_seen_at='2026-10-01 00:00:00+00' WHERE id=$latestSturges");
-        $before = $db->fetchAll('SELECT * FROM synth.actor_identities ORDER BY id');
+        $db->execQuery("UPDATE public.core_actor_identity SET last_seen_at='2026-10-09 00:00:00+00' WHERE id=$oldSturges");
+        $db->execQuery("UPDATE public.core_actor_identity SET last_seen_at='2026-10-01 00:00:00+00' WHERE id=$latestSturges");
+        $before = $db->fetchAll('SELECT * FROM public.core_actor_identity ORDER BY id');
         $db->execQuery('BEGIN READ ONLY');
         try { $labels = synthNpcActorSaveLabels($db, [$oldSturges, $latestSturges]); }
         finally { $db->execQuery('ROLLBACK'); }
@@ -50,8 +50,8 @@ final class ActorIdentityLabelsTest extends DatabaseTestCase
             (new DateTimeImmutable(substr($labels[$latestSturges]['detail'], strlen($detailPrefix))))->getTimestamp());
         self::assertNotSame($labels[$oldSturges]['label'], $labels[$latestSturges]['label']);
         self::assertStringNotContainsString('label-save-latest', json_encode($labels));
-        self::assertSame($before, $db->fetchAll('SELECT * FROM synth.actor_identities ORDER BY id'));
-        self::assertSame('2', $db->fetchOne("SELECT count(*) AS n FROM synth.actor_identities WHERE display_name='Sturges'")['n']);
+        self::assertSame($before, $db->fetchAll('SELECT * FROM public.core_actor_identity ORDER BY id'));
+        self::assertSame('2', $db->fetchOne("SELECT count(*) AS n FROM public.core_actor_identity WHERE display_name='Sturges'")['n']);
     }
 
     public function testAbsentContextFallsBackToSaveLabelsWithoutClaimingCurrentOwnership(): void

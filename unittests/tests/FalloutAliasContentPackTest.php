@@ -82,19 +82,19 @@ final class FalloutAliasContentPackTest extends DatabaseTestCase
             synthInstallFalloutContentPack($this->db(),$root);
             foreach ([$row['baseid'],$row['base_aliases'][0]] as $index=>$base) {
                 $reference='0x00F1080'.($index+1);
-                $result=$this->db()->execQuery('INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES($1,$2,$3,$4,$5) RETURNING id',
+                $result=$this->db()->execQuery('INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES($1,$2,$3,$4,$5) RETURNING id',
                     ['fo4','continuing-alias-fixture','Fallout4.esm',$reference,$row['display_name']]);
                 self::assertNotFalse($result);$actor=pg_fetch_assoc($result);$id=intval($actor['id']);$ids[]=$id;
                 synth_upsert_npc_profile($this->db(),$row['display_name'],$reference,
                     ['baseid'=>'Fallout4.esm|'.$base,'reference_origin_plugin'=>'Fallout4.esm'],$id);
-                self::assertNotFalse($this->db()->execQuery('UPDATE synth.core_npc_master SET npc_static_bio=NULL,voiceid=$1,relationships=$2 WHERE actor_identity_id=$3',
+                self::assertNotFalse($this->db()->execQuery('UPDATE public.core_npc SET npc_static_bio=NULL,voiceid=$1,relationships=$2 WHERE actor_identity_id=$3',
                     ['fixture_form_voice_'.$index,'Authored form relationships '.$index.'.',$id]));
             }
             self::assertNotSame($ids[0],$ids[1]);
             self::assertSame(2,synthInstallFalloutContentPack($this->db(),$root,true)['profiles_filled']);
             $profileIds=[];
             foreach ($ids as $index=>$id) {
-                $profile=$this->db()->fetchOne('SELECT id,npc_static_bio,skills,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
+                $profile=$this->db()->fetchOne('SELECT id,npc_static_bio,skills,voiceid,relationships FROM public.core_npc WHERE actor_identity_id='.$id);
                 $profileIds[]=$profile['id'];
                 self::assertSame([synth_biography_background($row['fields']['npc_static_bio'],$row['fields']['skills']),null],
                     [$profile['npc_static_bio'],$profile['skills']]);

@@ -1590,7 +1590,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         try {
             $escaped = \Synth\Bootstrap::db()->escape($candidate);
             $row = \Synth\Bootstrap::db()->fetchOne(
-                "SELECT 1 FROM core_npc_master WHERE LOWER(npc_name) = LOWER('{$escaped}') LIMIT 1"
+                "SELECT 1 FROM core_npc WHERE LOWER(npc_name) = LOWER('{$escaped}') LIMIT 1"
             );
             if ($row) {
                 $cache[$key] = false;

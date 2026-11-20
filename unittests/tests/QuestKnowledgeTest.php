@@ -49,7 +49,7 @@ final class QuestKnowledgeFixtureDatabase
             $this->execQuery("SET LOCAL lock_timeout='2s'");
             $this->execQuery("SELECT set_config('statement_timeout',$1,true)",[(string)max(1,min(2000,$statementTimeoutMs ?: 2000))]);
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
-            $result=$this->execQuery("SELECT 1 FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING(session_id)
+            $result=$this->execQuery("SELECT 1 FROM public.core_request_execution e JOIN public.core_runtime_session r USING(session_id)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$4
                   AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=e.generation
                   AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$5",
@@ -103,7 +103,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
             'piper'=>['0x00002F1F','Piper Wright'],'impostor'=>['0xFF001234','Preston Garvey'],
             'named_narrator'=>['0xFF001235','The Narrator']] as $key=>[$form,$name]) {
             $this->identities[$key]=['form_id'=>$form,'origin_plugin'=>'Fallout4.esm','playthrough_id'=>'quest-save-one','display_name'=>$name];
-            $result=$this->fixtureDb->execQuery('INSERT INTO synth.actor_identities(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
+            $result=$this->fixtureDb->execQuery('INSERT INTO public.core_actor_identity(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
                 [$form,'Fallout4.esm','quest-save-one',$name]);
             $this->identityIds[$key]=(int)pg_fetch_assoc($result)['id'];
         }
@@ -150,10 +150,10 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     }
     private function identityId(array $identity): int
     {
-        $result=$this->fixtureDb->execQuery('SELECT id FROM synth.actor_identities WHERE upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3',
+        $result=$this->fixtureDb->execQuery('SELECT id FROM public.core_actor_identity WHERE upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3',
             [$identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id']]);
         if ($row=pg_fetch_assoc($result)) return (int)$row['id'];
-        $result=$this->fixtureDb->execQuery('INSERT INTO synth.actor_identities(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
+        $result=$this->fixtureDb->execQuery('INSERT INTO public.core_actor_identity(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
             [$identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id'],$identity['display_name']]);
         return (int)pg_fetch_assoc($result)['id'];
     }
@@ -173,7 +173,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     private function request(array $event,string $state,string $mode='STANDARD',?string $transcript=null): void
     {
         $canonical=synth_protocol_canonical_json($event);$hash=hash('sha256',$canonical);
-        $this->fixtureDb->execQuery('INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,$7)',
+        $this->fixtureDb->execQuery('INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,$7)',
             [$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],$hash,$event['type'],$state]);
         $this->fixtureDb->execQuery('INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)',
             [$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],$event['type'],$canonical,$hash]);
@@ -189,7 +189,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
             'rowid'=>900000+(++$this->historyRows),'delivery_state'=>'received',
             'synth_session_id'=>$event['session_id'],'synth_generation'=>$event['generation'],
             'synth_context_sequence'=>$event['context_sequence'],'synth_request_id'=>$event['request_id']];
-        $result=$this->fixtureDb->execQuery('INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING id',
+        $result=$this->fixtureDb->execQuery('INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING id',
             [$event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],$payload['playthrough_id'],$record['rowid'],$this->json($record)]);
         return (int)pg_fetch_assoc($result)['id'];
     }
@@ -210,12 +210,12 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     private function completeSource(array $source,string $body="finished reply\n"): array
     {
         $saved=$GLOBALS['SYNTH_REQUEST_EVENT'];
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='claimed',completed_at=NULL WHERE session_id=$1 AND request_id=$2",[$source['session_id'],$source['request_id']]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='claimed',completed_at=NULL WHERE session_id=$1 AND request_id=$2",[$source['session_id'],$source['request_id']]);
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($source);
             synth_protocol_complete_request($this->fixtureDb,'complete','application/x-ndjson',$body);
         } finally {$GLOBALS['SYNTH_REQUEST_EVENT']=$saved;}
-        return $this->fixtureDb->fetchOne('SELECT * FROM synth_meta.request_executions WHERE session_id='
+        return $this->fixtureDb->fetchOne('SELECT * FROM public.core_request_execution WHERE session_id='
             .$this->fixtureDb->escapeLiteral($source['session_id']).' AND request_id='.$this->fixtureDb->escapeLiteral($source['request_id']));
     }
 
@@ -278,7 +278,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $descendant=$this->sourceEvent;$descendant['request_id']='retention-complete-trigger';$descendant['type']='trigger';
         $descendant['payload']=['kind'=>'rechat'];$this->request($descendant,'complete');
         $this->cancelSource($this->sourceEvent,$target,$anchor!=='request');
-        $after=$this->fixtureDb->fetchOne("SELECT * FROM synth_meta.request_executions WHERE request_id='quest-source'");
+        $after=$this->fixtureDb->fetchOne("SELECT * FROM public.core_request_execution WHERE request_id='quest-source'");
         $this->assertSame('complete',$after['state']);
         $this->assertSame($before['completed_at'],$after['completed_at']);
         $this->assertNull($after['response_body']);
@@ -294,27 +294,27 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertRetiredSourceCannotDoLateWork($this->sourceEvent);
         $states=array_column($this->fixtureDb->fetchAll("SELECT state FROM public.core_worker_job WHERE request_id='quest-source' ORDER BY id"),'state');
         $this->assertSame(['cancelled','cancelled','ready'],$states);
-        $child=$this->fixtureDb->fetchOne("SELECT state,response_body FROM synth_meta.request_executions WHERE request_id='retention-complete-trigger'");
+        $child=$this->fixtureDb->fetchOne("SELECT state,response_body FROM public.core_request_execution WHERE request_id='retention-complete-trigger'");
         $this->assertSame($anchor==='request' ? 'complete' : 'cancelled',$child['state']);
-        if ($anchor==='context') $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='retention-context'")['state']);
+        if ($anchor==='context') $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='retention-context'")['state']);
         $this->cancelSource($this->sourceEvent,$target,$anchor!=='request');
-        $this->assertSame($before['completed_at'],$this->fixtureDb->fetchOne("SELECT completed_at FROM synth_meta.request_executions WHERE request_id='quest-source'")['completed_at']);
+        $this->assertSame($before['completed_at'],$this->fixtureDb->fetchOne("SELECT completed_at FROM public.core_request_execution WHERE request_id='quest-source'")['completed_at']);
     }
     public static function completedReportCancellationProvider(): array {return ['context anchor'=>['context'],'reply anchor'=>['reply'],'request only'=>['request']];}
 
     #[PHPUnit\Framework\Attributes\DataProvider('interruptedReportProvider')]
     public function testInterruptedPlayerInputNeverBecomesLearningAfterCancellation(string $state): void
     {
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state=$1,completed_at=NULL,response_body=NULL WHERE request_id='quest-source'",[$state]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state=$1,completed_at=NULL,response_body=NULL WHERE request_id='quest-source'",[$state]);
         $this->cancelSource($this->sourceEvent,$this->sourceEvent['request_id']);
-        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='quest-source'")['state']);
+        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='quest-source'")['state']);
         $this->assertSame([],$this->view()['reports']);
         $saved=$GLOBALS['SYNTH_REQUEST_EVENT'];
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($this->sourceEvent);
             synth_protocol_complete_request($this->fixtureDb,'complete','application/x-ndjson','Late reply');
         } finally {$GLOBALS['SYNTH_REQUEST_EVENT']=$saved;}
-        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='quest-source'")['state']);
+        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='quest-source'")['state']);
         $this->assertSame([],$this->view()['reports']);
     }
 
@@ -344,12 +344,12 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $context=$this->sourceEvent;$context['type']='context';$context['request_id']='retention-context';
         $context['payload']=$this->sourcePayload;$this->request($context,'complete');
         $this->cancelSource($context,$context['request_id']);
-        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='retention-context'")['state']);
+        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='retention-context'")['state']);
         $late=$this->sourceEvent;$late['request_id']='retention-late-first';$late['capabilities'][]='dialogue.turn_cancel';
         $wire=$this->claimInChild($late);
         $this->assertSame(409,$wire['status']);$this->assertSame('turn_cancelled',$wire['body']['code']);
         $this->assertFalse($wire['body']['retryable']);
-        $this->assertNull($this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='retention-late-first'"));
+        $this->assertNull($this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='retention-late-first'"));
         $this->assertCount(1,$this->view()['reports']);
     }
 
@@ -361,7 +361,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $child['payload']=$type==='context' ? $this->sourcePayload : ['kind'=>'fixture'];
         $this->request($child,'complete');$this->completeSource($child,'old descendant reply');
         $this->cancelSource($this->sourceEvent,$this->sourceEvent['request_id']);
-        $row=$this->fixtureDb->fetchOne("SELECT state,response_body,error_code FROM synth_meta.request_executions WHERE request_id='retention-nonplayer'");
+        $row=$this->fixtureDb->fetchOne("SELECT state,response_body,error_code FROM public.core_request_execution WHERE request_id='retention-nonplayer'");
         $this->assertSame('cancelled',$row['state']);$this->assertNull($row['response_body']);
         $this->assertSame('turn_cancelled',$row['error_code']);$this->assertCount(1,$this->view()['reports']);
     }
@@ -381,7 +381,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->selectCurrent('quest-session-one',1,3,'preston',$audioId);
         $before=$this->completeSource($audio);$this->cancelSource($audio,$audio['request_id']);
         $this->assertContains($text,array_column($this->view()['reports'],'report'));
-        $after=$this->fixtureDb->fetchOne("SELECT state,completed_at FROM synth_meta.request_executions WHERE request_id='retention-audio'");
+        $after=$this->fixtureDb->fetchOne("SELECT state,completed_at FROM public.core_request_execution WHERE request_id='retention-audio'");
         $this->assertSame('complete',$after['state']);$this->assertSame($before['completed_at'],$after['completed_at']);
         $this->assertRetiredSourceCannotDoLateWork($audio);
         $this->fixtureDb->execQuery("UPDATE public.core_dialogue_origin_policy SET input_text=NULL WHERE request_id='retention-audio'");
@@ -408,7 +408,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $canonical=synth_protocol_canonical_json($audio);$hash=hash('sha256',$canonical);
         $sql="SELECT p.canonical_event::text,p.event_sha256,e.request_sha256,d.execution_mode,d.input_text,
             c.context_payload::text FROM public.core_protocol_event p
-            JOIN synth_meta.request_executions e USING(session_id,request_id)
+            JOIN public.core_request_execution e USING(session_id,request_id)
             JOIN public.core_dialogue_origin_policy d USING(session_id,request_id)
             JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation
                 AND c.snapshot_sequence=2 WHERE p.request_id='current-audio'";
@@ -439,7 +439,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     public function testAudioDerivedTextCannotReviveCancelledOrSupersededOwner(string $state): void
     {
         $text='Please wait here.';$audio=$this->claimedAudio($text);$request=['input_audio',1,2,''];
-        if ($state==='cancelled') $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id='current-audio'");
+        if ($state==='cancelled') $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id='current-audio'");
         else $this->fixtureDb->execQuery("UPDATE public.core_runtime_session SET active_turn_id='newer-turn' WHERE session_id='quest-session-one'");
         $this->expectException(SYNTHProtocolCancelled::class);$this->expectExceptionMessage('Fixture owner inactive');
         synth_protocol_bind_dialogue_context($this->fixtureDb,$audio,$request,$text);
@@ -526,7 +526,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertSame([],$view()['reports']);
         $this->selectCurrent('quest-session-one',1,5,'preston',$this->historyId);
         $this->assertCount(1,$view()['reports']);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='claimed' WHERE session_id=$1 AND request_id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='claimed' WHERE session_id=$1 AND request_id=$2",
             [$this->sourceEvent['session_id'],$this->sourceEvent['request_id']]);
         $this->assertSame([],$view()['reports']);
     }
@@ -552,7 +552,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         // Fully matched duplicates are one statement; an earlier contradictory row fails on its own.
         if ($case==='bad_line' || $case==='bad_context') {
             $bad=$this->history($event,$this->sourcePayload,$case==='bad_line' ? trim($text).' (Talking to Piper Wright)' : $line);
-            if ($case==='bad_context') $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{synth_context_sequence}','9') WHERE id=$1",[$bad]);
+            if ($case==='bad_context') $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{synth_context_sequence}','9') WHERE id=$1",[$bad]);
         }
         $frontier=$this->history($event,$this->sourcePayload,$line);
         if ($case==='duplicate') $frontier=$this->history($event,$this->sourcePayload,$line);
@@ -661,7 +661,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->assertSame([$seed,$id],array_column($this->bindingReports(),'history_event_id'));
         foreach ([$anonymous,$disavowed] as $ordinary) {
             $this->assertNotContains($ordinary,array_column($this->view()['reports'],'history_event_id'));
-            $this->assertNotNull($this->fixtureDb->fetchOne('SELECT event_payload FROM synth_meta.history_events WHERE id='.$ordinary),
+            $this->assertNotNull($this->fixtureDb->fetchOne('SELECT event_payload FROM public.core_history_event WHERE id='.$ordinary),
                 'A fresh explicit binding must not delete or reinterpret anonymous conversation history');
         }
     }
@@ -974,7 +974,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         [, $seedId]=$this->naturalSeed();
         [, $id]=$this->naturalReport($text,'natural-unsupported');
         $this->assertSame([$seedId],array_column($this->firstStepReports(),'history_event_id'));
-        $row=$this->fixtureDb->fetchOne('SELECT event_payload FROM synth_meta.history_events WHERE id='.$id);
+        $row=$this->fixtureDb->fetchOne('SELECT event_payload FROM public.core_history_event WHERE id='.$id);
         $this->assertSame('Nora: '.$text,json_decode($row['event_payload'],true,flags:JSON_THROW_ON_ERROR)['data'],
             'Declining quest association must not remove or rewrite ordinary conversation history');
     }
@@ -1102,7 +1102,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->cancelSource($interrupted,$interrupted['request_id']);
         $ids=array_column($this->firstStepReports(),'history_event_id');
         $this->assertCount(2,$ids);$this->assertContains($completedId,$ids);$this->assertNotContains($interruptedId,$ids);
-        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='natural-interrupted'")['state']);
+        $this->assertSame('cancelled',$this->fixtureDb->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='natural-interrupted'")['state']);
         $this->assertRetiredSourceCannotDoLateWork($seed);
     }
 
@@ -1192,7 +1192,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->selectCurrent('natural-vr',1,2,'preston',$followId,$anchor,'quest-save-one','vr');
         $this->assertSame([$seedId,$followId],array_column($this->firstStepReports(),'history_event_id'));
         $this->assertNotContains($flatId,array_column($this->view()['reports'],'history_event_id'));
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE session_id='natural-vr' AND request_id='natural-vr-seed'");
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE session_id='natural-vr' AND request_id='natural-vr-seed'");
         $this->assertSame([],$this->firstStepReports(),'Flat history cannot rescue a follow-up whose VR seed is unavailable');
     }
 
@@ -1288,7 +1288,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
             WHERE session_id='quest-session-one' AND generation=1 AND snapshot_sequence=1",
             [$this->json([$this->identityIds['preston'],$this->identityIds['preston']])]);
         $token='  '.strtoupper($payload['target']['display_name'].$suffix).'  ';
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
             ['|Nora|'.$token.'|'.$token.'|',$this->historyId]);
         $this->assertCount(1,$this->assertEquivalentReportRows());
         $this->assertSame([],$this->assertEquivalentReportRows(2147483647),'An unknown reader acquires no visibility');
@@ -1303,7 +1303,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->fixtureDb->execQuery("UPDATE public.core_runtime_context SET audience_identity_ids=$1::jsonb
             WHERE session_id='quest-session-one' AND generation=1 AND snapshot_sequence=1",
             [$this->json([$this->identityIds['preston'],$this->identityIds['impostor']])]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
             ['|Nora|'.$other['display_name'].'|',$this->historyId]);
         $this->assertSame([],$this->assertEquivalentReportRows(),
             'A token matching the reader and another insertion-time identity grants neither access');
@@ -1314,7 +1314,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $original=$this->sourcePayload;
         $original['target']['display_name']='Preston at the original capture';
         $original['audience']=[$original['target']];$this->replaceSourcePayload($original);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',to_jsonb($1::text)) WHERE id=$2",
             ['|Nora|'.$original['target']['display_name'].'|',$this->historyId]);
         $anchor=['session_id'=>'quest-session-one','generation'=>1,'context_sequence'=>2,'playthrough_id'=>'quest-save-one'];
         $this->session('reader-first-resumed',2,'quest-save-one');
@@ -1338,7 +1338,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     public function testReaderFirstLiteralSplitKeepsEmptyAndUnknownTokenSemantics(?string $people,bool $visible): void
     {
         // Set the exact scalar, including JSON null; no manual JSON/string escaping.
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',$1::jsonb) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',$1::jsonb) WHERE id=$2",
             [json_encode($people,JSON_THROW_ON_ERROR),$this->historyId]);
         $this->assertCount($visible ? 1 : 0,$this->assertEquivalentReportRows());
     }
@@ -1352,17 +1352,17 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $original=synth_protocol_canonical_json($this->sourceEvent);$originalHash=hash('sha256',$original);
         foreach (['save','generation','canonical hash'] as $case) {
             switch ($case) {
-                case 'save':$this->fixtureDb->execQuery('UPDATE synth_meta.history_events SET playthrough_id=$1 WHERE id=$2',['another-save',$this->historyId]);break;
+                case 'save':$this->fixtureDb->execQuery('UPDATE public.core_history_event SET playthrough_id=$1 WHERE id=$2',['another-save',$this->historyId]);break;
                 case 'generation':
                     $foreign=$this->sourceEvent;$foreign['generation']=2;$canonical=synth_protocol_canonical_json($foreign);$hash=hash('sha256',$canonical);
-                    $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET generation=2,event_payload=jsonb_set(event_payload,'{synth_generation}','2'::jsonb) WHERE id=$1",[$this->historyId]);
-                    $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET generation=2,request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+                    $this->fixtureDb->execQuery("UPDATE public.core_history_event SET generation=2,event_payload=jsonb_set(event_payload,'{synth_generation}','2'::jsonb) WHERE id=$1",[$this->historyId]);
+                    $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET generation=2,request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
                     $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET generation=2,canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$canonical,$hash]);break;
                 case 'canonical hash':$this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET event_sha256=$1 WHERE request_id='quest-source'",[str_repeat('0',64)]);break;
             }
             $this->assertSame([],$this->assertEquivalentReportRows(),$case.' must not acquire visibility through materialization');
-            $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET playthrough_id='quest-save-one',generation=1,event_payload=jsonb_set(event_payload,'{synth_generation}','1'::jsonb) WHERE id=$1",[$this->historyId]);
-            $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET generation=1,request_sha256=$1 WHERE request_id='quest-source'",[$originalHash]);
+            $this->fixtureDb->execQuery("UPDATE public.core_history_event SET playthrough_id='quest-save-one',generation=1,event_payload=jsonb_set(event_payload,'{synth_generation}','1'::jsonb) WHERE id=$1",[$this->historyId]);
+            $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET generation=1,request_sha256=$1 WHERE request_id='quest-source'",[$originalHash]);
             $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET generation=1,canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$original,$originalHash]);
         }
         $this->assertCount(1,$this->assertEquivalentReportRows());
@@ -1419,7 +1419,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
             [$this->json(array_map(fn(array $actor)=>$this->identityId($actor),$payload['audience'])),
                 $parent['session_id'],$parent['generation'],$parent['context_sequence']]);
         $child=array_replace($parent,['request_id'=>$parent['request_id'].':'.$kind]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='complete' WHERE session_id=$1 AND request_id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='complete' WHERE session_id=$1 AND request_id=$2",
             [$parent['session_id'],$parent['request_id']]);
         $actorId=$this->identityId($identity);
         if ($kind==='action_result') {
@@ -1451,19 +1451,19 @@ final class QuestKnowledgeTest extends DatabaseTestCase
                     'line_id'=>'fixture:'.($type==='dialogue' ? 'dialogue' : $type),'type'=>$type,'payload'=>$linePayload])."\n";
             }
             $body=implode('',$lines);
-            $this->fixtureDb->execQuery('UPDATE synth_meta.request_executions SET response_body=decode($1,\'hex\') WHERE session_id=$2 AND request_id=$3',
+            $this->fixtureDb->execQuery('UPDATE public.core_request_execution SET response_body=decode($1,\'hex\') WHERE session_id=$2 AND request_id=$3',
                 [bin2hex($body),$parent['session_id'],$parent['request_id']]);
             $this->fixtureDb->execQuery("INSERT INTO public.core_dialogue_route
                 (session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener)
                 VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,'addressed',$8::jsonb)",
                 [$parent['session_id'],$parent['request_id'],$lineId,hash('sha256',$lines['dialogue']),
                     $parent['generation'],$parent['context_sequence'],$this->json($payload['target']),$this->json($identity)]);
-            $binding=$this->fixtureDb->fetchOne('SELECT n.id AS npc_id,p.id AS profile_id FROM synth.core_npc_master n
+            $binding=$this->fixtureDb->fetchOne('SELECT n.id AS npc_id,p.id AS profile_id FROM public.core_npc n
                 JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
             if (!$binding) {
                 $result=$this->fixtureDb->execQuery('INSERT INTO public.core_profiles(label) VALUES($1) RETURNING id',['Quest continuation fixture']);
                 $profileId=(int)pg_fetch_assoc($result)['id'];
-                $result=$this->fixtureDb->execQuery('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
+                $result=$this->fixtureDb->execQuery('INSERT INTO public.core_npc(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
                     [$identity['display_name'],$profileId,$actorId]);
                 $binding=['npc_id'=>(int)pg_fetch_assoc($result)['id'],'profile_id'=>$profileId];
             }
@@ -1601,7 +1601,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->event['capabilities']=array_merge($this->event['capabilities'],['context.quest_tracking','dialogue.quest_reactions']);
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET event_type='trigger',canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id=$3",[$canonical,$hash,$this->event['request_id']]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET event_type='trigger',request_sha256=$1 WHERE request_id=$2",[$hash,$this->event['request_id']]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET event_type='trigger',request_sha256=$1 WHERE request_id=$2",[$hash,$this->event['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$this->event];
     }
 
@@ -1628,13 +1628,13 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $this->replaceSourcePayload($source);
         $this->fixtureDb->execQuery('UPDATE public.core_runtime_context SET audience_identity_ids=$1::jsonb WHERE session_id=$2 AND snapshot_sequence=1',
             [$this->json([$this->identityIds['preston'],$this->identityIds['piper']]),'quest-session-one']);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',$1::jsonb) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',$1::jsonb) WHERE id=$2",
             [json_encode('|Nora|Preston Garvey|Piper Wright|'),$this->historyId]);
         $this->fixtureDb->execQuery("UPDATE public.core_dialogue_origin_policy SET execution_mode='WHISPER',policy='{".'"private":true'."}' WHERE request_id='quest-source'");
         $sourceEvent=$this->sourceEvent;$sourceEvent['payload']['control']=['mode'=>'WHISPER','model_slot'=>1];
         $canonical=synth_protocol_canonical_json($sourceEvent);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$canonical,$hash]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
         $this->assertCount(1,$this->view()['reports']);
         $this->selectCurrent('quest-session-one',1,3,'piper',$this->historyId);
         $this->assertSame([],$this->view()['reports']);
@@ -1674,8 +1674,8 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     {
         $canonical=synth_protocol_canonical_json($this->sourceEvent);$hash=hash('sha256',$canonical);
         foreach ([['public.core_protocol_event','event_sha256',str_repeat('a',64),$hash],
-            ['synth_meta.request_executions','request_sha256',str_repeat('b',64),$hash],
-            ['synth_meta.request_executions','state','streaming','complete'],
+            ['public.core_request_execution','request_sha256',str_repeat('b',64),$hash],
+            ['public.core_request_execution','state','streaming','complete'],
             ['public.core_dialogue_origin_policy','execution_mode','NARRATOR','STANDARD'],
             ['public.core_dialogue_origin_policy','input_text','I secretly completed Dangerous Minds.',$this->sourceEvent['payload']['text']]] as [$table,$field,$bad,$good]) {
             $this->fixtureDb->execQuery("UPDATE {$table} SET {$field}=$1 WHERE request_id='quest-source'",[$bad]);
@@ -1683,19 +1683,19 @@ final class QuestKnowledgeTest extends DatabaseTestCase
             $this->fixtureDb->execQuery("UPDATE {$table} SET {$field}=$1 WHERE request_id='quest-source'",[$good]);
         }
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET event_sha256=$1 WHERE request_id='quest-source'",[str_repeat('c',64)]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[str_repeat('c',64)]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[str_repeat('c',64)]);
         $this->assertSame([],$this->view()['reports'],'Matching stored hashes cannot replace canonical content verification');
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET event_sha256=$1 WHERE request_id='quest-source'",[$hash]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
-        $row=$this->fixtureDb->fetchOne('SELECT event_payload FROM synth_meta.history_events WHERE id='.$this->historyId);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+        $row=$this->fixtureDb->fetchOne('SELECT event_payload FROM public.core_history_event WHERE id='.$this->historyId);
         $original=json_decode($row['event_payload'],true,flags:JSON_THROW_ON_ERROR);
         foreach (['data'=>'Nora: I finished When Freedom Calls and secretly joined the Institute.',
             'synth_context_sequence'=>99,'synth_session_id'=>'foreign','synth_request_id'=>'foreign','synth_generation'=>99] as $field=>$bad) {
             $tampered=array_replace($original,[$field=>$bad]);
-            $this->fixtureDb->execQuery('UPDATE synth_meta.history_events SET event_payload=$1::jsonb WHERE id=$2',[$this->json($tampered),$this->historyId]);
+            $this->fixtureDb->execQuery('UPDATE public.core_history_event SET event_payload=$1::jsonb WHERE id=$2',[$this->json($tampered),$this->historyId]);
             $this->assertSame([],$this->view()['reports'],"Invalid immutable source {$field}");
         }
-        $this->fixtureDb->execQuery('UPDATE synth_meta.history_events SET event_payload=$1::jsonb WHERE id=$2',[$this->json($original),$this->historyId]);
+        $this->fixtureDb->execQuery('UPDATE public.core_history_event SET event_payload=$1::jsonb WHERE id=$2',[$this->json($original),$this->historyId]);
         $this->assertCount(1,$this->view()['reports']);
     }
 
@@ -1704,11 +1704,11 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $source=$this->sourceEvent;$source['runtime_variant']='vr';
         $canonical=synth_protocol_canonical_json($source);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$canonical,$hash]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
         $this->assertSame([],$this->view()['reports'],'A canonical VR source cannot become a flat reader report');
         $canonical=synth_protocol_canonical_json($this->sourceEvent);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$canonical,$hash]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
         $this->assertCount(1,$this->view()['reports']);
     }
 
@@ -1734,7 +1734,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
         $withoutLock=new class {public function fetchAll(string $sql): never {throw new LogicException('Unlocked query');}};
         $this->assertSame('unavailable',synthQuestKnowledgeView($withoutLock,$this->event,$this->context)['observation']);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
         $this->expectException(SYNTHProtocolCancelled::class);
         $this->expectExceptionMessage('Fixture owner inactive');
         $this->view();
@@ -1775,7 +1775,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     public function testWorldKnowledgeDialogueReaderPropagatesCancellation(): void
     {
         $this->loadWorldKnowledgeDialogueReader();
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
         $this->expectException(SYNTHProtocolCancelled::class);
         synthWorldKnowledgeNativeDialogueRows($this->fixtureDb,$this->event,true,1);
     }
@@ -1800,9 +1800,9 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $source=$this->sourceEvent;$source['payload']['text']=$longQuote;
         $canonical=synth_protocol_canonical_json($source);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id='quest-source'",[$canonical,$hash]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id='quest-source'",[$hash]);
         $this->fixtureDb->execQuery("UPDATE public.core_dialogue_origin_policy SET input_text=$1 WHERE request_id='quest-source'",[$longQuote]);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{data}',$1::jsonb) WHERE id=$2",
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{data}',$1::jsonb) WHERE id=$2",
             [json_encode('Nora: '.$longQuote,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$this->historyId]);
         $this->assertCount(1,$this->view()['reports']);
         $this->assertNull(synthBindQuestReaction($this->fixtureDb,$this->event,$this->context));
@@ -2099,7 +2099,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
     {
         require_once dirname(__DIR__,2).'/lib/worldknowledge_runtime.php';
         $this->observeMin00();
-        $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
+        $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id=$1",[$this->event['request_id']]);
         $row=['topic'=>'quest_when_freedom_calls','canonical_topic'=>'quest_when_freedom_calls',
             'topic_desc'=>'PRIVATE CUSTOM TEXT','knowledge_class'=>'','topic_desc_basic'=>'PRIVATE BASIC TEXT',
             'knowledge_class_basic'=>'common'];
@@ -2136,7 +2136,7 @@ final class QuestKnowledgeTest extends DatabaseTestCase
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
         $this->fixtureDb->execQuery('UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id=$3',
             [$canonical,$hash,$this->event['request_id']]);
-        $this->fixtureDb->execQuery('UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id=$2',[$hash,$this->event['request_id']]);
+        $this->fixtureDb->execQuery('UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id=$2',[$hash,$this->event['request_id']]);
         $this->fixtureDb->execQuery("UPDATE public.core_dialogue_origin_policy SET execution_mode='NARRATOR' WHERE request_id=$1",[$this->event['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$this->event];
         $view=$this->view($this->identities['player'],true);

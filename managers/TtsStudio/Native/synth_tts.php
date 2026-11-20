@@ -153,13 +153,13 @@ function synth_tts_load_npc_voice_data(object $db, string $speaker, ?array $cano
         $form=$db->escapeLiteral($canonicalActor['form_id']);
         $plugin=$db->escapeLiteral($canonicalActor['origin_plugin']);
         $playthrough=$db->escapeLiteral($canonicalActor['playthrough_id']);
-        $row=$db->fetchOne("SELECT n.voiceid,n.extended_data FROM synth.core_npc_master n
-            JOIN synth.actor_identities a ON a.id=n.actor_identity_id
+        $row=$db->fetchOne("SELECT n.voiceid,n.extended_data FROM public.core_npc n
+            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
             WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
                 AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
     } else {
         $escaped = method_exists($db, 'escape') ? $db->escape($speaker) : str_replace("'", "''", $speaker);
-        $row = $db->fetchOne("SELECT voiceid, extended_data FROM synth.core_npc_master WHERE npc_name='{$escaped}' LIMIT 1");
+        $row = $db->fetchOne("SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='{$escaped}' LIMIT 1");
     }
     if (!is_array($row)) {
         return [];

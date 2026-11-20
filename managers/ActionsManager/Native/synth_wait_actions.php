@@ -125,11 +125,11 @@ function synth_wait_result_context($db,array $event): array
             receipt.received_at AS result_received_at,
             a.full_form_id,a.origin_plugin,a.playthrough_id,source.canonical_event AS origin_event,source.event_sha256 AS origin_sha256,
             receipt.canonical_event AS receipt_event,receipt.event_sha256 AS receipt_sha256,c.context_payload
-        FROM public.core_action_intent i JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
+        FROM public.core_action_intent i JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
         JOIN public.core_protocol_event source ON source.session_id=i.session_id AND source.request_id=i.request_id AND source.generation=i.generation AND source.turn_id=i.turn_id
-        JOIN synth_meta.request_executions issued ON issued.session_id=source.session_id AND issued.request_id=source.request_id AND issued.request_sha256=source.event_sha256
+        JOIN public.core_request_execution issued ON issued.session_id=source.session_id AND issued.request_id=source.request_id AND issued.request_sha256=source.event_sha256
         JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id
-        JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id AND accepted.request_sha256=receipt.event_sha256
+        JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id AND accepted.request_sha256=receipt.event_sha256
         JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation AND c.snapshot_sequence=".intval($event['context_sequence'])."
         JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
         WHERE i.action_id=$action AND i.idempotency_key=".$db->escapeLiteral($result['idempotency_key'])." AND i.session_id=$session AND i.generation=$generation AND i.turn_id=$turn
@@ -306,7 +306,7 @@ function synth_wait_record_consequence($db,array $event,array $outcome): void
     $query="WITH publication AS (INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         VALUES('infoaction',$1,$2,$3,$4,$4,'',$5,'','emitted',$6,$7,$8,$9) RETURNING *)
-        INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+        INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
         SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$2,rowid,to_jsonb(publication)||jsonb_build_object('synth_wait_consequence',$10::jsonb)
         FROM publication";
     if($db->execQuery($query,[$outcome['message'],$outcome['actor']['playthrough_id'],intval($outcome['context']['world']['game_time_ticks']??0),$now,
@@ -320,11 +320,11 @@ function synth_wait_history_visibility_sql(): string
     return "EXISTS(SELECT 1 FROM public.core_action_intent wi
         JOIN public.core_action_result wt ON wt.action_id=wi.action_id AND wt.idempotency_key=wi.idempotency_key
         JOIN public.core_protocol_event wr ON wr.session_id=h.session_id AND wr.request_id=h.request_id AND wr.generation=h.generation AND wr.turn_id=wi.turn_id
-        JOIN synth_meta.request_executions we ON we.session_id=wr.session_id AND we.request_id=wr.request_id AND we.request_sha256=wr.event_sha256
+        JOIN public.core_request_execution we ON we.session_id=wr.session_id AND we.request_id=wr.request_id AND we.request_sha256=wr.event_sha256
         JOIN public.core_protocol_event wo ON wo.session_id=wi.session_id AND wo.request_id=wi.request_id AND wo.generation=wi.generation AND wo.turn_id=wi.turn_id
-        JOIN synth_meta.request_executions weo ON weo.session_id=wo.session_id AND weo.request_id=wo.request_id AND weo.request_sha256=wo.event_sha256
+        JOIN public.core_request_execution weo ON weo.session_id=wo.session_id AND weo.request_id=wo.request_id AND weo.request_sha256=wo.event_sha256
         JOIN public.core_runtime_context wc ON wc.session_id=h.session_id AND wc.generation=h.generation AND wc.snapshot_sequence=h.context_sequence AND wc.target_identity_id=wi.actor_identity_id
-        JOIN synth.actor_identities wa ON wa.id=wi.actor_identity_id AND wa.playthrough_id=h.playthrough_id
+        JOIN public.core_actor_identity wa ON wa.id=wi.actor_identity_id AND wa.playthrough_id=h.playthrough_id
         WHERE h.event_payload->>'type'='infoaction' AND wi.state='complete' AND wi.session_id=h.session_id AND wi.generation=h.generation
             AND wi.actor_identity_id::text=h.event_payload#>>'{synth_wait_consequence,actor_identity_id}'
             AND (wi.actor_identity_id=s.reader_identity_id OR s.reader_identity_id=s.reader_player_id)

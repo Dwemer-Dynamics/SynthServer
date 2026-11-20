@@ -39,7 +39,7 @@ if (!function_exists('synthWorldKnowledgeNativeDialogueRows')) {
                 if ($owner !== $event) throw new LogicException('worldknowledge_history_owner_changed');
                 $canonical = synth_protocol_canonical_json($event);
                 $result = @pg_query_params($connection, "SELECT 1
-                    FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+                    FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
                     JOIN public.core_runtime_session r ON r.session_id=e.session_id
                     JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
                         AND c.snapshot_sequence=$4
@@ -60,7 +60,7 @@ if (!function_exists('synthWorldKnowledgeNativeDialogueRows')) {
                     playerPerspective: synth_protocol_quest_response_is_narrator($db, $event));
                 $types = $chatOnly ? "('chat')" : "('inputtext','inputtext_s','chat','rechat')";
                 $result = @pg_query_params($connection, $scope . "SELECT n.type,n.data FROM native_history n
-                    JOIN synth_meta.history_events h ON h.id=n.history_event_id
+                    JOIN public.core_history_event h ON h.id=n.history_event_id
                     JOIN public.core_protocol_event p ON p.session_id=h.session_id AND p.request_id=h.request_id
                         AND p.generation=h.generation
                     WHERE n.type IN {$types} AND octet_length(n.data) BETWEEN 1 AND 16384

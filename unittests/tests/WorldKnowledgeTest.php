@@ -433,7 +433,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             )
         );
         $testDb->insert(
-            'speech',
+            'core_speech',
             array(
                 'sess' => 'pending',
                 'speaker' => 'Sole Survivor',
@@ -445,7 +445,7 @@ final class WorldKnowledgeTest extends DatabaseTestCase
             )
         );
         $testDb->insert(
-            'speech',
+            'core_speech',
             array(
                 'sess' => 'pending',
                 'speaker' => 'The Narrator',

@@ -800,7 +800,7 @@ class FalloutCommandBuilder
     }
 
     public function getLoadOrderESP(): string{
-        $hexFormId = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_rolemaster_faction'");
+        $hexFormId = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_rolemaster_faction')];
         if (!$hexFormId ) {
             throw new Exception("Configuration 'synth_rolemaster_faction' not set.");
         }
@@ -815,7 +815,7 @@ class FalloutCommandBuilder
         require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
 
         \Synth\Bootstrap::db()->insert(
-            'responselog',
+            'core_response_log',
             [
                 'localts' => $localts??time(),
                 'sent'    => 0,

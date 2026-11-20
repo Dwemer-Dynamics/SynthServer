@@ -10,7 +10,7 @@ function synth_relationship_result_state_cte(): string
         SELECT result.*,i.actor_identity_id,h.playthrough_id,i.response_history_event_id,i.input_payload,i.input_sha256,
             h.session_id,h.generation,h.context_sequence,h.request_id,h.event_payload,j.turn_id
         FROM public.core_relationship_result result JOIN public.core_relationship_evaluation i ON i.id=result.evaluation_id
-        JOIN synth_meta.history_events h ON h.id=result.history_event_id AND h.session_id=i.session_id
+        JOIN public.core_history_event h ON h.id=result.history_event_id AND h.session_id=i.session_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence AND h.request_id=i.request_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.actor_identity_id AND h.id<=scope.cutoff
@@ -25,7 +25,7 @@ function synth_relationship_result_state_cte(): string
         SELECT i.* FROM relationship_result_origins i
         JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.snapshot_sequence=i.context_sequence AND c.target_identity_id=i.actor_identity_id AND c.playthrough_id=i.playthrough_id
-        JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
+        JOIN public.core_request_execution owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
             AND owner.generation=i.generation AND owner.turn_id=i.turn_id
         JOIN public.core_protocol_event protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.event_sha256=owner.request_sha256 AND protocol.canonical_event=i.input_payload->'owner'

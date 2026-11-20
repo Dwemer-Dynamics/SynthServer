@@ -61,7 +61,7 @@ if (!function_exists('_relGetConversationListener')) {
     function _relGetConversationListener($speakerName) {
         $escapedSpeaker = \Synth\Bootstrap::db()->escape($speakerName);
         $row = \Synth\Bootstrap::db()->fetchOne(
-            "SELECT listener FROM speech WHERE speaker = '{$escapedSpeaker}' ORDER BY localts DESC LIMIT 1"
+            "SELECT listener FROM core_speech WHERE speaker = '{$escapedSpeaker}' ORDER BY localts DESC LIMIT 1"
         );
         return $row ? $row['listener'] : null;
     }
@@ -99,7 +99,7 @@ if (!function_exists('_relGetNpcIdByName')) {
     function _relGetNpcIdByName($npcName) {
         $escapedName = \Synth\Bootstrap::db()->escape($npcName);
         $npcRow = \Synth\Bootstrap::db()->fetchOne(
-            "SELECT id FROM core_npc_master WHERE npc_name = '" . $escapedName . "' LIMIT 1"
+            "SELECT id FROM core_npc WHERE npc_name = '" . $escapedName . "' LIMIT 1"
         );
         return $npcRow ? intval($npcRow['id']) : null;
     }
@@ -196,7 +196,7 @@ if (!empty($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["id"])) {
     // Look up by name
     $escapedName = \Synth\Bootstrap::db()->escape($npcName);
     $npcRow = \Synth\Bootstrap::db()->fetchOne(
-        "SELECT id FROM core_npc_master WHERE npc_name = '" . $escapedName . "' LIMIT 1"
+        "SELECT id FROM core_npc WHERE npc_name = '" . $escapedName . "' LIMIT 1"
     );
     if ($npcRow) {
         $npcId = intval($npcRow['id']);

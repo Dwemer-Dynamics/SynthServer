@@ -92,7 +92,7 @@ function synth_control_note_talk_slot($db, array $event): void
     try {
         $slot = $event['payload']['control']['model_slot'] ?? null;
         if (!is_int($slot) || $slot < 1 || $slot > 4) return;
-        $last = ($db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_talk_slot_seen'"))['value'] ?? '1';
+        $last = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_talk_slot_seen') ?? '1';
         if (strval($slot) === strval($last)) return;
         if ($db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_talk_slot_seen','{$slot}') ON CONFLICT (scope, config_key) DO UPDATE SET config_value=EXCLUDED.config_value") === false) return;
         if ($slot !== 1) Logger::info("[talk] Model Slot {$slot} is selected, but native /talk ignores it and uses the profile's primary (Standard) connector");
@@ -102,8 +102,8 @@ function synth_control_note_talk_slot($db, array $event): void
 
 function synth_control_status($db): string
 {
-    $mode = strval(($db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode'"))['value'] ?? 'STANDARD');
-    $slot = strval(($db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'"))['value'] ?? '1');
+    $mode = strval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_mode') ?? 'STANDARD');
+    $slot = strval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model') ?? '1');
     if (!synth_control_valid_change('mode', $mode)) $mode = 'STANDARD';
     if (!synth_control_valid_change('model_slot', $slot)) $slot = '1';
     return $mode.'|'.$slot;

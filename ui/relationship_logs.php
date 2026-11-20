@@ -159,7 +159,7 @@ if (isset($_POST['delete_action'])) {
  $action = $_POST['delete_action'];
 
  if ($action === 'delete_all') {
- $deleteQuery = "DELETE FROM audit_request WHERE connector LIKE '%Relationship%'";
+ $deleteQuery = "DELETE FROM core_audit_request WHERE connector LIKE '%Relationship%'";
  $db->execQuery($deleteQuery);
  $deleteMessage = ' All relationship logs deleted.';
  } elseif ($action === 'delete_older') {
@@ -167,7 +167,7 @@ if (isset($_POST['delete_action'])) {
  // Sanitize interval
  $validIntervals = ['1 hour', '6 hours', '1 day', '3 days', '1 week', '2 weeks', '1 month'];
  if (in_array($interval, $validIntervals)) {
- $deleteQuery = "DELETE FROM audit_request WHERE connector LIKE '%Relationship%' AND created_at < NOW() - INTERVAL '{$interval}'";
+ $deleteQuery = "DELETE FROM core_audit_request WHERE connector LIKE '%Relationship%' AND created_at < NOW() - INTERVAL '{$interval}'";
  $db->execQuery($deleteQuery);
  $deleteMessage = " Logs older than {$interval} deleted.";
  }
@@ -187,18 +187,18 @@ if ($typeFilter) {
 }
 
 // Get stats
-$statsQuery = "SELECT COUNT(*) as total FROM audit_request WHERE connector LIKE '%Relationship%'";
+$statsQuery = "SELECT COUNT(*) as total FROM core_audit_request WHERE connector LIKE '%Relationship%'";
 $statsResult = $db->fetchOne($statsQuery);
 $totalLogs = $statsResult['total'] ?? 0;
 
 // Get recent activity count (last hour)
-$recentQuery = "SELECT COUNT(*) as recent FROM audit_request WHERE connector LIKE '%Relationship%' AND created_at > NOW() - INTERVAL '1 hour'";
+$recentQuery = "SELECT COUNT(*) as recent FROM core_audit_request WHERE connector LIKE '%Relationship%' AND created_at > NOW() - INTERVAL '1 hour'";
 $recentResult = $db->fetchOne($recentQuery);
 $recentLogs = $recentResult['recent'] ?? 0;
 
 // Get logs
 $query = "SELECT rowid, created_at, request, result, connector, usage
- FROM audit_request
+ FROM core_audit_request
  {$whereClause}
  ORDER BY created_at DESC
  LIMIT {$limit} OFFSET {$offset}";

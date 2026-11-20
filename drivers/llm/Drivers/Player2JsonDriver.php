@@ -509,7 +509,7 @@ class Player2JsonDriver
 
             if (\Synth\Bootstrap::db()) {
                 \Synth\Bootstrap::db()->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"]
@@ -530,7 +530,7 @@ class Player2JsonDriver
 
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message
@@ -543,7 +543,7 @@ class Player2JsonDriver
             } else  {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "Ok"

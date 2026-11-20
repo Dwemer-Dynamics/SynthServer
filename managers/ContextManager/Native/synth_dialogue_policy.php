@@ -55,7 +55,7 @@ function synth_dialogue_capture_origin_policy($db, array $event, array $settings
         if ($owner!==$event) throw new LogicException('dialogue_policy_owner_changed');
         $canonical=synth_protocol_canonical_json($event);
         $result=@pg_query_params($connection,"INSERT INTO public.core_dialogue_origin_policy(session_id,request_id,execution_mode,policy,input_text)
-            SELECT e.session_id,e.request_id,$3,$4::jsonb,$9 FROM synth_meta.request_executions e
+            SELECT e.session_id,e.request_id,$3,$4::jsonb,$9 FROM public.core_request_execution e
             JOIN public.core_protocol_event p USING(session_id,request_id)
             WHERE e.session_id=$1 AND e.request_id=$2 AND e.state IN ('claimed','streaming')
                 AND p.canonical_event=$5::jsonb AND p.event_sha256=$6 AND e.request_sha256=p.event_sha256
@@ -68,7 +68,7 @@ function synth_dialogue_capture_origin_policy($db, array $event, array $settings
         // A no-op is valid only for an already captured, identical canonical live request.
         $result=@pg_query_params($connection,"SELECT 1 FROM public.core_dialogue_origin_policy d
             JOIN public.core_protocol_event p USING(session_id,request_id)
-            JOIN synth_meta.request_executions e USING(session_id,request_id)
+            JOIN public.core_request_execution e USING(session_id,request_id)
             WHERE d.session_id=$1 AND d.request_id=$2 AND p.canonical_event=$3::jsonb
                 AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256 AND e.state IN ('claimed','streaming')
                 AND e.generation=$5 AND p.generation=e.generation AND e.turn_id=$6 AND p.turn_id=e.turn_id

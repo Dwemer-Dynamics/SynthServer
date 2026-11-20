@@ -10,7 +10,7 @@ function synth_relationship_interaction_state_cte(): string
             h.playthrough_id,h.session_id,h.generation,h.context_sequence,h.request_id,h.event_payload
         FROM public.core_relationship_interaction_result result
         JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
-        JOIN synth_meta.history_events h ON h.id=result.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
+        JOIN public.core_history_event h ON h.id=result.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=i.speaker_identity_id AND h.id<=scope.cutoff
@@ -20,7 +20,7 @@ function synth_relationship_interaction_state_cte(): string
             AND h.event_payload->>'result_sha256'=encode(sha256(convert_to(result.result_payload::text,'UTF8')),'hex')
     ) ".synth_relationship_pair_evidence_cte().", interaction_result_origins AS MATERIALIZED (
         SELECT i.* FROM interaction_result_execution i
-        JOIN synth.actor_identities listener ON listener.id=i.listener_identity_id AND listener.game='fo4'
+        JOIN public.core_actor_identity listener ON listener.id=i.listener_identity_id AND listener.game='fo4'
             AND listener.playthrough_id=i.playthrough_id AND listener.id<>i.player_identity_id AND listener.id<>i.speaker_identity_id
         CROSS JOIN LATERAL (
             SELECT jsonb_agg(jsonb_build_object('entry_index',entry.ordinality-1,'entry',entry.value) ORDER BY entry.ordinality) AS lines
@@ -82,7 +82,7 @@ function synth_relationship_interaction_state_cte(): string
     ), interaction_revision_candidates AS MATERIALIZED (
         SELECT r.*,h.playthrough_id FROM public.core_relationship_revision r
         JOIN interaction_result_prior_candidates i ON i.history_event_id=r.interaction_result_history_event_id
-        JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
+        JOIN public.core_history_event h ON h.id=r.history_event_id AND h.session_id=i.session_id AND h.request_id=i.request_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence AND h.playthrough_id=i.playthrough_id AND h.id>i.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=r.actor_identity_id AND h.id<=scope.cutoff

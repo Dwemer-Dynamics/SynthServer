@@ -1035,7 +1035,7 @@ function getCartesiaVoiceName() {
                     $GLOBALS["db"] = new sql();
                 }
                 $npcRow = \Synth\Bootstrap::db()->fetchOne(
-                    "SELECT voiceid FROM core_npc_master WHERE lower(npc_name) = lower('" . \Synth\Bootstrap::db()->escape(\Synth\Bootstrap::config("SYNTH_NAME") ?? '') . "') LIMIT 1"
+                    "SELECT voiceid FROM core_npc WHERE lower(npc_name) = lower('" . \Synth\Bootstrap::db()->escape(\Synth\Bootstrap::config("SYNTH_NAME") ?? '') . "') LIMIT 1"
                 );
                 if (is_array($npcRow) && !empty($npcRow['voiceid'])) {
                     $voice = trim($npcRow['voiceid']);

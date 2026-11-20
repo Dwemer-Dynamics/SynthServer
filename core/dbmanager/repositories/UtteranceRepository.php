@@ -81,7 +81,7 @@ class UtteranceRepository
                 (session_id,request_id,line_id,turn_id,generation,context_sequence,speaker_identity_id,character_id,text,text_sha256)
             SELECT rr.session_id,rr.request_id,rr.line_id,e.turn_id,rr.generation,rr.context_sequence,a.id,$7,$8,$9
             FROM public.core_dialogue_route rr
-            JOIN synth_meta.request_executions e ON e.session_id=rr.session_id AND e.request_id=rr.request_id
+            JOIN public.core_request_execution e ON e.session_id=rr.session_id AND e.request_id=rr.request_id
                 AND e.generation=rr.generation AND e.turn_id=$4 AND e.event_type=$10 AND e.state IN ('claimed','streaming')
             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
@@ -91,7 +91,7 @@ class UtteranceRepository
                 AND c.snapshot_sequence=rr.context_sequence
             JOIN public.core_runtime_session s ON s.session_id=rr.session_id AND s.playthrough_id=c.playthrough_id
                 AND s.runtime_variant=$16
-            JOIN synth.actor_identities a ON a.game='fo4' AND upper(a.full_form_id)=upper(rr.speaker->>'form_id')
+            JOIN public.core_actor_identity a ON a.game='fo4' AND upper(a.full_form_id)=upper(rr.speaker->>'form_id')
                 AND lower(a.origin_plugin)=lower(rr.speaker->>'origin_plugin') AND a.playthrough_id=rr.speaker->>'playthrough_id'
             WHERE rr.session_id=$1 AND rr.request_id=$2 AND rr.line_id=$3 AND rr.generation=$5 AND rr.context_sequence=$6
                 AND rr.line_sha256=$11 AND rr.speaker=$12::jsonb
@@ -152,9 +152,9 @@ class UtteranceRepository
                         WHEN pr.line_id IS NOT NULL THEN 'unmarked' END AS parent_state,
                     op.canonical_event#>>'{payload,control,mode}' AS origin_mode
                 FROM public.core_dialogue_utterance u
-                JOIN synth.actor_identities a ON a.id=u.speaker_identity_id
+                JOIN public.core_actor_identity a ON a.id=u.speaker_identity_id
                 JOIN public.core_runtime_session r ON r.session_id=u.session_id AND r.state='active' AND r.active_generation=u.generation
-                LEFT JOIN synth_meta.request_executions o ON o.session_id=u.session_id AND o.request_id=u.request_id
+                LEFT JOIN public.core_request_execution o ON o.session_id=u.session_id AND o.request_id=u.request_id
                     AND o.generation=u.generation AND o.turn_id=u.turn_id
                     AND o.event_type IN ('input_text','input_audio','action_result','trigger')
                     AND o.state IN ('claimed','streaming','complete','failed')
@@ -316,7 +316,7 @@ class UtteranceRepository
         $scope = $privateListener === null ? null : json_encode(
             [intval($snapshot['player_identity_id']), $privateListener], JSON_THROW_ON_ERROR);
         $result = @pg_query_params($connection, 'WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
-            INSERT INTO synth_meta.history_events
+            INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns) + 1).',rowid,
                 CASE WHEN $'.(count($columns) + 2).'::jsonb IS NULL THEN to_jsonb(inserted)

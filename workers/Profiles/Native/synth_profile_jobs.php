@@ -165,7 +165,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 if ($name==='The Narrator') {
                     require_once dirname(__DIR__, 3).'/lib'.'/core/narrator.class.php';
                     $base=(new Narrator())->getAll();
-                } else $base=$db->fetchOne('SELECT * FROM synth.core_npc_master WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
+                } else $base=$db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
                 if (synth_profile_fields($base)!==synth_profile_fields($input['baseline_fields'])
                     || (synth_profile_visible($db,$event,$input['actor_identity_id'],$name==='The Narrator')['revision'] ?? null)!==$input['prior_revision']) {
                     throw new LogicException('Frozen profile baseline no longer valid.');
@@ -222,7 +222,7 @@ function synth_profile_dispatch_jobs($db, ?callable $prepare=null, ?callable $ge
         lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE j.job_type='profile' AND j.payload->>'schema'='synth.profile.job.v1' AND j.state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'))")===false) throw new RuntimeException('Unable to retire old profile work.');
     $jobs=$db->fetchAll("SELECT id FROM public.core_worker_job WHERE job_type='profile' AND payload->>'schema'='synth.profile.job.v1'

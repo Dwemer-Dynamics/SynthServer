@@ -9,13 +9,13 @@ BEGIN
         RAISE EXCEPTION 'Rollback requires exact protocol schema 20260907011';
     END IF;
     IF EXISTS(SELECT 1 FROM public.core_middleterm_regeneration_approval)
-        OR EXISTS(SELECT 1 FROM synth_meta.history_events WHERE event_payload->>'type'='middleterm_regeneration') THEN
+        OR EXISTS(SELECT 1 FROM public.core_history_event WHERE event_payload->>'type'='middleterm_regeneration') THEN
         RAISE EXCEPTION 'Regeneration approval history exists; rollback refused to preserve intent';
     END IF;
 END $$;
 DROP TABLE public.core_middleterm_regeneration_approval;
-ALTER TABLE synth_meta.history_events DROP CONSTRAINT history_request_or_manual;
-ALTER TABLE synth_meta.history_events ADD CONSTRAINT history_request_or_manual CHECK (
+ALTER TABLE public.core_history_event DROP CONSTRAINT history_request_or_manual;
+ALTER TABLE public.core_history_event ADD CONSTRAINT history_request_or_manual CHECK (
     request_id IS NOT NULL OR (COALESCE(event_payload->>'type','') IN ('relationship_manual','visual_manual','diary_control','middleterm_control')
         AND event_payload->>'delivery_state' IS NOT DISTINCT FROM 'derived'));
 UPDATE synth.database_versioning SET version=20260907010 WHERE tablename='synth_protocol_schema' AND version=20260907011;

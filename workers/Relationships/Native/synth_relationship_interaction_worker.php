@@ -14,7 +14,7 @@ function synth_relationship_run_persisted_interaction($db, int $jobId, ?callable
         FROM public.core_worker_job j JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
             AND i.context_sequence::text=j.payload->>'context_sequence' AND i.speaker_identity_id=j.actor_identity_id
-        JOIN synth_meta.request_executions e ON e.session_id=j.session_id AND e.request_id=j.request_id
+        JOIN public.core_request_execution e ON e.session_id=j.session_id AND e.request_id=j.request_id
             AND e.generation=j.generation AND e.turn_id=j.turn_id AND e.state='complete'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256

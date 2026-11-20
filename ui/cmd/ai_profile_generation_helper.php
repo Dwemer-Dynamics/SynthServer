@@ -46,7 +46,7 @@ function aiProfileBuildPreviewEvents(string $npcName, array $currentNpcData, $db
     $eventLimit = max(10, min(200, $eventLimit));
 
     $npcNameEsc = $db->escape($npcName);
-    $query = "SELECT max(gamets) as gamets from speech where
+    $query = "SELECT max(gamets) as gamets from core_speech where
         (speaker='$npcNameEsc' or listener='$npcNameEsc' or companions like '%|$npcNameEsc|%')";
     $lastIt = $db->fetchOne($query);
     $lastItNumber = intval($lastIt["gamets"] ?? 0);

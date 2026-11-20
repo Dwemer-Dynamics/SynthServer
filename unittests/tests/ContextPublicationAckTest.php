@@ -68,7 +68,7 @@ final class ContextPublicationAckTest extends DatabaseTestCase
         return array_map(static fn($line)=>json_decode($line,true,32,JSON_THROW_ON_ERROR),array_values(array_filter(explode("\n",trim($body)))));
     }
     private function row(array $event): array {
-        $result=pg_query_params($this->connection,'SELECT state,error_code,response_body FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
+        $result=pg_query_params($this->connection,'SELECT state,error_code,response_body FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
         return pg_fetch_assoc($result)?:[];
     }
     private function init(string $session='context-http',int $generation=1): void {
@@ -99,7 +99,7 @@ final class ContextPublicationAckTest extends DatabaseTestCase
         $this->init();$event=$this->context();[$body,$lines]=$this->completeContext($event);
         $this->assertSame(['response_start','status','response_end'],array_column($lines,'type'));
         $this->assertSame($body,$this->http($event));
-        $result=pg_query($this->connection,"SELECT count(*) AS n FROM synth_meta.request_executions WHERE event_type IN ('input_text','input_audio','trigger')");
+        $result=pg_query($this->connection,"SELECT count(*) AS n FROM public.core_request_execution WHERE event_type IN ('input_text','input_audio','trigger')");
         $this->assertSame('0',pg_fetch_assoc($result)['n']);
     }
     public function testRealHttpContextOffersSavedTaskAndKeepsOldNewSaveCutoffs(): void {

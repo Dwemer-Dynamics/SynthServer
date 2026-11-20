@@ -13,7 +13,7 @@ function synth_memory_run_persisted_job($db, int $jobId, ?callable $generate = n
     $job = $db->fetchOne("SELECT j.session_id,j.request_id,j.turn_id,j.generation,j.actor_identity_id,
             j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256
         FROM public.core_worker_job j
-        JOIN synth_meta.request_executions e ON e.session_id=j.session_id AND e.request_id=j.request_id
+        JOIN public.core_request_execution e ON e.session_id=j.session_id AND e.request_id=j.request_id
             AND e.generation=j.generation AND e.turn_id=j.turn_id
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type

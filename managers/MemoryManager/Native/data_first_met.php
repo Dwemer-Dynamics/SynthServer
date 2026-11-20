@@ -20,7 +20,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
     }
 
     // Get first interaction timestamp - with error handling
-    $realFirst = @\Synth\Bootstrap::db()->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
+    $realFirst = @\Synth\Bootstrap::db()->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM core_speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
 
     if ($realFirst === false) {
         Logger::warn("[AddFirstTimeMet] Query to speech table failed for follower: {$followerName}");
@@ -140,7 +140,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
 		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM speech
+		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
         WHERE (gamets > 0) AND
           ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
           (listener = '{$s_player}' AND speaker = '{$s_npc}'))
@@ -155,7 +155,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 function GetLastSpeechTs() {
     $db = \Synth\Bootstrap::db();
     $i_res=0;
-	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM speech
+	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM core_speech
         WHERE (gamets > 0) ORDER BY gamets DESC LIMIT 1 ");
 	if (is_array($db_rec) && sizeof($db_rec)>0) {
 		$i_res = intval($db_rec[0]['gamets']);
@@ -170,7 +170,7 @@ function GetFirstInteraction($s_player_name, $s_npc_name) {
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
 		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM speech
+		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
         WHERE (gamets > 0) AND
           ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
           (listener = '{$s_player}' AND speaker = '{$s_npc}'))

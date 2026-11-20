@@ -836,7 +836,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
         $baseid = trim((string)$profileFields['baseid']);
         if ($baseid !== '') {
             $db->execQuery("
-                UPDATE synth.core_npc_master
+                UPDATE public.core_npc
                 SET base = COALESCE(NULLIF(base, ''), '" . $db->escape($baseid) . "')
                 WHERE npc_name = '" . $db->escape($name) . "' AND actor_identity_id IS NULL
             ");
@@ -858,7 +858,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
             $encodedPosition = json_encode($lastPosition, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             if ($encodedPosition !== false) {
                 $db->execQuery("
-                    UPDATE synth.core_npc_master
+                    UPDATE public.core_npc
                     SET metadata = jsonb_set(
                         COALESCE(metadata, '{}'::jsonb),
                         '{last_coords}',
@@ -1867,7 +1867,7 @@ function handleActorProfileUpdate(array $data, NpcMaster $npcMaster): void
     $baseid = firstNonEmptyString([$data['baseid'] ?? '', $data['identity']['baseid'] ?? '']);
     if ($baseid !== '') {
         \Synth\Bootstrap::db()->execQuery("
-            UPDATE synth.core_npc_master
+            UPDATE public.core_npc
             SET base = '" . \Synth\Bootstrap::db()->escape($baseid) . "'
             WHERE id = " . intval($currentData['id']) . "
         ");

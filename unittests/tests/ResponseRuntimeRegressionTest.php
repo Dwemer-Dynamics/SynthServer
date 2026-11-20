@@ -458,7 +458,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 public function insertNativeHistoryOnce(array $data): bool { $this->history[]=$data; return true; }
                 public function fetchOne(string $query): ?array {
                     $this->queries[]=$query;
-                    if (str_contains($query,'synth_meta.request_executions')) return ['state'=>'streaming','error_code'=>null,
+                    if (str_contains($query,'public.core_request_execution')) return ['state'=>'streaming','error_code'=>null,
                         'runtime_state'=>'active','active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
                     if (str_contains($query,'core_runtime_context')) return ['context_payload'=>json_encode($this->context)];
                     return str_contains($query,'core_llm_connector') ? $this->connector : null;
@@ -1094,7 +1094,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         };
 
         $this->assertSame(18, getNpcLevel('Ranger Ghost'));
-        $this->assertStringContainsString('FROM core_npc_master', $GLOBALS['db']->lastQuery);
+        $this->assertStringContainsString('FROM core_npc', $GLOBALS['db']->lastQuery);
     }
 
     public function testRestrainedActivityStatusSurvivesSanitization(): void
