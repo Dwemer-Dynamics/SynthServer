@@ -770,8 +770,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_switch_profile"]
  $includeLockedRaw === 'true'
  );
 
- $sourceRow = $GLOBALS['db']->fetchOne("SELECT id, label FROM core_profiles WHERE id = {$sourceProfileId} LIMIT 1");
- $targetRow = $GLOBALS['db']->fetchOne("SELECT id, label FROM core_profiles WHERE id = {$targetProfileId} LIMIT 1");
+ $sourceRow = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idAndLabel((int)$sourceProfileId);
+ $targetRow = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idAndLabel((int)$targetProfileId);
  if (!is_array($sourceRow) || empty($sourceRow['id'])) {
  echo json_encode(["ok"=>false, "error"=>"Source profile not found"]);
  exit;
@@ -1064,10 +1064,10 @@ $lockOnly = (isset($_GET['lock']) && $_GET['lock'] === '1');
 $salOnly = (isset($_GET['sal']) && $_GET['sal'] === '1');
 
 // Preload profiles for filter dropdown
-$profileRows = $GLOBALS["db"]->fetchAll("SELECT id, label, metadata FROM core_profiles ORDER BY label ASC");
+$profileRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->filterRows();
 // Default new NPCs to the configured default NPC profile.
 $firstProfileId = '';
-$defaultProfileRow = $GLOBALS["db"]->fetchOne("SELECT id FROM core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
+$defaultProfileRow = ['id' => \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->defaultNpcId()];
 if (is_array($defaultProfileRow) && !empty($defaultProfileRow['id'])) {
  $firstProfileId = (string)$defaultProfileRow['id'];
 }
@@ -1077,8 +1077,8 @@ if (is_array($profileRows) && count($profileRows) > 0) {
  }
 }
 // Preload profile connector mappings and LLM connector labels for modal summary
-$profileConnRows = $GLOBALS["db"]->fetchAll("SELECT id, llm_primary_id, llm_secondary_id, llm_tertiary_id, llm_quaternary_id, llm_formatter_id, diary_connector_id, metadata FROM core_profiles ORDER BY id ASC");
-$llmRows = $GLOBALS["db"]->fetchAll("SELECT id, COALESCE(NULLIF(label,''), model) AS label FROM core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label,''), model)) ASC");
+$profileConnRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->connectorMappings();
+$llmRows = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->displayOptions();
 $profilesById = [];
 foreach (($profileRows ?? []) as $pr) {
  $pid = (string)($pr['id'] ?? '');
