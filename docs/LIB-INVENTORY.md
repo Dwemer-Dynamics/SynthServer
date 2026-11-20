@@ -36,7 +36,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat (done) |
 | L9 | prompt, context, character helpers (done) |
 | L10 | ingress, request, response, protocol state, runtime (done) |
-| L11 | small `Synth\Lib` helpers and GameTime |
+| L11 | small `Synth\Lib` helpers and GameTime (done) |
 | L12 | split `chat_helper_functions.php` and `data_functions.php` |
 
 ## Files
@@ -107,8 +107,8 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/fallout_stats.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_stats.php` | done (L2) |
 | `lib/fuz_convert.php` | 4 | hook (done) | `drivers/tts/Native/fuz_convert.php` | done (L6) |
 | `lib/itt_service.php` | 4 | hook (done) | `drivers/itt/Native/itt_service.php` | done (L6) |
-| `lib/lazy_xml.php` | 331 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/legacy_row_management.php` | 33 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
+| `lib/lazy_xml.php` | 4 | hook (done) | `drivers/llm/Native/lazy_xml.php` | done (L11) |
+| `lib/legacy_row_management.php` | 4 | hook (done) | `core/dbmanager/Legacy/legacy_row_management.php` | done (L11) |
 | `lib/llm_randomizer.php` | 4 | hook (done) | `drivers/llm/Native/llm_randomizer.php` | done (L6) |
 | `lib/log_trim.php` | 4 | hook (done) | `managers/ServerStatus/Native/log_trim.php` | done (L7) |
 | `lib/logger.php` | 47 | keep (shim) | global `Logger` shim over `Synth\Lib\Logger`; goes when callers use the namespaced class | - |
@@ -118,7 +118,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/memory_ranking.php` | 4 | hook (done) | `managers/MemoryManager/Native/memory_ranking.php` | done |
 | `lib/minimet5_service.php` | 4 | hook (done) | `drivers/llm/Native/minimet5_service.php` | done (L6) |
 | `lib/misc_ui_functions.php` | 157 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/model_dynmodel.php` | 90 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
+| `lib/model_dynmodel.php` | 4 | hook (done) | `drivers/llm/Native/model_dynmodel.php` | done (L11) |
 | `lib/narrator_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/narrator_actions.php` | done (L8) |
 | `lib/npc_tts_status.php` | 4 | hook (done) | `managers/TtsStudio/Native/npc_tts_status.php` | done (L6) |
 | `lib/observation_reaction.php` | 4 | hook (done) | `managers/ContextManager/Native/observation_reaction.php` | done (L9) |
@@ -151,7 +151,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/save_rollback.php` | 4 | hook (done) | `managers/SaveState/Native/save_rollback.php` | done (L7) |
 | `lib/schema_clone_function.sql` | 305 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); not moved here, no tables added | schema session |
 | `lib/scriptproxy_fallout.php` | 4 | hook (done) | `managers/ActionsManager/Native/scriptproxy_fallout.php` | done (L8) |
-| `lib/semaphore_manager.class.php` | 150 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
+| `lib/semaphore_manager.class.php` | 4 | hook (done) | `managers/ServerStatus/Native/semaphore_manager.class.php` | done (L11) |
 | `lib/settings.php` | 1623 | manager | `ConfigManager` (settings schema, presets, loaders); `settings.php` is the legacy loader that fills globals | config session |
 | `lib/speech_cache.php` | 4 | hook (done) | `managers/TtsStudio/Native/speech_cache.php` | done (L6) |
 | `lib/synth_action_inventory.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_action_inventory.php` | done (L8) |
@@ -236,11 +236,11 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_tts_worker.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_worker.php` | done (L6) |
 | `lib/synth_wait_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_wait_actions.php` | done (L8) |
 | `lib/synth_worker_origin.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_worker_origin.php` | done (L6) |
-| `lib/tokenizer_helper_functions.php` | 146 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
+| `lib/tokenizer_helper_functions.php` | 4 | hook (done) | `managers/ServerStatus/Native/tokenizer_helper_functions.php` | done (L11) |
 | `lib/tts_pronunciation.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_pronunciation.php` | done (L6) |
 | `lib/tts_pronunciation_preview.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_pronunciation_preview.php` | done (L6) |
 | `lib/utils.php` | 36 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/utils_game_timestamp.php` | 944 | Synth\Lib class | `Synth\Lib\GameTime` (Fallout calendar helpers) | L11 |
+| `lib/utils_game_timestamp.php` | 4 | hook (done) | `managers/ContextManager/Native/utils_game_timestamp.php` | done (L11) |
 | `lib/visual_context.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context.php` | done (L4) |
 | `lib/visual_context_request.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context_request.php` | done (L4) |
 | `lib/voice_catalog.php` | 4 | hook (done) | `managers/TtsStudio/Native/voice_catalog.php` | done (L6) |
