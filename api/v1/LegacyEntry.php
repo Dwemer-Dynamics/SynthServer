@@ -63,6 +63,34 @@ final class LegacyEntry
         }
     }
 
+    /**
+     * Reads a small JSON object body for the read-only routes that answer from the database, bounded by $maxBytes, and
+     * checks its wire `type`. The legacy session is bootstrapped without schema updates, and it is returned for the caller.
+     *
+     * @throws \InvalidArgumentException When the body is missing, too large, not an object or of another type.
+     * @return array{0: array<string, mixed>, 1: object} the decoded body and the legacy sql session
+     */
+    public static function readSmallRequest(string $type, int $maxBytes = 1024): array
+    {
+        \Synth\Lib\RequestBody::limit($maxBytes);
+        $body = \Synth\Lib\RequestBody::read();
+        if (!is_string($body) || $body === '' || strlen($body) > $maxBytes || !str_starts_with(ltrim($body), '{')) {
+            throw new \InvalidArgumentException('body');
+        }
+        $input = json_decode($body, true, 4, JSON_THROW_ON_ERROR);
+        if (!is_array($input) || ($input['type'] ?? null) !== $type) {
+            throw new \InvalidArgumentException('type');
+        }
+        require_once self::script('lib/runtime_bootstrap.php');
+        synthRuntimeBootstrap(self::root(), ['run_db_updates' => false]);
+        $db = $GLOBALS['db'] ?? null;
+        if (!is_object($db)) {
+            throw new \RuntimeException('no database');
+        }
+
+        return [$input, $db];
+    }
+
     private static function mismatch(): never
     {
         require_once self::script('lib/request.php');
