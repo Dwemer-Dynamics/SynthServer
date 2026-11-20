@@ -33,7 +33,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L5 | rechat, auto chat, greeting, management guard (done) |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers (done) |
 | L7 | status, backup, save state, profile workers, supervisor, plugins (done) |
-| L8 | actions: catalogue, jev, attack, wait, gift, social, combat |
+| L8 | actions: catalogue, jev, attack, wait, gift, social, combat (done) |
 | L9 | prompt, context, character helpers |
 | L10 | ingress, request, response, protocol state, runtime |
 | L11 | small `Synth\Lib` helpers and GameTime |
@@ -58,7 +58,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/chat_helper_functions.php` | 5589 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/classes/Logger.php` | 568 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/compact_context_history.php` | 272 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/core/action_catalog.php` | 3202 | manager | `managers/ActionsManager/ActionCatalog` (the catalogue and its readers; `core_action` DAO) | L8 |
+| `lib/core/action_catalog.php` | 4 | hook (done) | `managers/ActionsManager/Native/action_catalog.php` | done (L8) |
 | `lib/core/activity_status.php` | 4 | hook (done) | `managers/ServerStatus/Native/activity_status.php` | done (L7) |
 | `lib/core/api_badge.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/api_badge.class.php` | done (L3) |
 | `lib/core/core_profiles.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/core_profiles.class.php` | done (L3) |
@@ -119,7 +119,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/minimet5_service.php` | 4 | hook (done) | `drivers/llm/Native/minimet5_service.php` | done (L6) |
 | `lib/misc_ui_functions.php` | 157 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/model_dynmodel.php` | 90 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/narrator_actions.php` | 358 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/narrator_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/narrator_actions.php` | done (L8) |
 | `lib/npc_tts_status.php` | 4 | hook (done) | `managers/TtsStudio/Native/npc_tts_status.php` | done (L6) |
 | `lib/observation_reaction.php` | 22 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/observed_dialogue.php` | 134 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
@@ -131,7 +131,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/playthrough_snapshot.php` | 4 | hook (done) | `managers/SaveState/Native/playthrough_snapshot.php` | done (L7) |
 | `lib/plugin_package_manager.php` | 4 | hook (done) | `managers/ExtensionManager/Native/plugin_package_manager.php` | done (L7) |
 | `lib/postgresql.class.php` | 1172 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
-| `lib/power_awareness.php` | 97 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/power_awareness.php` | 4 | hook (done) | `managers/ActionsManager/Native/power_awareness.php` | done (L8) |
 | `lib/profile_autofill_async.php` | 4 | hook (done) | `workers/Profiles/Native/profile_autofill_async.php` | done (L7) |
 | `lib/prompt_composition.php` | 187 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/prompt_injections.php` | 163 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
@@ -146,25 +146,25 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/request.php` | 590 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
 | `lib/response.php` | 1213 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
 | `lib/rolemaster_bored.php` | 82 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/rpg_comment.php` | 46 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/rpg_comment.php` | 4 | hook (done) | `managers/ActionsManager/Native/rpg_comment.php` | done (L8) |
 | `lib/runtime_bootstrap.php` | 508 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
 | `lib/save_rollback.php` | 4 | hook (done) | `managers/SaveState/Native/save_rollback.php` | done (L7) |
 | `lib/schema_clone_function.sql` | 305 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); not moved here, no tables added | schema session |
-| `lib/scriptproxy_fallout.php` | 833 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/scriptproxy_fallout.php` | 4 | hook (done) | `managers/ActionsManager/Native/scriptproxy_fallout.php` | done (L8) |
 | `lib/semaphore_manager.class.php` | 150 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/settings.php` | 1623 | manager | `ConfigManager` (settings schema, presets, loaders); `settings.php` is the legacy loader that fills globals | config session |
 | `lib/speech_cache.php` | 4 | hook (done) | `managers/TtsStudio/Native/speech_cache.php` | done (L6) |
-| `lib/synth_action_inventory.php` | 198 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_action_inventory.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_action_inventory.php` | done (L8) |
 | `lib/synth_actor_identity_labels.php` | 44 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_ambient_npc.php` | 199 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/synth_attack_actions.php` | 47 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_attack_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_attack_actions.php` | done (L8) |
 | `lib/synth_audience_control.php` | 134 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/synth_autochat.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_autochat.php` | done (L5) |
 | `lib/synth_biography.php` | 117 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_character_forms.php` | 124 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_character_voice.php` | 73 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
-| `lib/synth_combat_target.php` | 424 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_command_payload.php` | 300 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_combat_target.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_combat_target.php` | done (L8) |
+| `lib/synth_command_payload.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_command_payload.php` | done (L8) |
 | `lib/synth_condition_prompt.php` | 64 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/synth_control.php` | 110 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/synth_dialogue_policy.php` | 79 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
@@ -175,11 +175,11 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_diary_state.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_diary_state.php` | done |
 | `lib/synth_diary_status.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_diary_status.php` | done |
 | `lib/synth_equipment_prompt.php` | 213 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
-| `lib/synth_gift_menu.php` | 112 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_gift_menu.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_gift_menu.php` | done (L8) |
 | `lib/synth_history_speech.php` | 145 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/synth_history_trigger_prompt.php` | 42 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/synth_ingress.php` | 1296 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
-| `lib/synth_jev_actions.php` | 308 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_jev_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_jev_actions.php` | done (L8) |
 | `lib/synth_location.php` | 98 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
 | `lib/synth_memory.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_memory.php` | done |
 | `lib/synth_memory_dispatch.php` | 4 | hook (done) | `workers/Memory/Native/synth_memory_dispatch.php` | done |
@@ -191,7 +191,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_middleterm_regeneration.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_middleterm_regeneration.php` | done |
 | `lib/synth_middleterm_scope.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_middleterm_scope.php` | done |
 | `lib/synth_npc_identity.php` | 50 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
-| `lib/synth_player_gifts.php` | 238 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_player_gifts.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_player_gifts.php` | done (L8) |
 | `lib/synth_player_rewrite.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_player_rewrite.php` | done (L5) |
 | `lib/synth_private_narrator.php` | 37 | manager | `managers/Narrator` (private narrator protocol; already moved by #120, this is its legacy-name hook) | done (#120) |
 | `lib/synth_profile_jobs.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_jobs.php` | done (L7) |
@@ -226,15 +226,15 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_relationship_result_state.php` | 4 | hook (done) | `managers/Relationships/Native/synth_relationship_result_state.php` | done |
 | `lib/synth_relationship_worker.php` | 4 | hook (done) | `workers/Relationships/Native/synth_relationship_worker.php` | done |
 | `lib/synth_runtime.php` | 818 | manager | `managers/Conversation` / `managers/ContextManager` (runtime and protocol seed helpers) | L10 |
-| `lib/synth_social_contract.php` | 98 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_social_response.php` | 72 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_social_tasks.php` | 326 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_social_contract.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_contract.php` | done (L8) |
+| `lib/synth_social_response.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_response.php` | done (L8) |
+| `lib/synth_social_tasks.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_tasks.php` | done (L8) |
 | `lib/synth_stt_pipeline.php` | 4 | hook (done) | `drivers/stt/Native/synth_stt_pipeline.php` | done (L6) |
 | `lib/synth_tts.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts.php` | done (L6) |
 | `lib/synth_tts_jobs.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_jobs.php` | done (L6) |
 | `lib/synth_tts_plan.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_plan.php` | done (L6) |
 | `lib/synth_tts_worker.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_worker.php` | done (L6) |
-| `lib/synth_wait_actions.php` | 406 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
+| `lib/synth_wait_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_wait_actions.php` | done (L8) |
 | `lib/synth_worker_origin.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_worker_origin.php` | done (L6) |
 | `lib/tokenizer_helper_functions.php` | 146 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/tts_pronunciation.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_pronunciation.php` | done (L6) |
