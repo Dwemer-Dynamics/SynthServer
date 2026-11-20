@@ -14,7 +14,7 @@ const ACCESSOR = ['db' => 'db', 'ENGINE_PATH' => 'enginePath', 'ENGINE_ROOT' => 
 const BYREF = ['sort','rsort','usort','uasort','uksort','ksort','krsort','asort','arsort','shuffle','array_push','array_pop',
     'array_shift','array_unshift','array_splice','array_walk','array_multisort','end','reset','next','prev','settype',
     'preg_match','preg_match_all','str_replace','str_ireplace','preg_replace_callback','list','natsort','natcasesort','extract','each'];
-$stats = ['read' => 0, 'write' => 0, 'compound' => 0, 'isset' => 0, 'unset' => 0, 'interp' => 0];
+$stats = ['global' => 0, 'ref' => 0, 'read' => 0, 'write' => 0, 'compound' => 0, 'isset' => 0, 'unset' => 0, 'interp' => 0];
 $manual = [];
 
 function sig(array $t, int $i, int $dir = 1): int {
@@ -33,11 +33,17 @@ function call(string $name, string $key): string {
     if (isset(ACCESSOR[$name])) return '\\Synth\\Bootstrap::' . ACCESSOR[$name] . '()';
     return "\\Synth\\Bootstrap::config('$name')";
 }
+function pathOf(array $t, array $dimRanges): ?array {
+    $keys = [];
+    foreach ($dimRanges as [$o, $c]) $keys[] = trim(tokText($t, $o + 1, $c - 1));
+    foreach ($keys as $i => $k) if ($k === '' && $i !== count($keys) - 1) return null;
+    return $keys;
+}
 function matchClose(array $t, int $open): int {
     $pairs = ['(' => ')', '[' => ']', '{' => '}'];
     $n = count($t); $depth = 0;
     for ($i = $open; $i < $n; $i++) {
-        $x = $t[$i]->text;
+        $x = $t[$i]->id < 256 ? $t[$i]->text : "";
         if ($x === '(' || $x === '[' || $x === '{' || $t[$i]->is([T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES])) $depth++;
         elseif ($x === ')' || $x === ']' || $x === '}') { $depth--; if ($depth === 0) return $i; }
     }
@@ -57,9 +63,9 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         for (; $j < $n; $j++) {
             $x = $t[$j];
             if ($x->is([T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES])) $depth++;
-            elseif ($x->text === '{' && $depth > 0) $depth++;
-            elseif ($x->text === '}' && $depth > 0) $depth--;
-            elseif ($x->text === '"' && $depth === 0) break;
+            elseif ($x->id === 123 && $depth > 0) $depth++;
+            elseif ($x->id === 125 && $depth > 0) $depth--;
+            elseif ($x->id === 34 && $depth === 0) break;
         }
         if ($j >= $n) break;
         // walk the pieces
@@ -92,6 +98,22 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
     }
     $inEdit = function (int $i) use (&$edits): bool { foreach ($edits as $s => [$e]) if ($i >= $s && $i <= $e) return true; return false; };
 
+    // 1b. `global $a, $b;` becomes reference bindings to the same slots
+    for ($i = 0; $i < $n; $i++) {
+        if (!$t[$i]->is(T_GLOBAL)) continue;
+        $vars = []; $q = $i + 1; $ok = true;
+        for (; $q < $n && $t[$q]->text !== ';'; $q++) {
+            if ($t[$q]->is(T_VARIABLE)) $vars[] = ltrim($t[$q]->text, '$');
+            elseif (!$t[$q]->is([T_WHITESPACE, T_COMMENT]) && $t[$q]->text !== ',') { $ok = false; break; }
+        }
+        if (!$ok || !$vars || $q >= $n) { $manual[] = "$file:" . $t[$i]->line . " global-shape"; continue; }
+        if ($only !== null && array_diff($vars, array_keys($only))) continue;
+        if (in_array('this', $vars, true)) continue;
+        $parts = [];
+        foreach ($vars as $v) $parts[] = '$' . $v . " = &\\Synth\\Bootstrap::ref('$v')";
+        $edits[$i] = [$q - 1, implode('; ', $parts)]; $stats['global'] += count($vars); $i = $q;
+    }
+
     // 2. code uses
     for ($i = 0; $i < $n; $i++) {
         if (!$t[$i]->is(T_VARIABLE) || $t[$i]->text !== '$GLOBALS') continue;
@@ -109,6 +131,12 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         $bt = $before >= 0 ? $t[$before] : null; $at = $after >= 0 ? $t[$after] : null;
         $accessor = call($key, $key);
         // by-ref / new / as &
+        if ($bt && $bt->text === '&') {
+            $bb = sig($t, $before, -1); $pk = pathOf($t, $dimRanges);
+            if ($bb >= 0 && $t[$bb]->text === '=' && $pk !== null && !($hasDims && end($pk) === '')) {
+                $edits[$i] = [$e, "\\Synth\\Bootstrap::ref('$key'" . ($hasDims ? ', [' . implode(', ', $pk) . ']' : '') . ')']; $stats['ref']++; continue;
+            }
+        }
         if ($bt && ($bt->text === '&' || $bt->is([T_NEW, T_AS, T_GLOBAL, T_STATIC]))) { $manual[] = "$file:$line byref/new $key"; continue; }
         // isset / empty / unset
         if ($bt && $bt->text === '(' ) {
@@ -124,7 +152,9 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
             if ($kw >= 0 && $t[$kw]->is(T_EMPTY)) { $edits[$i] = [$e, $accessor . tokText($t, $cl + 1, $e)]; $stats['isset']++; continue; }
             if ($kw >= 0 && $t[$kw]->is(T_UNSET)) {
                 $close = matchClose($t, $before);
+                $pk = pathOf($t, $dimRanges);
                 if (!$hasDims && $at && $at->text === ')' && $after === $close) { $edits[$kw] = [$close, "\\Synth\\Bootstrap::forget('$key')"]; $stats['unset']++; }
+                elseif ($hasDims && $pk !== null && end($pk) !== '' && $at && $at->text === ')' && $after === $close) { $edits[$kw] = [$close, "\\Synth\\Bootstrap::unsetPath('$key', [" . implode(', ', $pk) . "])"]; $stats['unset']++; }
                 else $manual[] = "$file:$line unset $key";
                 continue;
             }
@@ -132,12 +162,13 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         $isAssign = $at && ($at->is([T_PLUS_EQUAL, T_MINUS_EQUAL, T_MUL_EQUAL, T_DIV_EQUAL, T_CONCAT_EQUAL, T_MOD_EQUAL, T_COALESCE_EQUAL, T_INC, T_DEC]) || $at->text === '=');
         if ($isAssign) {
             $stmtStart = $bt === null || $bt->text === ';' || $bt->text === '{' || $bt->text === '}' || $bt->is([T_OPEN_TAG, T_ELSE]) || $bt->text === ')';
-            $oneDim = $hasDims && count($dimRanges) === 1 && $at->text === '=';
-            if (($hasDims && !$oneDim) || !$stmtStart || $at->is([T_INC, T_DEC])) { $manual[] = "$file:$line write-shape $key"; continue; }
+            $pk = $hasDims ? pathOf($t, $dimRanges) : [];
+            $appendLast = $hasDims && $pk !== null && end($pk) === '';
+            if ($pk === null || !$stmtStart || $at->is([T_INC, T_DEC]) || ($appendLast && $at->text !== '=')) { $manual[] = "$file:$line write-shape $key"; continue; }
             // expression end
             $d = 0; $x = sig($t, $after); $first = $x; $end = -1;
             for ($q = $x; $q < $n; $q++) {
-                $s = $t[$q]->text;
+                $s = $t[$q]->id < 256 ? $t[$q]->text : "";
                 if ($t[$q]->is(T_CLOSE_TAG)) break;
                 if ($s === '(' || $s === '[' || $s === '{' || $t[$q]->is([T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES])) $d++;
                 elseif ($s === ')' || $s === ']' || $s === '}') { $d--; if ($d < 0) break; }
@@ -145,9 +176,15 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
             }
             if ($end < 0 || $t[$first]->text === '&') { $manual[] = "$file:$line write-expr $key"; continue; }
             $expr = trim(tokText($t, $x, sig($t, $end, -1)));
-            if ($oneDim) {
-                $kx = trim(tokText($t, $dimRanges[0][0] + 1, $dimRanges[0][1] - 1));
-                $rep = $kx === '' ? "\\Synth\\Bootstrap::append('$key', $expr)" : "\\Synth\\Bootstrap::setAt('$key', $kx, $expr)";
+            if ($hasDims && count($pk) === 1) {
+                $kx = $pk[0];
+                if ($at->text === '=') $rep = $kx === '' ? "\\Synth\\Bootstrap::append('$key', $expr)" : "\\Synth\\Bootstrap::setAt('$key', $kx, $expr)";
+                else { $op = substr($at->text, 0, -1); $rep = "\\Synth\\Bootstrap::setAt('$key', $kx, $accessor" . "[$kx] $op ($expr))"; }
+                $stats['write']++;
+            } elseif ($hasDims) {
+                if ($appendLast) { array_pop($pk); $rep = "\\Synth\\Bootstrap::appendPath('$key', [" . implode(', ', $pk) . "], $expr)"; }
+                elseif ($at->text === '=') $rep = "\\Synth\\Bootstrap::setPath('$key', [" . implode(', ', $pk) . "], $expr)";
+                else { $op = substr($at->text, 0, -1); $rep = "\\Synth\\Bootstrap::setPath('$key', [" . implode(', ', $pk) . "], $accessor" . tokText($t, $cl + 1, $e) . " $op ($expr))"; }
                 $stats['write']++;
             } elseif ($at->text === '=') { $rep = "\\Synth\\Bootstrap::set('$key', $expr)"; $stats['write']++; }
             else { $op = substr($at->text, 0, -1); $rep = "\\Synth\\Bootstrap::set('$key', $accessor $op ($expr))"; $stats['compound']++; }
@@ -157,7 +194,7 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         // enclosing call by-ref check
         $depth = 0; $byref = false;
         for ($q = $i - 1; $q >= 0; $q--) {
-            $s = $t[$q]->text;
+            $s = $t[$q]->id < 256 ? $t[$q]->text : "";
             if ($s === ')' || $s === ']' || $s === '}') $depth++;
             elseif ($s === '(' || $s === '[' || $s === '{') {
                 if ($depth === 0) {
@@ -170,7 +207,11 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         // foreach by-ref
         $fe = false;
         for ($q = $i - 1; $q >= 0 && $q > $i - 40; $q--) { if ($t[$q]->is(T_FOREACH)) { for ($r = $i; $r < $i + 40 && $r < $n; $r++) { if ($t[$r]->is(T_AS)) { $nx = sig($t, $r); if ($nx >= 0 && $t[$nx]->text === '&') $fe = true; break; } } break; } if ($t[$q]->text === ';') break; }
-        if ($byref || $fe) { $manual[] = "$file:$line byref-call $key"; continue; }
+        if ($byref || $fe) {
+            $pk = pathOf($t, $dimRanges);
+            if ($pk === null || ($hasDims && end($pk) === '')) { $manual[] = "$file:$line byref-call $key"; continue; }
+            $edits[$i] = [$e, "\\Synth\\Bootstrap::ref('$key'" . ($hasDims ? ', [' . implode(', ', $pk) . ']' : '') . ')']; $stats['ref']++; continue;
+        }
         $edits[$i] = [$e, $accessor . tokText($t, $cl + 1, $e)]; $stats['read']++;
     }
     // apply
