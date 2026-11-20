@@ -27,21 +27,21 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
     if ($selection['role']==='terminal') return;
     if ($selection['role']==='npc') {
         $identity=$selection['identity'];
-        $result=@pg_query_params($connection,"SELECT 1 FROM public.core_npc n
-            JOIN public.core_profiles p ON p.id=n.profile_id
-            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id AND a.game='fo4'
-            JOIN public.core_runtime_session r ON r.session_id=$1 AND r.playthrough_id=a.playthrough_id
-            WHERE n.id=$2 AND n.actor_identity_id=$3 AND p.id=$4
-                AND upper(a.full_form_id)=upper($5) AND lower(a.origin_plugin)=lower($6) AND a.playthrough_id=$7
-                AND r.runtime_variant=$8 FOR SHARE OF n,p",
-            [$event['session_id'],$selection['npc_id'],$selection['actor_identity_id'],$selection['profile_id'],
-             $identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id'],$event['runtime_variant']]);
+        try {
+            $bound=\Synth\Core\DbManager\Dao\NpcDao::current()->lockRechatBinding(strval($event['session_id']),intval($selection['npc_id']),
+                intval($selection['actor_identity_id']),intval($selection['profile_id']),strval($identity['form_id']),
+                strval($identity['origin_plugin']),strval($identity['playthrough_id']),strval($event['runtime_variant']));
+        } catch (\Throwable $error) {
+            throw new RuntimeException('rechat_selection_binding_query_failed',0,$error);
+        }
     } elseif ($selection['role']==='narrator') {
-        $result=@pg_query_params($connection,"SELECT 1 FROM public.core_config_setting n JOIN public.core_profiles p
-            ON n.scope='narrator' AND n.config_key='profile_id' AND n.config_value=p.id::text WHERE p.id=$1 FOR SHARE OF n,p",[$selection['profile_id']]);
+        try {
+            $bound=\Synth\Core\DbManager\Dao\ProfileDao::current()->lockNarratorProfile(intval($selection['profile_id']))!==null;
+        } catch (\Throwable $error) {
+            throw new RuntimeException('rechat_selection_binding_query_failed',0,$error);
+        }
     } else throw new LogicException('rechat_selection_role_invalid');
-    if (!$result) throw new RuntimeException('rechat_selection_binding_query_failed');
-    if (!pg_fetch_assoc($result)) throw new LogicException('rechat_selected_binding_changed');
+    if (!$bound) throw new LogicException('rechat_selected_binding_changed');
 }
 
 // The first continuation inherits its completed origin's pre-profile policy, never the current request's globals.

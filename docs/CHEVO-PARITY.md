@@ -29,8 +29,8 @@ Counts cover non-test PHP. They exclude `vendor/`, `unittests/vendor/`, `tests/`
 | Base entities (`core/entities/base`) | 20 | 57 | |
 | System entities (`core/entities/system`) | 22 | 66 | |
 | DAOs (`core/dbmanager/dao/*.php`) | 22 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
-| `$db->` calls | 1,320 | — | Lines by directory: managers 733, workers 165, ui 96, root 70, drivers 64, processor 48, debug 35, lib 32, core 13, other 11 |
-| `pg_*` calls | 870 | — | Mostly in `lib/postgresql.class.php`, `managers/*/Native`, `ui/` |
+| `$db->` calls | 1,231 | — | Lines by directory (before the DAO-method slice): managers 733, workers 165, ui 96, root 70, drivers 64, processor 48, debug 35, lib 32, core 13, other 11 |
+| `pg_*` calls | 864 | — | Mostly in `lib/postgresql.class.php`, `managers/*/Native`, `ui/` |
 | Global uses (`global $x`, `$GLOBALS[`) | 3,360 | — | 6,471 before the globals pass. |
 | `require_once` | 1,838 | — | The autoloader is in place, but most includes of procedural files remain. |
 | `lib/*.php` | 189: 171 thin hooks and 18 real files | small final classes | See [lib/](#lib) |
@@ -64,7 +64,7 @@ See also [Behaviour gaps against chevo](#behaviour-gaps-against-chevo) for chevo
 
 | chevo area | SYNTH today | Status |
 | --- | --- | --- |
-| `core/dbmanager` (Doctrine ORM, DAOs, migrations, as the only DB boundary) | Doctrine with the hash-pinned migration manifest and `SchemaCheck` (`schema-check --offline`). The DAOs follow `ConfigSettingDao` (see `core/dbmanager/dao/README.md`). There are still about 1,330 `$db->` and 870 `pg_*` calls outside it. | partial |
+| `core/dbmanager` (Doctrine ORM, DAOs, migrations, as the only DB boundary) | Doctrine with the hash-pinned migration manifest and `SchemaCheck` (`schema-check --offline`). The DAOs follow `ConfigSettingDao` (see `core/dbmanager/dao/README.md`). There are still about 1,230 `$db->` and 864 `pg_*` calls outside it. | partial |
 | `core/entities/base`, `core/entities/system` | 20 base and 22 system entities. Families with DAOs: config settings, API badges, connectors (LLM, TTS, STT, ITT), profile, location, location state, location marker, worldspace, NPC, NPC actor, NPC runtime actor, NPC history, NPC profile rules, NPC biography templates, plugin manifest revisions, relationship config. | partial |
 | `core_*` table naming and fresh-install migration | The schema was rebuilt from scratch in chevo style, with no upgrade migrations from the old tables. Every table has a `core_*` name (for example `core_npc`, `core_action_issued`, `core_log`). | parity |
 | API keys | The shared Dwemer `api_keys` store (#62). It is kept on purpose, rather than a server-private table. | SYNTH-specific |
@@ -184,12 +184,7 @@ Schema steps still to do:
 
 For the counts by directory, see [Counts](#counts). The #149 description lists the remaining call sites in detail.
 
-1. **Tables that already have a DAO, but need DAO methods first** (about 40 call sites):
-   - `ConfigSettingDao` prefix read and delete, for the voice-cache `LIKE` reads and deletes in the Cartesia and Inworld drivers and `ui/xtts_clone.php`.
-   - The queue-key rename and delete in `dynamic_update_util`.
-   - `ProfileDao` writes for the default-profile repair in `managers/ListenerManager/Native/synth_runtime.php`.
-   - `LlmConnectorDao` insert and update for the LLM randomizer.
-   - `FOR SHARE` and connection-scoped reads in `synth_diary_state`, `ui/api/audience_control.php` and the rechat joins. Keep the locks, parameterized, inside the DAO.
+1. **Tables that already have a DAO, but needed DAO methods first: done** (the DAO-method slice). Added `ConfigSettingDao` prefix read and delete, key rename and `FOR SHARE` reads (through `ConfigManager`); `ProfileDao::repairDefaults` / `firstId` / `lockNarratorProfile`; `NpcDao::assignProfileWhereMissing` / `lockRechatBinding`; and the Player2 connector methods on `LlmConnectorDao`. What stays raw on those tables: the `synth_mode` readers (locked, or on their own connection), the `pg_try_advisory_lock` in `dynamic_update_util`, and the `core_profiles` / `core_llm_connector` reads in `ui/` and `processor/` that belong with the profile and connector UI work.
 2. **Tables with no DAO** (about 600 lines, the bulk): context events, history events, runtime context and session, actor identities, `core_worker_job`, the memory, diary and middle-term families, protocol events, prompts, relationships, `core_location_legacy`. They wait on the entity families above.
 3. **`processor/worldknowledge.php`:** one read of `current_worldknowledge_topic` stays as SQL, because `WorldKnowledgeVocabularyTest`'s fake `$db` scripts that query. To convert it, first change the test to stub `ConfigManager`, which needs a reset or inject hook on the singleton. The `synth_mode` readers also keep SQL (locked or on their own connection).
 

@@ -229,8 +229,7 @@ class LLMRandomizer {
             return false;
         }
 
-        $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . self::PLAYER2_FORCE_ENABLED_KEY . "' LIMIT 1");
-        self::$player2ForceEnabled = self::isTruthy($row['value'] ?? '0');
+        self::$player2ForceEnabled = self::isTruthy(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', self::PLAYER2_FORCE_ENABLED_KEY, '0'));
         return self::$player2ForceEnabled;
     }
 
@@ -256,53 +255,27 @@ class LLMRandomizer {
             return null;
         }
 
-        $row = $db->fetchOne(
-            "SELECT id FROM core_llm_connector " .
-            "WHERE driver='player2json' " .
-            "ORDER BY CASE WHEN lower(coalesce(label,''))='player2 local' THEN 0 ELSE 1 END, id ASC LIMIT 1"
-        );
-
-        $connectorId = isset($row['id']) ? intval($row['id']) : 0;
+        $connectors = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($db);
+        $connectorId = intval($connectors->findIdByDriver('player2json', 'player2 local'));
 
         $player2ApiBadgeId = self::ensurePlayer2ApiBadgeId();
 
         if ($connectorId <= 0) {
             $metadata = json_encode(['player2_game_key' => 'SYNTH'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $insertedConnectorId = $db->insert('core_llm_connector', [
-                'label' => self::PLAYER2_DEFAULT_LABEL,
-                'metadata' => $metadata,
-                'url' => self::PLAYER2_DEFAULT_URL,
-                'model' => 'player2-app-selected',
-                'driver' => 'player2json',
-                'service' => 'player2',
-                'max_tokens' => 750,
-                'enforce_json' => 1,
-                'prefill_json' => 0,
-                'json_schema' => 1,
-                'api_key_id' => $player2ApiBadgeId,
-                'temperature' => 1,
-                'presence_penalty' => 0,
-                'frequency_penalty' => 0,
-                'repetition_penalty' => 1,
-                'top_p' => 1,
-                'top_k' => 0,
-                'min_p' => 0,
-                'top_a' => 0
-            ]);
+            $insertedConnectorId = $connectors->insertPlayer2(
+                self::PLAYER2_DEFAULT_LABEL,
+                $metadata,
+                self::PLAYER2_DEFAULT_URL,
+                $player2ApiBadgeId === null ? null : intval($player2ApiBadgeId)
+            );
 
             $connectorId = !empty($insertedConnectorId) ? intval($insertedConnectorId) : 0;
             if ($connectorId <= 0) {
-                $row = $db->fetchOne(
-                    "SELECT id FROM core_llm_connector " .
-                    "WHERE driver='player2json' " .
-                    "ORDER BY CASE WHEN lower(coalesce(label,''))='player2 local' THEN 0 ELSE 1 END, id ASC LIMIT 1"
-                );
-                $connectorId = isset($row['id']) ? intval($row['id']) : 0;
+                $connectorId = intval($connectors->findIdByDriver('player2json', 'player2 local'));
             }
         } elseif (!empty($player2ApiBadgeId)) {
-            $connectorRow = $db->fetchOne("SELECT api_key_id FROM core_llm_connector WHERE id=" . intval($connectorId) . " LIMIT 1");
-            if (empty($connectorRow['api_key_id'])) {
-                $db->updateRow('core_llm_connector', ['api_key_id' => $player2ApiBadgeId], 'id=' . intval($connectorId));
+            if (empty($connectors->apiKeyId(intval($connectorId)))) {
+                $connectors->setApiKeyId(intval($connectorId), intval($player2ApiBadgeId));
             }
         }
 
@@ -339,13 +312,11 @@ class LLMRandomizer {
             return null;
         }
 
-        $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . self::PLAYER2_FORCE_CONNECTOR_KEY . "' LIMIT 1");
-        $connectorId = intval($row['value'] ?? 0);
+        $connectorId = intval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', self::PLAYER2_FORCE_CONNECTOR_KEY, '0'));
 
         if ($connectorId > 0) {
-            $connectorRow = $db->fetchOne("SELECT id FROM core_llm_connector WHERE id={$connectorId} AND driver='player2json' LIMIT 1");
-            if (!empty($connectorRow['id'])) {
-                self::$player2ForceConnectorId = (int)$connectorRow['id'];
+            if (\Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->existsWithDriver($connectorId, 'player2json')) {
+                self::$player2ForceConnectorId = $connectorId;
                 return self::$player2ForceConnectorId;
             }
         }
@@ -360,13 +331,7 @@ class LLMRandomizer {
             return false;
         }
 
-        $escapedId = $db->escape($id);
-        $row = $db->fetchOne("SELECT config_key AS id FROM public.core_config_setting WHERE scope = 'conf' AND config_key ='{$escapedId}' LIMIT 1");
-        if ($row && isset($row['id'])) {
-            return $db->updateRow('public.core_config_setting', ['config_value' => (string)$value], "scope = 'conf' AND config_key = '" . $escapedId . "'");
-        }
-
-        return $db->insert('public.core_config_setting', ['scope' => 'conf', 'config_key' => $id, 'config_value' => (string)$value]);
+        return \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', (string)$id, (string)$value);
     }
 
     // Player2 needs no stored key: the connector sends its fixed game key when it has none, and the shared key store holds

@@ -1096,10 +1096,8 @@ if (isset($_GET['action']) && ($_GET['action'] === 'test_cartesia' || $_GET['act
             require_once(__DIR__ . '/../tts/tts-inworld.php');
             return getInworldCachedVoicesMap();
         }
-        $db = \Synth\Bootstrap::db();
         $prefix = $provider . '_voice_id_';
-        $prefixEscaped = $db->escape($prefix);
-        $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
+        $rows = \Synth\Managers\ConfigManager\ConfigManager::shared()->getByPrefix('conf', $prefix);
         $cloned = [];
         foreach ($rows as $row) {
             $voiceName = str_replace($prefix, '', $row['id']);
@@ -1550,10 +1548,8 @@ function getClonedVoices($provider) {
         require_once(__DIR__ . '/../tts/tts-inworld.php');
         return getInworldCachedVoicesMap();
     }
-    $db = \Synth\Bootstrap::db();
     $prefix = $provider . '_voice_id_';
-    $prefixEscaped = $db->escape($prefix);
-    $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
+    $rows = \Synth\Managers\ConfigManager\ConfigManager::shared()->getByPrefix('conf', $prefix);
     $cloned = [];
     foreach ($rows as $row) {
         $voiceName = str_replace($prefix, '', $row['id']);
@@ -2163,11 +2159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Cartesia clear cache handler
     if (isset($_POST['action']) && $_POST['action'] === 'clear_cartesia_cache') {
-        $db = \Synth\Bootstrap::db();
-        $legacyPrefixEscaped = $db->escape('cartesia_voice_id_');
-        $scopedPrefixEscaped = $db->escape('cartesia_voice_scope_');
-        $metadataPrefixEscaped = $db->escape('cartesia_voice_meta_');
-        $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND (config_key LIKE '{$legacyPrefixEscaped}%' OR config_key LIKE '{$scopedPrefixEscaped}%' OR config_key LIKE '{$metadataPrefixEscaped}%')");
+        \Synth\Managers\ConfigManager\ConfigManager::shared()->deleteByPrefixes('conf', ['cartesia_voice_id_', 'cartesia_voice_scope_', 'cartesia_voice_meta_']);
         $cartesiaMessage .= "<p style='color:rgb(247, 231, 16);'><strong>Cartesia voice cache cleared.</strong></p>";
     }
 
@@ -2372,11 +2364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Inworld clear cache handler
     if (isset($_POST['action']) && $_POST['action'] === 'clear_inworld_cache') {
-        $db = \Synth\Bootstrap::db();
-        $legacyPrefixEscaped = $db->escape('inworld_voice_id_');
-        $scopedPrefixEscaped = $db->escape('inworld_voice_scope_');
-        $metadataPrefixEscaped = $db->escape('inworld_voice_meta_');
-        $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND (config_key LIKE '{$legacyPrefixEscaped}%' OR config_key LIKE '{$scopedPrefixEscaped}%' OR config_key LIKE '{$metadataPrefixEscaped}%')");
+        \Synth\Managers\ConfigManager\ConfigManager::shared()->deleteByPrefixes('conf', ['inworld_voice_id_', 'inworld_voice_scope_', 'inworld_voice_meta_']);
         $inworldMessage .= "<p style='color:rgb(247, 231, 16);'><strong>Inworld voice cache cleared.</strong></p>";
     }
 

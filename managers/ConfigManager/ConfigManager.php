@@ -120,6 +120,19 @@ final class ConfigManager
     }
 
     /**
+     * Rows of one scope (only the named keys when given), locked FOR SHARE until the caller's open transaction ends.
+     *
+     * @param list<string>|null $keys
+     * @return array<string, string>
+     */
+    public function getManyForShare(string $scope, ?array $keys = null): array
+    {
+        $this->requireScope($scope);
+
+        return $this->dao->valuesForShare($scope, $keys);
+    }
+
+    /**
      * Every stored row of one scope, ordered by key.
      *
      * @return list<array{id: string, value: string, description: string, updated_at: ?string}>
@@ -129,6 +142,38 @@ final class ConfigManager
         $this->requireScope($scope);
 
         return $this->dao->all($scope);
+    }
+
+    /**
+     * Rows of one scope whose key starts with the literal prefix, ordered by key.
+     *
+     * @return list<array{id: string, value: string}>
+     */
+    public function getByPrefix(string $scope, string $prefix, ?int $limit = null): array
+    {
+        $this->requireScope($scope);
+
+        return $this->dao->withPrefix($scope, $prefix, $limit);
+    }
+
+    /** Renames a setting's key within its scope (the value and description move with it). False when the write fails. */
+    public function rename(string $scope, string $key, string $newKey): bool
+    {
+        $this->requireScope($scope);
+
+        return $this->dao->rename($scope, trim($key), trim($newKey));
+    }
+
+    /**
+     * Removes every setting of one scope whose key starts with any of the literal prefixes. False when the write fails.
+     *
+     * @param list<string> $prefixes
+     */
+    public function deleteByPrefixes(string $scope, array $prefixes): bool
+    {
+        $this->requireScope($scope);
+
+        return $this->dao->deleteByPrefixes($scope, $prefixes);
     }
 
     /** Stores a setting in any scope; arrays and booleans are stored as JSON text and true/false. False when the write fails. */

@@ -363,9 +363,7 @@ function getCachedInworldVoiceId($voiceName, ?array $config = null): string {
     }
 
     $config = is_array($config) ? $config : getInworldActiveConfig();
-    $optKeyEscaped = $db->escape(getInworldVoiceCacheKey($voiceName, $config));
-    $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key = '{$optKeyEscaped}' LIMIT 1");
-    return trim(strval($row['value'] ?? ''));
+    return trim(strval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', getInworldVoiceCacheKey($voiceName, $config), '')));
 }
 
 function storeCachedInworldVoiceId($voiceName, $voiceId, ?array $config = null): void {
@@ -374,12 +372,7 @@ function storeCachedInworldVoiceId($voiceName, $voiceId, ?array $config = null):
         return;
     }
 
-    $optKeyEscaped = $db->escape(getInworldVoiceCacheKey($voiceName, $config));
-    $voiceIdEscaped = $db->escape($voiceId);
-    $db->execQuery(
-        "INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', '{$optKeyEscaped}', '{$voiceIdEscaped}')
-         ON CONFLICT (scope, config_key) DO UPDATE SET config_value = '{$voiceIdEscaped}'"
-    );
+    \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', getInworldVoiceCacheKey($voiceName, $config), strval($voiceId));
 }
 
 function deleteCachedInworldVoiceId($voiceName, ?array $config = null): void {
@@ -388,10 +381,10 @@ function deleteCachedInworldVoiceId($voiceName, ?array $config = null): void {
         return;
     }
 
-    $optKeyEscaped = $db->escape(getInworldVoiceCacheKey($voiceName, $config));
+    $settings = \Synth\Managers\ConfigManager\ConfigManager::shared();
+    $settings->delete('conf', getInworldVoiceCacheKey($voiceName, $config));
     // Remove obsolete fingerprint rows left by the older SYNTH clone flow.
-    $fingerprintKey = $db->escape(getInworldVoiceCacheKey($voiceName, $config) . '__sample_sha256');
-    $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key IN ('{$optKeyEscaped}', '{$fingerprintKey}')");
+    $settings->delete('conf', getInworldVoiceCacheKey($voiceName, $config) . '__sample_sha256');
 }
 
 function getInworldVoiceMetadataKey($voiceName, ?array $config = null): string {
@@ -401,9 +394,7 @@ function getInworldVoiceMetadataKey($voiceName, ?array $config = null): string {
 function getInworldVoiceMetadata($voiceName, ?array $config = null): array {
     $db = ensureInworldDb();
     if (!$db) return [];
-    $key = $db->escape(getInworldVoiceMetadataKey($voiceName, $config));
-    $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key = '{$key}' LIMIT 1");
-    $decoded = json_decode(strval($row['value'] ?? ''), true);
+    $decoded = json_decode(strval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', getInworldVoiceMetadataKey($voiceName, $config), '')), true);
     return is_array($decoded) ? $decoded : [];
 }
 
@@ -411,16 +402,13 @@ function storeInworldVoiceMetadata($voiceName, $voiceId, $samplePath, bool $mana
     $db = ensureInworldDb();
     if (!$db) return;
     $metadata = ['voice_id' => trim(strval($voiceId)), 'managed' => $managed, 'sample_sha256' => is_file($samplePath) ? hash_file('sha256', $samplePath) : '', 'created_at' => gmdate('c')];
-    $key = $db->escape(getInworldVoiceMetadataKey($voiceName, $config));
-    $value = $db->escape(json_encode($metadata, JSON_UNESCAPED_SLASHES));
-    $db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', '{$key}', '{$value}') ON CONFLICT (scope, config_key) DO UPDATE SET config_value = '{$value}'");
+    \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', getInworldVoiceMetadataKey($voiceName, $config), json_encode($metadata, JSON_UNESCAPED_SLASHES));
 }
 
 function deleteInworldVoiceMetadata($voiceName, ?array $config = null): void {
     $db = ensureInworldDb();
     if (!$db) return;
-    $key = $db->escape(getInworldVoiceMetadataKey($voiceName, $config));
-    $db->execQuery("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key = '{$key}'");
+    \Synth\Managers\ConfigManager\ConfigManager::shared()->delete('conf', getInworldVoiceMetadataKey($voiceName, $config));
 }
 
 function getInworldCachedVoicesMap(?array $config = null): array {
@@ -434,8 +422,7 @@ function getInworldCachedVoicesMap(?array $config = null): array {
     $cloned = [];
 
     $prefix = getInworldVoiceCachePrefix($config);
-    $prefixEscaped = $db->escape($prefix);
-    $rows = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE '{$prefixEscaped}%'");
+    $rows = \Synth\Managers\ConfigManager\ConfigManager::shared()->getByPrefix('conf', $prefix);
     foreach ($rows as $row) {
         $voiceName = substr(strval($row['id'] ?? ''), strlen($prefix));
         if (str_ends_with($voiceName, '__sample_sha256')) {
