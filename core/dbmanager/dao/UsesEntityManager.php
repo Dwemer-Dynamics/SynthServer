@@ -37,6 +37,17 @@ trait UsesEntityManager
         return self::$instance ?? throw new LogicException('Database::boot() must be called before '.static::class.' is used.');
     }
 
+    /**
+     * The EntityManager with an empty identity map. Rows are written by parameterized statements (and by legacy SQL), never by
+     * Doctrine, so a managed copy would go stale; clearing first makes every find read the row as it is now.
+     */
+    private function fresh(): EntityManagerInterface
+    {
+        $this->entityManager->clear();
+
+        return $this->entityManager;
+    }
+
     /** The connection every statement of this DAO runs on (the legacy session: transactions belong to its owner). */
     private function connection(): Connection
     {
