@@ -53,16 +53,16 @@ class GoogleOpenAiJsonDriver
 
 
      protected function init_connector($customParms) {
-        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? $GLOBALS["CONNECTOR"][$this->name]["url"] : "";
-        $this->_model =  (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? $GLOBALS["CONNECTOR"][$this->name]["model"] : 'gemini-1.5-flash';
+        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "";
+        $this->_model =  (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"] : 'gemini-1.5-flash';
 
     }
 
     public function open($contextData, $customParms)
     {
-        $url = $GLOBALS["CONNECTOR"][$this->name]["url"];
+        $url = \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"];
 
-        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48)+0);
+        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
 
 
 
@@ -72,13 +72,13 @@ class GoogleOpenAiJsonDriver
                                                                                                 Tyler, 2023/11/09
         ****/
         
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline)) {
                     if (strpos($contextline["content"],"#MEMORY")===0) {
                         $contextData[$n]["content"]=str_replace("#MEMORY","##\nMEMORY\n",$contextline["content"]."\n##\n");
-                    } else if (strpos($contextline["content"],$GLOBALS["MEMORY_STATEMENT"])!==false) {
-                        $contextData[$n]["content"]=str_replace($GLOBALS["MEMORY_STATEMENT"],"(USE MEMORY reference)",$contextline["content"]);
+                    } else if (strpos($contextline["content"],\Synth\Bootstrap::config("MEMORY_STATEMENT"))!==false) {
+                        $contextData[$n]["content"]=str_replace(\Synth\Bootstrap::config("MEMORY_STATEMENT"),"(USE MEMORY reference)",$contextline["content"]);
                     }
                 }
             }
@@ -90,25 +90,25 @@ class GoogleOpenAiJsonDriver
             synthEnsureNarratorJsonResponseState('GOOGLE_OPENAIJSON');
         }
         
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) {
+        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
             $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         } else {
             $prefix="";
             //$prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         }
         
-        if (strpos($GLOBALS["SYNTH_PERS"],"#SpeechStyle")!==false) {
+        if (strpos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false) {
             $speechReinforcement="Use #SpeechStyle.";
         } else
             $speechReinforcement="";
 
         $contextData[]=[
             'role' => 'user',
-            'content' => "{$prefix}. $speechReinforcement Use this JSON object to give your answer: ".json_encode($GLOBALS["responseTemplate"])
+            'content' => "{$prefix}. $speechReinforcement Use this JSON object to give your answer: ".json_encode(\Synth\Bootstrap::config("responseTemplate"))
         ];
 
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && $GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
-            $contextData[0]["content"].=$GLOBALS["COMMAND_PROMPT"];
+        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+            $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
 
         $pb=[];
@@ -134,7 +134,7 @@ class GoogleOpenAiJsonDriver
                 if ($lastrole=="assistant" && $lastrole!=$element["role"] && $element["role"]!="tool" && !empty($assistantRoleBuffer)) {
                     $contextDataCopy[]=[
                         "role"=>"assistant",
-                        "content"=>synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]), strval($lastTargetBuffer), $assistantRoleBuffer)
+                        "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($lastTargetBuffer), $assistantRoleBuffer)
                         
                     ];
                     $lastTargetBuffer="";
@@ -173,11 +173,11 @@ class GoogleOpenAiJsonDriver
                         
                         $contextDataCopy[]=[
                                 "role"=>"assistant",
-                                "content"=>synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
+                                "content"=>synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
                             ];
                             
-                        $gameRequestCopy=$GLOBALS["gameRequest"];    
-                        $gameRequestCopy[3]=synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
+                        $gameRequestCopy=\Synth\Bootstrap::gameRequest();    
+                        $gameRequestCopy[3]=synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
                         $gameRequestCopy[0]="logaction";
                         logEvent($gameRequestCopy);   
                         
@@ -276,21 +276,21 @@ class GoogleOpenAiJsonDriver
         
         
         $data = array(
-            'model' => (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? $GLOBALS["CONNECTOR"][$this->name]["model"] : 'gemini-1.5-flash',
+            'model' => (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"] : 'gemini-1.5-flash',
             'messages' =>
                 $contextData
             ,
             'stream' => true,
             'max_completion_tokens'=>$MAX_TOKENS,
-            'temperature' => ($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ?: 1,
-            'top_p' => ($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ?: 0.95,
+            'temperature' => (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ?: 1,
+            'top_p' => (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"]) ?: 0.95,
             'response_format'=>["type"=>"json_object"]
 
         );
 
         
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && $GLOBALS["CONNECTOR"][$this->name]["json_schema"]) {
-            $data["response_format"]=$GLOBALS["structuredOutputTemplate"];
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
+            $data["response_format"]=\Synth\Bootstrap::config("structuredOutputTemplate");
         }  
 
         if (isset($customParms["MAX_TOKENS"])) {
@@ -302,10 +302,10 @@ class GoogleOpenAiJsonDriver
         }
 
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            if ($GLOBALS["FORCE_MAX_TOKENS"]==0) {
+            if (\Synth\Bootstrap::config("FORCE_MAX_TOKENS")==0) {
                 unset($data["max_completion_tokens"]);
             } else
-                $data["max_completion_tokens"]=$GLOBALS["FORCE_MAX_TOKENS"]+0;
+                $data["max_completion_tokens"]=\Synth\Bootstrap::config("FORCE_MAX_TOKENS")+0;
             
         }
 
@@ -326,7 +326,7 @@ class GoogleOpenAiJsonDriver
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers),
                 'content' => json_encode($data),
-                'timeout' => ($GLOBALS["HTTP_TIMEOUT"]) ?: 30,
+                'timeout' => (\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?: 30,
                 "ignore_errors" => true
             )
         );
@@ -338,8 +338,8 @@ class GoogleOpenAiJsonDriver
             $error=error_get_last();
             Logger::error(print_r($error,true));
 
-            if ($GLOBALS["db"]) {
-                $GLOBALS["db"]->insert(
+            if (\Synth\Bootstrap::db()) {
+                \Synth\Bootstrap::db()->insert(
                 'audit_request',
                     array(
                         'request' => json_encode($data),
@@ -359,8 +359,8 @@ class GoogleOpenAiJsonDriver
                 $error_message = "Request to google_openaijson connector failed: {$status_line}.\nResponse body: {$response}";
                 trigger_error($error_message, E_USER_WARNING);
 
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'audit_request',
                         array(
                             'request' => json_encode($data),
@@ -372,8 +372,8 @@ class GoogleOpenAiJsonDriver
                 $this->primary_handler=false;
                 return null;
             } else  {
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'audit_request',
                     array(
                         'request' => json_encode($data),
@@ -494,7 +494,7 @@ class GoogleOpenAiJsonDriver
                 $parameter = $parameterArr;
                 $functionCodeName = getFunctionCodeName($this->_functionName);
                 $parameter = buildFunctionExecutionParameter($functionCodeName, $parameter);
-                $commandStr = synthEncodeActionLine($GLOBALS["SYNTH_NAME"], $functionCodeName, $parameterArr, $parameter) . "\n";
+                $commandStr = synthEncodeActionLine(\Synth\Bootstrap::config("SYNTH_NAME"), $functionCodeName, $parameterArr, $parameter) . "\n";
 
                 if (!isset($alreadysent[md5($commandStr)])) {
                     $this->_commandBuffer[] = $commandStr;
@@ -535,7 +535,7 @@ class GoogleOpenAiJsonDriver
         }
         
 
-        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48)+0);
+        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
 
         if ($this->_is_groq_com) { // --- exception made for groq.com
 
@@ -582,7 +582,7 @@ class GoogleOpenAiJsonDriver
             unset($customParms["MAX_TOKENS"]);
         }
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            $MAX_TOKENS=intval($GLOBALS["FORCE_MAX_TOKENS"]);
+            $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
         
         $data = array(
@@ -594,7 +594,7 @@ class GoogleOpenAiJsonDriver
 
 
         if (isset($GLOBALS["CONNECTOR"][$this->name]["temperature"])) {
-            $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? : 0.7);
+            $temperature = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ? : 0.7);
             if ($temperature < 0.0) $temperature = 0.0;
             else if ($temperature > 2.0) $temperature = 2.0; 
 
@@ -666,15 +666,15 @@ class GoogleOpenAiJsonDriver
         }
 
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            if ($GLOBALS["FORCE_MAX_TOKENS"]==0) {
+            if (\Synth\Bootstrap::config("FORCE_MAX_TOKENS")==0) {
                 unset($data["max_completion_tokens"]);
             } else {
-                $data["max_completion_tokens"]=$GLOBALS["FORCE_MAX_TOKENS"];
+                $data["max_completion_tokens"]=\Synth\Bootstrap::config("FORCE_MAX_TOKENS");
 
             }
         }
         
-        foreach (synthGetEnabledConnectorExtraParameters($GLOBALS["CONNECTOR"][$this->name] ?? []) as $k => $v) {
+        foreach (synthGetEnabledConnectorExtraParameters(\Synth\Bootstrap::config("CONNECTOR")[$this->name] ?? []) as $k => $v) {
                 $data[$k]=$v;
         }
 
@@ -699,7 +699,7 @@ class GoogleOpenAiJsonDriver
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers),
                 'content' => json_encode($data),
-                'timeout' => ($GLOBALS["HTTP_TIMEOUT"]) ?: 30
+                'timeout' => (\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?: 30
             )
         );
 

@@ -25,3 +25,15 @@ Baseline (`origin/unstable` 71d3eb8): 6378 global uses in 303 files, 1836 `requi
 ## Slices
 
 (One section per slice follows, with before/after counts.)
+
+### G1-drivers
+
+Reads in drivers/ now go through the accessors.
+
+Files under: drivers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 6378 | 5649 |
+| files with a global | 303 | 301 |
+| `require_once` | 1836 | 1836 |

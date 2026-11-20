@@ -92,7 +92,7 @@ function synthLocalLlmManagedConnector(): ?array
 {
     // No database connection (the page rendered without one) means no managed connector, not a warning.
     if (!isset($GLOBALS['db'])) return null;
-    $row = $GLOBALS['db']->fetchOne("SELECT * FROM core_llm_connector WHERE metadata @> " .
+    $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_llm_connector WHERE metadata @> " .
         "'{\"quickstart_managed\":true}'::jsonb ORDER BY id LIMIT 1");
     return is_array($row) && intval($row['id'] ?? 0) > 0 ? $row : null;
 }
@@ -106,7 +106,7 @@ function synthLocalLlmCurrentSetup(): array
     ];
     foreach (['Network/HOST_IP' => 'host_ip', 'Network/WSL_IP' => 'wsl_ip'] as $id => $field) {
         if (!isset($GLOBALS['db'])) break;
-        $row = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key=" . $GLOBALS['db']->escapeLiteral($id));
+        $row = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key=" . \Synth\Bootstrap::db()->escapeLiteral($id));
         $setup[$field] = trim(strval($row['value'] ?? ''));
     }
     if ($setup['host_ip'] !== '') {
@@ -153,7 +153,7 @@ function synthLocalLlmReusableBadge(?array $existing, array $setup): ?string
 function synthLocalLlmApplySetup(array $raw): array
 {
     $setup = synthLocalLlmNormalizeSetup($raw);
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     if (!$db->query('BEGIN')) {
         throw new RuntimeException('Could not begin local model setup.');
     }

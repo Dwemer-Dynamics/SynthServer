@@ -14,7 +14,7 @@
 require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
 function _minimeServiceBaseUrl() {
     $defaultUrl = 'http://127.0.0.1:8082';
-    $configuredUrl = $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['TXTAI_URL'] ?? $defaultUrl;
+    $configuredUrl = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['TXTAI_URL'] ?? $defaultUrl;
     $configuredUrl = rtrim(trim((string)$configuredUrl), '/');
 
     if ($configuredUrl === '' || filter_var($configuredUrl, FILTER_VALIDATE_URL) === false) {
@@ -88,7 +88,7 @@ function isMinimeT5Enabled() {
 
 function minimeExtract($text,$useOnlyDetector=false) {
     if (isset($GLOBALS["mockMinimeExtract"])) {
-        return call_user_func($GLOBALS["mockMinimeExtract"], $text);
+        return call_user_func(\Synth\Bootstrap::config("mockMinimeExtract"), $text);
     }
 
     // Skip if service not available
@@ -96,7 +96,7 @@ function minimeExtract($text,$useOnlyDetector=false) {
         return null;
     }
 
-    $nativeRecall = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
+    $nativeRecall = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2
         && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
     // Detection and tag extraction have different response shapes; native text fallback must not reuse a detector result.
     $cacheKey = $nativeRecall ? 'native:'.($useOnlyDetector ? 'detect:' : 'extract:').hash('sha256',_minimeServiceBaseUrl()."\0".$text) : md5($text);
@@ -105,7 +105,7 @@ function minimeExtract($text,$useOnlyDetector=false) {
         synth_protocol_assert_request_active();
     }
     if (isset($GLOBALS["MINIME_CACHE"][$cacheKey]))
-        return $GLOBALS["MINIME_CACHE"][$cacheKey];
+        return \Synth\Bootstrap::config("MINIME_CACHE")[$cacheKey];
 
     if ($useOnlyDetector)
         $url = _minimeServiceEndpoint('detectMemory', ['text' => $text]);
@@ -119,12 +119,12 @@ function minimeExtract($text,$useOnlyDetector=false) {
         $result = @file_get_contents($url);
     }
     $GLOBALS["MINIME_CACHE"][$cacheKey] = $result !== false ? $result : null;
-    return $GLOBALS["MINIME_CACHE"][$cacheKey];
+    return \Synth\Bootstrap::config("MINIME_CACHE")[$cacheKey];
 }
 
 function minimePostTopic($text) {
     if (isset($GLOBALS["mockMinimePostTopic"])) {
-        return call_user_func($GLOBALS["mockMinimePostTopic"], $text);
+        return call_user_func(\Synth\Bootstrap::config("mockMinimePostTopic"), $text);
     }
 
     // Skip if service not available
@@ -139,7 +139,7 @@ function minimePostTopic($text) {
 
 function minimeTask($text) {
     if (isset($GLOBALS["mockMinimeTask"])) {
-        return call_user_func($GLOBALS["mockMinimeTask"], $text);
+        return call_user_func(\Synth\Bootstrap::config("mockMinimeTask"), $text);
     }
 
     // Skip if service not available
@@ -154,7 +154,7 @@ function minimeTask($text) {
 
 function minimeTopic($text) {
     if (isset($GLOBALS["mockMinimeTopic"])) {
-        return call_user_func($GLOBALS["mockMinimeTopic"], $text);
+        return call_user_func(\Synth\Bootstrap::config("mockMinimeTopic"), $text);
     }
 
     // Skip if service not available
@@ -169,7 +169,7 @@ function minimeTopic($text) {
 
 function minimePostScene($text) {
     if (isset($GLOBALS["mockMinimePostScene"])) {
-        return call_user_func($GLOBALS["mockMinimePostScene"], $text);
+        return call_user_func(\Synth\Bootstrap::config("mockMinimePostScene"), $text);
     }
 
     // Skip if service not available

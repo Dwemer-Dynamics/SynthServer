@@ -18,10 +18,10 @@ function removeAndReturnNext(&$array, $value) {
 
 function DMgetCurrentModel() {
     
-    $lprof=$GLOBALS["active_profile"] ?? "72dc4b1c501563d149fec99eb45b45f1"; // default profile: 72dc4b1c501563d149fec99eb45b45f1 = md5("The Narrator")
+    $lprof=\Synth\Bootstrap::config("active_profile") ?? "72dc4b1c501563d149fec99eb45b45f1"; // default profile: 72dc4b1c501563d149fec99eb45b45f1 = md5("The Narrator")
     $file=dirname(__DIR__, 3).'/lib'.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."data".DIRECTORY_SEPARATOR."CurrentModel_{$lprof}.json";
     if (!file_exists($file) || getenv("PHPUNIT_TEST")) {
-        DMsetCurrentModel($GLOBALS["CONNECTORS"][0]);
+        DMsetCurrentModel(\Synth\Bootstrap::config("CONNECTORS")[0]);
     }
 
     $cmj=file_get_contents($file);
@@ -33,7 +33,7 @@ function DMgetCurrentModel() {
 
 function DMgetCurrentModelFile() {
     
-    $lprof=$GLOBALS["active_profile"] ?? "72dc4b1c501563d149fec99eb45b45f1"; 
+    $lprof=\Synth\Bootstrap::config("active_profile") ?? "72dc4b1c501563d149fec99eb45b45f1"; 
     
     $file=dirname(__DIR__, 3).'/lib'.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."data".DIRECTORY_SEPARATOR."CurrentModel_{$lprof}.json";
     if (!file_exists($file)) {
@@ -66,7 +66,7 @@ function DMgetDefaultModelFile() {
 
 function DMsetCurrentModel($model='') {
 
-    $lprof=$GLOBALS["active_profile"] ?? "72dc4b1c501563d149fec99eb45b45f1"; 
+    $lprof=\Synth\Bootstrap::config("active_profile") ?? "72dc4b1c501563d149fec99eb45b45f1"; 
     
     $file=dirname(__DIR__, 3).'/lib'.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."data".DIRECTORY_SEPARATOR."CurrentModel_{$lprof}.json";
 
@@ -79,7 +79,7 @@ function DMsetCurrentModel($model='') {
 
 function DMtoggleModel() {
     $cm=DMgetCurrentModel();
-    $arrayCopy=$GLOBALS["CONNECTORS"];
+    $arrayCopy=\Synth\Bootstrap::config("CONNECTORS");
 
     $nextModel=removeAndReturnNext($arrayCopy,$cm);
 

@@ -40,20 +40,20 @@ namespace Synth\Drivers\Tts\Drivers {
     // Resolve API key: prefer API Badge 'Deepgram', fallback to schema
     $apiKey = '';
     try {
-        if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-        if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
         require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-        $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('deepgram');
+        $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('deepgram');
         if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
     } catch (Throwable $_e) {}
-    if ($apiKey === '') $apiKey = $GLOBALS["TTS"]["deepgram"]["API_KEY"];
+    if ($apiKey === '') $apiKey = \Synth\Bootstrap::config("TTS")["deepgram"]["API_KEY"];
 
-    $voiceModel = isset($GLOBALS["TTS"]["deepgram"]["model"]) ? $GLOBALS["TTS"]["deepgram"]["model"] : "aura-2-thalia-en";
+    $voiceModel = isset($GLOBALS["TTS"]["deepgram"]["model"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["model"] : "aura-2-thalia-en";
     // Allow voice override for player TTS or per-NPC voice
     if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
-        $voiceModel = $GLOBALS["PATCH_OVERRIDE_VOICE"];
+        $voiceModel = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
     }
-    $bitRate = isset($GLOBALS["TTS"]["deepgram"]["bitrate"]) ? $GLOBALS["TTS"]["deepgram"]["bitrate"] : 24000;
+    $bitRate = isset($GLOBALS["TTS"]["deepgram"]["bitrate"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["bitrate"] : 24000;
     $encoding = "linear16";
 
     $startTimeFull = microtime(true);

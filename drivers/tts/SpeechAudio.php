@@ -65,10 +65,10 @@ final class SpeechAudio
             @chmod($output,0664);
             return @rename($output,$target);
         };
-        $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
         if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && ($event['protocol_version'] ?? 1)===2) {
             // Claim/cancel/save-load transitions use this same session lock; no provider or conversion runs inside it.
-            $db=$GLOBALS['db'] ?? null;
+            $db=\Synth\Bootstrap::db() ?? null;
             if (!is_object($db) || !method_exists($db,'withNativeRequestLock')) throw new \LogicException('Speech publication requires its native owner lock');
             return $db->withNativeRequestLock($publish,2000);
         }

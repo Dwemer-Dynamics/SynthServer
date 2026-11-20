@@ -54,15 +54,15 @@ namespace Synth\Drivers\Tts\Drivers {
     if (empty($mood))
         $mood="default";
 
-    $region = $GLOBALS["TTS"]["AZURE"]["region"];
-    $apiKey = trim($GLOBALS["TTS"]["AZURE"]["API_KEY"] ?? '');
+    $region = \Synth\Bootstrap::config("TTS")["AZURE"]["region"];
+    $apiKey = trim(\Synth\Bootstrap::config("TTS")["AZURE"]["API_KEY"] ?? '');
     // Prefer API Badge 'Azure' if schema key is empty
     if ($apiKey === '' && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
         try {
-            if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
-            if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
+            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
             require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('azure');
+            $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('azure');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
         } catch (Throwable $_e) {}
     }
@@ -72,8 +72,8 @@ namespace Synth\Drivers\Tts\Drivers {
 
     $mood = extractFirstEmoteMood($mood, "default");
 
-    if ($GLOBALS["TTS"]["AZURE"]["validMoods"])
-        $valid_tokens = $GLOBALS["TTS"]["AZURE"]["validMoods"];
+    if (\Synth\Bootstrap::config("TTS")["AZURE"]["validMoods"])
+        $valid_tokens = \Synth\Bootstrap::config("TTS")["AZURE"]["validMoods"];
     else
         $valid_tokens = array('angry', 'cheerful', 'assistant', 'calm', 'embarrassed', 'excited', 'lyrical', 'sad', 'shouting', 'whispering', 'terrified');
 
@@ -88,13 +88,13 @@ namespace Synth\Drivers\Tts\Drivers {
 
     if ($validMood=="angry") {
         if (!isset($GLOBALS["TEMP"]["VOLHACK"])) {
-            $GLOBALS["TEMP"]["VOLHACK"]=$GLOBALS["TTS"]["AZURE"]["volume"];
+            $GLOBALS["TEMP"]["VOLHACK"]=\Synth\Bootstrap::config("TTS")["AZURE"]["volume"];
         }
-        $GLOBALS["TTS"]["AZURE"]["volume"]=$GLOBALS["TEMP"]["VOLHACK"]+20;
+        $GLOBALS["TTS"]["AZURE"]["volume"]=\Synth\Bootstrap::config("TEMP")["VOLHACK"]+20;
 
     } else {
         if (isset($GLOBALS["TEMP"]["VOLHACK"]))
-            $GLOBALS["TTS"]["AZURE"]["volume"]=$GLOBALS["TEMP"]["VOLHACK"];
+            $GLOBALS["TTS"]["AZURE"]["volume"]=\Synth\Bootstrap::config("TEMP")["VOLHACK"];
     }
 
     $starTime = microtime(true);
@@ -125,10 +125,10 @@ namespace Synth\Drivers\Tts\Drivers {
         //$voice->setAttribute( "xml:lang" , "en-us" );
         //$voice->setAttribute("xml:gender", "Female");
 
-        $voiceId=$GLOBALS["TTS"]["AZURE"]["voice"];
+        $voiceId=\Synth\Bootstrap::config("TTS")["AZURE"]["voice"];
 
         if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]))
-			$voiceId=$GLOBALS["PATCH_OVERRIDE_VOICE"];
+			$voiceId=\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 
 
             $pattern = '/^[a-z]{2}-[A-Z]{2}/'; // Matches language-region code at the start of the string
@@ -146,10 +146,10 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
         $prosody = $doc->createElement("prosody");
-        $prosody->setAttribute("rate", (isset($OverWriteRate))?$OverWriteRate:$GLOBALS["TTS"]["AZURE"]["rate"]); //https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/speech-synthesis-markup-voice#adjust-prosody
-        $prosody->setAttribute("volume", $GLOBALS["TTS"]["AZURE"]["volume"]);
-        if ($GLOBALS["TTS"]["AZURE"]["countour"])
-            $prosody->setAttribute("contour", $GLOBALS["TTS"]["AZURE"]["countour"]);
+        $prosody->setAttribute("rate", (isset($OverWriteRate))?$OverWriteRate:\Synth\Bootstrap::config("TTS")["AZURE"]["rate"]); //https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/speech-synthesis-markup-voice#adjust-prosody
+        $prosody->setAttribute("volume", \Synth\Bootstrap::config("TTS")["AZURE"]["volume"]);
+        if (\Synth\Bootstrap::config("TTS")["AZURE"]["countour"])
+            $prosody->setAttribute("contour", \Synth\Bootstrap::config("TTS")["AZURE"]["countour"]);
 
 
 
@@ -157,7 +157,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
         $style = $doc->createElement("mstts:express-as");
         if (isset($GLOBALS["TTS"]["AZURE"]["fixedMood"])&& (!empty($GLOBALS["TTS"]["AZURE"]["fixedMood"])))
-            $style->setAttribute("style", $GLOBALS["TTS"]["AZURE"]["fixedMood"]); // not supported for all voices
+            $style->setAttribute("style", \Synth\Bootstrap::config("TTS")["AZURE"]["fixedMood"]); // not supported for all voices
         else
             $style->setAttribute("style", $validMood); // not supported for all voices
 
@@ -204,9 +204,9 @@ namespace Synth\Drivers\Tts\Drivers {
 
         $GLOBALS["TTS_FFMPEG_FILTERS"]["loudnorm"]="loudnorm=I=-16:TP=-1.5:LRA=11";
 
-        if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+        if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
 			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
-			$FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
 		} else {
 			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
@@ -214,7 +214,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
         $fileName=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
         $size=strlen($result);
-        $filter=implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']);
+        $filter=implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'));
         if (!synth_transcode_speech_cache($result,$fileName,$filter)) return false;
 
         //file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR."soundcache/" . md5(trim($stringforhash)) . ".wav", $result);
