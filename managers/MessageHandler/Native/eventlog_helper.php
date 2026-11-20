@@ -831,10 +831,7 @@ if (!function_exists('synthSavePersistedEventLogHiddenTypes')) {
             return true;
         }
 
-        return $db->upsertRowOnConflict('public.core_config_setting', [
-            'scope' => 'conf', 'config_key' => $confKey,
-            'config_value' => json_encode(array_values($normalizedTypes), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        ], 'scope, config_key');
+        return \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $confKey, json_encode(array_values($normalizedTypes), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 }
 

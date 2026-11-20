@@ -50,10 +50,7 @@ function synthPlayer2HealthSetOption(string $id, string $value): bool
         return false;
     }
 
-    return (bool)$db->upsertRowOnConflict('public.core_config_setting', [
-        'scope' => 'conf', 'config_key' => $id,
-        'config_value' => $value,
-    ], 'scope, config_key');
+    return (bool)\Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $id, $value);
 }
 
 function synthPlayer2HealthMarkGameActivity(?int $now = null): bool

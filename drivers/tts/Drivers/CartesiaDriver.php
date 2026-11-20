@@ -90,7 +90,7 @@ function resolveCartesiaConnectorRow(): ?array {
     }
 
     $playerConnectorId = 0;
-    $playerRow = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
+    $playerRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('player', 'tts_connector_id')];
     if (is_array($playerRow)) {
         $playerConnectorId = intval($playerRow['value'] ?? 0);
     }
