@@ -9,7 +9,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_protocol_state.php';
 if (!function_exists('synthCompactNpcContextHistoryEnabled')) {
     function synthCompactNpcContextHistoryEnabled(): bool
     {
-        $value = $GLOBALS['COMPACT_NPC_CONTEXT_HISTORY'] ?? true;
+        $value = \Synth\Bootstrap::config('COMPACT_NPC_CONTEXT_HISTORY') ?? true;
         if (is_bool($value)) {
             return $value;
         }
@@ -25,7 +25,7 @@ if (!function_exists('synthShouldCompactNpcContextHistory')) {
             return false;
         }
 
-        $actorName = trim($actorName ?? (string)($GLOBALS['SYNTH_NAME'] ?? ''));
+        $actorName = trim($actorName ?? (string)(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         return $actorName !== '' && !synth_protocol_response_is_narrator($actorName);
     }
 }

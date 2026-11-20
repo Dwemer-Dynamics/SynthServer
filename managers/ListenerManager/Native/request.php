@@ -36,7 +36,7 @@ function synth_protocol_decode_json(string $raw)
 function synth_decode_json_body(): array
 {
     if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && isset($GLOBALS["SYNTH_TEST_JSON_BODY"])) {
-        $testBody = $GLOBALS["SYNTH_TEST_JSON_BODY"];
+        $testBody = \Synth\Bootstrap::config("SYNTH_TEST_JSON_BODY");
         if (is_array($testBody)) {
             return $testBody;
         }
@@ -224,7 +224,7 @@ function synth_decode_wire_event(): array
 function synth_decode_event_from_request(?array $wire = null): array
 {
     if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && isset($GLOBALS['SYNTH_TEST_NORMALIZED_EVENT'])) {
-        $testEvent = $GLOBALS['SYNTH_TEST_NORMALIZED_EVENT'];
+        $testEvent = \Synth\Bootstrap::config('SYNTH_TEST_NORMALIZED_EVENT');
         if (is_array($testEvent)) {
             return $testEvent;
         }
@@ -467,7 +467,7 @@ function synth_adapt_json_input_payload_for_pipeline(array &$gameRequest): array
         }
     }
     if ($player === "") {
-        $player = trim(strval($GLOBALS["PLAYER_NAME"] ?? "Player"));
+        $player = trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player"));
     }
 
     $target = "";
@@ -491,7 +491,7 @@ function synth_adapt_json_input_payload_for_pipeline(array &$gameRequest): array
     $display = $player !== "" ? "{$player}: {$text}" : $text;
     // An explicit public turn names its audience; its responder stays the transport target below.
     require_once dirname(__DIR__, 3).'/lib' . "/synth_control.php";
-    if (synth_control_everyone_input($GLOBALS["SYNTH_REQUEST_EVENT"]["json"] ?? [])) {
+    if (synth_control_everyone_input(\Synth\Bootstrap::requestEvent()["json"] ?? [])) {
         $display .= " (Talking to everyone)";
     } elseif ($target !== "" && strcasecmp($target, "The Narrator") !== 0) {
         $display .= " (Talking to {$target})";

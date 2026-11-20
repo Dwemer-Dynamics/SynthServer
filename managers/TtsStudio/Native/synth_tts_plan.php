@@ -89,9 +89,9 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
     ];
     // Callables are process-local. Preserve them for the in-process queue, never serialize closures to JSON.
     $callbacks = [
-        'text_hooks' => $GLOBALS['HOOKS']['XTTS_TEXTMODIFIER'] ?? [],
-        'omni_text_hooks' => $driver === 'omnivoice' ? ($GLOBALS['HOOKS']['OMNIVOICE_TEXTMODIFIER'] ?? []) : [],
-        'fallback' => $GLOBALS['TTS_FALLBACK_FNCT'] ?? null,
+        'text_hooks' => \Synth\Bootstrap::config('HOOKS')['XTTS_TEXTMODIFIER'] ?? [],
+        'omni_text_hooks' => $driver === 'omnivoice' ? (\Synth\Bootstrap::config('HOOKS')['OMNIVOICE_TEXTMODIFIER'] ?? []) : [],
+        'fallback' => \Synth\Bootstrap::config('TTS_FALLBACK_FNCT') ?? null,
     ];
     $plan['local_callbacks'] = $callbacks;
     $plan['portable'] = empty($callbacks['text_hooks']) && empty($callbacks['omni_text_hooks']) && $callbacks['fallback'] === null;
@@ -107,14 +107,14 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
                 $cached = 'getCached' . $title . 'VoiceId';
                 $find = 'getExisting' . $title . 'VoiceIdByName';
                 $config = $getter(); $ids = [];
-                $previousDeadline = $GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE'] ?? null;
+                $previousDeadline = \Synth\Bootstrap::config('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE') ?? null;
                 $GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE'] = microtime(true) + 10;
                 try {
                     foreach ($samples as $voice => $snapshot) {
                         if ($snapshot !== null) continue;
                         $id = '';
                         if (trim(strval($config['api_key'] ?? '')) !== '') {
-                            if (is_object($GLOBALS['db'] ?? null)) $id = $cached($voice, $config);
+                            if (is_object(\Synth\Bootstrap::db() ?? null)) $id = $cached($voice, $config);
                             if ($id === '') $id = $find($voice, $config);
                         }
                         // Empty is a captured failure, not permission to resolve another voice later.

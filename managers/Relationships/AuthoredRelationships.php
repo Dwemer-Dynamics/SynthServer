@@ -27,7 +27,7 @@ final class AuthoredRelationships
     /** Reports whether the authored view is switched on; it is off unless the setting is truthy. */
     public static function enabled(): bool
     {
-        $value = $GLOBALS['AUTHORED_RELATIONSHIPS_ENABLED'] ?? false;
+        $value = \Synth\Bootstrap::config('AUTHORED_RELATIONSHIPS_ENABLED') ?? false;
         if (is_bool($value)) {
             return $value;
         }
@@ -334,7 +334,7 @@ final class AuthoredRelationships
         if (!self::enabled()) {
             return '';
         }
-        $rows = self::fixtureRows($GLOBALS['AUTHORED_RELATIONSHIPS_FIXTURE'] ?? null);
+        $rows = self::fixtureRows(\Synth\Bootstrap::config('AUTHORED_RELATIONSHIPS_FIXTURE') ?? null);
         if (!$rows) {
             return '';
         }

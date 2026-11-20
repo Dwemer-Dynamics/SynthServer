@@ -126,7 +126,7 @@ final class TradeOffer
         require_once dirname(__DIR__, 2) . '/lib/synth_wait_actions.php';
         $key = synth_wait_actor_key($actor);
         if ($key === null || !empty($GLOBALS['SYNTH_TRADE_ISSUED'][$requestId])) return null;
-        foreach ($GLOBALS['SYNTH_ORDER_REPLY_LINES'] ?? [] as $note) {
+        foreach (\Synth\Bootstrap::config('SYNTH_ORDER_REPLY_LINES') ?? [] as $note) {
             if ($note['request_id'] === $requestId && $note['actor'] === $key) {
                 $GLOBALS['SYNTH_TRADE_ISSUED'][$requestId] = true;
                 return $note['line_id'];

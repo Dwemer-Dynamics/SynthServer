@@ -26,8 +26,8 @@ function synth_tts_generate_job_audio(array $entry, string $root): bool
         }
         $metadata=array_intersect_key($entry,array_flip(['request_id','turn_id','generation','utterance_id',
             'speaker_identity_id','speaker_identity','speaker']));
-        $metadata['job_id']=$GLOBALS['SYNTH_TTS_JOB_LEASE']['id'];
-        return synth_register_npc_tts_media($key,$GLOBALS['db'],$metadata,$root,$metadata)!==null;
+        $metadata['job_id']=\Synth\Bootstrap::config('SYNTH_TTS_JOB_LEASE')['id'];
+        return synth_register_npc_tts_media($key,\Synth\Bootstrap::db(),$metadata,$root,$metadata)!==null;
     } finally {
         flock($lock,LOCK_UN);fclose($lock);
     }

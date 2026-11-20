@@ -19,16 +19,16 @@ function LLMTopic($text, $language = 'ja') {
     $cacheKey = md5("topic_extraction_" . $text);
     if (isset($GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey])) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Using cached topic for: " . substr($text, 0, 50));
-        return $GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey];
+        return \Synth\Bootstrap::config("MINIME_TOPIC_CACHE")[$cacheKey];
     }
 
     try {
         // Get the WorldKnowledge-specific connector
         $connector = new LLMConnector();
-        $connectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
+        $connectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"));
 
         if (!$connectorData) {
-            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load connector ID: " . $GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load connector ID: " . \Synth\Bootstrap::config("CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"));
             return false;
         }
 
@@ -38,7 +38,7 @@ function LLMTopic($text, $language = 'ja') {
         $systemPrompt = null;
 
         try {
-            global $db;
+            $db = \Synth\Bootstrap::db();
             $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'custom_worldknowledge'");
             if ($promptData) {
                 $systemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -144,7 +144,7 @@ function callLLMFast($contextData, $customParms = []) {
     }
 
     $connector = new LLMConnector();
-    $connectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]);
+    $connectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"));
 
     if (!$connectorData) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'WORLDKNOWLEDGE LLM', "Failed to load connector in callLLMFast");
@@ -189,7 +189,7 @@ function callLLMFast($contextData, $customParms = []) {
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $timeoutMs = max(250, min(3000, intval($GLOBALS['WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS'] ?? 1500)));
+    $timeoutMs = max(250, min(3000, intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_EXTRACTOR_TIMEOUT_MS') ?? 1500)));
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, $timeoutMs);
     curl_setopt($ch, CURLOPT_TIMEOUT_MS, $timeoutMs);
 

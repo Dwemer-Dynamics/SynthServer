@@ -27,7 +27,7 @@ if (!function_exists('synthVisualContextSubjectType')) {
 if (!function_exists('synthVisualContextStore')) {
     function synthVisualContextStore(array $record): int
     {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return 0;
         }
@@ -117,9 +117,9 @@ if (!function_exists('synthVisualContextFindCapture')) {
         if ($captureId === '' || !isset($GLOBALS['db'])) {
             return null;
         }
-        $row = $GLOBALS['db']->fetchOne(
+        $row = \Synth\Bootstrap::db()->fetchOne(
             'SELECT * FROM public.core_visual_context WHERE capture_id='
-            . $GLOBALS['db']->escapeLiteral($captureId) . ' LIMIT 1'
+            . \Synth\Bootstrap::db()->escapeLiteral($captureId) . ' LIMIT 1'
         );
         return is_array($row) && $row !== [] ? $row : null;
     }
@@ -131,7 +131,7 @@ if (!function_exists('synthVisualContextComplete')) {
         if ($id < 1 || !isset($GLOBALS['db'])) {
             return false;
         }
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         $assignments = [];
         foreach ([
             'description' => 12000,
@@ -165,7 +165,7 @@ if (!function_exists('synthVisualContextComplete')) {
 function synthVisualContextCompleteOwned(array $request, int $recordId, array $fields, ?callable $persistPortrait = null): void
 {
     require_once __DIR__ . '/visual_context_request.php';
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     if (!$db->isTransactionIdle() || $db->execQuery('BEGIN') === false) throw new RuntimeException('Visual completion requires an idle transaction.');
     try {
         $session = $db->escapeLiteral($request['session_id']);
@@ -331,7 +331,7 @@ if (!function_exists('synthVisualContextList')) {
     {
         $limit = max(1, min($limit, 1000));
         try {
-            $rows = $GLOBALS['db']->fetchAll(
+            $rows = \Synth\Bootstrap::db()->fetchAll(
                 "SELECT * FROM public.core_visual_context ORDER BY locked DESC, captured_at DESC LIMIT {$limit}"
             );
             return is_array($rows) ? $rows : [];
@@ -350,12 +350,12 @@ if (!function_exists('synthVisualContextUpdate')) {
         $assignments = [];
         if (array_key_exists('description', $values)) {
             // Native descriptions are immutable observations; edits require an actor/save-scoped journal revision.
-            $record=$GLOBALS['db']->fetchOne('SELECT metadata FROM public.core_visual_context WHERE id='.$id);
+            $record=\Synth\Bootstrap::db()->fetchOne('SELECT metadata FROM public.core_visual_context WHERE id='.$id);
             $metadata=json_decode(strval($record['metadata'] ?? '{}'),true);
             if (($metadata['schema'] ?? '')==='synth.visual_context.capture.v2') {
                 throw new LogicException('Use native visual corrections to edit this description.');
             }
-            $assignments[] = 'description=' . $GLOBALS['db']->escapeLiteral(
+            $assignments[] = 'description=' . \Synth\Bootstrap::db()->escapeLiteral(
                 synthVisualContextText($values['description'], 12000)
             );
             $assignments[] = 'user_edited=TRUE';
@@ -369,7 +369,7 @@ if (!function_exists('synthVisualContextUpdate')) {
             return false;
         }
         $assignments[] = 'updated_at=CURRENT_TIMESTAMP';
-        return $GLOBALS['db']->execQuery(
+        return \Synth\Bootstrap::db()->execQuery(
             'UPDATE public.core_visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
         ) !== false;
     }
@@ -378,19 +378,19 @@ if (!function_exists('synthVisualContextUpdate')) {
 if (!function_exists('synthVisualContextDelete')) {
     function synthVisualContextDelete(int $id): bool
     {
-        return $id > 0 && $GLOBALS['db']->delete('public.core_visual_context', 'id=' . $id) !== false;
+        return $id > 0 && \Synth\Bootstrap::db()->delete('public.core_visual_context', 'id=' . $id) !== false;
     }
 }
 
 if (!function_exists('synthBuildVisualContextPrompt')) {
     function synthBuildVisualContextPrompt(array $worldPayload = []): string
     {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return '';
         }
 
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
         if (($event['protocol_version'] ?? 1) === 2) {
             require_once __DIR__ . '/visual_context_request.php';
             require_once dirname(__DIR__, 3).'/lib' . '/synth_protocol_state.php';

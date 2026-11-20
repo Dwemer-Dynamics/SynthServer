@@ -9,7 +9,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text, ?arra
 {
     $speaker = trim($speaker);
     $text = trim($text);
-    $ttsFunction = trim(strval($GLOBALS["TTSFUNCTION"] ?? ''));
+    $ttsFunction = trim(strval(\Synth\Bootstrap::config("TTSFUNCTION") ?? ''));
     $voice = '';
 
     try {
@@ -19,21 +19,21 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text, ?arra
                 'run_db_updates' => false,
                 'load_general_settings' => true,
             ]);
-            $ttsFunction = trim(strval($GLOBALS["TTSFUNCTION"] ?? ''));
+            $ttsFunction = trim(strval(\Synth\Bootstrap::config("TTSFUNCTION") ?? ''));
         }
 
-        $currentSpeaker = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
+        $currentSpeaker = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
         if ($canonicalActor === null && $speaker !== '' && $currentSpeaker !== '' && strcasecmp($speaker, $currentSpeaker) === 0) {
-            $voice = trim(strval($GLOBALS["PATCH_OVERRIDE_VOICE"] ?? ''));
+            $voice = trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? ''));
             if ($voice === '') {
-                $voice = trim(strval($GLOBALS["TTS_NPC_RESOLVED_VOICE_SAMPLE"] ?? ''));
+                $voice = trim(strval(\Synth\Bootstrap::config("TTS_NPC_RESOLVED_VOICE_SAMPLE") ?? ''));
             }
             if ($voice === '') {
-                $voice = trim(strval($GLOBALS["TTS_NPC_RESOLVED_VOICE"] ?? ''));
+                $voice = trim(strval(\Synth\Bootstrap::config("TTS_NPC_RESOLVED_VOICE") ?? ''));
             }
         }
 
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if ($voice === '' && is_object($db)) {
             $voiceData = synth_tts_load_npc_voice_data($db, $speaker, $canonicalActor);
             $voice = trim(strval($voiceData['voiceid'] ?? ''));
@@ -212,8 +212,8 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
     }
 
     $phaseName = "npc_tts_direct:" . substr(md5($speaker . "|" . $text), 0, 8);
-    $oldName = $GLOBALS["SYNTH_NAME"] ?? null;
-    $oldVoice = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? null;
+    $oldName = \Synth\Bootstrap::config("SYNTH_NAME") ?? null;
+    $oldVoice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? null;
     $hadName = array_key_exists("SYNTH_NAME", $GLOBALS);
     $hadVoice = array_key_exists("PATCH_OVERRIDE_VOICE", $GLOBALS);
     $canonicalKeys=['SYNTH_CORE_CURRENT_NPC_DATA','SYNTH_CORE_CURRENT_PROFILE_DATA','SYNTH_SPEECH_ROLE',
@@ -237,7 +237,7 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
 
         require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php";
 
-        if (!isset($GLOBALS["TTS_FFMPEG_FILTERS"]) || !is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+        if (!isset($GLOBALS["TTS_FFMPEG_FILTERS"]) || !is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
             $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
         }
 
@@ -246,7 +246,7 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
 
         $canonicalVoice=null;
         if ($canonicalActor!==null) {
-            $db=$GLOBALS['db']??null;
+            $db=\Synth\Bootstrap::db()??null;
             $canonicalVoice=is_object($db)?synth_tts_load_npc_voice_data($db,$speaker,$canonicalActor):[];
             if (trim(strval($canonicalVoice['voiceid']??''))==='') return false;
         }
@@ -257,7 +257,7 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         $cacheReady = is_file($cachePath) && filesize($cachePath) > 44;
 
         if (!$cacheReady) {
-            $db = $GLOBALS["db"] ?? null;
+            $db = \Synth\Bootstrap::db() ?? null;
             if (is_object($db)) {
                 $voiceData = $canonicalVoice ?? synth_tts_load_npc_voice_data($db, $speaker, $canonicalActor);
                 $voice = trim(strval($voiceData['voiceid'] ?? ''));
@@ -297,7 +297,7 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         Logger::phaseEnd($phaseName, [
             "status" => $ok ? "ok" : "failed",
             "speaker" => $speaker,
-            "connector" => $GLOBALS["TTSFUNCTION"] ?? "",
+            "connector" => \Synth\Bootstrap::config("TTSFUNCTION") ?? "",
             "cache_ready_before" => $cacheReady ? "true" : "false",
             "cache_path" => $cachePath,
         ], $ok ? "info" : "warn");

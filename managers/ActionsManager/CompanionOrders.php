@@ -49,7 +49,7 @@ final class CompanionOrders
         $speaker = $line['payload']['speaker'] ?? null;
         $key = is_array($speaker) ? synth_wait_actor_key($speaker) : null;
         if ($key === null || !is_string($line['line_id'] ?? null) || !is_string($line['request_id'] ?? null)) return;
-        $notes = $GLOBALS['SYNTH_ORDER_REPLY_LINES'] ?? [];
+        $notes = \Synth\Bootstrap::config('SYNTH_ORDER_REPLY_LINES') ?? [];
         $notes[] = ['request_id' => $line['request_id'], 'line_id' => $line['line_id'], 'actor' => $key];
         $GLOBALS['SYNTH_ORDER_REPLY_LINES'] = array_slice($notes, -64);
     }
@@ -59,7 +59,7 @@ final class CompanionOrders
     {
         $key = synth_wait_actor_key($actor);
         if ($key === null || !empty($GLOBALS['SYNTH_ORDER_ISSUED'][$requestId])) return null;
-        foreach ($GLOBALS['SYNTH_ORDER_REPLY_LINES'] ?? [] as $note) {
+        foreach (\Synth\Bootstrap::config('SYNTH_ORDER_REPLY_LINES') ?? [] as $note) {
             if ($note['request_id'] === $requestId && $note['actor'] === $key) {
                 $GLOBALS['SYNTH_ORDER_ISSUED'][$requestId] = true;
                 return $note['line_id'];

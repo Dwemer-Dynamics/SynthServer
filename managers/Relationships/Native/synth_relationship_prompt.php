@@ -50,7 +50,7 @@ function synth_relationship_prompt_context($db, string $npcName): string
             if ($key!==$playerKey) $nearby[]=$label;
         }
         // Only the display name is rebound for the shared formatter; request/actor ownership never changes.
-        $hadPlayer=array_key_exists('PLAYER_NAME',$GLOBALS);$previous=$GLOBALS['PLAYER_NAME'] ?? null;
+        $hadPlayer=array_key_exists('PLAYER_NAME',$GLOBALS);$previous=\Synth\Bootstrap::config('PLAYER_NAME') ?? null;
         $GLOBALS['PLAYER_NAME']=$player['display_name'];
         try {
             return RelationshipManager::buildContextFromRelationships($responder['display_name'],

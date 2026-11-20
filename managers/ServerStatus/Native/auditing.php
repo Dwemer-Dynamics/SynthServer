@@ -7,7 +7,7 @@ if (!class_exists('SYNTHTestRequestTerminated')) {
 
 function aiff_audit_end() {
     $endTime = microtime(true);
-    $startTime = $GLOBALS["AUDIT_START_TIME"];
+    $startTime = \Synth\Bootstrap::config("AUDIT_START_TIME");
     $elapsedTime = $endTime - $startTime;
 
     if ($elapsedTime>1)
@@ -17,7 +17,7 @@ function aiff_audit_end() {
 
 function audit_log($fromFile='') {
     $endTime = microtime(true);
-    $startTime = $GLOBALS["AUDIT_START_TIME"];
+    $startTime = \Synth\Bootstrap::config("AUDIT_START_TIME");
     $elapsedTime = $endTime - $startTime;
 
     
@@ -40,7 +40,7 @@ function terminate() {
     try {
         // Release any acquired semaphores
     foreach (["MAIN", "VSX"] as $semaphore_id) {
-            if (isset($GLOBALS["SEMAPHORES"][$semaphore_id]) && $GLOBALS["SEMAPHORES"][$semaphore_id]) {
+            if (isset($GLOBALS["SEMAPHORES"][$semaphore_id]) && \Synth\Bootstrap::config("SEMAPHORES")[$semaphore_id]) {
                 @SemaphoreManager::release($semaphore_id);
             }
         }

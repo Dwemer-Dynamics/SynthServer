@@ -54,7 +54,7 @@ function synth_social_emit_arrival($db,array $event,array $task,string $root): v
     // Scope to canonical identity, including two actors with the same display name.
     $key=synth_tts_cache_key($root,$speaker['display_name'],$line['text'],$speaker);
     $utterance='social:'.substr(hash('sha256',$event['request_id'].'|'.$task['execution_id']),0,32);
-    if (strtolower(trim(strval($GLOBALS['TTSFUNCTION']??'')))!=='none') {
+    if (strtolower(trim(strval(\Synth\Bootstrap::config('TTSFUNCTION')??'')))!=='none') {
         $generated=synth_tts_generate_for_response($root,$speaker['display_name'],$line['text'],$speaker);
         $correlation=['request_id'=>$event['request_id'],'turn_id'=>$event['turn_id'],
             'generation'=>$event['generation'],'utterance_id'=>$utterance];

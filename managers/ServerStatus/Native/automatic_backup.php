@@ -56,7 +56,7 @@ class AutomaticBackup {
         }
         // Fallback to global
         if (isset($GLOBALS['AUTOMATIC_DATABASE_BACKUPS'])) {
-            return $GLOBALS['AUTOMATIC_DATABASE_BACKUPS'] === true || $GLOBALS['AUTOMATIC_DATABASE_BACKUPS'] === "true";
+            return \Synth\Bootstrap::config('AUTOMATIC_DATABASE_BACKUPS') === true || \Synth\Bootstrap::config('AUTOMATIC_DATABASE_BACKUPS') === "true";
         }
         return false;
     }
@@ -294,11 +294,11 @@ class AutomaticBackup {
     private function getDatabaseConnection() {
         try {
             // First, try to use existing global database connection
-            if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
+            if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
                 // Test if the connection is actually working
                 try {
-                    $GLOBALS['db']->fetchAll("SELECT 1");
-                    return $GLOBALS['db'];
+                    \Synth\Bootstrap::db()->fetchAll("SELECT 1");
+                    return \Synth\Bootstrap::db();
                 } catch (Exception $e) {
                     Logger::warn("Global database connection exists but not working: " . $e->getMessage());
                 }
@@ -372,7 +372,7 @@ function deferredAutomaticBackupInit() {
     $hasRun = true;
     
     // Only run if database connection is available
-    if (!isset($GLOBALS['db']) || !is_object($GLOBALS['db'])) {
+    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
         return;
     }
     

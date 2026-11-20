@@ -32,7 +32,7 @@ final class TwoStepActions
      */
     public static function enabled(): bool
     {
-        $value = $GLOBALS['TWO_STEP_ACTIONS_ENABLED'] ?? false;
+        $value = \Synth\Bootstrap::config('TWO_STEP_ACTIONS_ENABLED') ?? false;
         return $value === true || $value === 1 || (is_string($value)
             && in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true));
     }
@@ -42,7 +42,7 @@ final class TwoStepActions
      */
     public static function budgetMs(): int
     {
-        return max(500, min(10000, intval($GLOBALS['TWO_STEP_ACTION_TIMEOUT_MS'] ?? 4000)));
+        return max(500, min(10000, intval(\Synth\Bootstrap::config('TWO_STEP_ACTION_TIMEOUT_MS') ?? 4000)));
     }
 
     /**
@@ -85,10 +85,10 @@ final class TwoStepActions
     public static function catalog(array $event): array
     {
         $catalog = [];
-        foreach ($GLOBALS['FUNCTIONS'] ?? [] as $definition) {
+        foreach (\Synth\Bootstrap::config('FUNCTIONS') ?? [] as $definition) {
             $code = \getFunctionCodeName($definition['name'] ?? '');
             if (!is_string($code) || !isset(\synthCanonicalActionCodeSet()[$code])
-                || !in_array($code, $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
+                || !in_array($code, \Synth\Bootstrap::config('ENABLED_FUNCTIONS') ?? [], true)
                 || !in_array(\synthActionCapabilityForCode($code), $event['capabilities'] ?? [], true)
                 || !\synthActionCodeIsNegotiated($code)
                 || !\synth_jev_action_code_allowed($code)
@@ -262,7 +262,7 @@ final class TwoStepActions
     public static function complete(array $messages): string
     {
         require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
-        $id = intval($GLOBALS['CORE_CONNECTOR_TWO_STEP'] ?? 0);
+        $id = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_TWO_STEP') ?? 0);
         $connectors = new \LLMConnector();
         $connector = $id > 0 ? $connectors->getById($id) : null;
         if (!is_array($connector)) {
@@ -319,7 +319,7 @@ final class TwoStepActions
      */
     public static function resolve(array $event, string $reply, ?callable $complete = null): ?array
     {
-        $state = $GLOBALS['SYNTH_TWO_STEP_STATE'] ?? null;
+        $state = \Synth\Bootstrap::config('SYNTH_TWO_STEP_STATE') ?? null;
         if (!is_array($state) || !hash_equals($state['owner'], \synth_jev_action_owner($event))) {
             return null;
         }
@@ -335,11 +335,11 @@ final class TwoStepActions
             if ($catalog === []) {
                 throw new \RuntimeException('no_catalog');
             }
-            if ($complete === null && intval($GLOBALS['CORE_CONNECTOR_TWO_STEP'] ?? 0) <= 0) {
+            if ($complete === null && intval(\Synth\Bootstrap::config('CORE_CONNECTOR_TWO_STEP') ?? 0) <= 0) {
                 throw new \RuntimeException('not_configured');
             }
             \synth_protocol_assert_request_active();
-            $messages = self::messages($catalog, $state['utterance'], $reply, strval($GLOBALS['SYNTH_NAME'] ?? ''));
+            $messages = self::messages($catalog, $state['utterance'], $reply, strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
             $answer = ($complete ?? self::complete(...))($messages);
             \synth_protocol_assert_request_active();
             if ((hrtime(true) - $start) / 1000000 > $budget) {
@@ -361,7 +361,7 @@ final class TwoStepActions
             'selected_code' => $picked['code'] ?? null,
         ];
         if (class_exists('Logger')) {
-            \Logger::info('[TWO STEP ACTION] ' . json_encode($GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC']));
+            \Logger::info('[TWO STEP ACTION] ' . json_encode(\Synth\Bootstrap::config('SYNTH_TWO_STEP_DIAGNOSTIC')));
         }
         unset($GLOBALS['SYNTH_TWO_STEP_STATE']);
 
@@ -381,12 +381,12 @@ final class TwoStepActions
         if (!is_array($actions) || $actions !== [] || !isset($GLOBALS['SYNTH_TWO_STEP_STATE'])) {
             return $actions;
         }
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
         $picked = self::resolve(is_array($event) ? $event : [], $reply, $complete);
         if ($picked === null) {
             return $actions;
         }
-        $actor = trim(strval($GLOBALS['SYNTH_NAME'] ?? ''));
+        $actor = trim(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         if ($actor === '') {
             return $actions;
         }

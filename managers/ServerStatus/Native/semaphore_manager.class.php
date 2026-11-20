@@ -7,7 +7,7 @@ class SemaphoreManager {
     protected static $acquired = [];
 
     protected static function runId(): string {
-        return isset($GLOBALS["runid"]) ? (string)$GLOBALS["runid"] : '-';
+        return isset($GLOBALS["runid"]) ? (string)\Synth\Bootstrap::config("runid") : '-';
     }
 
     protected static function keyFromId(string $id): int {

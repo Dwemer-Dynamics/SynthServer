@@ -121,15 +121,15 @@ final class SYNTHNativeRequestLockUnavailable extends RuntimeException {}
 // This internal owner is set only while the relationship worker processes a verified gift.
 function synth_protocol_retains_gift_owner(array $event): bool
 {
-    return ($event['type'] ?? '')==='action_result' && ($GLOBALS['SYNTH_RETAINED_GIFT_OWNER'] ?? null)===$event;
+    return ($event['type'] ?? '')==='action_result' && (\Synth\Bootstrap::config('SYNTH_RETAINED_GIFT_OWNER') ?? null)===$event;
 }
 
 // Recheck durable ownership at side-effect boundaries, including deferred work after reply completion.
 function synth_protocol_assert_request_active(): void
 {
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return;
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
-    $db = $GLOBALS['db'];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
+    $db = \Synth\Bootstrap::db();
     synth_protocol_assert_owner_active($db, $event, synth_protocol_retains_gift_owner($event));
     $session = $db->escapeLiteral(synth_protocol_session_id($event));
     $request = $db->escapeLiteral($event['request_id']);
@@ -138,12 +138,12 @@ function synth_protocol_assert_request_active(): void
         require_once dirname(__DIR__, 3).'/lib'.'/synth_middleterm_jobs.php';
         synth_middleterm_assert_lease($db);
     }
-    $speechLease=$GLOBALS['SYNTH_TTS_JOB_LEASE'] ?? null;
+    $speechLease=\Synth\Bootstrap::config('SYNTH_TTS_JOB_LEASE') ?? null;
     if (is_array($speechLease)) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_tts_jobs.php';
         synth_tts_assert_job_lease($db,$speechLease);
     }
-    $lease = $GLOBALS['SYNTH_MEMORY_JOB_LEASE'] ?? null;
+    $lease = \Synth\Bootstrap::config('SYNTH_MEMORY_JOB_LEASE') ?? null;
     if (is_array($lease)) {
         $jobId = intval($lease['id']);
         $token = $db->escapeLiteral($lease['token']);
@@ -154,7 +154,7 @@ function synth_protocol_assert_request_active(): void
                 AND state='running' AND lease_token={$token} AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
         if (!$job) throw new SYNTHProtocolCancelled('memory_lease_lost');
     }
-    $relationshipLease=$GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE'] ?? null;
+    $relationshipLease=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_JOB_LEASE') ?? null;
     if (is_array($relationshipLease)) {
         $jobId=intval($relationshipLease['id']); $token=$db->escapeLiteral($relationshipLease['token']);
         $sequence=intval($event['context_sequence']);
@@ -164,7 +164,7 @@ function synth_protocol_assert_request_active(): void
             AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
         if (!$job) throw new SYNTHProtocolCancelled('relationship_lease_lost');
     }
-    $profileLease=$GLOBALS['SYNTH_PROFILE_JOB_LEASE'] ?? null;
+    $profileLease=\Synth\Bootstrap::config('SYNTH_PROFILE_JOB_LEASE') ?? null;
     if (is_array($profileLease)) {
         $jobId=intval($profileLease['id']);$token=$db->escapeLiteral($profileLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
@@ -174,7 +174,7 @@ function synth_protocol_assert_request_active(): void
             AND state='running' AND lease_token=$token AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
         if (!$job) throw new SYNTHProtocolCancelled('profile_lease_lost');
     }
-    $diaryLease=$GLOBALS['SYNTH_DIARY_JOB_LEASE'] ?? null;
+    $diaryLease=\Synth\Bootstrap::config('SYNTH_DIARY_JOB_LEASE') ?? null;
     if (is_array($diaryLease)) {
         $jobId=intval($diaryLease['id']);$token=$db->escapeLiteral($diaryLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
@@ -186,7 +186,7 @@ function synth_protocol_assert_request_active(): void
                 AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()");
         if (!$job) throw new SYNTHProtocolCancelled('diary_lease_lost');
     }
-    $interactionLease=$GLOBALS['SYNTH_INTERACTION_JOB_LEASE'] ?? null;
+    $interactionLease=\Synth\Bootstrap::config('SYNTH_INTERACTION_JOB_LEASE') ?? null;
     if (is_array($interactionLease)) {
         $jobId=intval($interactionLease['id']);$token=$db->escapeLiteral($interactionLease['token']);
         $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
@@ -356,8 +356,8 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     }
     if ($narratorJournals) {
         if ($actor!=='' || $relationshipReaderIdentityId!==null || $playerPerspective
-            || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($GLOBALS['SYNTH_NAME'] ?? '')!=='The Narrator'
-            || filter_var($GLOBALS['NARRATOR_ONLY_DIARY_ACCESS'] ?? false,FILTER_VALIDATE_BOOLEAN)) {
+            || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')!=='The Narrator'
+            || filter_var(\Synth\Bootstrap::config('NARRATOR_ONLY_DIARY_ACCESS') ?? false,FILTER_VALIDATE_BOOLEAN)) {
             throw new InvalidArgumentException('Narrator journal reader required');
         }
     }
@@ -914,13 +914,13 @@ function synth_protocol_bind_quest_prompt(array $event, array $payload, bool $pl
 // still use prompt_snapshot. A stale projection cannot authorize another turn.
 function synth_protocol_speaker_quest_snapshot($db): ?array
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     $role=synth_protocol_owned_response_role();
     if ($role==='narrator' || ($role===null && synth_protocol_response_is_narrator())) {
         return synth_protocol_prompt_snapshot($db);
     }
     $empty=['active_quests'=>[],'active_quests_observation'=>'unavailable','_synth_quest_prompt_scope'=>'none'];
-    $projection=$GLOBALS['SYNTH_TURN_QUEST_PROMPT'] ?? null;
+    $projection=\Synth\Bootstrap::config('SYNTH_TURN_QUEST_PROMPT') ?? null;
     if (($event['protocol_version'] ?? null)!==2 || $role!=='npc'
         || ($event['type'] ?? '')!=='trigger' || ($event['payload']['kind'] ?? '')!=='quest_updated'
         || !is_array($projection) || ($projection['scope'] ?? '')!=='reaction'
@@ -1840,8 +1840,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 ['session_id' => $sessionId, 'snapshot_sequence' => intval($event['payload']['snapshot_sequence'] ?? 0),
                  'world' => is_array($event['payload']['world'] ?? null) ? $event['payload']['world'] : []]);
         }
-        if($event['type']==='action_result' && is_array($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']??null))
-            synth_wait_trace_committed_result($event,$GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
+        if($event['type']==='action_result' && is_array(\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME')??null))
+            synth_wait_trace_committed_result($event,\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME'));
         unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
         if (!$explicitOwner) return ['status' => 'accepted'];
         return ['status' => 'accepted',
@@ -1860,8 +1860,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
 
 function synth_protocol_record_action_intent($db, array $action): void
 {
-    $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)
-        ? $GLOBALS['SYNTH_REQUEST_EVENT']['json']
+    $event = is_array(\Synth\Bootstrap::requestEvent()['json'] ?? null)
+        ? \Synth\Bootstrap::requestEvent()['json']
         : [];
     if (!$event) {
         throw new RuntimeException('Action intent has no protocol request context.');
@@ -1980,7 +1980,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
             if (!$db->insert('core_context_event', [
                 'type' => 'funccall', 'data' => $action['action_id'],
                 'gamets' => intval($context['payload']['world']['game_time_ticks'] ?? 0),
-                'ts' => intval($GLOBALS['gameRequest'][1] ?? time()), 'localts' => time(),
+                'ts' => intval(\Synth\Bootstrap::gameRequest()[1] ?? time()), 'localts' => time(),
                 'sess' => $event['session_id'], 'people' => '',
             ])) throw new RuntimeException('Unable to persist action issuance history.');
         }
@@ -2310,7 +2310,7 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
 
 function synth_protocol_complete_request($db, string $state, string $contentType, string $body, string $errorCode = ''): void
 {
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+    $event = \Synth\Bootstrap::requestEvent() ?? null;
     if (!is_array($event) || empty($event['request_id']) || empty($event['runtime_variant'])) {
         return;
     }
@@ -2404,14 +2404,14 @@ function synth_rechat_action_code_allowed(string $code): bool
 // Legacy integrations retain their existing explicitly invoked tool behavior.
 function synth_protocol_player_journal_action_allowed(): bool
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     return ($event['protocol_version'] ?? 1)!==2 || synth_protocol_owned_response_role()==='narrator';
 }
 
 // Current response role is selected authority, never an NPC display-name or mutable profile flag.
 function synth_protocol_owned_response_role(): ?string
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? null) === 2 &&
         in_array($event['type'] ?? '', ['input_text','input_audio'], true) &&
         ($event['payload']['control']['mode'] ?? '') === 'NARRATOR') return 'narrator';
@@ -2422,7 +2422,7 @@ function synth_protocol_owned_response_role(): ?string
                 || (($event['type'] ?? '')==='activate' && ($event['payload']['source'] ?? '')==='manual')) ? 'npc' : null;
     }
     require_once dirname(__DIR__, 3).'/lib'.'/synth_rechat_prepare.php';
-    $selection=synth_rechat_prepared_selection($GLOBALS['db'],$event);
+    $selection=synth_rechat_prepared_selection(\Synth\Bootstrap::db(),$event);
     if (!in_array($selection['role'],['npc','narrator'],true)) throw new LogicException('rechat_response_role_terminal');
     return $selection['role'];
 }
@@ -2431,7 +2431,7 @@ function synth_protocol_response_is_narrator(?string $legacyName = null): bool
 {
     $role=synth_protocol_owned_response_role();
     return $role!==null ? $role==='narrator' : ($legacyName===null
-        ? ($GLOBALS['SYNTH_NAME'] ?? '')==='The Narrator'
+        ? (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')==='The Narrator'
         : strcasecmp($legacyName,'The Narrator')===0);
 }
 
@@ -2439,13 +2439,13 @@ function synth_protocol_response_is_narrator(?string $legacyName = null): bool
 function synth_protocol_current_speech_role(?string $legacyName = null): string
 {
     if (array_key_exists('SYNTH_SPEECH_ROLE',$GLOBALS)) {
-        $role=$GLOBALS['SYNTH_SPEECH_ROLE'];
+        $role=\Synth\Bootstrap::config('SYNTH_SPEECH_ROLE');
         if (!in_array($role,['npc','player','narrator'],true)) throw new LogicException('invalid_speech_role');
         return $role;
     }
     $role=synth_protocol_owned_response_role();
     if ($role!==null) return $role;
-    $name=trim($legacyName ?? strval($GLOBALS['SYNTH_NAME'] ?? ''));
+    $name=trim($legacyName ?? strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
     if (strcasecmp($name,'Player')===0) return 'player';
     return strcasecmp($name,'The Narrator')===0 ? 'narrator' : 'npc';
 }
@@ -2504,8 +2504,8 @@ function synth_protocol_response_actor_identity($db, array $event, array $contex
 
 function synth_protocol_resolve_speaker_identity($db, string $speaker): ?array
 {
-    $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)
-        ? $GLOBALS['SYNTH_REQUEST_EVENT']['json'] : [];
+    $event = is_array(\Synth\Bootstrap::requestEvent()['json'] ?? null)
+        ? \Synth\Bootstrap::requestEvent()['json'] : [];
     if (synth_protocol_owns_rechat($event)) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_rechat_prepare.php';
         $selection=synth_rechat_prepared_selection($db,$event);
@@ -2527,8 +2527,8 @@ function synth_protocol_resolve_speaker_identity($db, string $speaker): ?array
                 : 'The Narrator',
         ];
     }
-    $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)
-        ? $GLOBALS['SYNTH_REQUEST_EVENT']['json']
+    $event = is_array(\Synth\Bootstrap::requestEvent()['json'] ?? null)
+        ? \Synth\Bootstrap::requestEvent()['json']
         : [];
     if (!$event) {
         return null;
@@ -2822,7 +2822,7 @@ function synth_protocol_quest_prompt_context($db, array $event, array $context, 
 // null selects legacy readers; an empty array means native observation unavailable, never latest-global fallback.
 function synth_protocol_prompt_snapshot($db): ?array
 {
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1) !== 2) return null;
     if (!is_object($db)) return [];
     $context = synth_protocol_current_context($db, $event);

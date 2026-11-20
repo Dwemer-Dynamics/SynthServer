@@ -5,7 +5,7 @@
 
 function getCapsFromMetadata($npcName = null) {
     if ($npcName === null) {
-        $npcName = isset($GLOBALS["SYNTH_NAME"]) ? $GLOBALS["SYNTH_NAME"] : "";
+        $npcName = isset($GLOBALS["SYNTH_NAME"]) ? \Synth\Bootstrap::config("SYNTH_NAME") : "";
     }
 
     if (empty($npcName)) {
@@ -44,7 +44,7 @@ function isItemBlacklisted($itemName) {
         return false;
     }
 
-    $blacklistedItems = array_map('trim', explode(',', $GLOBALS["ITEM_BLACKLIST"]));
+    $blacklistedItems = array_map('trim', explode(',', \Synth\Bootstrap::config("ITEM_BLACKLIST")));
     $itemNameLower = strtolower(trim($itemName));
 
     foreach ($blacklistedItems as $blacklistedItem) {
@@ -207,7 +207,7 @@ function synthBuildInventoryPromptContext(
  * Custom rows must win across all wildcard/stable candidates before seeded defaults.
  */
 function lookupDescriptionRecordByCandidates(array $candidateBaseIds, bool $requireDescription = false): ?array {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $candidateRows = [];
     $pushCandidateRow = function (string $plugin, string $baseid) use (&$candidateRows): void {
@@ -360,7 +360,7 @@ function lookupStrictDescriptionByFormID(string $formId): ?array {
 
 /** Catalog text for a captured item, scoped to its observed origin plugin. */
 function synthLookupCapturedEquipmentDescription(string $formId, string $plugin): ?string {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     if (!preg_match('/^0x[0-9a-f]{8}$/iD', $formId)
         || strcasecmp(substr($formId, 2, 2), 'FF') === 0
         || strcasecmp($formId, '0x00000000') === 0
@@ -405,7 +405,7 @@ function getHeightDescription(float $scale): string {
     // Load height descriptions from prompts table (cached)
     if ($heightDescriptions === null) {
         try {
-            global $db;
+            $db = \Synth\Bootstrap::db();
             $result = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) as prompt FROM core_prompt WHERE prompt_key = 'height_descriptions'");
 
             if ($result && !empty($result['prompt'])) {

@@ -48,7 +48,7 @@ if (!function_exists('synthRelParticipants')) {
 if (!function_exists('synthRelBuildEventBaseline')) {
     function synthRelBuildEventBaseline(string $npcName, int $eventLimit = 200): array
     {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         $npcName = synthRelNormalizeName($npcName);
         if (!$db || $npcName === '') {
             return ['ok' => false, 'error' => $db ? 'NPC name is required.' : 'Database unavailable.'];

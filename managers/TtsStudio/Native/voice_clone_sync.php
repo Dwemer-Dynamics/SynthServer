@@ -60,8 +60,8 @@ if (!function_exists('synth_voice_clone_sync_endpoint_from_globals')) {
     {
         $driver = synth_voice_clone_sync_normalize_driver($driver);
         $providerKey = synth_voice_clone_sync_provider_key($driver);
-        $config = ($providerKey !== '' && isset($GLOBALS['TTS'][$providerKey]) && is_array($GLOBALS['TTS'][$providerKey]))
-            ? $GLOBALS['TTS'][$providerKey]
+        $config = ($providerKey !== '' && isset($GLOBALS['TTS'][$providerKey]) && is_array(\Synth\Bootstrap::config('TTS')[$providerKey]))
+            ? \Synth\Bootstrap::config('TTS')[$providerKey]
             : [];
 
         $endpoint = trim(strval($config['endpoint'] ?? $config['url'] ?? $config['URL'] ?? ''));
@@ -83,7 +83,7 @@ if (!function_exists('synth_voice_clone_sync_runtime')) {
         $root = synth_voice_clone_sync_root($options['root'] ?? null);
         $actorName = trim(strval($options['actor_name'] ?? ''));
         $driver = synth_voice_clone_sync_normalize_driver(
-            $options['driver'] ?? ($GLOBALS['TTSFUNCTION'] ?? ($GLOBALS['TTS_FUNCTION'] ?? 'pockettts'))
+            $options['driver'] ?? (\Synth\Bootstrap::config('TTSFUNCTION') ?? (\Synth\Bootstrap::config('TTS_FUNCTION') ?? 'pockettts'))
         );
         $endpoint = trim(strval($options['endpoint'] ?? ''));
 
