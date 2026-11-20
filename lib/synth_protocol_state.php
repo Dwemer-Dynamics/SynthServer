@@ -211,7 +211,7 @@ function synth_protocol_assert_owner_active($db, array $event, bool $mayRetainGi
     $generation = intval($event['generation']);
     $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
             r.active_turn_id, r.active_turn_sequence
-        FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING (session_id)
+        FROM public.core_request_execution e JOIN public.core_runtime_session r USING (session_id)
         WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
     // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
     $retainedGift=$mayRetainGift && ($row['state'] ?? '')==='complete'
@@ -262,7 +262,7 @@ function synth_protocol_actor_identity_id($db, array $identity): int
     $displayName = trim(strval($identity['display_name'] ?? ''));
     $displayNameSql = $displayName === '' ? 'NULL' : $db->escapeLiteral($displayName);
     $row = $db->fetchOne(
-        "SELECT id FROM synth.actor_identities
+        "SELECT id FROM public.core_actor_identity
           WHERE game={$game}
             AND upper(full_form_id)=upper({$formId})
             AND lower(origin_plugin)=lower({$originPlugin})
@@ -271,7 +271,7 @@ function synth_protocol_actor_identity_id($db, array $identity): int
     );
     if ($row) {
         $db->execQuery(
-            "UPDATE synth.actor_identities
+            "UPDATE public.core_actor_identity
                 SET last_seen_at=NOW(), display_name=COALESCE({$displayNameSql}, display_name)
               WHERE id=" . intval($row['id'])
         );
@@ -279,7 +279,7 @@ function synth_protocol_actor_identity_id($db, array $identity): int
     }
 
     $inserted = $db->fetchOne(
-        "INSERT INTO synth.actor_identities (game, full_form_id, origin_plugin, playthrough_id, display_name)
+        "INSERT INTO public.core_actor_identity (game, full_form_id, origin_plugin, playthrough_id, display_name)
          VALUES ({$game}, {$formId}, {$originPlugin}, {$playthroughId}, {$displayNameSql})
          RETURNING id"
     );
@@ -334,7 +334,7 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         $responseActor=$context ? synth_protocol_response_actor_identity($db,$event,$context) : null;
         $reader=null;
         if ($responseActor!==null && ($actor==='' || strcasecmp(trim($actor),trim($responseActor['display_name']))===0)) {
-            $reader=$db->fetchOne("SELECT id FROM synth.actor_identities WHERE game='fo4'
+            $reader=$db->fetchOne("SELECT id FROM public.core_actor_identity WHERE game='fo4'
                 AND upper(full_form_id)=upper(".$db->escapeLiteral($responseActor['form_id']).")
                 AND lower(origin_plugin)=lower(".$db->escapeLiteral($responseActor['origin_plugin']).")
                 AND playthrough_id=".$db->escapeLiteral($responseActor['playthrough_id']));
@@ -365,7 +365,7 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         // Administrative inspection (zero selects the author directory) never impersonates Narrator.
         // Each journal keeps its NPC's insertion-time visibility; only the saved ancestry is shared.
         $readerSql=$requiredReader='journal_actor.id';
-        $readerJoin=" JOIN synth.actor_identities journal_actor ON journal_actor.game='fo4'
+        $readerJoin=" JOIN public.core_actor_identity journal_actor ON journal_actor.game='fo4'
             AND journal_actor.playthrough_id=c.playthrough_id AND journal_actor.id<>c.player_identity_id
             AND ".($journalKind==='middleterm'
                 ? 'EXISTS(SELECT 1 FROM public.core_middleterm_input journal WHERE journal.actor_identity_id=journal_actor.id)'
@@ -379,7 +379,7 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     if ($relationshipReaderIdentityId!==null) {
         if ($relationshipReaderIdentityId<1 || $actor!=='') throw new InvalidArgumentException('Invalid relationship history reader');
         $readerSql=$requiredReader=strval($relationshipReaderIdentityId);
-        $readerGuard=" AND EXISTS(SELECT 1 FROM synth.actor_identities reader
+        $readerGuard=" AND EXISTS(SELECT 1 FROM public.core_actor_identity reader
             WHERE reader.id=$readerSql AND reader.game='fo4' AND reader.playthrough_id=c.playthrough_id
                 AND reader.id<>c.player_identity_id
                 AND (reader.id=c.target_identity_id OR c.audience_identity_ids @> jsonb_build_array(reader.id))
@@ -442,7 +442,7 @@ function synth_protocol_receipt_speech_join(string $history='h', string $scene='
             FROM public.core_dialogue_route rr
             JOIN public.core_dialogue_utterance u ON u.session_id=rr.session_id AND u.request_id=rr.request_id
                 AND u.line_id=rr.line_id AND u.generation=rr.generation AND u.context_sequence=rr.context_sequence
-            JOIN synth_meta.request_executions execution ON execution.session_id=u.session_id
+            JOIN public.core_request_execution execution ON execution.session_id=u.session_id
                 AND execution.request_id=u.request_id AND execution.generation=u.generation AND execution.turn_id=u.turn_id
             JOIN public.core_protocol_event ingress ON ingress.session_id=execution.session_id
                 AND ingress.request_id=execution.request_id AND ingress.generation=execution.generation
@@ -459,15 +459,15 @@ function synth_protocol_receipt_speech_join(string $history='h', string $scene='
                 AND receipt.canonical_event#>>'{payload,character,playthrough_id}'=rr.speaker->>'playthrough_id'
                 AND ((u.state='spoken' AND receipt.canonical_event#>>'{payload,outcome}'='audio_completed')
                     OR (u.state='presented' AND receipt.canonical_event#>>'{payload,outcome}'='text_presented'))
-            JOIN synth_meta.request_executions receipt_owner ON receipt_owner.session_id=receipt.session_id
+            JOIN public.core_request_execution receipt_owner ON receipt_owner.session_id=receipt.session_id
                 AND receipt_owner.request_id=receipt.request_id AND receipt_owner.generation=receipt.generation
                 AND receipt_owner.turn_id=receipt.turn_id AND receipt_owner.event_type=receipt.event_type
                 AND receipt_owner.request_sha256=receipt.event_sha256
-            JOIN synth.actor_identities speaker ON speaker.id=u.speaker_identity_id AND speaker.game='fo4'
+            JOIN public.core_actor_identity speaker ON speaker.id=u.speaker_identity_id AND speaker.game='fo4'
                 AND upper(speaker.full_form_id)=upper(rr.speaker->>'form_id')
                 AND lower(speaker.origin_plugin)=lower(rr.speaker->>'origin_plugin')
                 AND speaker.playthrough_id=rr.speaker->>'playthrough_id' AND speaker.playthrough_id=h.playthrough_id
-            LEFT JOIN synth.actor_identities listener ON rr.listener_state='addressed' AND listener.game='fo4'
+            LEFT JOIN public.core_actor_identity listener ON rr.listener_state='addressed' AND listener.game='fo4'
                 AND upper(listener.full_form_id)=upper(rr.listener->>'form_id')
                 AND lower(listener.origin_plugin)=lower(rr.listener->>'origin_plugin')
                 AND listener.playthrough_id=rr.listener->>'playthrough_id' AND listener.playthrough_id=h.playthrough_id
@@ -526,7 +526,7 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
             FROM public.core_rechat_selection selected
             JOIN public.core_rechat_continuation continuation USING(session_id,request_id)
             JOIN public.core_rechat_chain chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
-            JOIN synth_meta.request_executions execution ON execution.session_id=selected.session_id AND execution.request_id=selected.request_id
+            JOIN public.core_request_execution execution ON execution.session_id=selected.session_id AND execution.request_id=selected.request_id
             JOIN public.core_protocol_event ingress ON ingress.session_id=selected.session_id AND ingress.request_id=selected.request_id
             WHERE selected.session_id=h.session_id AND selected.request_id=h.request_id
                 AND selected.prepared_at IS NOT NULL AND selected.role IN ('npc','narrator') AND continuation.status='reserved'
@@ -547,11 +547,11 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
         THEN CASE WHEN (origin.context_payload#>>'{world,game_time_ticks}')::bigint<=9007199254740991
             THEN (origin.context_payload#>>'{world,game_time_ticks}')::bigint END END";
     $historyDefinition=$materializeHistory ? 'MATERIALIZED ' : '';
-    $historyEvents=$relationshipSourceHistory ? $history.'_events' : 'synth_meta.history_events';
+    $historyEvents=$relationshipSourceHistory ? $history.'_events' : 'public.core_history_event';
     // Avoid one indexed history lookup for every reader/saved-scope combination.
     $sourceIds=$limitRelationshipSources ? ' AND h.id IN (SELECT history_event_id FROM relationship_graph_dependency_sources)' : '';
     $sourceEvents=$relationshipSourceHistory ? ", $historyEvents AS MATERIALIZED (
-        SELECT h.* FROM synth_meta.history_events h WHERE EXISTS (
+        SELECT h.* FROM public.core_history_event h WHERE EXISTS (
             SELECT 1 FROM $scopes s WHERE h.session_id=s.session_id AND h.generation=s.generation
                 AND h.playthrough_id=s.playthrough_id AND h.id<=s.cutoff) {$sourceFilter}{$sourceIds}
     ) " : '';
@@ -691,7 +691,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
     // claim_request holds the same transaction lock used by native event insertions.
     // This is an insertion frontier, not a delivery or mutable-history revision frontier.
     $historyFrontier = ($event['protocol_version'] ?? 1) === 2
-        ? "(SELECT COALESCE(MAX(id),0) FROM synth_meta.history_events
+        ? "(SELECT COALESCE(MAX(id),0) FROM public.core_history_event
               WHERE session_id={$session} AND generation={$generation} AND playthrough_id={$playthroughId})"
         : 'NULL';
     if ($db->execQuery(
@@ -737,7 +737,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
         if ($db->execQuery("UPDATE public.core_runtime_context c
             SET history_event_id=GREATEST(c.history_event_id,COALESCE((
-                SELECT MAX(h.id) FROM synth_meta.history_events h
+                SELECT MAX(h.id) FROM public.core_history_event h
                  WHERE h.session_id=c.session_id AND h.generation=c.generation
                    AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
                    AND h.request_id=$5
@@ -834,7 +834,7 @@ function synth_protocol_persist_actor_factions($db, array $states): void
         );
         $baseIdentitySql = $db->escapeLiteral($baseIdentity);
         if ($db->execQuery(
-            "UPDATE synth.actor_identities
+            "UPDATE public.core_actor_identity
                 SET metadata=COALESCE(metadata, '{}'::jsonb) || {$snapshotJson}::jsonb,
                     last_seen_at=NOW()
               WHERE id={$identityId}"
@@ -842,7 +842,7 @@ function synth_protocol_persist_actor_factions($db, array $states): void
             throw new RuntimeException('Unable to persist actor faction metadata.');
         }
         if ($db->execQuery(
-            "UPDATE synth.core_npc_master
+            "UPDATE public.core_npc
                 SET extended_data=jsonb_set(
                     jsonb_set(
                         jsonb_set(COALESCE(extended_data, '{}'::jsonb), '{factions}', {$factionsJson}::jsonb, true),
@@ -964,7 +964,7 @@ function synth_protocol_persist_quest_history($db, array $event): void
     if (($event['protocol_version'] ?? 1) !== 2) return;
     $journal = synth_protocol_quest_history_observation($event['payload']);
     if ($journal === null) return;
-    $result = $db->execQuery("SELECT event_payload->'party' AS party FROM synth_meta.history_events
+    $result = $db->execQuery("SELECT event_payload->'party' AS party FROM public.core_history_event
         WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
           AND context_sequence<$4 AND event_payload->>'type'='quest_observation'
         ORDER BY id DESC LIMIT 1", [$event['session_id'], $event['generation'],
@@ -1026,7 +1026,7 @@ function synth_protocol_persist_quest_events($db, array $event): void
     $owner = [$event['session_id'], $event['generation'], $payload['playthrough_id']];
     $player = array_intersect_key($payload['player'], array_flip(['form_id','origin_plugin','playthrough_id']));
     $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party
-        FROM synth_meta.history_events WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
+        FROM public.core_history_event WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
           AND event_payload->>'type'='quest_events'
           AND (event_payload->>'party')::jsonb->>'batch_id'=$4 LIMIT 1", [...$owner, $batch['batch_id']]);
     if ($result === false) throw new RuntimeException('Unable to read native quest batch history.');
@@ -1167,7 +1167,7 @@ function synth_protocol_persist_observation_history(
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         SELECT $6,$7,playthrough_id,$8,$9,$9,$10,$11,$12,'received',
             session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
-    ) INSERT INTO synth_meta.history_events
+    ) INSERT INTO public.core_history_event
         (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
         SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,to_jsonb(publication)
           FROM publication RETURNING id",
@@ -1389,8 +1389,8 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 t.full_form_id AS recipient_form_id, t.origin_plugin AS recipient_plugin,
                 t.playthrough_id AS recipient_playthrough_id
             FROM public.core_action_intent i
-            JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
-            LEFT JOIN synth.actor_identities t ON t.id=i.target_identity_id AND t.game='fo4'
+            JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+            LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id AND t.game='fo4'
             JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
                 AND e.generation=i.generation AND e.turn_id=i.turn_id
             JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
@@ -1552,7 +1552,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))");
         $existing = $db->fetchOne(
             "SELECT request_sha256, state, response_content_type, response_body, error_code, claimed_at
-               FROM synth_meta.request_executions
+               FROM public.core_request_execution
               WHERE session_id={$session} AND request_id={$requestId}
               FOR UPDATE"
         );
@@ -1632,7 +1632,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     throw new RuntimeException('Unable to persist the complete loaded plugin manifest.');
                 }
             }
-            $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
+            $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
                     response_body=NULL, error_code='stale_generation', completed_at=NOW()
                 WHERE session_id={$session} AND generation<{$generation}
                   AND state IN ('claimed','streaming')");
@@ -1691,7 +1691,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 if (in_array('dialogue.turn_cancel', $event['capabilities'], true)) {
                     $sequence = intval($event['context_sequence']);
                     $cancelledAnchor = $db->fetchOne("SELECT 1 AS cancelled FROM public.core_protocol_event p
-                        JOIN synth_meta.request_executions e USING (session_id, request_id)
+                        JOIN public.core_request_execution e USING (session_id, request_id)
                         WHERE p.session_id={$session} AND p.generation={$generation} AND p.event_type='context'
                           AND p.canonical_event->'payload'->>'snapshot_sequence'='{$sequence}'
                           AND e.state='cancelled' LIMIT 1");
@@ -1710,14 +1710,14 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                         SET active_turn_id={$turnId}, active_turn_sequence={$sequence}, updated_at=NOW()
                         WHERE session_id={$session} AND active_generation={$generation}");
                     // A new context supersedes the old owner even when its turn ID is reused.
-                    $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
+                    $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
                             response_body=NULL, error_code='superseded_turn', completed_at=NOW()
                         WHERE session_id={$session} AND generation={$generation}
                           AND (turn_id<>{$turnId} OR EXISTS (
                             SELECT 1 FROM public.core_protocol_event owner
                             WHERE owner.session_id={$session} AND owner.generation={$generation}
-                              AND owner.request_id=request_executions.request_id
-                              AND owner.event_sha256=request_executions.request_sha256
+                              AND owner.request_id=core_request_execution.request_id
+                              AND owner.event_sha256=core_request_execution.request_sha256
                               AND owner.canonical_event->>'context_sequence' IS DISTINCT FROM '{$sequence}'))
                           AND (event_type IN ('input_text','input_audio','trigger','action_result','narrator_turn')
                             OR (event_type='social_task_progress' AND request_id IN (
@@ -1725,7 +1725,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                                 WHERE p.session_id={$session} AND p.generation={$generation}
                                     AND p.event_type='social_task_progress'
                                     AND p.canonical_event->'payload'->>'phase'='arrived'
-                                    AND p.event_sha256=request_executions.request_sha256)))
+                                    AND p.event_sha256=core_request_execution.request_sha256)))
                           AND state IN ('claimed','streaming')");
                     $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                         WHERE session_id={$session} AND generation={$generation}
@@ -1740,7 +1740,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         }
 
         $db->execQuery(
-            "INSERT INTO synth_meta.request_executions
+            "INSERT INTO public.core_request_execution
                 (session_id, request_id, turn_id, generation, request_sha256, event_type, state)
              VALUES ({$session}, {$requestId}, {$turnId}, {$generation}, {$hashSql}, {$eventType}, 'claimed')"
         );
@@ -1767,7 +1767,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
                   WHERE session_id={$session} AND generation <= {$generation} AND state IN ('pending', 'running')"
             );
-            $db->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',
+            $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
                     response_body=NULL, error_code='runtime_halted', completed_at=NOW()
                 WHERE session_id={$session} AND generation <= {$generation} AND request_id<>{$requestId}
                   AND state IN ('claimed','streaming')");
@@ -1801,7 +1801,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 $cancelTurn = $db->escapeLiteral($anchor['turn_id']);
                 $cancelSequence = intval($anchor['sequence']);
                 // Retain completed player input as historical learning; revoke its delivery and late work.
-                $db->execQuery("UPDATE synth_meta.request_executions SET
+                $db->execQuery("UPDATE public.core_request_execution SET
                         state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
                         response_body=NULL,error_code='turn_cancelled',
                         completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
@@ -1820,7 +1820,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                       AND state IN ('pending','running')");
             }
             $db->execQuery(
-                "UPDATE synth_meta.request_executions SET
+                "UPDATE public.core_request_execution SET
                         state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
                         response_body=NULL,error_code='request_cancelled',
                         completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
@@ -2017,7 +2017,7 @@ function synth_protocol_last_actions_issued($db, array $event, string $actor): a
             (h.event_payload->>'gamets')::bigint AS gamets,
             (h.event_payload->>'ts')::bigint AS ts
         FROM native_history_scopes s
-        JOIN synth_meta.history_events h ON h.session_id=s.session_id AND h.generation=s.generation
+        JOIN public.core_history_event h ON h.session_id=s.session_id AND h.generation=s.generation
             AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
         JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
             AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
@@ -2185,8 +2185,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
                 a.full_form_id AS actor_form_id, a.origin_plugin AS actor_plugin, a.playthrough_id AS actor_playthrough,
                 t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin, t.playthrough_id AS target_playthrough
            FROM public.core_action_intent i
-           JOIN synth.actor_identities a ON a.id=i.actor_identity_id
-           LEFT JOIN synth.actor_identities t ON t.id=i.target_identity_id
+           JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
+           LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id
           WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}"
     );
     if (!$row) {
@@ -2332,7 +2332,7 @@ function synth_protocol_record_outcome($db, array $event, string $state, string 
     $bodySql = $db->escapeLiteral('\\x' . bin2hex($body));
     $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
     $db->execQuery(
-        "UPDATE synth_meta.request_executions
+        "UPDATE public.core_request_execution
             SET state={$stateSql}, response_content_type={$contentTypeSql},
                 response_body={$bodySql}::bytea, error_code={$errorSql}, completed_at=NOW()
           WHERE session_id={$session} AND request_id={$requestId}
@@ -2354,7 +2354,7 @@ function synth_protocol_commit_outcome($db, array $event, string $state, string 
         if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))")) {
             throw new RuntimeException('Unable to lock protocol outcome owner.');
         }
-        $row = $db->fetchOne("SELECT state, error_code FROM synth_meta.request_executions
+        $row = $db->fetchOne("SELECT state, error_code FROM public.core_request_execution
             WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation} FOR UPDATE");
         if (!is_array($row)) throw new RuntimeException('Protocol outcome owner unavailable.');
         if (!in_array($row['state'], ['claimed', 'streaming'], true)) {
@@ -2372,7 +2372,7 @@ function synth_protocol_commit_outcome($db, array $event, string $state, string 
         $stateSql = $db->escapeLiteral($state);
         $contentTypeSql = $db->escapeLiteral($contentType);
         $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
-        $updated = $db->fetchOne("UPDATE synth_meta.request_executions
+        $updated = $db->fetchOne("UPDATE public.core_request_execution
             SET state={$stateSql}, response_content_type={$contentTypeSql},
                 response_body={$bodySql}, error_code={$errorSql}, completed_at=NOW()
           WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation}
@@ -2481,7 +2481,7 @@ function synth_protocol_response_actor_identity($db, array $event, array $contex
         FROM public.core_action_intent i
         JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
             AND e.generation=i.generation AND e.turn_id=i.turn_id
-        JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
+        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
         JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
         WHERE i.action_id=$action AND i.idempotency_key=$key AND i.session_id=$session
             AND i.turn_id=$turn AND i.generation=$generation
@@ -2567,7 +2567,7 @@ function synth_protocol_resolve_speaker_identity($db, string $speaker): ?array
     $speakerSql = $db->escapeLiteral(trim($speaker));
     $row = $db->fetchOne(
         "SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
-           FROM synth.actor_identities a
+           FROM public.core_actor_identity a
            JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
           WHERE s.session_id={$session} AND lower(a.display_name)=lower({$speakerSql})
           ORDER BY a.last_seen_at DESC LIMIT 1"
@@ -2712,8 +2712,8 @@ function synth_protocol_original_context($db, array $event): ?array
                 t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
                 t.display_name AS target_name
            FROM public.core_runtime_context c
-           JOIN synth.actor_identities p ON p.id=c.player_identity_id
-           LEFT JOIN synth.actor_identities t ON t.id=c.target_identity_id
+           JOIN public.core_actor_identity p ON p.id=c.player_identity_id
+           LEFT JOIN public.core_actor_identity t ON t.id=c.target_identity_id
           WHERE c.session_id={$session} AND c.generation={$generation}
           ORDER BY c.snapshot_sequence DESC LIMIT 1"
     );
@@ -3114,7 +3114,7 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
         }
         $identityId = synth_protocol_actor_identity_id($db, $actor);
         $row = $db->fetchOne(
-            'SELECT npc_name FROM synth.core_npc_master WHERE actor_identity_id=' . intval($identityId) . ' LIMIT 1'
+            'SELECT npc_name FROM public.core_npc WHERE actor_identity_id=' . intval($identityId) . ' LIMIT 1'
         );
         $name = trim(strval($row['npc_name'] ?? ''));
         if ($name !== '') $names[$name] = true;

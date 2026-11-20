@@ -232,7 +232,7 @@ function synth_visual_validate_runtime($db, array $request): array
         $turn = $db->escapeLiteral($request['turn_id']);
         $generation = intval($request['generation']);
         $anchor = $db->fetchOne("SELECT 1 AS acknowledged FROM public.core_protocol_event p
-            JOIN synth_meta.request_executions e USING (session_id, request_id)
+            JOIN public.core_request_execution e USING (session_id, request_id)
             WHERE p.session_id=$session AND p.generation=$generation AND p.turn_id=$turn
                 AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence'='$sequence'
                 AND e.state='complete' LIMIT 1");

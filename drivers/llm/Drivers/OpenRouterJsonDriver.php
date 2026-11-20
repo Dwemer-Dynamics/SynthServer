@@ -958,7 +958,7 @@ class OpenRouterJsonDriver
 
             if ($GLOBALS["db"]) {
                 $GLOBALS["db"]->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"],
@@ -977,7 +977,7 @@ class OpenRouterJsonDriver
 
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message,
@@ -994,7 +994,7 @@ class OpenRouterJsonDriver
                 /*
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "Ok",
@@ -1187,7 +1187,7 @@ class OpenRouterJsonDriver
         if ($json_response) {
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => "Ok",
@@ -1201,7 +1201,7 @@ class OpenRouterJsonDriver
         else {
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => "ERROR|INVALID JSON RESPONSE",
@@ -1543,7 +1543,7 @@ class OpenRouterJsonDriver
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "API error from '{$this->_url}': " . json_encode($text_response["error"]));
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $errorMsg,
@@ -1562,7 +1562,7 @@ class OpenRouterJsonDriver
                 );
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => "Ok",
@@ -1581,7 +1581,7 @@ class OpenRouterJsonDriver
                 );
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => "ERROR|INVALID JSON RESPONSE|" . substr($json_response, 0, 200),
@@ -1605,7 +1605,7 @@ class OpenRouterJsonDriver
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "No response from '{$this->_url}': {$errorDetail}");
             if ($GLOBALS["db"]) {
                 $GLOBALS["db"]->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "ERROR|NO RESPONSE|" . substr($errorDetail, 0, 200),

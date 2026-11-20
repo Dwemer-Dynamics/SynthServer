@@ -26,14 +26,14 @@ function synth_profile_history_cte($db, array $event, int $actorId, bool $narrat
         SELECT v.* FROM native_history_scopes scope JOIN public.core_character_generation_revision v
             ON v.session_id=scope.session_id AND v.generation=scope.generation
                 AND v.actor_identity_id=scope.reader_identity_id AND ($actorId=0 OR v.actor_identity_id=$actorId) AND v.profile_role='$role'
-        JOIN synth_meta.history_events h ON h.id=v.history_event_id AND h.id<=scope.cutoff
+        JOIN public.core_history_event h ON h.id=v.history_event_id AND h.id<=scope.cutoff
             AND h.session_id=v.session_id AND h.generation=v.generation AND h.context_sequence=v.context_sequence
             AND h.request_id=v.request_id AND h.playthrough_id=scope.playthrough_id
             AND h.event_payload->>'type'='profile_result' AND h.event_payload->>'delivery_state'='derived'
             AND h.event_payload->'profile_result'=v.result_fields
             AND h.event_payload->>'profile_result_sha256'=v.result_sha256
             AND h.event_payload->>'profile_input_sha256'=v.input_sha256
-        JOIN synth_meta.request_executions e ON e.session_id=v.session_id AND e.request_id=v.request_id
+        JOIN public.core_request_execution e ON e.session_id=v.session_id AND e.request_id=v.request_id
             AND e.generation=v.generation AND e.event_type='profile_refresh' AND e.state='complete'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
@@ -41,7 +41,7 @@ function synth_profile_history_cte($db, array $event, int $actorId, bool $narrat
             AND p.canonical_event->>'context_sequence'=v.context_sequence::text
         JOIN public.core_runtime_context origin ON origin.session_id=h.session_id AND origin.generation=h.generation
             AND origin.snapshot_sequence=h.context_sequence AND origin.playthrough_id=h.playthrough_id
-        JOIN synth.actor_identities a ON a.id=v.actor_identity_id AND a.playthrough_id=h.playthrough_id AND a.game='fo4'
+        JOIN public.core_actor_identity a ON a.id=v.actor_identity_id AND a.playthrough_id=h.playthrough_id AND a.game='fo4'
         WHERE v.input_sha256=encode(sha256(convert_to(v.input_payload::text,'UTF8')),'hex')
             AND v.result_sha256=encode(sha256(convert_to(v.result_fields::text,'UTF8')),'hex')
             AND v.input_payload->>'actor_identity_id'=v.actor_identity_id::text
@@ -152,11 +152,11 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         }
         // Narrator settings can be absent rows; a short table lock also excludes concurrent insertions.
         if ($narrator && !@pg_query($connection,'LOCK TABLE public.core_config_setting IN SHARE MODE')) throw new RuntimeException('Unable to lock narrator baseline.');
-        $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM synth.core_npc_master WHERE id='.intval($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['npc_id']));
+        $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['npc_id']));
         if (synth_profile_fields($current)!==synth_profile_fields($input['baseline_fields'])) throw new LogicException('Base profile changed during generation.');
         $visible=synth_profile_visible($db,$event,$actor,$narrator);
         if (($visible['revision'] ?? null)!==$input['prior_revision']) throw new LogicException('Saved profile input changed.');
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_character_generation_revision v JOIN synth_meta.history_events h ON h.id=v.history_event_id
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_character_generation_revision v JOIN public.core_history_event h ON h.id=v.history_event_id
             JOIN public.core_runtime_context c ON c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
             WHERE v.session_id=c.session_id AND v.generation=c.generation AND v.actor_identity_id=$4 AND v.profile_role=$5 AND h.id>c.history_event_id',
             [$event['session_id'],$event['generation'],$event['context_sequence'],$actor,$role]);
@@ -167,7 +167,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
             INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('profile_result','Accepted native profile development',$3,$4,$5,$5,'','','','derived',$6,$7,$8,$9) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$3,rowid,to_jsonb(publication)
                 ||jsonb_build_object('profile_input_sha256',encode(sha256(convert_to(value.input::text,'UTF8')),'hex'),
                     'profile_result',value.fields,'profile_result_sha256',encode(sha256(convert_to(value.fields::text,'UTF8')),'hex'))

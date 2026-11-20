@@ -66,14 +66,14 @@ function synth_ambient_npc_prepare($db, array $event): ?array
         if ($owner!==$event) throw new LogicException('ambient_owner_changed');
         $canonical=synth_protocol_canonical_json($event);
         $result=@pg_query_params($connection,"SELECT c.context_payload,s.playthrough_id,
-                EXISTS(SELECT 1 FROM synth_meta.request_executions prior
+                EXISTS(SELECT 1 FROM public.core_request_execution prior
                     JOIN public.core_protocol_event pp USING(session_id,request_id)
                     WHERE prior.session_id=e.session_id AND prior.request_id<>e.request_id
                         AND prior.claimed_at BETWEEN e.claimed_at-INTERVAL '60 seconds' AND e.claimed_at
                         AND prior.event_type='trigger' AND pp.event_sha256=prior.request_sha256
                         AND pp.canonical_event#>>'{payload,kind}'='bored'
                         AND pp.canonical_event->'capabilities' @> '[\"dialogue.ambient_npc\"]'::jsonb) AS cooling_down
-            FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+            FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
             JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.state='active'
                 AND s.active_generation=e.generation AND s.active_turn_id=e.turn_id AND s.active_turn_sequence=$5
             JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation

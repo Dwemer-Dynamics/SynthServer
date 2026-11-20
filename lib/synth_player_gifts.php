@@ -200,13 +200,13 @@ function synth_player_gift_for_event($db, array $event): ?array
         JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
             AND t.status='succeeded' AND t.result=".$db->escapeLiteral(synth_protocol_canonical_json($result))."::jsonb
         JOIN public.core_protocol_event p ON p.session_id=i.session_id AND p.request_id=i.request_id AND p.generation=i.generation AND p.turn_id=i.turn_id
-        JOIN synth_meta.request_executions origin ON origin.session_id=p.session_id AND origin.request_id=p.request_id
+        JOIN public.core_request_execution origin ON origin.session_id=p.session_id AND origin.request_id=p.request_id
             AND origin.request_sha256=p.event_sha256 AND origin.state='complete' AND origin.error_code IS NULL
         JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.canonical_event=$canonical::jsonb
-        JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id
+        JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id
             AND accepted.request_sha256=receipt.event_sha256 AND accepted.state IN ('claimed','streaming','complete') AND accepted.error_code IS NULL
-        JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN synth.actor_identities b ON b.id=i.target_identity_id AND b.game='fo4'
+        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+        JOIN public.core_actor_identity b ON b.id=i.target_identity_id AND b.game='fo4'
         WHERE i.action_id=$actionId AND i.idempotency_key=$key AND i.session_id=$session AND i.turn_id=$turn AND i.generation=$generation
             AND ((i.action_name='TakeItemFromPlayer' AND i.capability='action.take_item_from_player')
                 OR (i.action_name='OpenInventory' AND i.capability='action.open_inventory')) AND i.state='complete'");
@@ -227,7 +227,7 @@ function synth_player_gift_for_event($db, array $event): ?array
 function synth_player_gift_perspective($db, array $event, int $actorId): ?array
 {
     require_once __DIR__.'/synth_profile_state.php';
-    $rows=$db->fetchAll('SELECT id,npc_name,npc_static_bio,personality,occupation,skills,speechstyle,goals FROM synth.core_npc_master WHERE actor_identity_id='.intval($actorId).' LIMIT 2');
+    $rows=$db->fetchAll('SELECT id,npc_name,npc_static_bio,personality,occupation,skills,speechstyle,goals FROM public.core_npc WHERE actor_identity_id='.intval($actorId).' LIMIT 2');
     if (count($rows ?: [])!==1) return null;
     $profile=$rows[0];$saved=synth_profile_visible($db,$event,$actorId);
     $fields=$saved['fields'] ?? synth_profile_fields($profile);

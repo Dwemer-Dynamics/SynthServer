@@ -14,8 +14,8 @@ BEGIN
     END IF;
 END $$;
 DROP TABLE public.core_middleterm_control_revision;
-ALTER TABLE synth_meta.history_events DROP CONSTRAINT history_request_or_manual;
-ALTER TABLE synth_meta.history_events ADD CONSTRAINT history_request_or_manual CHECK (
+ALTER TABLE public.core_history_event DROP CONSTRAINT history_request_or_manual;
+ALTER TABLE public.core_history_event ADD CONSTRAINT history_request_or_manual CHECK (
     request_id IS NOT NULL OR (COALESCE(event_payload->>'type','') IN ('relationship_manual','visual_manual','diary_control')
         AND event_payload->>'delivery_state' IS NOT DISTINCT FROM 'derived'));
 UPDATE synth.database_versioning SET version=20260907008 WHERE tablename='synth_protocol_schema' AND version=20260907009;

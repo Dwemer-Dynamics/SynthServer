@@ -65,7 +65,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             return $schema===($playerOnly ? 'synth.relationship.evaluation.v2' : 'synth.relationship.evaluation.v1') ? intval($existing['id']) : null;
         }
         $canonical=synth_protocol_canonical_json($event);
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e
             ON e.session_id=p.session_id AND e.request_id=p.request_id AND e.request_sha256=p.event_sha256 AND e.state=\'complete\'
             WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4',
             [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
@@ -129,7 +129,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
 function synth_relationship_evaluation_input($connection, $db, array $event, int $evaluationId): ?array
 {
     $result=@pg_query_params($connection,'SELECT i.* FROM public.core_relationship_evaluation i
-        JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation AND e.state=\'complete\'
+        JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation AND e.state=\'complete\'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
             AND p.canonical_event=i.input_payload->\'owner\'
         WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$4 AND i.context_sequence=$5
@@ -188,7 +188,7 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
     if (!$result) throw new RuntimeException('Unable to check relationship dependency count');
     if (intval(pg_fetch_assoc($result)['n'])!==count($input['source_ids'])) return null;
     foreach ($input['recent_events'] as $recent) {
-        $result=@pg_query_params($connection,'SELECT 1 FROM synth_meta.history_events WHERE id=$1 AND event_payload->>\'type\'=$2 AND event_payload->>\'data\'=$3',
+        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_history_event WHERE id=$1 AND event_payload->>\'type\'=$2 AND event_payload->>\'data\'=$3',
             [$recent['history_event_id'],$recent['type'],$recent['data']]);
         if (!$result) throw new RuntimeException('Unable to verify frozen relationship event');
         if (!pg_fetch_assoc($result)) return null;
@@ -423,7 +423,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_result','Native relationship evaluation',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('evaluation_sha256',$8::text,'result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex')) FROM publication RETURNING id
         ) INSERT INTO public.core_relationship_result(history_event_id,evaluation_id,job_id,result_payload)

@@ -8,7 +8,7 @@ require_once __DIR__.'/synth_rechat_prepare.php';
 function synth_rechat_history_response($connection, array $owner, string $request, int $chainId): array
 {
     $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
-        FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
         JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$3
         JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.playthrough_id=c.playthrough_id
         WHERE e.session_id=$1 AND e.request_id=$2 AND e.state='complete' AND e.generation=$4 AND p.generation=e.generation

@@ -302,7 +302,7 @@ function synthExecuteNarratorDirectorCommand(array $parameters): bool
     }
 
     if (isset($GLOBALS['db'], $GLOBALS['gameRequest']) && is_object($GLOBALS['db'])) {
-        $GLOBALS['db']->insert('actions_issued', [
+        $GLOBALS['db']->insert('core_action_issued', [
             'action' => 'DirectorCommand',
             'fullcall' => synthEncodeActionLine('The Narrator', 'DirectorCommand', $parameters),
             'actorname' => 'The Narrator',

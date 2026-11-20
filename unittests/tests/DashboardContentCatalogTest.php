@@ -160,9 +160,9 @@ final class DashboardContentCatalogTest extends DatabaseTestCase
     {
         [$pack,$catalog]=$this->installLibrary();
         $db=$this->db();
-        self::assertNotFalse($db->execQuery('INSERT INTO synth.core_npc_master(npc_name) VALUES($1),($2)',
+        self::assertNotFalse($db->execQuery('INSERT INTO public.core_npc(npc_name) VALUES($1),($2)',
             ['Dashboard fixture one','Dashboard fixture two']));
-        $profileCount=(int)$db->fetchOne('SELECT COUNT(*) AS n FROM synth.core_npc_master')['n'];
+        $profileCount=(int)$db->fetchOne('SELECT COUNT(*) AS n FROM public.core_npc')['n'];
         self::assertLessThan(count($pack['npcs']),$profileCount);
         $xpath=$this->xpath($this->render('ui/home.php'));
         foreach (['Character templates'=>count($pack['npcs']),'World lore articles'=>count($catalog['rows']),'Encountered NPCs'=>$profileCount] as $label=>$expected) {

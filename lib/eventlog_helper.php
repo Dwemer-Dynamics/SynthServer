@@ -479,7 +479,7 @@ if (!function_exists('synthFetchRelationshipTimelineChanges')) {
                              row_number() OVER (PARTITION BY h.npc_id ORDER BY h.history_id DESC) AS rn
                       FROM (
                           SELECT history_id, npc_id, npc_name, gamets_last_updated, created, extended_data
-                          FROM core_npc_master_history
+                          FROM core_npc_history
                           WHERE {$where}
                           ORDER BY history_id DESC
                           LIMIT {$rowScanLimit}

@@ -26,7 +26,7 @@ final class IdentityStorageTest extends DatabaseTestCase
 
     private function characterId(sql $db): int
     {
-        $row = $db->fetchOne("INSERT INTO synth.core_npc_master (npc_name) VALUES ('Identity Test') RETURNING id");
+        $row = $db->fetchOne("INSERT INTO public.core_npc (npc_name) VALUES ('Identity Test') RETURNING id");
         return (int) $row['id'];
     }
 

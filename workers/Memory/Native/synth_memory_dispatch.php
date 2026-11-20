@@ -20,7 +20,7 @@ function synth_memory_dispatch($db, ?callable $generate = null): ?int
             FROM public.core_runtime_session r
             CROSS JOIN LATERAL (
                 SELECT e.request_id,e.turn_id,e.generation,e.event_type,p.canonical_event,p.event_sha256
-                FROM synth_meta.request_executions e
+                FROM public.core_request_execution e
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                     AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                     AND p.event_sha256=e.request_sha256

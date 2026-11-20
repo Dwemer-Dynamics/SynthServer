@@ -14,7 +14,7 @@ function synth_relationship_reserve_dispatch($db, bool $interaction=false, bool 
             AND jsonb_typeof(response.response_payload->'delivery_lines')='array'
             AND NOT EXISTS(SELECT 1 FROM public.core_relationship_revision_source applied
                 JOIN public.core_relationship_revision revision ON revision.history_event_id=applied.relationship_history_event_id
-                JOIN synth_meta.history_events publication ON publication.id=revision.history_event_id
+                JOIN public.core_history_event publication ON publication.id=revision.history_event_id
                 WHERE applied.source_history_event_id=response.history_event_id AND revision.actor_identity_id=response.actor_identity_id
                     AND publication.session_id=e.session_id AND publication.generation=e.generation AND publication.request_id=e.request_id))" : '';
     if (!$db->isTransactionIdle()) throw new LogicException('Relationship dispatch requires an idle database connection');
@@ -27,7 +27,7 @@ function synth_relationship_reserve_dispatch($db, bool $interaction=false, bool 
             FROM public.core_runtime_session r
             CROSS JOIN LATERAL (
                 SELECT e.request_id,e.turn_id,e.generation,e.event_type,p.canonical_event,p.event_sha256
-                FROM synth_meta.request_executions e
+                FROM public.core_request_execution e
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                     AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
                 WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.turn_id=r.active_turn_id AND e.state='complete'
@@ -76,8 +76,8 @@ function synth_relationship_dispatch_gift($db, ?callable $generate): ?int
             e.session_id,e.request_id,e.turn_id,e.generation,e.event_type,h.context_sequence,
             p.canonical_event,p.event_sha256,TRUE AS retained_gift
         FROM public.core_relationship_response_input response
-        JOIN synth_meta.history_events h ON h.id=response.history_event_id
-        JOIN synth_meta.request_executions e ON e.session_id=response.session_id AND e.request_id=response.request_id
+        JOIN public.core_history_event h ON h.id=response.history_event_id
+        JOIN public.core_request_execution e ON e.session_id=response.session_id AND e.request_id=response.request_id
             AND e.generation=h.generation AND e.event_type='action_result' AND e.state='complete' AND e.error_code IS NULL
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_sha256=e.request_sha256
@@ -142,7 +142,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
                     AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR memory_batch_id IS NOT NULL OR actor_identity_id IS DISTINCT FROM(SELECT target_identity_id FROM public.core_runtime_context
                             WHERE session_id=$1 AND generation=$2 AND snapshot_sequence::text=$4)
-                        OR NOT EXISTS(SELECT 1 FROM synth_meta.request_executions e
+                        OR NOT EXISTS(SELECT 1 FROM public.core_request_execution e
                             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
                             JOIN public.core_relationship_evaluation i ON i.id=j.relationship_evaluation_id AND i.input_payload->'owner'=p.canonical_event
                             WHERE e.session_id=j.session_id AND e.request_id=j.request_id
@@ -164,7 +164,7 @@ function synth_relationship_dispatch($db, ?callable $generate=null, bool $player
             $result=@pg_query_params($connection,"SELECT i.id,i.session_id,i.request_id,i.generation,i.context_sequence,
                     e.turn_id,e.event_type,p.canonical_event,p.event_sha256
                 FROM public.core_relationship_evaluation i
-                JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
+                JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
                 WHERE i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$4 $frozenScope

@@ -94,7 +94,7 @@ function narrator_private_retire_replies($connection, string $definitionId): voi
 {
     if (!@pg_query_params($connection, 'UPDATE public.core_narrator_definition SET edit_generation=edit_generation+1 WHERE definition_id=$1', [$definitionId]))
         throw new RuntimeException('Unable to invalidate narrator revision');
-    if (!@pg_query_params($connection, "UPDATE synth_meta.request_executions e SET state='cancelled',response_body=NULL,
+    if (!@pg_query_params($connection, "UPDATE public.core_request_execution e SET state='cancelled',response_body=NULL,
         error_code='request_cancelled',completed_at=NOW() WHERE e.event_type='narrator_turn' AND e.state IN ('claimed','streaming')
         AND EXISTS(SELECT 1 FROM public.core_narrator_pending_output p WHERE p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.definition_id=$1 AND p.state IN ('pending','generated'))", [$definitionId]))

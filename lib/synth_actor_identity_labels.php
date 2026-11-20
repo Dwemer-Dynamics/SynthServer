@@ -17,14 +17,14 @@ function synthNpcActorSaveLabels($db, array $actorIds): array
         FROM public.core_runtime_context c
         JOIN public.core_runtime_session s ON s.session_id=c.session_id
             AND s.playthrough_id=c.playthrough_id
-        JOIN synth.actor_identities p ON p.id=c.player_identity_id
+        JOIN public.core_actor_identity p ON p.id=c.player_identity_id
             AND p.playthrough_id=c.playthrough_id AND p.game=s.game
         ORDER BY c.received_at DESC, c.snapshot_sequence DESC, c.session_id ASC LIMIT 1");
     $latestPlaythrough = (string)($latest['playthrough_id'] ?? '');
     $observedAt = (string)($latest['received_at'] ?? '');
 
     $labels = [];
-    foreach ($db->fetchAll('SELECT id,playthrough_id FROM synth.actor_identities WHERE id IN (' . implode(',', $ids) . ')') as $identity) {
+    foreach ($db->fetchAll('SELECT id,playthrough_id FROM public.core_actor_identity WHERE id IN (' . implode(',', $ids) . ')') as $identity) {
         $playthrough = (string)$identity['playthrough_id'];
         $scope = $latestPlaythrough === '' ? 'unknown'
             : ($playthrough === $latestPlaythrough ? 'latest' : 'other');

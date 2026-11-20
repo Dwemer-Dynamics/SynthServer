@@ -68,7 +68,7 @@ function synthPersistPlayerEvent($db, array $event): void
     }
     $input=$transition;unset($input['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id']];
-    $result=$db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM synth_meta.history_events
+    $result=$db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM public.core_history_event
         WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND event_payload->>'type'='player_event'
           AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",[...$owner,$transition['event_id']]);
     if ($result===false) throw new RuntimeException('player_event_history_read_failed');

@@ -265,7 +265,7 @@ final class NativeTradeOfferTest extends TestCase
             public function fetchOne(string $sql): ?array
             {
                 if (str_contains($sql, 'core_action_result')) return $this->terminal;
-                if (str_contains($sql, 'JOIN synth.actor_identities')) return $this->owner;
+                if (str_contains($sql, 'JOIN public.core_actor_identity')) return $this->owner;
                 if (str_contains($sql, 'canonical_event')) return ['protocol_version' => '2', 'context_sequence' => '7'];
                 return ['action_id' => 'action:trade', 'idempotency_key' => 'idem:trade', 'state' => 'pending', 'action_name' => 'Barter',
                     'expired' => $this->expired ? 't' : 'f'];

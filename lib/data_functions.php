@@ -639,10 +639,10 @@ function DataDequeue($timestamp = 0)
     // Use atomic UPDATE...RETURNING to prevent race conditions where multiple concurrent
     // requests could fetch the same dialogue before it's marked as sent
     $results = $db->fetchAll(
-        "UPDATE responselog
+        "UPDATE core_response_log
          SET sent=1
          WHERE rowid IN (
-             SELECT rowid FROM responselog WHERE sent=0 $clause ORDER BY rowid ASC
+             SELECT rowid FROM core_response_log WHERE sent=0 $clause ORDER BY rowid ASC
          )
          RETURNING *, rowid"
     );
@@ -2105,7 +2105,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
 
         $actorcn=$db->escape($actor);
         $results = $db->fetchAll("SELECT speaker,speech,listener,gamets,localts,'speech',gamets - LAG(gamets) OVER (ORDER BY gamets ASC) AS gamets_diff,location,ts
-        FROM speech where companions like '%$actorcn%' order by ts desc LIMIT 1000 OFFSET 0");
+        FROM core_speech where companions like '%$actorcn%' order by ts desc LIMIT 1000 OFFSET 0");
          $rawData=[];
         foreach ($results as $row) {
             $rawData[] = $row;
@@ -3398,7 +3398,7 @@ function DataSpeechJournal($topic,$limit=50)
 
     $lastDialogFull = [];
     $tn=$db->escape($topic);
-    $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM speech
+    $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM core_speech
      where (speaker like '%$tn%' or  listener like '%$tn%' or location like '%$tn%' or
       companions like '%|$tn|%' or  companions like '%$tn%' OR companions LIKE '%|$tn (busy)|%'
       OR companions LIKE '%|$tn (hostile)|%' OR companions LIKE '%|$tn (restrained)|%' )
@@ -3570,7 +3570,7 @@ function DataLastAction($actor)
 
     $lastDialogFull = array();
     $cnActor = $db->escape($actor);
-    $results = $db->fetchOne("select  *  FROM synth.actions_issued
+    $results = $db->fetchOne("select  *  FROM public.core_action_issued
     WHERE actorname='$cnActor' order by gamets desc,ts desc LIMIT 1 OFFSET 0");
 
     return $results;
@@ -4902,7 +4902,7 @@ function DirectConversationsWith($actor, $speaker="")
 
     $listenerprmt=$db->escape($actor);
     $gametsLimit=round(($GLOBALS["gameRequest"][2]??0)-(getGametsLimitFor($actor)/0.0000024),0);
-    $lastLoc=$db->fetchAll("SELECT count(*) as N FROM speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
+    $lastLoc=$db->fetchAll("SELECT count(*) as N FROM core_speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
 
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DirectConversationsWith: zero interactions {$speakerprmt} - {$listenerprmt} ");
@@ -4930,7 +4930,7 @@ function isIndividualMemoryEnabledForNpc($npcName)
     $enabled = false;
     try {
         $escaped = $GLOBALS["db"]->escape($npcName);
-        $row = $GLOBALS["db"]->fetchOne("SELECT extended_data FROM core_npc_master WHERE npc_name='$escaped' LIMIT 1");
+        $row = $GLOBALS["db"]->fetchOne("SELECT extended_data FROM core_npc WHERE npc_name='$escaped' LIMIT 1");
         if (is_array($row) && !empty($row["extended_data"])) {
             $extendedData = json_decode($row["extended_data"], true);
             if (
@@ -5974,7 +5974,7 @@ function call_llm_internal() {
         // No fallback or fallback also failed - send error message
         error_log("[FALLBACK DEBUG] Sending ERROR_OPENAI message to user");
         $db->insert(
-            'log',
+            'core_log',
             array(
                 'localts' => time(),
                 'prompt' => nl2br((json_encode($GLOBALS["DEBUG_DATA"], JSON_PRETTY_PRINT))),
@@ -6576,7 +6576,7 @@ function call_llm_internal() {
                 }
 
                 $GLOBALS["db"]->insert(
-                    'actions_issued',
+                    'core_action_issued',
                     array(
                         'action' => $actionName,
                         'fullcall' =>$singleaction,
@@ -6707,7 +6707,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
     }
 
     // Get first interaction timestamp - with error handling
-    $realFirst = @$GLOBALS["db"]->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
+    $realFirst = @$GLOBALS["db"]->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM core_speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
 
     if ($realFirst === false) {
         Logger::warn("[AddFirstTimeMet] Query to speech table failed for follower: {$followerName}");
@@ -6828,7 +6828,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
 		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM speech
+		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
         WHERE (gamets > 0) AND
           ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
           (listener = '{$s_player}' AND speaker = '{$s_npc}'))
@@ -6843,7 +6843,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 function GetLastSpeechTs() {
     global $db;
     $i_res=0;
-	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM speech
+	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM core_speech
         WHERE (gamets > 0) ORDER BY gamets DESC LIMIT 1 ");
 	if (is_array($db_rec) && sizeof($db_rec)>0) {
 		$i_res = intval($db_rec[0]['gamets']);
@@ -6858,7 +6858,7 @@ function GetFirstInteraction($s_player_name, $s_npc_name) {
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
 		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM speech
+		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
         WHERE (gamets > 0) AND
           ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
           (listener = '{$s_player}' AND speaker = '{$s_npc}'))
@@ -8077,7 +8077,7 @@ function getBaseDataForNpcFromLog($npcname) {
     $npcNameEscaped = $GLOBALS["db"]->escape($npcname);
     $result = $GLOBALS["db"]->fetchOne("
         SELECT gender, race, refid
-        FROM core_npc_master
+        FROM core_npc
         WHERE npc_name = '$npcNameEscaped'
         ORDER BY id DESC
         LIMIT 1

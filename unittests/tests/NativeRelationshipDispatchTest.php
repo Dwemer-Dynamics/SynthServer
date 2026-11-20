@@ -24,7 +24,7 @@ final class NativeRelationshipDispatchFixtureDatabase
         $playthrough=$this->fetchOne('SELECT playthrough_id FROM public.core_runtime_context WHERE session_id='.$this->escapeLiteral($event['session_id'])
             .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['playthrough_id'];
         $query='WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',',$columns).') VALUES ('.$values.') RETURNING *)
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(inserted) FROM inserted';
         $this->execQuery($query,[...array_values($data),$playthrough]);return true;
     }
@@ -87,7 +87,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $actor=['form_id'=>'0x00002F1F','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'relationship-dispatch-save','display_name'=>'Piper Wright'];
         $this->playerId=$this->identity($player);$this->actorId=$this->identity($actor);
         $this->profileId=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_profiles(label) VALUES('Synthetic relationship dispatcher') RETURNING id"))['id'];
-        $this->npcId=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
+        $this->npcId=(int)pg_fetch_assoc($this->query('INSERT INTO public.core_npc(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
             [$actor['display_name'],$this->profileId,$this->actorId]))['id'];
         $this->context=['playthrough_id'=>'relationship-dispatch-save','snapshot_sequence'=>1,'player'=>$player,'target'=>$actor,
             'audience'=>[$actor],'audience_observation'=>'complete','world'=>['location'=>'Diamond City','game_time_ticks'=>1000,
@@ -112,7 +112,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         }
         $payload=['type'=>'inputtext','data'=>'Nora: Thank you for helping me.','people'=>'|Nora|Piper Wright|',
             'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910001];
-        $history=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.history_events
+        $history=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES('relationship-dispatch-session',1,1,'relationship-parent','relationship-dispatch-save',910001,$1::jsonb) RETURNING id",[$this->json($payload)]))['id'];
         $this->inputHistoryId=$history;
@@ -123,7 +123,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $line=synth_relationship_capture_line($actor['display_name'],'You are welcome.');
         synth_relationship_capture_route($line,'Player','fixture:dialogue');
         synth_relationship_finish_response(true);
-        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='relationship-parent'"))['body'];
+        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id='relationship-parent'"))['body'];
         synth_relationship_store_response($this->database,$this->parent,hex2bin($body));
         $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_response_input'))['n']);
     }
@@ -141,12 +141,12 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     }
     private function json(array $value): string {return json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);}
     private function identity(array $actor): int {
-        return (int)pg_fetch_assoc($this->query('INSERT INTO synth.actor_identities(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
+        return (int)pg_fetch_assoc($this->query('INSERT INTO public.core_actor_identity(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
             [$actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id'],$actor['display_name']]))['id'];
     }
     private function request(array $event,bool $older=false): void {
         $canonical=synth_protocol_canonical_json($event);$hash=hash('sha256',$canonical);
-        $this->query("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state,claimed_at)
+        $this->query("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state,claimed_at)
             VALUES($1,$2,$3,1,$4,$5,'complete',clock_timestamp()-CASE WHEN $6::boolean THEN INTERVAL '2 seconds' ELSE INTERVAL '0 seconds' END)",
             [$event['session_id'],$event['request_id'],$event['turn_id'],$hash,$event['type'],$older ? 'true' : 'false']);
         $this->query('INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,1,$4,$5::jsonb,$6)',
@@ -167,7 +167,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             VALUES($1,$2,'fixture:player',$3,1,$4,$5::jsonb,'addressed',$6::jsonb,$7)",
             [$event['session_id'],$event['request_id'],hash('sha256',$lines['player']),$event['context_sequence'],
                 $this->json($this->context['player']),$this->json($this->context['target']),synth_autochat_utterance_id($event)]);
-        $body=implode('',$lines);$this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$event['request_id']]);
+        $body=implode('',$lines);$this->query("UPDATE public.core_request_execution SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$event['request_id']]);
         $this->query("INSERT INTO public.core_dialogue_route(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener)
             VALUES($1,$2,'fixture:dialogue',$3,1,$4,$5::jsonb,'addressed',$6::jsonb)",
             [$event['session_id'],$event['request_id'],hash('sha256',$lines['dialogue']),$event['context_sequence'],$this->json($speaker),$this->json($listener)]);
@@ -183,7 +183,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
                 VALUES($1,$2,'STANDARD',$3::jsonb,$4) ON CONFLICT(session_id,request_id) DO NOTHING",
                 [$parent['session_id'],$parent['request_id'],$this->json($policy),$parent['payload']['text'] ?? null]);
         }
-        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$parent['request_id']]))['body'];
+        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id=$1",[$parent['request_id']]))['body'];
         $child=$parent;$child['request_id']='relationship-child-'.$role.'-'.($chainId ?? 'first');$child['type']='trigger';
         $child['capabilities']=array_values(array_unique([...$child['capabilities'],'dialogue.rechat.ownership','dialogue.rechat.scene']));
         $child['payload']=['kind'=>'rechat','actor'=>$capturedActor ?? $this->context['target'],'reply_to_request_id'=>$parent['request_id'],
@@ -253,13 +253,13 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             case 'different-player':$fresh['player']['form_id']='0x00000015';break;
             case 'different-target':$fresh['target']['form_id']='0x00000016';break;
             case 'unavailable-audience':$fresh['audience_observation']='unavailable';break;
-            case 'incomplete-parent':$this->query("UPDATE synth_meta.request_executions SET response_body=convert_to('{}','UTF8') WHERE request_id=$1",[$this->parent['request_id']]);break;
+            case 'incomplete-parent':$this->query("UPDATE public.core_request_execution SET response_body=convert_to('{}','UTF8') WHERE request_id=$1",[$this->parent['request_id']]);break;
             case 'forged-parent-route':$this->query("UPDATE public.core_dialogue_route SET line_sha256=repeat('f',64) WHERE request_id=$1",[$this->parent['request_id']]);break;
         }
         foreach ([1=>$original,2=>$fresh] as $sequence=>$payload) {
             $this->query('UPDATE public.core_runtime_context SET context_payload=$1::jsonb WHERE snapshot_sequence=$2',[$this->json($payload),$sequence]);
         }
-        $this->query("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id=$1)-INTERVAL '100 milliseconds' WHERE snapshot_sequence=2",[$child['request_id']]);
+        $this->query("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM public.core_request_execution WHERE request_id=$1)-INTERVAL '100 milliseconds' WHERE snapshot_sequence=2",[$child['request_id']]);
         if ($case==='stale-snapshot') $this->query("UPDATE public.core_runtime_context SET received_at=received_at-INTERVAL '11 seconds' WHERE snapshot_sequence=2");
         if ($case==='changed-child') $this->query("UPDATE public.core_protocol_event SET canonical_event=jsonb_set(canonical_event,'{client_version}','\"forged\"') WHERE request_id=$1",[$child['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
@@ -314,7 +314,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         if ($case==='sleeping') $fresh['actor_states'][1]['posture']='sleeping';
         if ($case==='unconscious') $fresh['actor_states'][1]['life_state']='unconscious';
         $this->query("UPDATE public.core_runtime_context SET context_payload=$1::jsonb,
-                received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id=$2)-INTERVAL '100 milliseconds'
+                received_at=(SELECT claimed_at FROM public.core_request_execution WHERE request_id=$2)-INTERVAL '100 milliseconds'
             WHERE snapshot_sequence=2",[$this->json($fresh),$child['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
         $request=['trigger',1,2,'unchanged'];$stop=null;
@@ -347,7 +347,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     private function ambientFixture(bool $robot=false): array {
         require_once dirname(__DIR__,2).'/lib/synth_ambient_npc.php';
         $npc=$this->secondaryNpc([1,2]);
-        $this->query('UPDATE synth.core_npc_master SET md5=md5(npc_name) WHERE id IN ($1,$2)',[$this->npcId,$npc['npc_id']]);
+        $this->query('UPDATE public.core_npc SET md5=md5(npc_name) WHERE id IN ($1,$2)',[$this->npcId,$npc['npc_id']]);
         $this->query('UPDATE public.core_profiles SET metadata=$1::jsonb WHERE id=$2',[$this->json(['RECHAT_H'=>4,'RECHAT_P'=>100]),$npc['profile_id']]);
         $payload=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM public.core_runtime_context WHERE snapshot_sequence=1'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
         $payload['actor_states']=[];
@@ -363,9 +363,9 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $event['capabilities']=array_values(array_unique([...$event['capabilities'],'dialogue.ambient_npc','dialogue.rechat.ownership','dialogue.rechat.scene','dialogue.listener_identity']));
         $event['payload']=['kind'=>'bored','actor'=>$payload['target']];
         $this->request($event);
-        $this->query("UPDATE synth_meta.request_executions SET state='claimed' WHERE request_id=$1",[$event['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET state='claimed' WHERE request_id=$1",[$event['request_id']]);
         $this->query('UPDATE public.core_runtime_session SET active_turn_id=$1,active_turn_sequence=1',[$event['turn_id']]);
-        $this->query("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id=$1)-INTERVAL '100 milliseconds'",[$event['request_id']]);
+        $this->query("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM public.core_request_execution WHERE request_id=$1)-INTERVAL '100 milliseconds'",[$event['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
         return [$event,$npc];
     }
@@ -396,7 +396,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         synth_relationship_begin_response();$token=synth_relationship_capture_line($pair['speaker']['display_name'],'A short public hello.');
         synth_relationship_capture_route($token,$modelListener,'ambient:utterance');synth_relationship_finish_response(true);
         $body=implode('',$lines);
-        $this->query("UPDATE synth_meta.request_executions SET state='complete',response_body=convert_to($1,'UTF8'),completed_at=clock_timestamp() WHERE request_id=$2",[$body,$event['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET state='complete',response_body=convert_to($1,'UTF8'),completed_at=clock_timestamp() WHERE request_id=$2",[$body,$event['request_id']]);
         synth_relationship_store_response($this->database,$event,$body);
         $receipt=pg_fetch_assoc($this->query('SELECT response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$event['request_id']]));
         $this->assertNotFalse($receipt);
@@ -450,7 +450,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         if ($case==='not prepared') unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
         if ($case==='player speaker') $speaker=$this->context['player'];
         if ($case==='narrator speaker') $speaker=['kind'=>'narrator','id'=>'narrator'];
-        if ($case==='listener rebound') $this->query('UPDATE synth.core_npc_master SET profile_id=NULL WHERE id=$1',[$npc['npc_id']]);
+        if ($case==='listener rebound') $this->query('UPDATE public.core_npc SET profile_id=NULL WHERE id=$1',[$npc['npc_id']]);
         if ($case==='other owner projection') $GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']['request_sha256']=str_repeat('f',64);
         $wire=$this->json(['schema'=>'synth.response.line.v2','protocol_version'=>2,'game'=>'fo4','request_id'=>$event['request_id'],
             'turn_id'=>$event['turn_id'],'generation'=>1,'context_sequence'=>1,'runtime_variant'=>'flat',
@@ -472,7 +472,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $payload=json_decode(pg_fetch_assoc($this->query('SELECT context_payload FROM public.core_runtime_context WHERE snapshot_sequence=1'))['context_payload'],true,flags:JSON_THROW_ON_ERROR);
         switch ($case) {
             case 'one NPC':$payload['audience']=[$payload['target']];break;
-            case 'no profile':$this->query('UPDATE synth.core_npc_master SET profile_id=NULL WHERE id=$1',[$npc['npc_id']]);break;
+            case 'no profile':$this->query('UPDATE public.core_npc SET profile_id=NULL WHERE id=$1',[$npc['npc_id']]);break;
             case 'dead':$payload['actor_states'][2]['alive']=false;break;
             case 'sleeping':$payload['actor_states'][2]['posture']='sleeping';break;
             case 'combat':$payload['actor_states'][2]['in_combat']=true;break;
@@ -492,7 +492,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             case 'foreign listener':$payload['audience'][1]['playthrough_id']='another-save';break;
             case 'cooldown':
                 $prior=$event;$prior['request_id']='earlier-ambient';$this->request($prior);
-                $this->query("UPDATE synth_meta.request_executions SET claimed_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id=$1)-INTERVAL '20 seconds' WHERE request_id=$2",[$event['request_id'],$prior['request_id']]);break;
+                $this->query("UPDATE public.core_request_execution SET claimed_at=(SELECT claimed_at FROM public.core_request_execution WHERE request_id=$1)-INTERVAL '20 seconds' WHERE request_id=$2",[$event['request_id'],$prior['request_id']]);break;
             case 'stale snapshot':$this->query("UPDATE public.core_runtime_context SET received_at=received_at-INTERVAL '11 seconds' WHERE snapshot_sequence=1");break;
             case 'forged child':$this->query("UPDATE public.core_protocol_event SET canonical_event=jsonb_set(canonical_event,'{client_version}','\"forged\"') WHERE request_id=$1",[$event['request_id']]);break;
         }
@@ -536,7 +536,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('closedSelections')]
     public function testClosedContinuationCannotInventMissingCompletedOrigin(string $role,bool $prepared,bool $pair): void {
         $this->continuation($role,$prepared);
-        $this->query("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id='relationship-parent'");
+        $this->query("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id='relationship-parent'");
         $this->assertNull(synth_relationship_reserve_dispatch($this->database,$pair));
     }
     public function testPreparedNpcRemainsOriginForBothIndependentLanes(): void {
@@ -580,7 +580,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             ['actor'=>$player,'inventory'=>[$item],'inventory_observation'=>'complete'],
             ['actor'=>$npc,'inventory'=>[],'inventory_observation'=>'complete']];
         $this->query('UPDATE public.core_runtime_context SET context_payload=$1::jsonb WHERE snapshot_sequence=1',[$this->json($context)]);
-        $this->query("UPDATE synth.core_npc_master SET npc_static_bio='Synthetic protector of Sanctuary.',personality='Cautious and practical.',goals='Keep my family safe.' WHERE id=$1",[$this->npcId]);
+        $this->query("UPDATE public.core_npc SET npc_static_bio='Synthetic protector of Sanctuary.',personality='Cautious and practical.',goals='Keep my family safe.' WHERE id=$1",[$this->npcId]);
         $parent=$this->parent;$parent['request_id']='gift-input';$parent['payload']=['text'=>'Take my Fixture pistol'];
         $parent['capabilities']=array_merge($parent['capabilities'],['action.give_item_to','action.transfer_inventory',
             'action.inventory_observation','action.take_item_from_player','action.player_item_inventory']);
@@ -606,7 +606,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $parentBody=synth_protocol_encode_response_line('response_start',['server_version'=>'fixture'],'start')
             .synth_protocol_encode_response_line('action',['action'=>$action],'action')
             .synth_protocol_encode_response_line('response_end',['status'=>'complete'],'end');
-        $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",
+        $this->query("UPDATE public.core_request_execution SET response_body=decode($1,'hex') WHERE request_id=$2",
             [bin2hex($parentBody),$parent['request_id']]);
         $after=$item;$after['count']=1;
         $receipt=$parent;$receipt['request_id']='gift-result';$receipt['type']='action_result';
@@ -628,7 +628,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $replyText='This will help keep my family safe.'.($receipts ? ' UNHEARDGIFT.' : '');
         if ($receipts) {
             require_once dirname(__DIR__,2).'/core/entities/dialogue.php';
-            $wire=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
+            $wire=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') body FROM public.core_request_execution WHERE request_id='gift-result'"))['body'];
             $marked=[];
             foreach (explode("\n",trim(hex2bin($wire))) as $line) {
                 $value=json_decode($line,true);
@@ -637,7 +637,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
                 if ($value['type']==='dialogue') $this->query("UPDATE public.core_dialogue_route SET line_sha256=$1,utterance_id='gift-thank-you'
                     WHERE request_id='gift-result' AND line_id='fixture:dialogue'",[hash('sha256',$line)]);
             }
-            $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id='gift-result'",[bin2hex(implode('',$marked))]);
+            $this->query("UPDATE public.core_request_execution SET response_body=decode($1,'hex') WHERE request_id='gift-result'",[bin2hex(implode('',$marked))]);
             $this->query("INSERT INTO public.core_dialogue_utterance(session_id,request_id,line_id,turn_id,generation,context_sequence,
                 speaker_identity_id,character_id,text,text_sha256,state,receipt_request_id,receipt_at)
                 VALUES($1,'gift-result','fixture:dialogue',$2,1,1,$3,$4,$5,$6,$7,$8,CASE WHEN $7='generated' THEN NULL ELSE NOW() END)",
@@ -648,7 +648,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         synth_relationship_begin_response();
         $line=synth_relationship_capture_line($npc['display_name'],$replyText);
         synth_relationship_capture_route($line,$addressed ? 'Player' : 'Unknown recipient',$receipts ? 'gift-thank-you' : 'fixture:dialogue');synth_relationship_finish_response(true);
-        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result'"))['body'];
+        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id='gift-result'"))['body'];
         synth_relationship_store_response($this->database,$receipt,hex2bin($body));
         $row=pg_fetch_assoc($this->query("SELECT response_payload->>'verified_gift_action_id' AS gift
             FROM public.core_relationship_response_input WHERE request_id='gift-result'"));
@@ -660,7 +660,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
 
         [$child,$chain]=$this->continuation('npc',true,$receipt);
         $this->response($child);
-        $this->query("UPDATE synth_meta.request_executions SET claimed_at=clock_timestamp()+INTERVAL '1 second' WHERE request_id=$1",[$child['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET claimed_at=clock_timestamp()+INTERVAL '1 second' WHERE request_id=$1",[$child['request_id']]);
         $origin=synth_relationship_reserve_dispatch($this->database);
         $this->assertSame($child['request_id'],$origin['request_id'],'Rechat remains the ordinary dispatch origin.');
         $this->query("UPDATE public.core_runtime_session SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
@@ -697,7 +697,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
                         WHERE request_id='gift-result' AND state='generated'");
                     $payload=['type'=>'chat','data'=>$npc['display_name'].': '.$replyText.' (talking to '.$player['display_name'].')',
                         'people'=>'|Nora|Piper Wright|','delivery_state'=>'spoken','utterance_id'=>'gift-thank-you','gamets'=>1000,'ts'=>1000,'rowid'=>940001];
-                    $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
+                    $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
                         VALUES($1,1,1,'gift-result','relationship-dispatch-save',$2::jsonb,940001)",[$receipt['session_id'],$this->json($payload)]);
                 });
             }
@@ -742,18 +742,18 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         $this->response($duplicate);synth_relationship_begin_response();
         $line=synth_relationship_capture_line($npc['display_name'],'Thank you again.');
         synth_relationship_capture_route($line,'Player','fixture:dialogue');synth_relationship_finish_response(true);
-        $duplicateBody=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id='gift-result-replayed'"))['body'];
+        $duplicateBody=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id='gift-result-replayed'"))['body'];
         synth_relationship_store_response($this->database,$duplicate,hex2bin($duplicateBody));
         $duplicateResponse=(int)pg_fetch_assoc($this->query("SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id='gift-result-replayed'"))['history_event_id'];
         $this->assertNull(synth_relationship_capture_evaluation($this->database,$duplicateResponse,'No duplicate gift reward.',true));
         $this->assertSame('1',pg_fetch_assoc($this->query('SELECT count(*) AS n FROM public.core_relationship_result WHERE evaluation_id=$1',[$evaluation]))['n']);
 
-        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
+        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM public.core_history_event)
             WHERE snapshot_sequence=3");
         $this->assertSame('4',$this->savedRelationship($this->savedSelector())['affinity'] ?? null,
             'Read back the verified post-transfer inventory context before cancellation.');
         $this->cancelRetainedOwner($receipt,$menu);
-        $owner=pg_fetch_assoc($this->query("SELECT state,response_body FROM synth_meta.request_executions WHERE request_id='gift-result'"));
+        $owner=pg_fetch_assoc($this->query("SELECT state,response_body FROM public.core_request_execution WHERE request_id='gift-result'"));
         $this->assertSame('cancelled',$owner['state']);
         $this->assertNull($owner['response_body']);
         $this->assertSame('4',$this->savedRelationship($this->savedSelector())['affinity'] ?? null,
@@ -813,7 +813,7 @@ PHP;
             return json_decode($output,true,flags:JSON_THROW_ON_ERROR)+['diagnostic'=>$diagnostic];
         };
         $rows=fn(): array => pg_fetch_all($this->query("SELECT e.data,e.utterance_id,e.delivery_state,h.event_payload->>'delivery_state' AS payload_state
-            FROM public.core_context_event e JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid WHERE h.request_id='relationship-autochat'")) ?: [];
+            FROM public.core_context_event e JOIN public.core_history_event h ON h.eventlog_rowid=e.rowid WHERE h.request_id='relationship-autochat'")) ?: [];
         // Same logical stage re-entered (new processing time) is reused; other text or game time is a conflict.
         $first=$run('Thanks for the help.,Thanks for the help.,Something else.,Thanks for the help.@2000');
         $this->assertSame(['stored','stored','native_history_stage_conflict','native_history_stage_conflict'],$first['results'],$first['diagnostic']);
@@ -824,27 +824,27 @@ PHP;
         // Accepted generated input, set explicitly before any wire output; never spoken or emitted.
         $this->assertSame(['received','received'],[$rows()[0]['delivery_state'],$rows()[0]['payload_state']]);
         // A history payload that disagrees with its eventlog row, or a stage row of another generation, is never reused.
-        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||'{\"data\":\"Nora: Other.\"}'::jsonb WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event SET event_payload=event_payload||'{\"data\":\"Nora: Other.\"}'::jsonb WHERE request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth_meta.history_events h SET event_payload=to_jsonb(e) FROM public.core_context_event e WHERE h.eventlog_rowid=e.rowid AND h.request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event h SET event_payload=to_jsonb(e) FROM public.core_context_event e WHERE h.eventlog_rowid=e.rowid AND h.request_id='relationship-autochat'");
         $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
         $this->query("UPDATE public.core_context_event SET synth_generation=synth_generation+1 WHERE synth_request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
         $this->query("UPDATE public.core_context_event SET synth_generation=synth_generation-1 WHERE synth_request_id='relationship-autochat'");
         // The root stage is written with no scene and no hearer projection; a row claiming either is not this stage.
-        $this->query("UPDATE synth_meta.history_events SET scene_context_sequence=context_sequence WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event SET scene_context_sequence=context_sequence WHERE request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth_meta.history_events SET scene_context_sequence=NULL WHERE request_id='relationship-autochat'");
-        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||'{\"synth_dialogue_hearer_ids\":[]}'::jsonb WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event SET scene_context_sequence=NULL WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event SET event_payload=event_payload||'{\"synth_dialogue_hearer_ids\":[]}'::jsonb WHERE request_id='relationship-autochat'");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
-        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload-'synth_dialogue_hearer_ids' WHERE request_id='relationship-autochat'");
+        $this->query("UPDATE public.core_history_event SET event_payload=event_payload-'synth_dialogue_hearer_ids' WHERE request_id='relationship-autochat'");
         $this->assertSame(['stored'],$run('Thanks for the help.')['results']);
         $this->assertCount(1,$rows());
         // A second row under the same stage key is never reconciled by picking one.
         $this->query("INSERT INTO public.core_context_event(type,data,sess,localts,ts,gamets,people,location,party,utterance_id,synth_session_id,
                 synth_generation,synth_context_sequence,synth_request_id) SELECT type,data,sess,localts,ts,gamets,people,location,party,
                 utterance_id,synth_session_id,synth_generation,synth_context_sequence,synth_request_id FROM public.core_context_event WHERE synth_request_id='relationship-autochat'");
-        $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+        $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,'relationship-dispatch-save',max(rowid),'{}'::jsonb
             FROM public.core_context_event WHERE synth_request_id='relationship-autochat' GROUP BY 1,2,3,4");
         $this->assertSame(['native_history_stage_conflict'],$run('Thanks for the help.')['results']);
@@ -881,12 +881,12 @@ PHP;
         };
         $read();
         $hash=pg_fetch_assoc($this->query("SELECT line_sha256 FROM public.core_dialogue_route WHERE request_id=$1 AND line_id='fixture:player'",[$root['request_id']]))['line_sha256'];
-        $body=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$root['request_id']]))['body']);
+        $body=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id=$1",[$root['request_id']]))['body']);
         $stripped=implode('',preg_grep('/"line_id":"fixture:player"/',preg_split('/(?<=\n)/',$body,-1,PREG_SPLIT_NO_EMPTY),PREG_GREP_INVERT));
         $this->assertNotSame($body,$stripped);
         $route=static fn(string $set): string => "UPDATE public.core_dialogue_route SET $set WHERE request_id='relationship-autochat-root' AND line_id<>'fixture:dialogue'";
         // The continuation's reserved parent hash follows the body, so only the missing generated line can refuse it.
-        $completed=static fn(string $bytes): string => "UPDATE synth_meta.request_executions SET response_body=decode('".bin2hex($bytes)."','hex')
+        $completed=static fn(string $bytes): string => "UPDATE public.core_request_execution SET response_body=decode('".bin2hex($bytes)."','hex')
                 WHERE request_id='relationship-autochat-root';
             UPDATE public.core_rechat_continuation SET parent_response_sha256='".hash('sha256',$bytes)."' WHERE parent_request_id='relationship-autochat-root'";
         $mode=static fn(string $mode): string => "UPDATE public.core_dialogue_origin_policy SET execution_mode='$mode' WHERE request_id='relationship-autochat-root'";
@@ -928,7 +928,7 @@ PHP;
             'fixture:dialogue'=>$wire('fixture:dialogue','dialogue',['speaker'=>$speaker,'text'=>'Parent line B.','receipt_required'=>true]),
             $wire('fixture:end','response_end',['status'=>'complete'])];
         $body=implode('',$lines);
-        $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$root['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET response_body=decode($1,'hex') WHERE request_id=$2",[bin2hex($body),$root['request_id']]);
         foreach (['fixture:first','fixture:dialogue'] as $id) {
             $this->query("INSERT INTO public.core_dialogue_route(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
                 VALUES($1,$2,$3,$4,1,1,$5::jsonb,'addressed',$6::jsonb,$7)",[$root['session_id'],$root['request_id'],$id,hash('sha256',$lines[$id]),
@@ -941,7 +941,7 @@ PHP;
         // A frozen candidate preserves the original entries, without admitting unheard speech as evidence.
         $input=['type'=>'inputtext','data'=>'Nora: Thank you for helping me.','people'=>'|Nora|Piper Wright|',
             'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910002];
-        $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+        $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES($1,1,1,$2,'relationship-dispatch-save',910002,$3::jsonb)",[$root['session_id'],$root['request_id'],$this->json($input)]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$root];
         synth_relationship_begin_response();
@@ -976,7 +976,7 @@ PHP;
                     $recordId=920000+($id==='fixture:first' ? 0 : 10)+($value==='spoken' ? 1 : 2);
                     $payload=['type'=>'chat','data'=>$speaker['display_name'].': '.json_decode($lines[$id],true)['payload']['text'].' (talking to Nora)',
                         'people'=>'|Nora|Piper Wright|','delivery_state'=>$value,'utterance_id'=>'utt.'.str_replace(':','-',$id),'gamets'=>1000,'ts'=>1000,'rowid'=>$recordId];
-                    $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
+                    $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,event_payload,eventlog_rowid)
                         VALUES($1,1,1,$2,'relationship-dispatch-save',$3::jsonb,$4)",[$root['session_id'],$root['request_id'],$this->json($payload),$recordId]);
                 }
             }
@@ -1014,7 +1014,7 @@ PHP;
             $this->query('UPDATE public.core_runtime_session SET relationship_dispatch_after=NULL');
             $this->assertNull(synth_relationship_dispatch_inline($this->database),'an applied inline response is never reapplied');
         }
-        $this->query('UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events) WHERE snapshot_sequence=1');
+        $this->query('UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM public.core_history_event) WHERE snapshot_sequence=1');
         $this->assertCount(1,$eligible(false));
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$child];
         // An older (non-prospective) ancestor contributes only heard lines.
@@ -1028,7 +1028,7 @@ PHP;
     }
 
     public function testCompletedInputCancellationCannotGenerateOrPublishResult(): void {
-        $this->query("UPDATE synth_meta.request_executions SET error_code='request_cancelled',response_body=NULL WHERE request_id='relationship-parent'");
+        $this->query("UPDATE public.core_request_execution SET error_code='request_cancelled',response_body=NULL WHERE request_id='relationship-parent'");
         $calls=0;
         try {
             synth_relationship_dispatch($this->database,function() use (&$calls): string {++$calls;return '{"changes":{}}';},true);
@@ -1108,7 +1108,7 @@ PHP;
         $this->assertNotFalse($connector);
         $this->query('UPDATE public.core_profiles SET llm_primary_id=$1,llm_secondary_id=$1,llm_tertiary_id=$1,llm_quaternary_id=$1
             WHERE id=$2',[$connector['id'],$this->profileId]);
-        $this->query('UPDATE synth.core_npc_master SET md5=$1 WHERE id=$2',[md5('Fixture Piper Wright'),$this->npcId]);
+        $this->query('UPDATE public.core_npc SET md5=$1 WHERE id=$2',[md5('Fixture Piper Wright'),$this->npcId]);
         $locker=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);
         $this->assertNotFalse($locker);
         $script=<<<'PHP'
@@ -1169,8 +1169,8 @@ PHP;
     }
     private function completeCapturedOwner(array $owner): void {
         $this->response($owner);
-        $body=hex2bin(pg_fetch_assoc($this->query('SELECT encode(response_body,\'hex\') AS body FROM synth_meta.request_executions WHERE request_id=$1',[$owner['request_id']]))['body']);
-        $this->query("UPDATE synth_meta.request_executions SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
+        $body=hex2bin(pg_fetch_assoc($this->query('SELECT encode(response_body,\'hex\') AS body FROM public.core_request_execution WHERE request_id=$1',[$owner['request_id']]))['body']);
+        $this->query("UPDATE public.core_request_execution SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner,'request_id'=>$owner['request_id'],'runtime_variant'=>$owner['runtime_variant']];
         synth_protocol_complete_request($this->database,'complete','application/x-ndjson',$body);
         $this->captureOwnedSpeech($owner,$this->context['target'],'Player');
@@ -1191,11 +1191,11 @@ PHP;
         if (in_array($type,['input_text','input_audio'],true)) {
             $input=['type'=>$type==='input_audio' ? 'inputtext_s' : 'inputtext','data'=>'Nora: I appreciate the help.',
                 'people'=>'|Nora|Piper Wright|','delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910003];
-            $this->query("INSERT INTO synth_meta.history_events
+            $this->query("INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                 VALUES('relationship-dispatch-session',1,2,$1,'relationship-dispatch-save',910003,$2::jsonb)",[$owner['request_id'],$this->json($input)]);
         }
-        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
+        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM public.core_history_event)
             WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=2");
         $this->completeCapturedOwner($owner);
         $freshResponse=pg_fetch_assoc($this->query('SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id=$1',[$owner['request_id']]));
@@ -1213,7 +1213,7 @@ PHP;
                 evaluation.id AS evaluation,evaluation.response_history_event_id AS response,owner.completed_at
             FROM public.core_relationship_revision revision JOIN public.core_relationship_result result ON result.history_event_id=revision.result_history_event_id
             JOIN public.core_relationship_evaluation evaluation ON evaluation.id=result.evaluation_id
-            JOIN synth_meta.request_executions owner ON owner.session_id=evaluation.session_id AND owner.request_id=evaluation.request_id
+            JOIN public.core_request_execution owner ON owner.session_id=evaluation.session_id AND owner.request_id=evaluation.request_id
             WHERE evaluation.request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($row);$this->assertNotNull($row['completed_at']);
         $this->assertSame($freshResponse['history_event_id'],$row['response']);
@@ -1253,7 +1253,7 @@ PHP;
     public function testCompletedRelationshipSurvivesCancellationAndNewSavedTurn(string $type,bool $anchored): void {
         ['owner'=>$owner,'row'=>$row]=$this->publishedRetainedFixture($type);
         $this->cancelRetainedOwner($owner,$anchored);$this->admitRetainedNextTurn($owner);
-        $retired=pg_fetch_assoc($this->query('SELECT state,error_code,response_body,completed_at FROM synth_meta.request_executions WHERE request_id=$1',[$owner['request_id']]));
+        $retired=pg_fetch_assoc($this->query('SELECT state,error_code,response_body,completed_at FROM public.core_request_execution WHERE request_id=$1',[$owner['request_id']]));
         $this->assertSame('complete',$retired['state']);$this->assertNull($retired['response_body']);
         $this->assertSame($anchored ? 'turn_cancelled' : 'request_cancelled',$retired['error_code']);
         $this->assertSame($row['completed_at'],$retired['completed_at']);
@@ -1285,14 +1285,14 @@ PHP;
     #[\PHPUnit\Framework\Attributes\DataProvider('invalidRetiredCompletions')]
     public function testRetiredReceiptRequiresRetainedCompletionAndExactCancellation(string $mutation): void {
         ['owner'=>$owner]=$this->publishedRetainedFixture();$this->cancelRetainedOwner($owner,false);
-        $this->query('UPDATE synth_meta.request_executions SET '.$mutation.' WHERE request_id=$1',[$owner['request_id']]);
+        $this->query('UPDATE public.core_request_execution SET '.$mutation.' WHERE request_id=$1',[$owner['request_id']]);
         $this->assertNull($this->savedRelationship($this->savedSelector()));
     }
     public function testCompletedNonPlayerReceiptCannotUseCancellationRetention(): void {
         ['owner'=>$owner]=$this->publishedRetainedFixture('activate');$this->cancelRetainedOwner($owner,false);
-        $this->assertSame('cancelled',pg_fetch_assoc($this->query('SELECT state FROM synth_meta.request_executions WHERE request_id=$1',[$owner['request_id']]))['state']);
+        $this->assertSame('cancelled',pg_fetch_assoc($this->query('SELECT state FROM public.core_request_execution WHERE request_id=$1',[$owner['request_id']]))['state']);
         $this->assertNull($this->savedRelationship($this->savedSelector()));
-        $this->query("UPDATE synth_meta.request_executions SET state='complete' WHERE request_id=$1",[$owner['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET state='complete' WHERE request_id=$1",[$owner['request_id']]);
         $this->assertNull($this->savedRelationship($this->savedSelector()),'Even a complete non-player receipt cannot use the retired-input branch');
     }
     public function testCancelledCompletedReceiptRemainsPriorOfLaterPlayerUpdate(): void {
@@ -1302,7 +1302,7 @@ PHP;
             'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910004];
         // The processed input belongs to the already admitted, unchanged canonical text.
         $input['data']='Nora: '.$next['payload']['text'];
-        $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+        $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES('relationship-dispatch-session',1,3,$1,'relationship-dispatch-save',910004,$2::jsonb)",[$next['request_id'],$this->json($input)]);
         $this->completeCapturedOwner($next);$this->query("UPDATE public.core_runtime_session SET relationship_dispatch_after=clock_timestamp()-INTERVAL '1 second'");
         $calls=0;$result=synth_relationship_dispatch($this->database,function(array $evaluation) use(&$calls,$row): string {
@@ -1337,7 +1337,7 @@ PHP;
         $identity ??=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'relationship-dispatch-save','display_name'=>'Preston Garvey'];
         $id=$this->identity($identity);
         $profile=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_profiles(label) VALUES('Synthetic addressed NPC') RETURNING id"))['id'];
-        $npc=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
+        $npc=(int)pg_fetch_assoc($this->query('INSERT INTO public.core_npc(npc_name,profile_id,actor_identity_id) VALUES($1,$2,$3) RETURNING id',
             [$identity['display_name'],$profile,$id]))['id'];
         foreach ($sequences as $sequence) {
             $stored=pg_fetch_assoc($this->query("SELECT context_payload,audience_identity_ids FROM public.core_runtime_context WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=$1",[$sequence]));
@@ -1354,7 +1354,7 @@ PHP;
         synth_relationship_begin_response();
         $line=synth_relationship_capture_line($speaker['display_name'],'You are welcome.');
         synth_relationship_capture_route($line,$listener,'fixture:dialogue');synth_relationship_finish_response(true);
-        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$owner['request_id']]))['body'];
+        $body=pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id=$1",[$owner['request_id']]))['body'];
         synth_relationship_store_response($this->database,$owner,hex2bin($body));
     }
     public function testAddressedNpcPairPublishesIndependentDirectionsOnceWithoutPlayerAttribution(): void {
@@ -1369,7 +1369,7 @@ PHP;
         $this->request($owner);$this->query("UPDATE public.core_runtime_session SET active_turn_id=$1,active_turn_sequence=2",[$owner['turn_id']]);
         $input=['type'=>'inputtext','data'=>'Nora: Please speak to each other.','people'=>'|Nora|Piper Wright|Preston Garvey|',
             'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910002];
-        $history=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.history_events
+        $history=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES('relationship-dispatch-session',1,2,$1,'relationship-dispatch-save',910002,$2::jsonb) RETURNING id",[$owner['request_id'],$this->json($input)]))['id'];
         $this->query("UPDATE public.core_runtime_context SET history_event_id=$1 WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=2",[$history]);
@@ -1440,7 +1440,7 @@ PHP;
         $this->request($parent);$this->query('UPDATE public.core_runtime_session SET active_turn_id=$1,active_turn_sequence=1',[$parent['turn_id']]);
         $input=['type'=>'inputtext','data'=>'Nora: Please have a public discussion.','people'=>'|Nora|Piper Wright|Preston Garvey|',
             'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>910004];
-        $incoming=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.history_events
+        $incoming=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES('relationship-dispatch-session',1,1,$1,'relationship-dispatch-save',910004,$2::jsonb) RETURNING id",
             [$parent['request_id'],$this->json($input)]))['id'];
@@ -1536,8 +1536,8 @@ PHP;
         $this->query('UPDATE public.core_rechat_chain SET policy=$1::jsonb WHERE id=$2',[$this->json($policy),$chain]);
         $this->query('UPDATE public.core_runtime_session SET capabilities=$1::jsonb',[$this->json($owner['capabilities'])]);
         $this->response($owner,$this->context['target'],$npc['identity']);
-        $bytes=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",[$owner['request_id']]))['body']);
-        $this->query("UPDATE synth_meta.request_executions SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
+        $bytes=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id=$1",[$owner['request_id']]))['body']);
+        $this->query("UPDATE public.core_request_execution SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner,'request_id'=>$owner['request_id'],'runtime_variant'=>$owner['runtime_variant']];
         synth_protocol_complete_request($this->database,'complete','application/x-ndjson',$bytes);
         $this->captureOwnedSpeech($owner,$npc['identity'],$this->context['target']['display_name']);
@@ -1688,12 +1688,12 @@ PHP;
             $parent=$this->parent;$parent['request_id']='older-addressed-root';$this->request($parent,true);
             $input=['type'=>'inputtext','data'=>'Nora: Earlier public greeting.','people'=>'|Nora|Piper Wright|Preston Garvey|',
                 'delivery_state'=>'received','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>930001];
-            $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                 VALUES('relationship-dispatch-session',1,1,$1,'relationship-dispatch-save',930001,$2::jsonb)",[$parent['request_id'],$this->json($input)]);
             $this->response($parent,$npc['identity']);$this->captureOwnedSpeech($parent,$this->context['target'],$npc['identity']['display_name']);
             $older=pg_fetch_assoc($this->query('SELECT history_event_id,response_payload FROM public.core_relationship_response_input WHERE request_id=$1',[$parent['request_id']]));
             $this->assertNotFalse($older);
-            $this->query('UPDATE synth_meta.request_executions SET completed_at=clock_timestamp() WHERE request_id=$1',[$parent['request_id']]);
+            $this->query('UPDATE public.core_request_execution SET completed_at=clock_timestamp() WHERE request_id=$1',[$parent['request_id']]);
             $this->query('UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=2',[$older['history_event_id']]);
         }
         [$owner,$chain]=$this->continuation('npc',true,null,null,$scene);
@@ -1703,9 +1703,9 @@ PHP;
             'source_profile_id'=>$this->profileId,'source_actor_identity_id'=>$this->actorId];
         $this->query('UPDATE public.core_rechat_chain SET policy=$1::jsonb WHERE id=$2',[$this->json($policy),$chain]);
         $this->response($owner,$npc['identity']);
-        $bytes=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM synth_meta.request_executions WHERE request_id=$1",
+        $bytes=hex2bin(pg_fetch_assoc($this->query("SELECT encode(response_body,'hex') AS body FROM public.core_request_execution WHERE request_id=$1",
             [$owner['request_id']]))['body']);
-        $this->query("UPDATE synth_meta.request_executions SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
+        $this->query("UPDATE public.core_request_execution SET state='claimed',completed_at=NULL WHERE request_id=$1",[$owner['request_id']]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner,'request_id'=>$owner['request_id'],'runtime_variant'=>$owner['runtime_variant']];
         synth_protocol_complete_request($this->database,'complete','application/x-ndjson',$bytes);
         $this->captureOwnedSpeech($owner,$this->context['target'],$npc['identity']['display_name']);
@@ -1726,7 +1726,7 @@ PHP;
                 evaluation.input_sha256=history.event_payload->>\'evaluation_sha256\' AS input_bound,
                 encode(sha256(convert_to(result.result_payload::text,\'UTF8\')),\'hex\')=history.event_payload->>\'result_sha256\' AS result_bound
             FROM public.core_relationship_interaction_result result JOIN public.core_relationship_interaction_evaluation evaluation ON evaluation.id=result.interaction_id
-            JOIN public.core_worker_job job ON job.id=result.job_id JOIN synth_meta.history_events history ON history.id=result.history_event_id
+            JOIN public.core_worker_job job ON job.id=result.job_id JOIN public.core_history_event history ON history.id=result.history_event_id
             WHERE evaluation.request_id=$1',[$owner['request_id']]));
         $this->assertNotFalse($row);$this->assertSame($fresh['history_event_id'],$row['response']);
         $this->assertSame('ready',$row['state']);$this->assertSame('t',$row['input_bound']);$this->assertSame('t',$row['result_bound']);
@@ -1750,7 +1750,7 @@ PHP;
         foreach ([[$this->actorId,$npc['actor_id']],[$npc['actor_id'],$this->actorId]] as [$reader,$subject])
             $this->assertNull($this->savedPair($reader,$subject,2),'A saved frontier before publication excludes either direction.');
         $this->cancelRetainedOwner($owner,$turn);$this->admitRetainedNextTurn($owner);
-        $retired=pg_fetch_assoc($this->query('SELECT state,error_code,response_body IS NULL AS cleared FROM synth_meta.request_executions WHERE request_id=$1',[$owner['request_id']]));
+        $retired=pg_fetch_assoc($this->query('SELECT state,error_code,response_body IS NULL AS cleared FROM public.core_request_execution WHERE request_id=$1',[$owner['request_id']]));
         $this->assertSame(['state'=>'cancelled','error_code'=>$turn ? 'turn_cancelled' : 'request_cancelled','cleared'=>'t'],$retired);
         $this->assertSame($before,[$this->savedPair($this->actorId,$npc['actor_id']),$this->savedPair($npc['actor_id'],$this->actorId)],
             'Already accepted paired directions survive normal cancellation at the same saved frontier.');
@@ -1776,7 +1776,7 @@ PHP;
         $before=[$this->savedPair($this->actorId,$npc['actor_id']),$this->savedPair($npc['actor_id'],$this->actorId)];
         $this->assertNotNull($before[0]);$this->assertNotNull($before[1]);
         $this->query("UPDATE public.core_rechat_chain SET terminal_reason='no_candidate' WHERE id=$1",[$chain]);
-        $this->query('DELETE FROM synth.core_npc_master WHERE id=$1',[$this->npcId]);
+        $this->query('DELETE FROM public.core_npc WHERE id=$1',[$this->npcId]);
         $this->cancelRetainedOwner($owner,true);$this->admitRetainedNextTurn($owner);
         $this->assertSame($before,[$this->savedPair($this->actorId,$npc['actor_id']),$this->savedPair($npc['actor_id'],$this->actorId)]);
         $this->assertSame('ready',pg_fetch_assoc($this->query('SELECT state FROM public.core_worker_job WHERE id=$1',[$row['job_id']]))['state']);
@@ -1797,15 +1797,15 @@ PHP;
             $canonical=synth_protocol_canonical_json($owner);$hash=hash('sha256',$canonical);
             $input['response']['request']=$owner;$input['response']['request_sha256']=$hash;
             $this->query('UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_sha256=$2 WHERE request_id=$3',[$canonical,$hash,$fixture['owner']['request_id']]);
-            $this->query('UPDATE synth_meta.request_executions SET request_sha256=$1 WHERE request_id=$2',[$hash,$fixture['owner']['request_id']]);
+            $this->query('UPDATE public.core_request_execution SET request_sha256=$1 WHERE request_id=$2',[$hash,$fixture['owner']['request_id']]);
             $this->query('UPDATE public.core_relationship_response_input SET response_payload=$1::jsonb WHERE history_event_id=$2',[$this->json($input['response']),$row['response']]);
-            $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
+            $this->query("UPDATE public.core_history_event history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
                 to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex')))
                 FROM public.core_relationship_response_input receipt WHERE history.id=receipt.history_event_id AND history.id=$1",[$row['response']]);
         }
         $this->query("UPDATE public.core_relationship_interaction_evaluation SET input_payload=$1::jsonb,
             input_sha256=encode(sha256(convert_to(($1::jsonb)::text,'UTF8')),'hex') WHERE id=$2",[$this->json($input),$row['evaluation']]);
-        $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{evaluation_sha256}',to_jsonb(evaluation.input_sha256))
+        $this->query("UPDATE public.core_history_event history SET event_payload=jsonb_set(history.event_payload,'{evaluation_sha256}',to_jsonb(evaluation.input_sha256))
             FROM public.core_relationship_interaction_evaluation evaluation WHERE evaluation.id=$1 AND history.id=$2",[$row['evaluation'],$row['result']]);
     }
     public static function invalidSavedPairEvidence(): array {
@@ -1845,7 +1845,7 @@ PHP;
             case 'parent receipt actor':$this->query("UPDATE public.core_relationship_response_input SET actor_identity_id=$1 WHERE request_id='relationship-parent'",[$npc['actor_id']]);break;
             case 'parent receipt digest':$this->query("UPDATE public.core_relationship_response_input SET response_sha256=repeat('0',64) WHERE request_id='relationship-parent'");break;
             case 'parent frozen source':$this->query("UPDATE public.core_relationship_response_input SET response_payload=jsonb_set(response_payload,'{input_events,0,event,data}','\"Other input\"') WHERE request_id='relationship-parent'");
-                $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
+                $this->query("UPDATE public.core_history_event history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
                     to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM public.core_relationship_response_input receipt
                     WHERE history.id=receipt.history_event_id AND receipt.request_id='relationship-parent'");break;
             case 'parent canonical request':$this->query("UPDATE public.core_protocol_event SET canonical_event=jsonb_set(canonical_event,'{context_sequence}','2') WHERE request_id='relationship-parent'");break;
@@ -1856,15 +1856,15 @@ PHP;
                 $receipt=json_decode(pg_fetch_assoc($this->query("SELECT response_payload FROM public.core_relationship_response_input WHERE request_id='relationship-parent'"))['response_payload'],true,flags:JSON_THROW_ON_ERROR);
                 $receipt['request']=$parent;$receipt['request_sha256']=$hash;$receipt['input_events']=[];
                 $this->query("UPDATE public.core_protocol_event SET canonical_event=$1::jsonb,event_type='activate',event_sha256=$2 WHERE request_id='relationship-parent'",[$canonical,$hash]);
-                $this->query("UPDATE synth_meta.request_executions SET event_type='activate',request_sha256=$1 WHERE request_id='relationship-parent'",[$hash]);
+                $this->query("UPDATE public.core_request_execution SET event_type='activate',request_sha256=$1 WHERE request_id='relationship-parent'",[$hash]);
                 $this->query("UPDATE public.core_relationship_response_input SET response_payload=$1::jsonb WHERE request_id='relationship-parent'",[$this->json($receipt)]);
                 $this->query("DELETE FROM public.core_relationship_response_source WHERE response_history_event_id IN (SELECT history_event_id FROM public.core_relationship_response_input WHERE request_id='relationship-parent')");
-                $this->query("UPDATE synth_meta.history_events history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
+                $this->query("UPDATE public.core_history_event history SET event_payload=jsonb_set(history.event_payload,'{response_payload_sha256}',
                     to_jsonb(encode(sha256(convert_to(receipt.response_payload::text,'UTF8')),'hex'))) FROM public.core_relationship_response_input receipt
                     WHERE history.id=receipt.history_event_id AND receipt.request_id='relationship-parent'");break;
-            case 'unsupported cancellation':$this->query("UPDATE synth_meta.request_executions SET error_code='relationship_lease_lost' WHERE request_id=$1",[$owner['request_id']]);break;
-            case 'incomplete owner':$this->query("UPDATE synth_meta.request_executions SET state='claimed',error_code=NULL WHERE request_id=$1",[$owner['request_id']]);break;
-            case 'retained wrong body':$this->query("UPDATE synth_meta.request_executions SET response_body=decode('00','hex') WHERE request_id=$1",[$owner['request_id']]);break;
+            case 'unsupported cancellation':$this->query("UPDATE public.core_request_execution SET error_code='relationship_lease_lost' WHERE request_id=$1",[$owner['request_id']]);break;
+            case 'incomplete owner':$this->query("UPDATE public.core_request_execution SET state='claimed',error_code=NULL WHERE request_id=$1",[$owner['request_id']]);break;
+            case 'retained wrong body':$this->query("UPDATE public.core_request_execution SET response_body=decode('00','hex') WHERE request_id=$1",[$owner['request_id']]);break;
             case 'wrong runtime lane':$input['owner']['runtime_variant']='vr';$this->replacePairFrozenInput($fixture,$input,true);break;
             case 'string scene sequence':$input['owner']['payload']['scene_context_sequence']='2';$this->replacePairFrozenInput($fixture,$input,true);break;
             case 'oversized scene sequence':$input['owner']['payload']['scene_context_sequence']=PHP_INT_MAX;$this->replacePairFrozenInput($fixture,$input,true);break;
@@ -1937,10 +1937,10 @@ PHP;
             [$source['session_id'],$source['request_id'],$source['turn_id'],$this->actorId,\Synth\Core\CharacterKey::of($speaker),hash('sha256','Retained A.'),$state]);
         $payload=['type'=>'chat','data'=>'The Narrator: Retained A. (talking to Nora)','people'=>'|Nora|The Narrator|',
             'delivery_state'=>$state,'utterance_id'=>'speech-tts-A','gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>930001];
-        $history=(int)pg_fetch_assoc($this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,
+        $history=(int)pg_fetch_assoc($this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,
             playthrough_id,eventlog_rowid,event_payload) VALUES($1,1,1,$2,'relationship-dispatch-save',930001,$3::jsonb) RETURNING id",
             [$source['session_id'],$source['request_id'],$this->json($payload)]))['id'];
-        $this->query("UPDATE synth_meta.request_executions SET state='cancelled',error_code='turn_cancelled',response_body=NULL WHERE request_id='heard-source'");
+        $this->query("UPDATE public.core_request_execution SET state='cancelled',error_code='turn_cancelled',response_body=NULL WHERE request_id='heard-source'");
         $this->query("UPDATE public.core_runtime_context SET history_event_id=$1 WHERE snapshot_sequence=3",[$history]);
         $reader=$this->parent;$reader['request_id']='heard-reader';$reader['turn_id']='heard-reader-turn';$reader['context_sequence']=3;$this->request($reader);
         $this->query('UPDATE public.core_runtime_session SET active_turn_id=$1,active_turn_sequence=3',[$reader['turn_id']]);
@@ -1964,11 +1964,11 @@ PHP;
             foreach(['received','emitted','spoken','presented','derived'] as $delivery) {
                 $payload=['type'=>$type,'data'=>'Piper Wright: Synthetic projection boundary.','people'=>'|Nora|Piper Wright|',
                     'delivery_state'=>$delivery,'gamets'=>1000,'localts'=>1000,'ts'=>1000,'rowid'=>++$row];
-                $this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                $this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                     VALUES('relationship-dispatch-session',1,2,'relationship-parent','relationship-dispatch-save',$1,$2::jsonb)",[$row,$this->json($payload)]);
             }
         }
-        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM synth_meta.history_events)
+        $this->query("UPDATE public.core_runtime_context SET history_event_id=(SELECT max(id) FROM public.core_history_event)
             WHERE session_id='relationship-dispatch-session' AND snapshot_sequence=2");
         foreach([1,2] as $sequence) {
             $event=$this->parent;$event['context_sequence']=$sequence;
@@ -1981,7 +1981,7 @@ PHP;
             $this->assertSame($ordinary,$early);
             if($sequence===1)$this->assertCount(1,$early);else $this->assertGreaterThan(1,count($early));
         }
-        $this->query("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}','\"|Uninformed|\"'::jsonb)
+        $this->query("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}','\"|Uninformed|\"'::jsonb)
             WHERE eventlog_rowid>920000");
         $event=$this->parent;$event['context_sequence']=2;$cte=synth_relationship_visible_cte($this->database,$event);
         $this->assertSame('1',$this->database->fetchOne($cte.' SELECT count(*) AS n FROM relationship_graph_source_history')['n']);
@@ -2010,7 +2010,7 @@ PHP;
             WHERE interaction_result_history_event_id=$2",[$older['history_event_id'],$row['result']]);
         $this->query("UPDATE public.core_relationship_revision SET input_hash=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')
             WHERE interaction_result_history_event_id=$1",[$row['result']]);
-        $this->query("UPDATE synth_meta.history_events h SET event_payload=jsonb_set(h.event_payload,'{relationship_input_sha256}',to_jsonb(r.input_hash))
+        $this->query("UPDATE public.core_history_event h SET event_payload=jsonb_set(h.event_payload,'{relationship_input_sha256}',to_jsonb(r.input_hash))
             FROM public.core_relationship_revision r WHERE r.history_event_id=h.id AND r.interaction_result_history_event_id=$1",[$row['result']]);
         $this->query('UPDATE public.core_relationship_revision_source d SET source_history_event_id=$1 FROM public.core_relationship_revision r
             WHERE r.history_event_id=d.relationship_history_event_id AND r.interaction_result_history_event_id=$2',[$older['history_event_id'],$row['result']]);
@@ -2031,7 +2031,7 @@ PHP;
             $cte=synth_relationship_visible_cte($this->database,$this->savedSelector(),false,$this->actorId);
             foreach (['interaction_rechat_response','interaction_rechat_prepared','interaction_rechat_parent','interaction_rechat_provenance','interaction_result_execution'] as $stage)
                 $diagnostic[$stage]=$this->database->fetchOne($cte.' SELECT count(*) AS n FROM '.$stage)['n'];
-            $diagnostic['source']=$this->database->fetchOne('SELECT state,error_code,response_body IS NULL AS cleared FROM synth_meta.request_executions WHERE request_id=\'older-addressed-root\'');
+            $diagnostic['source']=$this->database->fetchOne('SELECT state,error_code,response_body IS NULL AS cleared FROM public.core_request_execution WHERE request_id=\'older-addressed-root\'');
             $diagnostic['source_graph']=$this->database->fetchOne($cte.' SELECT count(*) AS n FROM relationship_graph_responses WHERE history_event_id='.intval($fixture['older']['history_event_id']))['n'];
         }
         $this->assertSame($before,$after,json_encode($diagnostic));

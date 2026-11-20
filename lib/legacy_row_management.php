@@ -3,7 +3,7 @@
 // Only existing legacy table views may name a deletion target; schema names and SQL fragments are not inputs.
 function synthLegacyRowTarget(array $input): array
 {
-    $tables=['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','cache'=>'public.core_context_event','log'=>'synth.log',
+    $tables=['responselog'=>'public.core_response_log','eventlog'=>'public.core_context_event','cache'=>'public.core_context_event','log'=>'public.core_log',
         'diarylog'=>'public.core_memory','memory'=>'public.core_memory_log','memory_summary'=>'public.core_memory'];
     $table=$input['table'] ?? null;
     $id=$input['rowid'] ?? null;

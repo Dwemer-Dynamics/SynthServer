@@ -509,7 +509,7 @@ class Player2JsonDriver
 
             if ($GLOBALS["db"]) {
                 $GLOBALS["db"]->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"]
@@ -530,7 +530,7 @@ class Player2JsonDriver
 
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message
@@ -543,7 +543,7 @@ class Player2JsonDriver
             } else  {
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "Ok"

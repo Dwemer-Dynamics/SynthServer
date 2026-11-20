@@ -43,7 +43,7 @@ final class RequestStreamingTest extends TestCase
                     preg_match("/i.action_id='([^']+)'/",$sql,$match);return $this->rows[$match[1]??'']??null;
                 }
                 if(str_contains($sql,'core_action_result')) return $this->terminal;
-                if(str_contains($sql,'JOIN synth.actor_identities')) return $this->owner;
+                if(str_contains($sql,'JOIN public.core_actor_identity')) return $this->owner;
                 if(str_contains($sql,'canonical_event')) return ['protocol_version'=>'2','context_sequence'=>'7'];
                 return ['action_id'=>'action-1','idempotency_key'=>'idem-action-1','state'=>'pending','action_name'=>$this->owner['action_name']];
             }
@@ -907,15 +907,15 @@ final class RequestStreamingTest extends TestCase
     public function testLegacyRowTargetsRejectSqlFragmentsAndNativeNamespaces(): void
     {
         require_once dirname(__DIR__,2).'/lib/legacy_row_management.php';
-        foreach (['responselog'=>'synth.responselog','eventlog'=>'public.core_context_event','log'=>'synth.log','diarylog'=>'public.core_memory','memory'=>'public.core_memory_log','memory_summary'=>'public.core_memory'] as $table=>$target) {
+        foreach (['responselog'=>'public.core_response_log','eventlog'=>'public.core_context_event','log'=>'public.core_log','diarylog'=>'public.core_memory','memory'=>'public.core_memory_log','memory_summary'=>'public.core_memory'] as $table=>$target) {
             $this->assertSame([$target,'12'],synthLegacyRowTarget(['table'=>$table,'rowid'=>12]));
         }
         $this->assertSame(['public.core_context_event','12'],synthLegacyRowTarget(['table'=>'cache','rowid'=>'12']));
-        foreach (['memory_summaries','public.core_memory_summary','eventlog;DELETE FROM log','quests','',[]] as $table) {
+        foreach (['memory_summaries','public.core_memory_summary','eventlog;DELETE FROM core_log','quests','',[]] as $table) {
             try { synthLegacyRowTarget(['table'=>$table,'rowid'=>1]); $this->fail('Invalid table accepted'); }
             catch (InvalidArgumentException $error) { $this->assertSame('Invalid legacy row target.',$error->getMessage()); }
         }
-        foreach ([0,-1,'0','01','1 OR 1=1','1;DELETE FROM log',"1\n",1.0,true,null,[],str_repeat('9',19)] as $id) {
+        foreach ([0,-1,'0','01','1 OR 1=1','1;DELETE FROM core_log',"1\n",1.0,true,null,[],str_repeat('9',19)] as $id) {
             try { synthLegacyRowTarget(['table'=>'eventlog','rowid'=>$id]); $this->fail('Invalid ID accepted'); }
             catch (InvalidArgumentException $error) { $this->assertSame('Invalid legacy row target.',$error->getMessage()); }
         }
@@ -1210,7 +1210,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertLessThan(strpos($lock, '$operation(self::$link, $event)'), strpos($lock, 'synth_protocol_assert_request_active()'));
         $this->assertStringContainsString('return $this->withNativeRequestLock(', $owned);
         $this->assertStringContainsString("unset(\$data['rowid'])", $owned);
-        $this->assertStringContainsString('INSERT INTO synth_meta.history_events', $owned);
+        $this->assertStringContainsString('INSERT INTO public.core_history_event', $owned);
         $this->assertStringContainsString('to_jsonb(inserted)', $owned);
         $this->assertStringContainsString('finally', $owned);
         $this->assertStringContainsString('ROLLBACK', $owned);
@@ -1631,7 +1631,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchOne(string $sql): ?array {
                 if (str_contains($sql,'core_action_result')) return $this->terminal;
-                if (str_contains($sql,'JOIN synth.actor_identities')) return $this->owner;
+                if (str_contains($sql,'JOIN public.core_actor_identity')) return $this->owner;
                 if (str_contains($sql,'canonical_event')) return ['protocol_version'=>'2','context_sequence'=>'7'];
                 return ['action_id'=>'action-1','idempotency_key'=>'idem-action-1','state'=>'pending'];
             }
@@ -1789,7 +1789,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function fetchOne(string $query): array {
                 if (!$this->locked) throw new LogicException('Read outside native lock');
-                if (str_contains($query,'request_executions')) return ['state'=>'streaming','runtime_state'=>'active','active_generation'=>2];
+                if (str_contains($query,'core_request_execution')) return ['state'=>'streaming','runtime_state'=>'active','active_generation'=>2];
                 if (str_contains($query,'core_runtime_context')) return ['context_payload'=>['player'=>[],'world'=>['game_time_ticks'=>321]]];
                 return ['id'=>1];
             }
@@ -1846,7 +1846,7 @@ final class RequestStreamingTest extends TestCase
             "h.context_sequence=7 AND i.turn_id='turn:one'"] as $binding) {
             $this->assertStringContainsString($binding,$db->query);
         }
-        $this->assertStringNotContainsString('FROM actions_issued',$db->query);
+        $this->assertStringNotContainsString('FROM core_action_issued',$db->query);
     }
 
     public function testHaltPreservesEmptyObjectThroughIngressAndCanonicalStorage(): void
@@ -2216,9 +2216,9 @@ final class RequestStreamingTest extends TestCase
         ]]);
 
         $this->assertCount(3, $db->queries);
-        $this->assertStringContainsString('UPDATE synth.actor_identities', $db->queries[1]);
+        $this->assertStringContainsString('UPDATE public.core_actor_identity', $db->queries[1]);
         $this->assertStringContainsString('Fallout4.esm|0005DE41', $db->queries[1]);
-        $this->assertStringContainsString('UPDATE synth.core_npc_master', $db->queries[2]);
+        $this->assertStringContainsString('UPDATE public.core_npc', $db->queries[2]);
         $this->assertStringContainsString('actor_identity_id=42', $db->queries[2]);
         $this->assertStringContainsString('faction_observation', $db->queries[2]);
     }

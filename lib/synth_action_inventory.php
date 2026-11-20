@@ -71,18 +71,18 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                     e.canonical_event,t.result,b.full_form_id AS recipient_form_id,
                     b.origin_plugin AS recipient_plugin,b.playthrough_id AS recipient_playthrough_id
                 FROM public.core_action_intent i
-                JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4'
-                LEFT JOIN synth.actor_identities b ON b.id=i.target_identity_id AND b.game='fo4'
+                JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+                LEFT JOIN public.core_actor_identity b ON b.id=i.target_identity_id AND b.game='fo4'
                 JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
                     AND t.status=t.result->>'status'
                 JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=i.turn_id
-                JOIN synth_meta.request_executions parent ON parent.session_id=e.session_id AND parent.request_id=e.request_id
+                JOIN public.core_request_execution parent ON parent.session_id=e.session_id AND parent.request_id=e.request_id
                     AND parent.state IN ('streaming','complete')
                 JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request
                     AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id AND receipt.event_type='action_result'
                     AND receipt.canonical_event=$canonical::jsonb AND receipt.canonical_event->'payload'->'result'=t.result
-                JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id
+                JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id
                     AND accepted.request_id=receipt.request_id AND accepted.state IN ('claimed','streaming','complete')
                 JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
                 WHERE i.action_id=$action AND i.idempotency_key=$idempotency AND i.session_id=$session

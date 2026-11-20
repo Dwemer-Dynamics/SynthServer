@@ -89,7 +89,7 @@ function synthPersistObservedDialogue($db,array $event): void
     $input=$observed;unset($input['witnesses']['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id'],$observed['observation_id']];
     $result=$db->execQuery("SELECT h.event_payload->'synth_witness_observation'->'input' AS input
-        FROM synth_meta.history_events h JOIN public.core_runtime_session s ON s.session_id=h.session_id
+        FROM public.core_history_event h JOIN public.core_runtime_session s ON s.session_id=h.session_id
         WHERE h.session_id=$1 AND h.generation=$2 AND h.playthrough_id=$3
           AND h.event_payload->'synth_witness_observation'->>'observation_id'=$4
           AND s.active_generation=h.generation AND s.state='active' LIMIT 1",$owner);
@@ -122,7 +122,7 @@ function synthPersistObservedDialogue($db,array $event): void
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         SELECT 'backgroundchat',$6,playthrough_id,$7,$8,$8,'',$9,$10,'received',
             session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
-    ) INSERT INTO synth_meta.history_events
+    ) INSERT INTO public.core_history_event
         (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
         SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,
             to_jsonb(publication)||jsonb_build_object('synth_witness_observation',$10::jsonb,'synth_dialogue_hearer_ids',$11::jsonb)

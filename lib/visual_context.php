@@ -212,7 +212,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
     $resultJson=synth_visual_canonical_json($result);$resultHash=hash('sha256',$resultJson);
     $wire=synth_visual_canonical_json($request);$wireHash=hash('sha256',$wire);
     $existing=$db->fetchOne("SELECT v.result_sha256,e.request_sha256 FROM public.core_visual_result v
-        JOIN synth_meta.request_executions e USING(session_id,request_id) WHERE v.capture_id=$capture");
+        JOIN public.core_request_execution e USING(session_id,request_id) WHERE v.capture_id=$capture");
     if ($existing) {
         if (!hash_equals($existing['result_sha256'],$resultHash) || !hash_equals($existing['request_sha256'],$wireHash)) {
             throw new RuntimeException('Visual history replay conflicts with its accepted result.');
@@ -222,7 +222,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
     $actor=intval($context['target_identity_id']);
     $gamets=max(1,intval($request['world']['game_time_ticks']));$now=time();
     // This is the real image endpoint's accepted result, not an impersonated dialogue request.
-    if ($db->execQuery("INSERT INTO synth_meta.request_executions
+    if ($db->execQuery("INSERT INTO public.core_request_execution
         (session_id,request_id,turn_id,generation,request_sha256,event_type,state,response_content_type,response_body,completed_at)
         VALUES($1,$2,$3,$4,$5,'visual_capture','complete',
             'application/vnd.synth.visual-result+json',convert_to($6,'UTF8'),NOW())",
@@ -239,7 +239,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         VALUES('visual_result','Accepted native image description',$5,$6,$7,$7,'','','','derived',
             $1,$2,$3,$4) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT $1,$2,$3,$4,$5,rowid,to_jsonb(publication) FROM publication RETURNING id
         ) INSERT INTO public.core_visual_result(history_event_id,capture_id,session_id,generation,context_sequence,request_id,
             actor_identity_id,result_payload,result_sha256)
@@ -262,14 +262,14 @@ function synthVisualContextVisibleCte($db, array $event): string
             gallery.locked,gallery.active,(correction.description IS NOT NULL) AS user_edited,h.recorded_at AS captured_at
         FROM native_history_scopes scope JOIN public.core_visual_result v
             ON v.session_id=scope.session_id AND v.generation=scope.generation AND v.actor_identity_id=scope.reader_identity_id
-        JOIN synth_meta.history_events h ON h.id=v.history_event_id AND h.id<=scope.cutoff
+        JOIN public.core_history_event h ON h.id=v.history_event_id AND h.id<=scope.cutoff
             AND h.session_id=v.session_id AND h.generation=v.generation AND h.request_id=v.request_id
             AND h.context_sequence=v.context_sequence AND h.playthrough_id=scope.playthrough_id
             AND h.event_payload->>'type'='visual_result' AND h.event_payload->>'delivery_state'='derived'
         JOIN public.core_runtime_context origin ON origin.session_id=h.session_id AND origin.generation=h.generation
             AND origin.snapshot_sequence=h.context_sequence AND origin.playthrough_id=h.playthrough_id
             AND origin.target_identity_id=v.actor_identity_id
-        JOIN synth_meta.request_executions e ON e.session_id=v.session_id AND e.request_id=v.request_id
+        JOIN public.core_request_execution e ON e.session_id=v.session_id AND e.request_id=v.request_id
             AND e.generation=v.generation AND e.event_type='visual_capture' AND e.state='complete'
             AND encode(sha256(e.response_body),'hex')=v.result_sha256
             AND convert_from(e.response_body,'UTF8')::jsonb=v.result_payload
@@ -290,7 +290,7 @@ function synthVisualContextVisibleCte($db, array $event): string
             AND p.canonical_event->'subject'->>'playthrough_id'=h.playthrough_id
         JOIN public.core_visual_context gallery ON gallery.capture_id=v.capture_id
         LEFT JOIN LATERAL (SELECT edit.history_event_id,edit.description
-            FROM native_history_scopes edited_scope JOIN synth_meta.history_events edited_history
+            FROM native_history_scopes edited_scope JOIN public.core_history_event edited_history
                 ON edited_history.session_id=edited_scope.session_id AND edited_history.generation=edited_scope.generation
                     AND edited_history.playthrough_id=edited_scope.playthrough_id AND edited_history.id<=edited_scope.cutoff
                     AND edited_history.request_id IS NULL AND edited_history.event_payload->>'type'='visual_manual'
