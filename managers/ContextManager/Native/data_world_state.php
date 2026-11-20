@@ -14,10 +14,10 @@ function DataDequeue($timestamp = 0)
     // Use atomic UPDATE...RETURNING to prevent race conditions where multiple concurrent
     // requests could fetch the same dialogue before it's marked as sent
     $results = $db->fetchAll(
-        "UPDATE responselog
+        "UPDATE core_response_log
          SET sent=1
          WHERE rowid IN (
-             SELECT rowid FROM responselog WHERE sent=0 $clause ORDER BY rowid ASC
+             SELECT rowid FROM core_response_log WHERE sent=0 $clause ORDER BY rowid ASC
          )
          RETURNING *, rowid"
     );

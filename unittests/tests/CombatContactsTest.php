@@ -14,7 +14,7 @@ final class CombatContactsFixtureDatabase extends sql
             $this->execQuery("SET LOCAL statement_timeout='2s'");
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
             synth_protocol_assert_request_active();$canonical=synth_protocol_canonical_json($event);
-            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
             if(!pg_fetch_assoc($result))throw new LogicException('combat_fixture_canonical_owner_changed');
@@ -72,7 +72,7 @@ final class CombatContactsTest extends DatabaseTestCase
     private function persistEvent(): void
     {
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
-        $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
+        $this->database->execQuery("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES('combat-contact-session','combat-contact-input','combat-contact-turn',1,$1,$2,'claimed')
             ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$1,event_type=$2",[$hash,$this->event['type']]);
         $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
@@ -123,7 +123,7 @@ final class CombatContactsTest extends DatabaseTestCase
         foreach(['other-owner','duplicate-owner','foreign-save','unsafe-label','wrong-generation','retired-session','frame-stale','expired-observation','frame-age-expires-observation'] as $case) {
             $this->payload=$original;
             $this->database->execQuery("UPDATE public.core_runtime_session SET state='active',active_generation=1 WHERE session_id='combat-contact-session'");
-            $this->database->execQuery("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM synth_meta.request_executions WHERE request_id='combat-contact-input') WHERE session_id='combat-contact-session'");
+            $this->database->execQuery("UPDATE public.core_runtime_context SET received_at=(SELECT claimed_at FROM public.core_request_execution WHERE request_id='combat-contact-input') WHERE session_id='combat-contact-session'");
             if($case==='other-owner')$this->payload['actor_states'][0]['actor']['form_id']='0x00019FD9';
             if($case==='duplicate-owner')$this->payload['actor_states'][]=$this->payload['actor_states'][0];
             if($case==='foreign-save')$this->payload['actor_states'][0]['enemy_awareness']['recent'][0]['actor']['playthrough_id']='other-save';
@@ -161,7 +161,7 @@ final class CombatContactsTest extends DatabaseTestCase
         $this->assertSame('I can identify Mole Rat.',$reply['text']);
         $this->assertEquals($this->payload['target'],$reply['speaker']);
         $this->assertEquals($this->payload['player'],$reply['listener']);
-        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM synth.actor_identities WHERE full_form_id='
+        $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_actor_identity WHERE full_form_id='
             .$this->database->escapeLiteral($states[0]['combat_contacts'][0]['actor']['form_id']))['n']);
     }
 
@@ -239,7 +239,7 @@ final class CombatContactsTest extends DatabaseTestCase
 
     public function testCancellationCannotProduceDeterministicSpeech(): void
     {
-        $this->database->execQuery("UPDATE synth_meta.request_executions SET state='cancelled',error_code='turn_cancelled' WHERE request_id='combat-contact-input'");
+        $this->database->execQuery("UPDATE public.core_request_execution SET state='cancelled',error_code='turn_cancelled' WHERE request_id='combat-contact-input'");
         $this->expectException(SYNTHProtocolCancelled::class);
         synth_combat_identification_reply($this->database,$this->event);
     }
@@ -377,7 +377,7 @@ final class CombatContactsTest extends DatabaseTestCase
             $this->assertSame($dialogue['text'],$GLOBALS['SYNTH_DEFERRED_TTS'][0]['text']);
             $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_action_intent')['n']);
             $this->assertSame('0',$this->database->fetchOne('SELECT count(*) AS n FROM public.core_rechat_continuation')['n']);
-            $this->assertSame('complete',$this->database->fetchOne("SELECT state FROM synth_meta.request_executions WHERE request_id='combat-contact-input'")['state']);
+            $this->assertSame('complete',$this->database->fetchOne("SELECT state FROM public.core_request_execution WHERE request_id='combat-contact-input'")['state']);
             $this->assertSame('2',$this->database->fetchOne("SELECT count(*) AS n FROM public.core_context_event WHERE type IN ('prechat','chat') AND data LIKE "
                 .$this->database->escapeLiteral('%'.$expected.'%'))['n']);
             $this->assertSame('1',$this->database->fetchOne("SELECT count(*) AS n FROM public.core_context_event WHERE type='inputtext' AND data LIKE "

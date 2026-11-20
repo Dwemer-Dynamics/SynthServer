@@ -78,7 +78,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
     private function init(int $generation=1): void {
         $event=$this->event('init',['locale'=>'en-US'],0,$generation);$body=$this->http($event);
         $this->assertSame('complete',array_slice($this->lines($body),-1)[0]['payload']['status'],$body.$this->diagnostic());
-        $this->assertSame('complete',$this->query('SELECT state FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']])[0]['state']);
+        $this->assertSame('complete',$this->query('SELECT state FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']])[0]['state']);
     }
     private function context(array $stateChanges=[],int $sequence=1,bool $gift=false): void {
         $payload=$this->template['payload'];$payload['snapshot_sequence']=$sequence;
@@ -92,7 +92,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
         $event=$this->event('context',$payload);$body=$this->http($event);$lines=$this->lines($body);
         $this->assertSame('context_accepted',$lines[1]['payload']['code']??null,$body.$this->diagnostic());
         $this->assertSame('complete',array_slice($lines,-1)[0]['payload']['status'],$body.$this->diagnostic());
-        $this->assertSame('complete',$this->query('SELECT state FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']])[0]['state']);
+        $this->assertSame('complete',$this->query('SELECT state FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']])[0]['state']);
     }
     private function input(string $text='Wait here.'): array {
         return $this->event('input_text',['text'=>$text,'control'=>['mode'=>'STANDARD','model_slot'=>1]],1);
@@ -102,11 +102,11 @@ final class JevWaitHandoffTest extends DatabaseTestCase
         $this->assertSame(1,count(array_filter($lines,static fn($line)=>$line['type']==='response_start')),$body.$this->diagnostic());
         $this->assertSame(1,count(array_filter($lines,static fn($line)=>$line['type']==='response_end')));
         $this->assertSame('complete',array_slice($lines,-1)[0]['payload']['status'],$body.$this->diagnostic());
-        $rows=$this->query('SELECT state,response_body FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
+        $rows=$this->query('SELECT state,response_body FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
         $this->assertSame('complete',$rows[0]['state']);$this->assertSame($body,synth_protocol_decode_bytea($rows[0]['response_body']));return $lines;
     }
     private function intents(array $event): array {
-        return $this->query('SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id FROM public.core_action_intent i JOIN synth.actor_identities a ON a.id=i.actor_identity_id WHERE i.session_id=$1 AND i.request_id=$2',[$event['session_id'],$event['request_id']]);
+        return $this->query('SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id FROM public.core_action_intent i JOIN public.core_actor_identity a ON a.id=i.actor_identity_id WHERE i.session_id=$1 AND i.request_id=$2',[$event['session_id'],$event['request_id']]);
     }
 
     #[PHPUnit\Framework\Attributes\DataProvider('handoffCases')]
@@ -128,7 +128,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
         $this->assertSame($code,$intents[0]['action_name']);$this->assertNull($intents[0]['target_identity_id']);
         $this->assertInstanceOf(stdClass::class,json_decode($intents[0]['arguments']));
         $this->assertSame([],get_object_vars(json_decode($intents[0]['arguments'])));
-        $history=$this->query("SELECT event_payload->>'data' AS data FROM synth_meta.history_events WHERE session_id=$1 AND request_id=$2 AND event_payload->>'type'='inputtext'",[$event['session_id'],$event['request_id']]);
+        $history=$this->query("SELECT event_payload->>'data' AS data FROM public.core_history_event WHERE session_id=$1 AND request_id=$2 AND event_payload->>'type'='inputtext'",[$event['session_id'],$event['request_id']]);
         $this->assertCount(1,$history);$this->assertSame($event['payload']['text'],json_decode($history[0]['data'],true)['text']);
         foreach($lines as $line)if($line['type']==='dialogue')$this->assertSame('0x00000014',$line['payload']['speaker']['form_id']);
         $this->assertSame(0,$this->calls('JEV_FIXTURE_LLM_FALLBACK'));$this->assertSame(1,$this->calls('JEV_FIXTURE_CLASSIFY'));

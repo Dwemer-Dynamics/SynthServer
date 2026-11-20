@@ -78,7 +78,7 @@ function synthPlayerReactionEvidence($db, array $event, array $context, string $
             AND r.playthrough_id=c.playthrough_id AND r.state='active'
         JOIN public.core_actor_activation a ON a.session_id=c.session_id AND a.generation=c.generation
             AND a.actor_identity_id=c.target_identity_id AND a.state='active'
-        JOIN synth_meta.history_events h ON h.session_id=c.session_id AND h.generation=c.generation
+        JOIN public.core_history_event h ON h.session_id=c.session_id AND h.generation=c.generation
             AND h.playthrough_id=c.playthrough_id AND h.id<=c.history_event_id
             AND h.context_sequence<=c.snapshot_sequence AND h.event_payload->>'type'='player_event'
             AND (h.event_payload->>'party')::jsonb->>'event_id'=$4

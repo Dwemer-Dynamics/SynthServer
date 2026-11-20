@@ -254,10 +254,10 @@ class sql
                 h.session_id,h.request_id,h.generation,h.context_sequence,h.playthrough_id,h.scene_context_sequence,
                 h.event_payload::text AS event_payload';
             $result = @pg_query_params($connection,
-                "SELECT {$columns} FROM public.core_context_event e LEFT JOIN synth_meta.history_events h ON h.eventlog_rowid=e.rowid
+                "SELECT {$columns} FROM public.core_context_event e LEFT JOIN public.core_history_event h ON h.eventlog_rowid=e.rowid
                  WHERE e.synth_session_id=$1 AND e.synth_request_id=$2 AND e.utterance_id=$3
                  UNION ALL
-                 SELECT {$columns} FROM synth_meta.history_events h LEFT JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
+                 SELECT {$columns} FROM public.core_history_event h LEFT JOIN public.core_context_event e ON e.rowid=h.eventlog_rowid
                  WHERE h.session_id=$1 AND h.request_id=$2 AND h.event_payload->>'utterance_id'=$3
                     AND (e.rowid IS NULL OR e.synth_session_id IS DISTINCT FROM $1 OR e.synth_request_id IS DISTINCT FROM $2
                         OR e.utterance_id IS DISTINCT FROM $3)",
@@ -349,7 +349,7 @@ class sql
         $values = implode(',', array_map(static fn($i) => '$'.($i + 1), array_keys($columns)));
         // A projected Close row records exactly which snapshot identities could hear it; others keep raw scene reconstruction.
         $query = 'WITH inserted AS (INSERT INTO public.core_context_event ('.implode(',', $columns).') VALUES ('.$values.') RETURNING *)
-            INSERT INTO synth_meta.history_events
+            INSERT INTO public.core_history_event
                 (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,scene_context_sequence)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,
                 $'.(count($columns) + 1).',rowid,
@@ -462,7 +462,7 @@ class sql
                 // Recheck the exact admitted bytes and captured payload under the existing session lock.
                 $canonical = synth_protocol_canonical_json($event);
                 $proof = @pg_query_params(self::$link, "SELECT 1 FROM public.core_protocol_event p
-                    JOIN synth_meta.request_executions e USING(session_id,request_id)
+                    JOIN public.core_request_execution e USING(session_id,request_id)
                     JOIN public.core_runtime_session r ON r.session_id=p.session_id
                     JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation
                         AND c.snapshot_sequence=$6 AND c.context_payload=p.canonical_event->'payload'

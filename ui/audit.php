@@ -63,7 +63,7 @@ $query = "
  SELECT
  split_part(connector, '/', 2) AS type_of_request,
  SUM((usage->>'cost')::numeric) AS total_cost
- FROM audit_request
+ FROM core_audit_request
  $where_clause
  GROUP BY split_part(connector, '/', 2)
  ORDER BY total_cost DESC

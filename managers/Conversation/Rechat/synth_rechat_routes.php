@@ -42,7 +42,7 @@ function synth_rechat_scene_context_locked($connection, array $event, bool $ownF
         FROM public.core_runtime_context fresh
         JOIN public.core_runtime_session s ON s.session_id=fresh.session_id
             AND s.active_generation=fresh.generation AND s.playthrough_id=fresh.playthrough_id AND s.state='active'
-        JOIN synth_meta.request_executions child ON child.session_id=s.session_id
+        JOIN public.core_request_execution child ON child.session_id=s.session_id
             AND child.request_id=$5 AND child.generation=fresh.generation AND child.turn_id=$4
         JOIN public.core_protocol_event cp ON cp.session_id=child.session_id AND cp.request_id=child.request_id
             AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type
@@ -50,7 +50,7 @@ function synth_rechat_scene_context_locked($connection, array $event, bool $ownF
         JOIN public.core_protocol_event p ON p.session_id=s.session_id AND p.request_id=$7
             AND p.generation=child.generation AND p.turn_id=child.turn_id
             AND p.canonical_event->>'context_sequence'=$8::text
-        JOIN synth_meta.request_executions parent ON parent.session_id=p.session_id AND parent.request_id=p.request_id
+        JOIN public.core_request_execution parent ON parent.session_id=p.session_id AND parent.request_id=p.request_id
             AND parent.generation=p.generation AND parent.turn_id=p.turn_id AND parent.event_type=p.event_type
             AND parent.request_sha256=p.event_sha256 AND parent.state='complete'
         JOIN public.core_runtime_context previous ON previous.session_id=fresh.session_id
@@ -176,7 +176,7 @@ function synth_rechat_root_policy_locked($connection, array $event, array $paren
     $result=@pg_query_params($connection,"SELECT d.execution_mode,p.canonical_event#>>'{payload,audience_intent}' AS audience_intent
         FROM public.core_dialogue_origin_policy d
         JOIN public.core_protocol_event p USING(session_id,request_id)
-        JOIN synth_meta.request_executions e USING(session_id,request_id)
+        JOIN public.core_request_execution e USING(session_id,request_id)
         WHERE d.session_id=$1 AND d.request_id=$2 AND p.generation=$3 AND p.turn_id=$4
             AND p.canonical_event->>'context_sequence'=$5::text AND e.generation=p.generation AND e.turn_id=p.turn_id
             AND e.event_type=p.event_type AND e.request_sha256=p.event_sha256",
@@ -379,7 +379,7 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
         if ($owner!==$event) throw new LogicException('Dialogue route owner changed');
         $canonical=synth_protocol_canonical_json($event);
         $result=@pg_query_params($connection,"SELECT c.context_payload
-            FROM synth_meta.request_executions e
+            FROM public.core_request_execution e
             JOIN public.core_protocol_event p USING(session_id,request_id)
             JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
                 AND c.snapshot_sequence=$3
@@ -538,10 +538,10 @@ function synth_rechat_completed_parent_evidence($connection, array $event, bool 
     if ($parent===$event['request_id']) return null;
     $canonical=synth_protocol_canonical_json($event);
     $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
-        FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
         JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$3
         JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
-        JOIN synth_meta.request_executions child ON child.session_id=e.session_id AND child.request_id=$8
+        JOIN public.core_request_execution child ON child.session_id=e.session_id AND child.request_id=$8
         JOIN public.core_protocol_event cp ON cp.session_id=child.session_id AND cp.request_id=child.request_id
         WHERE e.session_id=$1 AND e.request_id=$2 AND e.state='complete'
             AND e.generation=$4 AND e.turn_id=$5 AND p.generation=e.generation AND p.turn_id=e.turn_id

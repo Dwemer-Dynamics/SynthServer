@@ -11,7 +11,7 @@ function synth_relationship_paired_response_consumed($connection, $db, array $ev
     $result=@pg_query_params($connection,synth_protocol_history_cte($db,$event)."
         SELECT 1 FROM public.core_relationship_interaction_result result
         JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
-        JOIN synth_meta.history_events h ON h.id=result.history_event_id
+        JOIN public.core_history_event h ON h.id=result.history_event_id
         WHERE i.response_history_event_id=$1 AND i.listener_identity_id=ANY($2::bigint[])
             AND (EXISTS(SELECT 1 FROM native_history_scopes scope WHERE scope.session_id=h.session_id
                 AND scope.generation=h.generation AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff)
@@ -48,7 +48,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
         if ($job['state']==='ready') {
             // Idempotent acknowledgement is not a new publication and does not reapply current actor policy.
             $result=@pg_query_params($connection,"SELECT r.history_event_id FROM public.core_relationship_interaction_result r
-                JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=$4 AND h.request_id=$5
+                JOIN public.core_history_event h ON h.id=r.history_event_id AND h.session_id=$4 AND h.request_id=$5
                     AND h.generation=$6 AND h.context_sequence=$7
                 WHERE r.job_id=$1 AND r.interaction_id=$2 AND r.result_payload=$3::jsonb
                     AND h.event_payload->>'type'='relationship_interaction_result'
@@ -67,7 +67,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
         }
         $result=@pg_query_params($connection,synth_protocol_history_cte($db,$event)."
             SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
-            JOIN synth_meta.history_events h ON h.id=r.history_event_id
+            JOIN public.core_history_event h ON h.id=r.history_event_id
             WHERE i.response_history_event_id=$1 AND i.actor_identity_id=$2
                 AND i.input_payload->'subjects' @> jsonb_build_array(jsonb_build_object('subject_id',$5::bigint)) AND (
                 EXISTS(SELECT 1 FROM native_history_scopes scope WHERE scope.session_id=h.session_id AND scope.generation=h.generation
@@ -81,7 +81,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
             if (@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtextextended($1,0))',["synth-relationship:$actor:$subject"])===false) {
                 throw new RuntimeException('Unable to lock interaction perspective');
             }
-            $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_revision r JOIN synth_meta.history_events h ON h.id=r.history_event_id
+            $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_revision r JOIN public.core_history_event h ON h.id=r.history_event_id
                 WHERE h.session_id=$1 AND h.generation=$2 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4
                     AND h.id>(SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
                 [$event['session_id'],$event['generation'],$actor,$subject,$event['context_sequence']]);
@@ -93,7 +93,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_interaction_result','Native NPC interaction evaluation',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('evaluation_sha256',$8::text,'result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex'))
             FROM publication RETURNING id
@@ -120,7 +120,7 @@ function synth_relationship_complete_interaction($db, int $jobId, string $token,
                     synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                 VALUES('relationship_state','Native NPC interaction perspective',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
             ), history AS (
-                INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                 SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                     ||jsonb_build_object('relationship_details',$15::jsonb,'interaction_result',$14::bigint,
                         'relationship_input_sha256',encode(sha256(convert_to(($13::jsonb)::text,'UTF8')),'hex'))

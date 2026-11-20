@@ -113,12 +113,12 @@ final class FalloutContentBundleTest extends DatabaseTestCase
         $ids=[];
         foreach ([0,1,1] as $index=>$rowIndex) {
             $row=$pack['npcs'][$rowIndex];$reference='0x03F0040'.($index+1);
-            $result=$db->execQuery('INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES($1,$2,$3,$4,$5) RETURNING id',
+            $result=$db->execQuery('INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES($1,$2,$3,$4,$5) RETURNING id',
                 ['fo4','bundle-fixture',$row['plugin'],$reference,$row['display_name']]);
             self::assertNotFalse($result);$identity=pg_fetch_assoc($result);$id=intval($identity['id']);$ids[]=$id;
             synth_upsert_npc_profile($db,$row['display_name'],$reference,
                 ['baseid'=>$row['plugin'].'|'.$row['baseid'],'reference_origin_plugin'=>$row['plugin']],$id);
-            self::assertNotFalse($db->execQuery('UPDATE synth.core_npc_master SET core=NULL,npc_static_bio=NULL,worldknowledge_tags=NULL,
+            self::assertNotFalse($db->execQuery('UPDATE public.core_npc SET core=NULL,npc_static_bio=NULL,worldknowledge_tags=NULL,
                 occupation=NULL,appearance=NULL,skills=NULL,speechstyle=NULL,goals=NULL,personality=$1,voiceid=$2,relationships=$3,lock_profile=$4
                 WHERE actor_identity_id=$5',['Authored profile personality.','preserved_fixture_voice','Authored profile relationships.',$index===2 ? 1 : 0,$id]));
         }
@@ -132,8 +132,8 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             'bio_templates'=>'public.core_npc_biography_template','bio_templates_custom'=>'public.core_npc_biography_template_custom',
             'bio_template_actor_map'=>'public.core_npc_biography_template_actor','descriptions'=>'public.core_item_description',
             'descriptions_custom'=>'public.core_item_description_custom','worldknowledge'=>'public.core_worldknowledge_article',
-            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'synth.core_npc_master',
-            'core_npc_master_history'=>'synth.core_npc_master_history','actor_identities'=>'synth.actor_identities',
+            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'public.core_npc',
+            'core_npc_master_history'=>'public.core_npc_history','actor_identities'=>'public.core_actor_identity',
             'core_catalog_version'=>'public.core_catalog_version'];
         foreach (['bio_templates','bio_templates_custom','bio_template_actor_map','descriptions','descriptions_custom',
             'core_npc_master','worldknowledge','worldknowledge_catalogs','core_catalog_version'] as $table) {
@@ -158,7 +158,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             self::assertSame(['BEGIN','ROLLBACK'],$this->transactionCommands($db));
             self::assertTrue($this->db()->isTransactionIdle());
             self::assertSame($before,$this->snapshot());
-            self::assertNotEmpty(array_filter($db->queries,static fn($query)=>str_starts_with($query,'UPDATE synth.core_npc_master SET')));
+            self::assertNotEmpty(array_filter($db->queries,static fn($query)=>str_starts_with($query,'UPDATE public.core_npc SET')));
             self::assertContains("DELETE FROM public.core_worldknowledge_article WHERE source_kind='factory'",$db->queries);
         } finally { $this->removeFixture($root); }
     }
@@ -203,7 +203,7 @@ final class FalloutContentBundleTest extends DatabaseTestCase
             self::assertSame('Operator-authored World Knowledge.',$this->db()->fetchOne("SELECT topic_desc FROM public.core_worldknowledge_article WHERE canonical_topic='bundle_authored'")['topic_desc']);
             self::assertSame('0',$this->db()->fetchOne("SELECT count(*) AS n FROM public.core_worldknowledge_article WHERE canonical_topic='bundle_fixture_legacy_seed'")['n']);
             foreach ($ids as $index=>$id) {
-                $profile=$this->db()->fetchOne('SELECT npc_static_bio,skills,personality,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id='.$id);
+                $profile=$this->db()->fetchOne('SELECT npc_static_bio,skills,personality,voiceid,relationships FROM public.core_npc WHERE actor_identity_id='.$id);
                 self::assertSame('Authored profile personality.',$profile['personality']);
                 self::assertSame('preserved_fixture_voice',$profile['voiceid']);
                 self::assertSame('Authored profile relationships.',$profile['relationships']);

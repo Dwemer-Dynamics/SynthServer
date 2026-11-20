@@ -68,8 +68,8 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
             'bio_templates'=>'public.core_npc_biography_template','bio_templates_custom'=>'public.core_npc_biography_template_custom',
             'bio_template_actor_map'=>'public.core_npc_biography_template_actor','descriptions'=>'public.core_item_description',
             'descriptions_custom'=>'public.core_item_description_custom','worldknowledge'=>'public.core_worldknowledge_article',
-            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'synth.core_npc_master',
-            'core_npc_master_history'=>'synth.core_npc_master_history','actor_identities'=>'synth.actor_identities',
+            'worldknowledge_catalogs'=>'public.core_worldknowledge_catalog','core_npc_master'=>'public.core_npc',
+            'core_npc_master_history'=>'public.core_npc_history','actor_identities'=>'public.core_actor_identity',
             'core_catalog_version'=>'public.core_catalog_version'];
         $state=[];
         foreach ($relations as $table=>$relation) {
@@ -139,7 +139,7 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
                    profile_id,dynamic_profile,personality,speechstyle,occupation,
                    appearance,skills,goals,metadata,extended_data,gamets_last_updated,
                    tags,md5
-            FROM synth.core_npc_master
+            FROM public.core_npc
             WHERE npc_name <> 'The Narrator'
             SQL));
         self::assertNotFalse($db->execQuery(
@@ -205,9 +205,9 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         // Deliberate remapping is an existing operator choice; the source identity must still exist.
         $base=$pack['npcs'][0];
         self::assertNotFalse($db->execQuery('UPDATE public.core_npc_biography_template_actor SET exact_name=$1 WHERE lower(base_plugin)=lower($2) AND base_local_formid=$3',['Operator mapping label.',$base['plugin'],$base['baseid']]));
-        $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','catalogue-sql-fixture','Fallout4.esm','0x00F00901','Catalogue fixture') RETURNING id");
+        $identity=$db->fetchOne("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','catalogue-sql-fixture','Fallout4.esm','0x00F00901','Catalogue fixture') RETURNING id");
         $actor=intval($identity['id']);
-        self::assertNotFalse($db->execQuery("INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,npc_static_bio,personality,voiceid,relationships,lock_profile) VALUES('Catalogue fixture',$1,NULL,'Operator profile.','fixture_voice','Operator relationship.',1)",[$actor]));
+        self::assertNotFalse($db->execQuery("INSERT INTO public.core_npc(npc_name,actor_identity_id,npc_static_bio,personality,voiceid,relationships,lock_profile) VALUES('Catalogue fixture',$1,NULL,'Operator profile.','fixture_voice','Operator relationship.',1)",[$actor]));
         $before=$this->snapshot();
         $adapter=new FalloutCatalogueSqlTestAdapter($db);
         synthInstallFalloutCatalogueSql($adapter,$this->root());

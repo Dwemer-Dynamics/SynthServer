@@ -1590,7 +1590,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         try {
             $escaped = $GLOBALS["db"]->escape($candidate);
             $row = $GLOBALS["db"]->fetchOne(
-                "SELECT 1 FROM core_npc_master WHERE LOWER(npc_name) = LOWER('{$escaped}') LIMIT 1"
+                "SELECT 1 FROM core_npc WHERE LOWER(npc_name) = LOWER('{$escaped}') LIMIT 1"
             );
             if ($row) {
                 $cache[$key] = false;

@@ -29,8 +29,8 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
             'playthrough_id'=>'test.middleterm.boundary','display_name'=>'Middleterm Same Name'];
         $actor=synth_protocol_actor_identity_id($db,$identity);
         synth_upsert_npc_profile($db,$identity['display_name'],'',[],$actor);
-        $native=$db->fetchOne('SELECT id FROM core_npc_master WHERE actor_identity_id='.$actor);
-        $legacy=$db->fetchOne("INSERT INTO core_npc_master(npc_name,md5,extended_data)
+        $native=$db->fetchOne('SELECT id FROM core_npc WHERE actor_identity_id='.$actor);
+        $legacy=$db->fetchOne("INSERT INTO core_npc(npc_name,md5,extended_data)
             VALUES ('Middleterm Same Name','".md5('middleterm-legacy-fixture')."','{}') RETURNING id");
         $keys=['SELECTED_NPC','SELECTED_NPC_ID','ONCE_PER_RUN','SYNTH_NAME','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_REQUEST_EVENT'];
         $saved=array_intersect_key($GLOBALS,array_flip($keys));
@@ -68,7 +68,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
             // Native identities are unique; reuse the explicit fixture row for the second policy through another actor.
             if ($label==='native-inherited') $actorId=synth_protocol_actor_identity_id($db,[
                 'form_id'=>'0x0002F025','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'test.middleterm.scheduler','display_name'=>'Scheduler fixture']);
-            $row=$db->fetchOne("INSERT INTO core_npc_master(npc_name,md5,profile_id,actor_identity_id,extended_data) VALUES ("
+            $row=$db->fetchOne("INSERT INTO core_npc(npc_name,md5,profile_id,actor_identity_id,extended_data) VALUES ("
                 .$db->escapeLiteral('Middleterm '.$label).','.$db->escapeLiteral(md5('middleterm-'.$label)).','.$profile['id'].','
                 .($actorId ?? 'NULL').','.$db->escapeLiteral($extended).') RETURNING id');
             if (in_array($label,['explicit','inherited'],true)) $expected[]=intval($row['id']);
@@ -127,7 +127,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
                 'voice'=>$voice,'reference_origin_plugin'=>'Fallout4.esm'
             ],$actor);
         }
-        $rows=$db->fetchAll("SELECT * FROM synth.core_npc_master WHERE npc_name='Same Name Test' ORDER BY id");
+        $rows=$db->fetchAll("SELECT * FROM public.core_npc WHERE npc_name='Same Name Test' ORDER BY id");
         $this->assertCount(3,$rows);
         $this->assertCount(3,array_unique(array_column($rows,'md5')));
         $this->assertSame(['first_voice','second_voice','other_voice'],array_column($rows,'voiceid'));
@@ -157,12 +157,12 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
         $this->assertSame($customSlot['id'],$fresh['profile_id']);
         $this->assertFalse($this->npcMaster->update(-1,['voiceid'=>'missing'],$rows[1]));
         $this->assertTrue($this->npcMaster->backupNpcById($firstRow['id'],'manual_identity_test'));
-        $history=$db->fetchOne('SELECT npc_id,md5 FROM core_npc_master_history WHERE npc_id='.intval($firstRow['id']).' ORDER BY history_id DESC LIMIT 1');
+        $history=$db->fetchOne('SELECT npc_id,md5 FROM core_npc_history WHERE npc_id='.intval($firstRow['id']).' ORDER BY history_id DESC LIMIT 1');
         $this->assertSame($firstRow['id'],$history['npc_id']);
         $this->assertSame($firstRow['md5'],$history['md5']);
         $this->npcMaster->backupAllNpcs(99);
         $this->assertSame($fresh['gamets_last_updated'],$this->npcMaster->getById($firstRow['id'])['gamets_last_updated']);
-        $this->assertSame('1',$db->fetchOne('SELECT count(*) AS n FROM core_npc_master_history WHERE npc_id='.intval($firstRow['id']))['n']);
+        $this->assertSame('1',$db->fetchOne('SELECT count(*) AS n FROM core_npc_history WHERE npc_id='.intval($firstRow['id']))['n']);
         synth_ensure_npc($db,'Same Name Test','',['voice'=>'legacy_voice']);
         $legacy=$this->npcMaster->getByName('Same Name Test');
         $this->assertNull($legacy['actor_identity_id']);
@@ -312,7 +312,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
             'extended_data' => [],
         ]));
         $row = $this->npcMaster->getByName('Piper Voice Persistence Test');
-        $GLOBALS['db']->execQuery("UPDATE synth.core_npc_master SET extended_data = '\"legacy malformed value\"'::jsonb WHERE id = " . (int)$row['id']);
+        $GLOBALS['db']->execQuery("UPDATE public.core_npc SET extended_data = '\"legacy malformed value\"'::jsonb WHERE id = " . (int)$row['id']);
 
         $metadata = [
             'voiceid' => 'femaleyoungeager',
@@ -520,7 +520,7 @@ Expertise: Cooking.";
         }
 
         $snapshotCount = $GLOBALS['db']->fetchOne(
-            "SELECT COUNT(*)::int AS count FROM core_npc_master_history
+            "SELECT COUNT(*)::int AS count FROM core_npc_history
              WHERE npc_id = " . (int)$row['id'] . "
                AND extended_data->>'_synth_history_source' = 'relationship_evaluation'"
         );
@@ -566,7 +566,7 @@ Expertise: Cooking.";
             'relationships_last_eval' => 200,
             'relationships_model' => null,
         ];
-        $this->assertTrue($GLOBALS['db']->updateRow('core_npc_master', [
+        $this->assertTrue($GLOBALS['db']->updateRow('core_npc', [
             'personality' => 'After save',
             'gamets_last_updated' => 200,
             'extended_data' => json_encode($current, JSON_THROW_ON_ERROR),
@@ -605,7 +605,7 @@ Expertise: Cooking.";
     {
         $index = $GLOBALS['db']->fetchOne(
             "SELECT indexname FROM pg_indexes
-             WHERE schemaname = 'synth' AND indexname = 'idx_core_npc_master_history_restore'"
+             WHERE schemaname = 'public' AND indexname = 'idx_core_npc_master_history_restore'"
         );
         $this->assertSame('idx_core_npc_master_history_restore', $index['indexname'] ?? null);
     }
@@ -647,7 +647,7 @@ Expertise: Cooking.";
         $this->assertNotEmpty($row);
 
         $this->assertNotFalse($GLOBALS['db']->execQuery(
-            "UPDATE core_npc_master SET extended_data='\"legacy scalar\"'::jsonb WHERE id=" . intval($row['id'])
+            "UPDATE core_npc SET extended_data='\"legacy scalar\"'::jsonb WHERE id=" . intval($row['id'])
         ));
         $corruptRow = $this->npcMaster->getById((int)$row['id']);
 
@@ -655,7 +655,7 @@ Expertise: Cooking.";
         $repairedRow = $this->npcMaster->getById((int)$row['id']);
         $this->assertSame([], json_decode((string)$repairedRow['extended_data'], true, 512, JSON_THROW_ON_ERROR));
         $this->assertSame('object', $GLOBALS['db']->fetchOne(
-            "SELECT jsonb_typeof(extended_data) AS value_type FROM core_npc_master WHERE id=" . intval($row['id'])
+            "SELECT jsonb_typeof(extended_data) AS value_type FROM core_npc WHERE id=" . intval($row['id'])
         )['value_type']);
     }
 
@@ -683,7 +683,7 @@ Expertise: Cooking.";
     public function testDatabaseUpdateFailureIsReturnedToCaller(): void
     {
         $result = $GLOBALS['db']->updateRow(
-            'core_npc_master',
+            'core_npc',
             ['column_that_does_not_exist' => 'value'],
             'id = 1'
         );

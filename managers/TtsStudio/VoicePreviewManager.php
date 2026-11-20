@@ -70,7 +70,7 @@ final class VoicePreviewManager
     {
         try {
             $rows = $GLOBALS['db']->fetchAll(
-                "SELECT id, npc_name, voiceid FROM core_npc_master WHERE coalesce(voiceid, '') <> '' ORDER BY lower(npc_name) LIMIT "
+                "SELECT id, npc_name, voiceid FROM core_npc WHERE coalesce(voiceid, '') <> '' ORDER BY lower(npc_name) LIMIT "
                 . max(1, min(1000, $limit))
             );
         } catch (Throwable) {

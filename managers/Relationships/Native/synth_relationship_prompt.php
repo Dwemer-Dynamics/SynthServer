@@ -18,7 +18,7 @@ function synth_relationship_prompt_context($db, string $npcName): string
             FROM native_ancestry current
             JOIN public.core_runtime_context c ON c.session_id=current.session_id AND c.generation=current.generation
                 AND c.snapshot_sequence=current.snapshot_sequence
-            JOIN synth.actor_identities actor ON actor.game='fo4' AND actor.playthrough_id=c.playthrough_id
+            JOIN public.core_actor_identity actor ON actor.game='fo4' AND actor.playthrough_id=c.playthrough_id
                 AND (actor.id=c.player_identity_id OR actor.id=c.target_identity_id
                     OR c.audience_identity_ids @> jsonb_build_array(actor.id))
             LEFT JOIN LATERAL (SELECT r.* FROM native_relationships r WHERE r.subject_identity_id=actor.id

@@ -60,7 +60,7 @@ function synthAiResponseSafeFetchAll($db, $query)
 function synthAiResponseSafeDeleteLog($db)
 {
     try {
-        $db->delete("log", "true");
+        $db->delete("core_log", "true");
         return true;
     } catch (Throwable $exception) {
         if (class_exists('Logger')) {
@@ -740,7 +740,7 @@ if ($cleanLogRequested) {
     exit;
 }
 
-$totalRow = synthAiResponseSafeFetchAll($db, "SELECT COUNT(*) AS total FROM log");
+$totalRow = synthAiResponseSafeFetchAll($db, "SELECT COUNT(*) AS total FROM core_log");
 $totalRecords = intval($totalRow[0]["total"] ?? 0);
 $totalPages = max(1, (int)ceil($totalRecords / $limit));
 
@@ -748,7 +748,7 @@ if (isset($_GET["export"]) && ($_GET["export"] === "1" || $_GET["export"] === "l
     $allRows = synthAiResponseSafeFetchAll(
         $db,
         "SELECT A.*, ROWID
-         FROM log a
+         FROM core_log a
          ORDER BY localts DESC, rowid DESC"
     );
 
@@ -789,7 +789,7 @@ if (isset($_GET["export"]) && ($_GET["export"] === "1" || $_GET["export"] === "l
 $rows = synthAiResponseSafeFetchAll(
     $db,
     "SELECT A.*, ROWID
-     FROM log a
+     FROM core_log a
      ORDER BY localts DESC, rowid DESC
      LIMIT " . intval($limit) . " OFFSET " . intval($offset)
 );

@@ -17,7 +17,7 @@ final class NativeWaitFixtureDatabase extends sql
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
             synth_protocol_assert_request_active();
             $canonical=synth_protocol_canonical_json($event);
-            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result=$this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
             if (!pg_fetch_assoc($result)) throw new LogicException('wait_fixture_canonical_owner_changed');
@@ -88,7 +88,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
     private function persistOwner(): void
     {
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
-        $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
+        $this->database->execQuery("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES('wait-session','wait-request','wait-turn',1,$1,$2,'claimed')
             ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$1,event_type=$2",[$hash,$this->event['type']]);
         $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
@@ -249,7 +249,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
             synth_jev_prepare_actions($this->database, $this->event, null,
                 static fn()=>['model'=>'typesafe/jev-1.13','key'=>'fixture'],
                 function (): array {
-                    $this->database->execQuery("UPDATE synth_meta.request_executions SET error_code='turn_cancelled' WHERE request_id='wait-request'");
+                    $this->database->execQuery("UPDATE public.core_request_execution SET error_code='turn_cancelled' WHERE request_id='wait-request'");
                     return ['answers'=>['action'=>['type'=>'choice','choice'=>'WaitHere','confidence'=>0.99]]];
                 });
         } finally {
@@ -465,7 +465,7 @@ final class NativeWaitActionTest extends DatabaseTestCase
 
     public function testDirectIntentRetainsCancellationAndCanonicalOwnershipChecks(): void
     {
-        $this->database->execQuery("UPDATE synth_meta.request_executions SET state='cancelled' WHERE request_id='wait-request'");
+        $this->database->execQuery("UPDATE public.core_request_execution SET state='cancelled' WHERE request_id='wait-request'");
         $this->expectException(SYNTHProtocolCancelled::class);
         synth_protocol_record_action_intent($this->database,$this->intent());
     }

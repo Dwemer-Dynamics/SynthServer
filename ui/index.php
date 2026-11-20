@@ -164,7 +164,7 @@ if ($indexAction !== '') {
   $db->delete('core_memory', "rowid = " . intval($_POST['rowid']));
   $redirect = "index.php?table=memory_summary&deleted=1";
  } elseif ($indexAction === 'clean_log') {
-  $db->delete("log", "true");
+  $db->delete("core_log", "true");
   $redirect = "index.php?table=log";
  } else {
   while (@ob_end_clean());
@@ -184,7 +184,7 @@ if (isset($_GET["export"]) && ($_GET["export"] == "log")) {
  header("Content-Type: text/csv");
  header("Content-Disposition: attachment; filename=log.csv");
 
- $data = $db->fetchAll("select response,url,prompt,rowid from log order by rowid desc");
+ $data = $db->fetchAll("select response,url,prompt,rowid from core_log order by rowid desc");
  $n = 0;
  foreach ($data as $row) {
  if ($n == 0) {
@@ -234,7 +234,7 @@ if (isset($_POST["command"])) {
  trim(strval($_POST["parameter"] ?? "")) !== "" ? [trim(strval($_POST["parameter"]))] : []
  );
  $db->insert(
- 'responselog',
+ 'core_response_log',
  array(
  'localts' => time(),
  'sent' => 0,
@@ -248,7 +248,7 @@ if (isset($_POST["command"])) {
 
 if (isset($_POST["animation"])) {
  $db->insert(
- 'responselog',
+ 'core_response_log',
  array(
  'localts' => time(),
  'sent' => 0,
@@ -271,7 +271,7 @@ if (isset($_POST["animation"])) {
  if (file_exists("index_custom.php")) include_once("index_custom.php"); // custom actions extension
 
  if (isset($_GET["table"]) && ($_GET["table"] == "responselog")) {
- $results = $db->fetchAll("select A.*,ROWID FROM responselog a order by ROWID asc");
+ $results = $db->fetchAll("select A.*,ROWID FROM core_response_log a order by ROWID asc");
  echo "<h1 class='my-2'>Response Queue</h1>";
  print_array_as_table($results);
  }
@@ -566,7 +566,7 @@ if (isset($_POST["animation"])) {
 
  $results = $db->fetchAll(
  "SELECT A.*, ROWID
- FROM log a
+ FROM core_log a
  ORDER BY localts DESC, rowid DESC
  LIMIT $limit OFFSET $offset"
  );
