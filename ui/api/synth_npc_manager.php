@@ -63,7 +63,7 @@ function synthNpcManagerFindNpc(array $input): array
     if ($id <= 0) {
         throw new InvalidArgumentException('NPC id is required');
     }
-    $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_npc_master WHERE id = {$id} LIMIT 1");
+    $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_npc WHERE id = {$id} LIMIT 1");
     if (!is_array($row)) {
         throw new InvalidArgumentException('NPC not found');
     }
@@ -82,9 +82,9 @@ function synthNpcManagerList(): array
         $conditions[] = "(npc_name ILIKE '{$escapedSearch}' OR race ILIKE '{$escapedSearch}' OR refid ILIKE '{$escapedSearch}')";
     }
     $where = implode(' AND ', $conditions);
-    $countRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS total FROM core_npc_master WHERE {$where}");
+    $countRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS total FROM core_npc WHERE {$where}");
     $rows = \Synth\Bootstrap::db()->fetchAll(
-        "SELECT id, npc_name FROM core_npc_master WHERE {$where} ORDER BY npc_name ASC, id ASC LIMIT {$limit} OFFSET {$offset}"
+        "SELECT id, npc_name FROM core_npc WHERE {$where} ORDER BY npc_name ASC, id ASC LIMIT {$limit} OFFSET {$offset}"
     );
 
     return [
@@ -400,7 +400,7 @@ function synthNpcManagerSaveReturnLocation(int $npcId, ?array $returnLocation): 
 {
     if ($returnLocation === null) {
         return \Synth\Bootstrap::db()->execQuery(
-            "UPDATE core_npc_master SET metadata = COALESCE(metadata, '{}'::jsonb) - 'npc_manager_return_location' WHERE id = {$npcId}"
+            "UPDATE core_npc SET metadata = COALESCE(metadata, '{}'::jsonb) - 'npc_manager_return_location' WHERE id = {$npcId}"
         ) !== false;
     }
 
@@ -409,7 +409,7 @@ function synthNpcManagerSaveReturnLocation(int $npcId, ?array $returnLocation): 
         return false;
     }
     return \Synth\Bootstrap::db()->execQuery(
-        "UPDATE core_npc_master SET metadata = jsonb_set(" .
+        "UPDATE core_npc SET metadata = jsonb_set(" .
         "COALESCE(metadata, '{}'::jsonb), '{npc_manager_return_location}', '" .
         \Synth\Bootstrap::db()->escape($encoded) . "'::jsonb, true) WHERE id = {$npcId}"
     ) !== false;

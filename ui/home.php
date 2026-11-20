@@ -256,7 +256,7 @@ function synth_home_word_cloud_words(array $rows): array
 }
 
 $hasEventlog = synth_home_table_exists($db, 'core_context_event');
-$hasNpcMaster = synth_home_table_exists($db, 'core_npc_master');
+$hasNpcMaster = synth_home_table_exists($db, 'core_npc');
 $hasDiary = synth_home_table_exists($db, 'core_memory');
 $hasMemorySummary = synth_home_table_exists($db, 'core_memory');
 $hasConfOpts = synth_home_table_exists($db, 'core_config_setting');
@@ -265,14 +265,14 @@ $hasLlmConnector = synth_home_table_exists($db, 'core_llm_connector');
 $hasLocations = synth_home_table_exists($db, 'core_location_legacy');
 $hasGamePlugins = synth_home_table_exists($db, 'core_plugins');
 $hasQuests = synth_home_table_exists($db, 'core_quest');
-$hasAuditRequest = synth_home_table_exists($db, 'audit_request');
+$hasAuditRequest = synth_home_table_exists($db, 'core_audit_request');
 $hasBioTemplates = synth_home_table_exists($db, 'core_npc_biography_template');
 $hasWorldKnowledge = synth_home_table_exists($db, 'core_worldknowledge_article');
 $hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_catalog');
 
 $eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event", 'total', 0) : 0;
 $chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event WHERE type='chat'", 'total', 0) : 0;
-$npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc_master", 'total', 0) : 0;
+$npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc", 'total', 0) : 0;
 $diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='diary'", 'total', 0) : 0;
 $memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='summary'", 'total', 0) : 0;
 
@@ -348,7 +348,7 @@ if ($hasAuditRequest) {
         '7d' => "created_at >= NOW() - INTERVAL '7 DAYS'",
         'lifetime' => 'TRUE',
     ] as $period => $condition) {
-        $rows = synth_home_rows($db, "SELECT COUNT(*) FILTER (WHERE result='Ok') AS success, COUNT(*) AS total FROM audit_request WHERE {$condition}");
+        $rows = synth_home_rows($db, "SELECT COUNT(*) FILTER (WHERE result='Ok') AS success, COUNT(*) AS total FROM core_audit_request WHERE {$condition}");
         if (isset($rows[0])) {
             $llmStats[$period] = $rows[0];
         }

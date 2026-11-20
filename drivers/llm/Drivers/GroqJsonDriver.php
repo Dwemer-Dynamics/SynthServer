@@ -412,7 +412,7 @@ class GroqJsonDriver
 
             if (\Synth\Bootstrap::db()) {
                 \Synth\Bootstrap::db()->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"],
@@ -435,7 +435,7 @@ class GroqJsonDriver
 
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message,
@@ -561,7 +561,7 @@ class GroqJsonDriver
         if ($json_response) {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => "Ok",
@@ -575,7 +575,7 @@ class GroqJsonDriver
         else {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => (!empty($this->_buffer))?"Ok":"ERROR|INVALID JSON RESPONSE",

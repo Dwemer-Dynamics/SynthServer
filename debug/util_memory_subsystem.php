@@ -259,7 +259,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         $pfi = 100000;
     }
 
-    $allNpcs = $db->fetchAll("SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc_master WHERE npc_name IS NOT NULL ORDER BY npc_name ASC");
+    $allNpcs = $db->fetchAll("SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC");
     $enabledNpcs = [];
     foreach ($allNpcs as $npcRow) {
         if (($npcRow["npc_name"] ?? '') === "The Narrator") {

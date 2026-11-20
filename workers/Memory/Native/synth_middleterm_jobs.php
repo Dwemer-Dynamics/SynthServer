@@ -115,7 +115,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Narrative worker requires an idle database connection.');
     $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256,e.event_type,j.payload->>'context_sequence' AS context_sequence
-        FROM public.core_worker_job j JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
+        FROM public.core_worker_job j JOIN public.core_request_execution e USING(session_id,request_id,generation,turn_id)
         JOIN public.core_protocol_event p USING(session_id,request_id,generation,turn_id,event_type)
         JOIN public.core_middleterm_input i ON i.id=j.middleterm_input_id AND i.actor_identity_id=j.actor_identity_id
             AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
@@ -163,7 +163,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                     INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                     SELECT 'middleterm_result','Accepted native narrative memory',$3,$4,$5,$5,'','','','derived',$6,$7,$8,$9 FROM accepted RETURNING *
                 ), history AS (
-                    INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                    INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                     SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$3,rowid,to_jsonb(publication)
                         ||jsonb_build_object('middleterm_input_sha256',$10::text,'middleterm_narrative',$11::text,
                             'middleterm_result_sha256',encode(sha256(convert_to($11::text,'UTF8')),'hex')) FROM publication RETURNING id
@@ -223,7 +223,7 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
         THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
         WHERE job_type='middleterm' AND state IN ('pending','running') AND (deadline_at<=clock_timestamp()
             OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp())) OR NOT EXISTS(
-                SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
+                SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
                 WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                     AND r.active_turn_id=j.turn_id AND r.active_turn_sequence::text=j.payload->>'context_sequence'
                     AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'))")===false) {
@@ -242,7 +242,7 @@ function synth_middleterm_dispatch($db, ?callable $generate=null): ?int
                     SELECT r.session_id,o.request_id,o.turn_id,o.generation,o.event_type,o.canonical_event,o.event_sha256,
                         r.active_turn_sequence AS context_sequence
                     FROM public.core_runtime_session r CROSS JOIN LATERAL (
-                        SELECT e.*,p.canonical_event,p.event_sha256 FROM synth_meta.request_executions e
+                        SELECT e.*,p.canonical_event,p.event_sha256 FROM public.core_request_execution e
                         JOIN public.core_protocol_event p USING(session_id,request_id,generation,turn_id,event_type)
                         WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.turn_id=r.active_turn_id
                             AND e.state='complete' AND p.event_sha256=e.request_sha256

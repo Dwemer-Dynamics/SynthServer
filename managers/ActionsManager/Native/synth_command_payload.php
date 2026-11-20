@@ -179,7 +179,7 @@ function synthQueueCommandResponse(string $speaker, string $commandName, array $
     }
 
     \Synth\Bootstrap::db()->insert(
-        'responselog',
+        'core_response_log',
         [
             'localts' => time(),
             'sent' => 0,

@@ -18,7 +18,7 @@ function synth_relationship_pair_evidence_cte(): string
             AND j.actor_identity_id=i.speaker_identity_id AND j.payload->>'context_sequence'=i.context_sequence::text
         JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
             AND c.snapshot_sequence=i.context_sequence AND c.playthrough_id=i.playthrough_id
-        JOIN synth_meta.request_executions owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
+        JOIN public.core_request_execution owner ON owner.session_id=i.session_id AND owner.request_id=i.request_id
             AND owner.generation=i.generation AND owner.turn_id=j.turn_id
         JOIN public.core_protocol_event protocol ON protocol.session_id=i.session_id AND protocol.request_id=i.request_id
             AND protocol.generation=i.generation AND protocol.turn_id=j.turn_id AND protocol.event_type=owner.event_type
@@ -31,7 +31,7 @@ function synth_relationship_pair_evidence_cte(): string
             AND runtime.game='fo4' AND runtime.runtime_variant=i.owner_event->>'runtime_variant'
         JOIN public.core_relationship_response_input receipt ON receipt.session_id=i.session_id
             AND receipt.request_id=i.request_id AND receipt.actor_identity_id=i.speaker_identity_id
-        JOIN synth_meta.history_events speech ON speech.id=receipt.history_event_id AND speech.session_id=i.session_id
+        JOIN public.core_history_event speech ON speech.id=receipt.history_event_id AND speech.session_id=i.session_id
             AND speech.generation=i.generation AND speech.context_sequence=i.context_sequence AND speech.request_id=i.request_id
             AND speech.playthrough_id=i.playthrough_id AND speech.id<i.history_event_id
         WHERE i.owner_event->>'protocol_version'='2' AND i.owner_event->>'type'='trigger'
@@ -78,15 +78,15 @@ function synth_relationship_pair_evidence_cte(): string
             parent_owner.state AS parent_execution_state,parent_owner.error_code AS parent_execution_error,
             parent_owner.response_body AS parent_execution_body,parent_owner.event_type AS parent_execution_type
         FROM interaction_rechat_prepared i
-        JOIN synth.actor_identities speaker ON speaker.id=i.speaker_identity_id AND speaker.game='fo4'
+        JOIN public.core_actor_identity speaker ON speaker.id=i.speaker_identity_id AND speaker.game='fo4'
             AND speaker.playthrough_id=i.playthrough_id AND upper(speaker.full_form_id)=upper(i.reply_identity->>'form_id')
             AND lower(speaker.origin_plugin)=lower(i.reply_identity->>'origin_plugin')
             AND speaker.playthrough_id=i.reply_identity->>'playthrough_id'
-        JOIN synth.actor_identities player ON player.id=i.owner_player_identity_id AND player.game='fo4'
+        JOIN public.core_actor_identity player ON player.id=i.owner_player_identity_id AND player.game='fo4'
             AND player.playthrough_id=i.playthrough_id AND upper(player.full_form_id)=upper(i.owner_context#>>'{player,form_id}')
             AND lower(player.origin_plugin)=lower(i.owner_context#>>'{player,origin_plugin}')
             AND player.playthrough_id=i.owner_context#>>'{player,playthrough_id}'
-        JOIN synth_meta.request_executions parent_owner ON parent_owner.session_id=i.session_id
+        JOIN public.core_request_execution parent_owner ON parent_owner.session_id=i.session_id
             AND parent_owner.request_id=i.proven_parent_request_id AND parent_owner.generation=i.generation
             AND parent_owner.turn_id=i.owner_event->>'turn_id'
         JOIN public.core_protocol_event parent ON parent.session_id=parent_owner.session_id AND parent.request_id=parent_owner.request_id
@@ -105,9 +105,9 @@ function synth_relationship_pair_evidence_cte(): string
         SELECT i.* FROM interaction_rechat_parent i
         JOIN public.core_relationship_response_input parent_receipt ON parent_receipt.session_id=i.session_id
             AND parent_receipt.request_id=i.proven_parent_request_id AND parent_receipt.response_sha256=i.proven_parent_response_sha256
-        JOIN synth.actor_identities parent_actor ON parent_actor.id=parent_receipt.actor_identity_id
+        JOIN public.core_actor_identity parent_actor ON parent_actor.id=parent_receipt.actor_identity_id
             AND parent_actor.game='fo4' AND parent_actor.playthrough_id=i.playthrough_id
-        JOIN synth_meta.history_events parent_speech ON parent_speech.id=parent_receipt.history_event_id
+        JOIN public.core_history_event parent_speech ON parent_speech.id=parent_receipt.history_event_id
             AND parent_speech.session_id=i.session_id AND parent_speech.generation=i.generation
             AND parent_speech.context_sequence=i.context_sequence AND parent_speech.request_id=i.proven_parent_request_id
             AND parent_speech.playthrough_id=i.playthrough_id AND parent_speech.id<i.owner_response_history_event_id
@@ -134,7 +134,7 @@ function synth_relationship_pair_evidence_cte(): string
                 AND jsonb_array_length(parent_receipt.response_payload->'input_events')=(SELECT count(*) FROM public.core_relationship_response_source source
                     WHERE source.response_history_event_id=parent_receipt.history_event_id)
                 AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(parent_receipt.response_payload->'input_events') item WHERE NOT EXISTS(
-                    SELECT 1 FROM public.core_relationship_response_source source JOIN synth_meta.history_events raw ON raw.id=source.source_history_event_id
+                    SELECT 1 FROM public.core_relationship_response_source source JOIN public.core_history_event raw ON raw.id=source.source_history_event_id
                     WHERE source.response_history_event_id=parent_receipt.history_event_id AND to_jsonb(raw.id)=item->'id' AND raw.id<parent_speech.id
                         AND raw.session_id=i.session_id AND raw.generation=i.generation AND raw.request_id=i.proven_parent_request_id
                         AND raw.context_sequence=i.context_sequence AND raw.playthrough_id=i.playthrough_id

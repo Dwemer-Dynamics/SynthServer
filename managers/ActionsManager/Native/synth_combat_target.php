@@ -255,7 +255,7 @@ function synth_combat_identification_reply($db,array $event,?string $transcript=
             (c.received_at<=e.claimed_at AND c.received_at>=e.claimed_at-INTERVAL '10 seconds'
              AND e.claimed_at>=clock_timestamp()-INTERVAL '30 seconds') AS combat_frame_fresh
         FROM public.core_protocol_event p
-        JOIN synth_meta.request_executions e USING(session_id,request_id)
+        JOIN public.core_request_execution e USING(session_id,request_id)
         JOIN public.core_runtime_session r USING(session_id)
         JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation AND c.snapshot_sequence=$sequence
         WHERE p.session_id=$session AND p.request_id=$request AND p.generation=$generation AND p.turn_id=$turn

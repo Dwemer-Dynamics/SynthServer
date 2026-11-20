@@ -617,7 +617,7 @@ if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narr
         $npcTarget = '';
         $activeProfileForRewrite = synthRuntimeGetActiveProfile();
         if ($activeProfileForRewrite !== null && $activeProfileForRewrite !== md5('The Narrator')) {
-            $npcRow = $db->fetchOne("SELECT npc_name FROM core_npc_master WHERE md5='" . $db->escape($activeProfileForRewrite) . "' LIMIT 1");
+            $npcRow = $db->fetchOne("SELECT npc_name FROM core_npc WHERE md5='" . $db->escape($activeProfileForRewrite) . "' LIMIT 1");
             if ($npcRow && !empty($npcRow['npc_name'])) {
                 $npcTarget = $npcRow['npc_name'];
             }
@@ -905,7 +905,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
 
             if ($fallbackNpcName !== null && strcasecmp($fallbackNpcName, "The Narrator") !== 0) {
                 $escapedNpcName = $db->escape($fallbackNpcName);
-                $fallbackNpcData = $db->fetchOne("SELECT * FROM core_npc_master WHERE lower(npc_name)=lower('{$escapedNpcName}') LIMIT 1");
+                $fallbackNpcData = $db->fetchOne("SELECT * FROM core_npc WHERE lower(npc_name)=lower('{$escapedNpcName}') LIMIT 1");
                 if ($fallbackNpcData) {
                     $npcMaster->setOldGlobalsFromCurrentNpcData($fallbackNpcData, false);
                     $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $fallbackNpcData;
@@ -1988,7 +1988,7 @@ if ($executionMode=="INJECTION_LOG") {
 // What is this for?
 if ($gameRequest[0] === "continue" && empty($GLOBALS["RECHAT_PREVIOUS_SPEAKER"])) {
     try {
-        $lastSpeechRow = $db->fetchOne("SELECT speaker FROM speech ORDER BY rowid DESC LIMIT 1");
+        $lastSpeechRow = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
         $GLOBALS["RECHAT_PREVIOUS_SPEAKER"] = trim((string)($lastSpeechRow["speaker"] ?? ""));
     } catch (\Throwable $e) {
         $GLOBALS["RECHAT_PREVIOUS_SPEAKER"] = "";
@@ -3263,7 +3263,7 @@ if (sizeof($talkedSoFar) == 0) {
     if (sizeof($alreadysent) > 0) { // AI only issued commands
 
         $db->insert(
-            'log',
+            'core_log',
             array(
                 'localts' => time(),
                 'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
@@ -3297,7 +3297,7 @@ if (sizeof($talkedSoFar) == 0) {
 
         //returnLines(array($randomSentence));
         $db->insert(
-            'log',
+            'core_log',
             array(
                 'localts' => time(),
                 'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
@@ -3313,7 +3313,7 @@ if (sizeof($talkedSoFar) == 0) {
 
     if (sizeof($alreadysent) > 0) { // AI only issued commands
         $db->insert(
-            'log',
+            'core_log',
             array(
                 'localts' => time(),
                 'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
@@ -3353,7 +3353,7 @@ if (sizeof($talkedSoFar) == 0) {
 
                 // Update the most recent player speech entry with the LLM-generated text
                 $db->execQuery(
-                    "UPDATE speech
+                    "UPDATE core_speech
                      SET speech = '{$transformedSpeech}'
                      WHERE speaker ILIKE '{$playerName}'
                      AND gamets >= {$currentGamets} - 100

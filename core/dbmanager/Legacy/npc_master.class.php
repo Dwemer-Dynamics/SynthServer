@@ -129,10 +129,10 @@ if (!function_exists('synthRelationshipRestoreQuery')) {
 
         return "WITH restore AS (
             SELECT c.id AS npc_id, h.extended_data
-            FROM {$schema}.core_npc_master c
+            FROM public.core_npc c
             JOIN LATERAL (
                 SELECT h.extended_data
-                FROM {$schema}.core_npc_master_history h
+                FROM public.core_npc_history h
                 WHERE h.npc_id = c.id
                   AND (h.gamets_last_updated <= {$timestamp} OR h.gamets_last_updated IS NULL)
                 ORDER BY
@@ -150,7 +150,7 @@ if (!function_exists('synthRelationshipRestoreQuery')) {
               AND NOT COALESCE((c.extended_data->>'relationships_locked')::boolean, false)
         ),
         updated AS (
-            UPDATE {$schema}.core_npc_master c
+            UPDATE public.core_npc c
             SET extended_data = (
                 COALESCE(c.extended_data, '{}'::jsonb)
                 - 'relationships' - 'relationships_analyzed' - 'relationships_inferred'
@@ -181,7 +181,7 @@ if (!function_exists('synthRelationshipFutureClearQuery')) {
         $timestamp = (float)$timestamp;
 
         return "WITH cleared AS (
-            UPDATE {$schema}.core_npc_master AS c
+            UPDATE public.core_npc AS c
             SET extended_data = c.extended_data
                 - 'relationships' - 'relationships_analyzed' - 'relationships_inferred'
                 - 'relationships_last_eval' - 'relationships_model' - 'relationships_updated'
@@ -192,7 +192,7 @@ if (!function_exists('synthRelationshipFutureClearQuery')) {
               AND c.extended_data ? 'relationships'
               AND NOT COALESCE((c.extended_data->>'relationships_locked')::boolean, false)
               AND NOT EXISTS (
-                  SELECT 1 FROM {$schema}.core_npc_master_history h
+                  SELECT 1 FROM public.core_npc_history h
                   WHERE h.npc_id = c.id
                     AND (h.gamets_last_updated <= {$timestamp} OR h.gamets_last_updated IS NULL)
                     AND h.extended_data IS NOT NULL
@@ -219,7 +219,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             // Native relationship/profile revisions use their owned history writers, not the legacy timestamp lane.
             if (synth_npc_native_request()) return false;
             if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
-                $profile=\Synth\Bootstrap::db()->fetchOne('SELECT actor_identity_id FROM core_npc_master WHERE id='.$npcId);
+                $profile=\Synth\Bootstrap::db()->fetchOne('SELECT actor_identity_id FROM core_npc WHERE id='.$npcId);
                 if (!empty($profile['actor_identity_id'])) return false;
             }
 
@@ -234,13 +234,13 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             }
 
             if ($gamets > 0 && \Synth\Bootstrap::db()->execQuery(
-                "UPDATE core_npc_master SET gamets_last_updated = {$gamets} WHERE id = {$npcId}"
+                "UPDATE core_npc SET gamets_last_updated = {$gamets} WHERE id = {$npcId}"
             ) === false) {
                 throw new RuntimeException('failed to stamp game timestamp');
             }
 
             $current = \Synth\Bootstrap::db()->fetchOne(
-                "SELECT extended_data FROM core_npc_master WHERE id = {$npcId} LIMIT 1"
+                "SELECT extended_data FROM core_npc WHERE id = {$npcId} LIMIT 1"
             );
             if (!$current) {
                 throw new RuntimeException('NPC row not found after relationship write');
@@ -254,7 +254,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
                 ? "AND (gamets_last_updated <= {$gamets} OR gamets_last_updated IS NULL)"
                 : '';
             $historyQuery = "SELECT extended_data
-                FROM core_npc_master_history
+                FROM core_npc_history
                 WHERE npc_id = {$npcId} {$eligibleClause}
                 ORDER BY gamets_last_updated DESC NULLS LAST,
                     CASE
@@ -298,7 +298,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
 
 class NpcMaster
 {
-    private $table = "core_npc_master";
+    private $table = "core_npc";
     private $db;
     private string $lastError = '';
 
@@ -1443,7 +1443,7 @@ class NpcMaster
                 $extended['_synth_history_source'] = trim($source);
                 $npc['extended_data'] = json_encode($extended, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             }
-            return $this->db->insert('core_npc_master_history', $npc);
+            return $this->db->insert('core_npc_history', $npc);
         });
     }
 
@@ -1464,7 +1464,7 @@ class NpcMaster
         // Insert all NPCs into history table in a single query
         $createdTimestamp = date('Y-m-d H:i:s');
         $insertQuery = "
-            INSERT INTO core_npc_master_history (
+            INSERT INTO core_npc_history (
                 npc_id, npc_name, npc_favorite, lock_profile, prompt_head, npc_static_bio,
                 worldknowledge_tags, emote_moods, personality, relationships,
                 occupation, skills, speechstyle, goals, voiceid, metadata,
@@ -1478,7 +1478,7 @@ class NpcMaster
                 gender, race, refid, profile_id, dynamic_profile,
                 jsonb_set(COALESCE(extended_data, '{}'::jsonb), '{_synth_history_source}', '\"infosave\"'::jsonb, true),
                 md5, $timestamp, core, base, tags, appearance, '{$createdTimestamp}'
-            FROM core_npc_master WHERE actor_identity_id IS NULL
+            FROM core_npc WHERE actor_identity_id IS NULL
         ";
         \Synth\Bootstrap::db()->execQuery($insertQuery);
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC BACKUP', "" . date('Y-m-d H:i:s') . ", NPCs backup made in " . (time() - $startTime) . " secs ");
@@ -1498,13 +1498,13 @@ class NpcMaster
         $startTime = time();
         // Preserve user-controlled memory, diary, and locked relationship settings while rolling back save-scoped history.
         $query = "WITH deleted AS (
-    DELETE FROM core_npc_master AS c
+    DELETE FROM core_npc AS c
     WHERE c.npc_name<>'The Narrator' AND c.actor_identity_id IS NULL and COALESCE(c.lock_profile,0)=0
     and COALESCE(c.gamets_last_updated,0)>0
     and (
         NOT {$preserveRelationshipDataSql}
         OR EXISTS (
-            SELECT 1 FROM core_npc_master_history eligible_history
+            SELECT 1 FROM core_npc_history eligible_history
             WHERE eligible_history.npc_id = c.id
               AND (eligible_history.gamets_last_updated <= $timestamp OR eligible_history.gamets_last_updated IS NULL)
         )
@@ -1581,7 +1581,7 @@ restore AS (
     FROM persistent d
     JOIN LATERAL (
         SELECT h.*
-        FROM core_npc_master_history h
+        FROM core_npc_history h
         WHERE h.npc_id = d.id
           AND (h.gamets_last_updated <= $timestamp OR h.gamets_last_updated IS NULL)
         ORDER BY h.gamets_last_updated DESC NULLS LAST,
@@ -1590,7 +1590,7 @@ restore AS (
         LIMIT 1
     ) h ON true
 )
-INSERT INTO core_npc_master (
+INSERT INTO core_npc (
     id, npc_name, npc_favorite, lock_profile, prompt_head, npc_static_bio,
     worldknowledge_tags, emote_moods, personality, relationships,
     occupation, skills, speechstyle, goals, voiceid, metadata,
@@ -1676,12 +1676,12 @@ FROM restore
 
         // speech.speaker and speech.listener
         \Synth\Bootstrap::db()->execQuery("
-                    UPDATE speech
+                    UPDATE core_speech
                     SET speaker = '$newName'
                     WHERE speaker = '$oldName'
                 ");
         \Synth\Bootstrap::db()->execQuery("
-                    UPDATE speech
+                    UPDATE core_speech
                     SET listener = '$newName'
                     WHERE listener = '$oldName'
                 ");

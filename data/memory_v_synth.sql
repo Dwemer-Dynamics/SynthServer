@@ -83,7 +83,7 @@ FROM (
            speech.speaker,
            speech.listener,
            speech.ts
-    FROM synth.speech
+    FROM public.core_speech speech
     WHERE speech.speech <> ''::text
 
     UNION ALL

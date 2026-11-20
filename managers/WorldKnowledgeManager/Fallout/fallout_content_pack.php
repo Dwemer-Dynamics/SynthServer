@@ -44,7 +44,7 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
         }
         if ($fillExistingProfiles) {
             $names=array_column($pack['npcs'],'npc_name');
-            $profiles=$db->fetchAll('SELECT n.*,a.origin_plugin FROM synth.core_npc_master n JOIN synth.actor_identities a ON a.id=n.actor_identity_id WHERE COALESCE(n.lock_profile,0)<>1 ORDER BY n.id FOR UPDATE OF n');
+            $profiles=$db->fetchAll('SELECT n.*,a.origin_plugin FROM public.core_npc n JOIN public.core_actor_identity a ON a.id=n.actor_identity_id WHERE COALESCE(n.lock_profile,0)<>1 ORDER BY n.id FOR UPDATE OF n');
             foreach ($profiles ?: [] as $profile) {
                 $template=synth_fetch_bio_template($db,$profile['npc_name'],$profile['refid'] ?? '',$profile['base'] ?? '',$profile['origin_plugin']);
                 if (!$template || !in_array($template['npc_name'],$names,true)) continue;
@@ -63,7 +63,7 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
                 }
                 if ($updates!==[]) {
                     $values[]=intval($profile['id']);
-                    if ($db->execQuery('UPDATE synth.core_npc_master SET '.implode(',',$updates).' WHERE id=$'.count($values).' AND COALESCE(lock_profile,0)<>1',$values)===false)
+                    if ($db->execQuery('UPDATE public.core_npc SET '.implode(',',$updates).' WHERE id=$'.count($values).' AND COALESCE(lock_profile,0)<>1',$values)===false)
                         throw new RuntimeException('Unable to fill existing NPC profile');
                     ++$filled;
                 }

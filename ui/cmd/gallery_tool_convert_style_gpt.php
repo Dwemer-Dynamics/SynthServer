@@ -58,7 +58,7 @@ require_once __DIR__ . '/../../lib/classes/Logger.php';
         if (preg_match('/^[0-9A-F]{8}$/i', $filename)) {
             $refid = strtoupper($filename); // Normalize to uppercase if needed
 
-            $npcData = $db->fetchOne("SELECT gender, race FROM core_npc_master WHERE refid = '$refid'");
+            $npcData = $db->fetchOne("SELECT gender, race FROM core_npc WHERE refid = '$refid'");
 
             if ($npcData) {
                 $gender = $npcData['gender'];

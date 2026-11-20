@@ -27,9 +27,9 @@ function synth_rechat_assert_live_selection($connection, array $event, array $se
     if ($selection['role']==='terminal') return;
     if ($selection['role']==='npc') {
         $identity=$selection['identity'];
-        $result=@pg_query_params($connection,"SELECT 1 FROM synth.core_npc_master n
+        $result=@pg_query_params($connection,"SELECT 1 FROM public.core_npc n
             JOIN public.core_profiles p ON p.id=n.profile_id
-            JOIN synth.actor_identities a ON a.id=n.actor_identity_id AND a.game='fo4'
+            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id AND a.game='fo4'
             JOIN public.core_runtime_session r ON r.session_id=$1 AND r.playthrough_id=a.playthrough_id
             WHERE n.id=$2 AND n.actor_identity_id=$3 AND p.id=$4
                 AND upper(a.full_form_id)=upper($5) AND lower(a.origin_plugin)=lower($6) AND a.playthrough_id=$7
@@ -81,7 +81,7 @@ function synth_rechat_prepare_continuation($db, array $event): array
                 }
                 $originCanonical=synth_protocol_canonical_json($origin);
                 $result=@pg_query_params($connection,"SELECT d.policy FROM public.core_dialogue_origin_policy d
-                    JOIN synth_meta.request_executions e USING(session_id,request_id)
+                    JOIN public.core_request_execution e USING(session_id,request_id)
                     JOIN public.core_protocol_event p USING(session_id,request_id)
                     WHERE d.session_id=$1 AND d.request_id=$2 AND e.state='complete'
                         AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256",

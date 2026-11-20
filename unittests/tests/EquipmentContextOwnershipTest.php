@@ -31,9 +31,9 @@ final class EquipmentContextOwnershipTest extends DatabaseTestCase
         $db = $GLOBALS['db'] ??= new sql();
         $player = ['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'equipment-owned-save','display_name'=>'Stu'];
         $target = ['form_id'=>'0x0001A4D8','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'equipment-owned-save','display_name'=>'Sturges'];
-        $playerId = intval($db->fetchOne("INSERT INTO synth.actor_identities(game,full_form_id,origin_plugin,playthrough_id,display_name)
+        $playerId = intval($db->fetchOne("INSERT INTO public.core_actor_identity(game,full_form_id,origin_plugin,playthrough_id,display_name)
             VALUES('fo4','0x00000014','Fallout4.esm','equipment-owned-save','Stu') RETURNING id")['id']);
-        $targetId = intval($db->fetchOne("INSERT INTO synth.actor_identities(game,full_form_id,origin_plugin,playthrough_id,display_name)
+        $targetId = intval($db->fetchOne("INSERT INTO public.core_actor_identity(game,full_form_id,origin_plugin,playthrough_id,display_name)
             VALUES('fo4','0x0001A4D8','Fallout4.esm','equipment-owned-save','Sturges') RETURNING id")['id']);
         $db->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
             VALUES('equipment-owned-session','equipment-owned-save','fo4','flat','test','1.11.240',1)");

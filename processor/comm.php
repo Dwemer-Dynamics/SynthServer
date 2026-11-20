@@ -254,7 +254,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     $now=time();
     $db->delete("core_context_event", " 1=1");
     $db->delete("core_quest", " 1=1");
-    $db->delete("speech", " 1=1 ");
+    $db->delete("core_speech", " 1=1 ");
 
     if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
         $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>{$gameRequest[2]}");
@@ -266,7 +266,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     $db->delete("core_memory_log", " 1=1 ");
 
     //die(print_r($gameRequest,true));
-    $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");
+    $db->update("core_response_log", "sent=0", "sent=1 and (action='synth_dialogue_response')");
     $db->insert(
         'core_context_event',
         array(
@@ -411,7 +411,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         }
         
         $db->insert(
-            'speech',
+            'core_speech',
             array(
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -808,7 +808,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         
         $db->delete("core_context_event", "gamets>$lastSave ");
         
-        $db->delete("speech", "gamets>$lastSave  ");
+        $db->delete("core_speech", "gamets>$lastSave  ");
 
         if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
             $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>$lastSave");
@@ -820,7 +820,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         $db->delete("core_memory_log", "gamets>$lastSave  ");
 
         //die(print_r($gameRequest,true));
-        $db->update("responselog", "sent=0", "sent=1 and (action='synth_dialogue_response')");
+        $db->update("core_response_log", "sent=0", "sent=1 and (action='synth_dialogue_response')");
         $db->insert(
             'core_context_event',
             array(
@@ -1051,7 +1051,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         // Check if profile exists for this NPC
         if ($nativeBindings !== null) {
             $binding = $nativeBindings[$npcName];
-            $npcData = empty($binding['narrator']) ? \Synth\Bootstrap::db()->fetchOne('SELECT * FROM synth.core_npc_master WHERE id=' . intval($binding['npc_id'] ?? 0)
+            $npcData = empty($binding['narrator']) ? \Synth\Bootstrap::db()->fetchOne('SELECT * FROM public.core_npc WHERE id=' . intval($binding['npc_id'] ?? 0)
                 . ' AND actor_identity_id=' . intval($binding['actor_identity_id'] ?? 0) . ' LIMIT 1') : null;
         } else {
             $npcMaster=new NpcMaster();

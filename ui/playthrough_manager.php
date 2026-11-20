@@ -61,7 +61,7 @@ if (!$adminConn) {
  if (!$metaReady) {
   $pageError = 'Playthrough metadata is unavailable. Run the SYNTH database bootstrap.';
  } else {
-  $profilesRes = @pg_query($adminConn, "SELECT id, name, created_at, size_bytes, storage_type, schema_name, notes, is_active, player_name, game, eventlog_count, worldknowledge_count, last_gamets FROM synth_meta.playthrough_profiles ORDER BY COALESCE(last_gamets,0) DESC, created_at DESC");
+  $profilesRes = @pg_query($adminConn, "SELECT id, name, created_at, size_bytes, storage_type, schema_name, notes, is_active, player_name, game, eventlog_count, worldknowledge_count, last_gamets FROM public.core_playthrough_profile ORDER BY COALESCE(last_gamets,0) DESC, created_at DESC");
   $profiles = $profilesRes ? (pg_fetch_all($profilesRes) ?: []) : [];
  }
 }

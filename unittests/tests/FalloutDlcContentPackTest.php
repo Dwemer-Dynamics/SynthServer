@@ -135,13 +135,13 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
         $ids=[];
         foreach ($pack['npcs'] as $index=>$row) {
             $reference='0x0'.($index+3).'F00104';
-            $result=$db->execQuery('INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name)
+            $result=$db->execQuery('INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name)
                 VALUES($1,$2,$3,$4,$5) RETURNING id',['fo4','dlc-upgrade-fixture',$row['plugin'],$reference,$row['display_name']]);
             self::assertNotFalse($result);$identity=pg_fetch_assoc($result);
             $id=intval($identity['id']);$ids[]=$id;
             synth_upsert_npc_profile($db,$row['display_name'],$reference,
                 ['baseid'=>$row['plugin'].'|'.$row['baseid'],'reference_origin_plugin'=>$row['plugin']],$id);
-            $db->execQuery('UPDATE synth.core_npc_master SET npc_static_bio=NULL,personality=$1,
+            $db->execQuery('UPDATE public.core_npc SET npc_static_bio=NULL,personality=$1,
                 voiceid=$2,relationships=$3,lock_profile=$4 WHERE actor_identity_id=$5',
                 ['Authored fixture personality.','fixture_voice','Authored fixture relationships.',$index,$id]);
         }
@@ -150,7 +150,7 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
             $report=synthInstallFalloutContentPack($db,$root,true);
             self::assertSame(1,$report['profiles_filled']);
             foreach ($ids as $index=>$id) {
-                $profile=$db->fetchOne('SELECT * FROM synth.core_npc_master WHERE actor_identity_id='.$id);
+                $profile=$db->fetchOne('SELECT * FROM public.core_npc WHERE actor_identity_id='.$id);
                 self::assertSame('Authored fixture personality.',$profile['personality']);
                 self::assertSame('fixture_voice',$profile['voiceid']);
                 self::assertSame('Authored fixture relationships.',$profile['relationships']);
@@ -158,10 +158,10 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
                     $pack['npcs'][0]['fields']['skills']),null],[$profile['npc_static_bio'],$profile['skills']]);
                 else self::assertNull($profile['npc_static_bio']);
             }
-            $before=$db->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.core_npc_master t WHERE actor_identity_id IN ('
+            $before=$db->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc t WHERE actor_identity_id IN ('
                 .implode(',',$ids).') ORDER BY id');
             self::assertSame(0,synthInstallFalloutContentPack($db,$root,true)['profiles_filled']);
-            self::assertSame($before,$db->fetchAll('SELECT row_to_json(t)::text AS body FROM synth.core_npc_master t WHERE actor_identity_id IN ('
+            self::assertSame($before,$db->fetchAll('SELECT row_to_json(t)::text AS body FROM public.core_npc t WHERE actor_identity_id IN ('
                 .implode(',',$ids).') ORDER BY id'));
         } finally { $this->removeFixture($root); }
     }
