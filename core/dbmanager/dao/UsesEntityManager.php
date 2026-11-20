@@ -37,6 +37,29 @@ trait UsesEntityManager
         return self::$instance ?? throw new LogicException('Database::boot() must be called before '.static::class.' is used.');
     }
 
+    /** @var array{0: object, 1: self}|null the legacy session the last current() DAO was built over, and that DAO */
+    private static ?array $bound = null;
+
+    /**
+     * The DAO for request code that still owns a legacy session: the booted process-wide DAO when Database::boot() ran,
+     * else one over $db (default $GLOBALS['db']), built once per session object.
+     */
+    public static function current(?object $db = null): self
+    {
+        if (self::$instance !== null) {
+            return self::$instance;
+        }
+        $db ??= is_object($GLOBALS['db'] ?? null) ? $GLOBALS['db'] : null;
+        if ($db === null) {
+            throw new \RuntimeException('No database session is available for '.static::class.'.');
+        }
+        if (self::$bound === null || self::$bound[0] !== $db) {
+            self::$bound = [$db, self::using(\Synth\Core\Doctrine\EntityManagerFactory::forSharedSession($db))];
+        }
+
+        return self::$bound[1];
+    }
+
     /** The connection every statement of this DAO runs on (the legacy session: transactions belong to its owner). */
     private function connection(): Connection
     {
