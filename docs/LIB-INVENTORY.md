@@ -31,7 +31,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (moved; DAO adoption pending) |
 | L4 | `visual_context*` to `managers/VisualContext` (done) |
 | L5 | rechat, auto chat, greeting, management guard (done) |
-| L6 | tts, voice, stt, itt, audio and LLM driver helpers |
+| L6 | tts, voice, stt, itt, audio and LLM driver helpers (done) |
 | L7 | status, backup, save state, profile workers, supervisor, plugins |
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat |
 | L9 | prompt, context, character helpers |
@@ -54,7 +54,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/autoload.php` | 14 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
 | `lib/automatic_backup.php` | 383 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
 | `lib/background_processor.php` | 178 | manager | `workers/Supervisor` (background processor) | L7 |
-| `lib/cartesia_generation.php` | 59 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/cartesia_generation.php` | 4 | hook (done) | `managers/TtsStudio/Native/cartesia_generation.php` | done (L6) |
 | `lib/chat_helper_functions.php` | 5589 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/classes/Logger.php` | 568 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/compact_context_history.php` | 272 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
@@ -88,14 +88,14 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/import_rules.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/import_rules.class.php` | done (L3) |
 | `lib/core/itt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/itt_connector.class.php` | done (L3) |
 | `lib/core/llm_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/llm_connector.class.php` | done (L3) |
-| `lib/core/local_llm_setup.php` | 305 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
+| `lib/core/local_llm_setup.php` | 4 | hook (done) | `drivers/llm/Native/local_llm_setup.php` | done (L6) |
 | `lib/core/narrator.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/narrator.class.php` | done (L3) |
 | `lib/core/npc_master.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/npc_master.class.php` | done (L3) |
 | `lib/core/player.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/player.class.php` | done (L3) |
 | `lib/core/settings_presets.php` | 264 | manager | `ConfigManager` (settings schema, presets, loaders); `settings.php` is the legacy loader that fills globals | config session |
 | `lib/core/stt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/stt_connector.class.php` | done (L3) |
 | `lib/core/tts_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/tts_connector.class.php` | done (L3) |
-| `lib/core/tts_studio_provider_detection.php` | 96 | driver | `drivers/tts` / `managers/TtsStudio` (provider detection) | L6 |
+| `lib/core/tts_studio_provider_detection.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_studio_provider_detection.php` | done (L6) |
 | `lib/data_functions.php` | 8098 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/db_connection_settings.php` | 59 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
 | `lib/dynamic_update_util.php` | 1772 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
@@ -105,28 +105,28 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/fallout_content_catalog.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_catalog.php` | done (L2) |
 | `lib/fallout_content_pack.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_pack.php` | done (L2) |
 | `lib/fallout_stats.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_stats.php` | done (L2) |
-| `lib/fuz_convert.php` | 151 | driver | `drivers/tts` (audio utilities: wav, fuz, media store) | L6 |
-| `lib/itt_service.php` | 110 | driver | `drivers/itt` (service functions) | L6 |
+| `lib/fuz_convert.php` | 4 | hook (done) | `drivers/tts/Native/fuz_convert.php` | done (L6) |
+| `lib/itt_service.php` | 4 | hook (done) | `drivers/itt/Native/itt_service.php` | done (L6) |
 | `lib/lazy_xml.php` | 331 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/legacy_row_management.php` | 33 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/llm_randomizer.php` | 377 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
+| `lib/llm_randomizer.php` | 4 | hook (done) | `drivers/llm/Native/llm_randomizer.php` | done (L6) |
 | `lib/log_trim.php` | 131 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
 | `lib/logger.php` | 47 | keep (shim) | global `Logger` shim over `Synth\Lib\Logger`; goes when callers use the namespaced class | - |
 | `lib/management_request_guard.php` | 263 | Synth\Lib class | `Synth\Lib\ManagementRequestGuard` (next to LocalAccess and SameOriginRequest) | L5 |
-| `lib/media_store.php` | 310 | driver | `drivers/tts` (audio utilities: wav, fuz, media store) | L6 |
+| `lib/media_store.php` | 4 | hook (done) | `drivers/tts/Native/media_store.php` | done (L6) |
 | `lib/memory_helper_vectordb.php` | 4 | hook (done) | `managers/MemoryManager/Native/memory_helper_vectordb.php` | done |
 | `lib/memory_ranking.php` | 4 | hook (done) | `managers/MemoryManager/Native/memory_ranking.php` | done |
-| `lib/minimet5_service.php` | 185 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
+| `lib/minimet5_service.php` | 4 | hook (done) | `drivers/llm/Native/minimet5_service.php` | done (L6) |
 | `lib/misc_ui_functions.php` | 157 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/model_dynmodel.php` | 90 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/narrator_actions.php` | 358 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/npc_tts_status.php` | 47 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/npc_tts_status.php` | 4 | hook (done) | `managers/TtsStudio/Native/npc_tts_status.php` | done (L6) |
 | `lib/observation_reaction.php` | 22 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/observed_dialogue.php` | 134 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/player2_health.php` | 214 | manager | `workers/Player2` (health) | L7 |
 | `lib/player_event.php` | 96 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/player_reaction.php` | 143 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/player_tts_helpers.php` | 194 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/player_tts_helpers.php` | 4 | hook (done) | `managers/TtsStudio/Native/player_tts_helpers.php` | done (L6) |
 | `lib/playthrough_schema.php` | 212 | manager | `managers/SaveState` (playthrough snapshots, rollback, schema readiness) | L7 |
 | `lib/playthrough_snapshot.php` | 73 | manager | `managers/SaveState` (playthrough snapshots, rollback, schema readiness) | L7 |
 | `lib/plugin_package_manager.php` | 705 | manager | `managers/ExtensionManager` (plugin and package handling) | L7 |
@@ -135,11 +135,11 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/profile_autofill_async.php` | 122 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
 | `lib/prompt_composition.php` | 187 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/prompt_injections.php` | 163 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
-| `lib/provider_stream.php` | 362 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
+| `lib/provider_stream.php` | 4 | hook (done) | `drivers/llm/Native/provider_stream.php` | done (L6) |
 | `lib/quest_access.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_access.php` | done (L1) |
 | `lib/quest_knowledge.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_knowledge.php` | done (L1) |
 | `lib/quest_reaction.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_reaction.php` | done (L1) |
-| `lib/quickstart_service_choices.php` | 8 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/quickstart_service_choices.php` | 4 | hook (done) | `managers/TtsStudio/Native/quickstart_service_choices.php` | done (L6) |
 | `lib/relationship_manager.php` | 4 | hook (done) | `managers/Relationships/Legacy/RelationshipManager.php` | done |
 | `lib/relationship_response.php` | 4 | hook (done) | `managers/Relationships/Native/relationship_response.php` | done |
 | `lib/relationship_runtime.php` | 4 | hook (done) | `managers/Relationships/Native/relationship_runtime.php` | done |
@@ -153,7 +153,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/scriptproxy_fallout.php` | 833 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/semaphore_manager.class.php` | 150 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/settings.php` | 1623 | manager | `ConfigManager` (settings schema, presets, loaders); `settings.php` is the legacy loader that fills globals | config session |
-| `lib/speech_cache.php` | 35 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/speech_cache.php` | 4 | hook (done) | `managers/TtsStudio/Native/speech_cache.php` | done (L6) |
 | `lib/synth_action_inventory.php` | 198 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/synth_actor_identity_labels.php` | 44 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_ambient_npc.php` | 199 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
@@ -229,25 +229,25 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_social_contract.php` | 98 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/synth_social_response.php` | 72 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/synth_social_tasks.php` | 326 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_stt_pipeline.php` | 85 | driver | `drivers/stt` (speech pipeline) | L6 |
-| `lib/synth_tts.php` | 329 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
-| `lib/synth_tts_jobs.php` | 261 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
-| `lib/synth_tts_plan.php` | 198 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
-| `lib/synth_tts_worker.php` | 82 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/synth_stt_pipeline.php` | 4 | hook (done) | `drivers/stt/Native/synth_stt_pipeline.php` | done (L6) |
+| `lib/synth_tts.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts.php` | done (L6) |
+| `lib/synth_tts_jobs.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_jobs.php` | done (L6) |
+| `lib/synth_tts_plan.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_plan.php` | done (L6) |
+| `lib/synth_tts_worker.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_tts_worker.php` | done (L6) |
 | `lib/synth_wait_actions.php` | 406 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_worker_origin.php` | 43 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/synth_worker_origin.php` | 4 | hook (done) | `managers/TtsStudio/Native/synth_worker_origin.php` | done (L6) |
 | `lib/tokenizer_helper_functions.php` | 146 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
-| `lib/tts_pronunciation.php` | 268 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
-| `lib/tts_pronunciation_preview.php` | 89 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
+| `lib/tts_pronunciation.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_pronunciation.php` | done (L6) |
+| `lib/tts_pronunciation_preview.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_pronunciation_preview.php` | done (L6) |
 | `lib/utils.php` | 36 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/utils_game_timestamp.php` | 944 | Synth\Lib class | `Synth\Lib\GameTime` (Fallout calendar helpers) | L11 |
 | `lib/visual_context.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context.php` | done (L4) |
 | `lib/visual_context_request.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context_request.php` | done (L4) |
-| `lib/voice_catalog.php` | 143 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
-| `lib/voice_clone_resolver.php` | 543 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
-| `lib/voice_clone_sync.php` | 409 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
-| `lib/voice_sample.php` | 65 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
-| `lib/wav_utils.php` | 55 | driver | `drivers/tts` (audio utilities: wav, fuz, media store) | L6 |
+| `lib/voice_catalog.php` | 4 | hook (done) | `managers/TtsStudio/Native/voice_catalog.php` | done (L6) |
+| `lib/voice_clone_resolver.php` | 4 | hook (done) | `managers/TtsStudio/Native/voice_clone_resolver.php` | done (L6) |
+| `lib/voice_clone_sync.php` | 4 | hook (done) | `managers/TtsStudio/Native/voice_clone_sync.php` | done (L6) |
+| `lib/voice_sample.php` | 4 | hook (done) | `managers/TtsStudio/Native/voice_sample.php` | done (L6) |
+| `lib/wav_utils.php` | 4 | hook (done) | `drivers/tts/Native/wav_utils.php` | done (L6) |
 | `lib/worldknowledge_catalog.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_catalog.php` | done (L2) |
 | `lib/worldknowledge_forced_context.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_forced_context.php` | done (L2) |
 | `lib/worldknowledge_llm_service.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_llm_service.php` | done (L2) |
