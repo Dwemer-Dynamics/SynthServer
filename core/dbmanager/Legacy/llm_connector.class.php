@@ -480,7 +480,7 @@ class LLMConnector
         }
 
         require_once(dirname(__DIR__, 3) . '/drivers/llm/LlmWrapper.php');
-        $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), \Synth\Bootstrap::enginePath() ?? null);
+        $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), \Synth\Bootstrap::enginePath() ?? null, $currentConnectorData);
 
         $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
         $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";

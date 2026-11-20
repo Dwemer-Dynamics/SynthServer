@@ -1,0 +1,35 @@
+# Structure of Version20261120100000 (the LLM request log). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+column|public|core_llm_request_log|call_kind|text|text|NO||
+column|public|core_llm_request_log|completion_tokens|integer|int4|YES||
+column|public|core_llm_request_log|connector_id|integer|int4|YES||
+column|public|core_llm_request_log|correlation_id|text|text|YES||
+column|public|core_llm_request_log|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_llm_request_log|driver|text|text|NO||
+column|public|core_llm_request_log|duration_ms|integer|int4|YES||
+column|public|core_llm_request_log|error_class|text|text|YES||
+column|public|core_llm_request_log|error_message|text|text|YES||
+column|public|core_llm_request_log|finished_at|timestamp with time zone|timestamptz|YES||
+column|public|core_llm_request_log|http_status|integer|int4|YES||
+column|public|core_llm_request_log|id|bigint|int8|NO||
+column|public|core_llm_request_log|model|text|text|NO|''::text|
+column|public|core_llm_request_log|prompt_tokens|integer|int4|YES||
+column|public|core_llm_request_log|purpose|text|text|YES||
+column|public|core_llm_request_log|replay_of_id|bigint|int8|YES||
+column|public|core_llm_request_log|request|jsonb|jsonb|NO||
+column|public|core_llm_request_log|request_body|jsonb|jsonb|YES||
+column|public|core_llm_request_log|request_truncated|boolean|bool|NO|false|
+column|public|core_llm_request_log|response_content|text|text|YES||
+column|public|core_llm_request_log|response_truncated|boolean|bool|NO|false|
+column|public|core_llm_request_log|status|text|text|NO|'running'::text|
+column|public|core_llm_request_log|total_tokens|integer|int4|YES||
+column|public|core_llm_request_log|url|text|text|YES||
+column|public|core_llm_request_log|usage|jsonb|jsonb|YES||
+constraint|public|core_llm_request_log|core_llm_request_log_kind_check|c|t|CHECK ((call_kind = ANY (ARRAY['stream'::text, 'fast'::text])))
+constraint|public|core_llm_request_log|core_llm_request_log_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_llm_request_log|core_llm_request_log_replay_of_id_fkey|f|t|FOREIGN KEY (replay_of_id) REFERENCES core_llm_request_log(id) ON DELETE SET NULL
+constraint|public|core_llm_request_log|core_llm_request_log_status_check|c|t|CHECK ((status = ANY (ARRAY['running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])))
+index|public|core_llm_request_log|core_llm_request_log_correlation_idx|CREATE INDEX core_llm_request_log_correlation_idx ON public.core_llm_request_log USING btree (correlation_id)
+index|public|core_llm_request_log|core_llm_request_log_created_at_idx|CREATE INDEX core_llm_request_log_created_at_idx ON public.core_llm_request_log USING btree (created_at)
+index|public|core_llm_request_log|core_llm_request_log_pkey|CREATE UNIQUE INDEX core_llm_request_log_pkey ON public.core_llm_request_log USING btree (id)
+index|public|core_llm_request_log|core_llm_request_log_replay_of_idx|CREATE INDEX core_llm_request_log_replay_of_idx ON public.core_llm_request_log USING btree (replay_of_id)
+table|public|core_llm_request_log|BASE TABLE

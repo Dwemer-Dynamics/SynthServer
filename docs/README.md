@@ -13,6 +13,7 @@ is never in-game evidence.
 - [HANDOFF.md](HANDOFF.md): current source, runtime topology, deferred work.
 - [SERVER-FILE-LAYOUT.md](SERVER-FILE-LAYOUT.md): which folder owns what.
 - [REQUEST-BOUNDARY.md](REQUEST-BOUNDARY.md): what the web can reach (deny by default), and why each path is allowed.
+- [LLM-REQUEST-LOG.md](LLM-REQUEST-LOG.md): the replayable log of LLM requests (`core_llm_request_log`), its redaction, retention and `bin/llm-request-log.php`.
 - [PROTOCOL.md](PROTOCOL.md) and [protocol/README.md](../protocol/README.md): the wire contract
   mirrored with the SYNTH client.
 - [NPC-BIOGRAPHY-REPAIR.md](NPC-BIOGRAPHY-REPAIR.md): authored layout, guarded existing-profile repair and runtime SPECIAL ownership.
