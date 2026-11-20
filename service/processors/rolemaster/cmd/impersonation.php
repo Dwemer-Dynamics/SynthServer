@@ -3,7 +3,7 @@ require_once(__DIR__ . '/../../../../lib/logger.php');
 require_once(__DIR__ . '/../../../../lib/synth_command_payload.php');
 
 if (!empty($GLOBALS["argv"][3])) {
-    $speech=\Synth\Bootstrap::db()->escape($GLOBALS["argv"][3]);
+    $speech=\Synth\Bootstrap::db()->escape(\Synth\Bootstrap::config("argv")[3]);
 } else {
     Logger::error("No speech parameter provided for impersonation command");
     die("No speech");

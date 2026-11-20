@@ -7,7 +7,7 @@
 
 function synthLogCsvImportAuditEvent($eventType, $message, $timestamp, $game_timestamp): void
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $normalizedEventType = strtolower(trim(strval($eventType)));
     $normalizedMessage = trim(strval($message));
@@ -63,7 +63,7 @@ if (!function_exists('synthNormalizeBiographyRelationshipSeed')) {
 
 function synthHandleBiographyImport($csvData, $timestamp, $game_timestamp): bool
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     Logger::info("SYNTH Biography Import: STARTED - Processing CSV data upload");
 

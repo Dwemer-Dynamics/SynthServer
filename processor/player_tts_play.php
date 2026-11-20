@@ -30,16 +30,16 @@ function synthGeneratePlayerTtsCacheNow(string $line, string $cachePath): void
         return;
     }
 
-    $oldGameRequest = $GLOBALS["gameRequest"] ?? null;
+    $oldGameRequest = \Synth\Bootstrap::gameRequest() ?? null;
     $hadGameRequest = array_key_exists("gameRequest", $GLOBALS);
-    $oldWriteOutput = $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] ?? null;
+    $oldWriteOutput = \Synth\Bootstrap::config("PLAYER_TTS_WRITE_OUTPUT") ?? null;
     $hadWriteOutput = array_key_exists("PLAYER_TTS_WRITE_OUTPUT", $GLOBALS);
-    $oldAvoidCache = $GLOBALS["AVOID_TTS_CACHE"] ?? null;
+    $oldAvoidCache = \Synth\Bootstrap::config("AVOID_TTS_CACHE") ?? null;
     $hadAvoidCache = array_key_exists("AVOID_TTS_CACHE", $GLOBALS);
-    $oldExpectedCachePath = $GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] ?? null;
+    $oldExpectedCachePath = \Synth\Bootstrap::config("PLAYER_TTS_EXPECTED_CACHE_PATH") ?? null;
     $hadExpectedCachePath = array_key_exists("PLAYER_TTS_EXPECTED_CACHE_PATH", $GLOBALS);
 
-    $playerPrefix = trim((string)($GLOBALS["PLAYER_NAME"] ?? "Player"));
+    $playerPrefix = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player"));
     if ($playerPrefix === "") {
         $playerPrefix = "Player";
     }
@@ -57,7 +57,7 @@ function synthGeneratePlayerTtsCacheNow(string $line, string $cachePath): void
         $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] = false;
         $GLOBALS["AVOID_TTS_CACHE"] = false;
         $GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] = $cachePath;
-        require($GLOBALS["ENGINE_PATH"] . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");
+        require(\Synth\Bootstrap::enginePath() . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");
 
         if (!is_file($cachePath) || filesize($cachePath) <= 44) {
             Logger::warn("[Player TTS] Inline generation did not create expected cache" . Logger::formatContext([
@@ -111,7 +111,7 @@ function synthSpawnPlayerTtsWorker(string $line, string $cachePath): void
     }
     if (@file_put_contents($jobPath, json_encode([
         "line" => $line,
-        "player_name" => $GLOBALS["PLAYER_NAME"] ?? "Player",
+        "player_name" => \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player",
         "cache_path" => $cachePath,
         "lock_path" => $lockPath,
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {

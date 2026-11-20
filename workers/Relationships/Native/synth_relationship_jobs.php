@@ -91,7 +91,7 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         foreach ($recent as &$row) { $row['history_event_id']=intval($row['history_event_id']); $sources[]=$row['history_event_id']; }
         unset($row); $sources=array_values(array_unique($sources)); sort($sources,SORT_NUMERIC);
         $input=['schema'=>$playerOnly ? 'synth.relationship.evaluation.v2' : 'synth.relationship.evaluation.v1','evaluation_policy'=>'synth.relationship.policy.v2',
-            'owner'=>$event,'connector_id'=>intval($GLOBALS['RELLLM_CONNECTOR']),
+            'owner'=>$event,'connector_id'=>intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')),
             'system_prompt'=>$systemPrompt,'context'=>$context['payload'],'subjects'=>array_values($subjects),
             'response_id'=>$responseId,'response'=>$responsePayload,
             'recent_events'=>$recent,'source_ids'=>$sources];
@@ -463,7 +463,7 @@ function synth_relationship_process_evaluation($db, int $jobId, callable $genera
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Relationship providers require an idle database connection');
     $job=synth_relationship_claim_evaluation($db,$jobId); if (!$job) return null;
-    $previous=$GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE'] ?? null;
+    $previous=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_JOB_LEASE') ?? null;
     $GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE']=['id'=>$jobId,'token'=>$job['lease_token']];
     try {
         $input=json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);

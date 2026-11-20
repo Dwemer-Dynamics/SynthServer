@@ -49,3 +49,15 @@ Files under: managers
 | global uses (all non-test PHP) | 5649 | 4754 |
 | files with a global | 301 | 281 |
 | `require_once` | 1836 | 1836 |
+
+### G3-workers-service-processor
+
+Reads in workers/, service/ and processor/ now go through the accessors.
+
+Files under: workers service processor
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 4754 | 4432 |
+| files with a global | 281 | 276 |
+| `require_once` | 1836 | 1836 |

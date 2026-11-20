@@ -36,7 +36,7 @@ function synth_relationship_process_interaction($db, int $jobId, callable $gener
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Interaction providers require an idle database connection');
     $job=synth_relationship_claim_interaction($db,$jobId);if (!$job) return null;
-    $previous=$GLOBALS['SYNTH_INTERACTION_JOB_LEASE'] ?? null;
+    $previous=\Synth\Bootstrap::config('SYNTH_INTERACTION_JOB_LEASE') ?? null;
     $GLOBALS['SYNTH_INTERACTION_JOB_LEASE']=['id'=>$jobId,'token'=>$job['lease_token']];
     try {
         $text=$generate($job['input']);

@@ -281,9 +281,9 @@ $EXECUTION_MODE=isset($EXECUTION_MODE_["value"])?$EXECUTION_MODE_["value"]:"STAN
 $EXECUTION_MODE=strtoupper($EXECUTION_MODE);
 
 // Native turns carry their admission-time selection. Never re-read mutable UI state mid-response.
-$nativeControl = $GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control'] ?? null;
-$nativeInput = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? null) === 2
-    && in_array($GLOBALS['SYNTH_REQUEST_EVENT']['json']['type'] ?? '', ['input_text','input_audio'], true);
+$nativeControl = \Synth\Bootstrap::requestEvent()['json']['payload']['control'] ?? null;
+$nativeInput = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? null) === 2
+    && in_array(\Synth\Bootstrap::requestEvent()['json']['type'] ?? '', ['input_text','input_audio'], true);
 if ($nativeInput) $EXECUTION_MODE = is_array($nativeControl) ? $nativeControl['mode'] : 'STANDARD';
 // AUTOCHAT is an explicit native per-turn selection; a global value written by a native control is never inherited
 // by legacy input, which would reach the unowned player_rewrite.php subprocess.

@@ -37,24 +37,24 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         if (!function_exists('synthActionCatalogIsActionEnabled') || synthActionCatalogIsActionEnabled("ReturnBackHome")) {
             $GLOBALS["ENABLED_FUNCTIONS"][]="ReturnBackHome";
-            $GLOBALS["FUNCTIONS"][]=$GLOBALS["BASE_FUNCTIONS"]["ReturnBackHome"];
+            $GLOBALS["FUNCTIONS"][]=\Synth\Bootstrap::config("BASE_FUNCTIONS")["ReturnBackHome"];
         }
 
         $fnames=[];
-        foreach ($GLOBALS["F_NAMES"] as $functionCode=>$functionName) {
-            if (in_array($functionCode,$GLOBALS["ENABLED_FUNCTIONS"])) {
+        foreach (\Synth\Bootstrap::config("F_NAMES") as $functionCode=>$functionName) {
+            if (in_array($functionCode,\Synth\Bootstrap::config("ENABLED_FUNCTIONS"))) {
                 if ($functionCode!="OpenInventory") {
                     $function=findFunctionByName($functionName);
                     if ($function) {
-                        $fnames[]=$GLOBALS["F_NAMES"]["$functionCode"]." ({$function["description"]})";
+                        $fnames[]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"]." ({$function["description"]})";
 
                     } else
-                        $fnames[]=$GLOBALS["F_NAMES"]["$functionCode"];
-                    $GLOBALS["FUNCTION_SHORT_LIST"][]=$GLOBALS["F_NAMES"]["$functionCode"];
+                        $fnames[]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
+                    $GLOBALS["FUNCTION_SHORT_LIST"][]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
                 }
             }
         }
-        if (!$GLOBALS["argv"][3]) {
+        if (!\Synth\Bootstrap::config("argv")[3]) {
             $userprompt="";
             $sysprompt="";
         } else {
@@ -122,7 +122,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
         $functionList = "  ** " . implode("\n  ** ", $fnames);
         $directorSuggestionPrompt = str_replace(
             ['{PLAYER_NAME}', '{FUNCTION_LIST}'],
-            [$GLOBALS["PLAYER_NAME"], $functionList],
+            [\Synth\Bootstrap::config("PLAYER_NAME"), $functionList],
             $directorSuggestionPrompt
         );
 
@@ -141,7 +141,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
             $GLOBALS["responseTemplate"] = ["instructions"=>[[
                 "character"=>"selected actor's full name",
                 "instruction"=>"the instruction for the actor, what should be said or done. Use 3rd person here.",
-                "action"=>implode("|",$GLOBALS["FUNCTION_SHORT_LIST"]),
+                "action"=>implode("|",\Synth\Bootstrap::config("FUNCTION_SHORT_LIST")),
                 "target"=>"action's target",
                 "scene_note"=>"Something other actors should know about the instruction, if the instruction also involves another actors"
             ]]];
@@ -149,9 +149,9 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         };
 
-        $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
+        $connectionHandler = new \Synth\Bootstrap::config("CURRENT_CONNECTOR");
         // Force unset json schema
-        $GLOBALS["CONNECTOR"][$GLOBALS["CURRENT_CONNECTOR"]]["json_schema"]=false;
+        $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
 
         $connectionHandler->open($prompt,$customParm);
 
@@ -249,7 +249,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
             $allOk=false;
 
 
-        if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
+        if (isset($GLOBALS["argv"][4]) && \Synth\Bootstrap::config("argv")[4]=="notify") {
             $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)

@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__ . '/../lib/classes/Logger.php';
-require_once($GLOBALS["ENGINE_PATH"]."/lib/dynamic_update_util.php");
-require_once($GLOBALS["ENGINE_PATH"]."/lib/utils_game_timestamp.php");
-require_once($GLOBALS["ENGINE_PATH"]."/lib/playthrough_snapshot.php");
-require_once($GLOBALS["ENGINE_PATH"]."/lib/save_rollback.php");
-require_once($GLOBALS["ENGINE_PATH"]."/lib/core/game_plugins.php");
-require_once($GLOBALS["ENGINE_PATH"]."/lib/player_tts_helpers.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/dynamic_update_util.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/utils_game_timestamp.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/playthrough_snapshot.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/save_rollback.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/core/game_plugins.php");
+require_once(\Synth\Bootstrap::enginePath()."/lib/player_tts_helpers.php");
 
 $MUST_END=false;
 
@@ -38,10 +38,10 @@ if (!function_exists("resolvePeopleForIncomingEvent")) {
         if ($fallbackPeople === "") {
             if ($isPluginAuthoritativeActorEvent) {
                 $fallbackPeople = "";
-            } elseif (isset($GLOBALS["CACHE_PEOPLE_LIMITED"]) && trim((string)$GLOBALS["CACHE_PEOPLE_LIMITED"]) !== "") {
-                $fallbackPeople = (string)$GLOBALS["CACHE_PEOPLE_LIMITED"];
-            } elseif (isset($GLOBALS["CACHE_PEOPLE"]) && trim((string)$GLOBALS["CACHE_PEOPLE"]) !== "") {
-                $fallbackPeople = (string)$GLOBALS["CACHE_PEOPLE"];
+            } elseif (isset($GLOBALS["CACHE_PEOPLE_LIMITED"]) && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED")) !== "") {
+                $fallbackPeople = (string)\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED");
+            } elseif (isset($GLOBALS["CACHE_PEOPLE"]) && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE")) !== "") {
+                $fallbackPeople = (string)\Synth\Bootstrap::config("CACHE_PEOPLE");
             } elseif (!$strictModeEnabled) {
                 $fallbackPeople = DataBeingsInCloseRange(true);
             }
@@ -50,7 +50,7 @@ if (!function_exists("resolvePeopleForIncomingEvent")) {
         return buildScopedPeopleForEvent(
             $eventType,
             $eventData,
-            $GLOBALS["SYNTH_NAME"] ?? "",
+            \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
             $fallbackPeople
         );
     }
@@ -94,7 +94,7 @@ if (!function_exists("playerMenuTtsCachePath")) {
     function playerMenuTtsCachePath($line)
     {
         $subtitle = function_exists('formatPlayerSubtitleText')
-            ? formatPlayerSubtitleText((string)$line, $GLOBALS["PLAYER_NAME"] ?? null)
+            ? formatPlayerSubtitleText((string)$line, \Synth\Bootstrap::config("PLAYER_NAME") ?? null)
             : trim(preg_replace('/\s+/', ' ', str_replace(["\r", "\n", "|"], " ", (string)$line)));
 
         if (function_exists('synth_tts_soundcache_path')) {
@@ -195,7 +195,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     
     // Narrator Welcome Message on Load
     try {
-        require_once($GLOBALS["ENGINE_PATH"] . "/lib/core/narrator.class.php");
+        require_once(\Synth\Bootstrap::enginePath() . "/lib/core/narrator.class.php");
         $narrator = new Narrator();
         
         // Check if narrator is enabled and welcome message is enabled
@@ -256,7 +256,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     $db->delete("core_quest", " 1=1");
     $db->delete("speech", " 1=1 ");
 
-    if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
+    if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
         $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>{$gameRequest[2]}");
         while ($memoryRow = $db->fetchArray($results)) {
             deleteElement($memoryRow["uid"]);
@@ -452,7 +452,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         // actor-originated audience scope. For direct NPC replies to player prompts,
         // we temporarily inherit the latest player-scoped audience as SOT until fresh
         // spatial truth is available for that reply.
-        $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)$GLOBALS["PLAYER_NAME"]) : "";
+        $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
         $normalizedPlayerName = normalizeActorNameForComparison($playerName);
         $normalizedSpeechSpeaker = normalizeActorNameForComparison($speechSpeaker);
         $normalizedSpeechListener = normalizeActorNameForComparison($speechListener);
@@ -673,7 +673,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
 
     $newModel=DMtoggleModel();
     if (function_exists('synth_buffer_command_response_line')) {
-        synth_buffer_command_response_line((string)$GLOBALS["SYNTH_NAME"], "ToggleModel", ["model" => $newModel]);
+        synth_buffer_command_response_line((string)\Synth\Bootstrap::config("SYNTH_NAME"), "ToggleModel", ["model" => $newModel]);
     } else {
         Logger::warn("[actions] ToggleModel requested before JSON response buffer was available");
     }
@@ -810,7 +810,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         
         $db->delete("speech", "gamets>$lastSave  ");
 
-        if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
+        if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
             $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>$lastSave");
             while ($memoryRow = $db->fetchArray($results)) {
                 deleteElement($memoryRow["uid"]);
@@ -1003,16 +1003,16 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
     // Native v2 keys are stable actor bindings re-derived from the claimed request, never display names.
     $nativeBindings = null;
-    $requestEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $requestEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($requestEvent['protocol_version'] ?? 1) === 2) {
         $nativeBindings = [];
         try {
             if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($requestEvent['type'] ?? '') !== 'profile_refresh') {
                 throw new LogicException('Native profile eligibility requires its claimed profile refresh.');
             }
-            require_once($GLOBALS["ENGINE_PATH"] . "/lib/synth_profile_scope.php");
+            require_once(\Synth\Bootstrap::enginePath() . "/lib/synth_profile_scope.php");
             synth_protocol_assert_request_active();
-            $nativeBindings = synth_profile_refresh_bindings($GLOBALS['db'], $requestEvent, true);
+            $nativeBindings = synth_profile_refresh_bindings(\Synth\Bootstrap::db(), $requestEvent, true);
         } catch (SYNTHProtocolCancelled $error) {
             throw $error;
         } catch (Throwable $e) {
@@ -1051,7 +1051,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         // Check if profile exists for this NPC
         if ($nativeBindings !== null) {
             $binding = $nativeBindings[$npcName];
-            $npcData = empty($binding['narrator']) ? $GLOBALS['db']->fetchOne('SELECT * FROM synth.core_npc_master WHERE id=' . intval($binding['npc_id'] ?? 0)
+            $npcData = empty($binding['narrator']) ? \Synth\Bootstrap::db()->fetchOne('SELECT * FROM synth.core_npc_master WHERE id=' . intval($binding['npc_id'] ?? 0)
                 . ' AND actor_identity_id=' . intval($binding['actor_identity_id'] ?? 0) . ' LIMIT 1') : null;
         } else {
             $npcMaster=new NpcMaster();
@@ -1062,7 +1062,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         }
         
         // Check if DYNAMIC_PROFILE is enabled for this NPC
-        $isDynamicEnabled = $npcData["dynamic_profile"] ?? $GLOBALS["DYNAMIC_PROFILE"] ?? false;
+        $isDynamicEnabled = $npcData["dynamic_profile"] ?? \Synth\Bootstrap::config("DYNAMIC_PROFILE") ?? false;
 
         // Check  if DYNAMIC_PROFILE is enabled for NPC's profile.
         $profile=new CoreProfile();
@@ -1192,8 +1192,8 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     Logger::info("diary_player: Direct player diary request received");
     
     if (!isPlayerDiaryEnabled()) {
-        $playerName = isset($GLOBALS["PLAYER_NAME"]) && trim((string)$GLOBALS["PLAYER_NAME"]) !== ''
-            ? trim((string)$GLOBALS["PLAYER_NAME"])
+        $playerName = isset($GLOBALS["PLAYER_NAME"]) && trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) !== ''
+            ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME"))
             : "Player";
         synth_buffer_command_response_line($playerName, "DebugNotification", ["message" => $playerName . " diary is disabled."]);
         Logger::warn("diary_player: Player diary is disabled");
@@ -1266,7 +1266,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
 } 
 
 // Trigger narrator welcome message if flagged during init
-if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && $GLOBALS["TRIGGER_NARRATOR_WELCOME"]) {
+if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && \Synth\Bootstrap::config("TRIGGER_NARRATOR_WELCOME")) {
     // Change the request type to narrator_welcome so main.php processes it
     $gameRequest[0] = "narrator_welcome";
     $MUST_END = false; // Don't end, continue to main.php
@@ -1298,7 +1298,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && $GLOBALS["TRIGGER_NARRATOR_WE
 }
 
 // Trigger narrator quest comment if flagged during quest event
-if (isset($GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) && $GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) {
+if (isset($GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) && \Synth\Bootstrap::config("TRIGGER_NARRATOR_QUEST_COMMENT")) {
     // Change the request type to narrator_quest_comment so main.php processes it
     $gameRequest[0] = "narrator_quest_comment";
     $MUST_END = false; // Don't end, continue to main.php

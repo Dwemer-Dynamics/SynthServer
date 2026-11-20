@@ -76,7 +76,7 @@ try {
     ]);
 
     $generateOptions = [
-        'db' => $GLOBALS['db'],
+        'db' => \Synth\Bootstrap::db(),
         'name' => $npcName,
         'event_limit' => intval($job['event_limit'] ?? 20),
         'source' => 'auto',

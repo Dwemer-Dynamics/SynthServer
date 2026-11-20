@@ -16,7 +16,7 @@ if (!function_exists('isWorldKnowledgeSettingEnabled')) {
     }
 }
 $minimeEnabled = isMinimeT5Enabled();
-$worldknowledgeInfiniumEnabled = isWorldKnowledgeSettingEnabled($GLOBALS["WORLDKNOWLEDGE_INFINIUM"] ?? false);
+$worldknowledgeInfiniumEnabled = isWorldKnowledgeSettingEnabled(\Synth\Bootstrap::config("WORLDKNOWLEDGE_INFINIUM") ?? false);
 
 if ($minimeEnabled) {
     // Use the managed WORLDKNOWLEDGE_INFINIUM global setting.
@@ -25,7 +25,7 @@ if ($minimeEnabled) {
 
             //$TEST_TEXT=lastSpeech($GLOBALS["SYNTH_NAME"]);
             //$TEST_TEXT="{$GLOBALS["SYNTH_NAME"]}:".implode(" ",$GLOBALS["talkedSoFar"]);
-            $TEST_TEXT = implode(" ", $GLOBALS["talkedSoFar"]);
+            $TEST_TEXT = implode(" ", \Synth\Bootstrap::config("talkedSoFar"));
 
             $topic = json_decode(minimePostTopic($TEST_TEXT), true);
 
@@ -48,7 +48,7 @@ if ($minimeEnabled) {
                 $gameRequestCopy[0] = "infoaction";
                 $gameRequestCopy[3] = "#MEMORY: {$GLOBALS["SYNTH_NAME"]} remembers this: [$memoryInjection]";
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'POST MEMORY SEARCH', ", memory found ($memoryInjection)");
-                logEvent($gameRequestCopy, $GLOBALS["SYNTH_NAME"]); // Memory log only avaibale to current NPC.
+                logEvent($gameRequestCopy, \Synth\Bootstrap::config("SYNTH_NAME")); // Memory log only avaibale to current NPC.
             }
 
         }
@@ -58,7 +58,7 @@ if ($minimeEnabled) {
         $lastListener = "";
         $lastDateTime = "";
 
-        foreach (json_decode(DataSpeechJournal($GLOBALS["SYNTH_NAME"], 10), true) as $element) {
+        foreach (json_decode(DataSpeechJournal(\Synth\Bootstrap::config("SYNTH_NAME"), 10), true) as $element) {
             if ($element["listener"] == "The Narrator") {
                 continue;
             }
@@ -92,7 +92,7 @@ if ($minimeEnabled) {
         //$topic  = json_decode(minimePostScene($historyData), true);// Not working well for now.
         $sceneClassifierEnabled = true;
         if (array_key_exists("SCENE_CLASSIFIER_ENABLED", $GLOBALS)) {
-            $sceneClassifierEnabledValue = $GLOBALS["SCENE_CLASSIFIER_ENABLED"];
+            $sceneClassifierEnabledValue = \Synth\Bootstrap::config("SCENE_CLASSIFIER_ENABLED");
             if (is_string($sceneClassifierEnabledValue)) {
                 $sceneClassifierEnabled = !in_array(strtolower(trim($sceneClassifierEnabledValue)), ["", "0", "false", "off", "no"], true);
             } else {
@@ -108,8 +108,8 @@ if ($minimeEnabled) {
                 "Scene Classifier (Gemma 3N E4B)",
                 "Scene Classifier (Gemini 2.5 Flash Lite)"
             ];
-            $sceneClassifierConnectorId = intval($GLOBALS["CORE_CONNECTOR_SCENECLASSIFIER"] ?? 0);
-            $mediumTermConnectorId = intval($GLOBALS["CORE_CONNECTOR_MEDIUMTERM"] ?? 0);
+            $sceneClassifierConnectorId = intval(\Synth\Bootstrap::config("CORE_CONNECTOR_SCENECLASSIFIER") ?? 0);
+            $mediumTermConnectorId = intval(\Synth\Bootstrap::config("CORE_CONNECTOR_MEDIUMTERM") ?? 0);
             $currentConnectorData = null;
             $connectionHandler = null;
 
@@ -117,9 +117,9 @@ if ($minimeEnabled) {
                 $currentConnectorData = $connector->getById($sceneClassifierConnectorId);
             }
 
-            if (empty($currentConnectorData) && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
+            if (empty($currentConnectorData) && isset($GLOBALS["db"]) && \Synth\Bootstrap::db()) {
                 foreach ($sceneClassifierLabels as $sceneClassifierLabel) {
-                    $sceneClassifierRow = ['id' => \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->findIdByLabel($sceneClassifierLabel)];
+                    $sceneClassifierRow = ['id' => \Synth\Core\DbManager\Dao\LlmConnectorDao::current(\Synth\Bootstrap::db())->findIdByLabel($sceneClassifierLabel)];
                     if (is_array($sceneClassifierRow) && !empty($sceneClassifierRow["id"])) {
                         $sceneClassifierConnectorId = intval($sceneClassifierRow["id"]);
                         $currentConnectorData = $connector->getById($sceneClassifierConnectorId);
@@ -178,7 +178,7 @@ if ($minimeEnabled) {
             Logger::info("[SCENE CLASSIFIER] Disabled, skipping scene genre detection");
         }
         if ($topic["generated_tags"] == "relax") {
-            $GLOBALS["db"]->insert(
+            \Synth\Bootstrap::db()->insert(
                 'core_director_note',
                 [
                     'localts' => time(),
@@ -191,7 +191,7 @@ if ($minimeEnabled) {
             $status = "relax";
 
         } else if ($topic["generated_tags"] == "romance") {
-            $GLOBALS["db"]->insert(
+            \Synth\Bootstrap::db()->insert(
                 'core_director_note',
                 [
                     'localts' => time(),
@@ -205,7 +205,7 @@ if ($minimeEnabled) {
         }
 
         $npcManager = new NpcMaster();
-        $npcData    = $npcManager->getByName($GLOBALS["SYNTH_NAME"]);
+        $npcData    = $npcManager->getByName(\Synth\Bootstrap::config("SYNTH_NAME"));
         if ($npcData) {
             if (isset($npcData["extended_data"])) {
                 $extended = json_decode($npcData["extended_data"], true);

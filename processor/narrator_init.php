@@ -1,7 +1,7 @@
 <?php 
 
 try {
-    require_once $GLOBALS["ENGINE_PATH"] . "/lib/core/narrator.class.php";
+    require_once \Synth\Bootstrap::enginePath() . "/lib/core/narrator.class.php";
 
     $narrator = new Narrator();
     

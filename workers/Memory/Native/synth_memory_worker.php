@@ -88,7 +88,7 @@ function synth_memory_generate_summary($db, array $input, array $context): strin
 {
     synth_protocol_assert_request_active();
     $connector = new LLMConnector();
-    $settings = $connector->getById(intval($GLOBALS['CORE_CONNECTOR_SUMMARY'] ?? 0));
+    $settings = $connector->getById(intval(\Synth\Bootstrap::config('CORE_CONNECTOR_SUMMARY') ?? 0));
     if (!$settings || !in_array($settings['driver'] ?? '',
         ['openaijson','openrouterjson','google_openaijson','groqjson','player2json','koboldcppjson'],true)) {
         throw new RuntimeException('Native summary connector unavailable');
@@ -99,7 +99,7 @@ function synth_memory_generate_summary($db, array $input, array $context): strin
         $prompts[$row['prompt_key']] = !empty($row['custom_prompt']) ? $row['custom_prompt'] : $row['default_prompt'];
     }
     $prompt = synth_memory_summary_prompt($input,$context,strval($prompts['memory_subsystem_summary'] ?? ''),
-        strval($prompts['summary_prompt'] ?? $GLOBALS['SUMMARY_PROMPT'] ?? ''));
+        strval($prompts['summary_prompt'] ?? \Synth\Bootstrap::config('SUMMARY_PROMPT') ?? ''));
     $connector->setOldGlobals($settings);
     $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$settings;
     $GLOBALS['CURRENT_CONNECTOR']=$settings['driver'];
@@ -110,7 +110,7 @@ function synth_memory_generate_summary($db, array $input, array $context): strin
     $GLOBALS['BASE_FUNCTIONS']=[];
     $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];
     $GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
-    $GLOBALS['FORCE_MAX_TOKENS']=intval($GLOBALS['CONNECTOR'][$settings['driver']]['MAX_TOKENS_MEMORY'] ?? $settings['max_tokens'] ?? 1024);
+    $GLOBALS['FORCE_MAX_TOKENS']=intval(\Synth\Bootstrap::config('CONNECTOR')[$settings['driver']]['MAX_TOKENS_MEMORY'] ?? $settings['max_tokens'] ?? 1024);
     $handler = $connector->getConnector($settings);
     $text = $handler->fast_request($prompt,[],'summary');
     if (!is_string($text)) throw new RuntimeException('Native summary provider returned no text');

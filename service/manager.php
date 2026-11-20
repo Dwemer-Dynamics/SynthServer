@@ -11,7 +11,7 @@ echo "[MANAGER] START".PHP_EOL;
 
 require_once("{$GLOBALS["ENGINE_ROOT"]}/service/lib/core_utils.php");
 require_once("{$GLOBALS["ENGINE_ROOT"]}/lib/runtime_bootstrap.php");
-synthRuntimeBootstrap($GLOBALS["ENGINE_ROOT"], [
+synthRuntimeBootstrap(\Synth\Bootstrap::engineRoot(), [
     'load_general_settings' => true,
     'load_stt_connector' => false,
     'load_player_name' => true,
@@ -23,12 +23,12 @@ if (isset($argv) && is_array($argv)) {
     $GLOBALS["argv"] = $argv;
 }
 
-Logger::setCustomLog($GLOBALS["ENGINE_ROOT"]."log/manager.log");
-Logger::deleteLogIfTooLarge($GLOBALS["ENGINE_ROOT"]."log/manager.log");
+Logger::setCustomLog(\Synth\Bootstrap::engineRoot()."log/manager.log");
+Logger::deleteLogIfTooLarge(\Synth\Bootstrap::engineRoot()."log/manager.log");
 
 Logger::info("[SERVICE MANAGER] Run started / ".date("Y-m-d H:i:s"));
 
-requireFilesRecursivelyByPattern($GLOBALS["ENGINE_ROOT"]."/service/processors/", '/^entrypoint\.php$/');
+requireFilesRecursivelyByPattern(\Synth\Bootstrap::engineRoot()."/service/processors/", '/^entrypoint\.php$/');
 
 require_once __DIR__.'/lib/task_runner.php';
 
@@ -37,7 +37,7 @@ if (isset($argv[1])) {
     $taskname=$argv[1];
     Logger::debug("Attempting to run task: $taskname");
     if (isset($GLOBALS["TASKS"][$taskname])) {
-        $task=$GLOBALS["TASKS"][$taskname];
+        $task=\Synth\Bootstrap::config("TASKS")[$taskname];
         echo "Running task $taskname asynchronously".PHP_EOL;
         Logger::info("Starting async task execution: $taskname");
         $pid = executeTaskAsync($taskname, $task);
@@ -60,7 +60,7 @@ if (isset($argv[1])) {
 } else {
     Logger::debug("No specific task requested, running all tasks asynchronously");
     $child_pids = [];
-    foreach ($GLOBALS["TASKS"] as $taskname=>$task)  {
+    foreach (\Synth\Bootstrap::config("TASKS") as $taskname=>$task)  {
         if (!empty($task["explicit_only"])) {
             Logger::debug("Skipping explicit-only task during scheduled run: $taskname");
             continue;

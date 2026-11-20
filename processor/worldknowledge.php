@@ -94,8 +94,8 @@ if (!function_exists('synthWorldKnowledgeSanitizeInputText')) {
     /** Return at most the immediately preceding two distinct dialogue lines. */
     function synthWorldKnowledgePreviousExchangeText($db, string $currentInput): string
     {
-        $npcName = trim(strval($GLOBALS['SYNTH_NAME'] ?? ''));
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $npcName = trim(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
         $native = ($event['protocol_version'] ?? 1) === 2;
         if (!$native && (!$db || $npcName === '' || !method_exists($db, 'fetchAll') || !method_exists($db, 'escape')
             || !function_exists('synthBuildNpcEventLogPeopleWhereClause'))) return '';
@@ -127,7 +127,7 @@ if (!function_exists('synthWorldKnowledgeSanitizeInputText')) {
     }
 }
 
-$db = $GLOBALS['db'] ?? null;
+$db = \Synth\Bootstrap::db() ?? null;
 $requestType = strval($gameRequest[0] ?? '');
 $effectiveSettings = synthWorldKnowledgeEffectiveSettings();
 $settings = $effectiveSettings['values'];
@@ -135,7 +135,7 @@ $enabled = boolval($settings['enabled']);
 $eligible = SynthWorldKnowledgeRetriever::isEligibleRequest($requestType);
 $inputText = '';
 
-$event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+$event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
 if ($requestType === 'rechat' && ($event['protocol_version'] ?? 1) === 2) {
     $lastChat = synthWorldKnowledgeNativeDialogueRows($db, $event, true, 1)[0] ?? null;
     $inputText = trim(strval($lastChat['data'] ?? ''));
@@ -151,7 +151,7 @@ $trace = [
     'algorithm_version' => SynthWorldKnowledgeRetriever::VERSION,
     'status' => !$enabled ? 'disabled' : (!$eligible ? 'ineligible' : 'no_match'),
     'request_type' => $requestType,
-    'npc_name' => strval($GLOBALS['SYNTH_NAME'] ?? ''),
+    'npc_name' => strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''),
     'input_text' => $inputText,
     'normalized_input' => SynthWorldKnowledgeRetriever::normalize($inputText),
     'current_topic' => '',
@@ -280,7 +280,7 @@ if ($topics === [] && $retrieval['fallback_eligible'] && $fallbackEnabled && $fa
     $fallbackStarted = hrtime(true);
     try {
         require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'worldknowledge_llm_service.php';
-        $language = trim(strval($GLOBALS['CORE_LANG'] ?? 'en')) ?: 'en';
+        $language = trim(strval(\Synth\Bootstrap::config('CORE_LANG') ?? 'en')) ?: 'en';
         $fallbackText = $trace['context_fallback']['attempted'] && $previousExchange !== ''
             ? "Previous exchange:\n{$previousExchange}\nCurrent follow-up:\n{$inputText}"
             : $inputText;
@@ -338,11 +338,11 @@ foreach ($topics as $topic) {
     synthWorldKnowledgeMarkTopicInjected(strval($row['topic'] ?? $topic));
     if ($decision['level'] === 'denied') {
         $deniedCount++;
-        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= ($GLOBALS['WORLDKNOWLEDGE_HINT'] === '' ? '' : "\n")
+        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
             . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation');
         $promptEntryCount++;
     } else {
-        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= ($GLOBALS['WORLDKNOWLEDGE_HINT'] === '' ? '' : "\n")
+        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
             . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation');
         $selectedCount++;
         $promptEntryCount++;
@@ -360,7 +360,7 @@ $GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] = max(0, $resultLimit - $promptEntry
 $forcedCount = synthWorldKnowledgeInjectForcedLocationContext($db)
     + synthWorldKnowledgeInjectForcedActorContext($db);
 unset($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING']);
-$trace['forced_signals'] = array_values($GLOBALS['WORLDKNOWLEDGE_FORCED_SIGNALS'] ?? []);
+$trace['forced_signals'] = array_values(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_SIGNALS') ?? []);
 $forcedDeniedCount = count(array_filter(
     $trace['forced_signals'],
     static fn(array $signal): bool => strval($signal['level'] ?? '') === 'denied'
@@ -381,11 +381,11 @@ if ($trace['fallback']['attempted'] && $topics !== []) {
 }
 
 $trace['elapsed_ms'] = round((hrtime(true) - $worldKnowledgeStarted) / 1_000_000, 3);
-$articleXml = trim(strval($GLOBALS['WORLDKNOWLEDGE_HINT'] ?? ''));
+$articleXml = trim(strval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') ?? ''));
 if ($articleXml !== '') {
     $status = htmlspecialchars(strval($trace['status']), ENT_QUOTES | ENT_XML1, 'UTF-8');
     $GLOBALS['WORLDKNOWLEDGE_HINT'] = '<oghma contract="oghma-parity-v1" status="' . $status . '">' . "\n"
         . $articleXml . "\n</oghma>";
-    $trace['prompt_hash'] = hash('sha256', $GLOBALS['WORLDKNOWLEDGE_HINT']);
+    $trace['prompt_hash'] = hash('sha256', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT'));
 }
 synthWorldKnowledgeRecordAudit($db, $trace);
