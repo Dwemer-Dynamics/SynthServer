@@ -13,6 +13,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private const SHIPPED = 'Synth\\Migrations\\Version20261117100000';
     // The second: the LLM request log table (core_llm_request_log).
     private const SECOND = 'Synth\Migrations\Version20261120100000';
+    // The third: the extension store and extension migration ledger.
+    private const THIRD = 'Synth\\Migrations\\Version20261120110000';
     private const LATER = 'Synth\\Migrations\\Version29990101000001';
     private const LOCK = "SELECT pg_advisory_lock(hashtextextended('synth-schema-migrations', 0))";
 
@@ -185,8 +187,8 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $result = $this->bootstrap();
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('schema migrations recorded: 3 (latest '.self::SECOND.')', $result['output']);
-        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND], array_keys($this->recorded()));
+        self::assertStringContainsString('schema migrations recorded: 4 (latest '.self::THIRD.')', $result['output']);
+        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD], array_keys($this->recorded()));
     }
 
     // Structure of both application schemas apart from the Doctrine version table: relations, columns with types,
@@ -308,7 +310,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $this->assertBootstrapSucceeds();
         // Baseline checks apply only while the baseline is the latest record (later migrations own the schema).
-        $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version IN ($1, $2)', [self::SHIPPED, self::SECOND]);
+        $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version IN ($1, $2, $3)', [self::SHIPPED, self::SECOND, self::THIRD]);
         $recorded = $this->recorded();
         $this->rows('DROP INDEX public.memory_summaries_batch');
         $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
@@ -375,7 +377,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $result = $this->finish($this->startLaterMigration(false));
         self::assertSame(0, $result['exit'], $result['output']);
         self::assertStringContainsString("gate unmet before: yes\ngate unmet after: no", $result['output']);
-        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::LATER], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD, self::LATER], array_keys($this->recorded()));
         self::assertSame($baseline[self::BASELINE], $this->recorded()[self::BASELINE]);
         self::assertSame($data, $this->dataChecksum(), 'A later migration must not change legacy rows it does not own.');
     }
@@ -405,7 +407,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         pg_close($holder);
         $result = $this->finish($waiting);
         self::assertSame(0, $result['exit'], $result['output']);
-        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD], array_keys($this->recorded()));
 
         // Two fresh-install bootstraps at once: one runs the legacy chain and records the baseline, the other waits
         // and then finds nothing to do. Unserialized, the chain's check-then-insert version writes would race.
@@ -415,7 +417,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         foreach ([$this->finish($first), $this->finish($second)] as $result) {
             self::assertSame(0, $result['exit'], $result['output']);
         }
-        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND], array_keys($this->recorded()));
+        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD], array_keys($this->recorded()));
         self::assertSame([], $this->rows('SELECT catalog_key FROM public.core_catalog_version GROUP BY catalog_key HAVING count(*) > 1'));
     }
 
@@ -558,10 +560,10 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $second = $this->startBootstrap();
         foreach ([$this->finish($first), $this->finish($second)] as $result) {
             self::assertSame(0, $result['exit'], $result['output']);
-            self::assertStringContainsString('schema migrations recorded: 3 (latest '.self::SECOND.')', $result['output']);
+            self::assertStringContainsString('schema migrations recorded: 4 (latest '.self::THIRD.')', $result['output']);
         }
         $recorded = $this->recorded();
-        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND], array_keys($recorded));
+        self::assertSame([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD], array_keys($recorded));
         self::assertSame($legacySchema, $this->schemaFingerprint(), 'A fresh install must match the legacy fresh install.');
         self::assertSame(self::$legacyInstall, self::installFingerprint($this->pg()));
         self::assertCount(1, self::installWriters($this->pg(), true), 'Schema, seeds and version record must commit together.');
@@ -859,7 +861,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 self::assertTrue($c->isTransactionActive(), 'Capture work must run in the owner transaction.');
                 return $metadata;
             });
-            self::assertSame($metadata([self::BASELINE, self::SHIPPED, self::SECOND]), $captured);
+            self::assertSame($metadata([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD]), $captured);
             $target = ['id' => 7, 'metadata' => $captured];
             self::assertSame($target, $owner->restoreSnapshot(function (\Doctrine\DBAL\Connection $c) use ($target): array {
                 self::assertFalse($this->migrationLockIsFree(), 'The target must be read under the lock.');
@@ -871,7 +873,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             // A two-version ledger: only its exact canonical metadata restores. [LATER] alone shares its newest member.
             $this->rows('INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ($1)', [self::LATER]);
             $both = $owner->captureSnapshot('synth', static fn (array $metadata): array => $metadata);
-            self::assertSame($metadata([self::BASELINE, self::SHIPPED, self::SECOND, self::LATER]), $both);
+            self::assertSame($metadata([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD, self::LATER]), $both);
             // Key order of the metadata object is irrelevant: reordered keys and a JSONB round trip both restore.
             $jsonb = json_decode($this->value('SELECT $1::jsonb::text', [json_encode($both)]), true, 512, JSON_THROW_ON_ERROR);
             foreach (['reordered keys' => array_reverse($both, true), 'jsonb round trip' => $jsonb] as $stored) {
@@ -886,14 +888,14 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
                 'null metadata' => ['metadata' => null],
                 'same newest version' => ['metadata' => $metadata([self::LATER])],
                 'older set' => ['metadata' => $captured],
-                'superset' => ['metadata' => $metadata([self::BASELINE, 'Synth\\Migrations\\Version20200101000000', self::SHIPPED, self::SECOND, self::LATER])],
-                'unsorted' => ['metadata' => $metadata([self::LATER, self::SECOND, self::SHIPPED, self::BASELINE])],
-                'repeated' => ['metadata' => $metadata([self::BASELINE, self::SHIPPED, self::SECOND, self::LATER, self::LATER])],
+                'superset' => ['metadata' => $metadata([self::BASELINE, 'Synth\\Migrations\\Version20200101000000', self::SHIPPED, self::SECOND, self::THIRD, self::LATER])],
+                'unsorted' => ['metadata' => $metadata([self::LATER, self::THIRD, self::SECOND, self::SHIPPED, self::BASELINE])],
+                'repeated' => ['metadata' => $metadata([self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD, self::LATER, self::LATER])],
                 'other format' => ['metadata' => array_merge($both, ['format' => 'synth-schema-snapshot.v2'])],
                 'other schema' => ['metadata' => array_merge($both, ['schema' => 'public'])],
                 'extra key' => ['metadata' => array_merge($both, ['note' => 'x'])],
                 'missing key' => ['metadata' => array_diff_key($both, ['schema' => true])],
-                'reordered, unsorted list' => ['metadata' => array_reverse($metadata([self::LATER, self::SECOND, self::SHIPPED, self::BASELINE]), true)],
+                'reordered, unsorted list' => ['metadata' => array_reverse($metadata([self::LATER, self::THIRD, self::SECOND, self::SHIPPED, self::BASELINE]), true)],
                 'reordered, list keys reordered' => ['metadata' => array_reverse(array_merge($both,
                     ['migration_versions' => array_reverse($both['migration_versions'], true)]), true)],
                 'list instead of object' => ['metadata' => array_values($both)],
@@ -928,7 +930,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
             $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
             $this->assertSnapshotRefused($capture(), 'does not contain: Synth\\Migrations\\Version29990101000000');
             $this->assertSnapshotRefused($restore($unread), 'does not contain: Synth\\Migrations\\Version29990101000000');
-            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version NOT IN ($1, $2, $3)', [self::BASELINE, self::SHIPPED, self::SECOND]);
+            $this->rows('DELETE FROM synth_meta.doctrine_migration_versions WHERE version NOT IN ($1, $2, $3, $4)', [self::BASELINE, self::SHIPPED, self::SECOND, self::THIRD]);
         } finally {
             $owner->close();
         }

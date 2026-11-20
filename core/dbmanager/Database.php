@@ -33,6 +33,7 @@ use Synth\Core\DbManager\Dao\DiaryResultDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
+use Synth\Core\DbManager\Dao\ExtensionDataDao;
 use Synth\Core\DbManager\Dao\LlmRequestLogDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
@@ -118,7 +119,7 @@ final class Database
      * @var list<class-string>
      */
     public const DAOS = [
-        LlmRequestLogDao::class, ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
+        ExtensionDataDao::class, LlmRequestLogDao::class, ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
         LlmConnectorDao::class,
         TtsConnectorDao::class,
         SttConnectorDao::class,

@@ -217,7 +217,13 @@ function synth_should_stream_json_response(array $event, string $acceptHeader = 
 function synth_decode_wire_event(): array
 {
     $json = synth_decode_json_body();
-    return empty($json) ? [] : synth_protocol_validate_event($json);
+    if (empty($json)) return [];
+    // Extension filter (API 1.1 game.event.received): runs before the closed-contract validation, which then checks the
+    // result exactly as it checks a client's event (an invalid change answers 422 like an invalid event). The event's
+    // identity (ids, type, schema, generation) cannot change, and an event cannot be dropped.
+    require_once dirname(__DIR__, 3).'/managers/ExtensionManager/ExtensionManager.php';
+    $json = \Synth\Managers\ExtensionManager\ExtensionManager::filterHook(\Synth\Managers\ExtensionManager\Hooks::GAME_EVENT_RECEIVED, ['event' => $json])['event'];
+    return synth_protocol_validate_event($json);
 }
 
 // $wire is the event main.php already decoded and validated; it is never parsed or validated twice.

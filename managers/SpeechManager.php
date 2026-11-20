@@ -36,7 +36,11 @@ final class SpeechManager
     {
         $this->failure = null;
         if ($settings === null) return null;
-        try { $cacheKey = $this->driver->queue($character->identity, $lineId, $text, $settings); }
+        // Extension filter (API 1.1 tts.text): changes what is voiced, not the line that is shown; never throws.
+        require_once __DIR__.'/ExtensionManager/ExtensionManager.php';
+        $spoken = \Synth\Managers\ExtensionManager\ExtensionManager::filterHook(\Synth\Managers\ExtensionManager\Hooks::TTS_TEXT,
+            ['character_key' => $character->key, 'line_id' => $lineId, 'text' => $text])['text'];
+        try { $cacheKey = $this->driver->queue($character->identity, $lineId, $spoken, $settings); }
         catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable $error) { $this->failure = $error->getMessage(); return null; }
         return ['schema' => 'synth.speech.v1', 'utterance_id' => $lineId, 'cache_key' => $cacheKey,

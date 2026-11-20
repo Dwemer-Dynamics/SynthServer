@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Synth\Managers\ExtensionManager;
 
-foreach (['Hooks', 'ExtensionInterface', 'DeferredEventSink', 'ExtensionStore', 'ExtensionContext', 'ExtensionRegistrar',
-    'ManifestValidator', 'ExtensionState', 'FileEventQueue'] as $__file) require_once __DIR__.'/'.$__file.'.php';
+foreach (['Hooks', 'HookResults', 'ExtensionInterface', 'DeferredEventSink', 'ExtensionStoreInterface', 'ExtensionStore',
+    'DatabaseExtensionStore', 'MigrationChecker', 'ExtensionDatabase', 'ExtensionMigrator', 'ExtensionContext', 'ExtensionRegistrar',
+    'ExtensionRoute', 'GuardedWorker', 'ManifestValidator', 'ExtensionState', 'FileEventQueue'] as $__file) require_once __DIR__.'/'.$__file.'.php';
 unset($__file);
+require_once dirname(__DIR__, 2).'/workers/WorkerInterface.php';
+require_once dirname(__DIR__, 2).'/workers/WorkerLimits.php';
+require_once dirname(__DIR__, 2).'/workers/WorkerReport.php';
 
 // Discovers extensions/<id>/extension.json, validates and enables them, and runs their hooks with error isolation.
 // Nothing here may break a dialogue turn: the static entry points used by legacy call sites never throw, and with
@@ -25,6 +29,10 @@ final class ExtensionManager
     private bool $booted = false;
     /** @var array<string, array<string, list<callable>>> extension id => hook => handlers */
     private array $handlers = [];
+    /** @var array<string, list<array{method: string, pattern: string, handler: callable}>> extension id => routes */
+    private array $routes = [];
+    /** @var array<string, array<string, \Synth\Workers\WorkerInterface>> extension id => worker name => worker */
+    private array $workers = [];
     /** @var array<string, string> extension id => reason, for extensions enabled but not loaded */
     private array $failed = [];
     /** @var array<string, int> consecutive failures known in this process, so a clean run does not rewrite the state file */
@@ -80,6 +88,24 @@ final class ExtensionManager
         catch (\Throwable) {}
     }
 
+    // Runs a 1.1 filter hook over a payload with that hook's result rule (HookResults); never throws, and returns the
+    // payload unchanged when nothing is enabled, nothing listens, or a result is refused.
+    public static function filterHook(string $hook, array $payload): array
+    {
+        try {
+            $manager = self::instance();
+            if (!$manager->hasHandlers($hook)) return $payload;
+            return $manager->filter($hook, $payload, HookResults::ruleFor($hook));
+        } catch (\Throwable) { return $payload; }
+    }
+
+    // True when an enabled extension listens to the hook (one is_file() check when none is enabled).
+    public static function wants(string $hook): bool
+    {
+        try { return self::instance()->hasHandlers($hook); }
+        catch (\Throwable) { return false; }
+    }
+
     // ---- Hook points ----
 
     // Extension sections are appended to the system message as escaped XML-style blocks, then the final message
@@ -123,7 +149,7 @@ final class ExtensionManager
     {
         if (!in_array($hook, Hooks::EVENTS, true)) return;
         foreach ($this->handlersFor($hook) as $id => $_) {
-            if ($this->sink === null) { $this->deliver($id, $hook, $payload); continue; }
+            if ($this->sink === null || !in_array($hook, Hooks::DEFERRABLE, true)) { $this->deliver($id, $hook, $payload); continue; }
             try { $this->sink->defer($id, $hook, $payload); }
             catch (\Throwable $error) { $this->fail($id, $hook, 'defer_failed: '.$error->getMessage()); }
         }
@@ -154,6 +180,7 @@ final class ExtensionManager
             $manifest = json_decode(strval(file_get_contents($file)), true);
             $errors = json_last_error() === JSON_ERROR_NONE ? ManifestValidator::validate($manifest, $id)
                 : ['extension.json is not valid JSON: '.json_last_error_msg()];
+            if ($errors === []) $errors = $this->migrationProblems($id, $manifest);
             $found[$id] = ['manifest' => $errors === [] ? $manifest : null, 'errors' => $errors, 'enabled' => in_array($id, $enabled, true)];
         }
         ksort($found);
@@ -199,6 +226,11 @@ final class ExtensionManager
     {
         $found = $this->discover()[$id] ?? throw new \InvalidArgumentException("unknown_extension:{$id}");
         if ($found['errors'] !== []) throw new \InvalidArgumentException('invalid_manifest: '.implode('; ', $found['errors']));
+        // Its own tables first: an extension whose migrations cannot be applied is not enabled.
+        if ((new ExtensionMigrator($this->root))->hasMigrations($id)) {
+            try { (new ExtensionMigrator($this->root))->migrate($id); }
+            catch (\Throwable $error) { throw new \RuntimeException('migration_failed: '.$error->getMessage()); }
+        }
         $this->state->setEnabled($id, true);
         unset($this->failureCounts[$id]);
         $this->booted = false;
@@ -217,7 +249,108 @@ final class ExtensionManager
         return $this->failed;
     }
 
+    // ---- Routes and workers (extension-provided) ----
+
+    /**
+     * Answers one request for /api/v1/ext/<id>/<path>. The id must be an enabled, loaded extension (the registry in
+     * conf/extensions.json), never a name taken from the URL alone. Handler failures count against the extension.
+     *
+     * @param array<string, string> $query
+     * @param array<string, mixed>|null $body
+     * @return array{status: int, body: array<string, mixed>, allow?: list<string>}
+     */
+    public function handleRoute(string $id, string $method, string $path, array $query = [], ?array $body = null): array
+    {
+        if (preg_match(self::ID_PATTERN, $id) !== 1 || !in_array($id, $this->state->read()['enabled'], true)) {
+            return ['status' => 404, 'body' => ['ok' => false, 'error' => 'Route not found']];
+        }
+        $this->boot();
+        $segments = $path === '' ? [] : explode('/', trim($path, '/'));
+        $allowed = [];
+        foreach ($this->routes[$id] ?? [] as $route) {
+            $parameters = self::matchPattern($route['pattern'], $segments);
+            if ($parameters === null) continue;
+            if ($route['method'] !== strtoupper($method)) { $allowed[] = $route['method']; continue; }
+            try {
+                $result = ($route['handler'])(new ExtensionRoute(strtoupper($method), implode('/', $segments), $parameters, $query, $body));
+                $answer = self::routeAnswer($result);
+                if ($answer === null) throw new \UnexpectedValueException('invalid_route_result');
+                $this->succeeded($id);
+                return $answer;
+            } catch (\Throwable $error) {
+                $this->fail($id, 'route', $error->getMessage());
+                return ['status' => 500, 'body' => ['ok' => false, 'error' => 'Extension route failed']];
+            }
+        }
+        if ($allowed !== []) return ['status' => 405, 'body' => ['ok' => false, 'error' => 'Method not allowed'], 'allow' => array_values(array_unique($allowed))];
+        return ['status' => 404, 'body' => ['ok' => false, 'error' => 'Route not found']];
+    }
+
+    /** @return list<string> "<id>:<name>" of every worker the enabled, valid extensions declare (read from manifests; nothing is loaded) */
+    public function workerNames(): array
+    {
+        $names = [];
+        foreach ($this->state->read()['enabled'] as $id) {
+            if (preg_match(self::ID_PATTERN, $id) !== 1) continue;
+            $file = $this->root.'/extensions/'.$id.'/extension.json';
+            $manifest = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+            if (!is_array($manifest) || ManifestValidator::validate($manifest, $id) !== []) continue;
+            foreach ($manifest['provides']['workers'] ?? [] as $worker) $names[] = $id.':'.$worker;
+        }
+        sort($names);
+        return $names;
+    }
+
+    /** The guarded worker for "<id>:<name>"; loads that extension only when called. */
+    public function createWorker(string $full): \Synth\Workers\WorkerInterface
+    {
+        if (preg_match('/^([a-z][a-z0-9]*(?:-[a-z0-9]+)*):([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/D', $full, $m) !== 1 || !in_array($full, $this->workerNames(), true)) {
+            throw new \InvalidArgumentException('unknown_extension_worker');
+        }
+        $this->boot();
+        $worker = $this->workers[$m[1]][$m[2]] ?? throw new \InvalidArgumentException('unknown_extension_worker');
+        return new GuardedWorker($m[1], $worker, fn(string $class) => $this->fail($m[1], 'worker', $class), fn() => $this->succeeded($m[1]));
+    }
+
     // ---- Internals ----
+
+    /** @return list<string> */
+    private function migrationProblems(string $id, array $manifest): array
+    {
+        $migrator = new ExtensionMigrator($this->root);
+        if (!$migrator->hasMigrations($id)) return [];
+        $problems = $migrator->fileProblems($id);
+        if (!in_array('storage.tables', $manifest['permissions'] ?? [], true)) $problems[] = 'migrations need the storage.tables permission';
+        return $problems;
+    }
+
+    /** @return array<string, string>|null the {name} values when the segments match the pattern */
+    private static function matchPattern(string $pattern, array $segments): ?array
+    {
+        $parts = explode('/', $pattern);
+        if (count($parts) !== count($segments)) return null;
+        $values = [];
+        foreach ($parts as $i => $part) {
+            if (preg_match('/^\{([a-z][a-z0-9_]*)\}$/D', $part, $m) === 1) {
+                if (preg_match('/^[A-Za-z0-9_.-]{1,100}$/D', $segments[$i]) !== 1) return null;
+                $values[$m[1]] = $segments[$i];
+            } elseif ($part !== $segments[$i]) return null;
+        }
+        return $values;
+    }
+
+    /** @return array{status: int, body: array}|null */
+    private static function routeAnswer(mixed $result): ?array
+    {
+        if (!is_array($result)) return null;
+        if (array_key_exists('body', $result) && is_array($result['body']) && array_diff(array_keys($result), ['status', 'body']) === []) {
+            $status = $result['status'] ?? 200;
+            $body = $result['body'];
+        } else { $status = 200; $body = $result; }
+        $json = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        if (!is_int($status) || $status < 200 || $status > 599 || !is_string($json) || strlen($json) > HookResults::MAX_BODY_BYTES) return null;
+        return ['status' => $status, 'body' => $body];
+    }
 
     private function hasHandlers(string $hook): bool
     {
@@ -238,6 +371,8 @@ final class ExtensionManager
         if ($this->booted) return;
         $this->booted = true;
         $this->handlers = [];
+        $this->routes = [];
+        $this->workers = [];
         $this->failed = [];
         if (!$this->state->exists()) return;
         $state = $this->state->read();
@@ -245,7 +380,12 @@ final class ExtensionManager
         $ids = $state['enabled'];
         sort($ids);
         foreach ($ids as $id) {
-            try { $this->handlers[$id] = $this->load($id, $state['settings'][$id] ?? []); }
+            try {
+                $loaded = $this->load($id, $state['settings'][$id] ?? []);
+                $this->handlers[$id] = $loaded['handlers'];
+                $this->routes[$id] = $loaded['routes'];
+                $this->workers[$id] = $loaded['workers'];
+            }
             catch (\Throwable $error) {
                 $this->failed[$id] = $error->getMessage();
                 $this->fail($id, 'load', $error->getMessage());
@@ -265,10 +405,16 @@ final class ExtensionManager
         foreach ($manifest['autoload']['psr-4'] as $prefix => $folder) self::autoload($prefix, $dir.'/'.trim($folder, '/'));
         $entry = $manifest['entry'];
         if (!class_exists($entry) || !is_subclass_of($entry, ExtensionInterface::class)) throw new \RuntimeException('entry_class_invalid');
-        $context = new ExtensionContext($id, $manifest['settings'] ?? [], $values, new ExtensionStore($this->root.'/data/extensions/'.$id.'.json'));
-        $registrar = new ExtensionRegistrar($context, $manifest['hooks'] ?? []);
+        $legacyFile = $this->root.'/data/extensions/'.$id.'.json';
+        // The store connects on first use: the database store when a session exists, else the old file store.
+        $store = static function () use ($id, $legacyFile): ExtensionStoreInterface {
+            try { return new DatabaseExtensionStore($id, \Synth\Core\DbManager\Dao\ExtensionDataDao::current(), $legacyFile); }
+            catch (\Throwable) { return new ExtensionStore($legacyFile); }
+        };
+        $context = new ExtensionContext($id, $manifest['settings'] ?? [], $values, $store, $manifest['permissions'] ?? []);
+        $registrar = new ExtensionRegistrar($context, $manifest['hooks'] ?? [], $manifest['provides'] ?? []);
         (new $entry())->register($registrar);
-        return $registrar->handlers();
+        return ['handlers' => $registrar->handlers(), 'routes' => $registrar->routes(), 'workers' => $registrar->workers()];
     }
 
     private static function autoload(string $prefix, string $folder): void
@@ -288,7 +434,7 @@ final class ExtensionManager
             $count = $this->state->recordFailure($id, "{$hook}: {$reason}", self::FAILURE_LIMIT);
             $this->failureCounts[$id] = $count;
             if ($count >= self::FAILURE_LIMIT) {
-                unset($this->handlers[$id], $this->failureCounts[$id]);
+                unset($this->handlers[$id], $this->routes[$id], $this->workers[$id], $this->failureCounts[$id]);
                 ($this->logger)("[extensions] {$id} disabled after ".self::FAILURE_LIMIT.' failures');
             }
         } catch (\Throwable) {}

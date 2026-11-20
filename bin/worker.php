@@ -27,6 +27,8 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../lib/autoload.php';
+require_once __DIR__ . '/../managers/ExtensionManager/ExtensionManager.php';
+\Synth\Managers\ExtensionManager\ExtensionManager::publish(\Synth\Managers\ExtensionManager\Hooks::APP_BOOT, ['entry_point' => 'worker']);
 
 $arguments = array_slice($argv, 1);
 $name = $arguments[0] ?? '';
