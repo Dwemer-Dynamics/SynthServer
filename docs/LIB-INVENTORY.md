@@ -35,7 +35,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L7 | status, backup, save state, profile workers, supervisor, plugins (done) |
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat (done) |
 | L9 | prompt, context, character helpers (done) |
-| L10 | ingress, request, response, protocol state, runtime |
+| L10 | ingress, request, response, protocol state, runtime (done) |
 | L11 | small `Synth\Lib` helpers and GameTime |
 | L12 | split `chat_helper_functions.php` and `data_functions.php` |
 
@@ -100,7 +100,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/db_connection_settings.php` | 59 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
 | `lib/dynamic_update_util.php` | 4 | hook (done) | `workers/Profiles/Native/dynamic_update_util.php` | done (L7) |
 | `lib/emote_moods.php` | 4 | hook (done) | `managers/CharacterManager/Native/emote_moods.php` | done (L9) |
-| `lib/eventlog_helper.php` | 922 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
+| `lib/eventlog_helper.php` | 4 | hook (done) | `managers/MessageHandler/Native/eventlog_helper.php` | done (L10) |
 | `lib/fallout_catalogue_sql.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_catalogue_sql.php` | done (L2) |
 | `lib/fallout_content_catalog.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_catalog.php` | done (L2) |
 | `lib/fallout_content_pack.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_pack.php` | done (L2) |
@@ -143,8 +143,8 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/relationship_manager.php` | 4 | hook (done) | `managers/Relationships/Legacy/RelationshipManager.php` | done |
 | `lib/relationship_response.php` | 4 | hook (done) | `managers/Relationships/Native/relationship_response.php` | done |
 | `lib/relationship_runtime.php` | 4 | hook (done) | `managers/Relationships/Native/relationship_runtime.php` | done |
-| `lib/request.php` | 590 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
-| `lib/response.php` | 1213 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
+| `lib/request.php` | 4 | hook (done) | `managers/ListenerManager/Native/request.php` | done (L10) |
+| `lib/response.php` | 4 | hook (done) | `managers/MessageHandler/Native/response.php` | done (L10) |
 | `lib/rolemaster_bored.php` | 4 | hook (done) | `managers/ContextManager/Native/rolemaster_bored.php` | done (L9) |
 | `lib/rpg_comment.php` | 4 | hook (done) | `managers/ActionsManager/Native/rpg_comment.php` | done (L8) |
 | `lib/runtime_bootstrap.php` | 508 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
@@ -178,9 +178,9 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_gift_menu.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_gift_menu.php` | done (L8) |
 | `lib/synth_history_speech.php` | 4 | hook (done) | `managers/ContextManager/Native/synth_history_speech.php` | done (L9) |
 | `lib/synth_history_trigger_prompt.php` | 4 | hook (done) | `managers/PromptManager/Native/synth_history_trigger_prompt.php` | done (L9) |
-| `lib/synth_ingress.php` | 1296 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
+| `lib/synth_ingress.php` | 4 | hook (done) | `managers/ListenerManager/Native/synth_ingress.php` | done (L10) |
 | `lib/synth_jev_actions.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_jev_actions.php` | done (L8) |
-| `lib/synth_location.php` | 98 | manager | `managers/ListenerManager` (ingress validation and routing; ListenerRouter is the chevo shape) | L10 |
+| `lib/synth_location.php` | 4 | hook (done) | `managers/ListenerManager/Native/synth_location.php` | done (L10) |
 | `lib/synth_memory.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_memory.php` | done |
 | `lib/synth_memory_dispatch.php` | 4 | hook (done) | `workers/Memory/Native/synth_memory_dispatch.php` | done |
 | `lib/synth_memory_recall.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_memory_recall.php` | done |
@@ -197,7 +197,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_profile_jobs.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_jobs.php` | done (L7) |
 | `lib/synth_profile_scope.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_scope.php` | done (L7) |
 | `lib/synth_profile_state.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_state.php` | done (L7) |
-| `lib/synth_protocol_state.php` | 3137 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
+| `lib/synth_protocol_state.php` | 4 | hook (done) | `managers/MessageHandler/Native/synth_protocol_state.php` | done (L10) |
 | `lib/synth_rechat_admission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_admission.php` | done (L5) |
 | `lib/synth_rechat_emission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_emission.php` | done (L5) |
 | `lib/synth_rechat_history.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_history.php` | done (L5) |
@@ -225,7 +225,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_relationship_responder.php` | 4 | hook (done) | `managers/Relationships/Native/synth_relationship_responder.php` | done |
 | `lib/synth_relationship_result_state.php` | 4 | hook (done) | `managers/Relationships/Native/synth_relationship_result_state.php` | done |
 | `lib/synth_relationship_worker.php` | 4 | hook (done) | `workers/Relationships/Native/synth_relationship_worker.php` | done |
-| `lib/synth_runtime.php` | 818 | manager | `managers/Conversation` / `managers/ContextManager` (runtime and protocol seed helpers) | L10 |
+| `lib/synth_runtime.php` | 4 | hook (done) | `managers/ListenerManager/Native/synth_runtime.php` | done (L10) |
 | `lib/synth_social_contract.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_contract.php` | done (L8) |
 | `lib/synth_social_response.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_response.php` | done (L8) |
 | `lib/synth_social_tasks.php` | 4 | hook (done) | `managers/ActionsManager/Native/synth_social_tasks.php` | done (L8) |
