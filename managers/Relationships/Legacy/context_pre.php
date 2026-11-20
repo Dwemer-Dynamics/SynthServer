@@ -22,8 +22,9 @@
  *    - Adds #REL: command instructions for conversation model
  */
 
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 $relationshipContextStartTime = $GLOBALS["startTime"] ?? microtime(true);
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
 
 require_once $GLOBALS["ENGINE_PATH"] . "lib/relationship_runtime.php";
 
@@ -71,7 +72,7 @@ if ($useRelLLM) {
     _relEnsureWorkerRunning();
 }
 
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
 
 /**
  * Ensure the relationship worker daemon is running
@@ -277,6 +278,6 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
 }
 
 $relationshipTraceStart = (float)($GLOBALS['SYNTH_TURN_START_TIME'] ?? microtime(true));
-error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipTraceStart));
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipTraceStart));
 
 ?>

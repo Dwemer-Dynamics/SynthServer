@@ -8,6 +8,7 @@
 // these directories are never affected. The host, origin and address rules live in Synth\Lib\LocalAccess and
 // Synth\Lib\SameOriginRequest; the functions below keep their names and delegate to them.
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once __DIR__ . '/LocalAccess.php';
 require_once __DIR__ . '/SameOriginRequest.php';
 
@@ -246,7 +247,7 @@ if (PHP_SAPI !== 'cli' && !defined('SYNTH_MANAGEMENT_REQUEST_CHECKED')) {
         : synthManagementRequestRefusal($_SERVER, $synthManagementScope, $synthManagementGetEffect);
     if ($synthManagementRefusal === synthManagementHostRefusalMessage()) {
         // One structured line, no secrets: the Host value is control-character-stripped and truncated.
-        error_log(json_encode([
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'management_request_guard', json_encode([
             'event' => 'management_host_refused',
             'host' => substr(preg_replace('#[^ -~]#', '?', strval($_SERVER['HTTP_HOST'] ?? '')), 0, 100),
             'method' => substr(preg_replace('~[^A-Z]~', '', strtoupper(strval($_SERVER['REQUEST_METHOD'] ?? ''))), 0, 10),

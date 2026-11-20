@@ -8,6 +8,7 @@ use SYNTHProtocolCancelled;
 
 // Provider logic moved from connector/player2json.php. The stateful open/process/close/fast_request API and behaviour are
 // unchanged; connector/player2json.php remains as a thin hook so call sites and config keep working.
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 3) . '/lib/provider_stream.php';
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
@@ -803,7 +804,7 @@ class Player2JsonDriver
                 if (function_exists('log_msg')) {
                     log_msg($errorMessage, 3);
                 } else {
-                    error_log($errorMessage);
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'Player2JsonDriver', $errorMessage);
                 }
                 return "";
             }

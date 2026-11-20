@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once("logger.php");
 
 if (class_exists('sql', false)) {
@@ -639,7 +640,7 @@ class sql
         }
         if ($result === false) {
             $error = pg_last_error(self::$link);
-            error_log("[DB_DELETE] Failed to delete from {$table} WHERE {$where}. Error: {$error}");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'DB_DELETE', "Failed to delete from {$table} WHERE {$where}. Error: {$error}");
         }
         return $result !== false;
     }
@@ -798,7 +799,7 @@ class sql
 
         if ($log) {
             if ($this->debug_level > 0)
-                error_log($q);
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'postgresql.class', $q);
         }
 
         if (!isset($result)) {

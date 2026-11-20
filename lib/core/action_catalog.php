@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'game_plugins.php');
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'npc_master.class.php');
 
@@ -1474,7 +1475,7 @@ function synthActionCatalogRowMatchesRequirements($row, $context = null)
 
     $cooldownSeconds = intval($metadata['cooldown_seconds'] ?? 0);
     if ($cooldownSeconds > 0 && synthActionCatalogIsActionOnCooldown($row['code_name'] ?? '', $cooldownSeconds)) {
-        error_log("[FUNCTIONS COOLDOWN] Action '{$row['code_name']}' is on cooldown for {$cooldownSeconds} seconds.");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'FUNCTIONS COOLDOWN', "Action '{$row['code_name']}' is on cooldown for {$cooldownSeconds} seconds.");
         return false;
     }
 
@@ -3195,7 +3196,7 @@ function synthActionCatalogExecuteScriptProxyAction($action)
     $executed = synthActionCatalogRunScriptProxyProgram($row['script_proxy_program'], $context);
     if ($executed) {
         synthActionCatalogLogScriptProxyInfoAction($codeName, $context, $row);
-        error_log("[ACTION CATALOG {$codeName}] Executed server-side via ScriptProxy");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'action_catalog', "[ACTION CATALOG {$codeName}] Executed server-side via ScriptProxy");
     }
 
     return $executed;
