@@ -136,7 +136,7 @@ final class Logger
             return self::$requestId;
         }
         if (!empty($GLOBALS['SYNTH_REQUEST_ID'])) {
-            self::setRequestId($GLOBALS['SYNTH_REQUEST_ID']);
+            self::setRequestId(\Synth\Bootstrap::config('SYNTH_REQUEST_ID'));
             return self::$requestId;
         }
         return '';

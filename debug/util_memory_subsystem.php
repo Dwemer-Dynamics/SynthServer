@@ -6,7 +6,7 @@ ini_set('display_errors', 1);
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 
 $GLOBALS["ENGINE_ROOT"] = $enginePath;
-$GLOBALS["ENGINE_PATH"] = $GLOBALS["ENGINE_ROOT"]; // Todo, make this uniform
+$GLOBALS["ENGINE_PATH"] = \Synth\Bootstrap::engineRoot(); // Todo, make this uniform
 
 require_once $enginePath . "lib/runtime_bootstrap.php";
 synthRuntimeBootstrap($enginePath, [
@@ -30,7 +30,7 @@ require_once $enginePath . "lib/core/core_profiles.class.php";
 
 function synthResolveSummaryConnectorRuntime(): ?array
 {
-    $connectorId = intval($GLOBALS["CORE_CONNECTOR_SUMMARY"] ?? 0);
+    $connectorId = intval(\Synth\Bootstrap::config("CORE_CONNECTOR_SUMMARY") ?? 0);
     if ($connectorId <= 0) {
         return null;
     }
@@ -96,7 +96,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
             }
 
             // Update embedding using storeMemory
-            if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
+            if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
                 storeMemory($TEST_TEXT, $TEST_TEXT, $row["rowid"], $row["classifier"], $row["companions"]);
             }
 
@@ -115,7 +115,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     }
     // --- Fix companions field (first method) ---
     echo "Completing companions field (method 1)..." . PHP_EOL;
-    $pfi      = ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] + 0) * 100000;
+    $pfi      = (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] + 0) * 100000;
 
     $db->execQuery("UPDATE core_memory SET companions=NULL WHERE btrim(COALESCE(companions, ''), '|, ') = ''");
 
@@ -250,11 +250,11 @@ function extractMemoryTagsColumn($text)
 
 function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatchesPerNpc = 3)
 {
-    $threshold = intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["INDIVIDUAL_MEMORY_SUMMARY_THRESHOLD"] ?? 3);
+    $threshold = intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["INDIVIDUAL_MEMORY_SUMMARY_THRESHOLD"] ?? 3);
     if ($threshold < 2) {
         $threshold = 2;
     }
-    $pfi = intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
+    $pfi = intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
     if ($pfi < 1000) {
         $pfi = 100000;
     }
@@ -296,7 +296,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         // keep fallback
     }
     if ($summaryPromptValue === '') {
-        $summaryPromptValue = $GLOBALS["SUMMARY_PROMPT"] ?? '';
+        $summaryPromptValue = \Synth\Bootstrap::config("SUMMARY_PROMPT") ?? '';
     }
 
     $individualPromptTemplate = null;
@@ -498,7 +498,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Get memory {$argv[2]}" . PHP_EOL;
         $data = getElement($argv[2]);
         print_r($data);
-        print_r($GLOBALS["DEBUG_DATA"]);
+        print_r(\Synth\Bootstrap::config("DEBUG_DATA"));
 
     } elseif ($argv[1] == "query") {
         echo "Query memory for '{$argv[2]}'" . PHP_EOL;
@@ -526,7 +526,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
             $GLOBALS["SYNTH_NAME"] = "%";
         }
 
-        if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
+        if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
             echo "Using pgvector search (text2vec) DataSearchMemoryByVector({$argv[2]}, {$argv[3]}, true,{$argv[4]}" . PHP_EOL;
 
             error_log("[DataSearchMemoryByVector calling]  : " . (microtime(true) - $localStartTime) . " seconds");
@@ -579,7 +579,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
         $db             = new sql();
         $localStartTime = microtime(true);
-        $url            = $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["TXTAI_URL"] . '/embed';
+        $url            = \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["TXTAI_URL"] . '/embed';
 
         $data = [
 
@@ -641,7 +641,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
         $db = new sql();
 
-        if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
+        if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
             echo "Using pgvector search" . PHP_EOL;
 
             $currentWorldKnowledgeTopic_req = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic'");
@@ -649,7 +649,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
             // Get location and context keywords
             $locationCtx     = DataLastKnownLocationHuman(false);
-            $contextKeywords = implode(" ", lastKeyWordsContext(5, $GLOBALS["SYNTH_NAME"]));
+            $contextKeywords = implode(" ", lastKeyWordsContext(5, \Synth\Bootstrap::config("SYNTH_NAME")));
             error_log("DataSearchWorldKnowledgeByVector Expanded keywords: <$currentWorldKnowledgeTopic> <$locationCtx> <$contextKeywords>");
 
             $res = DataSearchWorldKnowledgeByVector($argv[2], $currentWorldKnowledgeTopic, $locationCtx, $contextKeywords);
@@ -685,7 +685,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Full resync completed." . PHP_EOL;
 
     } elseif ($argv[1] == "sync_worldknowledge") {
-        if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
+        if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
             echo "Creating vectors for memories" . PHP_EOL;
 
             $db      = new sql();
@@ -798,13 +798,13 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     
                     // Fallback to $GLOBALS if database load failed
                     if (empty($summaryPromptValue)) {
-                        $summaryPromptValue = $GLOBALS["SUMMARY_PROMPT"] ?? '';
+                        $summaryPromptValue = \Synth\Bootstrap::config("SUMMARY_PROMPT") ?? '';
                     }
                     
                     // Replace placeholders with actual values
                     $memoryPromptProcessed = str_replace(
                         ['{PLAYER_NAME}', '{COMPANIONS_LINE}', '{SUMMARY_PROMPT}'],
-                        [$GLOBALS["PLAYER_NAME"], $companionsLine, $summaryPromptValue],
+                        [\Synth\Bootstrap::config("PLAYER_NAME"), $companionsLine, $summaryPromptValue],
                         $memoryPrompt
                     );
 
@@ -819,7 +819,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     $prompt[] = ['role' => 'user',
                         'content'           => "Read #CHAT HISTORY# and write a extensive memory record about events and conversations. Use this format:\n$CLFORMAT"];
 
-                    $GLOBALS["FORCE_MAX_TOKENS"] = $GLOBALS["CONNECTOR"][$GLOBALS["CURRENT_CONNECTOR"]]["MAX_TOKENS_MEMORY"];
+                    $GLOBALS["FORCE_MAX_TOKENS"] = \Synth\Bootstrap::config("CONNECTOR")[\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["MAX_TOKENS_MEMORY"];
 
                     $buffer = $connectionHandler->fast_request($prompt, [], "summary");
 

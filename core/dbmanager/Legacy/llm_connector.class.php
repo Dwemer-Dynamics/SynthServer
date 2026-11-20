@@ -137,26 +137,26 @@ class LLMConnector
         }
 
         $filtered = array_intersect_key($data, array_flip($fields));
-        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->insertReturningId($this->table, $filtered), 0);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->insertReturningId($this->table, $filtered), 0);
     }
 
     public function readAll()
     {
         $query = "SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), model)) ASC";
-        return $this->normalizeConnectorRecords($GLOBALS["db"]->fetchAll($query));
+        return $this->normalizeConnectorRecords(\Synth\Bootstrap::db()->fetchAll($query));
     }
 
     // Url and model only (never a key or metadata) of every connector that names both: one query for the health check.
     public function endpointRows()
     {
-        return $GLOBALS["db"]->fetchAll("SELECT url, model FROM {$this->table} WHERE btrim(COALESCE(url, '')) <> '' AND btrim(COALESCE(model, '')) <> ''");
+        return \Synth\Bootstrap::db()->fetchAll("SELECT url, model FROM {$this->table} WHERE btrim(COALESCE(url, '')) <> '' AND btrim(COALESCE(model, '')) <> ''");
     }
 
     public function readOne($id)
     {
         $id = intval($id);
         $query = "SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1";
-        $data = $GLOBALS["db"]->fetchOne($query);
+        $data = \Synth\Bootstrap::db()->fetchOne($query);
 
         if (!is_array($data)) {
             return $data;
@@ -208,23 +208,23 @@ class LLMConnector
         $id = intval($id);
         $where = "id = {$id}";
         $filtered = array_intersect_key($data, array_flip($fields));
-        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, $where), false);
+        return ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->updateRow($this->table, $filtered, $where), false);
     }
 
     public function delete($id)
     {
         $id = intval($id);
-        return $GLOBALS["db"]->delete($this->table, "id = {$id}");
+        return \Synth\Bootstrap::db()->delete($this->table, "id = {$id}");
     }
 
     public function truncate($restart = false, $cascade = false)
     {
-        return $GLOBALS["db"]->truncate($this->table, $restart, $cascade);
+        return \Synth\Bootstrap::db()->truncate($this->table, $restart, $cascade);
     }
 
     public function getLastError()
     {
-        return $GLOBALS["db"]->GetLastError();
+        return \Synth\Bootstrap::db()->GetLastError();
     }
 
     public function getDriver($id)
@@ -240,7 +240,7 @@ class LLMConnector
             return []; // Unknown FK
         }
 
-        return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
+        return (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labels('lower_label');
     }
 
     public function clone($id)
@@ -292,7 +292,7 @@ class LLMConnector
             // The next connector's explicit metadata is applied below and takes precedence.
             if ($quickstartManaged && self::$quickstartTransportDefaults === null) {
                 self::$quickstartTransportDefaults = array_intersect_key(
-                    $GLOBALS["CONNECTOR"]["openaijson"] ?? [],
+                    \Synth\Bootstrap::config("CONNECTOR")["openaijson"] ?? [],
                     array_flip(['disable_streaming', 'lmstudio_compat'])
                 );
             } elseif (!$quickstartManaged && self::$quickstartTransportDefaults !== null) {
@@ -333,7 +333,7 @@ class LLMConnector
 
         } else if ($currentConnectorData["driver"] == "koboldcppjson") {
             // Keep the selected core record authoritative; otherwise workers silently use the global fallback endpoint.
-            $settings = $GLOBALS['CONNECTOR']['koboldcppjson'] ?? [];
+            $settings = \Synth\Bootstrap::config('CONNECTOR')['koboldcppjson'] ?? [];
             $settings['url'] = strval($currentConnectorData['url'] ?? '');
             foreach (['max_tokens','temperature','top_p','top_k','min_p'] as $key) {
                 if (isset($currentConnectorData[$key])) $settings[$key] = $currentConnectorData[$key];
@@ -480,7 +480,7 @@ class LLMConnector
         }
 
         require_once(dirname(__DIR__, 3) . '/drivers/llm/LlmWrapper.php');
-        $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), $GLOBALS["ENGINE_PATH"] ?? null);
+        $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), \Synth\Bootstrap::enginePath() ?? null);
 
         $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
         $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";

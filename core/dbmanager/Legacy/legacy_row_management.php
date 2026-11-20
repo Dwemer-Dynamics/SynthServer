@@ -18,7 +18,7 @@ function synthLegacyRowTarget(array $input): array
 function synthDeleteLegacyRow($db, array $input): bool
 {
     [$table,$id]=synthLegacyRowTarget($input);
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         throw new LogicException('Native requests cannot delete legacy records.');
     }
     if (!$db->isTransactionIdle()) throw new LogicException('Row deletion requires an idle database connection.');

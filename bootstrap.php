@@ -70,7 +70,7 @@ final class Bootstrap
      */
     public static function db(): ?object
     {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (is_object($db)) return $db;
         return self::$current?->db;
     }
@@ -78,7 +78,7 @@ final class Bootstrap
     /** The engine root with a trailing separator (the legacy ENGINE_PATH), or null before the runtime session started. */
     public static function enginePath(): ?string
     {
-        $path = $GLOBALS['ENGINE_PATH'] ?? null;
+        $path = \Synth\Bootstrap::enginePath() ?? null;
         if (is_string($path) && $path !== '') return $path;
         return self::$current?->root;
     }
@@ -98,7 +98,7 @@ final class Bootstrap
     /** The legacy ENGINE_ROOT (set by service entries; the engine path when they did not set it), or null. */
     public static function engineRoot(): ?string
     {
-        $root = $GLOBALS['ENGINE_ROOT'] ?? null;
+        $root = \Synth\Bootstrap::engineRoot() ?? null;
         if (is_string($root) && $root !== '') return $root;
         return self::enginePath();
     }
@@ -106,19 +106,19 @@ final class Bootstrap
     /** The validated request event of this request (legacy SYNTH_REQUEST_EVENT), or null outside a request. */
     public static function requestEvent(): mixed
     {
-        return $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+        return \Synth\Bootstrap::requestEvent() ?? null;
     }
 
     /** The claimed protocol request this process owns (legacy SYNTH_PROTOCOL_REQUEST_CLAIMED), or null. */
     public static function claimedRequest(): mixed
     {
-        return $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null;
+        return \Synth\Bootstrap::claimedRequest() ?? null;
     }
 
     /** The decoded game request of the legacy pipeline (legacy gameRequest), or null. */
     public static function gameRequest(): mixed
     {
-        return $GLOBALS['gameRequest'] ?? null;
+        return \Synth\Bootstrap::gameRequest() ?? null;
     }
 
     // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case
@@ -162,10 +162,10 @@ final class Bootstrap
         }
 
         require_once $enginePath.'lib'.DIRECTORY_SEPARATOR."{$GLOBALS['DBDRIVER']}.class.php";
-        $needsDbConnection = !isset($GLOBALS['db']) || !($GLOBALS['db'] instanceof \sql);
+        $needsDbConnection = !isset($GLOBALS['db']) || !(\Synth\Bootstrap::db() instanceof \sql);
         if (!$needsDbConnection) {
             try {
-                $needsDbConnection = !$GLOBALS['db']->query('SELECT 1');
+                $needsDbConnection = !\Synth\Bootstrap::db()->query('SELECT 1');
             } catch (\Throwable $e) {
                 $needsDbConnection = true;
             }
@@ -173,7 +173,7 @@ final class Bootstrap
         if ($needsDbConnection && !empty($options['throw_db_connection_errors'])) {
             // Opt-in for setup entries: connect with only the SYNTH_DB_* values so an unreachable PostgreSQL throws
             // instead of the legacy constructor's plaintext exit.
-            if ($GLOBALS['DBDRIVER'] !== 'postgresql') {
+            if (\Synth\Bootstrap::config('DBDRIVER') !== 'postgresql') {
                 throw new \RuntimeException('PostgreSQL is not configured.');
             }
             $settings = [];
@@ -186,8 +186,8 @@ final class Bootstrap
         } elseif ($needsDbConnection) {
             $GLOBALS['db'] = new \sql();
         }
-        if ($GLOBALS['db'] instanceof \sql) {
-            self::$current = new self($enginePath, $config, $GLOBALS['db']);
+        if (\Synth\Bootstrap::db() instanceof \sql) {
+            self::$current = new self($enginePath, $config, \Synth\Bootstrap::db());
         }
 
         synthRuntimeApplyBootstrapOptions($enginePath, $options);

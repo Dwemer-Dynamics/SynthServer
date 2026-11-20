@@ -20,7 +20,7 @@ try {
     require_once $root . '/lib/postgresql.class.php';
     $GLOBALS['db'] = new sql();
     require_once $root . '/tts/tts-inworld.php';
-    $row = $GLOBALS['db']->fetchOne("SELECT t.metadata,t.api_key_id,t.local_api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
+    $row = \Synth\Bootstrap::db()->fetchOne("SELECT t.metadata,t.api_key_id,t.local_api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
     if (!$row) throw new RuntimeException('Inworld connector not found');
     require_once $root . '/lib/core/api_badge.class.php';
     $row['api_key'] = ApiBadge::keyForConnector($row, 'Inworld');
@@ -34,7 +34,7 @@ try {
     if (!$new || !$old || $new['sha256'] === $old['sha256'] || $new['sha256'] !== ($details['sha256'] ?? '')) {
         throw new RuntimeException('Expected distinct verified old and approved new samples');
     }
-    $plan = ['inputs'=>['TTSFUNCTION'=>'inworld', 'TTS'=>$GLOBALS['TTS'],
+    $plan = ['inputs'=>['TTSFUNCTION'=>'inworld', 'TTS'=>\Synth\Bootstrap::config('TTS'),
         'SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'=>$connector], 'samples'=>[$voice=>$old]];
     $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] = $plan;
     $oldId = getCachedInworldVoiceId($voice, $config);
@@ -55,9 +55,9 @@ try {
             throw new RuntimeException('Old sample is shared by another local voice; retain the remote clone');
         }
     }
-    $oldKey = $GLOBALS['db']->escape(getInworldVoiceCacheKey($voice, $config));
-    $escapedId = $GLOBALS['db']->escape($oldId);
-    $shared = $GLOBALS['db']->fetchOne("SELECT config_key AS id FROM public.core_config_setting WHERE scope='conf' AND config_value='{$escapedId}' AND config_key<>'{$oldKey}' LIMIT 1");
+    $oldKey = \Synth\Bootstrap::db()->escape(getInworldVoiceCacheKey($voice, $config));
+    $escapedId = \Synth\Bootstrap::db()->escape($oldId);
+    $shared = \Synth\Bootstrap::db()->fetchOne("SELECT config_key AS id FROM public.core_config_setting WHERE scope='conf' AND config_value='{$escapedId}' AND config_key<>'{$oldKey}' LIMIT 1");
     if ($shared) throw new RuntimeException('Remote ID is shared by another cached voice; retain it');
     $remoteName = substr(synth_planned_cloud_voice_cache_name('inworld', $voice), 0, 60);
     if (getExistingInworldVoiceIdByName($remoteName, $config) !== $oldId) {

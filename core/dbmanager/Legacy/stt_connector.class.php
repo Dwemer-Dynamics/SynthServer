@@ -60,26 +60,26 @@ class STTConnector
         $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
         $query = "INSERT INTO {$this->table} (driver, label, metadata, local_api_key_id, api_key_id, url) VALUES (" .
-            $GLOBALS["db"]->escapeLiteral(strval($filtered['driver'] ?? '')) . ", " .
-            $GLOBALS["db"]->escapeLiteral(strval($filtered['label'] ?? '')) . ", " .
-            ($filtered['metadata'] === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['metadata']))) . ", " .
+            \Synth\Bootstrap::db()->escapeLiteral(strval($filtered['driver'] ?? '')) . ", " .
+            \Synth\Bootstrap::db()->escapeLiteral(strval($filtered['label'] ?? '')) . ", " .
+            ($filtered['metadata'] === null ? "NULL" : \Synth\Bootstrap::db()->escapeLiteral(strval($filtered['metadata']))) . ", " .
             (($filtered['local_api_key_id'] ?? null) === null ? "NULL" : intval($filtered['local_api_key_id'])) . ", " .
-            (($filtered['api_key_id'] ?? null) === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['api_key_id'])) . "::uuid") . ", " .
-            ($filtered['url'] === null ? "NULL" : $GLOBALS["db"]->escapeLiteral(strval($filtered['url']))) .
+            (($filtered['api_key_id'] ?? null) === null ? "NULL" : \Synth\Bootstrap::db()->escapeLiteral(strval($filtered['api_key_id'])) . "::uuid") . ", " .
+            ($filtered['url'] === null ? "NULL" : \Synth\Bootstrap::db()->escapeLiteral(strval($filtered['url']))) .
             ") RETURNING id";
-        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->fetchOne($query), null);
+        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->fetchOne($query), null);
         return isset($row['id']) ? intval($row['id']) : 0;
     }
 
     public function readAll()
     {
-        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $GLOBALS["db"]->fetchAll("SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC"));
+        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, \Synth\Bootstrap::db()->fetchAll("SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC"));
     }
 
     public function readOne($id)
     {
         $id = intval($id);
-        $row = $GLOBALS["db"]->fetchOne("SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1");
+        $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1");
         return is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row;
     }
 
@@ -113,23 +113,23 @@ class STTConnector
 
         $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip(["driver", "label", "metadata", "api_key_id", "local_api_key_id", "url"]));
-        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, "id = {$id}"), 'refused');
+        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->updateRow($this->table, $filtered, "id = {$id}"), 'refused');
         return $written === 'refused' ? 0 : $id;
     }
 
     public function delete($id)
     {
-        return $GLOBALS["db"]->delete($this->table, "id = " . intval($id));
+        return \Synth\Bootstrap::db()->delete($this->table, "id = " . intval($id));
     }
 
     public function truncate($restart = false, $cascade = false)
     {
-        return $GLOBALS["db"]->truncate($this->table, $restart, $cascade);
+        return \Synth\Bootstrap::db()->truncate($this->table, $restart, $cascade);
     }
 
     public function getLastError()
     {
-        return $GLOBALS["db"]->GetLastError();
+        return \Synth\Bootstrap::db()->GetLastError();
     }
 
     public function clone($id)
@@ -149,7 +149,7 @@ class STTConnector
         if ($fieldName !== 'api_key_id') {
             return [];
         }
-        return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
+        return (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labels('lower_label');
     }
 
     public function getDriverOptions(): array
@@ -334,7 +334,7 @@ class STTConnector
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
         $GLOBALS["STTFUNCTION"] = $driver;
-        if (!isset($GLOBALS["STT"]) || !is_array($GLOBALS["STT"])) {
+        if (!isset($GLOBALS["STT"]) || !is_array(\Synth\Bootstrap::config("STT"))) {
             $GLOBALS["STT"] = [];
         }
         if ($providerKey !== '') {
@@ -370,15 +370,15 @@ class STTConnector
 
     private function buildLegacyConnectorPayloadFromGlobals($driver = null, string $label = ''): ?array
     {
-        $driver = $this->normalizeDriver($driver ?? ($GLOBALS["STTFUNCTION"] ?? 'none'));
+        $driver = $this->normalizeDriver($driver ?? (\Synth\Bootstrap::config("STTFUNCTION") ?? 'none'));
         if ($driver === '') {
             $driver = 'none';
         }
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
         $metadata = [];
-        if ($providerKey !== '' && isset($GLOBALS["STT"][$providerKey]) && is_array($GLOBALS["STT"][$providerKey])) {
-            $metadata = $GLOBALS["STT"][$providerKey];
+        if ($providerKey !== '' && isset($GLOBALS["STT"][$providerKey]) && is_array(\Synth\Bootstrap::config("STT")[$providerKey])) {
+            $metadata = \Synth\Bootstrap::config("STT")[$providerKey];
         }
 
         $metadata = $this->decodeMetadata($metadata);

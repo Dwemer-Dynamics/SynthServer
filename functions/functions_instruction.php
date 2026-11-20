@@ -9,21 +9,21 @@ $GLOBALS["F_NAMES_NEW"]["TravelTo"] = function_exists('synthNormalizeActionCatal
     ? synthNormalizeActionCatalogDisplayActionName("TravelTo")
     : "TravelTo";
 
-foreach ($GLOBALS["FUNCTIONS"] as $n=>$f) {
+foreach (\Synth\Bootstrap::config("FUNCTIONS") as $n=>$f) {
     $internalCode=getFunctionCodeNameByDisplayName($f["name"]);
     if (isset($GLOBALS["F_DESCRIPTIONS_NEW"][$internalCode]))
-        $GLOBALS["FUNCTIONS"][$n]["description"]=$GLOBALS["F_DESCRIPTIONS_NEW"][$internalCode];
+        $GLOBALS["FUNCTIONS"][$n]["description"]=\Synth\Bootstrap::config("F_DESCRIPTIONS_NEW")[$internalCode];
 
     if (isset($GLOBALS["F_NAMES_NEW"][$internalCode]))
-        $GLOBALS["FUNCTIONS"][$n]["name"]=$GLOBALS["F_NAMES_NEW"][$internalCode];
+        $GLOBALS["FUNCTIONS"][$n]["name"]=\Synth\Bootstrap::config("F_NAMES_NEW")[$internalCode];
 
 
 }
 
-foreach ($GLOBALS["F_DESCRIPTIONS_NEW"] as $k=>$v)
+foreach (\Synth\Bootstrap::config("F_DESCRIPTIONS_NEW") as $k=>$v)
     $GLOBALS["F_DESCRIPTIONS"][$k]=$v;
 
-foreach ($GLOBALS["F_NAMES_NEW"] as $k=>$v) 
+foreach (\Synth\Bootstrap::config("F_NAMES_NEW") as $k=>$v) 
     $GLOBALS["F_NAMES"][$k]=$v;
 
 

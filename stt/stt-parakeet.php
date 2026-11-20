@@ -21,18 +21,18 @@ function stt($file)
     // Resolve API key: prefer API Badge 'OpenAI', fallback to STT conf
     $apiKey = '';
     try {
-        if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-        $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('openai');
+        $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('openai');
         if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
     } catch (Throwable $_e) {}
     if ($apiKey === '') {
-        $apiKey = trim($GLOBALS["STT"]["PARAKEET"]["API_KEY"] ?? '');
+        $apiKey = trim(\Synth\Bootstrap::config("STT")["PARAKEET"]["API_KEY"] ?? '');
     }
 
     return \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('parakeet', [
         'api_key' => $apiKey,
-        'language' => $GLOBALS["STT"]["PARAKEET"]["LANG"] ?? "en",
+        'language' => \Synth\Bootstrap::config("STT")["PARAKEET"]["LANG"] ?? "en",
     ], new \Synth\Drivers\Stt\SttRequest(
         $file,
         [],

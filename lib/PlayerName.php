@@ -25,7 +25,7 @@ final class PlayerName
         if (self::$override !== null) {
             return self::$override;
         }
-        $name = $GLOBALS['PLAYER_NAME'] ?? '';
+        $name = \Synth\Bootstrap::config('PLAYER_NAME') ?? '';
 
         return is_string($name) ? trim($name) : '';
     }

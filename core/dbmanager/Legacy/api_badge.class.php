@@ -9,7 +9,7 @@ class ApiBadge {
     private $repository;
 
     public function __construct() {
-        $this->repository = new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]);
+        $this->repository = new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db());
     }
 
     /** The canonical reference string in $value, or null when it is empty or not a reference. Use for every id read from a row or request. */
@@ -27,7 +27,7 @@ class ApiBadge {
      */
     public static function keyForConnector(array $row, string $providerLabel = '', string $endpoint = ''): string {
         $ref = \Synth\Core\Contracts\ApiKeyRef::fromAny($row);
-        $dao = new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS["db"]);
+        $dao = new \Synth\Core\DbManager\Dao\ApiBadgeDao(\Synth\Bootstrap::db());
         if ($ref === null) {
             $default = $providerLabel === '' ? null : $dao->defaultForProvider($providerLabel);
             if ($default === null) {
@@ -48,7 +48,7 @@ class ApiBadge {
         if ($ref === null) {
             return $write();
         }
-        $bound = (new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS["db"]))->bindUnderLock($ref, $write);
+        $bound = (new \Synth\Core\DbManager\Dao\ApiBadgeDao(\Synth\Bootstrap::db()))->bindUnderLock($ref, $write);
         return $bound['outcome'] === 'locked' ? $bound['result'] : $refused;
     }
 

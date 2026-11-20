@@ -16,22 +16,22 @@ require_once($localPath . "lib/chat_helper_functions.php");
 function stt($filePath)
 {
 
-    if (!isset($GLOBALS["db"]) || !$GLOBALS["db"])
+    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db())
         $GLOBALS["db"] = new sql();
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'Deepgram'
-    $apiKey = trim($GLOBALS['STT']['DEEPGRAM']['API_KEY'] ?? '');
+    $apiKey = trim(\Synth\Bootstrap::config('STT')['DEEPGRAM']['API_KEY'] ?? '');
     if ($apiKey === '') {
         try {
             require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('deepgram');
+            $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('deepgram');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = $row['api_key'];
         } catch (Throwable $_e) {}
     }
 
     return \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('deepgram', [
-        'model' => $GLOBALS["STT"]["DEEPGRAM"]["MODEL"] ?? "none",
-        'language' => $GLOBALS["STT"]["DEEPGRAM"]["LANG"] ?? "en",
+        'model' => \Synth\Bootstrap::config("STT")["DEEPGRAM"]["MODEL"] ?? "none",
+        'language' => \Synth\Bootstrap::config("STT")["DEEPGRAM"]["LANG"] ?? "en",
         'api_key' => $apiKey,
     ], new \Synth\Drivers\Stt\SttRequest($filePath));
 }

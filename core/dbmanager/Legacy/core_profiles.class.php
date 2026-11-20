@@ -71,7 +71,7 @@ class CoreProfile
                 return false;
             }
             if (! is_null($slotVal)) {
-                $exists = $GLOBALS["db"]->fetchOne("SELECT id FROM core_profiles WHERE slot=" . $slotVal . " LIMIT 1");
+                $exists = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_profiles WHERE slot=" . $slotVal . " LIMIT 1");
                 if (is_array($exists) && isset($exists['id'])) {
                     $this->lastError = 'That slot is already assigned to another profile';
                     return false;
@@ -81,7 +81,7 @@ class CoreProfile
         }
 
         $filtered = array_intersect_key($data, array_flip($fields));
-        $createdId = $GLOBALS["db"]->insertReturningId($this->table, $filtered);
+        $createdId = \Synth\Bootstrap::db()->insertReturningId($this->table, $filtered);
         $this->repairDefaultFlags($createdId ?: null, $filtered);
         return $createdId;
     }
@@ -89,33 +89,33 @@ class CoreProfile
     public function readAll()
     {
         $query = "SELECT * FROM {$this->table} ORDER BY id ASC";
-        return $GLOBALS["db"]->fetchAll($query);
+        return \Synth\Bootstrap::db()->fetchAll($query);
     }
 
     public function getDefaultNpc()
     {
         $query = "SELECT * FROM {$this->table} where default_npc='1' ORDER BY id ASC";
-        return $GLOBALS["db"]->fetchOne($query);
+        return \Synth\Bootstrap::db()->fetchOne($query);
     }
 
     public function getDefaultNarrator()
     {
         $query = "SELECT * FROM {$this->table} where default_narrator='1' ORDER BY id ASC";
-        return $GLOBALS["db"]->fetchOne($query);
+        return \Synth\Bootstrap::db()->fetchOne($query);
     }
 
     public function readOne($id)
     {
         $id    = intval($id);
         $query = "SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1";
-        return $GLOBALS["db"]->fetchOne($query);
+        return \Synth\Bootstrap::db()->fetchOne($query);
     }
 
     public function getBySlot($slot)
     {
         $slot  = intval($slot);
         $query = "SELECT * FROM {$this->table} WHERE slot = {$slot} LIMIT 1";
-        return $GLOBALS["db"]->fetchOne($query);
+        return \Synth\Bootstrap::db()->fetchOne($query);
     }
 
     public function getById($id)
@@ -161,7 +161,7 @@ class CoreProfile
                 return false;
             }
             if (! is_null($slotVal)) {
-                $exists = $GLOBALS["db"]->fetchOne("SELECT id FROM core_profiles WHERE slot=" . $slotVal . " AND id<>" . $id . " LIMIT 1");
+                $exists = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_profiles WHERE slot=" . $slotVal . " AND id<>" . $id . " LIMIT 1");
                 if (is_array($exists) && isset($exists['id'])) {
                     $this->lastError = 'That slot is already assigned to another profile';
                     return false;
@@ -171,7 +171,7 @@ class CoreProfile
         }
 
         $filtered = array_intersect_key($data, array_flip($fields));
-        $updated = $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
+        $updated = \Synth\Bootstrap::db()->updateRow($this->table, $filtered, $where);
         if ($updated !== false) {
             $this->repairDefaultFlags($id, $filtered);
         }
@@ -204,7 +204,7 @@ class CoreProfile
             return false;
         }
 
-        return $GLOBALS["db"]->delete($this->table, "id = {$id}");
+        return \Synth\Bootstrap::db()->delete($this->table, "id = {$id}");
     }
 
     public function isDefaultNpc($id): bool
@@ -224,26 +224,26 @@ class CoreProfile
     public function promoteToDefaultNpc($id)
     {
         $id = intval($id);
-        $GLOBALS["db"]->query("UPDATE {$this->table} SET default_npc = '0' WHERE default_npc = '1'");
-        return $GLOBALS["db"]->query("UPDATE {$this->table} SET default_npc = '1' WHERE id = {$id}");
+        \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_npc = '0' WHERE default_npc = '1'");
+        return \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_npc = '1' WHERE id = {$id}");
     }
 
     public function promoteToDefaultNarrator($id)
     {
         $id = intval($id);
-        $GLOBALS["db"]->query("UPDATE {$this->table} SET default_narrator = '0' WHERE default_narrator = '1'");
-        return $GLOBALS["db"]->query("UPDATE {$this->table} SET default_narrator = '1' WHERE id = {$id}");
+        \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_narrator = '0' WHERE default_narrator = '1'");
+        return \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_narrator = '1' WHERE id = {$id}");
     }
 
     public function getProfileCount(): int
     {
-        $row = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM {$this->table}");
+        $row = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM {$this->table}");
         return $row ? (int)$row['c'] : 0;
     }
 
     public function truncate($restart = false, $cascade = false)
     {
-        return $GLOBALS["db"]->truncate($this->table, $restart, $cascade);
+        return \Synth\Bootstrap::db()->truncate($this->table, $restart, $cascade);
     }
 
     public function getLastError()
@@ -252,34 +252,34 @@ class CoreProfile
             return $this->lastError;
         }
 
-        return $GLOBALS["db"]->GetLastError();
+        return \Synth\Bootstrap::db()->GetLastError();
     }
 
     private function repairDefaultFlags(?int $changedId = null, array $changedData = []): void
     {
         if ($changedId !== null && $changedId > 0) {
             if (($changedData['default_npc'] ?? null) == '1') {
-                $GLOBALS["db"]->query("UPDATE {$this->table} SET default_npc = '0' WHERE id <> {$changedId}");
+                \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_npc = '0' WHERE id <> {$changedId}");
             }
             if (($changedData['default_narrator'] ?? null) == '1') {
-                $GLOBALS["db"]->query("UPDATE {$this->table} SET default_narrator = '0' WHERE id <> {$changedId}");
+                \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_narrator = '0' WHERE id <> {$changedId}");
             }
         }
 
-        $first = $GLOBALS["db"]->fetchOne("SELECT id FROM {$this->table} ORDER BY id ASC LIMIT 1");
+        $first = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM {$this->table} ORDER BY id ASC LIMIT 1");
         if (!is_array($first) || empty($first['id'])) {
             return;
         }
 
         $firstId = intval($first['id']);
-        $npcDefault = $GLOBALS["db"]->fetchOne("SELECT id FROM {$this->table} WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
+        $npcDefault = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM {$this->table} WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
         if (!is_array($npcDefault) || empty($npcDefault['id'])) {
-            $GLOBALS["db"]->query("UPDATE {$this->table} SET default_npc = '1' WHERE id = {$firstId}");
+            \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_npc = '1' WHERE id = {$firstId}");
         }
 
-        $narratorDefault = $GLOBALS["db"]->fetchOne("SELECT id FROM {$this->table} WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1");
+        $narratorDefault = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM {$this->table} WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1");
         if (!is_array($narratorDefault) || empty($narratorDefault['id'])) {
-            $GLOBALS["db"]->query("UPDATE {$this->table} SET default_narrator = '1' WHERE id = {$firstId}");
+            \Synth\Bootstrap::db()->query("UPDATE {$this->table} SET default_narrator = '1' WHERE id = {$firstId}");
         }
     }
 
@@ -308,7 +308,7 @@ class CoreProfile
         } else {
             $query = "SELECT id, label FROM {$table} ORDER BY id ASC";
         }
-        return $GLOBALS["db"]->fetchAll($query);
+        return \Synth\Bootstrap::db()->fetchAll($query);
     }
 
     public function setOldGlobals($currentProfileData)

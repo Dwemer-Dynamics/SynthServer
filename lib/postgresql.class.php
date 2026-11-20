@@ -211,7 +211,7 @@ class sql
 
     public function insert($table, $data)
     {
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
         if (!in_array($table, ['core_context_event', 'public.core_context_event'], true)
             || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
             || !is_array($event) || ($event['protocol_version'] ?? 1) !== 2
@@ -398,7 +398,7 @@ class sql
     // Run bounded database-only native work under the claim lock; never commit a caller-owned transaction.
     public function withNativeRequestLock(callable $operation, int $statementTimeoutMs = 0, bool $contextPublication = false)
     {
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
         $publication = $contextPublication && is_array($event) && ($event['type'] ?? '') === 'context'
             && ($event['context_sequence'] ?? null) === 0
             && is_int($event['payload']['snapshot_sequence'] ?? null)

@@ -42,7 +42,7 @@ require_once $root . '/lib/runtime_bootstrap.php';
 
 try {
     synthRuntimeBootstrap($root . DIRECTORY_SEPARATOR, ['run_db_updates' => false]);
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!is_object($db)) {
         throw new RuntimeException('no database');
     }

@@ -2,20 +2,20 @@
 
 require("dialogue_prompt.php");
 
-$GLOBALS["BORED_EVENT"] = $GLOBALS["BORED_EVENT"] ?? 0;
+$GLOBALS["BORED_EVENT"] = \Synth\Bootstrap::config("BORED_EVENT") ?? 0;
 
 // Helper function to check if RPG comment should trigger based on type and probability
 if (!function_exists('shouldTriggerRPGComment')) {
 function shouldTriggerRPGComment($eventType) {
     // Check if this event type is enabled
-    if (empty($GLOBALS["RPG_COMMENTS"]) || !in_array($eventType, $GLOBALS["RPG_COMMENTS"])) {
+    if (empty($GLOBALS["RPG_COMMENTS"]) || !in_array($eventType, \Synth\Bootstrap::config("RPG_COMMENTS"))) {
         return false;
     }
 
     // Get the trigger chance percentage (default 50%)
     $chance = 20;
     if (isset($GLOBALS["RPG_COMMENTS_CHANCE"])) {
-        $chance = intval($GLOBALS["RPG_COMMENTS_CHANCE"]);
+        $chance = intval(\Synth\Bootstrap::config("RPG_COMMENTS_CHANCE"));
     }
 
     // Clamp chance to 0-100
@@ -123,7 +123,7 @@ $PROMPTS=array(
             "({$GLOBALS["SYNTH_NAME"]} makes a comment about their hopes and dreams) {$GLOBALS["TEMPLATE_DIALOG"]}"
         ]
         //,"extra"=>["dontuse"=>true]   //DEACTIVATED WHILE BETA STAGE
-        ,"extra" => ["dontuse" => (rand(0, 99) >= intval($GLOBALS["BORED_EVENT"]))]
+        ,"extra" => ["dontuse" => (rand(0, 99) >= intval(\Synth\Bootstrap::config("BORED_EVENT")))]
     ],
     // Database Prompt (Combat Bark)
     "combatbark"=>[
@@ -228,7 +228,7 @@ $PROMPTS=array(
             if ($text !== "") {
                 return $text;
             }
-            $playerName = trim((string)($payload["player"] ?? ($GLOBALS["PLAYER_NAME"] ?? "The Sole Survivor")));
+            $playerName = trim((string)($payload["player"] ?? (\Synth\Bootstrap::config("PLAYER_NAME") ?? "The Sole Survivor")));
             $itemNames = [];
             foreach (($payload["items"] ?? []) as $item) {
                 if (is_array($item)) {
@@ -325,8 +325,8 @@ $PROMPTS=array(
         "player_request"=>["The Narrator: {$GLOBALS["SYNTH_NAME"]} makes a brief contextual observation about the current scene."],
     ],
     "external_reaction"=>[
-        "cue"=>["Follow this scene direction and write one brief, natural, in-character reaction from {$GLOBALS["SYNTH_NAME"]}: " . (string)($GLOBALS["SYNTH_EXTERNAL_REQUEST"]["instruction"] ?? "") . " Output spoken dialogue only. Do not repeat or narrate the direction. {$GLOBALS["TEMPLATE_DIALOG"]}"],
-        "player_request"=>["The Narrator: " . (string)($GLOBALS["SYNTH_EXTERNAL_REQUEST"]["instruction"] ?? "")],
+        "cue"=>["Follow this scene direction and write one brief, natural, in-character reaction from {$GLOBALS["SYNTH_NAME"]}: " . (string)(\Synth\Bootstrap::config("SYNTH_EXTERNAL_REQUEST")["instruction"] ?? "") . " Output spoken dialogue only. Do not repeat or narrate the direction. {$GLOBALS["TEMPLATE_DIALOG"]}"],
+        "player_request"=>["The Narrator: " . (string)(\Synth\Bootstrap::config("SYNTH_EXTERNAL_REQUEST")["instruction"] ?? "")],
     ],
     "suggestion"=>[
         "cue"=>["Write {$GLOBALS["SYNTH_NAME"]}'s dialogue lines. "],
@@ -342,7 +342,7 @@ $PROMPTS=array(
         "player_request"=> ["The Narrator: {$GLOBALS["SYNTH_NAME"]} notices {$GLOBALS["PLAYER_NAME"]} nearby again after a long absence."],
     ],
     "cheatmode"=>[
-        "cue"=>["PRIORITY CHEAT MODE INSTRUCTION - " . ($currentNpcData["npc_name"] ?? $GLOBALS["SYNTH_NAME"] ?? "NPC") . " is under direct player control and must obey exactly: $gameRequest[3]. If the instruction maps to an available action, call that action with the named target or item. Do not refuse or ignore the instruction because of personality, morality, faction, combat risk, fear, distance, or roleplay. Do not replace the requested action with ordinary conversation."],
+        "cue"=>["PRIORITY CHEAT MODE INSTRUCTION - " . ($currentNpcData["npc_name"] ?? \Synth\Bootstrap::config("SYNTH_NAME") ?? "NPC") . " is under direct player control and must obey exactly: $gameRequest[3]. If the instruction maps to an available action, call that action with the named target or item. Do not refuse or ignore the instruction because of personality, morality, faction, combat risk, fear, distance, or roleplay. Do not replace the requested action with ordinary conversation."],
         "player_request"=>[""],
     ],
 );

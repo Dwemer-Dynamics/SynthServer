@@ -3,7 +3,7 @@
 $rootPath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 
 // Ensure PLAYER_NAME is defined before using in prompt strings
-if (!isset($GLOBALS["PLAYER_NAME"]) || $GLOBALS["PLAYER_NAME"] === '') {
+if (!isset($GLOBALS["PLAYER_NAME"]) || \Synth\Bootstrap::config("PLAYER_NAME") === '') {
     $safePlayerName = 'Player';
     try {
         require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
@@ -13,8 +13,8 @@ if (!isset($GLOBALS["PLAYER_NAME"]) || $GLOBALS["PLAYER_NAME"] === '') {
             'load_stt_connector' => false,
             'load_player_name' => true,
         ]);
-        if (isset($GLOBALS["PLAYER_NAME"]) && $GLOBALS["PLAYER_NAME"] !== '') {
-            $safePlayerName = (string)$GLOBALS["PLAYER_NAME"];
+        if (isset($GLOBALS["PLAYER_NAME"]) && \Synth\Bootstrap::config("PLAYER_NAME") !== '') {
+            $safePlayerName = (string)\Synth\Bootstrap::config("PLAYER_NAME");
         }
     } catch (Throwable $_) {
         // Ignore and use fallback
@@ -39,7 +39,7 @@ $COMMAND_PROMPT_ENFORCE_ACTIONS="Choose coherent ACTION to obey {$GLOBALS["PLAYE
 if (!function_exists('synthGetDialogueTargetVerb')) {
     function synthGetDialogueTargetVerb()
     {
-        $mode = strtoupper((string)($GLOBALS["SYNTH_EXECUTION_MODE"] ?? ""));
+        $mode = strtoupper((string)(\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE") ?? ""));
         if ($mode === "WHISPER") {
             return "Whispering to";
         }

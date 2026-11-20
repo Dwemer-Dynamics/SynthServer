@@ -3,7 +3,7 @@
 if (!function_exists('synthSettingsDb')) {
     function synthSettingsDb()
     {
-        return $GLOBALS["db"] ?? null;
+        return \Synth\Bootstrap::db() ?? null;
     }
 }
 
@@ -1267,7 +1267,7 @@ if (!function_exists('synthResolvePreferredTtsConnectorRow')) {
 
         $profileUsageMap = [];
         try {
-            $usageRows = $GLOBALS["db"]->fetchAll(
+            $usageRows = \Synth\Bootstrap::db()->fetchAll(
                 "SELECT tts_connector_id, COUNT(*) AS c
                  FROM core_profiles
                  WHERE tts_connector_id IS NOT NULL
@@ -1281,7 +1281,7 @@ if (!function_exists('synthResolvePreferredTtsConnectorRow')) {
 
         $playerConnectorId = 0;
         try {
-            $playerRow = $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
+            $playerRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'player' AND config_key = 'tts_connector_id' LIMIT 1");
             if (is_array($playerRow)) {
                 $playerConnectorId = intval($playerRow['value'] ?? 0);
             }
@@ -1347,9 +1347,9 @@ if (!function_exists('synthEnsureTtsConnectorGlobals')) {
             return;
         }
 
-        $currentDriver = $connector->normalizeDriverValue($GLOBALS["TTSFUNCTION"] ?? '');
+        $currentDriver = $connector->normalizeDriverValue(\Synth\Bootstrap::config("TTSFUNCTION") ?? '');
         $providerKey = $connector->getProviderKeyFromDriver($normalizedDriver);
-        $hasProviderGlobals = ($providerKey !== '' && !empty($GLOBALS["TTS"][$providerKey]) && is_array($GLOBALS["TTS"][$providerKey]));
+        $hasProviderGlobals = ($providerKey !== '' && !empty($GLOBALS["TTS"][$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey]));
         if ($currentDriver === $normalizedDriver && $hasProviderGlobals) {
             return;
         }
@@ -1575,21 +1575,21 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         $candidate = synthNormalizeDetectedPlayerName($candidateName);
         if ($candidate === null) return false;
 
-        $current = trim((string)($GLOBALS["PLAYER_NAME"] ?? ''));
+        $current = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ''));
         if ($current !== '' && strcasecmp($current, $candidate) === 0) return false;
 
         static $cache = [];
         $key = strtolower($candidate);
         if (array_key_exists($key, $cache)) return $cache[$key];
 
-        if (!isset($GLOBALS["db"]) || !is_object($GLOBALS["db"])) {
+        if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
             $cache[$key] = false;
             return false;
         }
 
         try {
-            $escaped = $GLOBALS["db"]->escape($candidate);
-            $row = $GLOBALS["db"]->fetchOne(
+            $escaped = \Synth\Bootstrap::db()->escape($candidate);
+            $row = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT 1 FROM core_npc_master WHERE LOWER(npc_name) = LOWER('{$escaped}') LIMIT 1"
             );
             if ($row) {

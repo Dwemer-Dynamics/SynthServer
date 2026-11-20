@@ -46,7 +46,7 @@ function synthIttComplete(int $recordId, int $status, bool $ok, array $extra, ar
         'ok' => $ok,
         'extra' => $extra,
     ];
-    synthVisualContextCompleteOwned($GLOBALS['request'], $recordId, $fields, $persistPortrait);
+    synthVisualContextCompleteOwned(\Synth\Bootstrap::config('request'), $recordId, $fields, $persistPortrait);
 }
 
 $request = [];
@@ -71,7 +71,7 @@ try {
     }
     Logger::bootstrapRequestId('itt-' . $request['request_id']);
 
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         throw new SynthVisualRequestException(503, 'database_unavailable', 'Visual context database is unavailable.', true);
     }

@@ -13,9 +13,9 @@ for ($promptIncludeIndex = 0; $promptIncludeIndex <= 4; $promptIncludeIndex++) {
     }
 }
 $GLOBALS["gameRequest"] = $gameRequest;
-$GLOBALS["SYNTH_NAME"] = $GLOBALS["SYNTH_NAME"] ?? "The Narrator";
-$GLOBALS["PLAYER_NAME"] = $GLOBALS["PLAYER_NAME"] ?? "Player";
-$GLOBALS["TEMPLATE_DIALOG"] = $GLOBALS["TEMPLATE_DIALOG"] ?? "";
+$GLOBALS["SYNTH_NAME"] = \Synth\Bootstrap::config("SYNTH_NAME") ?? "The Narrator";
+$GLOBALS["PLAYER_NAME"] = \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player";
+$GLOBALS["TEMPLATE_DIALOG"] = \Synth\Bootstrap::config("TEMPLATE_DIALOG") ?? "";
 $currentNpcData = (isset($currentNpcData) && is_array($currentNpcData)) ? $currentNpcData : [];
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
@@ -29,7 +29,7 @@ require(__DIR__ . DIRECTORY_SEPARATOR . "prompts/prompts.php");
 
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
-$PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? $GLOBALS["PROMPT_HEAD"] : "Let\'s roleplay in the Universe of Fallout. I\'m {$GLOBALS["PLAYER_NAME"]} ";
+$PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? \Synth\Bootstrap::config("PROMPT_HEAD") : "Let\'s roleplay in the Universe of Fallout. I\'m {$GLOBALS["PLAYER_NAME"]} ";
 
 /* 
  * Info gathering to mangle function definitions. This will enforce some parameters to be fixed-
@@ -39,13 +39,13 @@ $PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? $GLOBALS["PROMPT_HEAD"] : "Let\
 $FUNCTION_PARM_MOVETO=DataPosibleMoveToTargets();		// Move_To is actor-only; locations should use TravelTo.
 if (!isset($FUNCTION_PARM_MOVETO))
 	$FUNCTION_PARM_MOVETO=[];
-$FUNCTION_PARM_MOVETO[]=$GLOBALS["PLAYER_NAME"];
+$FUNCTION_PARM_MOVETO[]=\Synth\Bootstrap::config("PLAYER_NAME");
 
 
 $FUNCTION_PARM_INSPECT=DataPosibleInspectTargets();	// To avoid moving to non existant target, lets limit available targets to the real ones in function definition
 if (!isset($FUNCTION_PARM_INSPECT))
 	$FUNCTION_PARM_INSPECT=[];
-$FUNCTION_PARM_INSPECT[]=$GLOBALS["PLAYER_NAME"];
+$FUNCTION_PARM_INSPECT[]=\Synth\Bootstrap::config("PLAYER_NAME");
 
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 require(__DIR__.DIRECTORY_SEPARATOR."prompts".DIRECTORY_SEPARATOR."command_prompt.php");

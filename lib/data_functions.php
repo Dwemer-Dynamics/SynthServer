@@ -109,10 +109,10 @@ if (!function_exists('synthResolveDiaryConnectorName')) {
     function synthResolveDiaryConnectorName($rawValue = null, bool $persistGlobal = true): ?string
     {
         $connectorDir = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR;
-        $sourceValue = func_num_args() > 0 ? $rawValue : ($GLOBALS["CONNECTORS_DIARY"] ?? null);
+        $sourceValue = func_num_args() > 0 ? $rawValue : (\Synth\Bootstrap::config("CONNECTORS_DIARY") ?? null);
 
         $candidates = synthExtractDiaryConnectorCandidates($sourceValue);
-        foreach (synthExtractDiaryConnectorCandidates($GLOBALS["CONNECTORS"] ?? null) as $candidate) {
+        foreach (synthExtractDiaryConnectorCandidates(\Synth\Bootstrap::config("CONNECTORS") ?? null) as $candidate) {
             if (!in_array($candidate, $candidates, true)) {
                 $candidates[] = $candidate;
             }
