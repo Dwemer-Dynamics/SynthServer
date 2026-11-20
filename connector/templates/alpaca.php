@@ -27,7 +27,7 @@ $context.="{$GLOBALS["SYNTH_PERS"]}\n";
 $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
 
 $context.="#EXAMPLE\n{$GLOBALS["PLAYER_NAME"]}: What is Trancos wearing?\n".json_encode([
-    'character' => $GLOBALS['SYNTH_NAME'], 'listener' => $GLOBALS['PLAYER_NAME'],
+    'character' => \Synth\Bootstrap::config('SYNTH_NAME'), 'listener' => \Synth\Bootstrap::config('PLAYER_NAME'),
     'mood' => 'sardonic', 'action' => 'Inspect', 'target' => 'Trancos', 'message' => 'Let me check ',
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
 
@@ -73,7 +73,7 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
 
                     $dialogueTarget=extractDialogueTarget($s_msg["content"]);
                     // Trying to provide examples
-                    $contextHistory.="".synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]),
+                    $contextHistory.="".synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")),
                         strval($dialogueTarget["target"] ?? ""), strval($dialogueTarget["cleanedString"]), "")."";
                 }
 

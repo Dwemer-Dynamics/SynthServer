@@ -30,7 +30,7 @@ try {
     exit(1);
 }
 
-$db = $GLOBALS["db"] ?? null;
+$db = \Synth\Bootstrap::db() ?? null;
 if (!$db) {
     fwrite(STDERR, "SYNTH database bootstrap failed: no database connection was created.\n");
     exit(1);

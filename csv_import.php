@@ -91,7 +91,7 @@ if (!move_uploaded_file($_FILES['file']['tmp_name'], $storedFilePath)) {
 Logger::info("SYNTH CSV file uploaded: {$storedFilePath}");
 
 try {
-    $GLOBALS['db'] = $GLOBALS['db'] ?? new sql();
+    $GLOBALS['db'] = \Synth\Bootstrap::db() ?? new sql();
 
     $_POST['csv_import'] = '1';
     $_POST['type'] = $import_type;

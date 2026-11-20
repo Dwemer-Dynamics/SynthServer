@@ -14,16 +14,16 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
     if (!function_exists('synthIsDirectNarratorDialogue')) {
         function synthIsDirectNarratorDialogue() {
             if (isset($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
-                return (bool)$GLOBALS["DIRECT_NARRATOR_DIALOGUE"];
+                return (bool)\Synth\Bootstrap::config("DIRECT_NARRATOR_DIALOGUE");
             }
 
-            return isset($GLOBALS["gameRequest"][0]) && $GLOBALS["gameRequest"][0] === "narrator_inputtext";
+            return isset($GLOBALS["gameRequest"][0]) && \Synth\Bootstrap::gameRequest()[0] === "narrator_inputtext";
         }
     }
 
     if (!function_exists('synthIsVisionRequest')) {
         function synthIsVisionRequest() {
-            return isset($GLOBALS["gameRequest"][0]) && $GLOBALS["gameRequest"][0] === "vision";
+            return isset($GLOBALS["gameRequest"][0]) && \Synth\Bootstrap::gameRequest()[0] === "vision";
         }
     }
 
@@ -37,14 +37,14 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
                 return true;
             }
 
-            return isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && $GLOBALS["FUNCTIONS_ARE_ENABLED"];
+            return isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED");
         }
     }
 
     if (!function_exists('synthApplyJsonTemplateHooks')) {
         function synthApplyJsonTemplateHooks() {
-            if (isset($GLOBALS["HOOKS"]) && isset($GLOBALS["HOOKS"]["JSON_TEMPLATE"]) && is_array($GLOBALS["HOOKS"]["JSON_TEMPLATE"])) {
-                foreach ($GLOBALS["HOOKS"]["JSON_TEMPLATE"] as $hook) {
+            if (isset($GLOBALS["HOOKS"]) && isset($GLOBALS["HOOKS"]["JSON_TEMPLATE"]) && is_array(\Synth\Bootstrap::config("HOOKS")["JSON_TEMPLATE"])) {
+                foreach (\Synth\Bootstrap::config("HOOKS")["JSON_TEMPLATE"] as $hook) {
                     call_user_func($hook);
                 }
             }
@@ -83,15 +83,15 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
     if (!function_exists('synthGetNarratorJsonResponseStateSummary')) {
         function synthGetNarratorJsonResponseStateSummary(): array
         {
-            $actionTemplate = trim(strval($GLOBALS["responseTemplate"]["action"] ?? ""));
+            $actionTemplate = trim(strval(\Synth\Bootstrap::config("responseTemplate")["action"] ?? ""));
             $funcList = array_values(array_filter(
-                is_array($GLOBALS["FUNC_LIST"] ?? null) ? $GLOBALS["FUNC_LIST"] : [],
+                is_array(\Synth\Bootstrap::config("FUNC_LIST") ?? null) ? \Synth\Bootstrap::config("FUNC_LIST") : [],
                 function ($value) {
                     return trim(strval($value)) !== "";
                 }
             ));
 
-            $structuredActionProperty = $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"]["action"] ?? null;
+            $structuredActionProperty = \Synth\Bootstrap::config("structuredOutputTemplate")["json_schema"]["schema"]["properties"]["action"] ?? null;
             $structuredActionEnum = [];
             if (is_array($structuredActionProperty) && isset($structuredActionProperty["enum"]) && is_array($structuredActionProperty["enum"])) {
                 $structuredActionEnum = array_values(array_filter($structuredActionProperty["enum"], function ($value) {
@@ -111,11 +111,11 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
             );
 
             return [
-                "request" => strtolower(trim(strval($GLOBALS["gameRequest"][0] ?? ''))),
+                "request" => strtolower(trim(strval(\Synth\Bootstrap::gameRequest()[0] ?? ''))),
                 "direct_flag" => !empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"]) ? '1' : '0',
-                "synth" => strval($GLOBALS["SYNTH_NAME"] ?? ''),
+                "synth" => strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''),
                 "func_count" => count($funcList),
-                "prompt_actions_len" => strlen(strval($GLOBALS["PROMPT_ACTIONS_LIST"] ?? "")),
+                "prompt_actions_len" => strlen(strval(\Synth\Bootstrap::config("PROMPT_ACTIONS_LIST") ?? "")),
                 "response_action" => $actionTemplate,
                 "structured_action_count" => count($structuredActionEnum),
                 "has_only_talk_action" => $hasOnlyTalkAction,
@@ -159,10 +159,10 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
                 return;
             }
 
-            $requestType = strtolower(trim(strval($GLOBALS["gameRequest"][0] ?? '')));
+            $requestType = strtolower(trim(strval(\Synth\Bootstrap::gameRequest()[0] ?? '')));
             $directNarratorDialogue = synthIsDirectNarratorDialogue();
             if (!$directNarratorDialogue) {
-                if ($requestType === 'narrator_inputtext' || strcasecmp(trim(strval($GLOBALS["SYNTH_NAME"] ?? '')), 'The Narrator') === 0) {
+                if ($requestType === 'narrator_inputtext' || strcasecmp(trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? '')), 'The Narrator') === 0) {
                     Logger::warn("[{$logContext}] Skipping narrator JSON refresh because synthIsDirectNarratorDialogue() is false (" . synthFormatNarratorJsonResponseStateSummary() . ")");
                 }
                 return;
@@ -191,18 +191,18 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
     Function setActions() {
         $promptCharacterName = function_exists('synthGetPromptCharacterName')
             ? synthGetPromptCharacterName()
-            : ($GLOBALS["SYNTH_NAME"] ?? 'The Narrator');
+            : (\Synth\Bootstrap::config("SYNTH_NAME") ?? 'The Narrator');
         // Initialize actions list
         $GLOBALS["PROMPT_ACTIONS_LIST"] = "";
-        $GLOBALS["COMMAND_PROMPT_FUNCTIONS"] = $GLOBALS["COMMAND_PROMPT_FUNCTIONS"] ?? "";
-        $GLOBALS["FUNCTIONS"] = is_array($GLOBALS["FUNCTIONS"] ?? null) ? $GLOBALS["FUNCTIONS"] : [];
-        $GLOBALS["ENABLED_FUNCTIONS"] = is_array($GLOBALS["ENABLED_FUNCTIONS"] ?? null) ? $GLOBALS["ENABLED_FUNCTIONS"] : [];
-        $GLOBALS["FUNCTION_PARM_INSPECT"] = is_array($GLOBALS["FUNCTION_PARM_INSPECT"] ?? null) ? $GLOBALS["FUNCTION_PARM_INSPECT"] : [];
-        $GLOBALS["FUNCTION_PARM_MOVETO"] = is_array($GLOBALS["FUNCTION_PARM_MOVETO"] ?? null) ? $GLOBALS["FUNCTION_PARM_MOVETO"] : [];
+        $GLOBALS["COMMAND_PROMPT_FUNCTIONS"] = \Synth\Bootstrap::config("COMMAND_PROMPT_FUNCTIONS") ?? "";
+        $GLOBALS["FUNCTIONS"] = is_array(\Synth\Bootstrap::config("FUNCTIONS") ?? null) ? \Synth\Bootstrap::config("FUNCTIONS") : [];
+        $GLOBALS["ENABLED_FUNCTIONS"] = is_array(\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? null) ? \Synth\Bootstrap::config("ENABLED_FUNCTIONS") : [];
+        $GLOBALS["FUNCTION_PARM_INSPECT"] = is_array(\Synth\Bootstrap::config("FUNCTION_PARM_INSPECT") ?? null) ? \Synth\Bootstrap::config("FUNCTION_PARM_INSPECT") : [];
+        $GLOBALS["FUNCTION_PARM_MOVETO"] = is_array(\Synth\Bootstrap::config("FUNCTION_PARM_MOVETO") ?? null) ? \Synth\Bootstrap::config("FUNCTION_PARM_MOVETO") : [];
         
         // Narration-style requests should not browse the full action catalog, but
         // they still need a stable Talk action in the response schema.
-        if (isset($GLOBALS["gameRequest"]) && in_array($GLOBALS["gameRequest"][0], ["narration", "vision"], true)) {
+        if (isset($GLOBALS["gameRequest"]) && in_array(\Synth\Bootstrap::gameRequest()[0], ["narration", "vision"], true)) {
             $GLOBALS["FUNC_LIST"] = ["Talk"];
             return;
         }
@@ -215,9 +215,9 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
         // Build actions list separately (not in PROMPT_HEAD)
         if ($shouldExposePromptActions) {
             $GLOBALS["PROMPT_ACTIONS_LIST"] = "\n<available_actions_list>\n";
-            $GLOBALS["PROMPT_ACTIONS_LIST"] .= $GLOBALS["COMMAND_PROMPT_FUNCTIONS"];
+            $GLOBALS["PROMPT_ACTIONS_LIST"] .= \Synth\Bootstrap::config("COMMAND_PROMPT_FUNCTIONS");
             
-            foreach ($GLOBALS["FUNCTIONS"] as $index => $function) {
+            foreach (\Synth\Bootstrap::config("FUNCTIONS") as $index => $function) {
                 if (!$function) {
                     continue;
                 }
@@ -226,7 +226,7 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
 
                 if (!synth_jev_action_code_allowed(strval($fname))) continue;
 
-                if (!in_array($fname,$GLOBALS["ENABLED_FUNCTIONS"])) {
+                if (!in_array($fname,\Synth\Bootstrap::config("ENABLED_FUNCTIONS"))) {
                     \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'FUNCTIONS', "Skipping disabled function: {$function["name"]} <$fname>");
                     continue;
                 } else {
@@ -240,24 +240,24 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
                 $GLOBALS["FUNC_LIST"][]=$function["name"];
                 if ($fname == "Attack") {
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription})";
-                    $attackTargets=$GLOBALS["FUNCTION_PARM_INSPECT"];
-                    $attackEvent=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+                    $attackTargets=\Synth\Bootstrap::config("FUNCTION_PARM_INSPECT");
+                    $attackEvent=\Synth\Bootstrap::requestEvent()['json'] ?? [];
                     if (($attackEvent['protocol_version'] ?? 1)===2) {
                         require_once dirname(__DIR__).'/lib/synth_attack_actions.php';
-                        $attackContext=synth_protocol_current_context($GLOBALS['db'],$attackEvent);
-                        $attackActor=$attackContext ? synth_protocol_response_actor_identity($GLOBALS['db'],$attackEvent,$attackContext) : null;
+                        $attackContext=synth_protocol_current_context(\Synth\Bootstrap::db(),$attackEvent);
+                        $attackActor=$attackContext ? synth_protocol_response_actor_identity(\Synth\Bootstrap::db(),$attackEvent,$attackContext) : null;
                         $attackTargets=$attackActor ? array_column(synth_attack_targets($attackContext,$attackActor),'display_name') : [];
                     }
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="(available targets: ".implode(",",$attackTargets)."; choose one exact name, otherwise do not attack)";
                 } else if ($fname == "GiveCapsTo") {
                     require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
-                    $nativeCaps = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
+                    $nativeCaps = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
                     $capsAmount = !$nativeCaps && function_exists('getCapsFromMetadata') ? getCapsFromMetadata() : '';
                     $capsText = $nativeCaps ? ' Use only your owned observed Fallout4.esm MISC 0x0000000F inventory count; unavailable is unknown, not zero.'
                         : (trim(strval($capsAmount)) !== '' ? " You currently have {$capsAmount} caps." : "");
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription}).{$capsText} Put the recipient in 'target' and the caps amount in 'amount'.";
                 } else if ($fname == "TakeCapsFromPlayer") {
-                    $paymentTarget = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
+                    $paymentTarget = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2
                         ? " Put the captured player in 'target'; use only that player's observed caps inventory, not your own. Unavailable is unknown, not zero." : '';
                     $GLOBALS["PROMPT_ACTIONS_LIST"].="\nAVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Only after the player agrees. Put the caps amount in 'amount'.{$paymentTarget}";
                 } else if ($fname == "Consume") {
@@ -296,23 +296,23 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
     Function setResponseTemplate() {
         $promptCharacterName = function_exists('synthGetPromptCharacterName')
             ? synthGetPromptCharacterName()
-            : ($GLOBALS["SYNTH_NAME"] ?? 'The Narrator');
-        $moods=normalizeEmoteMoods($GLOBALS["EMOTEMOODS"] ?? "");
+            : (\Synth\Bootstrap::config("SYNTH_NAME") ?? 'The Narrator');
+        $moods=normalizeEmoteMoods(\Synth\Bootstrap::config("EMOTEMOODS") ?? "");
         shuffle($moods);
         $moodDescription = empty($moods)
             ? "choose exactly one mood while speaking, never combine moods"
             : "choose exactly one mood while speaking from this list, never combine moods: ".implode("|", $moods);
     
         // Auto-detect language from TTS config if LLM_LANG not set
-        if (!isset($GLOBALS["LLM_LANG"]) && isset($GLOBALS["LANG_LLM_XTTS"]) && $GLOBALS["LANG_LLM_XTTS"]) {
+        if (!isset($GLOBALS["LLM_LANG"]) && isset($GLOBALS["LANG_LLM_XTTS"]) && \Synth\Bootstrap::config("LANG_LLM_XTTS")) {
             if (isset($GLOBALS["TTS"]["XTTSFASTAPI"]["language"])) {
-                $GLOBALS["LLM_LANG"] = $GLOBALS["TTS"]["XTTSFASTAPI"]["language"];
+                $GLOBALS["LLM_LANG"] = \Synth\Bootstrap::config("TTS")["XTTSFASTAPI"]["language"];
             } elseif (isset($GLOBALS["TTS"]["OMNIVOICE"]["language"])) {
-                $GLOBALS["LLM_LANG"] = $GLOBALS["TTS"]["OMNIVOICE"]["language"];
+                $GLOBALS["LLM_LANG"] = \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["language"];
             } elseif (isset($GLOBALS["TTS"]["CHATTERBOX"]["language"])) {
-                $GLOBALS["LLM_LANG"] = $GLOBALS["TTS"]["CHATTERBOX"]["language"];
+                $GLOBALS["LLM_LANG"] = \Synth\Bootstrap::config("TTS")["CHATTERBOX"]["language"];
             } elseif (isset($GLOBALS["TTS"]["POCKETTTS"]["language"])) {
-                $GLOBALS["LLM_LANG"] = $GLOBALS["TTS"]["POCKETTTS"]["language"];
+                $GLOBALS["LLM_LANG"] = \Synth\Bootstrap::config("TTS")["POCKETTTS"]["language"];
             }
         }
     
@@ -324,7 +324,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
             isset($GLOBALS["gameRequest"]) &&
             (
                 (function_exists('synthIsStrictResponsePromptContext') && synthIsStrictResponsePromptContext()) ||
-                in_array($GLOBALS["gameRequest"][0], ["rechat"], true)
+                in_array(\Synth\Bootstrap::gameRequest()[0], ["rechat"], true)
             )
         ) {
             $listenerDesc = function_exists('synthLoadManagedRechatListenerPrompt')
@@ -333,7 +333,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         }
     
         // Determine message description based on inline narration mode.
-        $inlineNarrationMode = strtolower(trim((string)($GLOBALS["INLINE_NARRATION_MODE"] ?? '')));
+        $inlineNarrationMode = strtolower(trim((string)(\Synth\Bootstrap::config("INLINE_NARRATION_MODE") ?? '')));
         if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
             $inlineNarrationMode = 'disabled';
         }
@@ -350,50 +350,50 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
             $messageDescription = "plain spoken dialogue addressed directly to {$GLOBALS["PLAYER_NAME"]}. Keep the spoken reply consistent with the chosen narrator action when you use one. Do not include third-person narration, scene description, stage directions, or text in asterisks.";
         }
     
-        if (isset($GLOBALS["FEATURES"]["MISC"]["JSON_DIALOGUE_FORMAT_REORDER"])&&($GLOBALS["FEATURES"]["MISC"]["JSON_DIALOGUE_FORMAT_REORDER"])) {
-            if (isset($GLOBALS["LANG_LLM_XTTS"])&&($GLOBALS["LANG_LLM_XTTS"])) {
+        if (isset($GLOBALS["FEATURES"]["MISC"]["JSON_DIALOGUE_FORMAT_REORDER"])&&(\Synth\Bootstrap::config("FEATURES")["MISC"]["JSON_DIALOGUE_FORMAT_REORDER"])) {
+            if (isset($GLOBALS["LANG_LLM_XTTS"])&&(\Synth\Bootstrap::config("LANG_LLM_XTTS"))) {
                 $GLOBALS["responseTemplate"] = [
-                    "character"=>$GLOBALS["SYNTH_NAME"],
+                    "character"=>\Synth\Bootstrap::config("SYNTH_NAME"),
                     "listener"=>$listenerDesc,
                     "message"=>$messageDescription,
                     "mood"=>$moodDescription,
-                    "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
+                    "action"=>implode("|",\Synth\Bootstrap::config("FUNC_LIST")),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
                     "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
                     "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
-                    "lang"=>isset($GLOBALS["LLM_LANG"])?$GLOBALS["LLM_LANG"]:"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
+                    "lang"=>isset($GLOBALS["LLM_LANG"])?\Synth\Bootstrap::config("LLM_LANG"):"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
                 ];
             } else {
                 $GLOBALS["responseTemplate"] = [
-                    "character"=>$GLOBALS["SYNTH_NAME"],
+                    "character"=>\Synth\Bootstrap::config("SYNTH_NAME"),
                     "listener"=>$listenerDesc,
                     "message"=>$messageDescription,
                     "mood"=>$moodDescription,
-                    "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
+                    "action"=>implode("|",\Synth\Bootstrap::config("FUNC_LIST")),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
                     "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
                     "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed."
                 ];
             }
         } else {
-            if (isset($GLOBALS["LANG_LLM_XTTS"])&&($GLOBALS["LANG_LLM_XTTS"])) {
+            if (isset($GLOBALS["LANG_LLM_XTTS"])&&(\Synth\Bootstrap::config("LANG_LLM_XTTS"))) {
                 $GLOBALS["responseTemplate"] = [
-                    "character"=>$GLOBALS["SYNTH_NAME"],
+                    "character"=>\Synth\Bootstrap::config("SYNTH_NAME"),
                     "listener"=>$listenerDesc,
                     "mood"=>$moodDescription,
-                    "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
+                    "action"=>implode("|",\Synth\Bootstrap::config("FUNC_LIST")),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
                     "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
                     "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
-                    "lang"=>isset($GLOBALS["LLM_LANG"])?$GLOBALS["LLM_LANG"]:"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
+                    "lang"=>isset($GLOBALS["LLM_LANG"])?\Synth\Bootstrap::config("LLM_LANG"):"en|es|fr|de|it|pt|ru|zh-cn|ja|ko|ar|pl|tr|cs|nl|hu|hi",
                     "message"=>$messageDescription
                 ];
             } else {
                 $GLOBALS["responseTemplate"] = [
-                    "character"=>$GLOBALS["SYNTH_NAME"],
+                    "character"=>\Synth\Bootstrap::config("SYNTH_NAME"),
                     "listener"=>$listenerDesc,
                     "mood"=>$moodDescription,
-                    "action"=>implode("|",$GLOBALS["FUNC_LIST"]),
+                    "action"=>implode("|",\Synth\Bootstrap::config("FUNC_LIST")),
                     "target"=>"action target actor, #PLAYER_NAME#, PLAYER, me, or destination. Required for Attack, Follow, MoveTo, GiveItemTo, GiveCapsTo, Inspect, TravelTo, and similar target-based actions. For Consume, use the exact inventory item name in target. Leave blank when the chosen action does not need a target.",
                     "item"=>"exact inventory item name for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem, or optional caps amount fallback for GiveCapsTo. Leave blank when the chosen action does not need an item.",
                     "amount"=>"caps amount or item quantity when the chosen action supports it. Required for GiveCapsTo or TakeCapsFromPlayer when an amount is known. Optional when action is GiveItemTo or TakeItemFromPlayer. Use a positive integer when needed.",
@@ -403,12 +403,12 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         }
 
         // emotions expression:
-        if (isset($GLOBALS['use_emotions_expression']) && $GLOBALS['use_emotions_expression']) {
-            if (!array_key_exists("emotion", $GLOBALS["responseTemplate"])) {
+        if (isset($GLOBALS['use_emotions_expression']) && \Synth\Bootstrap::config('use_emotions_expression')) {
+            if (!array_key_exists("emotion", \Synth\Bootstrap::config("responseTemplate"))) {
                 $GLOBALS["responseTemplate"]["emotion"] = 
                 "calm|surprised|aroused|desire|love|happy|amusement|gratitude|proud|anxious|fearful|panic|grieving|envious|jealous|sad|disappointed|ashamed|angry|offended|disgusted|sarcastic";
             }
-            if (!array_key_exists("emotion_intensity", $GLOBALS["responseTemplate"])) {
+            if (!array_key_exists("emotion_intensity", \Synth\Bootstrap::config("responseTemplate"))) {
                 $GLOBALS["responseTemplate"]["emotion_intensity"] = "low|moderate|strong";
             }
         }
@@ -421,8 +421,8 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
     Function setStructuredOutputTemplate() {
         $promptCharacterName = function_exists('synthGetPromptCharacterName')
             ? synthGetPromptCharacterName()
-            : ($GLOBALS["SYNTH_NAME"] ?? 'The Narrator');
-        $moods=normalizeEmoteMoods($GLOBALS["EMOTEMOODS"] ?? "");
+            : (\Synth\Bootstrap::config("SYNTH_NAME") ?? 'The Narrator');
+        $moods=normalizeEmoteMoods(\Synth\Bootstrap::config("EMOTEMOODS") ?? "");
         shuffle($moods);
         $moodDescription = "choose exactly one mood while speaking, never combine moods";
         $listenerDescription = synthIsVisionRequest()
@@ -430,7 +430,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
             : "specify who {$promptCharacterName} is talking to, comma separated, max two listeners, in addressing order";
 
         // Determine message description based on inline narration mode.
-        $inlineNarrationMode = strtolower(trim((string)($GLOBALS["INLINE_NARRATION_MODE"] ?? '')));
+        $inlineNarrationMode = strtolower(trim((string)(\Synth\Bootstrap::config("INLINE_NARRATION_MODE") ?? '')));
         if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
             $inlineNarrationMode = 'disabled';
         }
@@ -484,7 +484,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
                             array(
                                 "type" => "string",
                                 "description" => "a valid action (refer to available actions list)",
-                                "enum" => $GLOBALS["FUNC_LIST"]
+                                "enum" => \Synth\Bootstrap::config("FUNC_LIST")
                             ),
                         "target" => array(
                             "type" => "string",
@@ -515,7 +515,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         );
 
         if (function_exists('synth_protocol_supports_caps_transfer')
-            && synth_protocol_supports_caps_transfer($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) {
+            && synth_protocol_supports_caps_transfer(\Synth\Bootstrap::requestEvent()['json'] ?? [])) {
             $GLOBALS['structuredOutputTemplate']['json_schema']['schema']['properties']['item']['description'] =
                 'Exact inventory item for GiveItemTo or TakeItemFromPlayer or Consume, exact nearby RefID:ItemName for PickupItem. '
                 .'For Consume, leave blank unless target is empty and item is its exact inventory fallback. '
@@ -524,11 +524,11 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
                 'Required for GiveCapsTo or TakeCapsFromPlayer: integer 1..1000000, no more than the donor\'s owned observed caps count. Optional quantity for GiveItemTo or TakeItemFromPlayer.';
         }
 
-        if (isset($GLOBALS["LANG_LLM_XTTS"])&&($GLOBALS["LANG_LLM_XTTS"])) {
+        if (isset($GLOBALS["LANG_LLM_XTTS"])&&(\Synth\Bootstrap::config("LANG_LLM_XTTS"))) {
             if (isset($GLOBALS["LLM_LANG"])) {
 
                 $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"] = array_merge(
-                    $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"], array(
+                    \Synth\Bootstrap::config("structuredOutputTemplate")["json_schema"]["schema"]["properties"], array(
                         "lang" => array(
                             "type" => "string",
                             "description" => "Language to use. Must be {$GLOBALS["LLM_LANG"]}"
@@ -537,7 +537,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
                 $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["required"][]="lang";
             } else {
                 $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"] = array_merge(
-                    $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"], array(
+                    \Synth\Bootstrap::config("structuredOutputTemplate")["json_schema"]["schema"]["properties"], array(
                         "lang" => array(
                             "type" => "string",
                             "description" => "Language to use"
@@ -549,9 +549,9 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         }
 
         // emotions expression:
-        if (isset($GLOBALS['use_emotions_expression']) && $GLOBALS['use_emotions_expression']) {
+        if (isset($GLOBALS['use_emotions_expression']) && \Synth\Bootstrap::config('use_emotions_expression')) {
             $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"] = array_merge(
-                $GLOBALS["structuredOutputTemplate"]["json_schema"]["schema"]["properties"], array(
+                \Synth\Bootstrap::config("structuredOutputTemplate")["json_schema"]["schema"]["properties"], array(
                     "emotion" => array(
                         "type" => "string",
                         "description" => "The emotion expressed."
@@ -573,7 +573,7 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
     Function setGBNFGrammar() {
         // build the string for moods
         // should look like: ("\"playful\"" | "\"default\"" | ...)
-        $moods=normalizeEmoteMoods($GLOBALS["EMOTEMOODS"] ?? "");
+        $moods=normalizeEmoteMoods(\Synth\Bootstrap::config("EMOTEMOODS") ?? "");
         shuffle($moods);
 
         $moods_quoted = [];
@@ -589,12 +589,12 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         // build the string for actions
         // should look like: ("\"Talk\"" | "\"Attack\"" | ...)
         $actions_quoted = [];
-        foreach ($GLOBALS["FUNC_LIST"] as $n=>$action) {
+        foreach (\Synth\Bootstrap::config("FUNC_LIST") as $n=>$action) {
             $actions_quoted[] = '"\"'.$action.'\""';
         }
         $actions_str = "(".implode(' | ', $actions_quoted).")";
 
-        if (sizeof($GLOBALS["FUNC_LIST"]) == 0) {
+        if (sizeof(\Synth\Bootstrap::config("FUNC_LIST")) == 0) {
             $actions_str = "string";
         }
 
@@ -622,8 +622,8 @@ AVAILABLE ACTION: {$function["name"]} ({$actionDescription}). Put the player in 
         EOD;
 
         // replace the mood and action templates with the strings built earlier
-        $GLOBALS["grammar"]=str_replace('{$MOODS}', $moods_str, $GLOBALS["grammar"]);
-        $GLOBALS["grammar"]=str_replace('{$ACTIONS}', $actions_str, $GLOBALS["grammar"]);
+        $GLOBALS["grammar"]=str_replace('{$MOODS}', $moods_str, \Synth\Bootstrap::config("grammar"));
+        $GLOBALS["grammar"]=str_replace('{$ACTIONS}', $actions_str, \Synth\Bootstrap::config("grammar"));
     }
     }
 

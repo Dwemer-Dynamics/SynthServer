@@ -46,7 +46,7 @@
 
                                     $dialogueTarget=extractDialogueTarget($s_msg["content"]);
                                     // Trying to provide examples
-                                    $contextHistory.="</s>\n <|assistant|>".synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]),
+                                    $contextHistory.="</s>\n <|assistant|>".synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")),
                                         strval($dialogueTarget["target"] ?? ""), strval($dialogueTarget["cleanedString"]), "")."</s>\n <|user|>\n";
                                 }
 

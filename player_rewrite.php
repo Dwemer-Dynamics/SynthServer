@@ -14,8 +14,8 @@ if (PHP_SAPI !== "cli") {
 }
 
 $GLOBALS["ENGINE_ROOT"] = __DIR__ . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $GLOBALS["ENGINE_ROOT"];
-$enginePath             = $GLOBALS["ENGINE_ROOT"];
+$GLOBALS["ENGINE_PATH"] = \Synth\Bootstrap::engineRoot();
+$enginePath             = \Synth\Bootstrap::engineRoot();
 
 require_once $enginePath . "lib/runtime_bootstrap.php";
 synthRuntimeBootstrap($enginePath, [
@@ -30,12 +30,12 @@ require_once $enginePath . "prompts/command_prompt.php";
 require_once $enginePath . "lib/chat_helper_functions.php";
 require_once $enginePath . "lib/data_functions.php";
 
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 
 function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback, array $replacements): string
 {
     try {
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return strtr($fallback, $replacements);
         }
@@ -72,7 +72,7 @@ $GLOBALS["F_NAMES"]               = [];
 require $enginePath . "functions/functions.php";
 
 $connector            = new LLMConnector();
-$currentConnectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_PLAYER"]);
+$currentConnectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_PLAYER"));
 $connectionHandler    = $connector->getConnector($currentConnectorData);
 
 $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
@@ -132,7 +132,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
         error_log("Could not load player data from core_player: " . $e->getMessage());
     }
     if (empty($playerSpeechStyle) && isset($GLOBALS["PLAYER_SPEECH_STYLE"]) && !empty($GLOBALS["PLAYER_SPEECH_STYLE"])) {
-        $playerSpeechStyle = $GLOBALS["PLAYER_SPEECH_STYLE"];
+        $playerSpeechStyle = \Synth\Bootstrap::config("PLAYER_SPEECH_STYLE");
     }
 
     if (empty($playerBio) && !empty($playerAppearance)) {
@@ -142,11 +142,11 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
     // Build player character context block
     $playerContext = "";
     if (!empty($playerBio)) {
-        $resolvedBio = strtr($playerBio, ["#PLAYER_NAME#" => $GLOBALS["PLAYER_NAME"]]);
+        $resolvedBio = strtr($playerBio, ["#PLAYER_NAME#" => \Synth\Bootstrap::config("PLAYER_NAME")]);
         $playerContext .= "Player Backstory: " . $resolvedBio . "\n";
     }
     if (!empty($playerAppearance) && trim($playerAppearance) !== trim($playerBio)) {
-        $resolvedAppearance = strtr($playerAppearance, ["#PLAYER_NAME#" => $GLOBALS["PLAYER_NAME"]]);
+        $resolvedAppearance = strtr($playerAppearance, ["#PLAYER_NAME#" => \Synth\Bootstrap::config("PLAYER_NAME")]);
         $playerContext .= "Player Appearance: " . $resolvedAppearance . "\n";
     }
     if (!empty($playerSpeechStyle)) {
@@ -161,7 +161,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
     $npcLine = (!empty($targetNpc) && $targetNpc !== '(actor)') ? " You are currently speaking to {$targetNpc}." : '';
     $promptHead = '';
     if (!empty($GLOBALS["PROMPT_HEAD"])) {
-        $promptHead = strtr($GLOBALS["PROMPT_HEAD"], ["#SYNTH_NAME#" => $GLOBALS["PLAYER_NAME"]]);
+        $promptHead = strtr(\Synth\Bootstrap::config("PROMPT_HEAD"), ["#SYNTH_NAME#" => \Synth\Bootstrap::config("PLAYER_NAME")]);
     }
     $systemContent = "You are roleplaying as {$GLOBALS["PLAYER_NAME"]}.{$npcLine}";
     if (!empty($promptHead)) {
@@ -179,7 +179,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
         $outputInstruction = "Output only the final spoken dialogue line. No narration. No stage directions. No speaker names. No bracketed comments.";
     } else {
         $promptReplacements = [
-            '{PLAYER_NAME}' => $GLOBALS["PLAYER_NAME"],
+            '{PLAYER_NAME}' => \Synth\Bootstrap::config("PLAYER_NAME"),
             '{SPEECH}' => $sourceSpeech,
         ];
 

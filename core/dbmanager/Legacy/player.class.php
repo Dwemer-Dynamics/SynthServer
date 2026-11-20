@@ -10,7 +10,7 @@ class Player
         if (!isset($GLOBALS["db"])) {
             throw new \Exception("Database connection not initialized. Please ensure \$GLOBALS['db'] is set before instantiating Player class.");
         }
-        $this->db = $GLOBALS["db"];
+        $this->db = \Synth\Bootstrap::db();
     }
 
     /**

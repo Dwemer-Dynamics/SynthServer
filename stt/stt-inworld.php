@@ -12,18 +12,18 @@ synthRuntimeBootstrapIfNeeded($localPath, [
 
 function stt($filePath)
 {
-    if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) {
+    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
         $GLOBALS["db"] = new sql();
     }
 
-    $cfg = $GLOBALS["STT"]["INWORLD"] ?? [];
+    $cfg = \Synth\Bootstrap::config("STT")["INWORLD"] ?? [];
 
     // Resolve API key: prefer STT conf, fallback to API Badge "Inworld"
     $apiKey = trim((string)($cfg["API_KEY"] ?? ''));
     if ($apiKey === '') {
         try {
             require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('inworld');
+            $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('inworld');
             if (is_array($row) && !empty($row['api_key'])) {
                 $apiKey = trim((string)$row['api_key']);
             }

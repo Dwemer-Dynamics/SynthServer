@@ -5,7 +5,7 @@ class ImportRules {
     private $db;
 
     public function __construct() {
-        $this->db = $GLOBALS["db"];
+        $this->db = \Synth\Bootstrap::db();
     }
 
     // Create (Insert)

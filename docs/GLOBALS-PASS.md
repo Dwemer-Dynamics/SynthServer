@@ -61,3 +61,15 @@ Files under: workers service processor
 | global uses (all non-test PHP) | 4754 | 4432 |
 | files with a global | 281 | 276 |
 | `require_once` | 1836 | 1836 |
+
+### G4-core-lib-and-plugin-dirs
+
+Reads in core/, lib/, functions/, prompts/, connector/, stt/, tts/, itt/, debug/, bin/ and tools/ and the top-level scripts now go through the accessors.
+
+Files under: core lib functions prompts connector stt tts itt debug bin tools bootstrap.php csv_import.php diary_status.php gamedata.php health.php index.php itt.php main.php main_synth_pipeline.php media.php player_rewrite.php prompt.includes.php router.php stt.php tts_status.php vsx.php
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 4432 | 3697 |
+| files with a global | 276 | 263 |
+| `require_once` | 1836 | 1836 |

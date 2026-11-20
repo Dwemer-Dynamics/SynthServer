@@ -23,11 +23,11 @@ $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
 
 
 $context="{$GLOBALS["PROMPT_HEAD"]}\n";
-$context.=strtr($GLOBALS["SYNTH_PERS"],["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]]);
+$context.=strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
 $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
 
 $context.="# RESPONSE EXAMPLES\n{$GLOBALS["PLAYER_NAME"]}: Tell me something\n".json_encode([
-    'character' => $GLOBALS['SYNTH_NAME'], 'listener' => $GLOBALS['PLAYER_NAME'],
+    'character' => \Synth\Bootstrap::config('SYNTH_NAME'), 'listener' => \Synth\Bootstrap::config('PLAYER_NAME'),
     'mood' => 'sardonic', 'action' => 'Talk', 'target' => '',
     'message' => 'What do you want to talk about? ',
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
@@ -104,8 +104,8 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
     $n++;
 }
 
-if ($GLOBALS["CONNECTOR"]["koboldcppjson"]["PREFILL_JSON"]) {
-    $prefill = synth_provider_json_prefill(strval($GLOBALS['SYNTH_NAME']));
+if (\Synth\Bootstrap::config("CONNECTOR")["koboldcppjson"]["PREFILL_JSON"]) {
+    $prefill = synth_provider_json_prefill(strval(\Synth\Bootstrap::config('SYNTH_NAME')));
     $context.="$contextHistory  $instruction \n### Response:\n".$prefill;
     $GLOBALS["PATCH"]["PREAPPEND"]=$prefill;
 } else {

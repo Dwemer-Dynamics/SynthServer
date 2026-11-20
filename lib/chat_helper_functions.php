@@ -40,7 +40,7 @@ function synthGenerateUtteranceId()
 
 function logEvent($dataArray,$forcePeople='')
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if (!isset($GLOBALS["CACHE_PEOPLE_LIMITED"])) {
         $GLOBALS["CACHE_PEOPLE_LIMITED"]=DataBeingsInCloseRange(true); // DataBeingsInRange() won't work as depends on user input
@@ -71,9 +71,9 @@ function logEvent($dataArray,$forcePeople='')
 
         $eventType = strtolower((string)($dataArray[0] ?? ""));
 
-        $defaultPeopleFallback = $GLOBALS["CACHE_PEOPLE_LIMITED"];
+        $defaultPeopleFallback = \Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED");
         if (in_array($eventType, ["infoaction", "funcret"], true)) {
-            $actionPeopleFallback = $GLOBALS["CACHE_PEOPLE"] ?? DataBeingsInCloseRange(false);
+            $actionPeopleFallback = \Synth\Bootstrap::config("CACHE_PEOPLE") ?? DataBeingsInCloseRange(false);
             if ($actionPeopleFallback !== "") {
                 $defaultPeopleFallback = $actionPeopleFallback;
             }
@@ -88,7 +88,7 @@ function logEvent($dataArray,$forcePeople='')
                 $eventPeople = buildScopedPeopleForEvent(
                     $dataArray[0] ?? "",
                     $dataArray[3] ?? "",
-                    $GLOBALS["SYNTH_NAME"] ?? "",
+                    \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
                     $eventPeople
                 );
             }
@@ -113,8 +113,8 @@ function logEvent($dataArray,$forcePeople='')
             'sess' => $dataArray[4]??'pending',
             'localts' => time(),
             'people'=> $eventPeople,
-            'location'=>$GLOBALS["CACHE_LOCATION"],
-            'party'=>$GLOBALS["CACHE_PARTY"]
+            'location'=>\Synth\Bootstrap::config("CACHE_LOCATION"),
+            'party'=>\Synth\Bootstrap::config("CACHE_PARTY")
         );
 
         if (!empty($extraColumns)) {
@@ -138,9 +138,9 @@ function selectRandomInArray($arraySource)
 
     if ($n>0) {
         if ($n==1) {
-            $s_res = strtr($arraySource[0],["#SYNTH_NPC1#"=>$GLOBALS["SYNTH_NAME"]]);
+            $s_res = strtr($arraySource[0],["#SYNTH_NPC1#"=>\Synth\Bootstrap::config("SYNTH_NAME")]);
         } else {
-            $s_res = strtr($arraySource[rand(0, $n-1)],["#SYNTH_NPC1#"=>$GLOBALS["SYNTH_NAME"]]);
+            $s_res = strtr($arraySource[rand(0, $n-1)],["#SYNTH_NPC1#"=>\Synth\Bootstrap::config("SYNTH_NAME")]);
         }
         if (strlen(trim($s_res)) < 3) {
             Logger::warn("chat_helper_functions selectRandomInArray: wrong content - $s_res ");
@@ -219,16 +219,16 @@ function make_replacements_bracketed($text)
 {
     $promptCharacterName = function_exists('synthGetPromptCharacterName')
         ? synthGetPromptCharacterName()
-        : $GLOBALS["SYNTH_NAME"];
+        : \Synth\Bootstrap::config("SYNTH_NAME");
     $narratorRoleplayName = function_exists('synthGetNarratorRoleplayName')
         ? synthGetNarratorRoleplayName()
         : 'The Narrator';
 
     return strtr($text, [
         "{LOCATION}" => DataLastKnownLocationHuman(),
-        "{PLAYER_NAME}"   => $GLOBALS["PLAYER_NAME"],
+        "{PLAYER_NAME}"   => \Synth\Bootstrap::config("PLAYER_NAME"),
         "{SYNTH_NAME}"   => $promptCharacterName,
         "{NARRATOR_NAME}" => $narratorRoleplayName,
-        "{TEMPLATE_DIALOG}"   => $GLOBALS["TEMPLATE_DIALOG"],
+        "{TEMPLATE_DIALOG}"   => \Synth\Bootstrap::config("TEMPLATE_DIALOG"),
     ]);
 }

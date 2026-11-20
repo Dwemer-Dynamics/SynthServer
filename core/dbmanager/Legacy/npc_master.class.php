@@ -39,11 +39,11 @@ if (!function_exists('synthResolveNpcRolemasterState')) {
     {
         $npcName = trim(strval($npcName));
         if ($npcName === '') {
-            $npcName = trim(strval($GLOBALS['SYNTH_NAME'] ?? ''));
+            $npcName = trim(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         }
 
         $useGlobal = !array_key_exists('use_global', $options) || !empty($options['use_global']);
-        if ($useGlobal && synthRolemasterStateToBool($GLOBALS['is_rolemastered'] ?? false)) {
+        if ($useGlobal && synthRolemasterStateToBool(\Synth\Bootstrap::config('is_rolemastered') ?? false)) {
             return true;
         }
 
@@ -57,11 +57,11 @@ if (!function_exists('synthResolveNpcRolemasterState')) {
         $loadLookup = !array_key_exists('load_lookup', $options) || !empty($options['load_lookup']);
 
         if (($metadata === null || $extended === null) && $loadLookup && $npcName !== '' && class_exists('NpcMaster')) {
-            if (!isset($GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE']) || !is_array($GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'])) {
+            if (!isset($GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE']) || !is_array(\Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE'))) {
                 $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'] = [];
             }
 
-            if (!array_key_exists($npcName, $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'])) {
+            if (!array_key_exists($npcName, \Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE'))) {
                 $lookup = [
                     'npc_data' => [],
                     'metadata' => [],
@@ -79,7 +79,7 @@ if (!function_exists('synthResolveNpcRolemasterState')) {
                 $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'][$npcName] = $lookup;
             }
 
-            $lookup = $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'][$npcName];
+            $lookup = \Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE')[$npcName];
             if ($npcData === null && is_array($lookup['npc_data'])) {
                 $npcData = $lookup['npc_data'];
             }
@@ -219,27 +219,27 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             // Native relationship/profile revisions use their owned history writers, not the legacy timestamp lane.
             if (synth_npc_native_request()) return false;
             if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
-                $profile=$GLOBALS['db']->fetchOne('SELECT actor_identity_id FROM core_npc WHERE id='.$npcId);
+                $profile=\Synth\Bootstrap::db()->fetchOne('SELECT actor_identity_id FROM core_npc WHERE id='.$npcId);
                 if (!empty($profile['actor_identity_id'])) return false;
             }
 
             $gamets = 0;
-            if (isset($GLOBALS['gameRequest'][2]) && is_numeric($GLOBALS['gameRequest'][2])) {
-                $gamets = (float)$GLOBALS['gameRequest'][2];
+            if (isset($GLOBALS['gameRequest'][2]) && is_numeric(\Synth\Bootstrap::gameRequest()[2])) {
+                $gamets = (float)\Synth\Bootstrap::gameRequest()[2];
             } elseif (function_exists('DataLastKnownGameTS')) {
                 $gamets = (float)DataLastKnownGameTS();
             } else {
-                $row = $GLOBALS['db']->fetchOne("SELECT MAX(gamets) AS gamets FROM core_context_event WHERE type = 'infosave'");
+                $row = \Synth\Bootstrap::db()->fetchOne("SELECT MAX(gamets) AS gamets FROM core_context_event WHERE type = 'infosave'");
                 $gamets = (float)($row['gamets'] ?? 0);
             }
 
-            if ($gamets > 0 && $GLOBALS['db']->execQuery(
+            if ($gamets > 0 && \Synth\Bootstrap::db()->execQuery(
                 "UPDATE core_npc SET gamets_last_updated = {$gamets} WHERE id = {$npcId}"
             ) === false) {
                 throw new RuntimeException('failed to stamp game timestamp');
             }
 
-            $current = $GLOBALS['db']->fetchOne(
+            $current = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT extended_data FROM core_npc WHERE id = {$npcId} LIMIT 1"
             );
             if (!$current) {
@@ -264,7 +264,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
                     END DESC,
                     created DESC, history_id DESC
                 LIMIT 1";
-            $history = $GLOBALS['db']->fetchOne($historyQuery);
+            $history = \Synth\Bootstrap::db()->fetchOne($historyQuery);
             $historyState = $history ? synthRelationshipTimelineState($history['extended_data'] ?? null) : null;
             if ($history && $historyState !== null && $currentState == $historyState) {
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'REL', "Timeline snapshot skipped for npc_id {$npcId} (relationship state unchanged)");
@@ -281,7 +281,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             if (!$npcMaster->backupNpcById($npcId, $normalizedSource)) {
                 throw new RuntimeException('relationship history insert failed');
             }
-            $verified = $GLOBALS['db']->fetchOne($historyQuery);
+            $verified = \Synth\Bootstrap::db()->fetchOne($historyQuery);
             $verifiedState = $verified ? synthRelationshipTimelineState($verified['extended_data'] ?? null) : null;
             if ($verifiedState === null || $currentState != $verifiedState) {
                 throw new RuntimeException('relationship history snapshot verification failed');
@@ -310,7 +310,7 @@ class NpcMaster
 
     public function __construct()
     {
-        $this->db = $GLOBALS["db"];
+        $this->db = \Synth\Bootstrap::db();
     }
 
     // Create (Insert)
@@ -395,7 +395,7 @@ class NpcMaster
     {
         // The Narrator is now managed via core_narrator table, not core_npc_master
         if ($npcName === "The Narrator" && !(synth_npc_native_request()
-            && synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json']))) {
+            && synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json']))) {
             return null;
         }
 
@@ -549,7 +549,7 @@ class NpcMaster
         $where    = "id = {$id}";
         $filtered = array_intersect_key($data, array_flip($fields));
         $this->lastError = '';
-        $updated = $GLOBALS["db"]->updateRow($this->table, $filtered, $where);
+        $updated = \Synth\Bootstrap::db()->updateRow($this->table, $filtered, $where);
         if ($updated === false) {
             $this->lastError = trim((string)$this->db->GetLastError());
         }
@@ -1250,7 +1250,7 @@ class NpcMaster
 
         $table = $fkMap[$field];
         $query = "SELECT id, label FROM {$table} ORDER BY id ASC";
-        return $GLOBALS["db"]->fetchAll($query);
+        return \Synth\Bootstrap::db()->fetchAll($query);
     }
 
     public function getExtendedData($currentNpcData): array
@@ -1459,7 +1459,7 @@ class NpcMaster
 
         $startTime = time();
         $updateQuery = "UPDATE {$this->table} SET gamets_last_updated = $timestamp WHERE actor_identity_id IS NULL";
-        $GLOBALS["db"]->execQuery($updateQuery);
+        \Synth\Bootstrap::db()->execQuery($updateQuery);
 
         // Insert all NPCs into history table in a single query
         $createdTimestamp = date('Y-m-d H:i:s');
@@ -1480,7 +1480,7 @@ class NpcMaster
                 md5, $timestamp, core, base, tags, appearance, '{$createdTimestamp}'
             FROM core_npc WHERE actor_identity_id IS NULL
         ";
-        $GLOBALS["db"]->execQuery($insertQuery);
+        \Synth\Bootstrap::db()->execQuery($insertQuery);
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC BACKUP', "" . date('Y-m-d H:i:s') . ", NPCs backup made in " . (time() - $startTime) . " secs ");
         return true;
     }
@@ -1607,14 +1607,14 @@ FROM restore
 ";
 
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', "using gamets: $timestamp.. " . date('Y-m-d H:i:s'));
-        $GLOBALS["db"]->query($query);
+        \Synth\Bootstrap::db()->query($query);
 
         if ($neverClearRelationshipData) {
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', 'Preserved current relationships because Never Clear Relationship Data is enabled');
         } else {
             $relationshipRestoreSucceeded = false;
             try {
-                $relationshipRestoreResult = $GLOBALS['db']->fetchOne(synthRelationshipRestoreQuery($timestamp));
+                $relationshipRestoreResult = \Synth\Bootstrap::db()->fetchOne(synthRelationshipRestoreQuery($timestamp));
                 if (!is_array($relationshipRestoreResult) || !array_key_exists('affected', $relationshipRestoreResult)) {
                     throw new RuntimeException('relationship restore query did not return a result');
                 }
@@ -1627,7 +1627,7 @@ FROM restore
 
             if ($relationshipRestoreSucceeded) {
                 try {
-                    $clearResult = $GLOBALS['db']->fetchOne(synthRelationshipFutureClearQuery($timestamp));
+                    $clearResult = \Synth\Bootstrap::db()->fetchOne(synthRelationshipFutureClearQuery($timestamp));
                     if (!is_array($clearResult) || !array_key_exists('affected', $clearResult)) {
                         throw new RuntimeException('future relationship clear query did not return a result');
                     }
@@ -1658,8 +1658,8 @@ FROM restore
         $newId   = $currentNpcData["id"];
         $newName = $currentNpcData["npc_name"];
 
-        $oldName = $GLOBALS["db"]->escape($currentNpcDataAlt["npc_name"]);
-        $newName = $GLOBALS["db"]->escape($currentNpcData["npc_name"]);
+        $oldName = \Synth\Bootstrap::db()->escape($currentNpcDataAlt["npc_name"]);
+        $newName = \Synth\Bootstrap::db()->escape($currentNpcData["npc_name"]);
 
         $currentNpcData = $currentNpcDataAlt; // Copy data from the existing row.
 
@@ -1668,38 +1668,38 @@ FROM restore
         $currentNpcData["md5"]      = md5($newName);
 
         // eventlog.people (pipe-separated list)
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_context_event
                     SET people = REPLACE(people, '$oldName', '$newName')
                     WHERE people LIKE CONCAT('%', '$oldName', '%')
                 ");
 
         // speech.speaker and speech.listener
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_speech
                     SET speaker = '$newName'
                     WHERE speaker = '$oldName'
                 ");
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_speech
                     SET listener = '$newName'
                     WHERE listener = '$oldName'
                 ");
 
         // memory.speaker and memory.listener
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_memory_log
                     SET speaker = '$newName'
                     WHERE speaker = '$oldName'
                 ");
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_memory_log
                     SET listener = '$newName'
                     WHERE listener = '$oldName'
                 ");
 
         // memory_summary.companions (pipe-separated list)
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
                     UPDATE core_memory
                     SET companions = REPLACE(companions, '$oldName', '$newName')
                     WHERE companions LIKE CONCAT('%', '$oldName', '%')
@@ -1821,7 +1821,7 @@ FROM restore
         }
 
         $connectorData = null;
-        $profileData = $explicitProfile ?? ($GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] ?? []);
+        $profileData = $explicitProfile ?? (\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_PROFILE_DATA") ?? []);
         $connectorId = intval($profileData['tts_connector_id'] ?? 0);
         if ($connectorId > 0) {
             $ttsConnector = new TTSConnector();

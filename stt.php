@@ -68,11 +68,11 @@ function synthSttDecodeMetadata(): array
 
 $startTime = microtime(true);
 Logger::bootstrapRequestId("stt");
-Logger::trace("Audit run ID: " . $GLOBALS["AUDIT_RUNID"]. " (STT) started: ".$startTime);
+Logger::trace("Audit run ID: " . \Synth\Bootstrap::config("AUDIT_RUNID"). " (STT) started: ".$startTime);
 $GLOBALS["AUDIT_RUNID_REQUEST"]="STT";
 $sttMetadata = synthSttDecodeMetadata();
 Logger::phaseStart("stt", [
-    "connector" => $GLOBALS["STTFUNCTION"] ?? "",
+    "connector" => \Synth\Bootstrap::config("STTFUNCTION") ?? "",
     "file_bytes" => intval($_FILES["file"]["size"] ?? 0),
     "game" => $sttMetadata["game"] ?? "fo4",
 ]);
@@ -123,7 +123,7 @@ $text = trim((string)$text);
 if ($text === '') {
     Logger::phaseEnd("stt", [
         "status" => "empty_transcript",
-        "connector" => $GLOBALS["STTFUNCTION"] ?? "",
+        "connector" => \Synth\Bootstrap::config("STTFUNCTION") ?? "",
         "text_length" => 0,
     ], "warn");
     synthSttRespond(422, false, '', 'empty_transcript');
@@ -132,7 +132,7 @@ if ($text === '') {
 
 Logger::phaseEnd("stt", [
     "status" => "ok",
-    "connector" => $GLOBALS["STTFUNCTION"] ?? "",
+    "connector" => \Synth\Bootstrap::config("STTFUNCTION") ?? "",
     "text_length" => strlen($text),
     "preview" => Logger::summarizePayload($text, 120),
 ]);

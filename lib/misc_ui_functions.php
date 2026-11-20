@@ -94,11 +94,11 @@ function print_array_as_table($data)
                 </td>";
             } elseif (stripos($cell, 'background chat') !== false) {
                 echo "<td class='$colorClass'><em>" . $cell . "</em></td>";
-            } elseif (stripos($cell, ($GLOBALS["PLAYER_NAME"] ?? "_none") . ':') !== false) {
+            } elseif (stripos($cell, (\Synth\Bootstrap::config("PLAYER_NAME") ?? "_none") . ':') !== false) {
                 echo "<td class='$colorClass'>" . $cell . "</td>";
             } elseif (stripos($cell, 'obtains a quest') !== false) {
                 echo "<td class='$colorClass'><strong>" . $cell . "</strong></td>";
-            } elseif (stripos($cell, ($GLOBALS["SYNTH_NAME"] ?? "_none") . ":") !== false) {
+            } elseif (stripos($cell, (\Synth\Bootstrap::config("SYNTH_NAME") ?? "_none") . ":") !== false) {
                 echo "<td  class='$colorClass'>" . $cell . "</td>";
 
             } elseif ($n == "cost_USD" || $n == "total_cost_so_far_USD") {
