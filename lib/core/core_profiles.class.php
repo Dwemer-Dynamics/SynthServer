@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 class CoreProfile
 {
     private $table     = "core_profiles";
@@ -340,7 +341,7 @@ class CoreProfile
                 // empty(false) returns true, which would skip applying false values from profile
                 if ($value !== null && $value !== '') {
                     synthApplyOverrideValueToGlobals(strval($key), $value);
-                    error_log("[CORE] PROFILE  GLOBALS[$key] = " . print_r($value, true));
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'CORE', "PROFILE  GLOBALS[$key] = " . print_r($value, true));
                 }
             }
         }

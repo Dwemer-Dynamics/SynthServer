@@ -9,6 +9,7 @@ use SynthProviderStream;
 
 // Provider logic moved from connector/openrouterjson.php. The stateful open/process/close/fast_request API and behaviour are
 // unchanged; connector/openrouterjson.php remains as a thin hook so call sites and config keep working.
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 3) . '/lib/provider_stream.php';
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
@@ -1515,11 +1516,11 @@ class OpenRouterJsonDriver
             }
             if ($json_response === false) {
                $error = error_get_last();
-              error_log("Error fetching response from URL: " . $this->_url . ". Error: " . $error['message']);
+              \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'OpenRouterJsonDriver', "Error fetching response from URL: " . $this->_url . ". Error: " . $error['message']);
             }
         } catch (Exception $e) {
             if ($e instanceof SYNTHProtocolCancelled) throw $e;
-            error_log("Exception occurred while fetching response from URL: " . $this->_url . ". Exception: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'OpenRouterJsonDriver', "Exception occurred while fetching response from URL: " . $this->_url . ". Exception: " . $e->getMessage());
             $json_response = false;
         }
 
@@ -1539,7 +1540,7 @@ class OpenRouterJsonDriver
                 } else if (is_string($text_response["error"])) {
                     $errorMsg .= "|" . substr($text_response["error"], 0, 200);
                 }
-                error_log("[fast_request] API error from '{$this->_url}': " . json_encode($text_response["error"]));
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "API error from '{$this->_url}': " . json_encode($text_response["error"]));
                 if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
                     'audit_request',
@@ -1588,7 +1589,7 @@ class OpenRouterJsonDriver
                             'url'=>$this->_url
                         ));
                 }
-                error_log("[fast_request] Invalid JSON from '{$this->_url}': " . substr($json_response, 0, 500));
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "Invalid JSON from '{$this->_url}': " . substr($json_response, 0, 500));
                 return "";
                 
             }
@@ -1601,7 +1602,7 @@ class OpenRouterJsonDriver
             );
             $lastError = error_get_last();
             $errorDetail = $lastError ? $lastError['message'] : 'unknown';
-            error_log("[fast_request] No response from '{$this->_url}': {$errorDetail}");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "No response from '{$this->_url}': {$errorDetail}");
             if ($GLOBALS["db"]) {
                 $GLOBALS["db"]->insert(
                 'audit_request',

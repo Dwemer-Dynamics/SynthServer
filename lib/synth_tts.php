@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "voice_clone_resolver.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "logger.php";
@@ -51,7 +52,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text, ?arra
             }
         }
     } catch (Throwable $e) {
-        error_log("[SYNTH TTS] Could not resolve cache voice for {$speaker}: " . $e->getMessage());
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH TTS', "Could not resolve cache voice for {$speaker}: " . $e->getMessage());
     }
 
     $sample = $voice !== '' ? synth_resolve_voice_clone_wav($voice, [
