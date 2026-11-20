@@ -32,7 +32,7 @@ final class SchemaCloneIdentityTest extends TestCase
         $this->assertSame($refused, pts_drop_schema(null, 'synth_profile_kept'));
         $this->assertFalse(pts_recreate_public_schema(null));
 
-        $schemaSource = (string) file_get_contents(dirname(__DIR__, 2) . '/lib/playthrough_schema.php');
+        $schemaSource = (string) file_get_contents(dirname(__DIR__, 2) . '/managers/SaveState/Native/playthrough_schema.php');
         foreach (['DROP SCHEMA', 'CREATE SCHEMA', 'CREATE EXTENSION', 'schema_clone_function.sql',
                      'synth_meta.clone_schema(', 'synth_meta.drop_schema_safe('] as $mutation) {
             $this->assertStringNotContainsString($mutation, $schemaSource);
