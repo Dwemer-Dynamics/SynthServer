@@ -218,7 +218,7 @@ class RelationshipLLM {
         $connectorLabel = $this->connector['label'] ?? 'RelationshipLLM';
         $model = $this->modelName ?? 'unknown';
 
-        $this->db->insert('audit_request', [
+        $this->db->insert('core_audit_request', [
             'request' => json_encode([
                 'type' => $callType,
                 'model' => $model,
@@ -518,7 +518,7 @@ PROMPT;
 
         // Get NPCs with TEXT relationships
         $query = "SELECT id, npc_name, relationships, extended_data
-                  FROM core_npc_master
+                  FROM core_npc
                   WHERE relationships IS NOT NULL AND relationships != ''
                   ORDER BY id
                   LIMIT " . intval($limit);
@@ -600,7 +600,7 @@ PROMPT;
             // Find the target NPC
             $escapedTarget = $this->db->escape($targetName);
             $targetNpc = $this->db->fetchOne(
-                "SELECT id, extended_data FROM core_npc_master WHERE npc_name = '" . $escapedTarget . "' LIMIT 1"
+                "SELECT id, extended_data FROM core_npc WHERE npc_name = '" . $escapedTarget . "' LIMIT 1"
             );
 
             if (!$targetNpc) continue;

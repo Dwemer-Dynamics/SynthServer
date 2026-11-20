@@ -96,11 +96,11 @@ function synth_rechat_load_candidates($connection, $db, array $event): array
     $result=@pg_query_params($connection,"SELECT a.id AS actor_identity_id,n.id AS npc_id,n.profile_id,
             to_jsonb(n) AS npc,captured.actor AS identity,p.metadata AS profile_metadata
         FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY captured(actor,ordinal)
-        JOIN synth.actor_identities a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
+        JOIN public.core_actor_identity a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
             AND lower(a.origin_plugin)=lower(captured.actor->>'origin_plugin')
             AND a.playthrough_id=captured.actor->>'playthrough_id'
         JOIN public.core_runtime_session s ON s.session_id=$2 AND s.playthrough_id=a.playthrough_id
-        JOIN synth.core_npc_master n ON n.actor_identity_id=a.id
+        JOIN public.core_npc n ON n.actor_identity_id=a.id
         JOIN public.core_profiles p ON p.id=n.profile_id
         ORDER BY captured.ordinal FOR SHARE OF n,p",
         [json_encode(array_values($actors),JSON_THROW_ON_ERROR),$event['session_id']]);

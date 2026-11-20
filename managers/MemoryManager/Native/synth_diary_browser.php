@@ -34,10 +34,10 @@ WITH written_diaries AS (
         substr(encode(sha256(convert_to(h.playthrough_id,'UTF8')),'hex'),1,12) AS save_key
     FROM public.core_diary_result r
     JOIN public.core_diary_input i ON i.id=r.input_id
-    JOIN synth_meta.history_events h ON h.id=r.history_event_id
+    JOIN public.core_history_event h ON h.id=r.history_event_id
         AND h.session_id=i.session_id AND h.request_id=i.request_id
         AND h.generation=i.generation AND h.context_sequence=i.context_sequence
-    JOIN synth.actor_identities a ON a.id=i.actor_identity_id
+    JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
         AND a.playthrough_id=h.playthrough_id AND a.game='fo4'
     WHERE h.event_payload->>'type'='diary_result'
         AND h.event_payload->>'delivery_state'='derived'

@@ -947,7 +947,7 @@ class OpenAiJsonDriver
 
             if (\Synth\Bootstrap::db()) {
                 \Synth\Bootstrap::db()->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"],
@@ -970,7 +970,7 @@ class OpenAiJsonDriver
 
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message,
@@ -985,7 +985,7 @@ class OpenAiJsonDriver
             } else  {
                 /*if ($GLOBALS["db"]) {
                     $GLOBALS["db"]->insert(
-                    'audit_request',
+                    'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "Ok",
@@ -1241,7 +1241,7 @@ class OpenAiJsonDriver
         if ($json_response) {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => "Ok",
@@ -1255,7 +1255,7 @@ class OpenAiJsonDriver
         else {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
                             'result' => (!empty($this->_buffer))?"Ok":"ERROR|INVALID JSON RESPONSE",

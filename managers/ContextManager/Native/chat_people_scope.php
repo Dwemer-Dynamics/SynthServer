@@ -1446,7 +1446,7 @@ function lookupSpatialCompanionsFromSpeech($speakerName, $listenerName = "", $ut
     $speakerEscaped = $db->escape($speakerName);
     $rows = $db->fetchAll(
         "SELECT rowid, companions, listener, speaker, speech, topic, localts
-         FROM speech
+         FROM core_speech
          WHERE LOWER(speaker)=LOWER('{$speakerEscaped}')
            AND localts > " . (time() - 900) . "
          ORDER BY rowid DESC
@@ -1887,7 +1887,7 @@ function lookupLatestSpatialCompanionsByParticipant($participantName, $maxAgeSec
 
     $rows = $db->fetchAll(
         "SELECT rowid, companions, listener, speaker, topic
-         FROM speech
+         FROM core_speech
          WHERE localts > {$cutoff}
            AND topic LIKE '%spatial:%'
            AND (

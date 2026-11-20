@@ -34,7 +34,7 @@ function synth_relationship_pair($db, array $event, string $subject): ?array
     }
     // All identities already exist from context ingestion; resolving a read must not create or rename one.
     if (($identity['playthrough_id'] ?? null)!==$row['playthrough_id']) return null;
-    $subjectRow=$db->fetchOne('SELECT id FROM synth.actor_identities WHERE game=\'fo4\' AND upper(full_form_id)=upper('
+    $subjectRow=$db->fetchOne('SELECT id FROM public.core_actor_identity WHERE game=\'fo4\' AND upper(full_form_id)=upper('
         .$db->escapeLiteral($identity['form_id']).') AND lower(origin_plugin)=lower('.$db->escapeLiteral($identity['origin_plugin'])
         .') AND playthrough_id='.$db->escapeLiteral($identity['playthrough_id']));
     if (!$subjectRow || intval($subjectRow['id'])===intval($row['reader_identity_id'])) return null;
@@ -74,7 +74,7 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
     ), relationship_visible_sources AS MATERIALIZED (
         SELECT history_event_id FROM relationship_graph_sources WHERE actor_identity_id IN (SELECT reader_identity_id FROM native_ancestry WHERE depth=1)
     ), relationship_revision_history AS MATERIALIZED (
-        SELECT h.* FROM synth_meta.history_events h
+        SELECT h.* FROM public.core_history_event h
         JOIN public.core_relationship_revision revision ON revision.history_event_id=h.id
         WHERE EXISTS (SELECT 1 FROM relationship_graph_scopes scope
             WHERE scope.session_id=h.session_id AND scope.generation=h.generation
@@ -166,7 +166,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $input=json_encode($input,JSON_THROW_ON_ERROR);
         $hash=hash('sha256',$input);
         $existing=@pg_query_params($connection,'SELECT r.history_event_id,r.input_hash,h.context_sequence FROM public.core_relationship_revision r
-            JOIN synth_meta.history_events h ON h.id=r.history_event_id
+            JOIN public.core_history_event h ON h.id=r.history_event_id
             WHERE h.session_id=$1 AND h.generation=$2 AND h.request_id=$3
                 AND r.actor_identity_id=$4 AND r.subject_identity_id=$5',
             [$event['session_id'],$event['generation'],$event['request_id'],$pair['actor_id'],$pair['subject_id']]);
@@ -188,7 +188,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         }
         // Unsaved concurrent publication is stale. Invalid older revisions must not permanently block recovery.
         $head=@pg_query_params($connection,'SELECT max(r.history_event_id) AS id FROM public.core_relationship_revision r
-            JOIN synth_meta.history_events h ON h.id=r.history_event_id WHERE h.session_id=$1 AND h.generation=$2
+            JOIN public.core_history_event h ON h.id=r.history_event_id WHERE h.session_id=$1 AND h.generation=$2
                 AND r.actor_identity_id=$3 AND r.subject_identity_id=$4 AND h.id>(
                     SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5)',
             [$event['session_id'],$event['generation'],$pair['actor_id'],$pair['subject_id'],$event['context_sequence']]);
@@ -218,7 +218,7 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('relationship_state','Native relationship state publication',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                 ||jsonb_build_object('relationship_details',$16::jsonb)
             FROM publication RETURNING id

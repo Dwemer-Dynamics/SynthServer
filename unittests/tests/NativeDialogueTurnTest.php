@@ -738,7 +738,7 @@ final class NativeDialogueTurnTest extends TestCase
                     'active_generation'=>$this->session['active_generation'],'active_turn_id'=>$this->session['active_turn_id'],
                     'active_turn_sequence'=>$this->session['active_turn_sequence']];
                 if (str_starts_with($sql,'SELECT state, error_code')) return $this->row;
-                if (str_starts_with($sql,'UPDATE synth_meta.request_executions')) {
+                if (str_starts_with($sql,'UPDATE public.core_request_execution')) {
                     if ($this->failUpdates-- > 0) return false;
                     if (!in_array($this->row['state'],['claimed','streaming'],true)) return null;
                     preg_match("/SET state='(\\w+)'/",$sql,$state);

@@ -102,7 +102,7 @@ final class ConversationManager
             AND event_type IN ('input_text','input_audio','trigger')
             AND canonical_event->'capabilities' ? '".self::CAPABILITY."'
             AND canonical_event#>>'{payload,conversation_id}'={$conversation}";
-        $cancelled = $db->fetchAll("UPDATE synth_meta.request_executions SET
+        $cancelled = $db->fetchAll("UPDATE public.core_request_execution SET
                 state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
                 response_body=NULL,error_code='request_cancelled',
                 completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
@@ -136,7 +136,7 @@ final class ConversationManager
         $id = self::idOf($event);
         if ($id === null) return null;
         $session = $db->escapeLiteral($event['session_id']);
-        return "(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS (SELECT 1 FROM synth_meta.history_events conv_h
+        return "(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS (SELECT 1 FROM public.core_history_event conv_h
             JOIN public.core_protocol_event conv_e ON conv_e.session_id=conv_h.session_id AND conv_e.request_id=conv_h.request_id
                 AND conv_e.generation=conv_h.generation
             WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}

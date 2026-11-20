@@ -86,7 +86,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $record=['type'=>'inputtext','data'=>'Nora: I helped Piper in Diamond City.','sess'=>'memory-recovery-save',
             'people'=>'|Nora|Piper Wright|','location'=>'Diamond City','party'=>'','gamets'=>1000,'localts'=>1000,'ts'=>1000,
             'rowid'=>900001,'delivery_state'=>'spoken'];
-        $result=$this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+        $result=$this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             VALUES('memory-recovery-session',1,1,$1,'memory-recovery-save',900001,$2::jsonb) RETURNING id",[$source['request_id'],$this->json($record)]);
         $this->historyId=(int)pg_fetch_assoc($result)['id'];
         $payload['snapshot_sequence']=2;
@@ -123,7 +123,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     private function json(array $value): string {return json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);}
     private function identity(array $actor): int
     {
-        $result=$this->query('INSERT INTO synth.actor_identities(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
+        $result=$this->query('INSERT INTO public.core_actor_identity(full_form_id,origin_plugin,playthrough_id,display_name) VALUES($1,$2,$3,$4) RETURNING id',
             [$actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id'],$actor['display_name']]);
         return (int)pg_fetch_assoc($result)['id'];
     }
@@ -143,7 +143,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     private function persistRequest(array $event): void
     {
         $canonical=synth_protocol_canonical_json($event);$hash=hash('sha256',$canonical);
-        $this->query("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
+        $this->query("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES($1,$2,$3,1,$4,$5,'complete')",[$event['session_id'],$event['request_id'],$event['turn_id'],$hash,$event['type']]);
         $this->query("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
             VALUES($1,$2,$3,1,$4,$5::jsonb,$6)",[$event['session_id'],$event['request_id'],$event['turn_id'],$event['type'],$canonical,$hash]);
@@ -172,7 +172,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame('accepted',synth_protocol_claim_request($ingress,$next)['status']);
         $this->assertTrue(synth_protocol_commit_outcome($ingress,$next,'complete','application/x-ndjson','')['won']);
         $this->assertSame('cancelled',$this->job()['state']);
-        $execution=pg_fetch_assoc($this->query("SELECT state FROM synth_meta.request_executions
+        $execution=pg_fetch_assoc($this->query("SELECT state FROM public.core_request_execution
             WHERE session_id=$1 AND request_id=$2",[$next['session_id'],$pending['request_id']]));
         $this->assertSame('cancelled',$execution['state']);
         $this->assertSame('replay',synth_protocol_claim_request($ingress,$next)['status']);
@@ -203,12 +203,12 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     }
     private function appendHistory(int $sequence,array $changes=[],?int $sceneSequence=null): int
     {
-        $source=pg_fetch_assoc($this->query('SELECT event_payload FROM synth_meta.history_events WHERE id=$1',[$this->historyId]));
+        $source=pg_fetch_assoc($this->query('SELECT event_payload FROM public.core_history_event WHERE id=$1',[$this->historyId]));
         $record=array_replace(json_decode($source['event_payload'],true,flags:JSON_THROW_ON_ERROR),$changes);
         $record['rowid']=$this->nextHistoryRowid++;
         $event=$this->owner($sequence,'memory-recovery-extra-'.$record['rowid']);
         $this->persistRequest($event);
-        $result=$this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,scene_context_sequence,request_id,
+        $result=$this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,scene_context_sequence,request_id,
             playthrough_id,eventlog_rowid,event_payload) VALUES('memory-recovery-session',1,$1,$2,$3,'memory-recovery-save',$4,$5::jsonb) RETURNING id",
             [$sequence,$sceneSequence,$event['request_id'],$record['rowid'],$this->json($record)]);
         return (int)pg_fetch_assoc($result)['id'];
@@ -230,7 +230,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     }
     private function stampSourceWithUtcClock(): void
     {
-        $this->query("UPDATE synth_meta.history_events SET event_payload=event_payload||$2::jsonb WHERE id=$1",
+        $this->query("UPDATE public.core_history_event SET event_payload=event_payload||$2::jsonb WHERE id=$1",
             [$this->historyId,$this->json(['gamets'=>1791859200,'localts'=>1791859201,'ts'=>1791859202])]);
     }
     private function attachEarlierSummary(): array
@@ -285,7 +285,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             $responderId=$this->identity($responder);
             $payload['audience'][]=$responder;
             $audienceIds[]=$responderId;
-            $this->query("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}',$2::jsonb)
+            $this->query("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}',$2::jsonb)
                 WHERE id=ANY($1::bigint[])",['{'.implode(',',$sourceIds).'}',json_encode('|Nora|Piper Wright|Preston Garvey|',JSON_THROW_ON_ERROR)]);
             $privateId=$this->appendHistory(1,['data'=>'Nora: Private evidence heard only by Piper.',
                 'people'=>'|Nora|Piper Wright|','ts'=>1010]);
@@ -307,7 +307,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->snapshot(3,(int)$row['player_identity_id'],$fresh,$frontier);
         $this->query("UPDATE public.core_runtime_context SET audience_identity_ids=$1::jsonb
             WHERE session_id='memory-recovery-session' AND snapshot_sequence=3",[$this->json($audienceIds)]);
-        $this->query("UPDATE synth_meta.request_executions SET claimed_at=clock_timestamp()-INTERVAL '2 seconds'
+        $this->query("UPDATE public.core_request_execution SET claimed_at=clock_timestamp()-INTERVAL '2 seconds'
             WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);
         $sourceBinding=$this->dispatchBinding($this->actorId,$payload['target']['display_name']);
         $binding=$responderId===$this->actorId ? $sourceBinding : $this->dispatchBinding($responderId,$responder['display_name']);
@@ -319,7 +319,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $profile=(int)pg_fetch_assoc($this->query('INSERT INTO public.core_profiles(label) VALUES($1) RETURNING id',
             ['Memory dispatch fixture '.$name]))['id'];
-        $npc=(int)pg_fetch_assoc($this->query('INSERT INTO synth.core_npc_master(npc_name,profile_id,actor_identity_id)
+        $npc=(int)pg_fetch_assoc($this->query('INSERT INTO public.core_npc(npc_name,profile_id,actor_identity_id)
             VALUES($1,$2,$3) RETURNING id',[$name,$profile,$actorId]))['id'];
         return ['profile_id'=>$profile,'npc_id'=>$npc];
     }
@@ -337,7 +337,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
                 'line_id'=>'fixture:'.$type,'type'=>$type,'payload'=>$linePayload])."\n";
         }
         $body=implode('',$lines);
-        $this->query("UPDATE synth_meta.request_executions SET response_body=decode($1,'hex') WHERE session_id=$2 AND request_id=$3",
+        $this->query("UPDATE public.core_request_execution SET response_body=decode($1,'hex') WHERE session_id=$2 AND request_id=$3",
             [bin2hex($body),$parent['session_id'],$parent['request_id']]);
         $this->query("INSERT INTO public.core_dialogue_route
             (session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener)
@@ -442,7 +442,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $fixture=$this->dispatchFixture();
         $this->dispatchContinuation($fixture,$role,$prepared);
-        $this->query("UPDATE synth_meta.request_executions SET state='claimed' WHERE session_id=$1 AND request_id=$2",
+        $this->query("UPDATE public.core_request_execution SET state='claimed' WHERE session_id=$1 AND request_id=$2",
             [$this->event['session_id'],$this->event['request_id']]);
         $calls=0;
         $this->assertNull(synth_memory_dispatch($this->database,static function() use (&$calls): string {
@@ -493,7 +493,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $fixture=$this->dispatchFixture(true);
         $this->dispatchContinuation($fixture,'npc');
-        $this->query('UPDATE synth.core_npc_master SET profile_id=$1 WHERE id=$2',
+        $this->query('UPDATE public.core_npc SET profile_id=$1 WHERE id=$2',
             [$fixture['source_binding']['profile_id'],$fixture['binding']['npc_id']]);
         $calls=0;
         try {
@@ -513,13 +513,13 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     {
         $this->stampSourceWithUtcClock();
         $this->setSnapshotClock(1,26886800);
-        $before=pg_fetch_assoc($this->query('SELECT event_payload::text FROM synth_meta.history_events WHERE id=$1',[$this->historyId]));
+        $before=pg_fetch_assoc($this->query('SELECT event_payload::text FROM public.core_history_event WHERE id=$1',[$this->historyId]));
         $row=$this->historyRows()[0];
         $this->assertSame('26886800',$row['gamets']);
         $this->assertSame('1791859201',$row['localts']);
         $this->assertSame('1791859202',$row['ts']);
         $this->assertSame('Diamond City',$row['source_location']);
-        $this->assertSame($before,pg_fetch_assoc($this->query('SELECT event_payload::text FROM synth_meta.history_events WHERE id=$1',[$this->historyId])));
+        $this->assertSame($before,pg_fetch_assoc($this->query('SELECT event_payload::text FROM public.core_history_event WHERE id=$1',[$this->historyId])));
         $this->assertSame([],$this->visibleBatchIds(),'The old frozen 1000-tick input must not cover a source now projected at 26886800 ticks');
 
         $this->setSnapshotClock(1,9007199254740991);
@@ -531,7 +531,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
     public function testMissingAndMalformedSourceClocksRemainUnknownWithoutUtcFallback(): void
     {
         $this->stampSourceWithUtcClock();
-        $before=pg_fetch_assoc($this->query('SELECT event_payload::text FROM synth_meta.history_events WHERE id=$1',[$this->historyId]));
+        $before=pg_fetch_assoc($this->query('SELECT event_payload::text FROM public.core_history_event WHERE id=$1',[$this->historyId]));
         $cases=['missing'=>[null,false],'null'=>[null,true],'zero'=>[0,true],'negative'=>[-1,true],
             'numeric string'=>['26886800',true],'fraction'=>[26886800.5,true],'boolean'=>[true,true],
             'array'=>[[26886800],true],'object'=>[(object)['ticks'=>26886800],true],
@@ -545,7 +545,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
             $this->assertSame([],$this->visibleBatchIds(),$case.' must hide frozen memory with an unverified source clock');
             $this->assertNull(synth_memory_capture_batch($this->database,1,1000000),$case.' must not settle memory');
         }
-        $this->assertSame($before,pg_fetch_assoc($this->query('SELECT event_payload::text FROM synth_meta.history_events WHERE id=$1',[$this->historyId])));
+        $this->assertSame($before,pg_fetch_assoc($this->query('SELECT event_payload::text FROM public.core_history_event WHERE id=$1',[$this->historyId])));
     }
 
     public function testSavedSceneClockOverridesOriginalRequestClock(): void
@@ -553,7 +553,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->stampSourceWithUtcClock();
         $this->setSnapshotClock(1,26886800);
         $this->setSnapshotClock(2,26886999);
-        $this->query('UPDATE synth_meta.history_events SET scene_context_sequence=2 WHERE id=$1',[$this->historyId]);
+        $this->query('UPDATE public.core_history_event SET scene_context_sequence=2 WHERE id=$1',[$this->historyId]);
         $this->assertSame('26886999',$this->historyRows()[0]['gamets']);
         $this->setSnapshotClock(2,null,false);
         $this->assertNull($this->historyRows()[0]['gamets'],'Missing scene time must not fall back to the original request snapshot');
@@ -586,7 +586,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
                 'ts'=>1791859202+$index,'localts'=>1791859201+$index,'gamets'=>1791859200+$index]);
         }
         $this->setFrontier($ids[array_key_last($ids)]);
-        $before=pg_fetch_all($this->query('SELECT id,event_payload::text FROM synth_meta.history_events ORDER BY id'));
+        $before=pg_fetch_all($this->query('SELECT id,event_payload::text FROM public.core_history_event ORDER BY id'));
         foreach ([$sourceClock,$sourceClock+$hourTicks] as $currentClock) {
             $this->setSnapshotClock(2,$currentClock);
             $this->assertNull(synth_memory_capture_batch($this->database),'Settlement uses a strict older-than-one-game-hour cutoff');
@@ -623,7 +623,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertNotNull(synth_memory_process_job($this->database,$jobId,static function() use (&$calls) {++$calls;return 'Forbidden regenerated text.';}));
         $this->assertSame(0,$calls);
         $this->assertSame($batch['input_payload'],pg_fetch_assoc($this->query('SELECT input_payload FROM public.core_memory_batch WHERE id=$1',[$batchId]))['input_payload']);
-        $this->assertSame($before,pg_fetch_all($this->query('SELECT id,event_payload::text FROM synth_meta.history_events ORDER BY id')));
+        $this->assertSame($before,pg_fetch_all($this->query('SELECT id,event_payload::text FROM public.core_history_event ORDER BY id')));
     }
 
     public function testGameClockCannotWidenSavedFrontierActorOrSaveVisibility(): void
@@ -633,9 +633,9 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         $this->assertSame([$this->historyId],array_map(static fn(array $row): int=>(int)$row['history_event_id'],$this->historyRows()));
         $this->assertGreaterThan($this->historyId,$later);
         $this->setFrontier($later);
-        $this->query("UPDATE synth_meta.history_events SET playthrough_id='another-save' WHERE id=$1",[$later]);
+        $this->query("UPDATE public.core_history_event SET playthrough_id='another-save' WHERE id=$1",[$later]);
         $this->assertCount(1,$this->historyRows(),'Equal game time cannot grant cross-save visibility');
-        $this->query("UPDATE synth_meta.history_events SET playthrough_id='memory-recovery-save',
+        $this->query("UPDATE public.core_history_event SET playthrough_id='memory-recovery-save',
             event_payload=jsonb_set(event_payload,'{people}','\"|Other Actor|\"'::jsonb) WHERE id=$1",[$later]);
         $this->assertCount(1,$this->historyRows(),'Equal game time cannot grant another actor\'s source visibility');
         $this->setSnapshotClock(1,1000001);
@@ -923,7 +923,7 @@ final class NativeMemoryRecoveryTest extends DatabaseTestCase
         switch ($case) {
             case 'generation': $this->query("UPDATE public.core_runtime_session SET active_generation=2 WHERE session_id='memory-recovery-session'");break;
             case 'frontier': $this->query("UPDATE public.core_runtime_context SET history_event_id=0 WHERE session_id='memory-recovery-session' AND snapshot_sequence=2");break;
-            case 'source': $this->query("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{people}','\"|Other Actor|\"'::jsonb) WHERE id=$1",[$this->historyId]);break;
+            case 'source': $this->query("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{people}','\"|Other Actor|\"'::jsonb) WHERE id=$1",[$this->historyId]);break;
             case 'archive': $this->query('INSERT INTO public.core_memory_batch_control(batch_id,archived,revision) VALUES($1,true,1)',[$this->batchId]);break;
         }
         $called=0;
