@@ -250,7 +250,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
 
         if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
-            $pluginVersionRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
+            $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)
                     synthQueueCommandResponse(

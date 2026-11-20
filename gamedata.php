@@ -960,10 +960,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
                 $partyFragments[] = json_encode($partyRow, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             }
             $partyValue = implode(',', $partyFragments) . ',';
-            $db->upsertRowOnConflict('public.core_config_setting', [
-                'scope' => 'conf', 'config_key' => 'CurrentParty',
-                'config_value' => $partyValue,
-            ], 'scope, config_key');
+            \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', 'CurrentParty', $partyValue);
             Logger::debug("[gamedata.php] Updated CurrentParty from nearby_actors {$partySource}: " . implode(', ', array_keys($partyRows)));
         } else {
             Logger::debug("[gamedata.php] Kept existing CurrentParty; nearby_actors {$partySource} had no party members");
@@ -2202,18 +2199,16 @@ function handleFalloutStatsUpdate(array $data): void {
 
     try {
         $db = \Synth\Bootstrap::db();
-        $valueRows = [];
+        $statValues = [];
         foreach ($stats as $statKey => $statValue) {
-            $valueRows[] = "('" . $db->escape($statKey) . "', '" . $db->escape((string)$statValue) . "')";
+            $statValues[$statKey] = (string)$statValue;
         }
 
-        $valuesSql = implode(',', $valueRows);
-        $playerValuesSql = implode(',', array_map(static fn(string $row): string => "('player', " . substr($row, 1), $valueRows));
-        if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES {$playerValuesSql} ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
+        $settings = \Synth\Managers\ConfigManager\ConfigManager::shared();
+        if (!$settings->setMany('player', $statValues)) {
             throw new RuntimeException('Could not update core_player Fallout statistics');
         }
-        $confValuesSql = implode(',', array_map(static fn(string $row): string => "('conf', " . substr($row, 1), $valueRows));
-        if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES {$confValuesSql} ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
+        if (!$settings->setMany('conf', $statValues)) {
             throw new RuntimeException('Could not update conf_opts Fallout statistics');
         }
 
@@ -2227,8 +2222,7 @@ function handleFalloutStatsUpdate(array $data): void {
         ];
         $snapshotJson = json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($snapshotJson !== false) {
-            $safeSnapshot = $db->escape($snapshotJson);
-            if ($db->query("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('player', 'fallout_stats', '{$safeSnapshot}') ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value") === false) {
+            if (!$settings->set('player', 'fallout_stats', $snapshotJson)) {
                 throw new RuntimeException('Could not update Fallout statistics snapshot');
             }
         }
