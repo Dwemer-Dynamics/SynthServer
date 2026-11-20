@@ -26,7 +26,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | Slice | Scope |
 | --- | --- |
 | L0 | this inventory |
-| L1 | `quest_*` to `managers/QuestManager` |
+| L1 | `quest_*` to `managers/QuestManager` (done) |
 | L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` |
 | L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs |
 | L4 | `visual_context*` to `managers/VisualContext` |
@@ -136,9 +136,9 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/prompt_composition.php` | 187 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/prompt_injections.php` | 163 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/provider_stream.php` | 362 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
-| `lib/quest_access.php` | 192 | manager | `managers/QuestManager` (new: knowledge, access, reaction), hooks at the old paths | L1 |
-| `lib/quest_knowledge.php` | 542 | manager | `managers/QuestManager` (new: knowledge, access, reaction), hooks at the old paths | L1 |
-| `lib/quest_reaction.php` | 102 | manager | `managers/QuestManager` (new: knowledge, access, reaction), hooks at the old paths | L1 |
+| `lib/quest_access.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_access.php` | done (L1) |
+| `lib/quest_knowledge.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_knowledge.php` | done (L1) |
+| `lib/quest_reaction.php` | 4 | hook (done) | `managers/QuestManager/Native/quest_reaction.php` | done (L1) |
 | `lib/quickstart_service_choices.php` | 8 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
 | `lib/relationship_manager.php` | 4 | hook (done) | `managers/Relationships/Legacy/RelationshipManager.php` | done |
 | `lib/relationship_response.php` | 4 | hook (done) | `managers/Relationships/Native/relationship_response.php` | done |
