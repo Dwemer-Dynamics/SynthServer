@@ -84,14 +84,41 @@ final class Bootstrap
     }
 
     /**
-     * One configuration value. A legacy global wins because settings loaded from the database are written there;
-     * then the values read from conf.sample.php / conf.php; then $default.
+     * One configuration value. A legacy global wins (settings loaded from the database are written there) unless it is
+     * null, as `$GLOBALS[$name] ?? $default` did; then the values read from conf.sample.php / conf.php; then $default.
      */
     public static function config(string $name, mixed $default = null): mixed
     {
-        if (array_key_exists($name, $GLOBALS)) return $GLOBALS[$name];
+        $value = $GLOBALS[$name] ?? null;
+        if ($value !== null) return $value;
         $config = self::$current?->config ?? [];
-        return array_key_exists($name, $config) ? $config[$name] : $default;
+        return $config[$name] ?? $default;
+    }
+
+    /** The legacy ENGINE_ROOT (set by service entries; the engine path when they did not set it), or null. */
+    public static function engineRoot(): ?string
+    {
+        $root = $GLOBALS['ENGINE_ROOT'] ?? null;
+        if (is_string($root) && $root !== '') return $root;
+        return self::enginePath();
+    }
+
+    /** The validated request event of this request (legacy SYNTH_REQUEST_EVENT), or null outside a request. */
+    public static function requestEvent(): mixed
+    {
+        return $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
+    }
+
+    /** The claimed protocol request this process owns (legacy SYNTH_PROTOCOL_REQUEST_CLAIMED), or null. */
+    public static function claimedRequest(): mixed
+    {
+        return $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] ?? null;
+    }
+
+    /** The decoded game request of the legacy pipeline (legacy gameRequest), or null. */
+    public static function gameRequest(): mixed
+    {
+        return $GLOBALS['gameRequest'] ?? null;
     }
 
     // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case
