@@ -178,7 +178,7 @@ class Player2JsonDriver
         // Check for hardcoded IP address override in conf_opts table
         if (isset($GLOBALS["db"]) && is_object($GLOBALS["db"])) {
             try {
-                $hostIpRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='Network/HOST_IP'");
+                $hostIpRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'Network/HOST_IP'));
                 if (!empty($hostIpRecord) && !empty(trim($hostIpRecord[0]['value']))) {
                     $hardcodedIp = trim($hostIpRecord[0]['value']);
                     

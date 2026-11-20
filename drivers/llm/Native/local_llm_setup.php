@@ -162,7 +162,7 @@ function synthLocalLlmApplySetup(array $raw): array
         if (!$db->query("SELECT pg_advisory_xact_lock(hashtext('synth_local_llm_setup'))")) {
             throw new RuntimeException('Could not lock local model setup.');
         }
-        $player2 = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='PLAYER2_FORCE_ALL_LLM'");
+        $player2 = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'PLAYER2_FORCE_ALL_LLM')];
         if (synthLocalLlmBoolish($player2['value'] ?? false)) {
             throw new InvalidArgumentException('Turn off Use Player 2 for LLMs and save Quickstart before applying local routing.');
         }

@@ -14,7 +14,7 @@ function initializeLogTrimming($maxLines = 10000) {
 
         $db = $GLOBALS['db'];
         // Read enabled flag (default true)
-        $enabledRow = @$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTO_TRIM_LOGS_ENABLED'");
+        $enabledRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTO_TRIM_LOGS_ENABLED')];
         $enabled = true;
         if (is_array($enabledRow) && isset($enabledRow['value'])) {
             $enabled = in_array(strtolower(trim((string)$enabledRow['value'])), ['true','1','yes','on']);
@@ -30,7 +30,7 @@ function initializeLogTrimming($maxLines = 10000) {
         }
 
         // Prevent frequent runs within the same day (or at most every 30 minutes)
-        $lastRunRow = @$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTO_TRIM_LOGS_LAST_RUN'");
+        $lastRunRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTO_TRIM_LOGS_LAST_RUN')];
         $now = time();
         if (is_array($lastRunRow) && isset($lastRunRow['value'])) {
             $lastRun = (int)$lastRunRow['value'];

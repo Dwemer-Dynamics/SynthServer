@@ -295,7 +295,7 @@ function synthGetCurrentPartyFromConfOpts()
 {
     global $db;
 
-    $results = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='CurrentParty'");
+    $results = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'CurrentParty'));
     if (!is_array($results) || empty($results)) {
         return json_encode([]);
     }

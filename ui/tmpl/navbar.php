@@ -58,7 +58,7 @@ if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  }
  } elseif (method_exists($GLOBALS['db'], 'fetchAll')) {
  // Fallback to fetchAll on global $db if fetchOne not found
- $rows = $GLOBALS['db']->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version' LIMIT 1");
+ $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version'));
  if ($rows && isset($rows[0]) && isset($rows[0]['value']) && trim($rows[0]['value']) !== '') {
  $version = trim($rows[0]['value']);
  // Validate that the version follows the expected format
