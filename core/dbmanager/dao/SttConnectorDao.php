@@ -18,12 +18,12 @@ final class SttConnectorDao
     /** One row by id, or null. */
     public function find(int $id): ?AbstractSttConnector
     {
-        return $this->entityManager->find(AbstractSttConnector::class, $id);
+        return $this->fresh()->find(AbstractSttConnector::class, $id);
     }
 
     /** Every row, ordered by id. @return list<AbstractSttConnector> */
     public function findAll(): array
     {
-        return array_values($this->entityManager->getRepository(AbstractSttConnector::class)->findBy([], ['id' => 'ASC']));
+        return array_values($this->fresh()->getRepository(AbstractSttConnector::class)->findBy([], ['id' => 'ASC']));
     }
 }

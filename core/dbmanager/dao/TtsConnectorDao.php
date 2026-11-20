@@ -18,12 +18,12 @@ final class TtsConnectorDao
     /** One row by id, or null. */
     public function find(int $id): ?AbstractTtsConnector
     {
-        return $this->entityManager->find(AbstractTtsConnector::class, $id);
+        return $this->fresh()->find(AbstractTtsConnector::class, $id);
     }
 
     /** Every row, ordered by id. @return list<AbstractTtsConnector> */
     public function findAll(): array
     {
-        return array_values($this->entityManager->getRepository(AbstractTtsConnector::class)->findBy([], ['id' => 'ASC']));
+        return array_values($this->fresh()->getRepository(AbstractTtsConnector::class)->findBy([], ['id' => 'ASC']));
     }
 }
