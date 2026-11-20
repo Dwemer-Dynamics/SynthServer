@@ -27,7 +27,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | --- | --- |
 | L0 | this inventory |
 | L1 | `quest_*` to `managers/QuestManager` (done) |
-| L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` |
+| L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` (done) |
 | L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs |
 | L4 | `visual_context*` to `managers/VisualContext` |
 | L5 | rechat, auto chat, greeting, management guard |
@@ -101,10 +101,10 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/dynamic_update_util.php` | 1772 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
 | `lib/emote_moods.php` | 118 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/eventlog_helper.php` | 922 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
-| `lib/fallout_catalogue_sql.php` | 293 | manager | `managers/WorldKnowledgeManager/Fallout` (content pack and catalogue installers) | L2 |
-| `lib/fallout_content_catalog.php` | 81 | manager | `managers/WorldKnowledgeManager/Fallout` (content pack and catalogue installers) | L2 |
-| `lib/fallout_content_pack.php` | 104 | manager | `managers/WorldKnowledgeManager/Fallout` (content pack and catalogue installers) | L2 |
-| `lib/fallout_stats.php` | 77 | manager | `managers/WorldKnowledgeManager/Fallout` (content pack and catalogue installers) | L2 |
+| `lib/fallout_catalogue_sql.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_catalogue_sql.php` | done (L2) |
+| `lib/fallout_content_catalog.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_catalog.php` | done (L2) |
+| `lib/fallout_content_pack.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_content_pack.php` | done (L2) |
+| `lib/fallout_stats.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_stats.php` | done (L2) |
 | `lib/fuz_convert.php` | 151 | driver | `drivers/tts` (audio utilities: wav, fuz, media store) | L6 |
 | `lib/itt_service.php` | 110 | driver | `drivers/itt` (service functions) | L6 |
 | `lib/lazy_xml.php` | 331 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
@@ -248,10 +248,10 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/voice_clone_sync.php` | 409 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
 | `lib/voice_sample.php` | 65 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
 | `lib/wav_utils.php` | 55 | driver | `drivers/tts` (audio utilities: wav, fuz, media store) | L6 |
-| `lib/worldknowledge_catalog.php` | 570 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_forced_context.php` | 410 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_llm_service.php` | 215 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_retrieval.php` | 574 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_runtime.php` | 491 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_topic.php` | 285 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
-| `lib/worldknowledge_vocabulary.php` | 32 | manager | `managers/WorldKnowledgeManager/` (catalogue, retrieval, runtime, topic, vocabulary, forced context, LLM topic extractor) beside the existing manager | L2 |
+| `lib/worldknowledge_catalog.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_catalog.php` | done (L2) |
+| `lib/worldknowledge_forced_context.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_forced_context.php` | done (L2) |
+| `lib/worldknowledge_llm_service.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_llm_service.php` | done (L2) |
+| `lib/worldknowledge_retrieval.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_retrieval.php` | done (L2) |
+| `lib/worldknowledge_runtime.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_runtime.php` | done (L2) |
+| `lib/worldknowledge_topic.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_topic.php` | done (L2) |
+| `lib/worldknowledge_vocabulary.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Native/worldknowledge_vocabulary.php` | done (L2) |
