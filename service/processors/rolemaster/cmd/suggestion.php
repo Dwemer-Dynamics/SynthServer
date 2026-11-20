@@ -149,7 +149,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         };
 
-        $connectionHandler = new \Synth\Bootstrap::config("CURRENT_CONNECTOR");
+        $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
         // Force unset json schema
         $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
 
