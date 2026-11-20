@@ -96,9 +96,7 @@ if (!function_exists('synthTtsStudioResolveConnectorRow')) {
         }
 
         $profileUsageMap = [];
-        $usageRows = \Synth\Bootstrap::db()->fetchAll(
-            "SELECT tts_connector_id, COUNT(*) AS c FROM core_profiles WHERE tts_connector_id IS NOT NULL GROUP BY tts_connector_id"
-        );
+        $usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->ttsConnectorUsage();
         foreach ($usageRows as $usageRow) {
             $profileUsageMap[intval($usageRow['tts_connector_id'] ?? 0)] = intval($usageRow['c'] ?? 0);
         }
