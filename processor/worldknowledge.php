@@ -216,7 +216,9 @@ $retrieval = $retriever->extract($inputText, [], $topicCount);
 $currentTopic = '';
 if (method_exists($db, 'fetchOne')) {
     try {
-        $currentTopicRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'current_worldknowledge_topic')];
+        $currentTopicRow = $db->fetchOne(
+            "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic' LIMIT 1"
+        );
         $currentTopic = trim(strval($currentTopicRow['value'] ?? ''));
     } catch (Throwable) {
         $currentTopic = '';
