@@ -4,7 +4,7 @@ Outbound delivery of completed NPC lines to the game, through a durable queue.
 
 ## The queue
 
-`core_message_queue` (migration `Version20261120100000`, entity `MessageQueueEntry`, `MessageQueueDao`) holds one row per
+`core_message_queue` (migration `Version20261120110000`, entity `MessageQueueEntry`, `MessageQueueDao`) holds one row per
 result the client fetches by id. The lifecycle is chevo's:
 
 ```
