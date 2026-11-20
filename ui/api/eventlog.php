@@ -51,7 +51,7 @@ if (isset($_GET["event_types"]) && !empty($_GET["event_types"])) {
     }
 }
 
-// Read-only relationship timeline rows derived from core_npc_master_history snapshots.
+// Read-only relationship timeline rows derived from core_npc_history snapshots.
 // Incremental (since_rowid) polling stays rowid-based, so virtual rows are skipped there.
 $includeRelationshipRows = !isset($_GET["include_relationships"]) || $_GET["include_relationships"] !== "0";
 $relationshipRows = [];
