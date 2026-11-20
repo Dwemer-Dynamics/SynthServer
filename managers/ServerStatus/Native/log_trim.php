@@ -65,6 +65,14 @@ function initializeLogTrimming($maxLines = 10000) {
             }
         }
 
+        // The database half of the request logs: retention for core_llm_request_log (days and row cap are meta settings).
+        try {
+            $pruned = \Synth\Drivers\Llm\Logging\DatabaseLlmRequestRecorder::prune();
+            Logger::info("LLM request log retention applied: " . json_encode($pruned));
+        } catch (Throwable $e) {
+            Logger::warn("LLM request log retention failed: " . get_class($e));
+        }
+
         @$db->insert('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTO_TRIM_LOGS_LAST_RUN','config_value'=> (string)$now]);
         // If already exists, update
         @$db->update('public.core_config_setting', "config_value='".$db->escape((string)$now)."'", "scope='meta' AND config_key='AUTO_TRIM_LOGS_LAST_RUN'");
