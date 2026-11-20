@@ -19,7 +19,6 @@ require_once dirname(SYNTH_TTS_SCRIPT_DIR) . '/lib/provider_stream.php';
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use Logger;
 

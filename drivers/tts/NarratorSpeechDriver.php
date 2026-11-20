@@ -2,7 +2,6 @@
 
 namespace Synth\Drivers\Tts;
 
-require_once __DIR__.'/TtsSynthesisInterface.php';
 
 // Private narrator speech: the narrator profile's own TTS connector and the definition's voice, synthesized once per
 // reply outside any database transaction and published as immutable media. There is no server-wide or NPC fallback;

@@ -2427,7 +2427,6 @@ if (!$synthAutoChat && synth_gift_menu_try_handoff($db, $GLOBALS['SYNTH_REQUEST_
 // history, quest, memory or dialogue work; the verified result drives speech.
 require_once __DIR__.'/lib/synth_jev_actions.php';
 synth_jev_prepare_actions($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null);
-require_once __DIR__.'/managers/ActionsManager/TwoStepActions.php';
 Synth\Managers\ActionsManager\TwoStepActions::prepare($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null);
 if (synth_wait_try_jev_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null)) exit;
 

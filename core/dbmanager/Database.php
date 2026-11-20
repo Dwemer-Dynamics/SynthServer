@@ -27,16 +27,6 @@ use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
 require_once __DIR__.'/EntityManagerFactory.php';
-require_once __DIR__.'/Types/PreciseDateTimeType.php';
-require_once __DIR__.'/dao/ConfigSettingDao.php';
-require_once __DIR__.'/dao/NpcActorDao.php';
-require_once __DIR__.'/dao/NpcRuntimeActorDao.php';
-require_once __DIR__.'/dao/PluginManifestRevisionDao.php';
-require_once __DIR__.'/dao/LlmConnectorDao.php';
-require_once __DIR__.'/dao/TtsConnectorDao.php';
-require_once __DIR__.'/dao/SttConnectorDao.php';
-require_once __DIR__.'/dao/IttConnectorDao.php';
-require_once __DIR__.'/dao/ProfileDao.php';
 
 final class Database
 {

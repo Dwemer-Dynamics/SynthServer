@@ -5,7 +5,6 @@ if ($argc!==2 || !preg_match('/^[1-9][0-9]{0,17}$/D',$argv[1])) { fwrite(STDERR,
 $root=dirname(__DIR__);
 require_once $root.'/lib/runtime_bootstrap.php';
 require_once $root.'/lib/synth_tts_worker.php';
-require_once $root.'/managers/Notification/NotifyPublisher.php';
 // Stored speech state may have changed (ready or failed): hint a waiting plugin to look again. Best effort and
 // silent; with the notification channel absent nothing happens and the plugin's normal poll finds the state.
 $wakePlugin=static fn()=>\Synth\Managers\Notification\NotifyPublisher::publish('speech');

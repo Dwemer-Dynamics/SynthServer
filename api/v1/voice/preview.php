@@ -35,8 +35,6 @@ $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
 $managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'TtsStudio' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
-require_once $managerPath . 'VoicePreviewException.php';
-require_once $managerPath . 'VoicePreviewManager.php';
 
 $refusal = synthManagementRequestRefusal($_SERVER, 'browser');
 if ($refusal !== null) {

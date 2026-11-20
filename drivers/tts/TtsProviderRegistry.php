@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Synth\Drivers\Tts;
 
-require_once __DIR__ . '/TtsProviderInterface.php';
 
 /**
  * Registers a provider driver as the legacy speech callable.

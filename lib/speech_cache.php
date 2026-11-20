@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__) . '/drivers/tts/SpeechAudio.php';
 
 // Thin delegates: the logic lives in drivers/tts/SpeechAudio.php.
 

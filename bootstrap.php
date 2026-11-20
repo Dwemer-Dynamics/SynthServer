@@ -46,15 +46,8 @@ final class Bootstrap
         require_once __DIR__.'/lib/postgresql.class.php';
         require_once __DIR__.'/lib/settings.php';
         require_once __DIR__.'/lib/core/llm_connector.class.php';
-        require_once __DIR__.'/managers/DialogueManager.php';
-        require_once __DIR__.'/managers/PrivateNarratorManager.php';
-        require_once __DIR__.'/managers/ReceiptManager.php';
         require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
         require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
-        require_once __DIR__.'/drivers/llm/LlmWrapper.php';
-        require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
-        require_once __DIR__.'/drivers/tts/TtsWrapper.php';
-        require_once __DIR__.'/drivers/tts/ProfileSpeechDriver.php';
     }
 
     /** The instance the legacy runtime session started (Bootstrap::runtime), or null before it ran. */

@@ -9,8 +9,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractConfigSetting;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractConfigSetting.php';
 
 /** One row of core_config_setting, copied out of the loaded entity so changing it never touches the database. */
 final class ConfigSetting extends AbstractConfigSetting

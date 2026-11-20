@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractPluginManifestRevision;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractPluginManifestRevision.php';
 
 /** One row of core_plugin_manifest_revision, copied out of the loaded entity. */
 final class PluginManifestRevision extends AbstractPluginManifestRevision

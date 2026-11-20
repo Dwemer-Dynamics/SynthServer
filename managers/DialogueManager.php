@@ -14,12 +14,6 @@ require_once dirname(__DIR__).'/core/contracts/dialogue.php';
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
 require_once dirname(__DIR__).'/lib/logger.php';
-require_once __DIR__.'/SessionManager.php';
-require_once __DIR__.'/CharacterManager.php';
-require_once __DIR__.'/ContextManager.php';
-require_once __DIR__.'/PromptManager.php';
-require_once __DIR__.'/SpeechManager.php';
-require_once __DIR__.'/WorldKnowledgeManager.php';
 require_once __DIR__.'/ExtensionManager/ExtensionManager.php';
 
 // One explicit conversation turn: sequential admission, context, prompt, provider stream, utterance

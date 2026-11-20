@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractIttConnector;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractIttConnector.php';
 
 /** One row of core_itt_connector. */
 final class IttConnector extends AbstractIttConnector
