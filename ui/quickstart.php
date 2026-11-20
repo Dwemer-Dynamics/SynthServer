@@ -455,12 +455,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
             // PLAYER_NAME is detected from the game and saved to core_player automatically.
 
             $ttsConnector = new TTSConnector();
-            $selectedTtsDriver = synthQuickstartNormalizeTtsDriver($ttsConnector, $_POST['TTSFUNCTION'] ?? ($GLOBALS["TTSFUNCTION"] ?? 'none'));
+            $selectedTtsDriver = synthQuickstartNormalizeTtsDriver($ttsConnector, $_POST['TTSFUNCTION'] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? 'none'));
             $savedTtsId = synthQuickstartApplyTtsSelection($ttsConnector, $selectedTtsDriver);
 
             $sttConnector = new STTConnector();
             $activeSttId = synthQuickstartEnsureActiveSttConnectorId($sttConnector);
-            $selectedSttDriver = $sttConnector->normalizeDriverValue($_POST['STTFUNCTION'] ?? ($GLOBALS["STTFUNCTION"] ?? 'none'));
+            $selectedSttDriver = $sttConnector->normalizeDriverValue($_POST['STTFUNCTION'] ?? (\Synth\Bootstrap::config("STTFUNCTION") ?? 'none'));
             if ($selectedSttDriver === '') {
                 $selectedSttDriver = 'none';
             }
@@ -579,10 +579,10 @@ $quickstartSttConnector = new STTConnector();
 $quickstartActiveSttId = synthGetGeneralSettingInt('GLOBAL_STT_CONNECTOR_ID', 0);
 $quickstartActiveSttRow = $quickstartActiveSttId > 0 ? $quickstartSttConnector->getById($quickstartActiveSttId) : null;
 $quickstartActiveSttRow = is_array($quickstartActiveSttRow) ? $quickstartActiveSttRow : [];
-$quickstartActiveSttDriver = $quickstartSttConnector->normalizeDriverValue($quickstartActiveSttRow['driver'] ?? ($GLOBALS["STTFUNCTION"] ?? ''));
+$quickstartActiveSttDriver = $quickstartSttConnector->normalizeDriverValue($quickstartActiveSttRow['driver'] ?? (\Synth\Bootstrap::config("STTFUNCTION") ?? ''));
 $quickstartTtsConnector = new TTSConnector();
 $quickstartActiveTtsRow = synthResolvePreferredTtsConnectorRow();
-$quickstartActiveTtsDriver = synthQuickstartNormalizeTtsDriver($quickstartTtsConnector, $quickstartActiveTtsRow['driver'] ?? ($GLOBALS["TTSFUNCTION"] ?? ''));
+$quickstartActiveTtsDriver = synthQuickstartNormalizeTtsDriver($quickstartTtsConnector, $quickstartActiveTtsRow['driver'] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? ''));
 
 if (isset($currentConf['TTSFUNCTION']) && in_array($quickstartActiveTtsDriver, $quickstartTtsConnector->getDriverOptions(), true)) {
     $currentConf['TTSFUNCTION']['currentValue'] = $quickstartActiveTtsDriver;

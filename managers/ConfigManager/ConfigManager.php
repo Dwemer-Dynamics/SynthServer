@@ -59,7 +59,7 @@ final class ConfigManager
         try {
             return self::$shared = new self(ConfigSettingDao::shared());
         } catch (\LogicException $notBooted) {
-            $db = $GLOBALS['db'] ?? null;
+            $db = \Synth\Bootstrap::db() ?? null;
             if (!is_object($db)) {
                 throw new \RuntimeException('No database session is available for settings.', 0, $notBooted);
             }

@@ -5,7 +5,7 @@ function renderSelect($obj, $fieldName, $labelText, $selectedValue = "") {
     if (!is_array($options) || count($options)===0) {
         if ($fieldName === 'llm_formatter_id') {
             try {
-                $options = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->displayOptions();
+                $options = \Synth\Core\DbManager\Dao\LlmConnectorDao::current(\Synth\Bootstrap::db())->displayOptions();
             } catch (Throwable $_e) { $options = []; }
         }
     }
@@ -27,7 +27,7 @@ function getSelectOptions($obj, $fieldName) {
     if (!is_array($options) || count($options)===0) {
         if ($fieldName === 'llm_formatter_id') {
             try {
-                $options = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->displayOptions();
+                $options = \Synth\Core\DbManager\Dao\LlmConnectorDao::current(\Synth\Bootstrap::db())->displayOptions();
             } catch (Throwable $_e) { $options = []; }
         }
     }

@@ -50,7 +50,7 @@ function truncate_text($text, $maxLength = 260)
 }
 
 try {
-    $db = $GLOBALS["db"];
+    $db = \Synth\Bootstrap::db();
     if (!$db) {
         echo json_encode(["status" => "error", "message" => "Database connection failed"]);
         exit;
@@ -59,7 +59,7 @@ try {
     $player = new Player();
     $playerName = trim((string)$player->get('player_name'));
     if ($playerName === '' && isset($GLOBALS["PLAYER_NAME"])) {
-        $playerName = trim((string)$GLOBALS["PLAYER_NAME"]);
+        $playerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
     if ($playerName === '') {
         $playerName = "Player";

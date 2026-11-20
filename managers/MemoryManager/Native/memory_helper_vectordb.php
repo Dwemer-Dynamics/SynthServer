@@ -9,9 +9,9 @@ require_once(dirname(__DIR__, 3).'/lib/worldknowledge_topic.php');
 function storeMemory($embeddings, $text, $id, $category='past dialogues' )
 {
     // Numeric native IDs are a separate namespace, not permission to update a legacy embedding.
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) return false;
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) return false;
 
-	$url = $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
+	$url = \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
 	$data = [
 		'text' => $text
 	];
@@ -60,14 +60,14 @@ function storeMemory($embeddings, $text, $id, $category='past dialogues' )
 		return false;
 	}
 
-	$GLOBALS["db"]->execQuery("update core_memory set embedding='[" . $embedding_str . "]' where rowid=$id");
+	\Synth\Bootstrap::db()->execQuery("update core_memory set embedding='[" . $embedding_str . "]' where rowid=$id");
 	return true;
 }
 
 function storeMemoryWorldKnowledge($embeddings, $text, $id)
 {
 
-	$url = $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
+	$url = \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
 	$data = [
 		'text' => $text
 	];
@@ -117,21 +117,21 @@ function storeMemoryWorldKnowledge($embeddings, $text, $id)
 	}
 
 	$canonicalTopic = synthWorldKnowledgeCanonicalTopic($id);
-	$cleanedid = $GLOBALS["db"]->escape($canonicalTopic);
-	$GLOBALS["db"]->execQuery("update core_worldknowledge_article set vector384='[" . $embedding_str . "]' where lower(split_part(topic, ',', 1))=lower('$cleanedid')");
+	$cleanedid = \Synth\Bootstrap::db()->escape($canonicalTopic);
+	\Synth\Bootstrap::db()->execQuery("update core_worldknowledge_article set vector384='[" . $embedding_str . "]' where lower(split_part(topic, ',', 1))=lower('$cleanedid')");
 	return true;
 }
 
 function countMemories()
 {
-	if (!isset($GLOBALS["db"]) || !is_object($GLOBALS["db"])) {
+	if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
 		return 0;
 	}
 
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return 0;
         require_once __DIR__.'/synth_memory.php';
-        $db=$GLOBALS['db'];
+        $db=\Synth\Bootstrap::db();
         return $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
             $result=@pg_query($connection,synth_memory_visible_batch_cte($db,$event)
                 .'SELECT count(*) AS n FROM public.core_memory_summary s JOIN native_memory_batches b ON b.id=s.batch_id');
@@ -139,14 +139,14 @@ function countMemories()
             return intval(pg_fetch_assoc($result)['n']);
         },2000);
     }
-	$row = $GLOBALS["db"]->fetchOne("SELECT count(*) AS n FROM public.core_memory WHERE source_type='summary'");
+	$row = \Synth\Bootstrap::db()->fetchOne("SELECT count(*) AS n FROM public.core_memory WHERE source_type='summary'");
 	return intval($row["n"] ?? 0);
 }
 
 function deleteElement($id, $onlyEmbedding = false)
 {
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) return false;
-	if (!isset($GLOBALS["db"]) || !is_object($GLOBALS["db"])) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) return false;
+	if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
 		return false;
 	}
 
@@ -156,9 +156,9 @@ function deleteElement($id, $onlyEmbedding = false)
 	}
 
 	if ($onlyEmbedding) {
-		$GLOBALS["db"]->execQuery("UPDATE public.core_memory SET embedding = NULL WHERE rowid = {$cleanId}");
+		\Synth\Bootstrap::db()->execQuery("UPDATE public.core_memory SET embedding = NULL WHERE rowid = {$cleanId}");
 	} else {
-		$GLOBALS["db"]->execQuery("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = {$cleanId}");
+		\Synth\Bootstrap::db()->execQuery("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = {$cleanId}");
 	}
 
 	return true;
@@ -182,10 +182,10 @@ function queryMemory($embeddings, $category='past dialogues', $limitNpc="")
 
 	$npcFilter = trim((string)$limitNpc);
 	if ($npcFilter === "") {
-		$npcFilter = trim((string)($GLOBALS["SYNTH_NAME"] ?? ""));
+		$npcFilter = trim((string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? ""));
 	}
 
-	if (!isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) || !$GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
+	if (!isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) || !\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
 		return ["content" => []];
 	}
 

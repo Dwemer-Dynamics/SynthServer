@@ -50,7 +50,7 @@ try {
     }
 
     $testText = 'Patrolling the Commonwealth almost makes you wish for a Nuclear Winter.';
-    $playerName = trim(strval($GLOBALS["PLAYER_NAME"] ?? 'Player'));
+    $playerName = trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'));
     if ($playerName === '') {
         $playerName = 'Player';
     }
@@ -72,16 +72,16 @@ try {
     $GLOBALS["SYNTH_ANIMATIONS"] = false;
     $GLOBALS["DEBUG_DATA"] = [];
     $GLOBALS["TRACK"] = [];
-    $GLOBALS["FEATURES"] = $GLOBALS["FEATURES"] ?? [];
-    $GLOBALS["FEATURES"]["MISC"] = $GLOBALS["FEATURES"]["MISC"] ?? [];
+    $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
+    $GLOBALS["FEATURES"]["MISC"] = \Synth\Bootstrap::config("FEATURES")["MISC"] ?? [];
     $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
     $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
 
     require($enginePath . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");
 
-    $generated = trim(strval($GLOBALS["TRACK"]["FILES_GENERATED"][0] ?? ''));
+    $generated = trim(strval(\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0] ?? ''));
     if ($generated === '' || !file_exists($generated)) {
-        $cachePath = trim(strval($GLOBALS["PLAYER_TTS_LAST_CACHE_PATH"] ?? ''));
+        $cachePath = trim(strval(\Synth\Bootstrap::config("PLAYER_TTS_LAST_CACHE_PATH") ?? ''));
         if ($cachePath !== '' && file_exists($cachePath)) {
             $generated = $cachePath;
         }

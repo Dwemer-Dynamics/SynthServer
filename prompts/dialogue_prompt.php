@@ -9,21 +9,21 @@
 
 // Common patterns to use in most functions
 require_once __DIR__ . '/../lib/classes/Logger.php';
-$maxWordsLimit = intval($GLOBALS["MAX_WORDS_LIMIT"] ?? 0);
+$maxWordsLimit = intval(\Synth\Bootstrap::config("MAX_WORDS_LIMIT") ?? 0);
 $MAXIMUM_WORDS=($maxWordsLimit>0)?"(Maximum {$maxWordsLimit} words)":"";
 $GLOBALS["MAXIMUM_WORDS"] = $MAXIMUM_WORDS;
 $promptCharacterName = function_exists('synthGetPromptCharacterName')
     ? synthGetPromptCharacterName()
-    : ($GLOBALS["SYNTH_NAME"] ?? 'The Narrator');
+    : (\Synth\Bootstrap::config("SYNTH_NAME") ?? 'The Narrator');
 $narratorRoleplayName = function_exists('synthGetNarratorRoleplayName')
     ? synthGetNarratorRoleplayName()
     : 'The Narrator';
 
 $directNarratorDialogue = false;
 if (isset($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
-    $directNarratorDialogue = (bool)$GLOBALS["DIRECT_NARRATOR_DIALOGUE"];
+    $directNarratorDialogue = (bool)\Synth\Bootstrap::config("DIRECT_NARRATOR_DIALOGUE");
 } elseif (isset($GLOBALS["gameRequest"][0])) {
-    $directNarratorDialogue = ($GLOBALS["gameRequest"][0] === 'narrator_inputtext');
+    $directNarratorDialogue = (\Synth\Bootstrap::gameRequest()[0] === 'narrator_inputtext');
 } elseif (isset($gameRequest[0])) {
     $directNarratorDialogue = ($gameRequest[0] === 'narrator_inputtext');
 }
@@ -31,7 +31,7 @@ if (isset($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
 if (!function_exists('synthLoadManagedPromptTemplate')) {
     function synthLoadManagedPromptTemplate($promptKey, $fallbackPrompt, array $replacements = [], $logContext = "PROMPT")
     {
-        global $db;
+        $db = \Synth\Bootstrap::db();
 
         $promptText = null;
         try {
@@ -103,11 +103,11 @@ if (!function_exists('synthIsStrictDirectedPlayerResponseContext')) {
             return false;
         }
 
-        if (!isset($GLOBALS["gameRequest"]) || !is_array($GLOBALS["gameRequest"])) {
+        if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
             return false;
         }
 
-        $eventType = strtolower(trim((string)($GLOBALS["gameRequest"][0] ?? '')));
+        $eventType = strtolower(trim((string)(\Synth\Bootstrap::gameRequest()[0] ?? '')));
         if (!in_array($eventType, ['inputtext', 'inputtext_s'], true)) {
             return false;
         }
@@ -120,13 +120,13 @@ if (!function_exists('synthGetRechatPreviousSpeakerName')) {
     function synthGetRechatPreviousSpeakerName(): string
     {
         if (synthIsStrictDirectedPlayerResponseContext()) {
-            return trim((string)($GLOBALS["PLAYER_NAME"] ?? "Player"));
+            return trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player"));
         }
 
-        $speaker = trim((string)($GLOBALS["RECHAT_PREVIOUS_SPEAKER"] ?? ""));
+        $speaker = trim((string)(\Synth\Bootstrap::config("RECHAT_PREVIOUS_SPEAKER") ?? ""));
         if ($speaker === "") {
             try {
-                global $db;
+                $db = \Synth\Bootstrap::db();
                 if (isset($db)) {
                     $row = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
                     $speaker = trim((string)($row["speaker"] ?? ""));
@@ -136,7 +136,7 @@ if (!function_exists('synthGetRechatPreviousSpeakerName')) {
             }
         }
         if ($speaker === "") {
-            $speaker = trim((string)($GLOBALS["PLAYER_NAME"] ?? ""));
+            $speaker = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ""));
         }
 
         return $speaker;
@@ -157,11 +157,11 @@ if (!function_exists('synthIsStrictRechatPromptContext')) {
             return false;
         }
 
-        if (!isset($GLOBALS["gameRequest"]) || !is_array($GLOBALS["gameRequest"])) {
+        if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
             return false;
         }
 
-        return in_array(($GLOBALS["gameRequest"][0] ?? ""), ["rechat", "continue"], true);
+        return in_array((\Synth\Bootstrap::gameRequest()[0] ?? ""), ["rechat", "continue"], true);
     }
 }
 
@@ -179,7 +179,7 @@ if (!function_exists('synthLoadManagedRechatCuePrompts')) {
         $replacements = [
             "{SYNTH_NAME}" => synthGetPromptCharacterName(),
             "{NARRATOR_NAME}" => synthGetNarratorRoleplayName(),
-            "{TEMPLATE_DIALOG}" => $GLOBALS["TEMPLATE_DIALOG"],
+            "{TEMPLATE_DIALOG}" => \Synth\Bootstrap::config("TEMPLATE_DIALOG"),
             "{PREVIOUS_SPEAKER}" => $previousSpeaker,
         ];
 
@@ -257,7 +257,7 @@ if (!function_exists('synthLoadManagedContinueCuePrompts')) {
             strtr($fallback, [
                 "{SYNTH_NAME}" => synthGetPromptCharacterName(),
                 "{NARRATOR_NAME}" => synthGetNarratorRoleplayName(),
-                "{TEMPLATE_DIALOG}" => $GLOBALS["TEMPLATE_DIALOG"],
+                "{TEMPLATE_DIALOG}" => \Synth\Bootstrap::config("TEMPLATE_DIALOG"),
             ]),
         ];
     }
@@ -265,7 +265,7 @@ if (!function_exists('synthLoadManagedContinueCuePrompts')) {
 
 
 // Add narration instruction when inline narration mode expects leading asterisk narration blocks.
-$inlineNarrationMode = strtolower(trim((string)($GLOBALS["INLINE_NARRATION_MODE"] ?? '')));
+$inlineNarrationMode = strtolower(trim((string)(\Synth\Bootstrap::config("INLINE_NARRATION_MODE") ?? '')));
 if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
     $inlineNarrationMode = 'disabled';
 }
@@ -333,7 +333,7 @@ if ($directNarratorDialogue) {
 
 
 
-if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) {
+if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
     $GLOBALS["MEMORY_STATEMENT"]=".USE #MEMORY.";
 } else
     $GLOBALS["MEMORY_STATEMENT"]="";

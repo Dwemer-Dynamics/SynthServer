@@ -74,7 +74,7 @@ if (!function_exists('synthSpawnProfileAutofillWorker')) {
 
         $job['lock_path'] = $lockPath;
         $job['engine_root'] = $root;
-        $job['request_id'] = class_exists('Logger') ? Logger::getRequestId() : ($GLOBALS['SYNTH_REQUEST_ID'] ?? '');
+        $job['request_id'] = class_exists('Logger') ? Logger::getRequestId() : (\Synth\Bootstrap::config('SYNTH_REQUEST_ID') ?? '');
 
         if (@file_put_contents($jobPath, json_encode($job, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
             @unlink($lockPath);

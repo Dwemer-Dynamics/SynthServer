@@ -344,7 +344,7 @@ require_once(LIB_PATH .DIRECTORY_SEPARATOR."eventlog_helper.php");
 // Include game timestamp utilities
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 
-$db = $GLOBALS['db'] ?? new sql();
+$db = \Synth\Bootstrap::db() ?? new sql();
 $GLOBALS['db'] = $db;
 
 $eventLogLimit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 100;
@@ -982,9 +982,9 @@ function getTimeColor($time) {
 
  // Display Memory Configuration Status
  // Get memory settings
- $memoryEnabled = $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['ENABLED'] ?? false;
- $txtaiUrl = $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['TXTAI_URL'] ?? 'Not set';
- $useText2Vec = $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['USE_TEXT2VEC'] ?? false;
+ $memoryEnabled = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['ENABLED'] ?? false;
+ $txtaiUrl = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['TXTAI_URL'] ?? 'Not set';
+ $useText2Vec = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['USE_TEXT2VEC'] ?? false;
 
  $statusIcon = function ($enabled) {
  return $enabled

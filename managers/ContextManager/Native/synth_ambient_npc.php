@@ -50,7 +50,7 @@ function synth_ambient_npc_pair(array $candidates, array $speaker): ?array
 // Request-local projection is usable only for its unchanged canonical origin.
 function synth_ambient_npc_projection(array $event): ?array
 {
-    $pair=$GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'] ?? null;
+    $pair=\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE') ?? null;
     return synth_ambient_npc_requested($event) && is_array($pair) && is_string($pair['request_sha256'] ?? null)
         && hash_equals($pair['request_sha256'],hash('sha256',synth_protocol_canonical_json($event))) ? $pair : null;
 }

@@ -72,7 +72,7 @@ if (!function_exists('synthLogFuncretResultInfoAction')) {
 			return false;
 		}
 
-        $native=$GLOBALS['SYNTH_REQUEST_EVENT']['json']??[];
+        $native=\Synth\Bootstrap::requestEvent()['json']??[];
         if (($native['protocol_version']??1)===2 && ($native['type']??'')==='action_result'
             && in_array($functionCodeName,['WaitHere','wait_here','ReleaseWait','release_wait'],true))return false;
 
@@ -85,7 +85,7 @@ if (!function_exists('synthLogFuncretResultInfoAction')) {
 			return false;
 		}
 
-		$gameRequestCopy = $GLOBALS["gameRequest"] ?? [];
+		$gameRequestCopy = \Synth\Bootstrap::gameRequest() ?? [];
 		if (!is_array($gameRequestCopy)) {
 			return false;
 		}
@@ -111,7 +111,7 @@ if (is_array($decodedFuncretPayload)) {
 	return;
 }
 
-$nativeActionEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+$nativeActionEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
 if (($nativeActionEvent['protocol_version'] ?? 1) === 2) {
 	$lastCallId = synth_protocol_action_tool_call_id($nativeActionEvent, $decodedFuncretPayload);
 } elseif (file_exists(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "data" . DIRECTORY_SEPARATOR . ".last_tool_call_openai.id.txt")) {
@@ -216,7 +216,7 @@ if (isset($returnFunction[2])) {
 
 $debugNotificationText = synthSanitizeDebugNotificationText($returnFunction[3] ?? '');
 if ($debugNotificationText !== '' && synthActionShouldEmitDebugNotification($functionCodeName)) {
-	$notificationSpeaker = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
+	$notificationSpeaker = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
 	if ($notificationSpeaker === '') {
 		$notificationSpeaker = 'The Narrator';
 	}
@@ -240,7 +240,7 @@ file_put_contents(__DIR__ . "/../log/context_for_{$GLOBALS["SYNTH_NAME"]}_after_
 
 if ($useFunctionsAgain) {
 	$GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
-	$GLOBALS["FUNCTIONS"];
+	\Synth\Bootstrap::config("FUNCTIONS");
 	$GLOBALS["FUNCTIONS_FORCE_CALL"] = "auto";
 	$GLOBALS["FOLLOWUP_CHAIN_NEXT_DEPTH"] = $currentFollowupChainDepth + 1;
 } else {

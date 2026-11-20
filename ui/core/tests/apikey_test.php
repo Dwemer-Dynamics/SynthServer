@@ -54,13 +54,13 @@ if (!array_key_exists($provider, $apiKeyTestEndpoints)) {
  require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
  synthRuntimeBootstrap($enginePath, []);
  require_once($enginePath . 'core' . DIRECTORY_SEPARATOR . 'dbmanager' . DIRECTORY_SEPARATOR . 'repositories' . DIRECTORY_SEPARATOR . 'ApiBadgeRepository.php');
- $savedRow = (new \Synth\Core\ApiBadgeRepository($GLOBALS['db']))->byId($badgeId);
+ $savedRow = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->byId($badgeId);
  if ($savedRow !== []) {
  // The stored label must equal the provider label apart from letter case; a padded label is a custom entry.
  $savedLabel = strval($savedRow['label'] ?? '');
  if (strcasecmp($savedLabel, $apiKeyTestLabels[$provider]) === 0) {
  // The one resolver: a global key is released only for its own provider's origin (this test calls that provider's API).
- $apiKey = trim((new \Synth\Core\DbManager\Dao\ApiBadgeDao($GLOBALS['db']))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($badgeId), '', $apiKeyTestLabels[$provider]));
+ $apiKey = trim((new \Synth\Core\DbManager\Dao\ApiBadgeDao(\Synth\Bootstrap::db()))->secretForEndpoint(\Synth\Core\Contracts\ApiKeyRef::parse($badgeId), '', $apiKeyTestLabels[$provider]));
  }
  }
  } catch (Throwable $_e) {

@@ -7,7 +7,7 @@ const SYNTH_JEV_ACTION_MAX_BYTES = 16384;
 
 function synth_jev_action_enabled(): bool
 {
-    $value = $GLOBALS['JEV_ACTIONS_ENABLED'] ?? false;
+    $value = \Synth\Bootstrap::config('JEV_ACTIONS_ENABLED') ?? false;
     return $value === true || $value === 1 || (is_string($value)
         && in_array(strtolower(trim($value)), ['1','true','yes','on'], true));
 }
@@ -91,8 +91,8 @@ function synth_jev_action_trace(string $stage,array $event,array $details=[]): a
 
 function synth_jev_action_policy(): ?array
 {
-    $policy = $GLOBALS['SYNTH_JEV_ACTION_POLICY'] ?? null;
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $policy = \Synth\Bootstrap::config('SYNTH_JEV_ACTION_POLICY') ?? null;
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     return is_array($policy) && hash_equals($policy['owner'], synth_jev_action_owner($event)) ? $policy : null;
 }
 
@@ -106,7 +106,7 @@ function synth_jev_action_code_allowed(string $code): bool
 // overwrite the dialogue connector, its key, model, fallbacks or extra parameters.
 function synth_jev_action_connector(): ?array
 {
-    $id = intval($GLOBALS['CORE_CONNECTOR_DECISION'] ?? 0);
+    $id = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_DECISION') ?? 0);
     if ($id <= 0) return null;
     require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     $row = (new LLMConnector())->getById($id);
@@ -133,10 +133,10 @@ function synth_jev_action_request(array $event, ?string $transcript, array $acto
     if (!is_string($text) || trim($text) === '' || strlen($text) > 1200 || !preg_match('//u', $text)) return null;
 
     $criteria = [];
-    foreach ($GLOBALS['FUNCTIONS'] ?? [] as $definition) {
+    foreach (\Synth\Bootstrap::config('FUNCTIONS') ?? [] as $definition) {
         $code = getFunctionCodeName($definition['name'] ?? '');
         if (!is_string($code) || !isset(synthCanonicalActionCodeSet()[$code])
-            || !in_array($code, $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
+            || !in_array($code, \Synth\Bootstrap::config('ENABLED_FUNCTIONS') ?? [], true)
             || !in_array(synthActionCapabilityForCode($code), $event['capabilities'], true)
             || !synthActionCodeIsNegotiated($code)) continue;
         $description = synthGetPromptActionDescription($code, $definition['description'] ?? '');
@@ -251,13 +251,13 @@ function synth_jev_prepare_actions($db, array $event, ?string $transcript = null
         $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason'] = 'ineligible';
         return;
     }
-    if ($connectorLoader === null && intval($GLOBALS['CORE_CONNECTOR_DECISION'] ?? 0) <= 0) {
+    if ($connectorLoader === null && intval(\Synth\Bootstrap::config('CORE_CONNECTOR_DECISION') ?? 0) <= 0) {
         $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason'] = 'not_configured';
         return;
     }
     $start = hrtime(true);
-    $budget = max(50, min(750, intval($GLOBALS['JEV_ACTION_TIMEOUT_MS'] ?? 350)));
-    $rawThreshold = $GLOBALS['JEV_ACTION_MIN_CONFIDENCE'] ?? 0.8;
+    $budget = max(50, min(750, intval(\Synth\Bootstrap::config('JEV_ACTION_TIMEOUT_MS') ?? 350)));
+    $rawThreshold = \Synth\Bootstrap::config('JEV_ACTION_MIN_CONFIDENCE') ?? 0.8;
     $threshold = is_numeric($rawThreshold) && is_finite((float)$rawThreshold)
         ? max(0.5, min(1.0, (float)$rawThreshold)) : 0.8;
     $reason = 'ineligible';

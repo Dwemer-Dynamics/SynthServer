@@ -568,7 +568,7 @@ function synth_ensure_npc(object $db, string $npcName, string $refid = '', array
             $actorId=synth_npc_request_actor_id($db,$npcName);
             if ($actorId===null) throw new RuntimeException('Native NPC profile has no captured actor owner.');
             $identity=$db->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id='.$actorId);
-            $context=synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+            $context=synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json']);
             if (!$identity || !$context) throw new RuntimeException('Native NPC profile snapshot is unavailable.');
             // Dialogue text and stale caller globals are not sources of physical/voice profile metadata.
             $captured=['reference_origin_plugin'=>$identity['origin_plugin']];

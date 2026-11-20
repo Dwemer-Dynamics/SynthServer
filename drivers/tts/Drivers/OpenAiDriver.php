@@ -39,13 +39,13 @@ namespace Synth\Drivers\Tts\Drivers {
 		// Resolve API key: prefer API Badge 'OpenAI', fallback to TTS schema key
 		$apiKey = '';
 		try {
-			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
 			require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-			$row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('openai');
+			$row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('openai');
 			if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
 		} catch (Throwable $_e) {}
-		if ($apiKey === '') $apiKey = $GLOBALS["TTS"]["openai"]["API_KEY"];
+		if ($apiKey === '') $apiKey = \Synth\Bootstrap::config("TTS")["openai"]["API_KEY"];
 
 		// Cache
 		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
@@ -54,7 +54,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 	    $starTime = microtime(true);
 
-		$url = $GLOBALS["TTS"]["openai"]["endpoint"]; //"https://api.openai.com/v1/audio/speech";
+		$url = \Synth\Bootstrap::config("TTS")["openai"]["endpoint"]; //"https://api.openai.com/v1/audio/speech";
 
 	// Request headers
 	$headers = array(
@@ -63,27 +63,27 @@ namespace Synth\Drivers\Tts\Drivers {
 	);
 
 	// Determine voice to use
-	$voice = $GLOBALS["TTS"]["openai"]["voice"];
+	$voice = \Synth\Bootstrap::config("TTS")["openai"]["voice"];
 	if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
-		$voice = $GLOBALS["PATCH_OVERRIDE_VOICE"];
+		$voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 	}
 
 	// Request data
 	$data = array(
 		'input' => "$textString",
-		'model' => $GLOBALS["TTS"]["openai"]["model_id"],
+		'model' => \Synth\Bootstrap::config("TTS")["openai"]["model_id"],
 		'voice' => $voice,
-		'style' => $GLOBALS["TTS"]["openai"]["style"]+0
+		'style' => \Synth\Bootstrap::config("TTS")["openai"]["style"]+0
 		);
 
 		// add instructions if using gpt-4o-mini-tts
-		if ($GLOBALS["TTS"]["openai"]["model_id"] == "gpt-4o-mini-tts") {
+		if (\Synth\Bootstrap::config("TTS")["openai"]["model_id"] == "gpt-4o-mini-tts") {
 			if ($mood && $mood != "default") {
 				$data["instructions"] = "Emotion: $mood\n";
 			}
 
-			if (isset($GLOBALS["TTS"]["openai"]["instructions"]) && $GLOBALS["TTS"]["openai"]["instructions"]) {
-				$data["instructions"] .= $GLOBALS["TTS"]["openai"]["instructions"];
+			if (isset($GLOBALS["TTS"]["openai"]["instructions"]) && \Synth\Bootstrap::config("TTS")["openai"]["instructions"]) {
+				$data["instructions"] .= \Synth\Bootstrap::config("TTS")["openai"]["instructions"];
 			}
 		}
 

@@ -814,7 +814,7 @@ class FalloutCommandBuilder
         $strJson=json_encode($cmd);
         require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
 
-        $GLOBALS["db"]->insert(
+        \Synth\Bootstrap::db()->insert(
             'core_response_log',
             [
                 'localts' => $localts??time(),

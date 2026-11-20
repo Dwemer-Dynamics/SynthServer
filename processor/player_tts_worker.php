@@ -56,7 +56,7 @@ try {
         "run_db_updates" => false,
     ]);
 
-    $playerPrefix = trim((string)($job["player_name"] ?? ($GLOBALS["PLAYER_NAME"] ?? "Player")));
+    $playerPrefix = trim((string)($job["player_name"] ?? (\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player")));
     if ($playerPrefix === "") {
         $playerPrefix = "Player";
     }

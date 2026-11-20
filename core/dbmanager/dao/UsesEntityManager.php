@@ -49,7 +49,7 @@ trait UsesEntityManager
         if (self::$instance !== null) {
             return self::$instance;
         }
-        $db ??= is_object($GLOBALS['db'] ?? null) ? $GLOBALS['db'] : null;
+        $db ??= is_object(\Synth\Bootstrap::db() ?? null) ? \Synth\Bootstrap::db() : null;
         if ($db === null) {
             throw new \RuntimeException('No database session is available for '.static::class.'.');
         }

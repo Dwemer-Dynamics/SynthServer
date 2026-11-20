@@ -18,16 +18,16 @@ define('PLAYER_TONE_CACHE', dirname(__FILE__) . '/../soundcache/_player_tone.jso
 
 function stt($filePath)
 {
-    if (!isset($GLOBALS["db"]) || !$GLOBALS["db"])
+    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db())
         $GLOBALS["db"] = new sql();
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'gemini' or 'google'
-    $apiKey = trim($GLOBALS['STT']['GEMINI']['API_KEY'] ?? '');
+    $apiKey = trim(\Synth\Bootstrap::config('STT')['GEMINI']['API_KEY'] ?? '');
     foreach (['gemini', 'google'] as $label) {
         if ($apiKey !== '') break;
         try {
             require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel($label);
+            $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel($label);
             if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
         } catch (Throwable $_e) {
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'stt-gemini', "STT Gemini: DB error looking up {$label} badge: " . $_e->getMessage());
@@ -43,8 +43,8 @@ function stt($filePath)
     $diagnostic = [];
     $transcript = \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('gemini', [
         'api_key' => $apiKey,
-        'model' => $GLOBALS['STT']['GEMINI']['MODEL'] ?? '',
-        'language' => $GLOBALS['STT']['GEMINI']['LANG'] ?? '',
+        'model' => \Synth\Bootstrap::config('STT')['GEMINI']['MODEL'] ?? '',
+        'language' => \Synth\Bootstrap::config('STT')['GEMINI']['LANG'] ?? '',
     ], new \Synth\Drivers\Stt\SttRequest($filePath, $keywords), $diagnostic);
 
     $tone = trim(strval($diagnostic['tone'] ?? ''));

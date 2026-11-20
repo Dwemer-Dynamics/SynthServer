@@ -18,20 +18,20 @@ function stt($file)
     global $localPath;
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'Azure'
-    $apiKey = trim($GLOBALS["STT"]["AZURE"]["API_KEY"] ?? '');
+    $apiKey = trim(\Synth\Bootstrap::config("STT")["AZURE"]["API_KEY"] ?? '');
     if ($apiKey === '') {
         try {
-            if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
-            if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
+            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
             require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-            $row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('azure');
+            $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('azure');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = $row['api_key'];
         } catch (Throwable $_e) {}
     }
 
     return \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('azure', [
-        'region' => strval($GLOBALS["STT"]["AZURE"]["region"] ?? 'eastus'),
-        'language' => strval($GLOBALS["STT"]["AZURE"]["LANG"] ?? 'en-US'),
+        'region' => strval(\Synth\Bootstrap::config("STT")["AZURE"]["region"] ?? 'eastus'),
+        'language' => strval(\Synth\Bootstrap::config("STT")["AZURE"]["LANG"] ?? 'en-US'),
         'api_key' => $apiKey,
     ], new \Synth\Drivers\Stt\SttRequest($file));
 }

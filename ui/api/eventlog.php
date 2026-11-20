@@ -15,7 +15,7 @@ require_once(LIB_PATH .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."eventlog_helper.php");
 
-$db = $GLOBALS['db'] ?? new sql();
+$db = \Synth\Bootstrap::db() ?? new sql();
 $GLOBALS['db'] = $db;
 
 // Set JSON header

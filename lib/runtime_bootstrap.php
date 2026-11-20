@@ -11,7 +11,7 @@ require_once(__DIR__ . DIRECTORY_SEPARATOR . "logger.php");
 if (!function_exists('synthRuntimeDatabaseEncoding')) {
     function synthRuntimeDatabaseEncoding(): string
     {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return '';
         }
@@ -47,7 +47,7 @@ if (!function_exists('synthRuntimeDatabaseEncodingError')) {
 if (!function_exists('synthRuntimeNeedsDbUpdates')) {
     function synthRuntimeNeedsDbUpdates(): bool
     {
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return false;
         }
@@ -331,7 +331,7 @@ if (!function_exists('synthRuntimeConnectDatabase')) {
         $GLOBALS["DBDRIVER"] = 'postgresql';
         require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "postgresql.class.php");
         $GLOBALS["db"] = new sql($settings);
-        return $GLOBALS["db"];
+        return \Synth\Bootstrap::db();
     }
 }
 
@@ -340,7 +340,7 @@ if (!function_exists('synthRuntimeSchemaMigrationOwner')) {
     function synthRuntimeSchemaMigrationOwner(string $enginePath): \Synth\Core\Doctrine\SchemaMigrations
     {
         $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!is_object($db)) {
             throw new \RuntimeException("SYNTH schema migrations need the legacy runtime session.");
         }
@@ -462,7 +462,7 @@ if (!function_exists('synthRuntimeBootstrapIfNeeded')) {
     {
         $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-        if (empty($GLOBALS["DBDRIVER"]) || !isset($GLOBALS["db"]) || !is_object($GLOBALS["db"])) {
+        if (empty($GLOBALS["DBDRIVER"]) || !isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
             synthRuntimeBootstrap($enginePath, $options);
             return;
         }
@@ -493,7 +493,7 @@ if (!function_exists('synthRuntimeSetActiveProfile')) {
 if (!function_exists('synthRuntimeGetActiveProfile')) {
     function synthRuntimeGetActiveProfile(): ?string
     {
-        $profile = trim(strval($GLOBALS["active_profile"] ?? ''));
+        $profile = trim(strval(\Synth\Bootstrap::config("active_profile") ?? ''));
         return $profile !== '' ? $profile : null;
     }
 }

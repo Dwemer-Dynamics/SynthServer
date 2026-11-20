@@ -6,7 +6,7 @@ if (!function_exists('synthRelationshipSettingEnabled')) {
     function synthRelationshipSettingEnabled($value = null): bool
     {
         if (func_num_args() === 0) {
-            $value = $GLOBALS['RELATIONSHIP_SYSTEM_ENABLED'] ?? true;
+            $value = \Synth\Bootstrap::config('RELATIONSHIP_SYSTEM_ENABLED') ?? true;
         }
 
         if (is_bool($value)) {
@@ -23,7 +23,7 @@ if (!function_exists('synthRelationshipUsesDedicatedConnector')) {
     function synthRelationshipUsesDedicatedConnector($value = null): bool
     {
         if (func_num_args() === 0) {
-            $value = $GLOBALS['RELLLM_CONNECTOR'] ?? 0;
+            $value = \Synth\Bootstrap::config('RELLLM_CONNECTOR') ?? 0;
         }
 
         return synthRelationshipSettingEnabled() && intval($value) > 0;

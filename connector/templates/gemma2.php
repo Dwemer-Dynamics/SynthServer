@@ -2,7 +2,7 @@
 
 
             $context="<start_of_turn>user\n{$GLOBALS["PROMPT_HEAD"]}\n";
-            $context.=strtr($GLOBALS["SYNTH_PERS"],["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]]);
+            $context.=strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
             $context.="{$GLOBALS["COMMAND_PROMPT"]}\n#CONTEXT\n";
             $context.="<end_of_turn><start_of_turn>model\nOk, i will roleplay as {$GLOBALS["SYNTH_NAME"]}<end_of_turn><start_of_turn>user\n";
             $GLOBALS["DEBUG_DATA"][]=$context;
@@ -45,7 +45,7 @@
 
                                     $dialogueTarget=extractDialogueTarget($s_msg["content"]);
                                     // Trying to provide examples
-                                    $contextHistory.="<end_of_turn>\n<start_of_turn>model\n".synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]),
+                                    $contextHistory.="<end_of_turn>\n<start_of_turn>model\n".synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")),
                                         strval($dialogueTarget["target"] ?? ""), strval($dialogueTarget["cleanedString"]), "")."<end_of_turn>\n <start_of_turn>user\n";
                                 }
 

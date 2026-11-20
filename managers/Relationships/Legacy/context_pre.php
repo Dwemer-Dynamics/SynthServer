@@ -23,41 +23,41 @@
  */
 
 require_once __DIR__ . '/../../../lib/classes/Logger.php';
-$relationshipContextStartTime = $GLOBALS["startTime"] ?? microtime(true);
+$relationshipContextStartTime = \Synth\Bootstrap::config("startTime") ?? microtime(true);
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
 
-require_once $GLOBALS["ENGINE_PATH"] . "lib/relationship_runtime.php";
+require_once \Synth\Bootstrap::enginePath() . "lib/relationship_runtime.php";
 
 // Master toggle - if disabled, skip everything in this file
 if (!synthRelationshipSettingEnabled()) {
     return;
 }
 
-require_once $GLOBALS["ENGINE_PATH"] . "lib/logger.php";
+require_once \Synth\Bootstrap::enginePath() . "lib/logger.php";
 
 // Native requests use only their saved canonical graph. Never start or consult the legacy profile worker.
-if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
-    require_once $GLOBALS['ENGINE_PATH'].'lib/synth_relationship_prompt.php';
+if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
+    require_once \Synth\Bootstrap::enginePath().'lib/synth_relationship_prompt.php';
     try {
-        $relationshipContext=synth_relationship_prompt_context($GLOBALS['db'],strval($GLOBALS['SYNTH_NAME'] ?? ''));
+        $relationshipContext=synth_relationship_prompt_context(\Synth\Bootstrap::db(),strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
     } catch (SYNTHProtocolCancelled $error) {
         throw $error;
     } catch (Throwable $error) {
         Logger::warn('[REL] Saved native relationship context unavailable');
         $relationshipContext='[RELATIONSHIPS] Saved actor context unavailable; do not infer relationship state.';
     }
-    if ($relationshipContext!=='') $GLOBALS['SYNTH_PERS']=strval($GLOBALS['SYNTH_PERS'] ?? '')."\n\n".$relationshipContext;
+    if ($relationshipContext!=='') $GLOBALS['SYNTH_PERS']=strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$relationshipContext;
     // Feature-flagged authored view (docs/AUTHORED-RELATIONSHIPS.md); empty and DB-free while the flag is off.
-    require_once $GLOBALS['ENGINE_PATH'].'managers/Relationships/AuthoredRelationships.php';
+    require_once \Synth\Bootstrap::enginePath().'managers/Relationships/AuthoredRelationships.php';
     try {
-        $authoredContext=\Synth\Managers\Relationships\AuthoredRelationships::promptBlock($GLOBALS['db'],strval($GLOBALS['SYNTH_NAME'] ?? ''));
+        $authoredContext=\Synth\Managers\Relationships\AuthoredRelationships::promptBlock(\Synth\Bootstrap::db(),strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
     } catch (SYNTHProtocolCancelled $error) {
         throw $error;
     } catch (Throwable $error) {
         Logger::warn('[REL] Authored relationship context unavailable');
         $authoredContext='';
     }
-    if ($authoredContext!=='') $GLOBALS['SYNTH_PERS']=strval($GLOBALS['SYNTH_PERS'] ?? '')."\n\n".$authoredContext;
+    if ($authoredContext!=='') $GLOBALS['SYNTH_PERS']=strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$authoredContext;
     if (!synthRelationshipUsesDedicatedConnector() && !empty($GLOBALS['COMMAND_PROMPT'])) {
         $GLOBALS['COMMAND_PROMPT'].="\n\n".RelationshipManager::getSystemPromptAddition();
     }
@@ -84,9 +84,9 @@ function _relEnsureWorkerRunning() {
     if ($checked) return; // Only check once per PHP request
     $checked = true;
 
-    $pidFile = $GLOBALS["ENGINE_PATH"] . 'log/relationship_worker.pid';
+    $pidFile = \Synth\Bootstrap::enginePath() . 'log/relationship_worker.pid';
     $workerPath = __DIR__.'/worker.php';
-    $logPath = $GLOBALS["ENGINE_PATH"] . 'log/relationship_worker.log';
+    $logPath = \Synth\Bootstrap::enginePath() . 'log/relationship_worker.log';
 
     Logger::trace("[REL-WORKER-START] Checking worker status...");
 
@@ -206,16 +206,16 @@ if (!function_exists('_relSplitPeopleList')) {
 }
 
 // Get the current NPC name
-$npcName = $GLOBALS["SYNTH_NAME"] ?? null;
+$npcName = \Synth\Bootstrap::config("SYNTH_NAME") ?? null;
 
-Logger::info("[REL-CONTEXT] npcName=" . ($npcName ?? 'NULL') . ", CACHE_PEOPLE=" . substr($GLOBALS["CACHE_PEOPLE"] ?? 'NULL', 0, 100));
+Logger::info("[REL-CONTEXT] npcName=" . ($npcName ?? 'NULL') . ", CACHE_PEOPLE=" . substr(\Synth\Bootstrap::config("CACHE_PEOPLE") ?? 'NULL', 0, 100));
 
 if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
     // Parse nearby NPCs from CACHE_PEOPLE
     $nearbyNpcs = [];
     if (!empty($GLOBALS["CACHE_PEOPLE"])) {
         // SYNTH usually stores nearby people as |Name|Name|, but older paths may use commas.
-        $nearbyNpcs = _relSplitPeopleList($GLOBALS["CACHE_PEOPLE"]);
+        $nearbyNpcs = _relSplitPeopleList(\Synth\Bootstrap::config("CACHE_PEOPLE"));
     }
 
     // Also include NPCs mentioned in recent dialogue
@@ -227,7 +227,7 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
         $knownNames = array_keys($knownRels);
 
         // Scan recent context for mentions of known NPCs
-        $contextLower = strtolower($GLOBALS["SYNTH_CONTEXT"]);
+        $contextLower = strtolower(\Synth\Bootstrap::config("SYNTH_CONTEXT"));
         foreach ($knownNames as $knownNpc) {
             if ($knownNpc === 'Player') continue; // Player always included
             if (stripos($contextLower, strtolower($knownNpc)) !== false) {
@@ -277,7 +277,7 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
     }
 }
 
-$relationshipTraceStart = (float)($GLOBALS['SYNTH_TURN_START_TIME'] ?? microtime(true));
+$relationshipTraceStart = (float)(\Synth\Bootstrap::config('SYNTH_TURN_START_TIME') ?? microtime(true));
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipTraceStart));
 
 ?>

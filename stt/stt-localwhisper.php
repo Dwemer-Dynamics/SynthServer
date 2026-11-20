@@ -16,9 +16,9 @@ function stt($file)
     $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
     $diagnostic = [];
     $text = \Synth\Drivers\Stt\SttWrapper::transcribeOrEmpty('localwhisper', [
-        'url' => strval($GLOBALS["STT"]["LOCALWHISPER"]["URL"] ?? ''),
-        'form_field' => strval($GLOBALS["STT"]["LOCALWHISPER"]["FORMFIELD"] ?? 'file'),
-        'timeout' => intval($GLOBALS["STT"]["LOCALWHISPER"]["TIMEOUT"] ?? 60),
+        'url' => strval(\Synth\Bootstrap::config("STT")["LOCALWHISPER"]["URL"] ?? ''),
+        'form_field' => strval(\Synth\Bootstrap::config("STT")["LOCALWHISPER"]["FORMFIELD"] ?? 'file'),
+        'timeout' => intval(\Synth\Bootstrap::config("STT")["LOCALWHISPER"]["TIMEOUT"] ?? 60),
     ], new \Synth\Drivers\Stt\SttRequest($file), $diagnostic);
     $GLOBALS['STT_LAST_DIAGNOSTIC'] = $diagnostic;
     return $text;

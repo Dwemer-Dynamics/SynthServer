@@ -18,7 +18,7 @@ synthRuntimeBootstrap(__DIR__, [
     'load_narrator' => true,
     'run_db_updates' => false,
 ]);
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 require_once(__DIR__ . "/lib/core/npc_master.class.php");
 require_once(__DIR__ . "/lib/core/player.class.php");
 require_once(__DIR__ . "/lib/core/activity_status.php");
@@ -567,7 +567,7 @@ function handleDialogueDeliveryUpdate(array $data): void
     $row = $db->fetchOne("SELECT rowid FROM public.core_context_event WHERE {$where} ORDER BY rowid DESC LIMIT 1");
     $rowId = intval($row['rowid'] ?? 0);
     if ($rowId <= 0) {
-        $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? ''));
+        $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
         if ($playerName !== '' && strcasecmp($speaker, $playerName) === 0) {
             Logger::debug("[gamedata.php] dialogue_delivery ignored player TTS acknowledgement without a chat row");
             return;
@@ -582,7 +582,7 @@ function handleDialogueDeliveryUpdate(array $data): void
 
 function synthResolveNearestExteriorLocationName(string $location, string $worldspace, array $data): string
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db || $worldspace === '') {
         return $location;
     }
@@ -1338,7 +1338,7 @@ function handleTradeSummaryUpdate(array $data): void
     }
 
     $speaker = cleanBridgeString($data['speaker'] ?? '');
-    $player = cleanBridgeString($data['player'] ?? ($GLOBALS['PLAYER_NAME'] ?? ''));
+    $player = cleanBridgeString($data['player'] ?? (\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
     $text = cleanBridgeString($data['text'] ?? '');
     if ($text === '') {
         $text = 'A trade was completed.';

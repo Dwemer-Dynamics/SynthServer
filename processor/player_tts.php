@@ -12,7 +12,7 @@ if (!function_exists('emitPlayerTextOnlySpeechLine')) {
     {
         $subtitle = (string)$line;
         if (function_exists('formatPlayerSubtitleText')) {
-            $subtitle = formatPlayerSubtitleText($subtitle, $GLOBALS["PLAYER_NAME"] ?? null);
+            $subtitle = formatPlayerSubtitleText($subtitle, \Synth\Bootstrap::config("PLAYER_NAME") ?? null);
         } else {
             $subtitle = str_replace(["\r", "\n", "|"], " ", $subtitle);
             $subtitle = trim(preg_replace('/\s+/', ' ', $subtitle));
@@ -46,7 +46,7 @@ if (!function_exists('generatePlayerTtsCacheOnly')) {
     function generatePlayerTtsCacheOnly($line)
     {
         $subtitle = function_exists('formatPlayerSubtitleText')
-            ? formatPlayerSubtitleText($line, $GLOBALS["PLAYER_NAME"] ?? null)
+            ? formatPlayerSubtitleText($line, \Synth\Bootstrap::config("PLAYER_NAME") ?? null)
             : trim(preg_replace('/\s+/', ' ', str_replace(["\r", "\n", "|"], " ", (string)$line)));
 
         if ($subtitle === '') {
@@ -72,7 +72,7 @@ if (!function_exists('generatePlayerTtsCacheOnly')) {
             $GLOBALS["PLAYER_TTS_LAST_CACHE_PATH"] = synth_tts_soundcache_path(dirname(__DIR__), "Player", $subtitle);
         }
 
-        $expectedCachePath = trim(strval($GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] ?? ''));
+        $expectedCachePath = trim(strval(\Synth\Bootstrap::config("PLAYER_TTS_EXPECTED_CACHE_PATH") ?? ''));
         $resolvedTtsOutput = is_string($ttsOutput) ? trim($ttsOutput) : '';
         if ($resolvedTtsOutput !== '' && !preg_match('/^[A-Za-z]:[\\\\\\/]/', $resolvedTtsOutput) && !str_starts_with($resolvedTtsOutput, DIRECTORY_SEPARATOR)) {
             $resolvedTtsOutput = dirname(__DIR__) . DIRECTORY_SEPARATOR . ltrim($resolvedTtsOutput, "\\/");
@@ -109,7 +109,7 @@ $playerTtsPhase = "player_tts:" . substr(md5((string)$cleaned_dialogue), 0, 8);
 $playerTtsStatus = "started";
 Logger::phaseStart($playerTtsPhase, [
     "chars" => strlen((string)$cleaned_dialogue),
-    "write_output" => isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? ((bool)$GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] ? "true" : "false") : "default",
+    "write_output" => isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? ((bool)\Synth\Bootstrap::config("PLAYER_TTS_WRITE_OUTPUT") ? "true" : "false") : "default",
 ]);
 
 if (!class_exists('Player')) {
@@ -119,27 +119,27 @@ if (!class_exists('TTSConnector')) {
     require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 }
 
-$origTTS = $GLOBALS["TTSFUNCTION"] ?? '';
+$origTTS = \Synth\Bootstrap::config("TTSFUNCTION") ?? '';
 $hadTtsFunctionAlias = array_key_exists("TTS_FUNCTION", $GLOBALS);
-$origTtsFunctionAlias = $GLOBALS["TTS_FUNCTION"] ?? null;
+$origTtsFunctionAlias = \Synth\Bootstrap::config("TTS_FUNCTION") ?? null;
 $hadCurrentTtsConnectorId = array_key_exists("SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID", $GLOBALS);
-$origCurrentTtsConnectorId = $GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] ?? null;
-$origName = $GLOBALS["SYNTH_NAME"] ?? '';
+$origCurrentTtsConnectorId = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID") ?? null;
+$origName = \Synth\Bootstrap::config("SYNTH_NAME") ?? '';
 $hadSpeechRole = array_key_exists('SYNTH_SPEECH_ROLE',$GLOBALS);
-$origSpeechRole = $GLOBALS['SYNTH_SPEECH_ROLE'] ?? null;
+$origSpeechRole = \Synth\Bootstrap::config('SYNTH_SPEECH_ROLE') ?? null;
 $hadPatchOverrideVoice = array_key_exists("PATCH_OVERRIDE_VOICE", $GLOBALS);
 $hadPatchOverrideVoiceId = array_key_exists("PATCH_OVERRIDE_VOICE_ID", $GLOBALS);
 $hadPatchOverrideLanguage = array_key_exists("PATCH_OVERRIDE_TTS_LANGUAGE", $GLOBALS);
 $hadPatchOverrideTtsOptions = array_key_exists("PATCH_OVERRIDE_TTS_OPTIONS", $GLOBALS);
-$oldPatchOverrideVoice = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? null;
-$oldPatchOverrideVoiceId = $GLOBALS["PATCH_OVERRIDE_VOICE_ID"] ?? null;
-$oldPatchOverrideLanguage = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"] ?? null;
-$oldPatchOverrideTtsOptions = $GLOBALS["PATCH_OVERRIDE_TTS_OPTIONS"] ?? null;
+$oldPatchOverrideVoice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? null;
+$oldPatchOverrideVoiceId = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE_ID") ?? null;
+$oldPatchOverrideLanguage = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE") ?? null;
+$oldPatchOverrideTtsOptions = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_OPTIONS") ?? null;
 
 try {
     $GLOBALS['SYNTH_SPEECH_ROLE'] = 'player';
-    $writeOutput = isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? (bool)$GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] : true;
-    $requestEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $writeOutput = isset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]) ? (bool)\Synth\Bootstrap::config("PLAYER_TTS_WRITE_OUTPUT") : true;
+    $requestEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if ($writeOutput && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
         && synth_protocol_owns_dialogue_turn($requestEvent)
         && in_array($requestEvent['type'] ?? '', ['input_text', 'input_audio'], true)) {
@@ -244,14 +244,14 @@ try {
         $playerTtsStatus = "generating";
         $hadScriptlineListener = array_key_exists("SCRIPTLINE_LISTENER", $GLOBALS);
         $hadScriptlineListenerAtomic = array_key_exists("SCRIPTLINE_LISTENER_ATOMIC", $GLOBALS);
-        $oldScriptlineListener = $GLOBALS["SCRIPTLINE_LISTENER"] ?? null;
-        $oldScriptlineListenerAtomic = $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] ?? null;
+        $oldScriptlineListener = \Synth\Bootstrap::config("SCRIPTLINE_LISTENER") ?? null;
+        $oldScriptlineListenerAtomic = \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC") ?? null;
 
         try {
-            if (trim(strval($GLOBALS["SCRIPTLINE_LISTENER"] ?? '')) === '') {
+            if (trim(strval(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER") ?? '')) === '') {
                 $GLOBALS["SCRIPTLINE_LISTENER"] = "__player_tts";
             }
-            if (trim(strval($GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] ?? '')) === '') {
+            if (trim(strval(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC") ?? '')) === '') {
                 $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] = "__player_tts";
             }
 
@@ -264,7 +264,7 @@ try {
             }
 
             if ($writeOutput && function_exists('formatPlayerSubtitleText') && function_exists('synth_tts_soundcache_path')) {
-                $subtitle = formatPlayerSubtitleText($cleaned_dialogue, $GLOBALS["PLAYER_NAME"] ?? null);
+                $subtitle = formatPlayerSubtitleText($cleaned_dialogue, \Synth\Bootstrap::config("PLAYER_NAME") ?? null);
                 $GLOBALS["PLAYER_TTS_LAST_CACHE_PATH"] = synth_tts_soundcache_path(dirname(__DIR__), "Player", $subtitle);
             }
         } finally {
@@ -332,7 +332,7 @@ try {
     unset($GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"]);
     Logger::phaseEnd($playerTtsPhase, [
         "status" => $playerTtsStatus,
-        "cache_path" => $GLOBALS["PLAYER_TTS_LAST_CACHE_PATH"] ?? "",
+        "cache_path" => \Synth\Bootstrap::config("PLAYER_TTS_LAST_CACHE_PATH") ?? "",
     ], in_array($playerTtsStatus, ["ok", "text_only", "empty", "skipped"], true) ? "info" : "warn");
 }
 

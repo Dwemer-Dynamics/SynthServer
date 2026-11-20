@@ -16,7 +16,7 @@ if (isset($status['_job_id']) || (($status['status'] ?? '') === 'ready' && is_ar
     try {
         require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
         synthRuntimeBootstrap(__DIR__, ['run_db_updates' => false]);
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (isset($status['_job_id'])) {
             require_once __DIR__.'/lib/synth_tts_worker.php';
             $status=synth_tts_resolve_job_status($db,$status);

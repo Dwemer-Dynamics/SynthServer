@@ -26,7 +26,7 @@ try {
     $id = synth_media_validate_id(ltrim(rawurldecode(strval($_SERVER['PATH_INFO'] ?? '')), '/'));
     require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
     synthRuntimeBootstrap(__DIR__, ['run_db_updates' => false]);
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
 
     if ($method === 'PUT') {
         $contentType = strtolower(trim(explode(';', strval($_SERVER['CONTENT_TYPE'] ?? ''), 2)[0]));

@@ -30,7 +30,7 @@ function synth_voice_clone_snapshot(string $sample, string $root): ?array
 // XTTS-compatible queued requests use content-addressed uploads, never a mutable local sample path.
 function synth_prepare_planned_clone_voice(string $driver, string $endpoint, string $voice, ?string $root = null): string|false
 {
-    $plan = $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] ?? null;
+    $plan = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN') ?? null;
     if (!is_array($plan)) return $voice;
     $voice = trim($voice);
     if (!in_array($driver, ['xtts-fastapi', 'chatterbox'], true)
@@ -53,7 +53,7 @@ function synth_prepare_planned_clone_voice(string $driver, string $endpoint, str
 // Planned cloud clones are reusable only for the exact captured sample and clone language.
 function synth_planned_cloud_voice_cache_name(string $driver, string $voice): string
 {
-    $plan = $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] ?? null;
+    $plan = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN') ?? null;
     if (!is_array($plan)) return $voice;
     if (($plan['inputs']['TTSFUNCTION'] ?? '') !== $driver
         || !array_key_exists($voice, $plan['samples'] ?? [])) throw new RuntimeException('Uncaptured cloud speech voice');
@@ -68,11 +68,11 @@ function synth_planned_cloud_voice_cache_name(string $driver, string $voice): st
 function synth_get_planned_cloud_voice(string $driver, string $voice, array $config): string|false
 {
     require_once __DIR__ . '/voice_catalog.php';
-    synth_assert_curated_voice_snapshot(dirname(__DIR__, 3), $voice, $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']['samples'][$voice] ?? null);
+    synth_assert_curated_voice_snapshot(dirname(__DIR__, 3), $voice, \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'][$voice] ?? null);
     $cacheName = synth_planned_cloud_voice_cache_name($driver, $voice);
-    $snapshot = $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']['samples'][$voice];
+    $snapshot = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'][$voice];
     if ($snapshot === null) {
-        $id = $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']['remote_voices'][$voice] ?? '';
+        $id = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['remote_voices'][$voice] ?? '';
         return is_string($id) && $id !== '' ? $id : false;
     }
     $suffix = $driver === 'cartesia' ? 'Cartesia' : 'Inworld';
@@ -527,7 +527,7 @@ if (!function_exists('synth_tts_active_provider_uses_voice_sample')) {
     // $driver names an explicit connector driver; otherwise the runtime's active TTS function is used.
     function synth_tts_active_provider_uses_voice_sample(?string $driver = null): bool
     {
-        $driver = strtolower(trim(strval($driver ?? $GLOBALS['TTSFUNCTION'] ?? ($GLOBALS['TTS_FUNCTION'] ?? ''))));
+        $driver = strtolower(trim(strval($driver ?? \Synth\Bootstrap::config('TTSFUNCTION') ?? (\Synth\Bootstrap::config('TTS_FUNCTION') ?? ''))));
         $driver = str_replace('_', '-', $driver);
         if ($driver === 'xtts' || $driver === 'xttsfastapi') {
             $driver = 'xtts-fastapi';

@@ -122,7 +122,7 @@ try {
         $npcMaster = new NpcMaster();
         $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $job["npc_data"];
         $GLOBALS["SYNTH_NAME"] = trim(strval($job["npc_data"]["npc_name"] ?? $speaker));
-        if ($GLOBALS["SYNTH_NAME"] === "") {
+        if (\Synth\Bootstrap::config("SYNTH_NAME") === "") {
             $GLOBALS["SYNTH_NAME"] = $speaker;
         }
         $npcMaster->setOldGlobalsFromCurrentNpcData($job["npc_data"], true);
@@ -140,7 +140,7 @@ try {
     ];
     $statusMetadata = array_merge($correlation, [
         'speaker_identity' => $job['speaker_identity'] ?? null,
-        'speaker' => $GLOBALS['SYNTH_NAME'] ?? $speaker,
+        'speaker' => \Synth\Bootstrap::config('SYNTH_NAME') ?? $speaker,
     ]);
 
     $cachePath = $path . "soundcache" . DIRECTORY_SEPARATOR . $cacheKey . ".wav";
@@ -155,9 +155,9 @@ try {
     }
     synth_protocol_assert_request_active();
     if (is_file($cachePath) && filesize($cachePath) > 44) {
-        if (synth_register_npc_tts_media($cacheKey, $GLOBALS['db'] ?? null, $correlation, $root, $statusMetadata) !== null) {
+        if (synth_register_npc_tts_media($cacheKey, \Synth\Bootstrap::db() ?? null, $correlation, $root, $statusMetadata) !== null) {
             Logger::debug("[TTS] NPC deferred worker found existing cache" . Logger::formatContext([
-                "speaker" => $GLOBALS["SYNTH_NAME"] ?? $speaker,
+                "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? $speaker,
                 "cache_key" => $cacheKey,
             ]));
         } else {
@@ -168,8 +168,8 @@ try {
     } else {
         $phaseName = "npc_tts_worker:" . substr(md5($speaker . "|" . $cacheKey), 0, 8);
         Logger::phaseStart($phaseName, [
-            "speaker" => $GLOBALS["SYNTH_NAME"] ?? $speaker,
-            "connector" => $GLOBALS["TTSFUNCTION"] ?? "",
+            "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? $speaker,
+            "connector" => \Synth\Bootstrap::config("TTSFUNCTION") ?? "",
             "cache_key" => $cacheKey,
             "chars" => strlen($text),
         ]);
@@ -179,12 +179,12 @@ try {
         synth_protocol_assert_request_active();
         $cacheReady = is_file($cachePath) && @filesize($cachePath) > 44;
         $published = $ttsOutput && $cacheReady
-            ? synth_register_npc_tts_media($cacheKey, $GLOBALS['db'] ?? null, $correlation, $root, array_merge($statusMetadata,['output'=>$ttsOutput]))
+            ? synth_register_npc_tts_media($cacheKey, \Synth\Bootstrap::db() ?? null, $correlation, $root, array_merge($statusMetadata,['output'=>$ttsOutput]))
             : null;
         if ($published !== null) {
             Logger::phaseEnd($phaseName, [
                 "status" => "ok",
-                "speaker" => $GLOBALS["SYNTH_NAME"] ?? $speaker,
+                "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? $speaker,
                 "output" => $ttsOutput,
             ], "info");
         } else {
@@ -195,7 +195,7 @@ try {
             ]), $root);
             Logger::phaseEnd($phaseName, [
                 "status" => "failed",
-                "speaker" => $GLOBALS["SYNTH_NAME"] ?? $speaker,
+                "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? $speaker,
                 "cache_key" => $cacheKey,
             ], "warn");
         }

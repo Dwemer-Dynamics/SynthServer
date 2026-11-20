@@ -16,10 +16,10 @@ function synthRegisterPromptInjection(string $slot, string $id, $content, int $p
         return false;
     }
 
-    if (!isset($GLOBALS['PROMPT_INJECTIONS']) || !is_array($GLOBALS['PROMPT_INJECTIONS'])) {
+    if (!isset($GLOBALS['PROMPT_INJECTIONS']) || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS'))) {
         $GLOBALS['PROMPT_INJECTIONS'] = [];
     }
-    if (!isset($GLOBALS['PROMPT_INJECTIONS'][$slot]) || !is_array($GLOBALS['PROMPT_INJECTIONS'][$slot])) {
+    if (!isset($GLOBALS['PROMPT_INJECTIONS'][$slot]) || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS')[$slot])) {
         $GLOBALS['PROMPT_INJECTIONS'][$slot] = [];
     }
 
@@ -60,7 +60,7 @@ function synthPromptInjectionContentToText($content, string $slot, array $contex
 function synthRenderPromptInjections(string $slot, array $context = []): string
 {
     $slot = synthNormalizePromptInjectionKey($slot);
-    $injections = $GLOBALS['PROMPT_INJECTIONS'][$slot] ?? [];
+    $injections = \Synth\Bootstrap::config('PROMPT_INJECTIONS')[$slot] ?? [];
     if (!is_array($injections) || empty($injections)) {
         return '';
     }
@@ -92,7 +92,7 @@ function synthRegisterActorProfileEnricher(string $id, callable $callback, int $
         return false;
     }
 
-    if (!isset($GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS']) || !is_array($GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS'])) {
+    if (!isset($GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS']) || !is_array(\Synth\Bootstrap::config('PROMPT_ACTOR_PROFILE_ENRICHERS'))) {
         $GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS'] = [];
     }
 
@@ -107,7 +107,7 @@ function synthRegisterActorProfileEnricher(string $id, callable $callback, int $
 
 function synthBuildActorProfileEnrichmentText(string $actorName, string $actorType, array $context = []): string
 {
-    $enrichers = $GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS'] ?? [];
+    $enrichers = \Synth\Bootstrap::config('PROMPT_ACTOR_PROFILE_ENRICHERS') ?? [];
     if (!is_array($enrichers) || empty($enrichers)) {
         return '';
     }

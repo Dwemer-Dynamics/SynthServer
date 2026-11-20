@@ -144,11 +144,11 @@ function adjust_pronunciation($s_text="", $language="EN") {
 }
 
 function pronunciation_adjust_enabled() {
-	return isset($GLOBALS['MELOTTS_PRONUNCIATION_ADJUST']) ? $GLOBALS['MELOTTS_PRONUNCIATION_ADJUST'] : true; //disable only when explicit false
+	return isset($GLOBALS['MELOTTS_PRONUNCIATION_ADJUST']) ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_ADJUST') : true; //disable only when explicit false
 }
 
 function pronunciation_debug_enabled() {
-	return isset($GLOBALS['MELOTTS_PRONUNCIATION_DEBUG']) ? $GLOBALS['MELOTTS_PRONUNCIATION_DEBUG'] : false;
+	return isset($GLOBALS['MELOTTS_PRONUNCIATION_DEBUG']) ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_DEBUG') : false;
 }
 
 ?>

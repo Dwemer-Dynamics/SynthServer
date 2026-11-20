@@ -15,7 +15,7 @@ class Narrator
         if (!isset($GLOBALS["db"])) {
             throw new \Exception("Database connection not initialized. Please ensure \$GLOBALS['db'] is set before instantiating Narrator class.");
         }
-        $this->db = $GLOBALS["db"];
+        $this->db = \Synth\Bootstrap::db();
     }
 
     /**
@@ -206,7 +206,7 @@ class Narrator
         $allSettings = $this->getAll();
 
         if ($seedMissing && !isset($allSettings['inline_narration_mode'])) {
-            $currentGlobalMode = strtolower(trim((string)($GLOBALS['INLINE_NARRATION_MODE'] ?? '')));
+            $currentGlobalMode = strtolower(trim((string)(\Synth\Bootstrap::config('INLINE_NARRATION_MODE') ?? '')));
             $inlineNarrationMode = in_array($currentGlobalMode, ['disabled', 'narrator', 'npc', 'text_only'], true)
                 ? $currentGlobalMode
                 : 'disabled';
@@ -250,22 +250,22 @@ class Narrator
             'quest_comment_cooldown' => ['QUEST_COMMENT_COOLDOWN', 'int', 3],
             'hide_from_context' => ['HIDE_NARRATOR_DIALOGUE', 'bool', false],
             'dynamic_profile' => ['DYNAMIC_PROFILE', 'bool', false],
-            'inline_narration_mode' => ['INLINE_NARRATION_MODE', 'string', isset($GLOBALS['INLINE_NARRATION_MODE']) ? $GLOBALS['INLINE_NARRATION_MODE'] : 'disabled'],
+            'inline_narration_mode' => ['INLINE_NARRATION_MODE', 'string', isset($GLOBALS['INLINE_NARRATION_MODE']) ? \Synth\Bootstrap::config('INLINE_NARRATION_MODE') : 'disabled'],
             'remove_player_autochat_asterisks' => [
                 'REMOVE_PLAYER_AUTOCHAT_ASTERISKS',
                 'bool',
-                isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)$GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS'] : true,
+                isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true,
             ],
             'preserve_asterisks_in_context' => ['PRESERVE_ASTERISKS_IN_CONTEXT', 'bool', false],
             'remove_asterisks_from_player_input' => [
                 'REMOVE_ASTERISKS_FROM_PLAYER_INPUT',
                 'bool',
-                isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)$GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT'] : true,
+                isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true,
             ],
             'remove_asterisks_from_npc_output' => [
                 'REMOVE_ASTERISKS_FROM_NPC_OUTPUT',
                 'bool',
-                isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)$GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'] : true,
+                isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true,
             ],
             'diary_enabled' => ['NARRATOR_DIARY_ENABLED', 'bool', false],
             'auto_diary_enabled' => ['NARRATOR_AUTO_DIARY_ENABLED', 'bool', false],
@@ -291,7 +291,7 @@ class Narrator
             }
         }
 
-        $inlineNarrationMode = strtolower(trim((string)($GLOBALS['INLINE_NARRATION_MODE'] ?? 'disabled')));
+        $inlineNarrationMode = strtolower(trim((string)(\Synth\Bootstrap::config('INLINE_NARRATION_MODE') ?? 'disabled')));
         if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
             $inlineNarrationMode = 'disabled';
         }
@@ -315,8 +315,8 @@ class Narrator
         // Routing always uses the canonical name; prompts may use the roleplay alias.
         $GLOBALS['SYNTH_NAME'] = self::CANONICAL_NAME;
         $GLOBALS['NARRATOR_ROLEPLAY_NAME'] = $this->getRoleplayName();
-        $GLOBALS['SYNTH_ROLEPLAY_NAME'] = $GLOBALS['NARRATOR_ROLEPLAY_NAME'];
-        $promptName = $GLOBALS['NARRATOR_ROLEPLAY_NAME'];
+        $GLOBALS['SYNTH_ROLEPLAY_NAME'] = \Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME');
+        $promptName = \Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME');
         
         // Map character fields to GLOBALS
         // Set SYNTH_PERS from core field (like NPCs do)
@@ -454,7 +454,7 @@ if (!function_exists('synthGetNarratorRoleplayName')) {
     function synthGetNarratorRoleplayName(): string
     {
         try {
-            return Narrator::normalizeRoleplayName($GLOBALS['NARRATOR_ROLEPLAY_NAME'] ?? Narrator::DEFAULT_ROLEPLAY_NAME);
+            return Narrator::normalizeRoleplayName(\Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME') ?? Narrator::DEFAULT_ROLEPLAY_NAME);
         } catch (\InvalidArgumentException $e) {
             return Narrator::DEFAULT_ROLEPLAY_NAME;
         }
@@ -478,12 +478,12 @@ if (!function_exists('synthBuildNarratorContextLine')) {
 if (!function_exists('synthGetPromptCharacterName')) {
     function synthGetPromptCharacterName(): string
     {
-        $canonicalName = trim((string)($GLOBALS['SYNTH_NAME'] ?? ''));
+        $canonicalName = trim((string)(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         $role=synth_protocol_owned_response_role();
         if ($role==='narrator') return synthGetNarratorRoleplayName();
         if ($role==='npc') {
-            $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
-            $db=$GLOBALS['db'];
+            $event=\Synth\Bootstrap::requestEvent()['json'];
+            $db=\Synth\Bootstrap::db();
             // Ordinary dialogue needs its exact snapshot; only prepared rechat resolves without one here.
             $context=synth_protocol_owns_rechat($event) ? [] : (synth_protocol_current_context($db,$event) ?? []);
             $actor=synth_protocol_response_actor_identity($db,$event,$context);
@@ -504,7 +504,7 @@ if (!function_exists('synthRenderNarratorRoleplayText')) {
     {
         $text = (string)$text;
         // Untyped quoted text can mention a real NPC with this name; never rewrite owned conversation evidence.
-        if (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) return $text;
+        if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) return $text;
         $roleplayName = synthGetNarratorRoleplayName();
         if (strcasecmp($roleplayName, Narrator::CANONICAL_NAME) === 0) {
             return $text;
@@ -540,7 +540,7 @@ if (!function_exists('synthNormalizeNarratorRoleplayActorName')) {
     {
         $name = trim((string)$name);
         // Candidate normalization runs before selection: labels cannot decide the future responder's role.
-        if (synth_protocol_owns_rechat($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) return $name;
+        if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) return $name;
         $roleplayName = synthGetNarratorRoleplayName();
         if ($name !== '' && strcasecmp($name, $roleplayName) === 0) {
             return Narrator::CANONICAL_NAME;

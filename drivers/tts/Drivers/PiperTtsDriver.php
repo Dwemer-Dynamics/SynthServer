@@ -46,7 +46,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
 
-		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && $GLOBALS["AVOID_TTS_CACHE"]===false )
+		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 		
@@ -54,7 +54,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		
 	    $starTime = microtime(true);
 
-		$url = piper_tts_synthesis_url($GLOBALS["TTS"]["PIPERTTS"]["endpoint"] ?? '');
+		$url = piper_tts_synthesis_url(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["endpoint"] ?? '');
 
 		/*
 		$lang = isset($GLOBALS["TTS"]["FORCED_LANG_DEV"]) ? $GLOBALS["TTS"]["FORCED_LANG_DEV"] : $GLOBALS["TTS"]["PIPERTTS"]["language"];
@@ -66,16 +66,16 @@ namespace Synth\Drivers\Tts\Drivers {
 			$lang = $GLOBALS["TTS"]["PIPERTTS"]["language"] ?? "EN";
 		*/
 		
-		$voice = $GLOBALS["TTS"]["FORCED_VOICE_DEV"] ?? ($GLOBALS["TTS"]["PIPERTTS"]["voiceid"] ?? "en_US-amy-low");
+		$voice = \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"] ?? (\Synth\Bootstrap::config("TTS")["PIPERTTS"]["voiceid"] ?? "en_US-amy-low");
 		if (empty($voice))
-			$voice = $GLOBALS["TTS"]["PIPERTTS"]["voiceid"] ?? "en_US-amy-low";
+			$voice = \Synth\Bootstrap::config("TTS")["PIPERTTS"]["voiceid"] ?? "en_US-amy-low";
 
-		$speaker_name = trim($GLOBALS["TTS"]["PIPERTTS"]["speaker"] ?? "");
-		$speaker_id = intval($GLOBALS["TTS"]["PIPERTTS"]["speaker_id"] ?? 0);
+		$speaker_name = trim(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["speaker"] ?? "");
+		$speaker_id = intval(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["speaker_id"] ?? 0);
 	
         if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
-			$voice = $GLOBALS["PATCH_OVERRIDE_VOICE"];
-			$speaker_id = intval($GLOBALS["PATCH_OVERRIDE_VOICE_ID"] ?? 0);
+			$voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
+			$speaker_id = intval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE_ID") ?? 0);
 		}
 
         // Normalize special narrator voice id
@@ -83,19 +83,19 @@ namespace Synth\Drivers\Tts\Drivers {
             $voice = 'default_male';
         }
 
-		$timescale = floatval($GLOBALS["TTS"]["PIPERTTS"]["length_scale"] ?? 1.0);
+		$timescale = floatval(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["length_scale"] ?? 1.0);
 		if ($timescale > 4.0)
 			$timescale = 4.0;
 		elseif ($timescale < 0.2)
 			$timescale = 0.2;
 
-		$noise_scale = floatval($GLOBALS["TTS"]["PIPERTTS"]["noise_scale"] ?? 1.0);
+		$noise_scale = floatval(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["noise_scale"] ?? 1.0);
 		if ($noise_scale > 1.0)
 			$noise_scale = 1.0;
 		elseif ($noise_scale < 0.1)
 			$noise_scale = 0.0;
 
-		$noise_w_scale = floatval($GLOBALS["TTS"]["PIPERTTS"]["noise_w_scale"] ?? 1.0);
+		$noise_w_scale = floatval(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["noise_w_scale"] ?? 1.0);
 		if ($noise_w_scale > 1.0)
 			$noise_w_scale = 1.0;
 		elseif ($noise_w_scale < 0.1)
@@ -131,9 +131,9 @@ namespace Synth\Drivers\Tts\Drivers {
 		$response = synth_speech_fetch($url, $context, $http_response_header);
 
 
-		if (isset($GLOBALS["TTS_FFMPEG_FILTERS"]) && is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+		if (isset($GLOBALS["TTS_FFMPEG_FILTERS"]) && is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
 			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
-			$FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
 			//if (isset($GLOBALS["TTS_FFMPEG_FILTERS"]["tempo"])) 
 			//	error_log(" filter: $FFMPEG_FILTER - exec trace ".__FILE__." ".__LINE__." ".__FUNCTION__);
@@ -148,8 +148,8 @@ namespace Synth\Drivers\Tts\Drivers {
 			$fname = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 			$startTimeTrans = microtime(true);
-			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-			    ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+			    ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
 			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
 			    Logger::error('piper-tts audio conversion or owned cache publication failed');
 			    return false;

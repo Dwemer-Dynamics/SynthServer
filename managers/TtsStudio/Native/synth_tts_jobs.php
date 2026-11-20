@@ -52,7 +52,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
         synth_protocol_assert_owner_active($db,$event);
     } else {
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('Speech admission requires an owner');
-        $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+        $event=\Synth\Bootstrap::requestEvent()['json'];
         synth_protocol_assert_request_active();
     }
     $actor=synth_tts_job_validate_entry($db,$entry,$event,$root);
@@ -112,7 +112,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
 function synth_tts_assert_job_lease($db, array $lease): void
 {
     $id=intval($lease['id'] ?? 0);$token=$db->escapeLiteral(strval($lease['token'] ?? ''));
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+    $event=\Synth\Bootstrap::requestEvent()['json'];
     $row=$db->fetchOne("SELECT 1 FROM public.core_worker_job WHERE id=$id AND job_type='tts'
         AND payload->>'schema'='synth.tts.job.v1' AND state='running' AND lease_token=$token
         AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()

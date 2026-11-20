@@ -157,7 +157,7 @@ class RelationshipManager {
             '#player_name#',
             '{player_name}',
         ];
-        $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? ''));
+        $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
         if ($playerName !== '') {
             $aliases[] = strtolower($playerName);
         }
@@ -335,7 +335,7 @@ class RelationshipManager {
 
         try {
             // Query the prompts table for custom or default tier reference
-            $db = $GLOBALS["db"] ?? null;
+            $db = \Synth\Bootstrap::db() ?? null;
             $row = $db && is_object($db) && method_exists($db, 'fetchOne') ? $db->fetchOne(
                 "SELECT COALESCE(custom_prompt, default_prompt) as prompt " .
                 "FROM core_prompt WHERE prompt_key = 'rel_tier_reference'"
@@ -448,7 +448,7 @@ class RelationshipManager {
         bool $unknownPlayer = false
     ) {
         if ($tierOnly === null) {
-            $tierOnly = !empty($GLOBALS['RELLLM_CONNECTOR']) && intval($GLOBALS['RELLLM_CONNECTOR']) > 0;
+            $tierOnly = !empty($GLOBALS['RELLLM_CONNECTOR']) && intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')) > 0;
         }
         $tierOnly = (bool)$tierOnly;
 
@@ -479,7 +479,7 @@ class RelationshipManager {
         $playerWorst = $playerRel['worst'] ?? '';
 
         // Get actual player name for display (falls back to "Player" if not set)
-        $playerDisplayName = $GLOBALS['PLAYER_NAME'] ?? 'Player';
+        $playerDisplayName = \Synth\Bootstrap::config('PLAYER_NAME') ?? 'Player';
         if (empty($playerDisplayName) || $playerDisplayName === 'the Player') {
             $playerDisplayName = 'Player';
         }

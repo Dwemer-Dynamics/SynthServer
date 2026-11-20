@@ -176,7 +176,7 @@ if (!function_exists('synthGetLoadedGamePluginByName')) {
             return $pluginCache[$cacheKey];
         }
 
-        global $db;
+        $db = \Synth\Bootstrap::db();
         if (!isset($db)) {
             return null;
         }
@@ -209,7 +209,7 @@ if (!function_exists('synthGetLoadedGamePluginByFormIdPrefix')) {
             return $pluginCache[$cacheKey];
         }
 
-        global $db;
+        $db = \Synth\Bootstrap::db();
         if (!isset($db)) {
             return null;
         }
@@ -389,7 +389,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
 
     function synthFetchCurrentLoadedGamePluginsSignature(): string
     {
-        global $db;
+        $db = \Synth\Bootstrap::db();
         if (!isset($db)) {
             return '';
         }
@@ -430,7 +430,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
 
     function synthReplaceLoadedGamePlugins(array $plugins): int
     {
-        global $db;
+        $db = \Synth\Bootstrap::db();
         if (!isset($db)) {
             return 0;
         }

@@ -83,7 +83,7 @@ function synth_profile_visible($db, array $event, int $actorId, bool $narrator=f
 // Resolve current prompt state without ever writing an overlaid row back into the base profile table.
 function synth_profile_effective_data($db, array $profile, bool $narrator=false): array
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? 1)!==2) return $profile;
     $actorId=intval($profile['actor_identity_id'] ?? 0);
     if ($narrator) {
@@ -101,11 +101,11 @@ function synth_profile_capture_input($db, string $name, array $profile): array
 {
     if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return $profile;
     synth_profile_assert_write_target($db,$name);
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];$narrator=$name==='The Narrator';
+    $event=\Synth\Bootstrap::requestEvent()['json'];$narrator=$name==='The Narrator';
     $context=synth_protocol_current_context($db,$event);
     $actorId=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
         .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
-        : $GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['actor_identity_id'];
+        : \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['actor_identity_id'];
     if (!$context || $actorId<1) throw new RuntimeException('Native profile input owner unavailable.');
     $state=synth_profile_visible($db,$event,$actorId,$narrator);
     $effective=array_replace($profile,$state['fields'] ?? synth_profile_fields($profile));
@@ -118,7 +118,7 @@ function synth_profile_capture_input($db, string $name, array $profile): array
     $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]=['schema'=>'synth.profile.input.v1','owner'=>$event,
         'actor_identity_id'=>$actorId,'profile_role'=>$narrator ? 'narrator' : 'npc','baseline_fields'=>synth_profile_fields($profile),
         'prior_revision'=>$state['revision'] ?? null,'profile'=>$text,'history'=>null,'prompts'=>[],
-        'connector_id'=>intval($GLOBALS['CORE_CONNECTOR_PROFILES'] ?? 0)];
+        'connector_id'=>intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES') ?? 0)];
     return $effective;
 }
 
@@ -126,7 +126,7 @@ function synth_profile_capture_input($db, string $name, array $profile): array
 function synth_profile_record_result($db, string $name, array $updates): bool
 {
     synth_profile_assert_write_target($db,$name);
-    $input=$GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name] ?? null;
+    $input=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$name] ?? null;
     if (!is_array($input) || !is_string($input['history'] ?? null) || !$updates
         || array_diff(array_keys($updates),array_keys(synth_profile_fields([])))) throw new LogicException('Native profile result has no frozen input.');
     foreach ($updates as $field=>$value) {
@@ -152,7 +152,7 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         }
         // Narrator settings can be absent rows; a short table lock also excludes concurrent insertions.
         if ($narrator && !@pg_query($connection,'LOCK TABLE public.core_config_setting IN SHARE MODE')) throw new RuntimeException('Unable to lock narrator baseline.');
-        $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['npc_id']));
+        $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
         if (synth_profile_fields($current)!==synth_profile_fields($input['baseline_fields'])) throw new LogicException('Base profile changed during generation.');
         $visible=synth_profile_visible($db,$event,$actor,$narrator);
         if (($visible['revision'] ?? null)!==$input['prior_revision']) throw new LogicException('Saved profile input changed.');

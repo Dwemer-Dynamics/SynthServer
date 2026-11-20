@@ -12,7 +12,7 @@ function synthResolveFfmpegPath()
     $candidates = [];
 
     if (!empty($GLOBALS["FFMPEG_PATH"])) {
-        $candidates[] = $GLOBALS["FFMPEG_PATH"];
+        $candidates[] = \Synth\Bootstrap::config("FFMPEG_PATH");
     }
 
     $envPath = getenv('FFMPEG_PATH');

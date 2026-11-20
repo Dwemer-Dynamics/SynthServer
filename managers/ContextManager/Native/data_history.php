@@ -52,7 +52,7 @@ function moveDialogueTargetSuffixToEnd($input) {
 
 function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") {
 
-        global $db;
+        $db = \Synth\Bootstrap::db();
 
         $actorcn=$db->escape($actor);
         $results = $db->fetchAll("SELECT speaker,speech,listener,gamets,localts,'speech',gamets - LAG(gamets) OVER (ORDER BY gamets ASC) AS gamets_diff,location,ts
@@ -96,7 +96,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
                 if ($lastListener!="The Narrator")
                     $talkingto="(talking to {$lastListener})";
 
-                if ($lastSpeaker==$GLOBALS["PLAYER_NAME"])
+                if ($lastSpeaker==\Synth\Bootstrap::config("PLAYER_NAME"))
                     $talkingto="";
 
                 $lastDialogFull[$speechEvent["ts"]] = array('role' => $currentSpeaker, 'content' => "$lastSpeaker: $buffer $talkingto");
@@ -531,7 +531,7 @@ function synthShouldExcludeEventFromPromptContext(array $row): bool
 
 function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if ($lastNelements == 0) { // if context_history is 0, all records will be retrieved
         $lastNelements = -1;
@@ -540,15 +540,15 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     $nRecordsLimit = 32 + (2 * abs($lastNelements)); // reduce the default 1000 recs loaded from db to a number proportional to context_history
 
     if (isset($GLOBALS["gameRequest"][2])) {
-        $currentGameTs=intval($GLOBALS["gameRequest"][2]);
+        $currentGameTs=intval(\Synth\Bootstrap::gameRequest()[2]);
     } else {
         $currentGameTs=intval(DataLastKnownGameTS());
     }
 
     $removeBooks = "";
 
-    $ext_sqlfilter1 = $GLOBALS["EXT_CONTEXT_SQL_FILTER1"] ?? "";
-    $ext_sqlfilter2 = $GLOBALS["EXT_CONTEXT_SQL_FILTER2"] ?? "";
+    $ext_sqlfilter1 = \Synth\Bootstrap::config("EXT_CONTEXT_SQL_FILTER1") ?? "";
+    $ext_sqlfilter2 = \Synth\Bootstrap::config("EXT_CONTEXT_SQL_FILTER2") ?? "";
 
     $lastDialogFull = array();
     $b_actor = (strlen($actor) > 0);
@@ -560,7 +560,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
     $visibleChatStateSql = synthBuildChatDeliveryStateSql('delivery_state');
 
-    $nativeEvent = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $nativeEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     $nativeHistory = ($nativeEvent['protocol_version'] ?? 1) === 2;
     $historySource = $nativeHistory ? 'native_history' : 'core_context_event';
     $historyPrefix = $nativeHistory ? synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true) : '';
@@ -622,7 +622,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
     // Filter blacklisted event types
     if (isset($GLOBALS["EVENT_TYPE_FILTER"]) && !empty($GLOBALS["EVENT_TYPE_FILTER"])) {
-        $blacklistedEventTypes = array_map('trim', explode(',', strtolower($GLOBALS["EVENT_TYPE_FILTER"])));
+        $blacklistedEventTypes = array_map('trim', explode(',', strtolower(\Synth\Bootstrap::config("EVENT_TYPE_FILTER"))));
         $results = array_filter($results, function($row) use ($blacklistedEventTypes) {
             $eventType = strtolower($row["type"] ?? '');
             foreach ($blacklistedEventTypes as $blacklistedType) {
@@ -670,7 +670,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
     $lastTimeCategory = null; // Track last timestamp category for PROMPT_TIMESTAMP feature
 
-    $focusOnChat=($GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"] ?? false);
+    $focusOnChat=(\Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT") ?? false);
 
 
     require_once dirname(__DIR__, 3).'/lib' . '/synth_history_trigger_prompt.php';
@@ -710,7 +710,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
         if ($row["type"]=="logaction") {
             $logactionData=json_decode($rowData,true);
             if (is_array($logactionData)) {
-                if ($logactionData["character"]!=$GLOBALS["SYNTH_NAME"])
+                if ($logactionData["character"]!=\Synth\Bootstrap::config("SYNTH_NAME"))
                     continue;
             }
         }
@@ -977,7 +977,7 @@ New setting: $currentLocation
     // Filter ambient combat deaths if configured.
     if (!empty($GLOBALS["HIDE_AMBIENT_COMBAT"])) {
         $protectedCombatNames = array_filter(array_map('trim', [
-            (string)($GLOBALS["PLAYER_NAME"] ?? ''),
+            (string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ''),
             (string)$actor,
         ]));
         try {
@@ -1027,7 +1027,7 @@ function compactHistoricContext($lastDialogFull,$actor,$compactContextInfo=false
 
     // Native history is already ownership-filtered. Keep its event/listener boundaries until
     // the configured history window and optional compact prompt formatter are applied.
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
         return array_map(static fn(array $line): array => [
             'role' => $line['role'], 'content' => $line['content'],
             '_g' => intval($line['_g'] ?? $line['gamets'] ?? 0),
@@ -1272,7 +1272,7 @@ function replaceRoles($lastDialogFull,$actor,$lastNelements) {
     // Keep the earliest source event for merged blocks; an unknown timestamp disables STM.
     $GLOBALS['CONTEXT_WINDOW_FLOOR'] = PHP_INT_MAX;
     foreach ($orderedData as &$entry) {
-        $GLOBALS['CONTEXT_WINDOW_FLOOR'] = min($GLOBALS['CONTEXT_WINDOW_FLOOR'], intval($entry['_g'] ?? 0));
+        $GLOBALS['CONTEXT_WINDOW_FLOOR'] = min(\Synth\Bootstrap::config('CONTEXT_WINDOW_FLOOR'), intval($entry['_g'] ?? 0));
         unset($entry['_g'], $entry['gamets']);
     }
     unset($entry);
@@ -1280,7 +1280,7 @@ function replaceRoles($lastDialogFull,$actor,$lastNelements) {
     file_put_contents(dirname(__DIR__, 3).'/lib'."/../log/context_for_$actor.txt",print_r($orderedData,true));
     $GLOBALS["CONTEXT_BUILDING_DATA"]=$orderedData;
 
-    return $GLOBALS["CONTEXT_BUILDING_DATA"];
+    return \Synth\Bootstrap::config("CONTEXT_BUILDING_DATA");
 
 }
 
@@ -1302,11 +1302,11 @@ function DataLastDataExpandedFor($actor, $lastNelements = -10,$sqlfilter="")
     error_log("[replaceRoles] Elapsed time: " . (microtime(true) - $localStartTime) . " seconds");
 
     // Cases of self rechat
-    if ((sizeof($ctx3)>3)&&(($GLOBALS["gameRequest"][3] ?? "")=="rechat")) {
+    if ((sizeof($ctx3)>3)&&((\Synth\Bootstrap::gameRequest()[3] ?? "")=="rechat")) {
         $lastElement = $ctx3[sizeof($ctx3)-1];
         // Last element is assistant
         if ($lastElement["role"]=="assistant") {
-            if ($GLOBALS["gameRequest"][3]=="rechat") {
+            if (\Synth\Bootstrap::gameRequest()[3]=="rechat") {
                 // NPC is rechatting himself
 
                 Logger::warn("[RECHAT] actor is replying itself, case 1, aborting");
@@ -1319,7 +1319,7 @@ function DataLastDataExpandedFor($actor, $lastNelements = -10,$sqlfilter="")
         $preLastElement = $ctx3[sizeof($ctx3)-2];
         // Pre last element is assistant, and last is a memory.
         if (($preLastElement["role"]=="assistant")&&(strpos($lastElement["content"],"MEMORY")!==false)) {
-            if ($GLOBALS["gameRequest"][3]=="rechat") {
+            if (\Synth\Bootstrap::gameRequest()[3]=="rechat") {
                 // NPC is rechatting himself
 
                 Logger::warn("[RECHAT] actor is replying itself,case 2, aborting");
@@ -1332,9 +1332,9 @@ function DataLastDataExpandedFor($actor, $lastNelements = -10,$sqlfilter="")
 
     //error_log("[DataLastDataExpandedFor end] Elapsed time: " . (microtime(true) - $localStartTime) . " seconds");
 
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__, 3).'/lib'.'/chat_helper_functions.php';
-        $ctx3=filterHistoricContextForNarratorVisibility($ctx3,$actor!=='' ? $actor : ($GLOBALS['SYNTH_NAME'] ?? ''));
+        $ctx3=filterHistoricContextForNarratorVisibility($ctx3,$actor!=='' ? $actor : (\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         $GLOBALS['CONTEXT_BUILDING_DATA']=$ctx3;
     }
     return $ctx3;
@@ -1344,7 +1344,7 @@ function DataLastDataExpandedFor($actor, $lastNelements = -10,$sqlfilter="")
 function DataSpeechJournal($topic,$limit=50)
 {
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = [];
     $tn=$db->escape($topic);

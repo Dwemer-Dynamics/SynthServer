@@ -64,7 +64,7 @@ function FindClosestNPCName($actorName)
 function DirectConversationsWith($actor, $speaker="")
 {
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $i_res = 0;
 
     if ($speaker=="")
@@ -73,7 +73,7 @@ function DirectConversationsWith($actor, $speaker="")
         $speakerprmt=$db->escape($speaker);
 
     $listenerprmt=$db->escape($actor);
-    $gametsLimit=round(($GLOBALS["gameRequest"][2]??0)-(getGametsLimitFor($actor)/0.0000024),0);
+    $gametsLimit=round((\Synth\Bootstrap::gameRequest()[2]??0)-(getGametsLimitFor($actor)/0.0000024),0);
     $lastLoc=$db->fetchAll("SELECT count(*) as N FROM core_speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
 
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
@@ -101,8 +101,8 @@ function isIndividualMemoryEnabledForNpc($npcName)
 
     $enabled = false;
     try {
-        $escaped = $GLOBALS["db"]->escape($npcName);
-        $row = $GLOBALS["db"]->fetchOne("SELECT extended_data FROM core_npc WHERE npc_name='$escaped' LIMIT 1");
+        $escaped = \Synth\Bootstrap::db()->escape($npcName);
+        $row = \Synth\Bootstrap::db()->fetchOne("SELECT extended_data FROM core_npc WHERE npc_name='$escaped' LIMIT 1");
         if (is_array($row) && !empty($row["extended_data"])) {
             $extendedData = json_decode($row["extended_data"], true);
             if (
@@ -130,18 +130,18 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
         return [];
     }
     if (!filter_var(
-        $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['ENABLED'] ?? false,
+        \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['ENABLED'] ?? false,
         FILTER_VALIDATE_BOOLEAN
     )) {
         return [];
     }
-    if (!isset($GLOBALS['db']) || !is_object($GLOBALS['db']) || !method_exists($GLOBALS['db'], 'fetchOne')) {
+    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db()) || !method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
         return [];
     }
 
     try {
-        if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
-            $rows = synth_memory_recall($GLOBALS['db'],$npcName,[],$contextWindowFloor,null,true);
+        if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
+            $rows = synth_memory_recall(\Synth\Bootstrap::db(),$npcName,[],$contextWindowFloor,null,true);
             $row = $rows[0] ?? [];
         } else {
             $scopeConditionSql = dataGetMemoryScopeConditionSql($npcName);
@@ -150,7 +150,7 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
                 'companions',
                 'classifier'
             );
-            $row = $GLOBALS['db']->fetchOne(
+            $row = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT summary, gamets_truncated FROM public.core_memory"
                 . " WHERE source_type='summary' AND classifier='dialogue'"
                 . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
@@ -179,9 +179,9 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
 function dataGetMemoryScopeConditionSql($npcName)
 {
     if (isIndividualMemoryEnabledForNpc($npcName)) {
-        $npcEsc = $GLOBALS["db"]->escape($npcName);
+        $npcEsc = \Synth\Bootstrap::db()->escape($npcName);
         try {
-            $scopedMemory = $GLOBALS["db"]->fetchOne(
+            $scopedMemory = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT 1 FROM core_memory WHERE source_type='summary' AND scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
             );
             if (is_array($scopedMemory) && count($scopedMemory) > 0) {
@@ -204,7 +204,7 @@ function dataGetMemoryCompanionConditionSql(
     $npcName = trim((string)$npcName);
     if ($npcName === '') {
         $narratorOnlyDiaryAccess = filter_var(
-            $GLOBALS['NARRATOR_ONLY_DIARY_ACCESS'] ?? false,
+            \Synth\Bootstrap::config('NARRATOR_ONLY_DIARY_ACCESS') ?? false,
             FILTER_VALIDATE_BOOLEAN
         );
         if (!$narratorOnlyDiaryAccess) {
@@ -212,12 +212,12 @@ function dataGetMemoryCompanionConditionSql(
             return 'TRUE';
         }
 
-        $narratorName = $GLOBALS['db']->escape('The Narrator');
+        $narratorName = \Synth\Bootstrap::db()->escape('The Narrator');
         return "(COALESCE($classifierColumn, '') NOT IN ('diary','auto_diary','backgroundlife_diary')"
             . " OR $column LIKE '%|$narratorName|%' OR $column='$narratorName')";
     }
 
-    $npcEsc = $GLOBALS['db']->escape($npcName);
+    $npcEsc = \Synth\Bootstrap::db()->escape($npcName);
     return "($column LIKE '%|$npcEsc|%' OR $column='$npcEsc')";
 }
 
@@ -225,7 +225,7 @@ function dataGetMemoryCompanionConditionSql(
 function synthNormalizeMemorySearchInput($rawstring): string
 {
     $text = (string)$rawstring;
-    $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? ''));
+    $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
     if ($playerName !== '') {
         $text = str_replace("{$playerName}:", '', $text);
     }
@@ -243,7 +243,7 @@ function synthNormalizeMemorySearchInput($rawstring): string
 
 function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
 
-    $nativeMemory = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
+    $nativeMemory = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
     if ($nativeMemory) {
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return [];
         synth_protocol_assert_request_active();
@@ -337,12 +337,12 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
 
 
     if ($nativeMemory) {
-        return synth_memory_recall($GLOBALS['db'],strval($npcfilter),[$kwStringAny ?? ''],intval($timeThreshold));
+        return synth_memory_recall(\Synth\Bootstrap::db(),strval($npcfilter),[$kwStringAny ?? ''],intval($timeThreshold));
     }
     $scopeConditionSql = dataGetMemoryScopeConditionSql($npcfilter);
     $companionConditionSql = dataGetMemoryCompanionConditionSql($npcfilter, 'A.companions', 'A.classifier');
 
-    $memory=$GLOBALS["db"]->fetchAll("
+    $memory=\Synth\Bootstrap::db()->fetchAll("
         SELECT summary,gamets_truncated,
         ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any,
         ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all
@@ -383,7 +383,7 @@ function synthNormalizeTsQueryTerms(string $text): array
 
 function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$timeThreshold=0) {
 
-        $nativeMemory = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
+        $nativeMemory = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
         if ($nativeMemory) {
             if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
             synth_protocol_assert_request_active();
@@ -410,7 +410,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
             $TEST_TEXT = preg_replace('/[(),;:!?."\'-]/', ' ', $TEST_TEXT);
             $TEST_TEXT = preg_replace('/\s+/', ' ', trim($TEST_TEXT));
 
-            if (isset($GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"]) && $GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"]) {
+            if (isset($GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"]) && \Synth\Bootstrap::config("PATCH_BYPASS_MINIME_EXTRACT")) {
                 error_log("[DataSearchMemoryByVector ] PATCH_BYPASS_MINIME_EXTRACT");
                 $keywords=json_encode(["is_memory_recall"=>"Yes"]);
             } else {
@@ -516,14 +516,14 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
         if ($nativeMemory) {
             $embedding = synth_memory_fetch_embedding($contextKeywords);
             if ($embedding === null) return null;
-            $candidates = synth_memory_recall($GLOBALS['db'],strval($npcfilter),[$contextKeywords],intval($timeThreshold),$embedding);
+            $candidates = synth_memory_recall(\Synth\Bootstrap::db(),strval($npcfilter),[$contextKeywords],intval($timeThreshold),$embedding);
             $candidate = synthSelectBestNativeMemoryCandidate($candidates);
             return $candidate === null ? [] : [$candidate];
         }
         $scopeConditionSql = dataGetMemoryScopeConditionSql($npcfilter);
         $companionConditionSql = dataGetMemoryCompanionConditionSql($npcfilter);
 
-        $url = $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
+        $url = \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
 
         $data = [
 
@@ -565,10 +565,10 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
         if (is_array($vector) && isset($vector["embedding"])) {
             $vectorString="'[".implode(",",$vector["embedding"])."]'";
             $rankAnySql = $kwStringAny !== ''
-                ? "ts_rank(native_vec, to_tsquery('" . $GLOBALS["db"]->escape($kwStringAny) . "'))"
+                ? "ts_rank(native_vec, to_tsquery('" . \Synth\Bootstrap::db()->escape($kwStringAny) . "'))"
                 : "0::real";
             $rankAllSql = $kwStringAll !== ''
-                ? "ts_rank(native_vec, to_tsquery('" . $GLOBALS["db"]->escape($kwStringAll) . "'))"
+                ? "ts_rank(native_vec, to_tsquery('" . \Synth\Bootstrap::db()->escape($kwStringAll) . "'))"
                 : "0::real";
             $rankCombinedSql = "($rankAnySql + $rankAllSql)";
 
@@ -593,7 +593,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                         rowid DESC
                     LIMIT 50 OFFSET 0
                 ";
-            $memory=$GLOBALS["db"]->fetchAll($finalQuery);
+            $memory=\Synth\Bootstrap::db()->fetchAll($finalQuery);
             //error_log($finalQuery);
             $singleMemory = synthSelectBestHybridMemoryCandidate($memory);
 
@@ -652,7 +652,7 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
         if (empty($text))
             return ["embedding"=>array_fill(0, 384, 0)];
 
-        $url = $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
+        $url = \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["TXTAI_URL"].'/embed';
         $data = [
             'text' => $text   // We add previous keywords
         ];
@@ -698,7 +698,7 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
         $vectorString3="'[".implode(",",$vector3["embedding"])."]'";
         $vectorString4="'[".implode(",",$vector4["embedding"])."]'";
 
-        $memory=$GLOBALS["db"]->fetchAll("
+        $memory=\Synth\Bootstrap::db()->fetchAll("
             SELECT  topic_desc,
                                 topic,
                                 knowledge_class,

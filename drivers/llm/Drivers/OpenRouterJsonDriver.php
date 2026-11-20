@@ -329,31 +329,31 @@ class OpenRouterJsonDriver
     }
    
     protected function init_connector($customParms) {
-        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? $GLOBALS["CONNECTOR"][$this->name]["url"] : "";
+        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "";
         if (strlen($this->_url) < 6)
             Logger::error("{$this->name} connector - missing url!");
 
-        $this->_remove_cot = (isset($GLOBALS["CONNECTOR"][$this->name]["remove_chain_of_thought"])) ? $GLOBALS["CONNECTOR"][$this->name]["remove_chain_of_thought"] : true;
-        $this->_disable_reasoning = ($GLOBALS["CONNECTOR"][$this->name]["disable_model_reasoning"] ?? true);
+        $this->_remove_cot = (isset($GLOBALS["CONNECTOR"][$this->name]["remove_chain_of_thought"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["remove_chain_of_thought"] : true;
+        $this->_disable_reasoning = (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["disable_model_reasoning"] ?? true);
 
         $default_model = 'meta-llama/llama-3.3-70b-instruct';
 
-        $s_fallback = trim($GLOBALS["CONNECTOR"][$this->name]["fallback_models"] ?? ""); //"google/gemini-2.0-flash-001,google/gemini-2.5-flash-lite,meta-llama/llama-4-scout"
+        $s_fallback = trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["fallback_models"] ?? ""); //"google/gemini-2.0-flash-001,google/gemini-2.5-flash-lite,meta-llama/llama-4-scout"
         if (strlen($s_fallback) > 1)
             $this->_fallback_models = $this->normalizeOpenRouterModelList(explode(",",$s_fallback)); 
 
-        $this->_providers_sort = strtolower(trim($GLOBALS["CONNECTOR"][$this->name]["providers_sort"] ?? ""));
+        $this->_providers_sort = strtolower(trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["providers_sort"] ?? ""));
 
-        $s_providers2ignore = trim($GLOBALS["CONNECTOR"][$this->name]["providers_to_ignore"] ?? ""); //"Nebius AI Studio, Together, Infermatic";
+        $s_providers2ignore = trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["providers_to_ignore"] ?? ""); //"Nebius AI Studio, Together, Infermatic";
         if (strlen($s_providers2ignore) > 1)
             $this->_providers2ignore = explode(",", $s_providers2ignore);
         
-        $s_quantizations = trim($GLOBALS["CONNECTOR"][$this->name]["provider_quantizations"] ?? "");  //'fp8,fp16,bf16,fp32,unknown';
+        $s_quantizations = trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["provider_quantizations"] ?? "");  //'fp8,fp16,bf16,fp32,unknown';
         if (strlen($s_quantizations) > 1)
             $this->_provider_quantizations = explode(",", $s_quantizations); 
 
-        $f_max_price_prompt = floatval($GLOBALS["CONNECTOR"][$this->name]["provider_max_price_input"] ?? 0.0); //0.50
-        $f_max_price_completition = floatval($GLOBALS["CONNECTOR"][$this->name]["provider_max_price_output"] ?? 0.0); //2.99
+        $f_max_price_prompt = floatval(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["provider_max_price_input"] ?? 0.0); //0.50
+        $f_max_price_completition = floatval(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["provider_max_price_output"] ?? 0.0); //2.99
         if ($f_max_price_completition < 0.001 )
             $f_max_price_completition = 0.0;
         if ($f_max_price_prompt < 0.001 )
@@ -373,7 +373,7 @@ class OpenRouterJsonDriver
                 $default_model = 'mistral-small-latest';
         }
 
-        $this->_model = $GLOBALS["CONNECTOR"][$this->name]["model"] ?? $default_model;
+        $this->_model = \Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"] ?? $default_model;
         
         // We shoud be able to overwrite model.
         $this->_model = isset($customParms["model"]) ?$customParms["model"] :  $this->_model;
@@ -382,7 +382,7 @@ class OpenRouterJsonDriver
         $this->_is_grok = (stripos($this->_model, "grok") > 0 ); 
         $this->_is_openai = $this->isOpenAIModel($this->_model);
         
-        $this->_is_reasoning = $GLOBALS["CONNECTOR"][$this->name]["reasoning_model"] ?? false;  
+        $this->_is_reasoning = \Synth\Bootstrap::config("CONNECTOR")[$this->name]["reasoning_model"] ?? false;  
         if (!$this->_is_reasoning)
             $this->_is_reasoning = $this->isReasoningModel($this->_model); // check if resoning model, use list of known reasoning models
         
@@ -403,7 +403,7 @@ class OpenRouterJsonDriver
             $customParms["models"] = $this->normalizeOpenRouterModelList($customParms["models"]);
         }
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48));
+        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
 
 
         /***
@@ -412,13 +412,13 @@ class OpenRouterJsonDriver
                                                                                                 Tyler, 2023/11/09
         ****/
         
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline) && isset($contextline["content"])) {
                     if (strpos($contextline["content"],"#MEMORY")===0) {
                         $contextData[$n]["content"]=str_replace("#MEMORY","##\nMEMORY\n",$contextline["content"]."\n##\n");
-                    } else if (strpos($contextline["content"],$GLOBALS["MEMORY_STATEMENT"])!==false) {
-                        $contextData[$n]["content"]=str_replace($GLOBALS["MEMORY_STATEMENT"],"(USE MEMORY reference)",$contextline["content"]);
+                    } else if (strpos($contextline["content"],\Synth\Bootstrap::config("MEMORY_STATEMENT"))!==false) {
+                        $contextData[$n]["content"]=str_replace(\Synth\Bootstrap::config("MEMORY_STATEMENT"),"(USE MEMORY reference)",$contextline["content"]);
                     }
                 }
             }
@@ -430,11 +430,11 @@ class OpenRouterJsonDriver
             synthEnsureNarratorJsonResponseState('OPENROUTERJSON');
         }
 
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && $GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
-            $contextData[0]["content"].=$GLOBALS["COMMAND_PROMPT"];
+        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+            $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
         
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) {
+        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
             $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         } else {
             $prefix="";
@@ -447,7 +447,7 @@ class OpenRouterJsonDriver
 
         $contextData[]=[
             'role' => 'user',
-            'content' => "{$prefix}. $speechReinforcement \nUse ONLY this JSON object to give your answer. Do not send any other characters outside of this JSON structure: \n".json_encode($GLOBALS["responseTemplate"])
+            'content' => "{$prefix}. $speechReinforcement \nUse ONLY this JSON object to give your answer. Do not send any other characters outside of this JSON structure: \n".json_encode(\Synth\Bootstrap::config("responseTemplate"))
         ];
         $pb=[];
         $pb["user"]="";
@@ -459,7 +459,7 @@ class OpenRouterJsonDriver
         $lastTargetBuffer="";
         $assistantRoleBuffer="";
         $n_ctxsize = sizeof($contextDataOrig); 
-        $this->_webbackup_func = $GLOBALS["FUNCTIONS_ARE_ENABLED"] ?: false;
+        $this->_webbackup_func = \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED") ?: false;
 
         foreach ($contextDataOrig as $n=>$element) {
             
@@ -503,7 +503,7 @@ class OpenRouterJsonDriver
                 if ($lastrole=="assistant" && $lastrole!=$element["role"] && $element["role"]!="tool" && !empty($assistantRoleBuffer)) {
                     $contextDataCopy[]=[
                         "role"=>"assistant",
-                        "content"=>synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]), strval($lastTargetBuffer), $assistantRoleBuffer)
+                        "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($lastTargetBuffer), $assistantRoleBuffer)
                         
                     ];
                     $lastTargetBuffer="";
@@ -544,11 +544,11 @@ class OpenRouterJsonDriver
                         }
                         $contextDataCopy[]=[
                                 "role"=>"assistant",
-                                "content"=>synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
+                                "content"=>synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
                             ];
                             
-                        $gameRequestCopy=$GLOBALS["gameRequest"];    
-                        $gameRequestCopy[3]=synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
+                        $gameRequestCopy=\Synth\Bootstrap::gameRequest();    
+                        $gameRequestCopy[3]=synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
                         $gameRequestCopy[0]="logaction";
                         logEvent($gameRequestCopy);   
                         
@@ -556,7 +556,7 @@ class OpenRouterJsonDriver
                         if (isset($assistantRoleBuffer) && !empty($assistantRoleBuffer)) {
                             $contextDataCopy[]=[
                                 "role"=>"assistant",
-                                "content"=>synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]), strval($lastTargetBuffer), $assistantRoleBuffer)
+                                "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($lastTargetBuffer), $assistantRoleBuffer)
                                 
                             ];
                             $lastTargetBuffer="";
@@ -659,16 +659,16 @@ class OpenRouterJsonDriver
             }
         }
         
-        if ((isset($GLOBALS["CONNECTOR"][$this->name]["PREFILL_JSON"])) && ($GLOBALS["CONNECTOR"][$this->name]["PREFILL_JSON"])) {
-            $GLOBALS["PATCH"]["PREAPPEND"]=synth_provider_json_prefill(strval($GLOBALS["SYNTH_NAME"]));
-            $contextDataCopy[]= ["role"=>"assistant","content"=>$GLOBALS["PATCH"]["PREAPPEND"]];
+        if ((isset($GLOBALS["CONNECTOR"][$this->name]["PREFILL_JSON"])) && (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["PREFILL_JSON"])) {
+            $GLOBALS["PATCH"]["PREAPPEND"]=synth_provider_json_prefill(strval(\Synth\Bootstrap::config("SYNTH_NAME")));
+            $contextDataCopy[]= ["role"=>"assistant","content"=>\Synth\Bootstrap::config("PATCH")["PREAPPEND"]];
         }
         
         $contextData=$contextDataCopy;
         
         if (!$assistantAppearedInhistory) { // is this still needed?
             
-            if (isset($GLOBALS["SYNTH_NO_EXAMPLES"]) && $GLOBALS["SYNTH_NO_EXAMPLES"]) {
+            if (isset($GLOBALS["SYNTH_NO_EXAMPLES"]) && \Synth\Bootstrap::config("SYNTH_NO_EXAMPLES")) {
                 $contextExamples=[];
             } else {
                 // EXAMPLES
@@ -679,7 +679,7 @@ class OpenRouterJsonDriver
                 
                 $contextExamples[]= [
                     "role"=>"assistant",
-                    "content"=>synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]), strval($GLOBALS["PLAYER_NAME"]), "What are you looking at?", "Talk", "default")
+                    "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval(\Synth\Bootstrap::config("PLAYER_NAME")), "What are you looking at?", "Talk", "default")
                         
                 ];
                 
@@ -698,35 +698,35 @@ class OpenRouterJsonDriver
             }        
         }
 
-        $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? : 0.7);
+        $temperature = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ? : 0.7);
         if ($temperature < 0.0) $temperature = 0.0;
         else if ($temperature > 2.0) $temperature = 2.0; 
 
-        $presence_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["presence_penalty"]) ? : 0.0);
+        $presence_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["presence_penalty"]) ? : 0.0);
         if ($presence_penalty < -2.0) $presence_penalty = -2.0;
         else if ($presence_penalty > 2.0) $presence_penalty = 2.0; 
 
-        $frequency_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["frequency_penalty"]) ? : 0.0); 
+        $frequency_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["frequency_penalty"]) ? : 0.0); 
         if ($frequency_penalty < -2.0) $frequency_penalty = -2.0;
         else if ($frequency_penalty > 2.0) $frequency_penalty = 2.0; 
 
-        $repetition_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["repetition_penalty"]) ? : 0.0);
+        $repetition_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["repetition_penalty"]) ? : 0.0);
         if ($repetition_penalty < 0.0) $repetition_penalty = 0.0;
         else if ($repetition_penalty > 2.0) $repetition_penalty = 2.0; 
 
-        $top_p = floatval(($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ? : 1.0);
+        $top_p = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"]) ? : 1.0);
         if ($top_p > 1) $top_p = 1.0;
         else if ($top_p < 0.0) $top_p = 0.0; 
 
-        $min_p = floatval(($GLOBALS["CONNECTOR"][$this->name]["min_p"]) ? : 0.0);
+        $min_p = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["min_p"]) ? : 0.0);
         if ($min_p > 1) $min_p = 1.0;
         else if ($min_p < 0.0) $min_p = 0.0; 
 
-        $top_a = floatval(($GLOBALS["CONNECTOR"][$this->name]["top_a"]) ? : 0.0);
+        $top_a = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_a"]) ? : 0.0);
         if ($top_a > 1) $top_a = 1.0;
         else if ($top_a < 0.0) $top_a = 0.0; 
 
-        $top_k = intval(($GLOBALS["CONNECTOR"][$this->name]["top_k"]) ? : 0);
+        $top_k = intval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_k"]) ? : 0);
         if ($top_k < 0) $top_k = 0; 
 
         if (isset($customParms["MAX_TOKENS"])) {
@@ -734,7 +734,7 @@ class OpenRouterJsonDriver
             unset($customParms["MAX_TOKENS"]);
         }
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            $MAX_TOKENS=intval($GLOBALS["FORCE_MAX_TOKENS"]);
+            $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
         
         $data = array(
@@ -756,20 +756,20 @@ class OpenRouterJsonDriver
             'transforms'=>[]
         );
 
-        foreach (synthGetEnabledConnectorExtraParameters($GLOBALS["CONNECTOR"][$this->name] ?? []) as $k => $v) {
+        foreach (synthGetEnabledConnectorExtraParameters(\Synth\Bootstrap::config("CONNECTOR")[$this->name] ?? []) as $k => $v) {
                 $data[$k]=$v;
         }
         
-        if ($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) {
-            if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && $GLOBALS["CONNECTOR"][$this->name]["json_schema"]) {
-                $data["response_format"]=$GLOBALS["structuredOutputTemplate"];
+        if (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
+            if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
+                $data["response_format"]=\Synth\Bootstrap::config("structuredOutputTemplate");
             } else {
                 $data["response_format"]=["type"=>"json_object"];
             }
         }
         
         // Add Google safety settings if block_none is enabled in metadata (for Google models via OpenRouter)
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && $GLOBALS["CONNECTOR"][$this->name]["block_none"]) {
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["block_none"]) {
             // Only add safety settings if this is a Google/Gemini model
             if (preg_match('/google|gemini/i', $this->_model)) {
                 $data["safety_settings"] = [
@@ -831,7 +831,7 @@ class OpenRouterJsonDriver
         }
 
         if (!empty($GLOBALS["CONNECTOR"]["openrouterjson"]["PROVIDER"])) {
-            $providers=explode(",",$GLOBALS["CONNECTOR"]["openrouterjson"]["PROVIDER"]);
+            $providers=explode(",",\Synth\Bootstrap::config("CONNECTOR")["openrouterjson"]["PROVIDER"]);
             $data["provider"]=["order"=>$providers];
         } 
 
@@ -897,7 +897,7 @@ class OpenRouterJsonDriver
                  'content' => $s_prefix . trim($search_text)
                 ],
                 ['role' => 'user',
-                 'content' => trim(" {$speechReinforcement} Always use this JSON object to give your answer: ".json_encode($GLOBALS["responseTemplate"], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ))
+                 'content' => trim(" {$speechReinforcement} Always use this JSON object to give your answer: ".json_encode(\Synth\Bootstrap::config("responseTemplate"), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ))
                 ]
             ];
 
@@ -915,7 +915,7 @@ class OpenRouterJsonDriver
 
         } // --- end online search request
 
-        foreach (synthGetEnabledConnectorExtraParameters($GLOBALS["CONNECTOR"][$this->name] ?? []) as $k => $v) {
+        foreach (synthGetEnabledConnectorExtraParameters(\Synth\Bootstrap::config("CONNECTOR")[$this->name] ?? []) as $k => $v) {
                 $data[$k]=$v;
         }
 
@@ -938,7 +938,7 @@ class OpenRouterJsonDriver
 
         $data["usage"]=["include"=>true];
 
-        $timeout = max(intval(($GLOBALS["HTTP_TIMEOUT"]) ?? 30), $this->_timeout);
+        $timeout = max(intval((\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?? 30), $this->_timeout);
         $options = array(
             'http' => array(
                 'method' => 'POST',
@@ -956,8 +956,8 @@ class OpenRouterJsonDriver
             $error=error_get_last();
             Logger::error(trim(print_r($error,true)));
 
-            if ($GLOBALS["db"]) {
-                $GLOBALS["db"]->insert(
+            if (\Synth\Bootstrap::db()) {
+                \Synth\Bootstrap::db()->insert(
                 'core_audit_request',
                     array(
                         'request' => json_encode($data),
@@ -975,8 +975,8 @@ class OpenRouterJsonDriver
                 $error_message = "Request to openrouterjson connector failed: {$status_code}.\n Response body: {$response}.\n model: {$this->_model}";
                 trigger_error($error_message, E_USER_WARNING);
 
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($data),
@@ -1016,14 +1016,14 @@ class OpenRouterJsonDriver
 
     public function send($url, $context) {
         if (isset($GLOBALS['mockConnectorSend'])) {
-            return call_user_func($GLOBALS['mockConnectorSend'], $url, $context);
+            return call_user_func(\Synth\Bootstrap::config('mockConnectorSend'), $url, $context);
         }
         return synth_provider_open($url, $context);
     }
 
     public function getHttpStatusCode() {
         if (isset($GLOBALS['mockConnectorResponseMetaData'])) {
-            $responseInfo = call_user_func($GLOBALS['mockConnectorResponseMetaData']);
+            $responseInfo = call_user_func(\Synth\Bootstrap::config('mockConnectorResponseMetaData'));
         } else {
             $responseInfo = synth_provider_metadata($this->primary_handler);
         }
@@ -1040,7 +1040,7 @@ class OpenRouterJsonDriver
 
         // Seed the parser before appending the first provider chunk; never overwrite that chunk.
         if (isset($GLOBALS["PATCH"]["PREAPPEND"])) {
-            $this->_buffer = $GLOBALS["PATCH"]["PREAPPEND"];
+            $this->_buffer = \Synth\Bootstrap::config("PATCH")["PREAPPEND"];
             unset($GLOBALS["PATCH"]["PREAPPEND"]);
         }
 
@@ -1060,7 +1060,7 @@ class OpenRouterJsonDriver
                 Logger::warn("LLM didn't output anything");
             }
         } else {
-            if ((time()-$GLOBALS["patch_openrouter_timeout"])>60) {
+            if ((time()-\Synth\Bootstrap::config("patch_openrouter_timeout"))>60) {
                 $this->_rawbuffer.="Error, timeout when receiving data from LLM";
                 Logger::error("Error, timeout when receiving data from LLM");
                 $this->_forcedClose=true;
@@ -1185,8 +1185,8 @@ class OpenRouterJsonDriver
             $json_response["usage"]=[];
         
         if ($json_response) {
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
@@ -1199,8 +1199,8 @@ class OpenRouterJsonDriver
                 
         }
         else {
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($this->_dataSent),
@@ -1231,7 +1231,7 @@ class OpenRouterJsonDriver
                 $parameter = $parameterArr;
                 $functionCodeName = getFunctionCodeName($this->_functionName);
                 $parameter = buildFunctionExecutionParameter($functionCodeName, $parameter);
-                $commandStr = synthEncodeActionLine($GLOBALS["SYNTH_NAME"], $functionCodeName, $parameterArr, $parameter) . "\n";
+                $commandStr = synthEncodeActionLine(\Synth\Bootstrap::config("SYNTH_NAME"), $functionCodeName, $parameterArr, $parameter) . "\n";
 
                 if (!isset($alreadysent[md5($commandStr)])) {
                     $this->_commandBuffer[] = $commandStr;
@@ -1307,37 +1307,37 @@ class OpenRouterJsonDriver
             $callName=$this->name."/".$callName;
 
 
-        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48)+0);
+        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
 
-        $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? : 0.7);
+        $temperature = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ? : 0.7);
         if ($temperature < 0.0) $temperature = 0.0;
         else if ($temperature > 2.0) $temperature = 2.0; 
 
-        $presence_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["presence_penalty"]) ? : 0.0);
+        $presence_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["presence_penalty"]) ? : 0.0);
         if ($presence_penalty < -2.0) $presence_penalty = -2.0;
         else if ($presence_penalty > 2.0) $presence_penalty = 2.0; 
 
-        $frequency_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["frequency_penalty"]) ? : 0.0); 
+        $frequency_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["frequency_penalty"]) ? : 0.0); 
         if ($frequency_penalty < -2.0) $frequency_penalty = -2.0;
         else if ($frequency_penalty > 2.0) $frequency_penalty = 2.0; 
 
-        $repetition_penalty = floatval(($GLOBALS["CONNECTOR"][$this->name]["repetition_penalty"]) ? : 0.0);
+        $repetition_penalty = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["repetition_penalty"]) ? : 0.0);
         if ($repetition_penalty < 0.0) $repetition_penalty = 0.0;
         else if ($repetition_penalty > 2.0) $repetition_penalty = 2.0; 
 
-        $top_p = floatval(($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ? : 1.0);
+        $top_p = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"]) ? : 1.0);
         if ($top_p > 1) $top_p = 1.0;
         else if ($top_p < 0.0) $top_p = 0.0; 
 
-        $min_p = floatval(($GLOBALS["CONNECTOR"][$this->name]["min_p"]) ? : 0.0);
+        $min_p = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["min_p"]) ? : 0.0);
         if ($min_p > 1) $min_p = 1.0;
         else if ($min_p < 0.0) $min_p = 0.0; 
 
-        $top_a = floatval(($GLOBALS["CONNECTOR"][$this->name]["top_a"]) ? : 0.0);
+        $top_a = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_a"]) ? : 0.0);
         if ($top_a > 1) $top_a = 1.0;
         else if ($top_a < 0.0) $top_a = 0.0; 
 
-        $top_k = intval(($GLOBALS["CONNECTOR"][$this->name]["top_k"]) ? : 0);
+        $top_k = intval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_k"]) ? : 0);
         if ($top_k < 0) $top_k = 0; 
 
         if (isset($customParms["MAX_TOKENS"])) {
@@ -1345,7 +1345,7 @@ class OpenRouterJsonDriver
             unset($customParms["MAX_TOKENS"]);
         }
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            $MAX_TOKENS=intval($GLOBALS["FORCE_MAX_TOKENS"]);
+            $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
         
         $data = array(
@@ -1368,8 +1368,8 @@ class OpenRouterJsonDriver
             'transforms'=>[]
         );
 
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["stop"])&&sizeof($GLOBALS["CONNECTOR"][$this->name]["stop"])>0) {
-            $data["stop"]=$GLOBALS["CONNECTOR"][$this->name]["stop"];
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["stop"])&&sizeof(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"])>0) {
+            $data["stop"]=\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"];
         }
         // Override
 
@@ -1384,10 +1384,10 @@ class OpenRouterJsonDriver
         }
 
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            if ($GLOBALS["FORCE_MAX_TOKENS"]==0) {
+            if (\Synth\Bootstrap::config("FORCE_MAX_TOKENS")==0) {
                 unset($data["max_tokens"]);
             } else {
-                $data["max_tokens"]=$GLOBALS["FORCE_MAX_TOKENS"];
+                $data["max_tokens"]=\Synth\Bootstrap::config("FORCE_MAX_TOKENS");
 
             }
         }
@@ -1434,7 +1434,7 @@ class OpenRouterJsonDriver
         }
 
         if (!empty($GLOBALS["CONNECTOR"]["openrouterjson"]["PROVIDER"])) {
-            $providers=explode(",",$GLOBALS["CONNECTOR"]["openrouterjson"]["PROVIDER"]);
+            $providers=explode(",",\Synth\Bootstrap::config("CONNECTOR")["openrouterjson"]["PROVIDER"]);
             $data["provider"]=["order"=>$providers];
         } 
 
@@ -1467,7 +1467,7 @@ class OpenRouterJsonDriver
         }
         
         // Add Google safety settings if block_none is enabled in metadata (for Google models via OpenRouter)
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && $GLOBALS["CONNECTOR"][$this->name]["block_none"]) {
+        if (isset($GLOBALS["CONNECTOR"][$this->name]["block_none"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["block_none"]) {
             // Only add safety settings if this is a Google/Gemini model
             if (preg_match('/google|gemini/i', $this->_model)) {
                 $data["safety_settings"] = [
@@ -1497,7 +1497,7 @@ class OpenRouterJsonDriver
                 'header' => implode("\r\n", $headers),
                 'content' => json_encode($data),
                 // Background calls need the same model allowance as streaming dialogue.
-                'timeout' => max(intval($GLOBALS["HTTP_TIMEOUT"] ?? 30), $this->_timeout)
+                'timeout' => max(intval(\Synth\Bootstrap::config("HTTP_TIMEOUT") ?? 30), $this->_timeout)
             )
         );
 
@@ -1507,7 +1507,7 @@ class OpenRouterJsonDriver
 
         try {
             if (PHP_SAPI === 'cli' && getenv('PHPUNIT_TEST') && isset($GLOBALS['mockConnectorSend'])) {
-                $mockResponse = call_user_func($GLOBALS['mockConnectorSend'], $this->_url, $context);
+                $mockResponse = call_user_func(\Synth\Bootstrap::config('mockConnectorSend'), $this->_url, $context);
                 $json_response = is_resource($mockResponse)
                     ? stream_get_contents($mockResponse)
                     : $mockResponse;
@@ -1541,8 +1541,8 @@ class OpenRouterJsonDriver
                     $errorMsg .= "|" . substr($text_response["error"], 0, 200);
                 }
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "API error from '{$this->_url}': " . json_encode($text_response["error"]));
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($data),
@@ -1560,8 +1560,8 @@ class OpenRouterJsonDriver
                     date(DATE_ATOM)."\n=\n".json_encode($text_response, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n=\n",
                     FILE_APPEND
                 );
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($data),
@@ -1579,8 +1579,8 @@ class OpenRouterJsonDriver
                     date(DATE_ATOM)."\n=\n".$json_response."\n=\n",
                     FILE_APPEND
                 );
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($data),
@@ -1603,8 +1603,8 @@ class OpenRouterJsonDriver
             $lastError = error_get_last();
             $errorDetail = $lastError ? $lastError['message'] : 'unknown';
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'fast_request', "No response from '{$this->_url}': {$errorDetail}");
-            if ($GLOBALS["db"]) {
-                $GLOBALS["db"]->insert(
+            if (\Synth\Bootstrap::db()) {
+                \Synth\Bootstrap::db()->insert(
                 'core_audit_request',
                     array(
                         'request' => json_encode($data),

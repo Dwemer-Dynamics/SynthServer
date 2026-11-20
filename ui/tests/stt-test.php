@@ -34,7 +34,7 @@ function sttTestJsonEncode($value): string
 
 function sttTestCollectDebugInfo(string $testFile): array
 {
- $driver = strval($GLOBALS['STTFUNCTION'] ?? 'none');
+ $driver = strval(\Synth\Bootstrap::config('STTFUNCTION') ?? 'none');
  $info = [
  'service' => $driver,
  'active_connector_id' => function_exists('synthGetGeneralSettingInt')
@@ -48,13 +48,13 @@ function sttTestCollectDebugInfo(string $testFile): array
 
  if ($driver === 'localwhisper') {
  $info['localwhisper'] = [
- 'url' => trim(strval($GLOBALS['STT']['LOCALWHISPER']['URL'] ?? '')),
- 'form_field' => trim(strval($GLOBALS['STT']['LOCALWHISPER']['FORMFIELD'] ?? 'file')),
- 'timeout_seconds' => intval($GLOBALS['STT']['LOCALWHISPER']['TIMEOUT'] ?? 60),
+ 'url' => trim(strval(\Synth\Bootstrap::config('STT')['LOCALWHISPER']['URL'] ?? '')),
+ 'form_field' => trim(strval(\Synth\Bootstrap::config('STT')['LOCALWHISPER']['FORMFIELD'] ?? 'file')),
+ 'timeout_seconds' => intval(\Synth\Bootstrap::config('STT')['LOCALWHISPER']['TIMEOUT'] ?? 60),
  ];
  }
 
- $diagnostic = $GLOBALS['STT_LAST_DIAGNOSTIC'] ?? [];
+ $diagnostic = \Synth\Bootstrap::config('STT_LAST_DIAGNOSTIC') ?? [];
  if (is_array($diagnostic) && !empty($diagnostic)) {
  $info['runtime_diagnostic'] = $diagnostic;
  }
@@ -223,7 +223,7 @@ if (php_sapi_name() != "cli") {
  }
  }
 
- echo '<div class="message">Service used: <strong>' . htmlspecialchars($GLOBALS['STTFUNCTION']) . '</strong></div>';
+ echo '<div class="message">Service used: <strong>' . htmlspecialchars(\Synth\Bootstrap::config('STTFUNCTION')) . '</strong></div>';
 
  echo '</div>'; // End of section
 
@@ -254,7 +254,7 @@ if (php_sapi_name() != "cli") {
  $transcription = stt($defaultTestFile);
  echo $transcription . PHP_EOL;
  echo "Service used: ";
- print_r($GLOBALS["STTFUNCTION"] . PHP_EOL);
+ print_r(\Synth\Bootstrap::config("STTFUNCTION") . PHP_EOL);
  if (empty($transcription)) {
  echo sttTestJsonEncode(sttTestCollectDebugInfo($defaultTestFile)) . PHP_EOL;
  }

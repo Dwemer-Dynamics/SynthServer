@@ -25,7 +25,7 @@ function synth_profile_prepare_fields(string $name, array $fields, string $histo
         throw new RuntimeException('Native profile prompt preparation failed.');
     }
     $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]['fields']=$fields;
-    return $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name];
+    return \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$name];
 }
 
 // Transfer a batch atomically: deletion means durable per-actor jobs exist, never merely that work was attempted.
@@ -122,7 +122,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='
                 .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation'])
                 .' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
-                : $GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['actor_identity_id'];
+                : \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['actor_identity_id'];
             if (intval($job['actor_identity_id'])!==$actor || $queue['profile_role']!==($narrator ? 'narrator' : 'npc')) throw new LogicException('Profile job actor mismatch.');
             if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtext($1))",['synth.profile.actor:'.$job['actor_identity_id']])) throw new RuntimeException('Unable to lock profile actor.');
             $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=$2,
@@ -165,7 +165,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 if ($name==='The Narrator') {
                     require_once dirname(__DIR__, 3).'/lib'.'/core/narrator.class.php';
                     $base=(new Narrator())->getAll();
-                } else $base=$db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name]['npc_id']));
+                } else $base=$db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
                 if (synth_profile_fields($base)!==synth_profile_fields($input['baseline_fields'])
                     || (synth_profile_visible($db,$event,$input['actor_identity_id'],$name==='The Narrator')['revision'] ?? null)!==$input['prior_revision']) {
                     throw new LogicException('Frozen profile baseline no longer valid.');

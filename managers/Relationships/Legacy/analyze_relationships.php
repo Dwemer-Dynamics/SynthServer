@@ -50,7 +50,7 @@ try {
     }
 
     $connectorStore = new LLMConnector();
-    $connectorId = (int)($GLOBALS['RELLLM_CONNECTOR'] ?? 0);
+    $connectorId = (int)(\Synth\Bootstrap::config('RELLLM_CONNECTOR') ?? 0);
     $connector = $connectorId > 0 ? $connectorStore->readOne($connectorId) : null;
     if (!$connector) {
         throw new RuntimeException('Configure the Relationship Management connector in Global Settings first.');
@@ -64,7 +64,7 @@ try {
             $npcContext[] = $label . ': ' . trim((string)$npcData[$field]);
         }
     }
-    $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? 'the Player')) ?: 'the Player';
+    $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? 'the Player')) ?: 'the Player';
     $systemPrompt = <<<'PROMPT'
 You analyze relationships for a Fallout role-playing character from recent game events.
 Return only valid JSON with this shape:
@@ -120,7 +120,7 @@ PROMPT;
         ];
     }
     $auditResult = ['changes' => $auditChanges, 'event_count' => (int)$baseline['event_count']];
-    $GLOBALS['db']->insert('core_audit_request', [
+    \Synth\Bootstrap::db()->insert('core_audit_request', [
         'request' => json_encode(['type' => 'analyze_' . $npcName, 'model' => $model, 'messages' => $messages], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'result' => json_encode($auditResult, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'connector' => 'RelationshipLLM (' . ((string)($connector['label'] ?? $model)) . ')',

@@ -11,7 +11,7 @@ require_once $root.'/lib/synth_biography.php';
 require_once $root.'/lib/fallout_content_catalog.php';
 $factories=array_column(synthLoadFalloutContentPack($root)['npcs'],'fields','npc_name');
 $apply=in_array('--apply',$argv,true);
-$db=$GLOBALS['db'];
+$db=\Synth\Bootstrap::db();
 $operation=static function($connection) use ($db,$factories,$apply): array {
 $counts=['repair'=>0,'already_repaired'=>0,'no_expertise'=>0,'customized'=>0,'ambiguous'=>0,'locked'=>0,'provenance_missing'=>0];
 $applied=0;

@@ -5,7 +5,7 @@
 
 function callConfiguredTts($textString, $mood, $stringforhash)
 {
-    $ttsFunction = strval($GLOBALS["TTSFUNCTION"] ?? '');
+    $ttsFunction = strval(\Synth\Bootstrap::config("TTSFUNCTION") ?? '');
     if ($ttsFunction === '') {
         return false;
     }
@@ -20,7 +20,7 @@ function callConfiguredTts($textString, $mood, $stringforhash)
     }
     // A provider can also be registered before this call (the test fixture driver); otherwise nothing loaded it.
     // require_once does not reassign TTS_IN_USE when switching A -> B -> A in one process.
-    $driver = $GLOBALS['SYNTH_TTS_DRIVERS'][$ttsFunction] ?? null;
+    $driver = \Synth\Bootstrap::config('SYNTH_TTS_DRIVERS')[$ttsFunction] ?? null;
     if (!is_callable($driver)) {
         return false;
     }
@@ -39,8 +39,8 @@ function synthTtsCacheKeyForLine(string $speaker, string $text): string
 function synthTtsPronunciationCurrentSpeakerScope(?array $npcData = null): array
 {
     $emptyScope = ['knowledge_tags' => [], 'npc_name' => '', 'race' => ''];
-    $npcData = $npcData ?? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null);
-    $speaker = trim(strval($GLOBALS['SYNTH_NAME'] ?? ''));
+    $npcData = $npcData ?? (\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? null);
+    $speaker = trim(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
     $npcName = is_array($npcData) ? trim(strval($npcData['npc_name'] ?? '')) : '';
     if (!is_array($npcData) || $speaker === '' || $npcName === '' || strcasecmp($speaker, $npcName) !== 0
         || synth_protocol_current_speech_role($speaker)!=='npc') {
@@ -63,10 +63,10 @@ function synthTtsPronunciationCurrentSpeakerScope(?array $npcData = null): array
 
 function canRetryNpcTtsWithFallback(): bool
 {
-    $currentNpcData = $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] ?? null;
-    $currentName = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
-    $originalVoice = trim(strval($GLOBALS["TTS_NPC_ORIGINAL_VOICE"] ?? ''));
-    $fallbackVoice = trim(strval($GLOBALS["TTS_NPC_FALLBACK_VOICE"] ?? ''));
+    $currentNpcData = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA") ?? null;
+    $currentName = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
+    $originalVoice = trim(strval(\Synth\Bootstrap::config("TTS_NPC_ORIGINAL_VOICE") ?? ''));
+    $fallbackVoice = trim(strval(\Synth\Bootstrap::config("TTS_NPC_FALLBACK_VOICE") ?? ''));
 
     if (!is_array($currentNpcData) || $currentName === '' || $originalVoice === '' || $fallbackVoice === '') {
         return false;
@@ -84,8 +84,8 @@ function canRetryNpcTtsWithFallback(): bool
 function ensureNpcTtsVoiceResolvedForCurrentSpeaker(): void
 {
     if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return;
-    $currentNpcData = $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] ?? null;
-    $currentName = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
+    $currentNpcData = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA") ?? null;
+    $currentName = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
     if (!is_array($currentNpcData) || $currentName === '' || synth_protocol_current_speech_role($currentName)!=='npc') {
         return;
     }
@@ -93,8 +93,8 @@ function ensureNpcTtsVoiceResolvedForCurrentSpeaker(): void
         return;
     }
 
-    $voiceKey = md5($currentName . '|' . trim(strval($currentNpcData['voiceid'] ?? '')) . '|' . trim(strval($GLOBALS["TTSFUNCTION"] ?? '')));
-    if (($GLOBALS['SYNTH_NPC_TTS_VOICE_RESOLVED_FOR'] ?? '') === $voiceKey) {
+    $voiceKey = md5($currentName . '|' . trim(strval($currentNpcData['voiceid'] ?? '')) . '|' . trim(strval(\Synth\Bootstrap::config("TTSFUNCTION") ?? '')));
+    if ((\Synth\Bootstrap::config('SYNTH_NPC_TTS_VOICE_RESOLVED_FOR') ?? '') === $voiceKey) {
         return;
     }
 
@@ -105,7 +105,7 @@ function ensureNpcTtsVoiceResolvedForCurrentSpeaker(): void
     Logger::phaseStart("npc_tts_voice_lazy_resolve", [
         "npc" => $currentName,
         "voiceid" => $currentNpcData['voiceid'] ?? '',
-        "connector" => $GLOBALS["TTSFUNCTION"] ?? "",
+        "connector" => \Synth\Bootstrap::config("TTSFUNCTION") ?? "",
     ]);
 
     $npcMaster = new NpcMaster();
@@ -114,7 +114,7 @@ function ensureNpcTtsVoiceResolvedForCurrentSpeaker(): void
 
     Logger::phaseEnd("npc_tts_voice_lazy_resolve", [
         "npc" => $currentName,
-        "voice" => $GLOBALS["TTS_NPC_RESOLVED_VOICE"] ?? "",
+        "voice" => \Synth\Bootstrap::config("TTS_NPC_RESOLVED_VOICE") ?? "",
         "sample" => !empty($GLOBALS["TTS_NPC_RESOLVED_VOICE_SAMPLE"] ?? '') ? "yes" : "no",
     ], "info");
 }
@@ -133,8 +133,8 @@ function callNpcTtsWithFallback($textString, $mood, $stringforhash)
         return $ttsOutput;
     }
 
-    $fallbackVoice = trim(strval($GLOBALS["TTS_NPC_FALLBACK_VOICE"] ?? ''));
-    $originalVoice = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? null;
+    $fallbackVoice = trim(strval(\Synth\Bootstrap::config("TTS_NPC_FALLBACK_VOICE") ?? ''));
+    $originalVoice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? null;
     if ($fallbackVoice === '') {
         return $ttsOutput;
     }
@@ -166,7 +166,7 @@ function synth_call_planned_npc_tts(?array $plan, string $text, string $mood, st
         $output = callNpcTtsWithFallback($text, $mood, $seed);
         if (!$output && isset($GLOBALS['TTS_FALLBACK_FNCT'])) {
             if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
-            $output = $GLOBALS['TTS_FALLBACK_FNCT']($text, $mood, $seed);
+            $output = \Synth\Bootstrap::config('TTS_FALLBACK_FNCT')($text, $mood, $seed);
         }
         return $output;
     };
@@ -184,21 +184,21 @@ function synth_call_planned_npc_tts(?array $plan, string $text, string $mood, st
  */
 function saveCurrentVoiceSettings() {
     return [
-        'tts' => isset($GLOBALS['TTS']) ? $GLOBALS['TTS'] : [],
+        'tts' => isset($GLOBALS['TTS']) ? \Synth\Bootstrap::config('TTS') : [],
         'has_tts_function' => array_key_exists('TTSFUNCTION', $GLOBALS),
-        'tts_function' => $GLOBALS['TTSFUNCTION'] ?? null,
+        'tts_function' => \Synth\Bootstrap::config('TTSFUNCTION') ?? null,
         'has_tts_function_alias' => array_key_exists('TTS_FUNCTION', $GLOBALS),
-        'tts_function_alias' => $GLOBALS['TTS_FUNCTION'] ?? null,
+        'tts_function_alias' => \Synth\Bootstrap::config('TTS_FUNCTION') ?? null,
         'has_current_tts_connector_id' => array_key_exists('SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID', $GLOBALS),
-        'current_tts_connector_id' => $GLOBALS['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'] ?? null,
+        'current_tts_connector_id' => \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID') ?? null,
         'has_patch_override_voice' => array_key_exists('PATCH_OVERRIDE_VOICE', $GLOBALS),
-        'patch_override_voice' => $GLOBALS['PATCH_OVERRIDE_VOICE'] ?? null,
+        'patch_override_voice' => \Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? null,
         'has_patch_override_voice_id' => array_key_exists('PATCH_OVERRIDE_VOICE_ID', $GLOBALS),
-        'patch_override_voice_id' => $GLOBALS['PATCH_OVERRIDE_VOICE_ID'] ?? null,
+        'patch_override_voice_id' => \Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE_ID') ?? null,
         'has_patch_override_tts_language' => array_key_exists('PATCH_OVERRIDE_TTS_LANGUAGE', $GLOBALS),
-        'patch_override_tts_language' => $GLOBALS['PATCH_OVERRIDE_TTS_LANGUAGE'] ?? null,
+        'patch_override_tts_language' => \Synth\Bootstrap::config('PATCH_OVERRIDE_TTS_LANGUAGE') ?? null,
         'has_patch_override_tts_options' => array_key_exists('PATCH_OVERRIDE_TTS_OPTIONS', $GLOBALS),
-        'patch_override_tts_options' => $GLOBALS['PATCH_OVERRIDE_TTS_OPTIONS'] ?? null,
+        'patch_override_tts_options' => \Synth\Bootstrap::config('PATCH_OVERRIDE_TTS_OPTIONS') ?? null,
     ];
 }
 
@@ -207,7 +207,7 @@ function applyVoiceIdToTtsGlobals(string $voiceid): void
     require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "voice_clone_resolver.php");
 
     $voiceReference = synth_resolve_tts_voice_reference($voiceid, [
-        'actor_name' => $GLOBALS["SYNTH_NAME"] ?? '',
+        'actor_name' => \Synth\Bootstrap::config("SYNTH_NAME") ?? '',
     ]);
     $GLOBALS['PATCH_OVERRIDE_VOICE'] = $voiceReference;
     unset($GLOBALS['PATCH_OVERRIDE_VOICE_ID']);
@@ -316,11 +316,11 @@ function restoreVoiceSettings($savedSettings) {
 
 function synth_generate_deferred_tts(): void
 {
-    if (empty($GLOBALS["SYNTH_DEFERRED_TTS"]) || !is_array($GLOBALS["SYNTH_DEFERRED_TTS"])) {
+    if (empty($GLOBALS["SYNTH_DEFERRED_TTS"]) || !is_array(\Synth\Bootstrap::config("SYNTH_DEFERRED_TTS"))) {
         return;
     }
 
-    $pending = $GLOBALS["SYNTH_DEFERRED_TTS"];
+    $pending = \Synth\Bootstrap::config("SYNTH_DEFERRED_TTS");
     $GLOBALS["SYNTH_DEFERRED_TTS"] = [];
 
     foreach ($pending as $entry) {
@@ -331,7 +331,7 @@ function synth_generate_deferred_tts(): void
         if (synth_npc_tts_status_key($cacheKey) === "") {
             $cacheKey = md5($cacheSeed);
         }
-        $speaker = trim((string)($entry["speaker"] ?? ($GLOBALS["SYNTH_NAME"] ?? "")));
+        $speaker = trim((string)($entry["speaker"] ?? (\Synth\Bootstrap::config("SYNTH_NAME") ?? "")));
         if ($text === "" || $cacheSeed === "" || $cacheKey === "") {
             continue;
         }
@@ -339,7 +339,7 @@ function synth_generate_deferred_tts(): void
         $phaseName = "npc_tts_deferred:" . substr(md5($speaker . "|" . $cacheKey), 0, 8);
         Logger::phaseStart($phaseName, [
             "speaker" => $speaker,
-            "connector" => $entry["tts_function"] ?? ($GLOBALS["TTSFUNCTION"] ?? ""),
+            "connector" => $entry["tts_function"] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? ""),
             "cache_key" => $cacheKey,
             "chars" => strlen($text),
         ]);
@@ -355,7 +355,7 @@ function synth_generate_deferred_tts(): void
                 'generation' => $entry['generation'] ?? null,
                 'speaker_identity_id' => $entry['speaker_identity_id'] ?? null,
             ];
-            $published = synth_register_npc_tts_media($cacheKey, $GLOBALS['db'] ?? null, $correlation, null, [
+            $published = synth_register_npc_tts_media($cacheKey, \Synth\Bootstrap::db() ?? null, $correlation, null, [
                 'speaker_identity'=>$entry['speaker_identity'] ?? null,'speaker'=>$speaker,'output'=>$ttsOutput,
             ]);
             if ($published !== null) {
@@ -393,7 +393,7 @@ function synth_finish_immediate_npc_tts(string $cacheSeed, $output, string $spea
 {
     $context=synth_protocol_response_context();
     $identity=synth_protocol_response_speaker($speaker);
-    $db=$GLOBALS['db'] ?? null;
+    $db=\Synth\Bootstrap::db() ?? null;
     $correlation=[
         'request_id'=>$context['request_id'] ?? '', 'turn_id'=>$context['turn_id'] ?? '',
         'generation'=>$context['generation'] ?? null, 'utterance_id'=>$utteranceId,
@@ -463,12 +463,12 @@ function synth_spawn_deferred_npc_tts_worker(array $entry): bool
         return false;
     }
 
-    $owner=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $owner=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && synth_protocol_owns_dialogue_turn($owner)
         && in_array($entry['tts_plan']['inputs']['TTSFUNCTION'] ?? '',['xtts-fastapi','chatterbox','pockettts','cartesia','inworld'],true)) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_tts_worker.php';
         $entry['cache_seed']=$cacheSeed;$entry['cache_key']=$cacheKey;
-        $id=synth_tts_enqueue_job($GLOBALS['db'],$entry,$root);
+        $id=synth_tts_enqueue_job(\Synth\Bootstrap::db(),$entry,$root);
         synth_tts_launch_job($id,$root);
         return true;
     }
@@ -480,7 +480,7 @@ function synth_spawn_deferred_npc_tts_worker(array $entry): bool
 
     $jobId = $cacheKey;
     if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
-        $entry['protocol_event'] = $GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+        $entry['protocol_event'] = \Synth\Bootstrap::requestEvent()['json'];
         $owner = $entry['protocol_event'];
         $jobId .= '-' . substr(hash('sha256', $owner['session_id'] . '|' . $owner['generation']
             . '|' . $owner['turn_id']), 0, 24);
@@ -493,14 +493,14 @@ function synth_spawn_deferred_npc_tts_worker(array $entry): bool
     $entry['cache_key'] = $cacheKey;
     $entry['engine_root'] = $root;
     if (trim(strval($entry['request_id'] ?? '')) === '') {
-        $entry['request_id'] = class_exists('Logger') ? Logger::getRequestId() : ($GLOBALS['SYNTH_REQUEST_ID'] ?? '');
+        $entry['request_id'] = class_exists('Logger') ? Logger::getRequestId() : (\Synth\Bootstrap::config('SYNTH_REQUEST_ID') ?? '');
     }
-    $entry['turn_id'] = trim(strval($entry['turn_id'] ?? ($GLOBALS['SYNTH_TURN_ID'] ?? '')));
-    $entry['utterance_id'] = trim(strval($entry['utterance_id'] ?? ($GLOBALS['SCRIPTLINE_UTTERANCE_ID'] ?? '')));
-    $entry['generation'] = intval($entry['generation'] ?? ($GLOBALS['SYNTH_GENERATION'] ?? 0));
-    $entry['npc_data'] = $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null;
-    $entry['profile_data'] = $GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA'] ?? null;
-    $entry['connector_data'] = $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA'] ?? null;
+    $entry['turn_id'] = trim(strval($entry['turn_id'] ?? (\Synth\Bootstrap::config('SYNTH_TURN_ID') ?? '')));
+    $entry['utterance_id'] = trim(strval($entry['utterance_id'] ?? (\Synth\Bootstrap::config('SCRIPTLINE_UTTERANCE_ID') ?? '')));
+    $entry['generation'] = intval($entry['generation'] ?? (\Synth\Bootstrap::config('SYNTH_GENERATION') ?? 0));
+    $entry['npc_data'] = \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? null;
+    $entry['profile_data'] = \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_PROFILE_DATA') ?? null;
+    $entry['connector_data'] = \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA') ?? null;
     synth_write_npc_tts_status($cacheKey, 'pending', [
         'speaker' => $entry['speaker'] ?? '',
         'request_id' => $entry['request_id'],

@@ -140,7 +140,7 @@ function synth_diary_prepare_player($db): ?int
         if (!synth_diary_automation_available($db,$event,$binding,'player',$automation)) return null;
         $settings=synth_diary_resolve_settings('player',$player,[],$GLOBALS,
             static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
-            static fn()=>synthResolveDiaryConnectorName($GLOBALS['CONNECTORS_DIARY'] ?? null,false));
+            static fn()=>synthResolveDiaryConnectorName(\Synth\Bootstrap::config('CONNECTORS_DIARY') ?? null,false));
         if ($settings===null) return null;
         return synth_diary_capture_character($db,null,$settings['prompt'],$settings['connector_id'],$settings['max_tokens'],
             $settings['history_limit'],$settings['prompt_head'],'player',$settings['connector_source']==='legacy_diary' ? $settings['connector_driver'] : null,$automation);

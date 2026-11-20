@@ -33,7 +33,7 @@ function synthPlayer2HealthNormalizeUrl(string $url): string
 
 function synthPlayer2HealthGetOption(string $id, string $default = ''): string
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         return $default;
     }
@@ -45,7 +45,7 @@ function synthPlayer2HealthGetOption(string $id, string $default = ''): string
 
 function synthPlayer2HealthSetOption(string $id, string $value): bool
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         return false;
     }
@@ -156,7 +156,7 @@ function synthPlayer2HealthRequest(string $url): array
 
 function synthPlayer2HealthTick(?int $now = null, ?callable $transport = null): bool
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         return false;
     }

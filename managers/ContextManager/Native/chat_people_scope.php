@@ -140,7 +140,7 @@ function synthGetCurrentTurnPeopleSnapshot()
         return "";
     }
 
-    return normalizePeoplePipeList(parsePeoplePipeList($GLOBALS["SYNTH_TURN_PEOPLE_SNAPSHOT"]));
+    return normalizePeoplePipeList(parsePeoplePipeList(\Synth\Bootstrap::config("SYNTH_TURN_PEOPLE_SNAPSHOT")));
 }
 
 function normalizeDialogTextForComparison($text)
@@ -269,13 +269,13 @@ function shouldIncludeActorNameInPeopleList($name)
 
 function isWhisperExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)$GLOBALS["SYNTH_EXECUTION_MODE"])) : "";
+    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "WHISPER");
 }
 
 function isCloseExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)$GLOBALS["SYNTH_EXECUTION_MODE"])) : "";
+    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "CLOSE");
 }
 
@@ -286,7 +286,7 @@ function isPrivateConversationExecutionMode()
 
 function isShoutExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)$GLOBALS["SYNTH_EXECUTION_MODE"])) : "";
+    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "SHOUT");
 }
 
@@ -371,7 +371,7 @@ function parseDialogueListenerNames($listenerName)
 
 function synthGetRechatMode()
 {
-    $mode = strtolower(trim((string)($GLOBALS["RECHAT_MODE"] ?? "")));
+    $mode = strtolower(trim((string)(\Synth\Bootstrap::config("RECHAT_MODE") ?? "")));
     if (in_array($mode, ["tight", "conversational", "group", "random"], true)) {
         return $mode;
     }
@@ -390,7 +390,7 @@ function synthBuildRechatModeSessionKey(array $members)
     sort($members, SORT_NATURAL | SORT_FLAG_CASE);
 
     if (empty($members)) {
-        $members[] = trim((string)($GLOBALS["SYNTH_NAME"] ?? "rechat"));
+        $members[] = trim((string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? "rechat"));
     }
 
     return md5(implode("|", $members) . "_" . floor(time() / 120));
@@ -433,7 +433,7 @@ function normalizeDialogueListenerName($listenerName)
     }
 
     if (strcasecmp($listenerName, "Sole Survivor") === 0 && !empty($GLOBALS["PLAYER_NAME"])) {
-        return trim((string)$GLOBALS["PLAYER_NAME"]);
+        return trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
 
     if (function_exists('synthNormalizeNarratorRoleplayActorName')) {
@@ -450,7 +450,7 @@ function isPlayerDialogueListenerName($listenerName)
         return false;
     }
 
-    $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)$GLOBALS["PLAYER_NAME"]) : "";
+    $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
     if ($playerName !== "" && strcasecmp($listenerName, $playerName) === 0) {
         return true;
     }
@@ -466,13 +466,13 @@ function synthGetStrictRechatListenerName()
 
     if (
         !isset($GLOBALS["gameRequest"]) ||
-        !is_array($GLOBALS["gameRequest"]) ||
-        !in_array(($GLOBALS["gameRequest"][0] ?? ""), ["rechat", "continue"], true)
+        !is_array(\Synth\Bootstrap::gameRequest()) ||
+        !in_array((\Synth\Bootstrap::gameRequest()[0] ?? ""), ["rechat", "continue"], true)
     ) {
         return "";
     }
 
-    $listenerName = normalizeDialogueListenerName($GLOBALS["RECHAT_PREVIOUS_SPEAKER"] ?? "");
+    $listenerName = normalizeDialogueListenerName(\Synth\Bootstrap::config("RECHAT_PREVIOUS_SPEAKER") ?? "");
     if ($listenerName === "") {
         return "";
     }
@@ -486,11 +486,11 @@ function synthGetStrictDirectedPlayerListenerName()
         return "";
     }
 
-    if (!isset($GLOBALS["gameRequest"]) || !is_array($GLOBALS["gameRequest"])) {
+    if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
         return "";
     }
 
-    if (!in_array(($GLOBALS["gameRequest"][0] ?? ""), ["inputtext", "inputtext_s"], true)) {
+    if (!in_array((\Synth\Bootstrap::gameRequest()[0] ?? ""), ["inputtext", "inputtext_s"], true)) {
         return "";
     }
 
@@ -498,7 +498,7 @@ function synthGetStrictDirectedPlayerListenerName()
         return "";
     }
 
-    return normalizeDialogueListenerName($GLOBALS["PLAYER_NAME"] ?? "");
+    return normalizeDialogueListenerName(\Synth\Bootstrap::config("PLAYER_NAME") ?? "");
 }
 
 function getNormalizedNearbyDialogueListenerNames($excludeFarAway=true)
@@ -723,7 +723,7 @@ function synthRechatActorBlockReason($actorName, $npcData = null)
 function synthParseServerSideRechatPayload($rawData)
 {
     $payload = [
-        "speaker" => trim((string)($GLOBALS["SYNTH_NAME"] ?? "")),
+        "speaker" => trim((string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? "")),
         "listener_hint" => "",
         "rechat_target_hint" => "",
         "origin_line" => trim((string)$rawData),
@@ -833,7 +833,7 @@ function synthParseServerSideRechatPayload($rawData)
 
 function synthLatestNearbyActorStatusMapForRechat(): array
 {
-    $db = $GLOBALS["db"] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db || !method_exists($db, "fetchAll")) {
         return [];
     }
@@ -981,7 +981,7 @@ function synthRechatNearbyActorBlockReason(
 
 function synthResolveServerSideRechatTarget(array $payload)
 {
-    $speakerName = normalizeDialogueListenerName($payload["speaker"] ?? ($GLOBALS["SYNTH_NAME"] ?? ""));
+    $speakerName = normalizeDialogueListenerName($payload["speaker"] ?? (\Synth\Bootstrap::config("SYNTH_NAME") ?? ""));
     $listenerHint = normalizeDialogueListenerName($payload["listener_hint"] ?? "");
     $rechatTargetHint = normalizeDialogueListenerName($payload["rechat_target_hint"] ?? "");
     $configuredRechatMode = synthGetRechatMode();
@@ -1128,7 +1128,7 @@ function synthBuildServerSideRechatSessionKey(array $resolvedTarget)
     sort($members, SORT_NATURAL | SORT_FLAG_CASE);
 
     if (empty($members)) {
-        $members[] = trim((string)($resolvedTarget["speaker"] ?? $GLOBALS["SYNTH_NAME"] ?? "rechat"));
+        $members[] = trim((string)($resolvedTarget["speaker"] ?? \Synth\Bootstrap::config("SYNTH_NAME") ?? "rechat"));
     }
 
     return md5("members_" . implode("|", $members));
@@ -1203,7 +1203,7 @@ function synthSwitchActiveNpcProfile($npcName)
         $GLOBALS["active_profile"] = $currentNpcData['md5'];
     }
 
-    $partyConf = isset($GLOBALS["CACHE_PARTY"]) ? $GLOBALS["CACHE_PARTY"] : DataGetCurrentPartyConf();
+    $partyConf = isset($GLOBALS["CACHE_PARTY"]) ? \Synth\Bootstrap::config("CACHE_PARTY") : DataGetCurrentPartyConf();
     $GLOBALS["CACHE_PARTY"] = $partyConf;
     $currentParty = json_decode($partyConf, true);
     $GLOBALS["IS_NPC"] = !(is_array($currentParty) && in_array($npcName, array_keys($currentParty), true));
@@ -1436,7 +1436,7 @@ function synthBuildChatDeliveryStateSql($column = 'delivery_state', ?array $stat
 
 function lookupSpatialCompanionsFromSpeech($speakerName, $listenerName = "", $utterance = "")
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $speakerName = trim((string)$speakerName);
     if ($speakerName === "") {
@@ -1623,7 +1623,7 @@ function isNarratorPrivatePlayerAlias($targetName, $listenerName = "")
         return true;
     }
 
-    $playerName = trim((string)($GLOBALS["PLAYER_NAME"] ?? "Player"));
+    $playerName = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player"));
     if ($playerName !== "" && strcasecmp($targetName, $playerName) === 0) {
         return true;
     }
@@ -1706,7 +1706,7 @@ function buildNarratorPrivatePeopleForEvent($eventType, $eventData, $listenerNam
         return "";
     }
 
-    $playerName = trim((string)($GLOBALS["PLAYER_NAME"] ?? "Player"));
+    $playerName = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player"));
     $participants = ["The Narrator"];
     if ($playerName !== "") {
         $participants[] = $playerName;
@@ -1749,7 +1749,7 @@ function buildNarratorSharedPeopleForEvent($eventType, $eventData, $listenerName
     if ($eventType === "narrator_inputtext") {
         $speakerName = extractSpeakerNameFromInputEvent($eventData);
         if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
-            $speakerName = trim((string)$GLOBALS["PLAYER_NAME"]);
+            $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
         }
         if ($speakerName !== "") {
             appendUniqueActorName($participants, $speakerName);
@@ -1872,7 +1872,7 @@ function buildStrictFallbackPeopleForEvent($eventType, $eventData, $listenerName
 
 function lookupLatestSpatialCompanionsByParticipant($participantName, $maxAgeSeconds = 900)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $participantName = trim((string)$participantName);
     if ($participantName === "") {
@@ -1924,7 +1924,7 @@ function lookupLatestSpatialCompanionsByParticipant($participantName, $maxAgeSec
 
 function lookupConversationPeopleSourceOfTruth($speakerName, $targetName, $maxAgeSeconds = 300)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $speakerName = trim((string)$speakerName);
     $targetName = trim((string)$targetName);
@@ -2256,7 +2256,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
         $participants = [];
         $speakerName = extractSpeakerNameFromInputEvent($eventData);
         if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
-            $speakerName = trim((string)$GLOBALS["PLAYER_NAME"]);
+            $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
         }
         if ($speakerName !== "") {
             appendUniqueActorName($participants, $speakerName);
@@ -2287,7 +2287,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
     // Include the speaker so player-directed lines remain attributable in people context.
     $speakerName = extractSpeakerNameFromInputEvent($eventData);
     if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
-        $speakerName = trim((string)$GLOBALS["PLAYER_NAME"]);
+        $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
     if ($speakerName !== "" && !in_array($speakerName, $targetNames, true)) {
         $targetNames[] = $speakerName;
@@ -2366,7 +2366,7 @@ function filterHistoricContextForNarratorVisibility(array $contextDataHistoric, 
 {
     $narratorReader=synth_protocol_response_is_narrator(normalizeActorNameForComparison($actorName));
     $hideNarratorDialogue = !empty($GLOBALS["HIDE_NARRATOR_DIALOGUE"]);
-    $nativeHistory=($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2;
+    $nativeHistory=(\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2;
 
     $filtered=array_values(array_filter($contextDataHistoric, static function ($entry) use ($hideNarratorDialogue,$narratorReader,$nativeHistory) {
         if ($narratorReader || !is_array($entry)) {

@@ -463,7 +463,7 @@ function profileConnectorTestsTestLlm(int $connectorId): array
     if (!preg_match('/^[A-Za-z0-9_]+$/', $driver)) {
         return profileConnectorTestsProblemResult('llm', $connectorId, 'fail', 'LLM connector driver has an invalid name', $details);
     }
-    if (!file_exists($GLOBALS["ENGINE_PATH"] . "connector" . DIRECTORY_SEPARATOR . $driver . ".php")) {
+    if (!file_exists(\Synth\Bootstrap::enginePath() . "connector" . DIRECTORY_SEPARATOR . $driver . ".php")) {
         return profileConnectorTestsProblemResult('llm', $connectorId, 'fail', "LLM driver file '{$driver}.php' was not found", $details);
     }
 
@@ -482,11 +482,11 @@ function profileConnectorTestsTestLlm(int $connectorId): array
 
     // Connector response parsing uses the shared mood, animation, and
     // expression helpers that are present during normal request handling.
-    require_once($GLOBALS["ENGINE_PATH"] . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
+    require_once(\Synth\Bootstrap::enginePath() . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 
     $run = profileConnectorTestsRunWithCapturedErrors(function () use ($llm, $connector, $driver) {
         $GLOBALS["SYNTH_NAME"] = 'SYNTH Profile Test';
-        $GLOBALS["PLAYER_NAME"] = $GLOBALS["PLAYER_NAME"] ?? 'Sole Survivor';
+        $GLOBALS["PLAYER_NAME"] = \Synth\Bootstrap::config("PLAYER_NAME") ?? 'Sole Survivor';
         $GLOBALS["DEBUG_DATA"] = [];
         $GLOBALS["FUNCTIONS_ARE_ENABLED"] = false;
         $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
@@ -494,7 +494,7 @@ function profileConnectorTestsTestLlm(int $connectorId): array
         $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = '';
 
         $llm->setOldGlobals($connector);
-        require_once($GLOBALS["ENGINE_PATH"] . "connector" . DIRECTORY_SEPARATOR . $driver . ".php");
+        require_once(\Synth\Bootstrap::enginePath() . "connector" . DIRECTORY_SEPARATOR . $driver . ".php");
         $handler = new $driver();
         $contextData = [
             ['role' => 'system', 'content' => 'You are a connection health check. Reply with OK.'],
@@ -599,15 +599,15 @@ function profileConnectorTestsTestTts(int $connectorId): array
         }
     }
 
-    require_once($GLOBALS["ENGINE_PATH"] . "lib" . DIRECTORY_SEPARATOR . "model_dynmodel.php");
-    require_once($GLOBALS["ENGINE_PATH"] . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
-    require_once($GLOBALS["ENGINE_PATH"] . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php");
-    require_once($GLOBALS["ENGINE_PATH"] . "prompt.includes.php");
+    require_once(\Synth\Bootstrap::enginePath() . "lib" . DIRECTORY_SEPARATOR . "model_dynmodel.php");
+    require_once(\Synth\Bootstrap::enginePath() . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
+    require_once(\Synth\Bootstrap::enginePath() . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php");
+    require_once(\Synth\Bootstrap::enginePath() . "prompt.includes.php");
 
     $run = profileConnectorTestsRunWithCapturedErrors(function () use ($tts, $connector) {
-        $originalTtsFunction = $GLOBALS["TTSFUNCTION"] ?? null;
-        $originalName = $GLOBALS["SYNTH_NAME"] ?? null;
-        $originalTrack = $GLOBALS["TRACK"] ?? [];
+        $originalTtsFunction = \Synth\Bootstrap::config("TTSFUNCTION") ?? null;
+        $originalName = \Synth\Bootstrap::config("SYNTH_NAME") ?? null;
+        $originalTrack = \Synth\Bootstrap::config("TRACK") ?? [];
 
         try {
             $tts->setOldGlobals($connector);
@@ -618,8 +618,8 @@ function profileConnectorTestsTestTts(int $connectorId): array
             $GLOBALS["SCRIPTLINE_LISTENER"] = '';
             $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
             $GLOBALS["DEBUG_DATA"] = [];
-            $GLOBALS["FEATURES"] = $GLOBALS["FEATURES"] ?? [];
-            $GLOBALS["FEATURES"]["MISC"] = $GLOBALS["FEATURES"]["MISC"] ?? [];
+            $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
+            $GLOBALS["FEATURES"]["MISC"] = \Synth\Bootstrap::config("FEATURES")["MISC"] ?? [];
             $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
             $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
             $GLOBALS["PATCH_OVERRIDE_VOICE"] = 'TheNarrator';
@@ -627,7 +627,7 @@ function profileConnectorTestsTestTts(int $connectorId): array
 
             returnLines(['SYNTH profile connector test.'], false);
 
-            $generated = $GLOBALS["TRACK"]["FILES_GENERATED"][0] ?? '';
+            $generated = \Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0] ?? '';
             return profileConnectorTestsString($generated);
         } finally {
             if ($originalTtsFunction === null) {

@@ -5,7 +5,7 @@ require_once __DIR__.'/synth_memory_worker.php';
 // Discover one completed native turn, reserve its session briefly, then do all provider work outside SQL locks.
 function synth_memory_dispatch($db, ?callable $generate = null): ?int
 {
-    $settings = $GLOBALS['FEATURES']['MEMORY_EMBEDDING'] ?? [];
+    $settings = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING'] ?? [];
     $automatic = $settings['AUTO_CREATE_SUMMARYS'] ?? true;
     if ($automatic === false || in_array(strtolower(trim(strval($automatic))),['0','false','off','no'],true)) return null;
     if (!$db->isTransactionIdle()) throw new LogicException('Memory dispatch requires an idle database connection');

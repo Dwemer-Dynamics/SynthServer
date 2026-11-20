@@ -7,20 +7,20 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_autochat.php';
 // echoed: that turn publishes only its accepted generated line (synth_autochat_emit_player_line).
 function synth_emit_native_player_transcript(array $gameRequest): bool
 {
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || synth_autochat_selected($event)
         || !synth_protocol_owns_dialogue_turn($event)
         || !in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
         || !in_array($gameRequest[0] ?? '', ['inputtext', 'inputtext_s', 'narrator_inputtext'], true)
-        || !($GLOBALS['PLAYER_TTS_WRITE_OUTPUT'] ?? true)
+        || !(\Synth\Bootstrap::config('PLAYER_TTS_WRITE_OUTPUT') ?? true)
         || synthShouldSkipPlayerTtsForRequest($gameRequest[0], $gameRequest[3] ?? '')) return false;
     synth_protocol_assert_request_active();
     $owner = json_encode(array_intersect_key($event,
         array_flip(['session_id', 'request_id', 'generation', 'turn_id', 'context_sequence'])));
-    if (($GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER'] ?? null) === $owner) return true;
+    if ((\Synth\Bootstrap::config('SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER') ?? null) === $owner) return true;
     $subtitle = synthExtractPlayerTtsDialogueLine($gameRequest[3] ?? '');
     if (function_exists('formatPlayerSubtitleText'))
-        $subtitle = formatPlayerSubtitleText($subtitle, $GLOBALS['PLAYER_NAME'] ?? null);
+        $subtitle = formatPlayerSubtitleText($subtitle, \Synth\Bootstrap::config('PLAYER_NAME') ?? null);
     if ($subtitle === '') return false;
     synth_buffer_speech_response_line('Player', $subtitle, '', '__player_text_only', '', '', 1.0, speechRole: 'player');
     $GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER'] = $owner;
@@ -89,7 +89,7 @@ if (!function_exists('synthExtractPlayerTtsDialogueLine')) {
 if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
     function synthShouldSkipPlayerTtsForRequest($eventType = null, $eventData = null): bool
     {
-        $eventType = strtolower(trim((string)($eventType ?? ($GLOBALS['gameRequest'][0] ?? ''))));
+        $eventType = strtolower(trim((string)($eventType ?? (\Synth\Bootstrap::gameRequest()[0] ?? ''))));
         if (!in_array($eventType, ['inputtext', 'inputtext_s', 'narrator_inputtext'], true)) {
             return false;
         }
@@ -98,13 +98,13 @@ if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
             return true;
         }
 
-        $executionMode = strtoupper(trim((string)($GLOBALS['SYNTH_EXECUTION_MODE'] ?? '')));
+        $executionMode = strtoupper(trim((string)(\Synth\Bootstrap::config('SYNTH_EXECUTION_MODE') ?? '')));
         if (in_array($executionMode, ['DIRECTOR', 'INJECTION_LOG', 'INJECTION_CHAT'], true)) {
             return true;
         }
 
         if ($eventData === null && isset($GLOBALS['gameRequest'][3])) {
-            $eventData = $GLOBALS['gameRequest'][3];
+            $eventData = \Synth\Bootstrap::gameRequest()[3];
         }
 
         if (!is_string($eventData) || trim($eventData) === '') {
@@ -114,8 +114,8 @@ if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
         $queryParts = function_exists('synth_parse_payload_fields')
             ? synth_parse_payload_fields($eventData)
             : [];
-        if (empty($queryParts) && isset($GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS']) && is_array($GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS'])) {
-            $queryParts = $GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS'];
+        if (empty($queryParts) && isset($GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS']) && is_array(\Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS'))) {
+            $queryParts = \Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS');
         }
         $skipValue = strtolower(trim(strval($queryParts['skip_player_tts'] ?? '')));
         return in_array($skipValue, ['1', 'true', 'yes'], true);
@@ -133,7 +133,7 @@ if (!function_exists("playerMenuTtsCachePath")) {
     function playerMenuTtsCachePath($line)
     {
         $subtitle = function_exists('formatPlayerSubtitleText')
-            ? formatPlayerSubtitleText((string)$line, $GLOBALS["PLAYER_NAME"] ?? null)
+            ? formatPlayerSubtitleText((string)$line, \Synth\Bootstrap::config("PLAYER_NAME") ?? null)
             : trim(preg_replace('/\s+/', ' ', str_replace(["\r", "\n", "|"], " ", (string)$line)));
 
         if (function_exists('synth_tts_soundcache_path')) {
@@ -177,7 +177,7 @@ if (!function_exists("emitPlayerMenuTextOnlyLine")) {
     function emitPlayerMenuTextOnlyLine($line)
     {
         $subtitle = function_exists('formatPlayerSubtitleText')
-            ? formatPlayerSubtitleText((string)$line, $GLOBALS["PLAYER_NAME"] ?? null)
+            ? formatPlayerSubtitleText((string)$line, \Synth\Bootstrap::config("PLAYER_NAME") ?? null)
             : trim(preg_replace('/\s+/', ' ', str_replace(["\r", "\n", "|"], " ", (string)$line)));
         if ($subtitle === "") {
             return;

@@ -75,13 +75,13 @@ function synth_character_constrain_lines(array $lines, string $policy, bool &$em
 
 function synth_character_current_speech_policy(): string
 {
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)!==2
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)!==2
         || !function_exists('synth_protocol_current_speech_role')
         || synth_protocol_current_speech_role()!=='npc'
         || !function_exists('synth_protocol_response_speaker')
         || !function_exists('synth_protocol_prompt_snapshot')) return '';
-    $identity=synth_protocol_response_speaker(strval($GLOBALS['SYNTH_NAME'] ?? ''),'npc');
-    $snapshot=synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+    $identity=synth_protocol_response_speaker(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''),'npc');
+    $snapshot=synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if (!is_array($identity) || !is_array($snapshot)) return '';
     $state=synth_character_owned_state($snapshot['actor_states'] ?? [],$identity);
     return synth_character_speech_policy($state ?? ['actor'=>$identity]);

@@ -6,7 +6,7 @@
 function PackIntoSummary($onlyMissingDiary=false)
 {
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if ($onlyMissingDiary) {
         $results = $db->query("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
@@ -23,15 +23,15 @@ function PackIntoSummary($onlyMissingDiary=false)
         $maxRow=0;
 
     } else {
-        $lastGameTsRecord = $GLOBALS["db"]->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
-        $results = $GLOBALS["db"]->fetchAll("select gamets_truncated from core_memory where source_type='summary' order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
+        $lastGameTsRecord = \Synth\Bootstrap::db()->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
+        $results = \Synth\Bootstrap::db()->fetchAll("select gamets_truncated from core_memory where source_type='summary' order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
 
         $maxRow = isset($results[0]["gamets_truncated"]) ? intval($results[0]["gamets_truncated"]) : 0;
         $minRow = intval($lastGameTsRecord["gamets"]);
         $minRowTs = intval($lastGameTsRecord["gamets"] -  ( 1 /0.0000024));
 
-        $pfi = intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
-        $minEventsPerSummary = intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_MIN_EVENTS"] ?? 5);
+        $pfi = intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
+        $minEventsPerSummary = intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_MIN_EVENTS"] ?? 5);
         if ($minEventsPerSummary < 1) {
             $minEventsPerSummary = 1;
         }
@@ -193,7 +193,7 @@ function PackIntoSummary($onlyMissingDiary=false)
 function DataRechatHistory()
 {
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
     // Include only actual rechat turns. Player input is not part of the rechat budget.
     // Keep the row payload so callers can scope the count to the current speaker.
     $lastRechat=$db->fetchAll("select type,data,gamets FROM  core_context_event a  WHERE type in ('rechat','narration')
@@ -228,7 +228,7 @@ function extractDialogueTarget($string) {
 }
 
 function DataGetTrackedStat($stat) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     // Try to get from core_player table first
     try {
@@ -293,7 +293,7 @@ function synthPartyRowsToConf(array $guys)
 
 function synthGetCurrentPartyFromConfOpts()
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $results = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'CurrentParty'));
     if (!is_array($results) || empty($results)) {
@@ -322,18 +322,18 @@ function DataGetCurrentPartyConf() {
 function DataBeingsInRange()
 {
     if (isset($GLOBALS["CACHE_BEINGS_IN_RANGE"])) {
-        return $GLOBALS["CACHE_BEINGS_IN_RANGE"];
+        return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE");
     }
 
     $names = synthNearbyActorNamesFromPayload(false, true);
     $GLOBALS["CACHE_BEINGS_IN_RANGE"] = empty($names) ? "" : "|" . implode("|", $names) . "|";
-    return $GLOBALS["CACHE_BEINGS_IN_RANGE"];
+    return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE");
 }
 
 function DataBeingsInRangeExcluding($excludeNPC="", $excludePlayer=true)
 {
     if (isset($GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer])) {
-        return $GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer];
+        return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
     }
 
     if (trim($excludeNPC) > "")
@@ -353,13 +353,13 @@ function DataBeingsInRangeExcluding($excludeNPC="", $excludePlayer=true)
     }
     $beingsFormatted=implode("|",$beingsArrayNew);
     $GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "|".$beingsFormatted."|";
-    return $GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer];
+    return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
 }
 
 function DataBeingsOrDeathsInRangeExcluding($excludeNPC="", $excludePlayer=true)
 {
     if (isset($GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer])) {
-        return $GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer];
+        return \Synth\Bootstrap::config("CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
     }
 
     if (trim($excludeNPC) > "")
@@ -379,7 +379,7 @@ function DataBeingsOrDeathsInRangeExcluding($excludeNPC="", $excludePlayer=true)
     }
     $beingsFormatted=implode("|",$beingsArrayNew);
     $GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "|".$beingsFormatted."|";
-    return $GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer];
+    return \Synth\Bootstrap::config("CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
 }
 
 function synthDataActorStatusSuffixPattern()
@@ -419,7 +419,7 @@ function synthDataActorStatusBlocksCloseRange($token)
 
 function synthLatestNearbyActorsPayload()
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
@@ -505,7 +505,7 @@ function synthNearbyActorNamesFromPayload($excludeFarAway = false, $includePlaye
     }));
 
     if (!$includePlayer) {
-        $player = trim((string)($GLOBALS["PLAYER_NAME"] ?? ""));
+        $player = trim((string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ""));
         if ($player !== "") {
             $names = array_values(array_filter($names, static function ($name) use ($player) {
                 return strcasecmp($name, $player) !== 0;
@@ -519,8 +519,8 @@ function synthNearbyActorNamesFromPayload($excludeFarAway = false, $includePlaye
 function DataBeingsInCloseRange($excludeFarAway=false)
 {
     if (!empty($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"]) &&
-        is_array($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"])) {
-        return "|" . implode("|", array_values($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"])) . "|";
+        is_array(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))) {
+        return "|" . implode("|", array_values(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))) . "|";
     }
 
     $structuredPeople = synthPeoplePipeFromNearbyActorsPayload($excludeFarAway);
@@ -533,7 +533,7 @@ function DataBeingsInCloseRange($excludeFarAway=false)
 
 function synthLatestNearbyItemsPayload()
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_items' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
@@ -646,7 +646,7 @@ function synthItemsStringFromNearbyItemsPayload()
         return "";
     }
 
-    $playerName = trim((string)($payload['player'] ?? ($GLOBALS["PLAYER_NAME"] ?? "Player")));
+    $playerName = trim((string)($payload['player'] ?? (\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player")));
     if ($playerName === "") {
         $playerName = "Player";
     }

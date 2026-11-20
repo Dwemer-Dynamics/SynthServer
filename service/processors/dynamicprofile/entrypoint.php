@@ -2,7 +2,7 @@
 
 $GLOBALS['TASKS']['dynamicprofile'] = [];
 $GLOBALS['TASKS']['dynamicprofile']['fn'] = function () {
-    $enginePath = $GLOBALS['ENGINE_ROOT'];
+    $enginePath = \Synth\Bootstrap::engineRoot();
     $GLOBALS['ENGINE_PATH'] = $enginePath;
 
     if (!isset($GLOBALS['db'])) {

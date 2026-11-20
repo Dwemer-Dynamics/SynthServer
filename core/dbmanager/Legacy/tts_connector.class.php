@@ -222,25 +222,25 @@ class TTSConnector
             if ($value === null) {
                 $values[] = "NULL";
             } else {
-                $values[] = $GLOBALS["db"]->escapeLiteral(strval($value));
+                $values[] = \Synth\Bootstrap::db()->escapeLiteral(strval($value));
             }
         }
         $query = "INSERT INTO {$this->table} (" . implode(', ', $columns) . ") VALUES (" . implode(', ', $values) . ") RETURNING id";
-        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->fetchOne($query), null);
+        $row = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->fetchOne($query), null);
         return isset($row['id']) ? intval($row['id']) : 0;
     }
 
     public function readAll()
     {
         $query = "SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label,''), driver)) ASC, id ASC";
-        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $GLOBALS["db"]->fetchAll($query));
+        return array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, \Synth\Bootstrap::db()->fetchAll($query));
     }
 
     public function readOne($id)
     {
         $id = intval($id);
         $query = "SELECT * FROM {$this->table} WHERE id = {$id} LIMIT 1";
-        $row = $GLOBALS["db"]->fetchOne($query);
+        $row = \Synth\Bootstrap::db()->fetchOne($query);
         return is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row;
     }
 
@@ -285,24 +285,24 @@ class TTSConnector
 
         $data = \Synth\Core\Contracts\ApiKeyRef::columnsFromData($data);
         $filtered = array_intersect_key($data, array_flip($fields));
-        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => $GLOBALS["db"]->updateRow($this->table, $filtered, $where), 'refused');
+        $written = ApiBadge::lockedWrite($filtered['api_key_id'] ?? null, fn() => \Synth\Bootstrap::db()->updateRow($this->table, $filtered, $where), 'refused');
         return $written === 'refused' ? 0 : $id;
     }
 
     public function delete($id)
     {
         $id = intval($id);
-        return $GLOBALS["db"]->delete($this->table, "id = {$id}");
+        return \Synth\Bootstrap::db()->delete($this->table, "id = {$id}");
     }
 
     public function truncate($restart = false, $cascade = false)
     {
-        return $GLOBALS["db"]->truncate($this->table, $restart, $cascade);
+        return \Synth\Bootstrap::db()->truncate($this->table, $restart, $cascade);
     }
 
     public function getLastError()
     {
-        return $GLOBALS["db"]->GetLastError();
+        return \Synth\Bootstrap::db()->GetLastError();
     }
 
     public function getDriver($id)
@@ -332,7 +332,7 @@ class TTSConnector
         if ($fieldName !== 'api_key_id') {
             return [];
         }
-        return (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('lower_label');
+        return (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labels('lower_label');
     }
 
     public function getDriverOptions(): array
@@ -521,8 +521,8 @@ class TTSConnector
         }
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
-        if ($providerKey !== '' && isset($GLOBALS["TTS"][$providerKey]) && is_array($GLOBALS["TTS"][$providerKey])) {
-            $resolved = $this->resolveUrlFromMetadata($GLOBALS["TTS"][$providerKey]);
+        if ($providerKey !== '' && isset($GLOBALS["TTS"][$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey])) {
+            $resolved = $this->resolveUrlFromMetadata(\Synth\Bootstrap::config("TTS")[$providerKey]);
             if ($resolved !== '') {
                 return $resolved;
             }
@@ -652,7 +652,7 @@ class TTSConnector
         if ($connectorId <= 0) {
             return;
         }
-        $GLOBALS["db"]->query("UPDATE core_profiles SET tts_connector_id = {$connectorId} WHERE tts_connector_id IS NULL");
+        \Synth\Bootstrap::db()->query("UPDATE core_profiles SET tts_connector_id = {$connectorId} WHERE tts_connector_id IS NULL");
     }
 
     public function setOldGlobals($currentTTSData)
@@ -670,13 +670,13 @@ class TTSConnector
         }
         $providerKey = $settings['provider_key'];
 
-        if (!isset($GLOBALS["TTS"]) || !is_array($GLOBALS["TTS"])) {
+        if (!isset($GLOBALS["TTS"]) || !is_array(\Synth\Bootstrap::config("TTS"))) {
             $GLOBALS["TTS"] = [];
         }
         $GLOBALS["TTS"][$providerKey] = $settings['TTS'][$providerKey];
 
         if (!empty($GLOBALS["TTS"][$providerKey]['language']) && !empty($GLOBALS["LANG_LLM_XTTS"])) {
-            $GLOBALS["LLM_LANG"] = preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval($GLOBALS["TTS"][$providerKey]['language']))));
+            $GLOBALS["LLM_LANG"] = preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval(\Synth\Bootstrap::config("TTS")[$providerKey]['language']))));
         }
     }
 

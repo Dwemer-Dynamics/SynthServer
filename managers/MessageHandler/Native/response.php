@@ -20,13 +20,13 @@ function synth_protocol_response_context(?array $wire = null): array
             'runtime_variant' => strval($wire['runtime_variant']), 'protocol_version' => intval($wire['protocol_version']),
             'context_sequence' => intval($wire['context_sequence'] ?? 0)];
     }
-    $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT'] ?? null) ? $GLOBALS['SYNTH_REQUEST_EVENT'] : [];
+    $event = is_array(\Synth\Bootstrap::requestEvent() ?? null) ? \Synth\Bootstrap::requestEvent() : [];
     return [
         'session_id' => strval($event['json']['session_id'] ?? $event['session_id'] ?? ''),
-        'request_id' => strval($event['request_id'] ?? $GLOBALS['SYNTH_REQUEST_ID'] ?? ''),
-        'turn_id' => strval($event['turn_id'] ?? $GLOBALS['SYNTH_TURN_ID'] ?? ''),
-        'generation' => intval($event['generation'] ?? $GLOBALS['SYNTH_GENERATION'] ?? 0),
-        'runtime_variant' => strval($event['runtime_variant'] ?? $GLOBALS['SYNTH_RUNTIME_VARIANT'] ?? 'flat'),
+        'request_id' => strval($event['request_id'] ?? \Synth\Bootstrap::config('SYNTH_REQUEST_ID') ?? ''),
+        'turn_id' => strval($event['turn_id'] ?? \Synth\Bootstrap::config('SYNTH_TURN_ID') ?? ''),
+        'generation' => intval($event['generation'] ?? \Synth\Bootstrap::config('SYNTH_GENERATION') ?? 0),
+        'runtime_variant' => strval($event['runtime_variant'] ?? \Synth\Bootstrap::config('SYNTH_RUNTIME_VARIANT') ?? 'flat'),
         'protocol_version' => intval($event['protocol_version'] ?? 1),
         'context_sequence' => intval($event['context_sequence'] ?? 0),
     ];
@@ -58,7 +58,7 @@ function synth_protocol_encode_response_line(string $type, array $payload, strin
 function synth_protocol_write_response_line(string $type, array $payload, string $suffix, array $routeMetadata = []): void
 {
     $wire = synth_protocol_encode_response_line($type, $payload, $suffix);
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     $ownedRechat=synth_protocol_owns_rechat($event);
     if ($ownedRechat && in_array($type,['dialogue','action'],true)) {
         if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('rechat_emission_claim_required');
@@ -68,13 +68,13 @@ function synth_protocol_write_response_line(string $type, array $payload, string
         }
         if ($type==='action') {
             require_once dirname(__DIR__, 3).'/lib'.'/synth_rechat_emission.php';
-            synth_rechat_assert_action_emission($GLOBALS['db'],$event,$payload['action'] ?? [],true);
+            synth_rechat_assert_action_emission(\Synth\Bootstrap::db(),$event,$payload['action'] ?? [],true);
         }
     }
     // An owned rechat dialogue line has already required the claim above.
-    $wire = synth_protocol_prepare_line($GLOBALS['db'] ?? null, $event, !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']),
+    $wire = synth_protocol_prepare_line(\Synth\Bootstrap::db() ?? null, $event, !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']),
         $type, $wire, $routeMetadata);
-    $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = ($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? '') . $wire;
+    $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = (\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_BODY') ?? '') . $wire;
     echo $wire;
     if ($type==='action' && is_array($payload['action']??null)) {
         $issued=$payload['action'];$policy=synth_jev_action_policy();
@@ -82,10 +82,10 @@ function synth_protocol_write_response_line(string $type, array $payload, string
         if($code!==null){
             $trace=['action_code'=>$code,'action_id'=>$issued['action_id']??'',
                 'status'=>'dispatched','reason'=>'emitted','route'=>$policy===null?'ordinary_llm':
-                    (($GLOBALS['SYNTH_JEV_WAIT_HANDOFF']??'')===synth_jev_action_owner($event)?'jev_handoff':'jev_narrowed')];
+                    ((\Synth\Bootstrap::config('SYNTH_JEV_WAIT_HANDOFF')??'')===synth_jev_action_owner($event)?'jev_handoff':'jev_narrowed')];
             if($policy!==null){$trace['selected_code']=$policy['code'];$trace['confidence']=$policy['confidence']??null;}
-            if(is_numeric($GLOBALS['SYNTH_TURN_START_TIME']??null))
-                $trace['elapsed_ms']=round((microtime(true)-(float)$GLOBALS['SYNTH_TURN_START_TIME'])*1000,2);
+            if(is_numeric(\Synth\Bootstrap::config('SYNTH_TURN_START_TIME')??null))
+                $trace['elapsed_ms']=round((microtime(true)-(float)\Synth\Bootstrap::config('SYNTH_TURN_START_TIME'))*1000,2);
             try { synth_jev_action_trace('dispatch',$event,$trace); }
             catch(Throwable) { /* Logging cannot invalidate an already emitted command. */ }
         }
@@ -118,7 +118,7 @@ function synth_protocol_prepare_line($db, array $event, bool $claimed, string $t
 // lines are routed before returnLines logs them; buffered lines are routed later, at emission. Diagnostics stay.
 function synth_receipt_history_owner(): bool
 {
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)) return false;
     require_once dirname(__DIR__, 3).'/core/dbmanager/repositories/UtteranceRepository.php';
     return \Synth\Core\UtteranceRepository::ordinaryOrigin($event, \Synth\Core\UtteranceRepository::DELIVERY_RECEIPTS);
@@ -136,16 +136,16 @@ function synth_receipt_note_route(?string $utterance, bool $enrolled): void
 function synth_receipt_hold_history(string $utterance, array $rows): bool
 {
     if ($utterance === '' || !synth_receipt_history_owner()) return false;
-    if (array_key_exists($utterance, $GLOBALS['SYNTH_RECEIPT_ROUTED'] ?? [])) return $GLOBALS['SYNTH_RECEIPT_ROUTED'][$utterance];
+    if (array_key_exists($utterance, \Synth\Bootstrap::config('SYNTH_RECEIPT_ROUTED') ?? [])) return \Synth\Bootstrap::config('SYNTH_RECEIPT_ROUTED')[$utterance];
     $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$utterance] = array_merge(
-        $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$utterance] ?? [], $rows);
+        \Synth\Bootstrap::config('SYNTH_RECEIPT_HELD_HISTORY')[$utterance] ?? [], $rows);
     return true;
 }
 
 // Null releases every held row whose line never reached a route (an unresolved speaker), as before receipts.
 function synth_receipt_release_history(?string $utterance = null): void
 {
-    $held = $GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'] ?? [];
+    $held = \Synth\Bootstrap::config('SYNTH_RECEIPT_HELD_HISTORY') ?? [];
     foreach ($utterance === null ? array_keys($held) : [$utterance] as $key) {
         $rows = $held[$key] ?? [];
         unset($GLOBALS['SYNTH_RECEIPT_HELD_HISTORY'][$key]);
@@ -183,9 +183,9 @@ function synth_protocol_ndjson_headers(bool $streaming): void
 // The configured server version, else 'source', opens every response.
 function synth_protocol_start_payload(?array $event = null): array
 {
-    $payload = ['server_version' => strval($GLOBALS['SYNTH_SERVER_VERSION'] ?? 'source')];
+    $payload = ['server_version' => strval(\Synth\Bootstrap::config('SYNTH_SERVER_VERSION') ?? 'source')];
     // Every response to a request that carried a conversation_id echoes it unchanged, on both dialogue lanes.
-    $conversation = \Synth\Managers\Conversation\ConversationManager::idOf($event ?? ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null));
+    $conversation = \Synth\Managers\Conversation\ConversationManager::idOf($event ?? (\Synth\Bootstrap::requestEvent()['json'] ?? null));
     if ($conversation !== null) $payload['conversation_id'] = $conversation;
     return $payload;
 }
@@ -201,7 +201,7 @@ function synth_protocol_ensure_response_started(): void
 
 function synth_protocol_next_line_suffix(string $kind): string
 {
-    $next = intval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] ?? 0) + 1;
+    $next = intval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_SEQUENCE') ?? 0) + 1;
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] = $next;
     return $kind . ':' . $next;
 }
@@ -209,11 +209,11 @@ function synth_protocol_next_line_suffix(string $kind): string
 // An explicit event and connection replace the request globals (durable speech admission passes both).
 function synth_protocol_response_speaker(string $speaker, ?string $speechRole = null, ?array $event = null, $explicitDb = null): ?array
 {
-    $event=$event ?? $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=$event ?? \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (function_exists('synth_protocol_owns_rechat') && synth_protocol_owns_rechat($event)) {
-        $db=$explicitDb ?? $GLOBALS['db'] ?? null;
+        $db=$explicitDb ?? \Synth\Bootstrap::db() ?? null;
         $identity=$db ? synth_protocol_resolve_speaker_identity($db,$speaker) : null;
-        $requestedRole=$speechRole ?? $GLOBALS['SYNTH_SPEECH_ROLE'] ?? null;
+        $requestedRole=$speechRole ?? \Synth\Bootstrap::config('SYNTH_SPEECH_ROLE') ?? null;
         // A temporary lane cannot impersonate the selected rechat responder, even with the same label.
         if ($identity!==null && $requestedRole!==null
             && $requestedRole!==(isset($identity['kind']) ? 'narrator' : 'npc')) return null;
@@ -222,7 +222,7 @@ function synth_protocol_response_speaker(string $speaker, ?string $speechRole = 
     $speechRole = $speechRole ?? synth_protocol_current_speech_role($speaker);
     if (!in_array($speechRole,['npc','player','narrator'],true)) return null;
     if (($event['protocol_version'] ?? 1)===2) {
-        $db=$explicitDb ?? $GLOBALS['db'] ?? null;
+        $db=$explicitDb ?? \Synth\Bootstrap::db() ?? null;
         $context=$db ? synth_protocol_current_context($db,$event) : null;
         if (!$context) return null;
         if ($speechRole==='player') return $context['player'];
@@ -237,10 +237,10 @@ function synth_protocol_response_speaker(string $speaker, ?string $speechRole = 
             'id' => 'narrator',
             'display_name' => function_exists('synthGetNarratorRoleplayName')
                 ? synthGetNarratorRoleplayName()
-                : strval($GLOBALS['NARRATOR_ROLEPLAY_NAME'] ?? 'The Narrator'),
+                : strval(\Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME') ?? 'The Narrator'),
         ];
     }
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     return $db && function_exists('synth_protocol_resolve_speaker_identity')
         ? synth_protocol_resolve_speaker_identity($db, $speaker)
         : null;
@@ -248,7 +248,7 @@ function synth_protocol_response_speaker(string $speaker, ?string $speechRole = 
 
 function synth_protocol_action_from_legacy_line(array $line): ?array
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db || !function_exists('synth_protocol_record_action_intent')) {
         return null;
     }
@@ -266,13 +266,13 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     $capability = function_exists('synthActionCapabilityForCode')
         ? synthActionCapabilityForCode($serverCode)
         : 'action.' . strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $serverCode));
-    $capabilities = is_array($GLOBALS['SYNTH_CLIENT_CAPABILITIES'] ?? null)
-        ? $GLOBALS['SYNTH_CLIENT_CAPABILITIES']
+    $capabilities = is_array(\Synth\Bootstrap::config('SYNTH_CLIENT_CAPABILITIES') ?? null)
+        ? \Synth\Bootstrap::config('SYNTH_CLIENT_CAPABILITIES')
         : [];
     if (!in_array($capability, $capabilities, true)) {
         return null;
     }
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if ($serverCode==='ReleaseWait' || ($serverCode==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_wait_actions.php';
         if (!synth_wait_action_supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
@@ -412,7 +412,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         if ($arguments===null) return null;
     }
     $context = synth_protocol_response_context();
-    $ordinal = intval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_SEQUENCE'] ?? 0) + 1;
+    $ordinal = intval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_SEQUENCE') ?? 0) + 1;
     $seed = $context['session_id'] . '|' . $context['generation'] . '|' . $context['request_id']
         . '|' . $context['turn_id'] . '|' . $serverCode . '|' . $ordinal;
     $action = [
@@ -460,7 +460,7 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
 function synth_protocol_encode_ack(string $status, array $detail = [], ?array $wire = null): string
 {
     // Explicit opt-in support, bound to the admitted init; older clients keep their original acknowledgement.
-    $event = $wire ?? $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = $wire ?? \Synth\Bootstrap::requestEvent()['json'] ?? [];
     $combatTargets = $status === 'init_accepted' && ($event['type'] ?? '') === 'init'
         && ($event['protocol_version'] ?? 1) === 2
         && in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)
@@ -490,7 +490,7 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($status==='init_accepted' && ($event['type'] ?? '')==='init') {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_private_narrator.php';
         $privateNarrator=synth_private_narrator_supported($event) && isset($GLOBALS['db'])
-            && synth_private_narrator_schema_ready($GLOBALS['db']);
+            && synth_private_narrator_schema_ready(\Synth\Bootstrap::db());
     }
     // Participant-bound postcombat remarks are granted only to a flat init that asked for every prerequisite.
     $companionComments=$status==='init_accepted' && ($event['type'] ?? '')==='init' && ($event['protocol_version'] ?? 1)===2
@@ -583,14 +583,14 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     }
     $body .= synth_protocol_encode_response_line('status', $statusPayload, 'status', $wire);
     if ($status==='social_task_accepted' && in_array($event['type'] ?? '',['input_text','input_audio'],true)
-        && synth_social_supported($event) && is_string($GLOBALS['SYNTH_SOCIAL_INPUT_TEXT'] ?? null)
-        && is_array($GLOBALS['SYNTH_PLAYER_IDENTITY'] ?? null)) {
-        $body .= synth_protocol_encode_response_line('dialogue',['speaker'=>$GLOBALS['SYNTH_PLAYER_IDENTITY'],
-            'text'=>$GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']],'player_input',$wire);
+        && synth_social_supported($event) && is_string(\Synth\Bootstrap::config('SYNTH_SOCIAL_INPUT_TEXT') ?? null)
+        && is_array(\Synth\Bootstrap::config('SYNTH_PLAYER_IDENTITY') ?? null)) {
+        $body .= synth_protocol_encode_response_line('dialogue',['speaker'=>\Synth\Bootstrap::config('SYNTH_PLAYER_IDENTITY'),
+            'text'=>\Synth\Bootstrap::config('SYNTH_SOCIAL_INPUT_TEXT')],'player_input',$wire);
     }
     if (synth_social_supported($event) && in_array($status,
             ['context_accepted','social_task_accepted','social_task_progress_accepted'],true)) {
-        $tasks=$GLOBALS['SYNTH_SOCIAL_ACK_TASKS'] ?? [];
+        $tasks=\Synth\Bootstrap::config('SYNTH_SOCIAL_ACK_TASKS') ?? [];
         if (!is_array($tasks) || !array_is_list($tasks) || count($tasks)>8)
             throw new LogicException('social_task_ack_invalid');
         foreach ($tasks as $index=>$task)
@@ -606,7 +606,7 @@ function synth_protocol_emit_ack(string $status, array $detail = []): void
     $body=synth_protocol_encode_ack($status,$detail);
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = $body;
     echo $body;
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if ($db && function_exists('synth_protocol_complete_request')) {
         synth_protocol_complete_request($db, 'complete', 'application/x-ndjson', $body);
     }
@@ -646,7 +646,7 @@ function synth_protocol_emit_terminal_error(string $code, string $detail = ''): 
     $body = synth_protocol_encode_terminal_error($code, $detail);
     $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] = $body;
     echo $body;
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if ($db && function_exists('synth_protocol_complete_request')) {
         synth_protocol_complete_request($db, 'failed', 'application/x-ndjson', $body, $code);
     }
@@ -654,7 +654,7 @@ function synth_protocol_emit_terminal_error(string $code, string $detail = ''): 
 
 function synth_json_response_enabled(): bool
 {
-    return ($GLOBALS["SYNTH_RESPONSE_FORMAT"] ?? "json") === "json";
+    return (\Synth\Bootstrap::config("SYNTH_RESPONSE_FORMAT") ?? "json") === "json";
 }
 
 function synth_response_stream_requested(): bool
@@ -677,7 +677,7 @@ function synth_should_defer_speech_tts(?array $plan): bool
 {
     if (!synth_json_response_enabled()) return false;
     if (synth_protocol_current_speech_role() !== 'player') return true;
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     return !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
         && synth_protocol_owns_dialogue_turn($event)
         && !empty($plan['portable'])
@@ -693,7 +693,7 @@ function synth_emit_json_response_envelope(array $lines, bool $close = false): v
         if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
         $action = strtolower(trim(strval($line['action'] ?? '')));
         if ($action==='social_task') {
-            $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+            $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
             $task=$line['metadata']['task'] ?? null;
             if (!synth_social_supported($event) || !is_array($task)
                 || ($task['schema'] ?? '')!=='synth.social.task.v1')
@@ -722,10 +722,10 @@ function synth_emit_json_response_envelope(array $lines, bool $close = false): v
                     $ttsStatus = synth_read_npc_tts_status($cacheKey, dirname(__DIR__, 3));
                     if (isset($ttsStatus['_job_id'])) {
                         require_once dirname(__DIR__, 3).'/lib'.'/synth_tts_worker.php';
-                        $ttsStatus=synth_tts_resolve_job_status($GLOBALS['db'],$ttsStatus);
+                        $ttsStatus=synth_tts_resolve_job_status(\Synth\Bootstrap::db(),$ttsStatus);
                     }
                     if (($ttsStatus['status'] ?? '')==='ready' && is_array($ttsStatus['media'] ?? null)) {
-                        try { synth_media_require_ready($GLOBALS['db'] ?? null,$ttsStatus['media']); }
+                        try { synth_media_require_ready(\Synth\Bootstrap::db() ?? null,$ttsStatus['media']); }
                         catch (SynthMediaException) {
                             $ttsStatus['status']='failed';
                             unset($ttsStatus['media']);
@@ -795,7 +795,7 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
         require_once dirname(__DIR__, 3).'/lib'.'/synth_character_forms.php';
         $policy=synth_character_current_speech_policy();
         if ($policy!=='') {
-            $emitted=(bool)($GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED'] ?? false);
+            $emitted=(bool)(\Synth\Bootstrap::config('SYNTH_CANONICAL_SPEECH_BUFFERED') ?? false);
             $constrained=synth_character_constrain_lines([$text],$policy,$emitted);
             $GLOBALS['SYNTH_CANONICAL_SPEECH_BUFFERED']=$emitted;
             if ($constrained===[]) return;
@@ -839,7 +839,7 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
         // Do not infer that lane from a display name: an NPC can also be named Player.
         $playerSpeech = in_array($listener, ['__player_tts', '__player_menu_tts'], true);
         $textOnly = $listener === '__player_text_only' || !empty($metadata['text_only']) ||
-            (!$playerSpeech && strtolower(trim(strval($GLOBALS['TTSFUNCTION'] ?? ''))) === 'none');
+            (!$playerSpeech && strtolower(trim(strval(\Synth\Bootstrap::config('TTSFUNCTION') ?? ''))) === 'none');
         $line["action"] = "say";
         $line["text"] = $text;
         $line["subtitle"] = $text;
@@ -861,7 +861,7 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
         }
     }
 
-    $requestId = class_exists('Logger') ? Logger::getRequestId() : ($GLOBALS["SYNTH_REQUEST_ID"] ?? "");
+    $requestId = class_exists('Logger') ? Logger::getRequestId() : (\Synth\Bootstrap::config("SYNTH_REQUEST_ID") ?? "");
     if ($requestId !== "") {
         $line["request_id"] = $requestId;
         $metadata["request_id"] = $requestId;
@@ -926,8 +926,8 @@ function synth_buffer_response_line(string $speaker, string $action, string $tex
     if (synth_json_streaming_enabled()) {
         if (class_exists('Logger')) {
             $elapsedMs = null;
-            if (isset($GLOBALS["SYNTH_TURN_START_TIME"]) && is_numeric($GLOBALS["SYNTH_TURN_START_TIME"])) {
-                $elapsedMs = round((microtime(true) - (float)$GLOBALS["SYNTH_TURN_START_TIME"]) * 1000, 2);
+            if (isset($GLOBALS["SYNTH_TURN_START_TIME"]) && is_numeric(\Synth\Bootstrap::config("SYNTH_TURN_START_TIME"))) {
+                $elapsedMs = round((microtime(true) - (float)\Synth\Bootstrap::config("SYNTH_TURN_START_TIME")) * 1000, 2);
             }
             Logger::info("[plugin-response] streamed JSON envelope" . Logger::formatContext([
                 "elapsed_ms" => $elapsedMs,
@@ -966,14 +966,14 @@ function synth_buffer_speech_response_line(
         "utterance_id" => trim($utteranceId),
         "tts_cache_key" => trim($ttsCacheKey),
     ];
-    $speakerFormId = trim((string)($GLOBALS["SYNTH_RESPONSE_SPEAKER_FORMID"] ?? ""));
-    $activeSpeaker = trim((string)($GLOBALS["SYNTH_NAME"] ?? ""));
+    $speakerFormId = trim((string)(\Synth\Bootstrap::config("SYNTH_RESPONSE_SPEAKER_FORMID") ?? ""));
+    $activeSpeaker = trim((string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? ""));
     if ($speakerFormId !== "" && $activeSpeaker !== "" && strcasecmp($speaker, $activeSpeaker) === 0) {
         $metadata["speaker_formid"] = $speakerFormId;
         $metadata["speaker_refid"] = $speakerFormId;
     }
-    if (($GLOBALS["gameRequest"][0] ?? "") === "rechat") {
-        $previousSpeakerFormId = trim((string)($GLOBALS["RECHAT_REQUEST_PAYLOAD"]["speaker_formid"] ?? ""));
+    if ((\Synth\Bootstrap::gameRequest()[0] ?? "") === "rechat") {
+        $previousSpeakerFormId = trim((string)(\Synth\Bootstrap::config("RECHAT_REQUEST_PAYLOAD")["speaker_formid"] ?? ""));
         if ($previousSpeakerFormId !== "") {
             $metadata["listener_formid"] = $previousSpeakerFormId;
             $metadata["rechat_target_formid"] = $previousSpeakerFormId;
@@ -1016,7 +1016,7 @@ function synth_buffer_command_response_line(string $speaker, string $command, ar
             $metadata["target"] = $metadata["target"] ?? ($commandArgs[0] ?? "");
             $metadata["amount"] = $metadata["amount"] ?? ($commandArgs[1] ?? "");
         } elseif ($normalizedCommand === "takecapsfromplayer") {
-            if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+            if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
                 $metadata['target'] = $metadata['target'] ?? ($commandArgs[0] ?? '');
                 $metadata['amount'] = $metadata['amount'] ?? ($commandArgs[1] ?? '');
             } else $metadata["amount"] = $metadata["amount"] ?? ($commandArgs[0] ?? "");
@@ -1079,7 +1079,7 @@ function synth_buffer_command_response_line(string $speaker, string $command, ar
 
 function synth_capture_response_output(string $chunk): string
 {
-    $GLOBALS["SYNTH_JSON_RESPONSE_RAW"] = ($GLOBALS["SYNTH_JSON_RESPONSE_RAW"] ?? "") . $chunk;
+    $GLOBALS["SYNTH_JSON_RESPONSE_RAW"] = (\Synth\Bootstrap::config("SYNTH_JSON_RESPONSE_RAW") ?? "") . $chunk;
     return "";
 }
 
@@ -1133,13 +1133,13 @@ function synth_emit_buffered_json_response(): void
         synth_protocol_ensure_response_started();
         synth_receipt_release_history();
         synth_protocol_write_response_line('response_end', ['status' => 'complete'], 'end');
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if ($db && function_exists('synth_protocol_complete_request')) {
             synth_protocol_complete_request(
                 $db,
                 'complete',
                 'application/x-ndjson',
-                strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? '')
+                strval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_BODY') ?? '')
             );
             require_once dirname(__DIR__, 3).'/lib'.'/relationship_response.php';
             synth_relationship_complete_inline_response($db);
@@ -1147,25 +1147,25 @@ function synth_emit_buffered_json_response(): void
         return;
     }
 
-    $bufferLevel = intval($GLOBALS["SYNTH_JSON_RESPONSE_BUFFER_LEVEL"] ?? 0);
+    $bufferLevel = intval(\Synth\Bootstrap::config("SYNTH_JSON_RESPONSE_BUFFER_LEVEL") ?? 0);
     if ($bufferLevel > 0) {
         while (ob_get_level() >= $bufferLevel) {
             @ob_end_clean();
         }
     }
 
-    synth_emit_json_response_envelope($GLOBALS["SYNTH_JSON_RESPONSE_LINES"] ?? []);
+    synth_emit_json_response_envelope(\Synth\Bootstrap::config("SYNTH_JSON_RESPONSE_LINES") ?? []);
     if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
     synth_receipt_release_history();
     synth_protocol_write_response_line('response_end', ['status' => 'complete'], 'end');
     $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if ($db && function_exists('synth_protocol_complete_request')) {
         synth_protocol_complete_request(
             $db,
             'complete',
             'application/x-ndjson',
-            strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? '')
+            strval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_BODY') ?? '')
         );
         require_once dirname(__DIR__, 3).'/lib'.'/relationship_response.php';
         synth_relationship_complete_inline_response($db);
@@ -1176,7 +1176,7 @@ function synth_emit_buffered_json_response(): void
 function synth_emit_cancelled_json_response(): void
 {
     if (!empty($GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'])) return;
-    $bufferLevel = intval($GLOBALS['SYNTH_JSON_RESPONSE_BUFFER_LEVEL'] ?? 0);
+    $bufferLevel = intval(\Synth\Bootstrap::config('SYNTH_JSON_RESPONSE_BUFFER_LEVEL') ?? 0);
     if ($bufferLevel > 0) {
         while (ob_get_level() >= $bufferLevel) @ob_end_clean();
     }
@@ -1190,7 +1190,7 @@ function synth_emit_cancelled_json_response(): void
 function synth_emit_failed_json_response(): void
 {
     if (!empty($GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'])) return;
-    $bufferLevel = intval($GLOBALS['SYNTH_JSON_RESPONSE_BUFFER_LEVEL'] ?? 0);
+    $bufferLevel = intval(\Synth\Bootstrap::config('SYNTH_JSON_RESPONSE_BUFFER_LEVEL') ?? 0);
     if ($bufferLevel > 0) {
         while (ob_get_level() >= $bufferLevel) @ob_end_clean();
     }
@@ -1201,8 +1201,8 @@ function synth_emit_failed_json_response(): void
     $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
     if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && isset($GLOBALS['db'])) {
         try {
-            synth_protocol_complete_request($GLOBALS['db'], 'failed', 'application/x-ndjson',
-                strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? ''), 'backend_request_failed');
+            synth_protocol_complete_request(\Synth\Bootstrap::db(), 'failed', 'application/x-ndjson',
+                strval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_BODY') ?? ''), 'backend_request_failed');
         } catch (Throwable) {
             // The terminal bytes have already been delivered. Never reopen them.
             Logger::error('[request] failed response persistence unavailable');

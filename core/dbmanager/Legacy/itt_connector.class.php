@@ -30,7 +30,7 @@ class ITTConnector
 
     public function readAll(): array
     {
-        $rows = $GLOBALS['db']->fetchAll(
+        $rows = \Synth\Bootstrap::db()->fetchAll(
             "SELECT * FROM {$this->table} ORDER BY LOWER(COALESCE(NULLIF(label, ''), driver)), id"
         );
         return is_array($rows) ? array_map(static fn($row) => is_array($row) ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : $row, $rows) : [];
@@ -38,7 +38,7 @@ class ITTConnector
 
     public function readOne($id): ?array
     {
-        $row = $GLOBALS['db']->fetchOne(
+        $row = \Synth\Bootstrap::db()->fetchOne(
             "SELECT * FROM {$this->table} WHERE id=" . intval($id) . ' LIMIT 1'
         );
         return is_array($row) && $row ? \Synth\Core\Contracts\ApiKeyRef::decorateRow($row) : null;
@@ -52,14 +52,14 @@ class ITTConnector
     public function create(array $data): int
     {
         $normalized = $this->normalize($data);
-        $row = ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->fetchOne(
+        $row = ApiBadge::lockedWrite($normalized['api_key_id'], fn() => \Synth\Bootstrap::db()->fetchOne(
             "INSERT INTO {$this->table} (driver, label, metadata, local_api_key_id, api_key_id, url) VALUES (" .
-            $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
-            $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
-            $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
+            \Synth\Bootstrap::db()->escapeLiteral($normalized['driver']) . ', ' .
+            \Synth\Bootstrap::db()->escapeLiteral($normalized['label']) . ', ' .
+            \Synth\Bootstrap::db()->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
             ($normalized['local_api_key_id'] !== null ? intval($normalized['local_api_key_id']) : 'NULL') . ', ' .
             ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
-            ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
+            ($normalized['url'] !== '' ? \Synth\Bootstrap::db()->escapeLiteral($normalized['url']) : 'NULL') .
             ') RETURNING id'
         ), null);
         return intval($row['id'] ?? 0);
@@ -73,21 +73,21 @@ class ITTConnector
         }
 
         $normalized = $this->normalize($data);
-        return ApiBadge::lockedWrite($normalized['api_key_id'], fn() => $GLOBALS['db']->execQuery(
+        return ApiBadge::lockedWrite($normalized['api_key_id'], fn() => \Synth\Bootstrap::db()->execQuery(
             "UPDATE {$this->table} SET " .
-            'driver=' . $GLOBALS['db']->escapeLiteral($normalized['driver']) . ', ' .
-            'label=' . $GLOBALS['db']->escapeLiteral($normalized['label']) . ', ' .
-            'metadata=' . $GLOBALS['db']->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
+            'driver=' . \Synth\Bootstrap::db()->escapeLiteral($normalized['driver']) . ', ' .
+            'label=' . \Synth\Bootstrap::db()->escapeLiteral($normalized['label']) . ', ' .
+            'metadata=' . \Synth\Bootstrap::db()->escapeLiteral($normalized['metadata']) . '::jsonb, ' .
             'local_api_key_id=' . ($normalized['local_api_key_id'] !== null ? intval($normalized['local_api_key_id']) : 'NULL') . ', ' .
             'api_key_id=' . ($normalized['api_key_id'] !== null ? "'" . $normalized['api_key_id'] . "'::uuid" : 'NULL') . ', ' .
-            'url=' . ($normalized['url'] !== '' ? $GLOBALS['db']->escapeLiteral($normalized['url']) : 'NULL') .
+            'url=' . ($normalized['url'] !== '' ? \Synth\Bootstrap::db()->escapeLiteral($normalized['url']) : 'NULL') .
             " WHERE id={$id}"
         ) !== false, false);
     }
 
     public function delete($id): bool
     {
-        return $GLOBALS['db']->delete($this->table, 'id=' . intval($id)) !== false;
+        return \Synth\Bootstrap::db()->delete($this->table, 'id=' . intval($id)) !== false;
     }
 
     public function clone($id): int
@@ -270,7 +270,7 @@ class ITTConnector
 
         $GLOBALS['ITTFUNCTION'] = $driver;
         $GLOBALS['ITT_CONNECTOR'] = $row;
-        if (!isset($GLOBALS['ITT']) || !is_array($GLOBALS['ITT'])) {
+        if (!isset($GLOBALS['ITT']) || !is_array(\Synth\Bootstrap::config('ITT'))) {
             $GLOBALS['ITT'] = [];
         }
         $GLOBALS['ITT'][$driver] = $metadata;

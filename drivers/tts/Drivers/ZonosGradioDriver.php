@@ -15,30 +15,30 @@ require_once dirname(SYNTH_TTS_SCRIPT_DIR) . '/lib/speech_cache.php';
 require_once dirname(SYNTH_TTS_SCRIPT_DIR) . '/lib/provider_stream.php';
 
 function getZonosLanguage() {
-    $lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?$GLOBALS["TTS"]["FORCED_LANG_DEV"]:$GLOBALS["TTS"]["ZONOS_GRADIO"]["language"];
+    $lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:\Synth\Bootstrap::config("TTS")["ZONOS_GRADIO"]["language"];
 
     if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
-        $lang = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+        $lang = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
     if (empty($lang)) {
-        $lang=$GLOBALS["TTS"]["ZONOS_GRADIO"]["language"];
+        $lang=\Synth\Bootstrap::config("TTS")["ZONOS_GRADIO"]["language"];
     }
 
     return $lang;
 }
 
 function getZonosVoice() {
-    $voice=isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"])?$GLOBALS["TTS"]["FORCED_VOICE_DEV"]:$GLOBALS["TTS"]["ZONOS_GRADIO"]["voiceid"];
+    $voice=isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"]:\Synth\Bootstrap::config("TTS")["ZONOS_GRADIO"]["voiceid"];
 
     // fallback to herika_name if voiceid is blank
     if (empty($voice)) {
-        $voice = str_replace(" ", "_", mb_strtolower($GLOBALS["SYNTH_NAME"], 'UTF-8'));
+        $voice = str_replace(" ", "_", mb_strtolower(\Synth\Bootstrap::config("SYNTH_NAME"), 'UTF-8'));
         $voice = str_replace("'", "+", $voice);
         $voice=preg_replace('/[^a-zA-Z0-9_+]/u', '', $voice);
     }
 
     if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
-        $voice=$GLOBALS["PATCH_OVERRIDE_VOICE"];
+        $voice=\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
     }
 
     return $voice;
@@ -146,7 +146,7 @@ function uploadFileToGradio($baseURL, $voiceSamplePath) {
 }
 
 function setCachedVoicePath($cachedVoicePath) {
-    $hashedname=md5($GLOBALS["SYNTH_NAME"]);
+    $hashedname=md5(\Synth\Bootstrap::config("SYNTH_NAME"));
     $confFilePath = SYNTH_TTS_SCRIPT_DIR.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."conf".DIRECTORY_SEPARATOR."conf_$hashedname.php";
 
     // regex to retrieve the current cachedVoicePath
@@ -183,7 +183,7 @@ function getZonosEmotions($mood) {
         foreach ($emotions as $emotion => $default) {
             if (isset($GLOBALS["LAST_LLM_RESPONSE"][$emotion])) {
                 // Ensure the value is between 0 and 1
-                $value = floatval($GLOBALS["LAST_LLM_RESPONSE"][$emotion]);
+                $value = floatval(\Synth\Bootstrap::config("LAST_LLM_RESPONSE")[$emotion]);
                 $emotions[$emotion] = max(0, min(1, $value));
             }
         }
@@ -450,7 +450,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
         // skip generation if the generated audio already exists in cache
-        if (isset($GLOBALS["AVOID_TTS_CACHE"]) && $GLOBALS["AVOID_TTS_CACHE"]===false )
+        if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
             if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
                 return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
@@ -461,7 +461,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $voice = getZonosVoice();
         $textString = applyZonosWordSubstitutes($textString, $GLOBALS["TTS"]["ZONOS_GRADIO"]["language"] ??= "en-us");
 
-        $baseURL = rtrim($GLOBALS["TTS"]["ZONOS_GRADIO"]["endpoint"], '/');
+        $baseURL = rtrim(\Synth\Bootstrap::config("TTS")["ZONOS_GRADIO"]["endpoint"], '/');
         $voiceSamplePath = "/var/www/html/Synthserver/data/voices/{$voice}.wav";
         $cachedVoicePath = $GLOBALS["TTS"]["ZONOS_GRADIO"]["cached_voice_path"] ??= "";
 
@@ -499,9 +499,9 @@ namespace Synth\Drivers\Tts\Drivers {
         // GET file contents of generated audio
         $response = getZonosFileContents($baseURL, $respObj->path);
 
-        if ($GLOBALS["TTS_FFMPEG_FILTERS"] && is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+        if (\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS") && is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
             $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
-            $FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+            $FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
         } else {
             $FFMPEG_FILTER='-filter:a "adelay=150|150"';
@@ -514,8 +514,8 @@ namespace Synth\Drivers\Tts\Drivers {
             $fname=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
             $startTimeTrans = microtime(true);
-            $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-                ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+            $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+                ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
             if (!synth_transcode_speech_cache($response,$fname,$filter)) {
                 Logger::error('zonos_gradio audio conversion or owned cache publication failed');
                 return false;

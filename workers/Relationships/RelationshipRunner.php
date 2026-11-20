@@ -33,9 +33,9 @@ final class RelationshipRunner
         }
         // A failed evaluation lane must not prevent the independent lane from making progress.
         $failed = false;
-        foreach ([static fn() => \synth_relationship_dispatch_inline($GLOBALS['db']),
-            static fn() => \synth_relationship_dispatch($GLOBALS['db'], null, true),
-            static fn() => \synth_relationship_dispatch_interaction($GLOBALS['db'])] as $dispatch) {
+        foreach ([static fn() => \synth_relationship_dispatch_inline(\Synth\Bootstrap::db()),
+            static fn() => \synth_relationship_dispatch(\Synth\Bootstrap::db(), null, true),
+            static fn() => \synth_relationship_dispatch_interaction(\Synth\Bootstrap::db())] as $dispatch) {
             try {
                 if ($dispatch() !== null) {
                     echo "Native relationship dispatch completed.\n";
@@ -60,7 +60,7 @@ final class RelationshipRunner
         require_once __DIR__ . '/Native/synth_relationship_worker.php';
         try {
             synthRuntimeBootstrap($enginePath, ['load_general_settings' => true, 'load_stt_connector' => false]);
-            $result = \synth_relationship_run_persisted_job($GLOBALS['db'], $jobId);
+            $result = \synth_relationship_run_persisted_job(\Synth\Bootstrap::db(), $jobId);
             echo $result === null ? "Native relationship job unavailable.\n" : "Native relationship job completed.\n";
         } catch (SYNTHProtocolCancelled $error) {
             echo "Native relationship job cancelled.\n";

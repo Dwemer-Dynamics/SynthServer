@@ -124,16 +124,16 @@ class Player2JsonDriver
     }
 
     protected function buildRequestPayload($contextData, $customParms, $forceJson = true) {
-        $maxTokens = intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 250));
+        $maxTokens = intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 250));
         if (isset($customParms["MAX_TOKENS"])) {
             $maxTokens = intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            $maxTokens = intval($GLOBALS["FORCE_MAX_TOKENS"]);
+            $maxTokens = intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
-        $temperature = floatval(($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ?? 1.0);
+        $temperature = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ?? 1.0);
         if ($temperature < 0.0) {
             $temperature = 0.0;
         } else if ($temperature > 2.0) {
@@ -148,9 +148,9 @@ class Player2JsonDriver
         );
 
         if ($forceJson) {
-            if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && $GLOBALS["CONNECTOR"][$this->name]["json_schema"] && isset($GLOBALS["structuredOutputTemplate"])) {
-                $data["response_format"] = $GLOBALS["structuredOutputTemplate"];
-            } else if (!isset($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) || $GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) {
+            if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"] && isset($GLOBALS["structuredOutputTemplate"])) {
+                $data["response_format"] = \Synth\Bootstrap::config("structuredOutputTemplate");
+            } else if (!isset($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) || \Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
                 $data["response_format"] = array("type" => "json_object");
             }
         }
@@ -159,7 +159,7 @@ class Player2JsonDriver
             $data[$k] = $v;
         }
 
-        foreach (synthGetEnabledConnectorExtraParameters($GLOBALS["CONNECTOR"][$this->name] ?? []) as $k => $v) {
+        foreach (synthGetEnabledConnectorExtraParameters(\Synth\Bootstrap::config("CONNECTOR")[$this->name] ?? []) as $k => $v) {
             $data[$k] = $v;
         }
 
@@ -171,12 +171,12 @@ class Player2JsonDriver
     }
 
     protected function init_connector() {
-        $this->_url = $this->normalizeConnectorUrl((isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? $GLOBALS["CONNECTOR"][$this->name]["url"] : "");
+        $this->_url = $this->normalizeConnectorUrl((isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "");
         if (strlen($this->_url) < 6)
             Logger::error("{$this->name} connector - missing url!");
 
         // Check for hardcoded IP address override in conf_opts table
-        if (isset($GLOBALS["db"]) && is_object($GLOBALS["db"])) {
+        if (isset($GLOBALS["db"]) && is_object(\Synth\Bootstrap::db())) {
             try {
                 $hostIpRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'Network/HOST_IP'));
                 if (!empty($hostIpRecord) && !empty(trim($hostIpRecord[0]['value']))) {
@@ -239,8 +239,8 @@ class Player2JsonDriver
             }
         }
 
-        $this->_model = (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? trim((string)$GLOBALS["CONNECTOR"][$this->name]["model"]) : "";
-        $this->_game_key = trim((string)($GLOBALS["CONNECTOR"][$this->name]["player2_game_key"] ?? $GLOBALS["CONNECTOR"][$this->name]["API_KEY"] ?? "SYNTH"));
+        $this->_model = (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? trim((string)\Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"]) : "";
+        $this->_game_key = trim((string)(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["player2_game_key"] ?? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["API_KEY"] ?? "SYNTH"));
         if ($this->_game_key === "") {
             $this->_game_key = "SYNTH";
         }
@@ -255,7 +255,7 @@ class Player2JsonDriver
     {
         $this->init_connector();
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48));
+        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
 
 
 
@@ -265,14 +265,14 @@ class Player2JsonDriver
                                                                                                 Tyler, 2023/11/09
         ****/
         
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline)) {
 
                     if (strpos($contextline["content"],"#MEMORY")===0) {
                         $contextData[$n]["content"]=str_replace("#MEMORY","##\nMEMORY\n",$contextline["content"]."\n##\n");
-                    } else if (strpos($contextline["content"],$GLOBALS["MEMORY_STATEMENT"])!==false) {
-                        $contextData[$n]["content"]=str_replace($GLOBALS["MEMORY_STATEMENT"],"(USE MEMORY reference)",$contextline["content"]);
+                    } else if (strpos($contextline["content"],\Synth\Bootstrap::config("MEMORY_STATEMENT"))!==false) {
+                        $contextData[$n]["content"]=str_replace(\Synth\Bootstrap::config("MEMORY_STATEMENT"),"(USE MEMORY reference)",$contextline["content"]);
                     }
                 }
             }
@@ -285,14 +285,14 @@ class Player2JsonDriver
         }
         
         
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) {
+        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
             $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         } else {
             $prefix="";
             //$prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         }
         
-        if (strpos($GLOBALS["SYNTH_PERS"],"#SpeechStyle")!==false) {
+        if (strpos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false) {
             $speechReinforcement="Check reference #SpeechStyle.";
         } else
             $speechReinforcement="";
@@ -300,17 +300,17 @@ class Player2JsonDriver
         if ($this->_is_groq_com) { // --- exception made for groq.com - JSON need pretty print
             $contextData[]=[
                 'role' => 'user',
-                'content' => "{$prefix}. $speechReinforcement Use only this JSON object to give your answer and do not send any other characters outside of this JSON structure: ".json_encode($GLOBALS["responseTemplate"],JSON_PRETTY_PRINT) 
+                'content' => "{$prefix}. $speechReinforcement Use only this JSON object to give your answer and do not send any other characters outside of this JSON structure: ".json_encode(\Synth\Bootstrap::config("responseTemplate"),JSON_PRETTY_PRINT) 
             ];
         } else {
             $contextData[]=[
                 'role' => 'user',
-                'content' => "{$prefix}. $speechReinforcement Use only this JSON object to give your answer and do not send any other characters outside of this JSON structure: ".json_encode($GLOBALS["responseTemplate"])
+                'content' => "{$prefix}. $speechReinforcement Use only this JSON object to give your answer and do not send any other characters outside of this JSON structure: ".json_encode(\Synth\Bootstrap::config("responseTemplate"))
             ];
         }
     
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && $GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
-            $contextData[0]["content"].=$GLOBALS["COMMAND_PROMPT"];
+        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+            $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
 
         $pb=[];
@@ -338,7 +338,7 @@ class Player2JsonDriver
                 if ($lastrole=="assistant" && $lastrole!=$element["role"] && $element["role"]!="tool" && !empty($assistantRoleBuffer)) {
                     $contextDataCopy[]=[
                         "role"=>"assistant",
-                        "content"=>synth_provider_dialogue_history(strval($GLOBALS["SYNTH_NAME"]), strval($lastTargetBuffer), $assistantRoleBuffer)
+                        "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($lastTargetBuffer), $assistantRoleBuffer)
                         
                     ];
                     $lastTargetBuffer="";
@@ -379,11 +379,11 @@ class Player2JsonDriver
                         }
                         $contextDataCopy[]=[
                                 "role"=>"assistant",
-                                "content"=>synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
+                                "content"=>synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue))
                             ];
                             
-                        $gameRequestCopy=$GLOBALS["gameRequest"];    
-                        $gameRequestCopy[3]=synth_provider_action_history(strval($GLOBALS["SYNTH_NAME"]), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
+                        $gameRequestCopy=\Synth\Bootstrap::gameRequest();    
+                        $gameRequestCopy[3]=synth_provider_action_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($actionDialogueTarget["target"] ?? ""), strval($lastActionName), strval($actionTargetValue));
                         $gameRequestCopy[0]="logaction";
                         logEvent($gameRequestCopy);   
                         
@@ -492,7 +492,7 @@ class Player2JsonDriver
                 'method' => 'POST',
                 'header' => implode("\r\n", $headers),
                 'content' => json_encode($data),
-                'timeout' => ($GLOBALS["HTTP_TIMEOUT"]) ?: $this->_timeout,
+                'timeout' => (\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?: $this->_timeout,
                 "ignore_errors" => true
             )
         );
@@ -507,8 +507,8 @@ class Player2JsonDriver
             $error=error_get_last();
             Logger::error(trim(print_r($error,true)));
 
-            if ($GLOBALS["db"]) {
-                $GLOBALS["db"]->insert(
+            if (\Synth\Bootstrap::db()) {
+                \Synth\Bootstrap::db()->insert(
                 'core_audit_request',
                     array(
                         'request' => json_encode($data),
@@ -528,8 +528,8 @@ class Player2JsonDriver
                 $error_message = "Request to player2json connector failed: {$status_line}.\n Response body: {$response}.\n model: {$this->_model}";
                 trigger_error($error_message, E_USER_WARNING);
 
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                         array(
                             'request' => json_encode($data),
@@ -541,8 +541,8 @@ class Player2JsonDriver
                 $this->primary_handler=false;
                 return null;
             } else  {
-                if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                if (\Synth\Bootstrap::db()) {
+                    \Synth\Bootstrap::db()->insert(
                     'core_audit_request',
                     array(
                         'request' => json_encode($data),
@@ -716,7 +716,7 @@ class Player2JsonDriver
                 $parameter = $parameterArr;
                 $functionCodeName = getFunctionCodeName($this->_functionName);
                 $parameter = buildFunctionExecutionParameter($functionCodeName, $parameter);
-                $commandStr = synthEncodeActionLine($GLOBALS["SYNTH_NAME"], $functionCodeName, $parameterArr, $parameter) . "\n";
+                $commandStr = synthEncodeActionLine(\Synth\Bootstrap::config("SYNTH_NAME"), $functionCodeName, $parameterArr, $parameter) . "\n";
 
                 if (!isset($alreadysent[md5($commandStr)])) {
                     $this->_commandBuffer[] = $commandStr;
@@ -778,7 +778,7 @@ class Player2JsonDriver
         $GLOBALS["DEBUG_DATA"]["full"]=($data);
 
         $headers = $this->buildHeaders();
-        $timeout = max(intval(($GLOBALS["HTTP_TIMEOUT"]) ?? 30), $this->_timeout);
+        $timeout = max(intval((\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?? 30), $this->_timeout);
         $options = array(
             'http' => array(
                 'method' => 'POST',

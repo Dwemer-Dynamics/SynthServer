@@ -27,13 +27,13 @@ require_once dirname(SYNTH_TTS_SCRIPT_DIR) . '/lib/cartesia_generation.php';
  */
 
 function ensureCartesiaDb() {
-    if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) {
+    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
         require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
     }
-    if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) {
+    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
         $GLOBALS["db"] = new sql();
     }
-    return $GLOBALS["db"] ?? null;
+    return \Synth\Bootstrap::db() ?? null;
 }
 
 function setCartesiaLastError(string $message): void {
@@ -41,7 +41,7 @@ function setCartesiaLastError(string $message): void {
 }
 
 function getCartesiaLastError(): string {
-    return trim(strval($GLOBALS["CARTESIA_LAST_ERROR_MESSAGE"] ?? ''));
+    return trim(strval(\Synth\Bootstrap::config("CARTESIA_LAST_ERROR_MESSAGE") ?? ''));
 }
 
 function clearCartesiaLastError(): void {
@@ -60,8 +60,8 @@ function resolveCartesiaConnectorRow(): ?array {
 
     $ttsConnector = new TTSConnector();
     $candidateIds = [
-        intval($GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] ?? 0),
-        intval($GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"]['tts_connector_id'] ?? 0),
+        intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID") ?? 0),
+        intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_PROFILE_DATA")['tts_connector_id'] ?? 0),
     ];
 
     foreach ($candidateIds as $candidateId) {
@@ -137,7 +137,7 @@ function hydrateCartesiaConnectorGlobals(): ?array {
 
 function getCartesiaActiveConfig(): array {
     // Deferred speech owns its effective settings, including deliberately missing credentials.
-    $plan = $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] ?? null;
+    $plan = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN') ?? null;
     if (is_array($plan)) {
         $inputs = $plan['inputs'] ?? [];
         if (($inputs['TTSFUNCTION'] ?? '') !== 'cartesia') throw new RuntimeException('Queued speech provider mismatch');
@@ -149,13 +149,13 @@ function getCartesiaActiveConfig(): array {
         ];
     }
     $row = null;
-    $connectorId = intval($GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] ?? 0);
-    $apiKey = trim(strval($GLOBALS["TTS"]["CARTESIA"]["API_KEY"] ?? ''));
+    $connectorId = intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID") ?? 0);
+    $apiKey = trim(strval(\Synth\Bootstrap::config("TTS")["CARTESIA"]["API_KEY"] ?? ''));
 
     if ($connectorId <= 0 || $apiKey === '') {
         $row = hydrateCartesiaConnectorGlobals();
-        $connectorId = intval($GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] ?? ($row['id'] ?? 0));
-        $apiKey = trim(strval($GLOBALS["TTS"]["CARTESIA"]["API_KEY"] ?? ''));
+        $connectorId = intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID") ?? ($row['id'] ?? 0));
+        $apiKey = trim(strval(\Synth\Bootstrap::config("TTS")["CARTESIA"]["API_KEY"] ?? ''));
     } else {
         $row = resolveCartesiaConnectorRow();
     }
@@ -305,14 +305,14 @@ function listExistingCartesiaVoices(?array $config = null, string $query = ''): 
 
     $query = trim($query);
     $cacheKey = getCartesiaRemoteVoicesCacheKey($config) . '|' . strtolower($query);
-    if (isset($GLOBALS['CARTESIA_REMOTE_VOICES_CACHE'][$cacheKey]) && is_array($GLOBALS['CARTESIA_REMOTE_VOICES_CACHE'][$cacheKey])) {
-        return $GLOBALS['CARTESIA_REMOTE_VOICES_CACHE'][$cacheKey];
+    if (isset($GLOBALS['CARTESIA_REMOTE_VOICES_CACHE'][$cacheKey]) && is_array(\Synth\Bootstrap::config('CARTESIA_REMOTE_VOICES_CACHE')[$cacheKey])) {
+        return \Synth\Bootstrap::config('CARTESIA_REMOTE_VOICES_CACHE')[$cacheKey];
     }
 
     $voices = [];
     $startingAfter = '';
     $seenPages = [];
-    $deadline = $GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE'] ?? (microtime(true) + 30);
+    $deadline = \Synth\Bootstrap::config('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE') ?? (microtime(true) + 30);
 
     do {
         $timeout = $deadline - microtime(true);
@@ -503,11 +503,11 @@ function cloneVoiceToCartesia($voiceName, $voiceSamplePath, ?array $config = nul
     $url = "https://api.cartesia.ai/voices/clone";
     
     // Get language from config
-    $language = $GLOBALS["TTS"]["CARTESIA"]["language"] ?? 'en';
+    $language = \Synth\Bootstrap::config("TTS")["CARTESIA"]["language"] ?? 'en';
     
     // Override language if set globally
     if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"])) {
-        $language = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+        $language = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
     }
     
     // Use similarity mode for best voice cloning results
@@ -704,16 +704,16 @@ function generateCartesiaTTS($text, $voiceId, $mood = 'normal') {
     $url = "https://api.cartesia.ai/tts/bytes";
     
     // Get language from config
-    $language = $GLOBALS["TTS"]["CARTESIA"]["language"] ?? 'en';
+    $language = \Synth\Bootstrap::config("TTS")["CARTESIA"]["language"] ?? 'en';
     
     // Override language if set globally
     if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"])) {
-        $language = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+        $language = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
     }
     
     // Queued workers restore their captured settings before entering this driver.
     $request = synth_cartesia_generation_request(strval($text), strval($voiceId), $mood,
-        $GLOBALS['TTS']['CARTESIA'] ?? [], strval($language));
+        \Synth\Bootstrap::config('TTS')['CARTESIA'] ?? [], strval($language));
     $data = $request['body'];
     $authorization = $request['modern'] ? "Authorization: Bearer {$apiKey}\r\n" : "X-API-Key: {$apiKey}\r\n";
     
@@ -1015,27 +1015,27 @@ function mapSpeedToCartesia($speed) {
  * @return string The voice name
  */
 function getCartesiaVoiceName() {
-    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return trim(strval($GLOBALS['PATCH_OVERRIDE_VOICE'] ?? ''));
+    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return trim(strval(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? ''));
     require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/utils.php");
     
     $voice = isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"]) 
-        ? $GLOBALS["TTS"]["FORCED_VOICE_DEV"] 
-        : ($GLOBALS["TTS"]["CARTESIA"]["voiceid"] ?? '');
+        ? \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"] 
+        : (\Synth\Bootstrap::config("TTS")["CARTESIA"]["voiceid"] ?? '');
     
     // If voiceid is blank, try to get voicetype from database
     if (empty($voice)) {
         // Get codename from SYNTH_NAME (NPC name)
-        $codename = npcNameToCodename($GLOBALS["SYNTH_NAME"] ?? '');
+        $codename = npcNameToCodename(\Synth\Bootstrap::config("SYNTH_NAME") ?? '');
         
         if (!empty($codename)) {
             // Try to get voiceid from NPC profile first
             try {
-                if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) {
+                if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
                     require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
                     $GLOBALS["db"] = new sql();
                 }
-                $npcRow = $GLOBALS["db"]->fetchOne(
-                    "SELECT voiceid FROM core_npc WHERE lower(npc_name) = lower('" . $GLOBALS["db"]->escape($GLOBALS["SYNTH_NAME"] ?? '') . "') LIMIT 1"
+                $npcRow = \Synth\Bootstrap::db()->fetchOne(
+                    "SELECT voiceid FROM core_npc WHERE lower(npc_name) = lower('" . \Synth\Bootstrap::db()->escape(\Synth\Bootstrap::config("SYNTH_NAME") ?? '') . "') LIMIT 1"
                 );
                 if (is_array($npcRow) && !empty($npcRow['voiceid'])) {
                     $voice = trim($npcRow['voiceid']);
@@ -1046,14 +1046,14 @@ function getCartesiaVoiceName() {
         
         // Final fallback to synth_name if no profile voice is available.
         if (empty($voice)) {
-            $voice = str_replace(" ", "_", mb_strtolower($GLOBALS["SYNTH_NAME"] ?? '', 'UTF-8'));
+            $voice = str_replace(" ", "_", mb_strtolower(\Synth\Bootstrap::config("SYNTH_NAME") ?? '', 'UTF-8'));
             $voice = str_replace("'", "+", $voice);
             $voice = preg_replace('/[^a-zA-Z0-9_+]/u', '', $voice);
         }
     }
     
     if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
-        $voice = $GLOBALS["PATCH_OVERRIDE_VOICE"];
+        $voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
     }
     
     return $voice;
@@ -1082,7 +1082,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
     // Check cache first
-    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && $GLOBALS["AVOID_TTS_CACHE"] === false) {
+    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
         $cacheFile = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . 
                     "soundcache/" . md5(trim($stringforhash)) . ".wav";
         if (synth_speech_cache_valid($cacheFile)) {
@@ -1112,9 +1112,9 @@ namespace Synth\Drivers\Tts\Drivers {
     }
     
     // Apply FFMPEG filters if configured
-    if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"] ?? null)) {
+    if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS") ?? null)) {
         $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"] = "adelay=150|150";
-        $FFMPEG_FILTER = '-af "' . implode(",", $GLOBALS["TTS_FFMPEG_FILTERS"]) . '"';
+        $FFMPEG_FILTER = '-af "' . implode(",", \Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")) . '"';
     } else {
         $FFMPEG_FILTER = '-filter:a "adelay=150|150"';
     }
@@ -1126,8 +1126,8 @@ namespace Synth\Drivers\Tts\Drivers {
     
     
     $startTimeTrans = microtime(true);
-    $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-        ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+    $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+        ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
     if (!synth_transcode_speech_cache($response,$fname,$filter)) {
         Logger::error('cartesia audio conversion or owned cache publication failed');
         return false;

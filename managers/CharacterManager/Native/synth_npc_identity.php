@@ -5,7 +5,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_protocol_state.php';
 function synth_npc_native_request(): bool
 {
     return !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
-        && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? null)===2;
+        && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? null)===2;
 }
 
 // Name-only legacy facades may resolve only the current canonical target or a unique captured participant.
@@ -14,17 +14,17 @@ function synth_npc_request_actor_id($db, string $name, ?array $boundContext=null
     if (!synth_npc_native_request()) return null;
     synth_protocol_assert_request_active();
     if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
-        $bindings=$GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'];
+        $bindings=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS');
         $binding=$name==='' && count($bindings)===1 ? reset($bindings) : ($bindings[$name] ?? null);
         if (is_array($binding) && intval($binding['actor_identity_id'] ?? 0)>0) {
             return intval($binding['actor_identity_id']);
         }
         return null;
     }
-    $context=$boundContext ?? synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+    $context=$boundContext ?? synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json']);
     if (!$context) return null;
     $matches=[];
-    $target=synth_protocol_response_actor_identity($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json'],$context);
+    $target=synth_protocol_response_actor_identity($db,\Synth\Bootstrap::requestEvent()['json'],$context);
     if ($target===null) return null;
     if (is_array($target) && ($name==='' || strcasecmp(trim($target['display_name']),trim($name))===0)) {
         $matches=[$target];
@@ -38,7 +38,7 @@ function synth_npc_request_actor_id($db, string $name, ?array $boundContext=null
     }
     if (count($matches)!==1) return null;
     $identity=reset($matches);
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+    $event=\Synth\Bootstrap::requestEvent()['json'];
     $row=$db->fetchOne('SELECT a.id FROM public.core_actor_identity a
         JOIN public.core_runtime_session r ON r.playthrough_id=a.playthrough_id
         WHERE a.game=\'fo4\' AND r.session_id='.$db->escapeLiteral($event['session_id']).'

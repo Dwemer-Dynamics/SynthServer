@@ -63,7 +63,7 @@ function TkInsertAndCalcTotals($table, $data)
         
         // Fetch the last row
         $latestRowQuery = "SELECT * FROM $table ORDER BY ROWID DESC LIMIT 1";
-        $latestRowResult = $GLOBALS["db"]->fetchAll($latestRowQuery);
+        $latestRowResult = \Synth\Bootstrap::db()->fetchAll($latestRowQuery);
 
         if (!empty($latestRowResult)) {
             // If the table is not empty
@@ -79,7 +79,7 @@ function TkInsertAndCalcTotals($table, $data)
         }
 
         // Insert new row
-       $GLOBALS["db"]->execQuery("INSERT INTO $table (" . implode(",", array_keys($data)) . ") VALUES ('" . implode("','", $data) . "')");
+       \Synth\Bootstrap::db()->execQuery("INSERT INTO $table (" . implode(",", array_keys($data)) . ") VALUES ('" . implode("','", $data) . "')");
     }
 
     

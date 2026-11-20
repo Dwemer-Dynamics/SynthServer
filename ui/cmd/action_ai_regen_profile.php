@@ -22,7 +22,7 @@ require_once $enginePath . "lib/core/llm_connector.class.php";
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "lazy_xml.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "ai_profile_generation_service.php";
 
-$db = $GLOBALS["db"];
+$db = \Synth\Bootstrap::db();
 $jsonDataInput = aiProfileMergeRequestData();
 
 $selectedEvents = [];

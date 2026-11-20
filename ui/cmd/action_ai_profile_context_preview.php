@@ -21,7 +21,7 @@ require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.
 require_once $enginePath . "lib/core/npc_master.class.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "ai_profile_generation_helper.php";
 
-$db = $GLOBALS["db"];
+$db = \Synth\Bootstrap::db();
 $name = trim((string)($jsonDataInput["name"] ?? ""));
 $eventLimit = isset($jsonDataInput["event_limit"]) ? intval($jsonDataInput["event_limit"]) : 100;
 $eventLimit = max(10, min(200, $eventLimit));

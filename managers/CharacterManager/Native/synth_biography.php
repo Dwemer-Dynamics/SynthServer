@@ -83,7 +83,7 @@ function synth_actor_stats_prompt(array $event,?array $state): string
 // Ordinary route: the named speaker must resolve to one exact actor of the current request snapshot.
 function synth_actor_stats_for_request($db,string $npcName): string
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? null;
     if (!is_array($event) || !synth_actor_stats_supported($event)) return '';
     require_once __DIR__.'/synth_npc_identity.php';
     // A legacy or cancelled request never loads the bound context; the actor lookup rechecks both against it.

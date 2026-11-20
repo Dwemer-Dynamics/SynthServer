@@ -3,7 +3,7 @@
 $GLOBALS["TASKS"]["middleterm"]=[];
 $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
 
-    $enginePath = $GLOBALS["ENGINE_ROOT"];
+    $enginePath = \Synth\Bootstrap::engineRoot();
     $GLOBALS["ENGINE_PATH"]=$enginePath;
 
 
@@ -21,17 +21,17 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
 
     // Native narratives use their own immutable journal and never enter the legacy row/name loop below.
     require_once __DIR__ . '/synth_middleterm_jobs.php';
-    synth_middleterm_dispatch($GLOBALS['db']);
+    synth_middleterm_dispatch(\Synth\Bootstrap::db());
 
     //$results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null order by gamets_truncated desc limit 1"); //0.8ms
-    $results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null"); // 0.5ms, faster
+    $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null"); // 0.5ms, faster
     $lastMemory = intval($results[0]["gamets_truncated"]);
 
     //$results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");
-    $results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event"); // faster
+    $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets) as gamets from core_context_event"); // faster
     $maxRow = intval($results[0]["gamets"]);
 
-    $allEnabledMtNpc=$GLOBALS["db"]->fetchAll("
+    $allEnabledMtNpc=\Synth\Bootstrap::db()->fetchAll("
         SELECT n.*
         FROM core_npc n
         LEFT JOIN core_profiles p ON p.id = n.profile_id
@@ -52,9 +52,9 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
         require(__DIR__ . "/middleterm_generate.php");
     }
 
-    $pfi = intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
-    $minimumEvents = max(1, intval($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_MIN_EVENTS"] ?? 5));
-    $autoCreateValue = strtolower(trim((string)($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARYS"] ?? 'true')));
+    $pfi = intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] ?? 10) * 100000;
+    $minimumEvents = max(1, intval(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_MIN_EVENTS"] ?? 5));
+    $autoCreateValue = strtolower(trim((string)(\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARYS"] ?? 'true')));
     $autoCreateEnabled = !in_array($autoCreateValue, ['0', 'false', 'off', 'no'], true);
 
     // PackIntoSummary intentionally leaves roughly one in-game hour unsettled so
@@ -62,13 +62,13 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
     // range here; Fallout 4 can create large game-time jumps that otherwise cause this
     // five-second task to invoke an empty compaction forever.
     $settledCutoff = $maxRow - intval(1 / 0.0000024);
-    $eligibleResult = $GLOBALS["db"]->fetchOne(
+    $eligibleResult = \Synth\Bootstrap::db()->fetchOne(
         "SELECT COUNT(*) AS n FROM memory_v WHERE gamets > {$lastMemory} AND gamets < {$settledCutoff}"
     );
     $eligibleEvents = intval($eligibleResult["n"] ?? 0);
 
     if ($autoCreateEnabled && ($maxRow - $lastMemory) > $pfi && $eligibleEvents >= $minimumEvents) {
-        $memoryUtility = escapeshellarg($GLOBALS["ENGINE_PATH"] . "/debug/util_memory_subsystem.php");
+        $memoryUtility = escapeshellarg(\Synth\Bootstrap::enginePath() . "/debug/util_memory_subsystem.php");
         Logger::info("[MEMORY] Starting automatic compaction eligible_events={$eligibleEvents} last_memory={$lastMemory} max_event={$maxRow}");
         $shellResult = shell_exec("php {$memoryUtility} compact embed 1 2>&1");
 

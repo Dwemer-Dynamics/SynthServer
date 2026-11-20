@@ -9,11 +9,11 @@ function synth_memory_fetch_embedding(string $text): ?array
 {
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
     synth_protocol_assert_request_active();
-    if (!filter_var($GLOBALS['FEATURES']['MEMORY_EMBEDDING']['USE_TEXT2VEC'] ?? false,FILTER_VALIDATE_BOOLEAN)) return null;
-    if (!$GLOBALS['db']->isTransactionIdle()) throw new LogicException('Memory embeddings require an idle database connection');
+    if (!filter_var(\Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['USE_TEXT2VEC'] ?? false,FILTER_VALIDATE_BOOLEAN)) return null;
+    if (!\Synth\Bootstrap::db()->isTransactionIdle()) throw new LogicException('Memory embeddings require an idle database connection');
     $text = trim($text);
     if ($text==='' || strlen($text)>65536 || !mb_check_encoding($text,'UTF-8')) return null;
-    $url = rtrim(strval($GLOBALS['FEATURES']['MEMORY_EMBEDDING']['TXTAI_URL'] ?? ''),'/');
+    $url = rtrim(strval(\Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['TXTAI_URL'] ?? ''),'/');
     if (!in_array(strtolower(strval(parse_url($url,PHP_URL_SCHEME))),['http','https'],true)) return null;
     $context = stream_context_create(['http'=>['method'=>'POST','header'=>'Content-Type: application/json',
         'content'=>json_encode(['text'=>$text],JSON_THROW_ON_ERROR),'timeout'=>10]]);
@@ -136,12 +136,12 @@ function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 
         // Diary reflections are separate evidence, not short-term dialogue summaries or fabricated vectors.
         if (!$recent) {
             $readers=[];
-            if (trim($actor)==='' && ($GLOBALS['SYNTH_NAME'] ?? '')==='The Narrator') {
+            if (trim($actor)==='' && (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')==='The Narrator') {
                 $reader=$db->fetchOne(synth_protocol_history_cte($db,$event,'',null,true)
                     .' SELECT DISTINCT reader_identity_id FROM native_history_scopes LIMIT 1');
                 if (intval($reader['reader_identity_id'] ?? 0)>0) {
                     $readers[]=[intval($reader['reader_identity_id']),'narrator',false];
-                    if (!filter_var($GLOBALS['NARRATOR_ONLY_DIARY_ACCESS'] ?? false,FILTER_VALIDATE_BOOLEAN)) $readers[]=[0,'npc',true];
+                    if (!filter_var(\Synth\Bootstrap::config('NARRATOR_ONLY_DIARY_ACCESS') ?? false,FILTER_VALIDATE_BOOLEAN)) $readers[]=[0,'npc',true];
                 }
             } elseif (trim($actor)!=='') {
                 $reader=$db->fetchOne(synth_protocol_history_cte($db,$event,$actor)

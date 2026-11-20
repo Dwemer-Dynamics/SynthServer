@@ -27,7 +27,7 @@ final class MemoryRunner
         require_once __DIR__ . '/Native/synth_memory_dispatch.php';
         try {
             synthRuntimeBootstrap($enginePath, ['load_general_settings' => true, 'load_stt_connector' => false]);
-            $result = \synth_memory_dispatch($GLOBALS['db']);
+            $result = \synth_memory_dispatch(\Synth\Bootstrap::db());
             if ($result !== null) {
                 echo "Native memory dispatch completed.\n";
             }
@@ -50,7 +50,7 @@ final class MemoryRunner
         require_once __DIR__ . '/Native/synth_memory_worker.php';
         try {
             synthRuntimeBootstrap($enginePath, ['load_general_settings' => true, 'load_stt_connector' => false]);
-            $result = \synth_memory_run_persisted_job($GLOBALS['db'], $jobId);
+            $result = \synth_memory_run_persisted_job(\Synth\Bootstrap::db(), $jobId);
             echo $result === null ? "Native memory job unavailable.\n" : "Native memory job completed.\n";
         } catch (SYNTHProtocolCancelled $error) {
             echo "Native memory job cancelled.\n";

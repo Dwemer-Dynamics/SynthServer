@@ -4,7 +4,7 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once dirname(__DIR__).'/lib/synth_jev_actions.php';
 
 // Functions to be provided to OpenAI
-$startTime=$GLOBALS["startTime"] ?? microtime(true);
+$startTime=\Synth\Bootstrap::config("startTime") ?? microtime(true);
 
 if (!function_exists('synthTraceFunctionsIncludePhase')) {
     function synthTraceFunctionsIncludePhase($line, $label, $startTime)
@@ -115,7 +115,7 @@ synthTraceFunctionsIncludePhase(__LINE__, 'enabled_functions_initialized', $star
 
 // Ensure PLAYER_NAME is defined before use in string templates below.
 // Prefer database (conf_opts) value; fallback to existing global or 'Player'.
-if (!isset($GLOBALS["PLAYER_NAME"]) || $GLOBALS["PLAYER_NAME"] === '') {
+if (!isset($GLOBALS["PLAYER_NAME"]) || \Synth\Bootstrap::config("PLAYER_NAME") === '') {
     $safePlayerName = 'Player';
     try {
         $rootPath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
@@ -130,8 +130,8 @@ if (!isset($GLOBALS["PLAYER_NAME"]) || $GLOBALS["PLAYER_NAME"] === '') {
             'load_player_name' => true,
         ]);
         synthTraceFunctionsIncludePhase(__LINE__, 'player_name_bootstrap_run_done', $startTime);
-        if (isset($GLOBALS["PLAYER_NAME"]) && $GLOBALS["PLAYER_NAME"] !== '') {
-            $safePlayerName = (string)$GLOBALS["PLAYER_NAME"];
+        if (isset($GLOBALS["PLAYER_NAME"]) && \Synth\Bootstrap::config("PLAYER_NAME") !== '') {
+            $safePlayerName = (string)\Synth\Bootstrap::config("PLAYER_NAME");
         }
     } catch (Throwable $_) {
         // ignore and use fallback
@@ -219,7 +219,7 @@ function synthResolveLocationForTravelAction($destinationName)
         return null;
     }
 
-    $db = $GLOBALS["db"];
+    $db = \Synth\Bootstrap::db();
     $escapedDestination = method_exists($db, 'escape')
         ? $db->escape($destinationName)
         : str_replace("'", "''", $destinationName);
@@ -563,7 +563,7 @@ $GLOBALS["FUNCTIONS"] = [
                 "target" => [
                     "type" => "string",
                     "description" => "Visible nearby target NPC, actor, or being. Do not use this for places, buildings, cities, doors, or locations.",
-                    "enum" => isset($GLOBALS['FUNCTION_PARM_MOVETO']) ? $GLOBALS['FUNCTION_PARM_MOVETO'] : [],
+                    "enum" => isset($GLOBALS['FUNCTION_PARM_MOVETO']) ? \Synth\Bootstrap::config('FUNCTION_PARM_MOVETO') : [],
                 ],
             ],
             "required" => ["target"],
@@ -642,7 +642,7 @@ $GLOBALS["FUNCTIONS"] = [
                 "target" => [
                     "type" => "string",
                     "description" => "Nearby NPC, actor, or being to inspect more closely",
-                    "enum" => isset($GLOBALS['FUNCTION_PARM_INSPECT']) ? $GLOBALS['FUNCTION_PARM_INSPECT'] : [],
+                    "enum" => isset($GLOBALS['FUNCTION_PARM_INSPECT']) ? \Synth\Bootstrap::config('FUNCTION_PARM_INSPECT') : [],
                 ],
             ],
             "required" => ["target"],
@@ -1041,7 +1041,7 @@ function synthActionCapabilityForCode(string $codeName): string
 // Apply the same native capability boundary before and after database catalog merging.
 function synthActionCodeIsNegotiated(string $codeName): bool
 {
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if ($codeName==='ReleaseWait' || ($codeName==='WaitHere' && ($event['protocol_version'] ?? 1)===2)) {
         require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
         if (!synth_wait_action_supported($event,$codeName)) return false;
@@ -1059,9 +1059,9 @@ function synthActionCodeIsNegotiated(string $codeName): bool
     if ($codeName === 'Consume' && ($event['protocol_version'] ?? 1) === 2
         && (!function_exists('synth_protocol_supports_consumption') || !synth_protocol_supports_consumption($event))) return false;
     if ($codeName==='OpenInventory' && ($event['protocol_version'] ?? 1)===2
-        && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
+        && (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($event,\Synth\Bootstrap::db() ?? null))) return false;
     if ($codeName === 'TakeItemFromPlayer'
-        && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
+        && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,\Synth\Bootstrap::db() ?? null))) return false;
     if ($codeName === 'Barter') {
         if (!function_exists('synth_protocol_supports_transfer') || !\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return false;
     }
@@ -1071,15 +1071,15 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         && (!function_exists('synth_protocol_supports_caps_transfer') || !synth_protocol_supports_caps_transfer($event))) return false;
     if ($codeName === 'TakeCapsFromPlayer' && ($event['protocol_version'] ?? 1) === 2
         && (!function_exists('synth_protocol_supports_player_caps') || !synth_protocol_supports_player_caps($event))) return false;
-    $capabilities = is_array($GLOBALS['SYNTH_CLIENT_CAPABILITIES'] ?? null)
-        ? $GLOBALS['SYNTH_CLIENT_CAPABILITIES']
+    $capabilities = is_array(\Synth\Bootstrap::config('SYNTH_CLIENT_CAPABILITIES') ?? null)
+        ? \Synth\Bootstrap::config('SYNTH_CLIENT_CAPABILITIES')
         : [];
     return $capabilities === []
         ? getenv('PHPUNIT_TEST') !== false
         : in_array(synthActionCapabilityForCode($codeName), $capabilities, true);
 }
 
-$GLOBALS["FUNCTIONS"] = array_values(array_filter($GLOBALS["FUNCTIONS"], function ($functionEntry) {
+$GLOBALS["FUNCTIONS"] = array_values(array_filter(\Synth\Bootstrap::config("FUNCTIONS"), function ($functionEntry) {
     $codeName = getFunctionCodeName($functionEntry["name"] ?? "");
     $codeName = $codeName === false ? false : synthNormalizeActionCodeName($codeName);
     if ($codeName === false || !isset(synthCanonicalActionCodeSet()[$codeName])) {
@@ -1090,11 +1090,11 @@ $GLOBALS["FUNCTIONS"] = array_values(array_filter($GLOBALS["FUNCTIONS"], functio
 
 // Maintain the base registry even when this context negotiates no actions.
 $GLOBALS["BASE_FUNCTIONS"] ??= [];
-foreach ($GLOBALS["FUNCTIONS"] as $n => $functionEntry) {
-    $GLOBALS["BASE_FUNCTIONS"][synthNormalizeActionCodeName(getFunctionCodeName($functionEntry["name"]))] = $GLOBALS["FUNCTIONS"][$n];
+foreach (\Synth\Bootstrap::config("FUNCTIONS") as $n => $functionEntry) {
+    $GLOBALS["BASE_FUNCTIONS"][synthNormalizeActionCodeName(getFunctionCodeName($functionEntry["name"]))] = \Synth\Bootstrap::config("FUNCTIONS")[$n];
 }
-$SYNTH_BASE_FUNCTIONS_LOCAL = $GLOBALS["BASE_FUNCTIONS"];
-$GLOBALS["SYNTH_BASE_FUNCTIONS_FALLBACK"] = $GLOBALS["BASE_FUNCTIONS"];
+$SYNTH_BASE_FUNCTIONS_LOCAL = \Synth\Bootstrap::config("BASE_FUNCTIONS");
+$GLOBALS["SYNTH_BASE_FUNCTIONS_FALLBACK"] = \Synth\Bootstrap::config("BASE_FUNCTIONS");
 
 synthTraceFunctionsIncludePhase(__LINE__, 'base_functions_indexed', $startTime);
 
@@ -1105,7 +1105,7 @@ function getFunctionNameAliases()
         return $cachedAliases;
     }
 
-    $playerName = strval($GLOBALS["PLAYER_NAME"] ?? "Player");
+    $playerName = strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player");
 
     $aliases = [
         'ExchangeItems' => 'OpenInventory',
@@ -1146,7 +1146,7 @@ function getFunctionCodeName($key)
         return $resolvedCodeNames[$key];
     }
 
-    if (!isset($GLOBALS["F_NAMES"]) || !is_array($GLOBALS["F_NAMES"])) {
+    if (!isset($GLOBALS["F_NAMES"]) || !is_array(\Synth\Bootstrap::config("F_NAMES"))) {
         return $resolvedCodeNames[$key] = false;
     }
 
@@ -1154,8 +1154,8 @@ function getFunctionCodeName($key)
         return $resolvedCodeNames[$key] = $key;
     }
 
-    if (isset($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"]) && is_array($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"])) {
-        $preferredCode = $GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"][$key] ?? false;
+    if (isset($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"]) && is_array(\Synth\Bootstrap::config("SYNTH_ACTION_NAME_PREFERRED_CODE"))) {
+        $preferredCode = \Synth\Bootstrap::config("SYNTH_ACTION_NAME_PREFERRED_CODE")[$key] ?? false;
         if ($preferredCode !== false) {
             return $resolvedCodeNames[$key] = $preferredCode;
         }
@@ -1170,15 +1170,15 @@ function getFunctionCodeName($key)
     }
 
     foreach ($keysToTry as $candidateKey) {
-        if (isset($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"]) && is_array($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"])) {
-            $preferredCode = $GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"][$candidateKey] ?? false;
+        if (isset($GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"]) && is_array(\Synth\Bootstrap::config("SYNTH_ACTION_NAME_PREFERRED_CODE"))) {
+            $preferredCode = \Synth\Bootstrap::config("SYNTH_ACTION_NAME_PREFERRED_CODE")[$candidateKey] ?? false;
             if ($preferredCode !== false) {
                 return $resolvedCodeNames[$key] = $preferredCode;
             }
         }
 
         $matchingCodes = [];
-        foreach ($GLOBALS["F_NAMES"] as $functionCode => $functionName) {
+        foreach (\Synth\Bootstrap::config("F_NAMES") as $functionCode => $functionName) {
             if ($functionName === $candidateKey) {
                 $matchingCodes[] = $functionCode;
             }
@@ -1243,8 +1243,8 @@ function synthBuildActionPromptTemplateContext($rowOrCode = null, array $extraCo
 
     $context = [
         'code_name' => $codeName,
-        'synth_name' => strval($GLOBALS["SYNTH_NAME"] ?? 'NPC'),
-        'player_name' => strval($GLOBALS["PLAYER_NAME"] ?? 'Player'),
+        'synth_name' => strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? 'NPC'),
+        'player_name' => strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'),
         'config' => [],
     ];
 
@@ -1275,7 +1275,7 @@ function synthFormatReturnMessageTemplate($codeName, $primaryArgument = '', arra
         $template = strval($actionRow['return_message'] ?? '');
     }
     if ($template === '' && isset($GLOBALS["F_RETURNMESSAGES"][$codeName])) {
-        $template = strval($GLOBALS["F_RETURNMESSAGES"][$codeName] ?? '');
+        $template = strval(\Synth\Bootstrap::config("F_RETURNMESSAGES")[$codeName] ?? '');
     }
     if ($template === '') {
         return '';
@@ -1297,7 +1297,7 @@ function synthFormatReturnMessageTemplate($codeName, $primaryArgument = '', arra
     $itemDisplayValue = synthFormatActionDisplayItemValue(trim(strval($argumentData['item'] ?? ($argumentData['location'] ?? ''))));
 
     // This legacy template's TARGET slot means amount, while the native arguments retain the canonical player target.
-    if ($codeName==='TakeCapsFromPlayer' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2
+    if ($codeName==='TakeCapsFromPlayer' && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2
         && array_key_exists('amount',$argumentData)) $primaryArgument=strval($argumentData['amount']);
 
     $replacements = [
@@ -1305,8 +1305,8 @@ function synthFormatReturnMessageTemplate($codeName, $primaryArgument = '', arra
         '#ITEM#' => $itemDisplayValue,
         '#AMOUNT#' => trim(strval($argumentData['amount'] ?? '')),
         '#LOCATION#' => synthFormatActionDisplayItemValue(trim(strval($argumentData['location'] ?? ($argumentData['item'] ?? '')))),
-        '#SYNTH_NAME#' => strval($GLOBALS["SYNTH_NAME"] ?? 'NPC'),
-        '#PLAYER_NAME#' => strval($GLOBALS["PLAYER_NAME"] ?? 'Player'),
+        '#SYNTH_NAME#' => strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? 'NPC'),
+        '#PLAYER_NAME#' => strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'),
     ];
 
     foreach ($extraReplacements as $key => $value) {
@@ -1404,7 +1404,7 @@ function synthBuildFuncretResultInfoActionMessage($codeName, $argName = 'target'
     }
 
     $resultText = trim(strval($resultText));
-    $synthName = strval($GLOBALS["SYNTH_NAME"] ?? 'NPC');
+    $synthName = strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? 'NPC');
     if ($resultText !== '' && stripos($resultText, 'error') === 0) {
         return "{$synthName} issued ACTION, but {$resultText}";
     }
@@ -1442,10 +1442,10 @@ function synthFormatActionPromptTemplate($template, array $extraReplacements = [
     }
 
     $replacements = [
-        '#SYNTH_NAME#' => strval($GLOBALS["SYNTH_NAME"] ?? 'NPC'),
-        '#PLAYER_NAME#' => strval($GLOBALS["PLAYER_NAME"] ?? 'Player'),
-        '{$GLOBALS["SYNTH_NAME"]}' => strval($GLOBALS["SYNTH_NAME"] ?? 'NPC'),
-        '{$GLOBALS["PLAYER_NAME"]}' => strval($GLOBALS["PLAYER_NAME"] ?? 'Player'),
+        '#SYNTH_NAME#' => strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? 'NPC'),
+        '#PLAYER_NAME#' => strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'),
+        '{$GLOBALS["SYNTH_NAME"]}' => strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? 'NPC'),
+        '{$GLOBALS["PLAYER_NAME"]}' => strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'),
     ];
 
     foreach ($extraReplacements as $key => $value) {
@@ -1472,7 +1472,7 @@ function synthGetPromptActionDescription($codeName, $fallbackDescription = '')
     $description = '';
 
     if ($codeName !== '' && isset($GLOBALS["F_DESCRIPTIONS"][$codeName])) {
-        $description = strval($GLOBALS["F_DESCRIPTIONS"][$codeName] ?? '');
+        $description = strval(\Synth\Bootstrap::config("F_DESCRIPTIONS")[$codeName] ?? '');
     }
 
     if ($description === '') {
@@ -1485,7 +1485,7 @@ function synthGetPromptActionDescription($codeName, $fallbackDescription = '')
 function getFunctionDisplayName($key)
 {
     if (isset($GLOBALS["F_NAMES"][$key]) && !empty($GLOBALS["F_NAMES"][$key])) {
-        return $GLOBALS["F_NAMES"][$key];
+        return \Synth\Bootstrap::config("F_NAMES")[$key];
     } else {
         return $key;
     }
@@ -1640,11 +1640,11 @@ function buildFunctionExecutionContextFromResponse($parsedResponse)
     $parameterValue = $parsedResponse["target"] ?? "";
     $missingRequired = [];
 
-    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         // Preserve every raw non-speech field; only shared exact-empty placeholders are not wait arguments.
         $parameterValue=array_diff_key($parsedResponse,array_flip(['action','character','listener','mood','message','lang','emotion','emotion_intensity']));
         foreach (['target','item','amount'] as $key) if (($parameterValue[$key] ?? null)==='') unset($parameterValue[$key]);
-    } elseif (in_array($functionCodeName,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    } elseif (in_array($functionCodeName,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
         // Keep action fields separate from speech before strict transfer validation.
         $parameterValue = array_diff_key($parsedResponse, array_flip([
             'action','character','listener','mood','message','lang','emotion','emotion_intensity',
@@ -1707,7 +1707,7 @@ function queueFunctionExecutionCommand(&$commandBuffer, &$alreadySent, $executio
 
     synthEnrichTravelToExecutionContext($executionContext);
 
-    $actorName = ($actorName !== null && trim(strval($actorName)) !== "") ? strval($actorName) : strval($GLOBALS["SYNTH_NAME"] ?? "SYNTH");
+    $actorName = ($actorName !== null && trim(strval($actorName)) !== "") ? strval($actorName) : strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? "SYNTH");
     $commandStr = synthEncodeActionLine(
         $actorName,
         strval($executionContext["function_code_name"] ?? ""),
@@ -1740,7 +1740,7 @@ function buildFunctionExecutionParameter($functionCodeName, $parameter)
 {
     $functionCodeName = trim(strval($functionCodeName));
     if (in_array($functionCodeName,['WaitHere','ReleaseWait','OpenInventory','FollowPlayer','StopFollowing','TakeASeat'],true)
-        && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+        && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__).'/lib/synth_wait_actions.php';
         return synth_wait_action_parameters_empty($parameter) ? '{}'
             : json_encode($parameter,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
@@ -1762,15 +1762,15 @@ function findFunctionByName($name)
 {
     $name = trim(strval($name));
     if (!synth_jev_action_code_allowed(strval(getFunctionCodeName($name) ?: $name))) return null;
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1)===2 && ($event['type'] ?? '')==='trigger'
         && ($event['payload']['kind'] ?? '')==='rechat'
         && !synth_rechat_action_code_allowed(strval(getFunctionCodeName($name) ?: $name))) return null;
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2
         && in_array(getFunctionCodeName($name), ['GiveCapsTo', 'TakeCapsFromPlayer', 'TakeItemFromPlayer', 'OpenInventory', 'Inspect', 'CheckInventory', 'WaitHere', 'ReleaseWait', 'FollowPlayer', 'StopFollowing', 'TakeASeat'], true)) {
         // Native contracts use the negotiated runtime definition; a legacy row
         // cannot restore caps fallbacks, broaden observation tools or add wait arguments.
-        foreach ($GLOBALS['FUNCTIONS'] ?? [] as $function)
+        foreach (\Synth\Bootstrap::config('FUNCTIONS') ?? [] as $function)
             if (getFunctionCodeName($function['name'] ?? '') === getFunctionCodeName($name)) return $function;
         return null;
     }
@@ -1787,7 +1787,7 @@ function findFunctionByName($name)
         }
     }
 
-    foreach ($GLOBALS["FUNCTIONS"] as $function) {
+    foreach (\Synth\Bootstrap::config("FUNCTIONS") as $function) {
         if (($function['name'] ?? '') === $name) {
             return $function;
         }
@@ -1795,7 +1795,7 @@ function findFunctionByName($name)
 
     $resolvedCodeName = getFunctionCodeName($name);
     if (is_string($resolvedCodeName) && $resolvedCodeName !== '') {
-        foreach ($GLOBALS["FUNCTIONS"] as $function) {
+        foreach (\Synth\Bootstrap::config("FUNCTIONS") as $function) {
             $functionName = trim(strval($function['name'] ?? ''));
             if ($functionName === '') {
                 continue;
@@ -1872,7 +1872,7 @@ function getFunctionCodeNameByDisplayName($searchValue)
         }
     }
 
-    foreach ($GLOBALS["F_NAMES"] as $key => $value) {
+    foreach (\Synth\Bootstrap::config("F_NAMES") as $key => $value) {
         if ($value === $searchValue) {
             return $key;
         }
@@ -1883,13 +1883,13 @@ function getFunctionCodeNameByDisplayName($searchValue)
 function unsetFunction($functionCodename)
 {
     $functionCodename = synthNormalizeActionCodeName($functionCodename);
-    if (($key = array_search($functionCodename, $GLOBALS["ENABLED_FUNCTIONS"])) !== false) {
+    if (($key = array_search($functionCodename, \Synth\Bootstrap::config("ENABLED_FUNCTIONS"))) !== false) {
         unset($GLOBALS["ENABLED_FUNCTIONS"][$key]);
 
     }
 
-    foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
-        if (!in_array(getFunctionCodeName($v["name"]), $GLOBALS["ENABLED_FUNCTIONS"])) {
+    foreach (\Synth\Bootstrap::config("FUNCTIONS") as $n => $v) {
+        if (!in_array(getFunctionCodeName($v["name"]), \Synth\Bootstrap::config("ENABLED_FUNCTIONS"))) {
             // error_log("Removing {$GLOBALS["FUNCTIONS"][$n]["name"]}");
             unset($GLOBALS["FUNCTIONS"][$n]);
         }
@@ -1912,12 +1912,12 @@ if (synthActionCatalogDbReady()) {
     synthTraceFunctionsIncludePhase(__LINE__, 'seed_rows_db_sync_done', $startTime);
 }
 
-$isNpcMode = isset($GLOBALS["IS_NPC"]) && $GLOBALS["IS_NPC"];
+$isNpcMode = isset($GLOBALS["IS_NPC"]) && \Synth\Bootstrap::config("IS_NPC");
 $dbEnabledFunctions = synthFilterCanonicalActionCodeList(synthLoadEnabledActionCodesForMode($isNpcMode, true));
 $GLOBALS["ENABLED_FUNCTIONS"] = synthActionCatalogDbReady()
     ? $dbEnabledFunctions
     : array_values(array_unique($ENABLED_FUNCTIONS_LOCAL));
-$GLOBALS["ENABLED_FUNCTIONS"] = synthFilterCanonicalActionCodeList($GLOBALS["ENABLED_FUNCTIONS"]);
+$GLOBALS["ENABLED_FUNCTIONS"] = synthFilterCanonicalActionCodeList(\Synth\Bootstrap::config("ENABLED_FUNCTIONS"));
 
 synthTraceFunctionsIncludePhase(__LINE__, 'enabled_functions_loaded_from_runtime', $startTime);
 
@@ -1937,12 +1937,12 @@ if (synthActionCatalogDbReady()) {
     synthTraceFunctionsIncludePhase(__LINE__, 'runtime_function_merge_done', $startTime);
 }
 
-$GLOBALS["FUNCTIONS"] = array_values(array_filter($GLOBALS["FUNCTIONS"], function ($functionEntry) {
+$GLOBALS["FUNCTIONS"] = array_values(array_filter(\Synth\Bootstrap::config("FUNCTIONS"), function ($functionEntry) {
     $codeName = getFunctionCodeName($functionEntry["name"] ?? "");
     $codeName = $codeName === false ? false : synthNormalizeActionCodeName($codeName);
     return $codeName !== false && isset(synthCanonicalActionCodeSet()[$codeName]);
 }));
-$GLOBALS["ENABLED_FUNCTIONS"] = synthFilterCanonicalActionCodeList($GLOBALS["ENABLED_FUNCTIONS"] ?? []);
+$GLOBALS["ENABLED_FUNCTIONS"] = synthFilterCanonicalActionCodeList(\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? []);
 
 if (file_exists(__DIR__ . DIRECTORY_SEPARATOR . "../prompts/prompts_custom.php")) {
     require __DIR__ . DIRECTORY_SEPARATOR . "../prompts/prompts_custom.php";
@@ -1982,11 +1982,11 @@ function synthNativeObservationActionDefinition(string $codeName, array $definit
 
 synthTraceFunctionsIncludePhase(__LINE__, 'enabled_function_filter_start', $startTime);
 $GLOBALS["ENABLED_FUNCTIONS"] = array_values(array_filter(
-    synthFilterCanonicalActionCodeList($GLOBALS["ENABLED_FUNCTIONS"]),
+    synthFilterCanonicalActionCodeList(\Synth\Bootstrap::config("ENABLED_FUNCTIONS")),
     'synthActionCodeIsNegotiated'
 ));
-$enabledFunctionSet = array_fill_keys($GLOBALS["ENABLED_FUNCTIONS"], true);
-foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
+$enabledFunctionSet = array_fill_keys(\Synth\Bootstrap::config("ENABLED_FUNCTIONS"), true);
+foreach (\Synth\Bootstrap::config("FUNCTIONS") as $n => $v) {
     $codeName = getFunctionCodeName($v["name"]);
     if ($codeName === false) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'FUNCTION', "Warning: Could not get code name for function: {$v["name"]}");
@@ -1999,31 +1999,31 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         unset($GLOBALS["FUNCTIONS"][$n]);
         continue;
     } 
-    if (in_array($codeName,['WaitHere','ReleaseWait'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($codeName,['WaitHere','ReleaseWait'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
         $GLOBALS['FUNCTIONS'][$n]['description']=$codeName==='WaitHere'
             ? 'If you agree to the player\'s request to wait here, select this action. A Talk promise does not execute waiting. Leave every action parameter blank. The hold lasts at most 90 seconds.'
             : 'If you agree to the player\'s request to stop waiting, select this action. A Talk promise does not release waiting. Leave every action parameter blank. This does not make you a follower.';
-        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
     
-    if (in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
         $GLOBALS['FUNCTIONS'][$n]['description']=match($codeName) {
             'FollowPlayer'=>'Only when the player explicitly asks you to follow or come with them now and you agree. A Talk promise does not make you follow. Leave every action parameter blank. The game applies the order.',
             'StopFollowing'=>'Only when the player explicitly asks you to stop following and you agree. This ends only the follow order SYNTH gave you and does not dismiss a native follower. Leave every action parameter blank.',
             default=>'Only when the player explicitly asks you to sit down and you agree. You never choose the seat; the game finds one. Leave every action parameter blank.',
         };
-        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
 
-    if ($codeName==='OpenInventory' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if ($codeName==='OpenInventory' && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         $GLOBALS['FUNCTIONS'][$n]['description']='If you accept a general gift offer without a named item, select this to open your inventory exchange with Player. Keep all action fields blank. The player chooses items in the menu. Merely opening the menu is not a received gift; wait for verified inventory changes after it closes. A named gift uses TakeItemFromPlayer instead.';
         $GLOBALS['FUNCTIONS'][$n]['parameters']=['type'=>'object','additionalProperties'=>false,'properties'=>(object)[],'required'=>[]];
-        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
     if ($codeName==='TakeItemFromPlayer') {
         $GLOBALS['FUNCTIONS'][$n]['description']='If you agree to the player explicitly offering an item from their pack, accept it into your own inventory as a gift. Select this action to actually take it; Talk alone does nothing. Target Player and use the exact observed player item. Decide its personal value from your biography, personality, goals and needs; no fixed gratitude is required. Only the successful result proves receipt. Equipped player gear and caps are excluded.';
@@ -2031,10 +2031,10 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
             'properties'=>['target'=>['type'=>'string','minLength'=>1,'maxLength'=>255],
                 'item'=>['type'=>'string','minLength'=>1,'maxLength'=>255],
                 'amount'=>['type'=>'integer','minimum'=>1,'maximum'=>1000000]],'required'=>['target','item']];
-        $GLOBALS['BASE_FUNCTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName]=$GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName]=\Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
-    if (in_array($codeName,['GiveCapsTo','TakeCapsFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if (in_array($codeName,['GiveCapsTo','TakeCapsFromPlayer'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
         // Enforce the native contract after database/custom merges, without changing persisted legacy definitions.
         $GLOBALS['FUNCTIONS'][$n]['description'] = ($codeName==='TakeCapsFromPlayer'
             ? 'Take an agreed payment from the captured player into your own inventory, only after the player agrees. Target must be the player. '
@@ -2043,16 +2043,16 @@ foreach ($GLOBALS["FUNCTIONS"] as $n => $v) {
         $GLOBALS['FUNCTIONS'][$n]['parameters'] = ['type'=>'object','additionalProperties'=>false,
             'properties'=>['target'=>['type'=>'string','minLength'=>1,'maxLength'=>255],
                 'amount'=>['type'=>'integer','minimum'=>1,'maximum'=>1000000]],'required'=>['target','amount']];
-        $GLOBALS['BASE_FUNCTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName] = \Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName] = \Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
     if (in_array($codeName, ['Inspect', 'CheckInventory'], true)
-        && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+        && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
         $GLOBALS['FUNCTIONS'][$n] = synthNativeObservationActionDefinition(
-            $codeName, $GLOBALS['FUNCTIONS'][$n], 2
+            $codeName, \Synth\Bootstrap::config('FUNCTIONS')[$n], 2
         );
-        $GLOBALS['BASE_FUNCTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n];
-        $GLOBALS['F_DESCRIPTIONS'][$codeName] = $GLOBALS['FUNCTIONS'][$n]['description'];
+        $GLOBALS['BASE_FUNCTIONS'][$codeName] = \Synth\Bootstrap::config('FUNCTIONS')[$n];
+        $GLOBALS['F_DESCRIPTIONS'][$codeName] = \Synth\Bootstrap::config('FUNCTIONS')[$n]['description'];
     }
     $GLOBALS["DEFINED_FUNCTIONS"][] = $codeName;
     
@@ -2062,12 +2062,12 @@ synthTraceFunctionsIncludePhase(__LINE__, 'enabled_function_filter_done', $start
 
 synthTraceFunctionsIncludePhase(__LINE__, 'bug_func_write_start', $startTime);
 Logger::debug(json_encode([
-    "function_count" => count($GLOBALS["FUNCTIONS"]),
-    "enabled_functions" => array_values($GLOBALS["ENABLED_FUNCTIONS"]),
+    "function_count" => count(\Synth\Bootstrap::config("FUNCTIONS")),
+    "enabled_functions" => array_values(\Synth\Bootstrap::config("ENABLED_FUNCTIONS")),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), __DIR__ . "/../log/bug_func.txt");
 synthTraceFunctionsIncludePhase(__LINE__, 'bug_func_write_done', $startTime);
 
-$GLOBALS["FUNCTIONS"] = array_values($GLOBALS["FUNCTIONS"]); //Get rid of array keys
+$GLOBALS["FUNCTIONS"] = array_values(\Synth\Bootstrap::config("FUNCTIONS")); //Get rid of array keys
 
 synthTraceFunctionsIncludePhase(__LINE__, 'functions_reindexed', $startTime);
 

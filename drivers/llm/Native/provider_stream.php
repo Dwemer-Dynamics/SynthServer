@@ -183,13 +183,13 @@ function synth_provider_json_prefill(string $actor): string
 // Native replies retain their individual listener/order instead of entering legacy concatenation buffers.
 function synth_provider_dialogue_context(array $messages): array
 {
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) !== 2) return $messages;
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) !== 2) return $messages;
     foreach ($messages as &$message) {
         if (($message['role'] ?? '') !== 'assistant' || isset($message['tool_calls'])
             || !empty($message['_synth_compact_history']) || !is_string($message['content'] ?? null)
             || trim($message['content']) === '' || is_array(json_decode($message['content'], true))) continue;
         $dialogue = extractDialogueTarget($message['content']);
-        $message['content'] = synth_provider_dialogue_history(strval($GLOBALS['SYNTH_NAME']),
+        $message['content'] = synth_provider_dialogue_history(strval(\Synth\Bootstrap::config('SYNTH_NAME')),
             strval($dialogue['target'] ?? ''), strval($dialogue['cleanedString'] ?? $message['content']));
     }
     unset($message);
@@ -199,7 +199,7 @@ function synth_provider_dialogue_context(array $messages): array
 // Native tool evidence must survive a customized return template without a #RESULT# placeholder.
 function synth_provider_tool_result(string $template, string $result, ?string $status = null): string
 {
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2 && $status !== null) {
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2 && $status !== null) {
         if (!in_array($status, ['succeeded','rejected','unavailable','timed_out','cancelled','failed',
             'unsupported_without_esp','unsupported_runtime'], true)) throw new RuntimeException('action_tool_status_invalid');
         // Status is paired internal metadata, never inferred from the reported text or a success template.
@@ -209,7 +209,7 @@ function synth_provider_tool_result(string $template, string $result, ?string $s
         }
         return "Action outcome: succeeded\n".synth_provider_tool_result($template, $result);
     }
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2
         && !str_contains($template, '#RESULT#') && $result !== '') {
         return $template."\nAction result: ".$result;
     }
@@ -219,7 +219,7 @@ function synth_provider_tool_result(string $template, string $result, ?string $s
 // Text-completion templates have no tool role; lower native pairs before template-specific rendering.
 function synth_provider_template_context(array $messages): array
 {
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) !== 2) return $messages;
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) !== 2) return $messages;
     $result = [];
     $pending = [];
     $seen = [];

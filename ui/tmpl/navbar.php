@@ -45,9 +45,9 @@ function isValidPluginVersion($version) {
 $pluginVersionDisplay = 'N/A'; // Default value
 
 // Attempt to use a global $db object if available and valid
-if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
+if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
  try {
- if (method_exists($GLOBALS['db'], 'fetchOne')) {
+ if (method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
  $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
  if ($pluginVersionRow && isset($pluginVersionRow['value']) && trim($pluginVersionRow['value']) !== '') {
  $version = trim($pluginVersionRow['value']);
@@ -56,7 +56,7 @@ if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  $pluginVersionDisplay = htmlspecialchars($version, ENT_QUOTES, 'UTF-8');
  }
  }
- } elseif (method_exists($GLOBALS['db'], 'fetchAll')) {
+ } elseif (method_exists(\Synth\Bootstrap::db(), 'fetchAll')) {
  // Fallback to fetchAll on global $db if fetchOne not found
  $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version'));
  if ($rows && isset($rows[0]) && isset($rows[0]['value']) && trim($rows[0]['value']) !== '') {
@@ -76,7 +76,7 @@ if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  // and only if we have all the required components
  try {
  if (isset($GLOBALS["DBDRIVER"]) && !empty($GLOBALS["DBDRIVER"])) {
- $dbDriverFile = BASE_PATH . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . $GLOBALS["DBDRIVER"] . ".class.php";
+ $dbDriverFile = BASE_PATH . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php";
 
  // Only try to load the SQL class if it doesn't already exist
  if (!class_exists('sql') && file_exists($dbDriverFile)) {

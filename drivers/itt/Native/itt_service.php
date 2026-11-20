@@ -45,7 +45,7 @@ if (!function_exists('synthIttTimeout')) {
 if (!function_exists('synthIttOpenAiCompatible')) {
     function synthIttOpenAiCompatible(string $provider, string $imagePath, string $hints, bool $openRouter = false): string
     {
-        $config = is_array($GLOBALS['ITT'][$provider] ?? null) ? $GLOBALS['ITT'][$provider] : [];
+        $config = is_array(\Synth\Bootstrap::config('ITT')[$provider] ?? null) ? \Synth\Bootstrap::config('ITT')[$provider] : [];
         return \Synth\Drivers\Itt\IttWrapper::describe($provider, [
             'url' => strval($config['url'] ?? ($config['URL'] ?? '')),
             'model' => strval($config['model'] ?? ''),
@@ -61,7 +61,7 @@ if (!function_exists('synthIttOpenAiCompatible')) {
 if (!function_exists('synthIttLlamaCpp')) {
     function synthIttLlamaCpp(string $imagePath, string $hints): string
     {
-        $config = is_array($GLOBALS['ITT']['llamacpp'] ?? null) ? $GLOBALS['ITT']['llamacpp'] : [];
+        $config = is_array(\Synth\Bootstrap::config('ITT')['llamacpp'] ?? null) ? \Synth\Bootstrap::config('ITT')['llamacpp'] : [];
         return \Synth\Drivers\Itt\IttWrapper::describe('llamacpp', [
             'url' => strval($config['URL'] ?? ($config['url'] ?? '')),
             'prompt' => strval($config['AI_VISION_PROMPT'] ?? ''),

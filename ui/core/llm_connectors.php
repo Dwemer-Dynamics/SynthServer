@@ -145,10 +145,10 @@ if ($webRoot == '/') $webRoot = '';
 $webRoot = rtrim($webRoot, '/');
 
 require_once(__DIR__.DIRECTORY_SEPARATOR."../profile_loader.php");
-$GLOBALS["db"] = $GLOBALS["db"] ?? null;
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? null;
 // Early Export CSV handler (must run before any output)
 if (isset($_GET["export"])) {
- if (!$GLOBALS["db"]) { $GLOBALS["db"] = new sql(); }
+ if (!\Synth\Bootstrap::db()) { $GLOBALS["db"] = new sql(); }
  $llmEarly = new LLMConnector();
  $idEarly = $_GET['export'];
  $rowEarly = $llmEarly->getById($idEarly);
@@ -202,7 +202,7 @@ $noticeMsg = '';
 if (isset($_GET['notice']) && $_GET['notice'] !== '') {
  $noticeMsg = (string)$_GET['notice'];
 }
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 $llm = new LLMConnector();
 
 // Read network IPs for Custom service helper buttons
@@ -227,7 +227,7 @@ if (isset($_GET["partial"]) && $_GET["partial"] === "editor") {
  if ($webRoot == '/') $webRoot = '';
  $webRoot = rtrim($webRoot, '/');
  // Fetch API badges for select
- $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
+ $apiRows = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labelsWithKeys('label');
  $selectedApi = $editItem["api_key_id"] ?? "";
  $withKey = [];
  $noKey = [];
@@ -1052,7 +1052,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create"])) {
  $payload = normalize_player2_connector_payload($payload);
  $newId = $llm->create($payload);
  if (!$newId) {
- $last = $GLOBALS["db"]->fetchOne("SELECT id FROM core_llm_connector ORDER BY id DESC LIMIT 1");
+ $last = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_llm_connector ORDER BY id DESC LIMIT 1");
  $newId = $last['id'] ?? '';
  }
  header("Location: llm_connectors.php" . ($newId ? ('?edit=' . urlencode($newId)) : ''));
@@ -1164,7 +1164,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import"])) {
  $payload = normalize_player2_connector_payload($payload);
  $newId = $llm->create($payload);
  if (!$newId) {
- $last = $GLOBALS["db"]->fetchOne("SELECT id FROM core_llm_connector ORDER BY id DESC LIMIT 1");
+ $last = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_llm_connector ORDER BY id DESC LIMIT 1");
  $newId = $last['id'] ?? '';
  }
  if ($newId) {
@@ -1247,7 +1247,7 @@ if ($llmAction && isset($_POST["delete"])) {
  $id = intval($_POST["delete"]);
  // Prevent deletion if any profile references this connector
  try {
- $cntRow = $GLOBALS["db"]->fetchOne(
+ $cntRow = \Synth\Bootstrap::db()->fetchOne(
  "SELECT COUNT(*) AS cnt FROM core_profiles WHERE " .
  "llm_primary_id={$id} OR llm_secondary_id={$id} OR llm_tertiary_id={$id} OR " .
  "llm_quaternary_id={$id} OR llm_formatter_id={$id}"
@@ -1504,7 +1504,7 @@ if (typeof window.consolidation !== 'function') {
  Custom allows you to build your own connector setting using one of our API drivers to use non-supported services with SYNTH. Depending on the service you may not need to fill out all fields. For advanced users only
  </div><div id="url_row"><label for='url'>URL</label><br><div style="display:flex; gap:8px; align-items:center;"><input type="text" name="url" value="<?= htmlspecialchars($editItem["url"] ?? "") ?>" style="flex:1 1 auto;"><button type="button" id="btn_wsl_ip" class="btn-primary" title="Use WSL IP" style="display:none;" data-ip="<?= htmlspecialchars($WSL_IP) ?>">WSL IP</button><button type="button" id="btn_host_ip" class="btn-primary" title="Use HOST IP" style="display:none;" data-ip="<?= htmlspecialchars($HOST_IP) ?>">PC IP</button></div></div><div id="model_row"><label for='model'>Model</label><br><input type="text" name="model" value="<?= htmlspecialchars($editItem["model"] ?? "") ?>"><br></div><div id="provider_row"><label for='provider'>Provider</label><br><input type="text" name="provider" placeholder="(Optional) leave empty to use recommended provider" value="<?= htmlspecialchars($editItem["provider"] ?? "") ?>"><br></div><div id="driver_row" style="display:none;"><label for='driver'>Driver</label><br><input type="text" id="driver_input" name="driver" value="<?= htmlspecialchars($editItem["driver"] ?? "") ?>" style="display:none"><br><select id="driver_select"><option value="openrouterjson">OpenRouter JSON</option><option value="openaijson">OpenAI JSON</option><option value="google_openaijson">Google OpenAI JSON</option><option value="groqjson">Groq JSON</option><option value="player2json">Player2 JSON</option></select></div><div id="api_key_row"><?php
  // API Key select with non-empty keys first + notice
- $apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('label');
+ $apiRows = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labelsWithKeys('label');
  $selectedApi = $editItem["api_key_id"] ?? "";
  $withKey = [];
  $noKey = [];

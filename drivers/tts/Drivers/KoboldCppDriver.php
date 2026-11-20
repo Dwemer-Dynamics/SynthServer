@@ -40,7 +40,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
-		$url = $GLOBALS["TTS"]["koboldcpp"]["endpoint"]; //http://127.0.0.1:5001/api/extra/tts
+		$url = \Synth\Bootstrap::config("TTS")["koboldcpp"]["endpoint"]; //http://127.0.0.1:5001/api/extra/tts
 
 		// Request headers
 		$headers = array(
@@ -52,7 +52,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		// Request data
 		$data = array(
 			'input' => "$textString",
-			'voice' => $GLOBALS["TTS"]["koboldcpp"]["voice"],
+			'voice' => \Synth\Bootstrap::config("TTS")["koboldcpp"]["voice"],
 			);
 
 

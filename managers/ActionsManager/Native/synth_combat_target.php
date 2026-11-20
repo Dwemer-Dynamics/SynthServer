@@ -246,7 +246,7 @@ function synth_combat_identification_reply($db,array $event,?string $transcript=
     if ($kind===null || ($kind==='recent' && !$awareness)) return null;
     synth_protocol_assert_request_active();
     $canonical=synth_protocol_canonical_json($event);$session=$db->escapeLiteral($event['session_id']);
-    if ($canonical!==synth_protocol_canonical_json($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [])) return null;
+    if ($canonical!==synth_protocol_canonical_json(\Synth\Bootstrap::requestEvent()['json'] ?? [])) return null;
     $request=$db->escapeLiteral($event['request_id']);$turn=$db->escapeLiteral($event['turn_id']);
     $hash=$db->escapeLiteral(hash('sha256',$canonical));$json=$db->escapeLiteral($canonical);
     $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
@@ -267,7 +267,7 @@ function synth_combat_identification_reply($db,array $event,?string $transcript=
     $payload=is_array($row['context_payload'] ?? null) ? $row['context_payload'] : json_decode($row['context_payload'] ?? '',true);
     if (!is_array($payload) || !is_array($payload['target'] ?? null) || !is_array($payload['player'] ?? null)) return null;
     $speaker=$payload['target'];
-    if (strcasecmp($speaker['display_name'] ?? '',$GLOBALS['SYNTH_NAME'] ?? '')!==0) return null;
+    if (strcasecmp($speaker['display_name'] ?? '',\Synth\Bootstrap::config('SYNTH_NAME') ?? '')!==0) return null;
     $fresh=in_array($row['combat_frame_fresh'] ?? false,[true,'t',1,'1'],true);
     $observations=$fresh && $awareness ? synth_enemy_awareness_observations($payload['actor_states'] ?? [],$speaker,$payload['player']) : ['current'=>[],'recent'=>[]];
     $names=$fresh && ($contacts || $awareness) ? synth_combat_observed_names($payload['actor_states'] ?? [],$speaker,$payload['player']) : [];
