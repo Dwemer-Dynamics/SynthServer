@@ -1,6 +1,6 @@
 # Globals pass
 
-Routes reads of the legacy runtime globals through `Synth\Bootstrap` accessors, one directory group per slice. Behaviour is unchanged: each accessor reads the same legacy global first (legacy files and tests still assign it) and falls back to the runtime instance.
+Routes reads of the legacy runtime globals through `Synth\Bootstrap` accessors, one directory group per slice. Behaviour is unchanged: each accessor reads exactly what `$GLOBALS[...] ?? null` did (legacy files and tests still assign those globals), so the accessors are a seam for moving the state later.
 
 | Global | Accessor |
 | --- | --- |
