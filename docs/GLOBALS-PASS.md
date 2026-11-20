@@ -117,3 +117,16 @@ Files under: prompts
 | --- | --- | --- |
 | global uses (all non-test PHP) | 3360 | 3144 |
 | `require_once` | 1838 | 1838 |
+
+### W2-connector
+
+All uses in `connector/` (the LLM prompt templates and `__jpd.php`). One-level array writes use `Bootstrap::append('N', $v)` for `$GLOBALS['N'][] = $v` and `Bootstrap::setAt('N', $k, $v)` for `$GLOBALS['N'][$k] = $v`. Dead code inside comments keeps its meaning but names `\Synth\Bootstrap::config('N')` (`tools/globals-comments.php`), so the count reaches zero.
+
+Stacked on W1-prompts.
+
+Files under: connector
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 3144 | 2926 |
+| `require_once` | 1838 | 1838 |

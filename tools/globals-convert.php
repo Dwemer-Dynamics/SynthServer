@@ -103,8 +103,8 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         if ($inEdit($i)) continue;
         $line = $t[$i]->line;
         // dims
-        $e = $cl; $hasDims = false;
-        while (($nx = sig($t, $e)) >= 0 && $t[$nx]->text === '[') { $c = matchClose($t, $nx); if ($c < 0) break; $e = $c; $hasDims = true; }
+        $e = $cl; $hasDims = false; $dimRanges = [];
+        while (($nx = sig($t, $e)) >= 0 && $t[$nx]->text === '[') { $c = matchClose($t, $nx); if ($c < 0) break; $e = $c; $hasDims = true; $dimRanges[] = [$nx, $c]; }
         $after = sig($t, $e); $before = sig($t, $i, -1);
         $bt = $before >= 0 ? $t[$before] : null; $at = $after >= 0 ? $t[$after] : null;
         $accessor = call($key, $key);
@@ -132,7 +132,8 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         $isAssign = $at && ($at->is([T_PLUS_EQUAL, T_MINUS_EQUAL, T_MUL_EQUAL, T_DIV_EQUAL, T_CONCAT_EQUAL, T_MOD_EQUAL, T_COALESCE_EQUAL, T_INC, T_DEC]) || $at->text === '=');
         if ($isAssign) {
             $stmtStart = $bt === null || $bt->text === ';' || $bt->text === '{' || $bt->text === '}' || $bt->is([T_OPEN_TAG, T_ELSE]) || $bt->text === ')';
-            if ($hasDims || !$stmtStart || $at->is([T_INC, T_DEC])) { $manual[] = "$file:$line write-shape $key"; continue; }
+            $oneDim = $hasDims && count($dimRanges) === 1 && $at->text === '=';
+            if (($hasDims && !$oneDim) || !$stmtStart || $at->is([T_INC, T_DEC])) { $manual[] = "$file:$line write-shape $key"; continue; }
             // expression end
             $d = 0; $x = sig($t, $after); $first = $x; $end = -1;
             for ($q = $x; $q < $n; $q++) {
@@ -144,7 +145,11 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
             }
             if ($end < 0 || $t[$first]->text === '&') { $manual[] = "$file:$line write-expr $key"; continue; }
             $expr = trim(tokText($t, $x, sig($t, $end, -1)));
-            if ($at->text === '=') { $rep = "\\Synth\\Bootstrap::set('$key', $expr)"; $stats['write']++; }
+            if ($oneDim) {
+                $kx = trim(tokText($t, $dimRanges[0][0] + 1, $dimRanges[0][1] - 1));
+                $rep = $kx === '' ? "\\Synth\\Bootstrap::append('$key', $expr)" : "\\Synth\\Bootstrap::setAt('$key', $kx, $expr)";
+                $stats['write']++;
+            } elseif ($at->text === '=') { $rep = "\\Synth\\Bootstrap::set('$key', $expr)"; $stats['write']++; }
             else { $op = substr($at->text, 0, -1); $rep = "\\Synth\\Bootstrap::set('$key', $accessor $op ($expr))"; $stats['compound']++; }
             $edits[$i] = [sig($t, $end, -1), $rep];
             continue;
