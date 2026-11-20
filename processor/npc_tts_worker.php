@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 error_reporting(E_ALL);
 ini_set("display_errors", "0");
 ini_set("log_errors", "1");
@@ -23,7 +24,7 @@ $owner = $job['protocol_event'] ?? [];
 $driver = $job['tts_plan']['inputs']['TTSFUNCTION'] ?? $job['tts_function'] ?? '';
 if (is_array($owner) && synth_protocol_owns_dialogue_turn($owner)
     && in_array($driver, ['xtts-fastapi', 'chatterbox', 'pockettts', 'cartesia', 'inworld'], true)) {
-    error_log('[SYNTH TTS] Legacy native speech job retained; durable admission required.');
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH TTS', 'Legacy native speech job retained; durable admission required.');
     exit(0);
 }
 // Only attempt envelopes in this server's job directory are disposable. Old job

@@ -6,6 +6,7 @@ use Logger;
 
 // Provider logic moved from connector/groqjson.php. The stateful open/process/close/fast_request API and behaviour are
 // unchanged; connector/groqjson.php remains as a thin hook so call sites and config keep working.
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 3) . '/lib/provider_stream.php';
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
@@ -78,7 +79,7 @@ class GroqJsonDriver
 
             $b_res = (!($i_pos === false));
         }
-        error_log("[GROQ] is reasoning $s_model / $i_pos ". ($b_res ? "Y" : "N") );
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GROQ', "is reasoning $s_model / $i_pos ". ($b_res ? "Y" : "N") );
         return $b_res;
     }
 
@@ -92,7 +93,7 @@ class GroqJsonDriver
 
             $b_res = (!($i_pos === false));
         }
-        error_log("[GROQ] is openai model $s_model / $i_pos ". ($b_res ? "Y" : "N") );
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GROQ', "is openai model $s_model / $i_pos ". ($b_res ? "Y" : "N") );
         return $b_res;
     }
 
@@ -370,7 +371,7 @@ class GroqJsonDriver
         if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && $GLOBALS["CONNECTOR"][$this->name]["json_schema"]) {
             // Note: json_schema is not widely supported on Groq, so we stick with json_object
             // Only specific models support structured outputs: https://console.groq.com/docs/structured-outputs#supported-models
-            error_log("[GROQ] json_schema setting is enabled but not supported on most Groq models - using json_object instead");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GROQ', "json_schema setting is enabled but not supported on most Groq models - using json_object instead");
         }
 
         if ($MAX_TOKENS<1) {

@@ -11,6 +11,7 @@
  *   - queries: RelationshipManager::getRelationship($npcName, $targetName)
  */
 
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 class RelationshipManager {
 
     // Valid relationship types (the "flavor" of the relationship)
@@ -344,7 +345,7 @@ class RelationshipManager {
                 return $cached;
             }
         } catch (Throwable $e) {
-            error_log("[REL] Failed to load tier reference prompt: " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL', "Failed to load tier reference prompt: " . $e->getMessage());
         }
 
         $cached = $default;
@@ -621,7 +622,7 @@ class RelationshipManager {
                 $rawType = trim($matches[2][$i]);
                 $newType = self::canonicalizeRelationshipType($rawType, $allowedCustomTypes);
                 if ($newType === null) {
-                    error_log("[REL] Rejected invented relationship type '$rawType'");
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'REL', "Rejected invented relationship type '$rawType'");
                     continue;
                 }
                 $commands['types'][] = [
@@ -734,7 +735,7 @@ class RelationshipManager {
         }
 
         if (!$npcData) {
-            error_log("[REL] Cannot set relationship - NPC not found: $npcName");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL', "Cannot set relationship - NPC not found: $npcName");
             return false;
         }
 
@@ -765,7 +766,7 @@ class RelationshipManager {
         }
         synthRelationshipTimelineStamp($npcData['id'], 'relationship_admin');
 
-        error_log("[REL] Set $npcName -> $targetName: " . $rels[$targetName]['aff'] .
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'REL', "Set $npcName -> $targetName: " . $rels[$targetName]['aff'] .
                   " (" . $rels[$targetName]['type'] . ")");
 
         return true;
