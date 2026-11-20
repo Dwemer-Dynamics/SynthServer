@@ -19,13 +19,13 @@ final class NpcActorDao
     /** The actor of one plugin-local reference, or null. $plugin is lower-cased, $refId is hex without a load-order prefix. */
     public function find(string $refId, string $plugin): ?AbstractNpcActor
     {
-        return $this->entityManager->find(AbstractNpcActor::class, ['refId' => strtolower($refId), 'plugin' => strtolower($plugin)]);
+        return $this->fresh()->find(AbstractNpcActor::class, ['refId' => strtolower($refId), 'plugin' => strtolower($plugin)]);
     }
 
     /** Every actor of one character, ordered by plugin and reference. @return list<AbstractNpcActor> */
     public function forCharacter(int $characterId): array
     {
-        return array_values($this->entityManager->getRepository(AbstractNpcActor::class)
+        return array_values($this->fresh()->getRepository(AbstractNpcActor::class)
             ->findBy(['characterId' => $characterId], ['plugin' => 'ASC', 'refId' => 'ASC']));
     }
 

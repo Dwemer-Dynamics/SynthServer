@@ -484,7 +484,7 @@ function locationsTableColumns()
         $rows = $db->fetchAll(
             "SELECT column_name
                FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'core_location'"
+              WHERE table_schema = 'public' AND table_name = 'core_location_legacy'"
         );
         foreach ($rows as $row) {
             $column = strtolower((string) ($row["column_name"] ?? ""));
@@ -547,7 +547,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
 
     $rows = $db->fetchAll(
         "SELECT " . implode(", ", $selectFields) . "
-           FROM core_location
+           FROM core_location_legacy
           WHERE " . implode(" OR ", $whereClauses)
     );
 

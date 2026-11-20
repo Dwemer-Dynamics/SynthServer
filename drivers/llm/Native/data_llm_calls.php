@@ -795,8 +795,8 @@ function call_llm_internal() {
                             error_log("[ACTION POSTFILTER TravelTo]  $localtarget => {$mang4[0]} => $destination");
 
                             $destinationName=$GLOBALS["db"]->escape(trim($destination));
-                            $dbDestination=$GLOBALS["db"]->fetchOne("SELECT name, similarity(name, '$destinationName') AS sim,formid FROM core_location ORDER BY sim DESC LIMIT 1");
-                            $dbDestinationRegion=$GLOBALS["db"]->fetchOne("SELECT name, similarity(worldspace, '$destinationName') AS sim,formid FROM core_location ORDER BY sim DESC LIMIT 1");
+                            $dbDestination=$GLOBALS["db"]->fetchOne("SELECT name, similarity(name, '$destinationName') AS sim,formid FROM core_location_legacy ORDER BY sim DESC LIMIT 1");
+                            $dbDestinationRegion=$GLOBALS["db"]->fetchOne("SELECT name, similarity(worldspace, '$destinationName') AS sim,formid FROM core_location_legacy ORDER BY sim DESC LIMIT 1");
 
                             $contextDestinations=DataPosibleLocationsToGo();
 
