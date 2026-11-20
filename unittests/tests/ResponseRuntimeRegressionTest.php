@@ -583,7 +583,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $echo=strpos($pipeline,'synth_emit_native_player_transcript($gameRequest);');
         $this->assertTrue($policy!==false && $rewrite>$policy && $echo>$rewrite);
         foreach (['if (!$synthAutoChat && in_array(\'social.tasks.v1\'','if (!$synthAutoChat && synth_gift_menu_try_handoff(',
-            'if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"])',
+            "if (!\$synthAutoChat && in_array(\$gameRequest[0],[\"inputtext\",\"inputtext_s\",\"narrator_inputtext\"]) && \Synth\Bootstrap::has('PLAYER_RESPEECH') && \Synth\Bootstrap::config(\"PLAYER_RESPEECH\")",
             'if (!$synthAutoChat && isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && \\Synth\\Bootstrap::config("SYNTH_EXECUTION_MODE") === "AUTOCHAT"',
             'if ($synthAutoChat) synth_autochat_freeze_input($normalizedInputPayload ?? [], $gameRequest);',
             'if ($synthAutoChat && $gameRequest[0] === \'inputtext\') synth_autochat_record_history($db, $eventlogInsert);'] as $gate) {
