@@ -21,10 +21,10 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
                 h.playthrough_id,h.event_payload,p.canonical_event,p.event_sha256,p.event_type,e.turn_id,
                 c.context_payload,c.player_identity_id,c.target_identity_id,c.audience_identity_ids,
                 octet_length(e.response_body) AS response_bytes,visible.receipt_speech
-            FROM native_history visible JOIN synth_meta.history_events h ON h.id=visible.history_event_id
+            FROM native_history visible JOIN public.core_history_event h ON h.id=visible.history_event_id
             JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
                 AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
-            JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id
+            JOIN public.core_request_execution e ON e.session_id=h.session_id AND e.request_id=h.request_id
                 AND e.generation=h.generation
             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
@@ -58,7 +58,7 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
             if (!array_key_exists($key,$responses)) {
                 if (count($responses)>=32 || $bytes+intval($source['response_bytes'])>8*1024*1024) continue;
                 $bytes+=intval($source['response_bytes']); $responses[$key]=[];
-                $bodyResult=@pg_query_params($connection,"SELECT response_body FROM synth_meta.request_executions
+                $bodyResult=@pg_query_params($connection,"SELECT response_body FROM public.core_request_execution
                     WHERE session_id=$1 AND request_id=$2 AND state='complete' AND octet_length(response_body)<=2097152",
                     [$source['session_id'],$source['request_id']]);
                 if (!$bodyResult || !($body=pg_fetch_assoc($bodyResult))) continue;

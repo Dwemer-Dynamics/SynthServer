@@ -324,7 +324,7 @@ function aiProfileGenerate(array $options): array
     if (empty($buffer)) {
         $lastError = '';
         try {
-            $auditResult = $db->fetchOne("SELECT result, url, connector FROM audit_request ORDER BY id DESC LIMIT 1");
+            $auditResult = $db->fetchOne("SELECT result, url, connector FROM core_audit_request ORDER BY id DESC LIMIT 1");
             if ($auditResult && strpos($auditResult['result'], 'ERROR') === 0) {
                 $lastError = $auditResult['result'];
             }

@@ -24,7 +24,7 @@ function synth_relationship_run_persisted_job($db, int $jobId, ?callable $genera
             j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256,
             (j.payload->>'schema'='synth.relationship.gift-job.v1') AS retained_gift
         FROM public.core_worker_job j
-        JOIN synth_meta.request_executions e ON e.session_id=j.session_id AND e.request_id=j.request_id
+        JOIN public.core_request_execution e ON e.session_id=j.session_id AND e.request_id=j.request_id
             AND e.generation=j.generation AND e.turn_id=j.turn_id AND e.state='complete'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256

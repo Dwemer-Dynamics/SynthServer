@@ -36,20 +36,20 @@ function synth_rechat_action_chain_origin($connection, array $event, array $orig
                 AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id AND receipt.event_type='action_result'
                 AND receipt.canonical_event=$9::jsonb AND receipt.event_sha256=$10
                 AND receipt.canonical_event->'payload'->'result'=t.result
-            JOIN synth_meta.request_executions accepted ON accepted.session_id=receipt.session_id
+            JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id
                 AND accepted.request_id=receipt.request_id AND accepted.generation=receipt.generation
                 AND accepted.turn_id=receipt.turn_id AND accepted.event_type=receipt.event_type
                 AND accepted.request_sha256=receipt.event_sha256 AND (accepted.state IN ('claimed','streaming','complete')
                     OR ($11::boolean AND accepted.state='failed'
                         AND COALESCE(accepted.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
-            JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
+            JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
                 AND e.generation=i.generation AND e.turn_id=i.turn_id
             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
                 AND p.event_sha256=e.request_sha256
             JOIN public.core_runtime_session s ON s.session_id=i.session_id
-            JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.game='fo4' AND a.playthrough_id=s.playthrough_id
-            LEFT JOIN synth.actor_identities target ON target.id=i.target_identity_id
+            JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4' AND a.playthrough_id=s.playthrough_id
+            LEFT JOIN public.core_actor_identity target ON target.id=i.target_identity_id
             WHERE i.action_id=$1 AND i.idempotency_key=$2 AND i.session_id=$3 AND i.generation=$4 AND i.turn_id=$5
                 AND i.state='complete' AND t.result=$6::jsonb AND t.status=t.result->>'status'
                 AND s.runtime_variant=$7 AND e.state='complete'",

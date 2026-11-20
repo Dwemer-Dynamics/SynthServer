@@ -1139,9 +1139,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
                 $whereParts[] = "profile_id = {$previousDefaultNpcId}";
             }
             $where = implode(' OR ', $whereParts);
-            $countRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$where}");
+            $countRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc WHERE {$where}");
             $migratedNpcCount = (int)($countRow['c'] ?? 0);
-            if ($GLOBALS["db"]->query("UPDATE core_npc_master SET profile_id = {$newProfileId} WHERE {$where}") === false) {
+            if ($GLOBALS["db"]->query("UPDATE core_npc SET profile_id = {$newProfileId} WHERE {$where}") === false) {
                 throw new Exception('Could not move current default NPCs to the imported profile');
             }
         }
@@ -1295,7 +1295,7 @@ if ($profileAction && isset($_POST["create_blank"])) {
 
 // Fetch Data
 $data = $profiles->readAll();
-$npcCountRows = $GLOBALS["db"]->fetchAll("SELECT profile_id, COUNT(*) AS c FROM core_npc_master WHERE trim(lower(npc_name)) <> 'the narrator' GROUP BY profile_id");
+$npcCountRows = $GLOBALS["db"]->fetchAll("SELECT profile_id, COUNT(*) AS c FROM core_npc WHERE trim(lower(npc_name)) <> 'the narrator' GROUP BY profile_id");
 $profileIdToNpcCount = [];
 foreach ($npcCountRows as $r) {
     $pid = (string)($r['profile_id'] ?? '');

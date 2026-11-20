@@ -44,13 +44,13 @@ final class DiaryBrowserTest extends DatabaseTestCase
     {
         $n=++$this->serial;
         $reference=$role==='npc' ? '0x0001A4D8' : '0x00000014';
-        $existing=$this->query('SELECT id FROM synth.actor_identities WHERE playthrough_id=$1 AND full_form_id=$2',[$save,$reference]);
-        $actor=(int)($existing[0]['id'] ?? $this->query("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name)
+        $existing=$this->query('SELECT id FROM public.core_actor_identity WHERE playthrough_id=$1 AND full_form_id=$2',[$save,$reference]);
+        $actor=(int)($existing[0]['id'] ?? $this->query("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name)
             VALUES('fo4',$1,'Fallout4.esm',$2,$3) RETURNING id",[$save,$reference,$author])[0]['id']);
         $session='diary-browser:'.$n;$request='diary:'.$n;
         $this->query("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation)
             VALUES($1,$2,'fo4','flat','fixture','fixture',1)",[$session,$save]);
-        $this->query("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
+        $this->query("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES($1,$2,'turn',1,$3,'diary_request','complete')",[$session,$request,str_repeat('a',64)]);
         $this->query("INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,context_payload)
             VALUES($1,1,1,$2,$3,'{}')",[$session,$save,$actor]);
@@ -62,7 +62,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
         $value=['topic'=>'A day in Sanctuary '.$n,'content'=>$content];$resultHash=$this->hash($value);
         $history=['type'=>'diary_result','delivery_state'=>'derived','gamets'=>123,
             'diary_result'=>$value,'diary_result_sha256'=>$valid?$resultHash:str_repeat('0',64),'diary_input_sha256'=>$inputHash];
-        $id=$this->query("INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,recorded_at)
+        $id=$this->query("INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload,recorded_at)
             VALUES($1,1,1,$2,$3,$4,$5,'2026-11-03 12:00:00+00'::timestamptz+($6::integer*interval '1 minute')) RETURNING id",
             [$session,$request,$save,900000+$n,json_encode($history),$n])[0]['id'];
         $this->query("INSERT INTO public.core_diary_result(history_event_id,input_id,result_payload,result_sha256) VALUES($1,$2,$3,$4)",

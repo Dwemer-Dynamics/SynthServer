@@ -217,7 +217,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function dataChecksum(): string
     {
         $parts = [];
-        foreach (['public.core_catalog_version', 'public.core_config_setting', 'public.core_profiles', 'synth.core_npc_master',
+        foreach (['public.core_catalog_version', 'public.core_config_setting', 'public.core_profiles', 'public.core_npc',
                      'public.core_prompt', 'public.core_action', 'public.core_context_event', 'public.core_npc_biography_template'] as $table) {
             $parts[] = $table.'='.$this->value("SELECT md5(coalesce(string_agg(t::text, E'\\n' ORDER BY t::text), '')) FROM {$table} t");
         }
@@ -228,7 +228,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     {
         $this->rows("INSERT INTO public.core_config_setting (scope, config_key, config_value, description) VALUES ('general', 'SCHEMA_OWNER_FIXTURE', 'kept', 'test row')");
         $this->rows("INSERT INTO public.core_context_event (type, data, sess, gamets, localts, ts) VALUES ('inputtext', 'Sole Survivor: hello', 'pending', 7, 8, 9)");
-        $this->rows("INSERT INTO synth.core_npc_master (npc_name, npc_static_bio) VALUES ('schema owner fixture', 'Kept verbatim.')");
+        $this->rows("INSERT INTO public.core_npc (npc_name, npc_static_bio) VALUES ('schema owner fixture', 'Kept verbatim.')");
         $this->rows("UPDATE public.core_prompt SET custom_prompt = 'Kept local prompt.' WHERE prompt_key = 'synth_system_prompt'");
     }
 
@@ -727,7 +727,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function snapshotState(): array
     {
         return [$this->schemaFingerprint(), $this->dataChecksum(), $this->recorded(),
-            $this->rows('SELECT * FROM synth_meta.playthrough_profiles ORDER BY id'),
+            $this->rows('SELECT * FROM public.core_playthrough_profile ORDER BY id'),
             $this->rows("SELECT n.nspname, c.relname, c.relkind FROM pg_namespace n LEFT JOIN pg_class c ON c.relnamespace = n.oid
                 WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema' ORDER BY 1, 2"),
             $this->rows("SELECT table_schema, table_name, column_name FROM information_schema.columns WHERE udt_name = 'vector' ORDER BY 1, 2, 3"),
@@ -745,7 +745,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->rows('CREATE SCHEMA synth_profile_kept');
         $this->rows('CREATE TABLE synth_profile_kept.eventlog (gamets bigint)');
         $this->rows('INSERT INTO synth_profile_kept.eventlog VALUES (7)');
-        $this->rows("INSERT INTO synth_meta.playthrough_profiles (name, size_bytes, notes, is_active, schema_name, storage_type, last_gamets)
+        $this->rows("INSERT INTO public.core_playthrough_profile (name, size_bytes, notes, is_active, schema_name, storage_type, last_gamets)
             VALUES ('kept', 0, 'existing', true, 'synth_profile_kept', 'schema', 7)");
         $before = $this->snapshotState();
 

@@ -815,7 +815,7 @@ class FalloutCommandBuilder
         require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
 
         $GLOBALS["db"]->insert(
-            'responselog',
+            'core_response_log',
             [
                 'localts' => $localts??time(),
                 'sent'    => 0,

@@ -120,7 +120,7 @@ PROMPT;
         ];
     }
     $auditResult = ['changes' => $auditChanges, 'event_count' => (int)$baseline['event_count']];
-    $GLOBALS['db']->insert('audit_request', [
+    $GLOBALS['db']->insert('core_audit_request', [
         'request' => json_encode(['type' => 'analyze_' . $npcName, 'model' => $model, 'messages' => $messages], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'result' => json_encode($auditResult, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'connector' => 'RelationshipLLM (' . ((string)($connector['label'] ?? $model)) . ')',

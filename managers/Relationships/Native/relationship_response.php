@@ -122,13 +122,13 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             if (array_intersect_key($owner,$capture['owner'])!==$capture['owner'] || $owner!==$event) return;
             $result=@pg_query_params($connection,"SELECT c.target_identity_id,c.playthrough_id,p.canonical_event,p.event_sha256,
                     COALESCE((c.context_payload->'world'->>'game_time_ticks')::bigint,0) AS gamets
-                FROM synth_meta.request_executions r JOIN public.core_runtime_context c ON c.session_id=r.session_id
+                FROM public.core_request_execution r JOIN public.core_runtime_context c ON c.session_id=r.session_id
                     AND c.generation=r.generation AND c.snapshot_sequence=$3
                 JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
                 JOIN public.core_protocol_event p ON p.session_id=r.session_id AND p.request_id=r.request_id
                     AND p.generation=r.generation AND p.turn_id=r.turn_id AND p.event_type=r.event_type
                     AND p.event_sha256=r.request_sha256
-                JOIN synth.actor_identities a ON a.id=c.target_identity_id AND a.playthrough_id=c.playthrough_id
+                JOIN public.core_actor_identity a ON a.id=c.target_identity_id AND a.playthrough_id=c.playthrough_id
                     AND a.game='fo4' AND upper(a.full_form_id)=upper(c.context_payload->'target'->>'form_id')
                     AND lower(a.origin_plugin)=lower(c.context_payload->'target'->>'origin_plugin')
                 WHERE r.session_id=$1 AND r.request_id=$2 AND r.state='complete'
@@ -145,7 +145,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             // Text and STT use the actual processed input insertion, which legitimately has no delivery state.
             $inputs=[];
             if (in_array($event['type'],['input_text','input_audio'],true)) {
-                $result=@pg_query_params($connection,"SELECT id,event_payload FROM synth_meta.history_events
+                $result=@pg_query_params($connection,"SELECT id,event_payload FROM public.core_history_event
                     WHERE session_id=$1 AND generation=$2 AND request_id=$3 AND context_sequence=$4
                         AND playthrough_id=$5 AND event_payload->>'type' IN ('inputtext','inputtext_s')
                     ORDER BY id LIMIT 2",[$owner['session_id'],$owner['generation'],$owner['request_id'],
@@ -215,7 +215,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
                     synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
                 VALUES('relationship_response','Accepted native model speech',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
             ), history AS (
-                INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
                 SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
                     ||jsonb_build_object('response_sha256',$9::text,'response_payload_sha256',
                         encode(sha256(convert_to(($10::jsonb)::text,'UTF8')),'hex'))
@@ -268,7 +268,7 @@ function synth_relationship_delivery_sql(string $history, string $payload, strin
         jsonb_array_length($payload->'delivery_lines') BETWEEN 1 AND 256 AND NOT EXISTS (
             SELECT 1 FROM jsonb_array_elements($payload->'delivery_lines') dependency(value)
             WHERE jsonb_typeof(dependency.value)<>'string' OR NOT EXISTS (
-                SELECT 1 FROM synth_meta.history_events heard
+                SELECT 1 FROM public.core_history_event heard
                 JOIN public.core_runtime_context heard_scene ON heard_scene.session_id=heard.session_id
                     AND heard_scene.generation=heard.generation
                     AND heard_scene.snapshot_sequence=COALESCE(heard.scene_context_sequence,heard.context_sequence)
@@ -298,7 +298,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
         .' AND h.context_sequence='.intval($event['context_sequence']).')' : 'FALSE';
     // Resolve retained response history once before expanding saved reader scopes.
     return ", {$evidence}_history AS MATERIALIZED (
-        SELECT h.* FROM synth_meta.history_events h
+        SELECT h.* FROM public.core_history_event h
         JOIN public.core_relationship_response_input input ON input.history_event_id=h.id
         WHERE EXISTS (SELECT 1 FROM $scopes scope
             WHERE scope.session_id=h.session_id AND scope.generation=h.generation
@@ -315,7 +315,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
             AND (h.id<=scope.cutoff OR $current)
         JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
-        JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id AND e.generation=h.generation
+        JOIN public.core_request_execution e ON e.session_id=h.session_id AND e.request_id=h.request_id AND e.generation=h.generation
             AND ((e.state='complete' AND (encode(sha256(e.response_body),'hex')=i.response_sha256
                 OR (e.event_type IN ('input_text','input_audio') AND e.completed_at IS NOT NULL AND e.response_body IS NULL
                     AND e.error_code IN ('turn_cancelled','request_cancelled') AND h.id<=scope.cutoff)))
@@ -327,7 +327,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                             AND job.job_type='relationship' AND job.state='ready' AND job.session_id=e.session_id
                             AND job.request_id=e.request_id AND job.generation=e.generation AND job.turn_id=e.turn_id
                             AND job.payload->>'schema'='synth.relationship.gift-job.v1'
-                        JOIN synth_meta.history_events saved ON saved.id=result.history_event_id
+                        JOIN public.core_history_event saved ON saved.id=result.history_event_id
                             AND saved.session_id=h.session_id AND saved.generation=h.generation AND saved.request_id=h.request_id
                             AND saved.context_sequence=h.context_sequence AND saved.playthrough_id=h.playthrough_id
                         WHERE gift.response_history_event_id=h.id AND gift.actor_identity_id=i.actor_identity_id
@@ -367,7 +367,7 @@ function synth_relationship_response_evidence_cte($db, array $event, bool $admit
                 AND NOT EXISTS (
                     SELECT 1 FROM jsonb_array_elements(i.response_payload->'input_events') item
                     WHERE NOT EXISTS (
-                        SELECT 1 FROM public.core_relationship_response_source d JOIN synth_meta.history_events raw ON raw.id=d.source_history_event_id
+                        SELECT 1 FROM public.core_relationship_response_source d JOIN public.core_history_event raw ON raw.id=d.source_history_event_id
                         WHERE d.response_history_event_id=i.history_event_id AND to_jsonb(raw.id)=item->'id' AND raw.id<h.id
                             AND raw.session_id=h.session_id AND raw.generation=h.generation AND raw.request_id=h.request_id
                             AND raw.context_sequence=h.context_sequence AND raw.playthrough_id=h.playthrough_id

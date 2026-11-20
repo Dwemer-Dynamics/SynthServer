@@ -1701,7 +1701,7 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
                 } catch (Throwable $error) {
                     if (synth_profile_origin_rejected($error)) {
                         $owner=$queueData['native_owner'];
-                        $state=$db->fetchOne('SELECT state FROM synth_meta.request_executions WHERE session_id='
+                        $state=$db->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id='
                             .$db->escapeLiteral(strval($owner['session_id'] ?? '')).' AND request_id='.$db->escapeLiteral(strval($owner['request_id'] ?? '')));
                         // A just-admitted refresh can be queued before its response completes; keep waiting for it.
                         if ($state && !in_array($state['state'],['claimed','streaming'],true)) {

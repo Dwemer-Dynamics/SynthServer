@@ -1412,7 +1412,7 @@ function synthActionCatalogGetLastActionsIssuedMap()
     $rows = $GLOBALS["db"]->fetchAll(
         "SELECT * FROM (
             SELECT DISTINCT ON (action) *
-            FROM actions_issued
+            FROM core_action_issued
             WHERE (actorname = '$escapedActorName' or actorname like '%$escapedActorName,%' or actorname='*')
             ORDER BY action, gamets DESC, ts DESC
         ) AS sub
@@ -3009,7 +3009,7 @@ function synthActionCatalogExecuteScriptProxyDbInserts($dbInserts, $context)
             continue;
         }
 
-        if (strcasecmp(strval($dbInsert['table']), 'actions_issued') === 0 && array_key_exists('original', $data)) {
+        if (strcasecmp(strval($dbInsert['table']), 'core_action_issued') === 0 && array_key_exists('original', $data)) {
             $data['original'] = synthActionCatalogApplyFollowupChainToActionsIssuedOriginal($data['original']);
         }
 

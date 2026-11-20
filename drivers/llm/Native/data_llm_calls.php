@@ -414,7 +414,7 @@ function call_llm_internal() {
         // No fallback or fallback also failed - send error message
         error_log("[FALLBACK DEBUG] Sending ERROR_OPENAI message to user");
         $db->insert(
-            'log',
+            'core_log',
             array(
                 'localts' => time(),
                 'prompt' => nl2br((json_encode($GLOBALS["DEBUG_DATA"], JSON_PRETTY_PRINT))),
@@ -1016,7 +1016,7 @@ function call_llm_internal() {
                 }
 
                 $GLOBALS["db"]->insert(
-                    'actions_issued',
+                    'core_action_issued',
                     array(
                         'action' => $actionName,
                         'fullcall' =>$singleaction,

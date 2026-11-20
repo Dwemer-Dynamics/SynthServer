@@ -179,7 +179,7 @@ function synthQueueCommandResponse(string $speaker, string $commandName, array $
     }
 
     $GLOBALS['db']->insert(
-        'responselog',
+        'core_response_log',
         [
             'localts' => time(),
             'sent' => 0,

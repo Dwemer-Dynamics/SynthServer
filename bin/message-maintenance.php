@@ -6,7 +6,7 @@
  *   php bin/message-maintenance.php [--days=N] [--apply]
  *
  * Retention is N days (default 7, from 1 to 365). Without --apply it only reports what it would remove. With --apply it
- * deletes the dashboard's response log rows (`synth.responselog`) older than the retention. It always prints one JSON
+ * deletes the dashboard's response log rows (`public.core_response_log`) older than the retention. It always prints one JSON
  * report: how many rows were or would be removed, the response log size, how many finished speech jobs
  * (`core_worker_job`, type `tts`) are older than the retention, and how many history events (`core_context_event`)
  * exist.
@@ -56,10 +56,10 @@ try {
         return intval($row['n'] ?? 0);
     };
 
-    $expired = $count('SELECT COUNT(*) AS n FROM synth.responselog WHERE localts < ' . $cutoff);
+    $expired = $count('SELECT COUNT(*) AS n FROM public.core_response_log WHERE localts < ' . $cutoff);
     $deleted = 0;
     if ($apply && $expired > 0) {
-        if ($db->execQuery('DELETE FROM synth.responselog WHERE localts < ' . $cutoff) === false) {
+        if ($db->execQuery('DELETE FROM public.core_response_log WHERE localts < ' . $cutoff) === false) {
             throw new RuntimeException('delete failed');
         }
         $deleted = $expired;
@@ -71,7 +71,7 @@ try {
         'response_log' => [
             'older_than_retention' => $expired,
             'deleted' => $deleted,
-            'remaining' => $count('SELECT COUNT(*) AS n FROM synth.responselog'),
+            'remaining' => $count('SELECT COUNT(*) AS n FROM public.core_response_log'),
         ],
         'finished_speech_jobs_older_than_retention' => $count("SELECT COUNT(*) AS n FROM public.core_worker_job WHERE job_type='tts' AND state IN ('ready','failed','cancelled','stale') AND updated_at < now() - interval '" . $days . " days'"),
         'history_events' => $count('SELECT COUNT(*) AS n FROM public.core_context_event'),

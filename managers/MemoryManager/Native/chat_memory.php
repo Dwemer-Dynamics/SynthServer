@@ -719,7 +719,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             };
 
             $db->insert(
-                'log',
+                'core_log',
                 array(
                     'localts' => time(),
                     'prompt' => nl2br($escapeLogValue(json_encode($GLOBALS["DEBUG_DATA"], JSON_PRETTY_PRINT))),
@@ -866,7 +866,7 @@ function lastSpeech($npcname)
 
     $speaker=$db->escape($npcname);
     $pj=$db->escape($GLOBALS["PLAYER_NAME"]);
-    $lastRecords = $db->fetchAll("SELECT * from speech where (speaker ilike '$speaker' or speaker ilike '%$pj%' ) order by rowid desc LIMIT 5 OFFSET 0");
+    $lastRecords = $db->fetchAll("SELECT * from core_speech where (speaker ilike '$speaker' or speaker ilike '%$pj%' ) order by rowid desc LIMIT 5 OFFSET 0");
     $buffer="";
     foreach (array_reverse($lastRecords) as $record) {
         $buffer.="{$record["speaker"]}:{$record["speech"]}\n";
@@ -905,7 +905,7 @@ function lastKeyWordsContext($n, $npcname='')
             . " ORDER BY gamets DESC,ts DESC,rowid DESC LIMIT {$m}");
     } else {
         $lastRecords = $db->fetchAll("SELECT speaker, location, companions, speech, gamets
-     from (select * from speech where  gamets>{$whileago}) AS sp
+     from (select * from core_speech where  gamets>{$whileago}) AS sp
      where ((speaker ilike '{$speaker}') or (speaker ilike '%{$pj}%' ))
         order by gamets desc limit {$m} offset 0");
     }
@@ -981,7 +981,7 @@ function lastKeyWordsNew($n, $eventypes='')
 
     $m=$n+1;
 
-    $lastRecords = $db->fetchAll("SELECT speaker,location,companions,speech from speech order by gamets desc limit $m offset 0");
+    $lastRecords = $db->fetchAll("SELECT speaker,location,companions,speech from core_speech order by gamets desc limit $m offset 0");
     $words=[];
     $uniqueArray=[];
     $uppercaseWords = [];

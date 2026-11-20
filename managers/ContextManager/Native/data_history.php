@@ -56,7 +56,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
 
         $actorcn=$db->escape($actor);
         $results = $db->fetchAll("SELECT speaker,speech,listener,gamets,localts,'speech',gamets - LAG(gamets) OVER (ORDER BY gamets ASC) AS gamets_diff,location,ts
-        FROM speech where companions like '%$actorcn%' order by ts desc LIMIT 1000 OFFSET 0");
+        FROM core_speech where companions like '%$actorcn%' order by ts desc LIMIT 1000 OFFSET 0");
          $rawData=[];
         foreach ($results as $row) {
             $rawData[] = $row;
@@ -1348,7 +1348,7 @@ function DataSpeechJournal($topic,$limit=50)
 
     $lastDialogFull = [];
     $tn=$db->escape($topic);
-    $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM speech
+    $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM core_speech
      where (speaker like '%$tn%' or  listener like '%$tn%' or location like '%$tn%' or
       companions like '%|$tn|%' or  companions like '%$tn%' OR companions LIKE '%|$tn (busy)|%'
       OR companions LIKE '%|$tn (hostile)|%' OR companions LIKE '%|$tn (restrained)|%' )

@@ -69,7 +69,7 @@ final class ReadingEventContextTest extends DatabaseTestCase
         return array_map(static fn($line)=>json_decode($line,true,32,JSON_THROW_ON_ERROR),array_values(array_filter(explode("\n",trim($body)))));
     }
     private function row(array $event): array {
-        $result=pg_query_params($this->connection,'SELECT state,error_code,response_body FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
+        $result=pg_query_params($this->connection,'SELECT state,error_code,response_body FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',[$event['session_id'],$event['request_id']]);
         return pg_fetch_assoc($result)?:[];
     }
     private function init(string $session='context-http',int $generation=1): void {
@@ -101,7 +101,7 @@ final class ReadingEventContextTest extends DatabaseTestCase
             'text'=>$text,'text_truncated'=>false,'age_ms'=>120];
     }
     private function rows(string $type): int {
-        $result=pg_query($this->connection,"SELECT count(*) AS n FROM synth_meta.history_events WHERE event_payload->>'type'='".$type."'");
+        $result=pg_query($this->connection,"SELECT count(*) AS n FROM public.core_history_event WHERE event_payload->>'type'='".$type."'");
         return intval(pg_fetch_assoc($result)['n']);
     }
     private function readerRows(int $identityId,bool $player=false): array {
@@ -111,7 +111,7 @@ final class ReadingEventContextTest extends DatabaseTestCase
         return $db->fetchAll($cte." SELECT type,data FROM native_history WHERE type='reading_event'");
     }
     private function identity(string $formId): int {
-        $result=pg_query_params($this->connection,"SELECT id FROM synth.actor_identities WHERE game='fo4' AND upper(full_form_id)=upper($1)",[$formId]);
+        $result=pg_query_params($this->connection,"SELECT id FROM public.core_actor_identity WHERE game='fo4' AND upper(full_form_id)=upper($1)",[$formId]);
         return intval(pg_fetch_assoc($result)['id'] ?? 0);
     }
     private function promptRows(string $actor): array {

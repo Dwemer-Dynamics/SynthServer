@@ -19,7 +19,7 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                     AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
                         OR relationship_evaluation_id IS NOT NULL OR memory_batch_id IS NOT NULL
                         OR NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_evaluation i
-                            JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
+                            JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
                                 AND e.generation=i.generation AND e.turn_id=j.turn_id AND e.state='complete'
                             JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                                 AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
@@ -43,7 +43,7 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
             $result=@pg_query_params($connection,"SELECT i.id,i.session_id,i.request_id,i.generation,i.context_sequence,
                     e.turn_id,e.event_type,p.canonical_event,p.event_sha256
                 FROM public.core_relationship_interaction_evaluation i
-                JOIN synth_meta.request_executions e ON e.session_id=i.session_id AND e.request_id=i.request_id
+                JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
                     AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
                 JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
                     AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
@@ -61,10 +61,10 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                 JOIN public.core_runtime_context c ON c.session_id=current.session_id AND c.generation=current.generation AND c.snapshot_sequence=current.snapshot_sequence
                 JOIN public.core_protocol_event owner ON owner.session_id=$1 AND owner.request_id=$5 AND owner.generation=$2 AND owner.turn_id=$3
                 JOIN public.core_protocol_event source ON source.session_id=response.session_id AND source.request_id=response.request_id
-                JOIN synth.actor_identities replying ON replying.id=$6::bigint AND replying.game='fo4' AND replying.playthrough_id=c.playthrough_id
+                JOIN public.core_actor_identity replying ON replying.id=$6::bigint AND replying.game='fo4' AND replying.playthrough_id=c.playthrough_id
                 CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(response.response_payload->'entries')='array'
                     THEN response.response_payload->'entries' ELSE '[]'::jsonb END) WITH ORDINALITY entry(value,ordinality)
-                JOIN synth.actor_identities listener ON listener.game='fo4' AND listener.playthrough_id=c.playthrough_id
+                JOIN public.core_actor_identity listener ON listener.game='fo4' AND listener.playthrough_id=c.playthrough_id
                     AND upper(listener.full_form_id)=upper(entry.value#>>'{routing,listener,form_id}')
                     AND lower(listener.origin_plugin)=lower(entry.value#>>'{routing,listener,origin_plugin}')
                 LEFT JOIN public.core_relationship_actor_control speaker_control ON speaker_control.actor_identity_id=replying.id
@@ -91,12 +91,12 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
                         AND i.listener_identity_id=listener.id AND i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$4)
                     AND NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_result result
                         JOIN public.core_relationship_interaction_evaluation i ON i.id=result.interaction_id
-                        JOIN synth_meta.history_events h ON h.id=result.history_event_id
+                        JOIN public.core_history_event h ON h.id=result.history_event_id
                         WHERE i.response_history_event_id=response.history_event_id AND i.listener_identity_id=listener.id
                             AND ((h.session_id=$1 AND h.generation=$2) OR EXISTS(SELECT 1 FROM native_history_scopes scope
                                 WHERE scope.session_id=h.session_id AND scope.generation=h.generation AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff)))
                     AND NOT EXISTS(SELECT 1 FROM public.core_relationship_result result JOIN public.core_relationship_evaluation i ON i.id=result.evaluation_id
-                        JOIN synth_meta.history_events h ON h.id=result.history_event_id
+                        JOIN public.core_history_event h ON h.id=result.history_event_id
                         WHERE i.response_history_event_id=response.history_event_id AND i.input_payload->'subjects' @> jsonb_build_array(jsonb_build_object('subject_id',listener.id))
                             AND ((h.session_id=$1 AND h.generation=$2) OR EXISTS(SELECT 1 FROM native_history_scopes scope
                                 WHERE scope.session_id=h.session_id AND scope.generation=h.generation AND scope.playthrough_id=h.playthrough_id AND h.id<=scope.cutoff)))

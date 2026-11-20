@@ -33,7 +33,7 @@ final class SocialTaskFixtureDatabase
             $this->execQuery("SET LOCAL lock_timeout='2s'");
             $this->execQuery("SELECT set_config('statement_timeout',$1,true)",[(string)max(1,min(2000,$statementTimeoutMs ?: 2000))]);
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
-            $result=$this->execQuery("SELECT 1 FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING(session_id)
+            $result=$this->execQuery("SELECT 1 FROM public.core_request_execution e JOIN public.core_runtime_session r USING(session_id)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$4
                   AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=e.generation
                   AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$5",
@@ -74,10 +74,10 @@ final class SocialTaskStateTest extends DatabaseTestCase {
     private function snapshot($session,$gen,$seq,$frontier,$anchor=null): void {$payload=$this->payload+['snapshot_sequence'=>$seq];if($anchor)$payload['loaded_context']=$anchor;
       $this->fixtureDb->execQuery('INSERT INTO public.core_runtime_context(session_id,generation,snapshot_sequence,playthrough_id,player_identity_id,target_identity_id,audience_identity_ids,context_payload,history_event_id) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)',[$session,$gen,$seq,'social-save',synth_protocol_actor_identity_id($this->fixtureDb,$this->player),synth_protocol_actor_identity_id($this->fixtureDb,$this->performer),$this->json([synth_protocol_actor_identity_id($this->fixtureDb,$this->performer),synth_protocol_actor_identity_id($this->fixtureDb,$this->recipient)]),$this->json($payload),$frontier]);}
     private function select($session,$gen,$seq,$type,$payload,$turn=null): void {$request='social-test:'.(++$this->serial);$this->event=['schema'=>'synth.event.v2','protocol_version'=>2,'type'=>$type,'session_id'=>$session,'request_id'=>$request,'turn_id'=>$turn??'turn:'.$request,'generation'=>$gen,'context_sequence'=>$seq,'game'=>'fo4','runtime_variant'=>'flat','client_version'=>'fixture','runtime_version'=>'fixture','capabilities'=>['social.tasks.v1','context.saved_anchor','dialogue.turn_ownership','context.location_identity','dialogue.rechat.ownership'],'payload'=>$payload];$canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
-      $this->fixtureDb->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,'claimed')",[$session,$request,$this->event['turn_id'],$gen,$hash,$type]);
+      $this->fixtureDb->execQuery("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,'claimed')",[$session,$request,$this->event['turn_id'],$gen,$hash,$type]);
       $this->fixtureDb->execQuery('INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)',[$session,$request,$this->event['turn_id'],$gen,$type,$canonical,$hash]);
       $this->fixtureDb->execQuery('UPDATE public.core_runtime_session SET active_turn_id=$2,active_turn_sequence=$3 WHERE session_id=$1',[$session,$this->event['turn_id'],$seq]);$GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$this->event];}
-    private function finish(): void {$this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='complete' WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);}
+    private function finish(): void {$this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='complete' WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);}
     private function progress($task,$phase,$exec='visit:social-session:1:1'): array {$this->select($this->event['session_id'],$this->event['generation'],$this->event['context_sequence'],'social_task_progress',['task_id'=>$task['task_id'],'expected_revision'=>$task['revision'],'execution_id'=>$exec,'phase'=>$phase]);$next=synth_social_progress($this->fixtureDb,$this->event);$this->finish();return $next;}
     public function testCanonicalInputAndProgressAreSavedWithOwnedDiaryNoteAndFreshArrival(): void {
       $source=$this->event;$task=synth_social_admit_from_input($this->fixtureDb,$this->event);$this->assertSame('ready',$task['status']);$this->assertSame('Jun',$task['recipient']['display_name']);$this->finish();
@@ -131,7 +131,7 @@ final class SocialTaskStateTest extends DatabaseTestCase {
       $task=synth_social_admit_from_input($this->fixtureDb,$this->event);$this->finish();$task=$this->progress($task,'started');$task=$this->progress($task,'arrived');$arrival=$this->event;
       $this->select('social-session',1,1,'trigger',['kind'=>'rechat','instruction'=>'','reply_to_request_id'=>$arrival['request_id'],'reply_to_line_id'=>'follower-first-line']);
       $reply=$this->event;$line=$this->json(['line_id'=>'recipient-reply:1','type'=>'dialogue','payload'=>['text'=>'We need to repair it.']])."\n";
-      $this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='complete',response_body=decode($3,'hex') WHERE session_id=$1 AND request_id=$2",[$reply['session_id'],$reply['request_id'],bin2hex($line)]);
+      $this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='complete',response_body=decode($3,'hex') WHERE session_id=$1 AND request_id=$2",[$reply['session_id'],$reply['request_id'],bin2hex($line)]);
       $this->fixtureDb->execQuery("INSERT INTO public.core_dialogue_route(session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener) VALUES($1,$2,$3,$4,1,1,$5::jsonb,'addressed',$6::jsonb)",[$reply['session_id'],$reply['request_id'],'recipient-reply:1',hash('sha256',$line),$this->json($this->recipient),$this->json($this->performer)]);
       $this->select('social-session',1,1,'social_task_progress',['task_id'=>$task['task_id'],'expected_revision'=>$task['revision'],'execution_id'=>$task['execution_id'],'phase'=>'spoken','proof'=>['request_id'=>$reply['request_id'],'line_id'=>'recipient-reply:1']]);
       $done=synth_social_progress($this->fixtureDb,$this->event);$this->assertSame('completed',$done['status']);$this->finish();
@@ -140,7 +140,7 @@ final class SocialTaskStateTest extends DatabaseTestCase {
     }
     public function testProductionArrivalEmitterPreparesOnlyAddressedRecipientRechatAndItsRealRouteCanComplete(): void {
       require_once dirname(__DIR__,2).'/lib/synth_social_response.php';require_once dirname(__DIR__,2).'/lib/synth_rechat_prepare.php';
-      foreach([$this->performer,$this->recipient] as $actor)$this->fixtureDb->execQuery('INSERT INTO synth.core_npc_master(npc_name,actor_identity_id,profile_id) VALUES($1,$2,1)',[$actor['display_name'],synth_protocol_actor_identity_id($this->fixtureDb,$actor)]);
+      foreach([$this->performer,$this->recipient] as $actor)$this->fixtureDb->execQuery('INSERT INTO public.core_npc(npc_name,actor_identity_id,profile_id) VALUES($1,$2,1)',[$actor['display_name'],synth_protocol_actor_identity_id($this->fixtureDb,$actor)]);
       $task=synth_social_admit_from_input($this->fixtureDb,$this->event);$this->finish();$acceptedRevision=$task['revision'];
       $this->snapshot('social-session',1,2,$acceptedRevision);$this->select('social-session',1,2,'input_text',['text'=>'Checkpoint after accepting the task.']);$this->finish();$task=$this->progress($task,'started');
       $this->select('social-session',1,2,'social_task_progress',['task_id'=>$task['task_id'],'expected_revision'=>$task['revision'],'execution_id'=>$task['execution_id'],'phase'=>'arrived']);

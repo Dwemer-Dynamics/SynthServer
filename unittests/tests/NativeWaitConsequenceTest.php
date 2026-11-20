@@ -38,7 +38,7 @@ final class WaitConsequenceFixtureDatabase
             $this->execQuery("SET LOCAL lock_timeout='2s'");
             $this->execQuery("SELECT set_config('statement_timeout',$1,true)",[(string)max(1,min(2000,$statementTimeoutMs ?: 2000))]);
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))',[$event['session_id']]);
-            $result=$this->execQuery("SELECT 1 FROM synth_meta.request_executions e JOIN public.core_runtime_session r USING(session_id)
+            $result=$this->execQuery("SELECT 1 FROM public.core_request_execution e JOIN public.core_runtime_session r USING(session_id)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$4
                   AND e.state IN ('claimed','streaming','complete') AND r.state='active' AND r.active_generation=e.generation
                   AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$5",
@@ -62,7 +62,7 @@ final class WaitConsequenceFixtureDatabase
             unset($data['rowid']);$data['synth_session_id']=$event['session_id'];$data['synth_generation']=$event['generation'];$data['synth_context_sequence']=$event['context_sequence'];$data['synth_request_id']=$event['request_id'];
             $context=synth_protocol_current_context($this,$event);$columns=array_keys($data);foreach($columns as $column)if(!preg_match('/^[a-z_]+$/D',$column))throw new LogicException('Fixture column');
             $values=implode(',',array_map(static fn($i)=>'$'.($i+1),array_keys($columns)));
-            $sql='WITH publication AS (INSERT INTO public.core_context_event('.implode(',',$columns).') VALUES('.$values.') RETURNING *) INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(publication) FROM publication';
+            $sql='WITH publication AS (INSERT INTO public.core_context_event('.implode(',',$columns).') VALUES('.$values.') RETURNING *) INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload) SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$'.(count($columns)+1).',rowid,to_jsonb(publication) FROM publication';
             $this->execQuery($sql,[...array_values($data),$context['player']['playthrough_id']]);return true;
         });
     }
@@ -96,12 +96,12 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     private function select($session,$generation,$sequence,$type,$payload,$turn=null,$caps=null): void {
         $request='wait-recall:'.(++$this->serial);$this->event=['schema'=>'synth.event.v2','protocol_version'=>2,'type'=>$type,'session_id'=>$session,'request_id'=>$request,'turn_id'=>$turn??'turn:'.$request,'generation'=>$generation,'context_sequence'=>$sequence,'game'=>'fo4','runtime_variant'=>'flat','client_version'=>'fixture','runtime_version'=>'fixture','capabilities'=>$caps??$this->caps(),'payload'=>$payload];
         $canonical=synth_protocol_canonical_json($this->event);$hash=hash('sha256',$canonical);
-        $this->fixtureDb->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,'claimed')",[$session,$request,$this->event['turn_id'],$generation,$hash,$type]);
+        $this->fixtureDb->execQuery("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state) VALUES($1,$2,$3,$4,$5,$6,'claimed')",[$session,$request,$this->event['turn_id'],$generation,$hash,$type]);
         $this->fixtureDb->execQuery('INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)',[$session,$request,$this->event['turn_id'],$generation,$type,$canonical,$hash]);
         $this->fixtureDb->execQuery('UPDATE public.core_runtime_session SET active_turn_id=$2,active_turn_sequence=$3 WHERE session_id=$1',[$session,$this->event['turn_id'],$sequence]);
         $GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($this->event);$GLOBALS['SYNTH_NAME']='Settler';$GLOBALS['gameRequest']=[$type,time(),1000,'Synthetic request'];
     }
-    private function finish(): void {$this->fixtureDb->execQuery("UPDATE synth_meta.request_executions SET state='complete' WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);}
+    private function finish(): void {$this->fixtureDb->execQuery("UPDATE public.core_request_execution SET state='complete' WHERE session_id=$1 AND request_id=$2",[$this->event['session_id'],$this->event['request_id']]);}
     private function intent($name='wait_here'): array {
         $id='action:wait-recall:'.$this->serial;
         $intent=['schema'=>'synth.action.v1','action_id'=>$id,'idempotency_key'=>'idem:'.$id,'name'=>$name,'capability'=>'action.'.$name,'server_code'=>$name==='wait_here'?'WaitHere':'ReleaseWait','actor'=>$this->actor,'arguments'=>new stdClass(),'deadline_ms'=>30000];
@@ -113,7 +113,7 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     }
     private function receipt(array $intent,array $result,$turn=null,$generation=1): void {$origin=$this->event;$this->select($origin['session_id'],$generation,$origin['context_sequence'],'action_result',['result'=>$result],$turn??$origin['turn_id'],$origin['capabilities']);
         $this->fixtureDb->execQuery('BEGIN');try{synth_protocol_persist_action_result($this->fixtureDb,$this->event,$this->event['session_id']);$this->fixtureDb->execQuery('COMMIT');}finally{if(!$this->fixtureDb->isTransactionIdle())$this->fixtureDb->execQuery('ROLLBACK');}}
-    private function consequenceRows(): array {return $this->fixtureDb->fetchAll("SELECT id,event_payload FROM synth_meta.history_events WHERE event_payload ? 'synth_wait_consequence' ORDER BY id");}
+    private function consequenceRows(): array {return $this->fixtureDb->fetchAll("SELECT id,event_payload FROM public.core_history_event WHERE event_payload ? 'synth_wait_consequence' ORDER BY id");}
     private function visible(): array{return $this->fixtureDb->fetchAll(synth_protocol_history_cte($this->fixtureDb,$this->event,'Settler')." SELECT history_event_id,data FROM native_history WHERE type='infoaction' ORDER BY history_event_id");}
     public function testWaitHistoryJoinsAreConditionalAndDoNotWidenQuestOrRelationshipProjection(): void {
         $ordinary=synth_protocol_history_rows_cte();
@@ -165,12 +165,12 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
         $this->actor['display_name']='Codsworth';$this->payload['target']=$this->actor;$this->payload['audience']=[$this->actor,$this->other];
         $this->snapshot('wait-recall',1,2,0);$this->select('wait-recall',1,2,'input_text',['text'=>'Wait here.']);$intent=$this->intent();$this->receipt($intent,$this->terminalResult($intent));
         foreach(['funcret','infoaction'] as $type)$this->fixtureDb->insert('core_context_event',['type'=>$type,'data'=>'Codsworth waits and stands at the place.','gamets'=>1000,'ts'=>1000,'localts'=>1000,'sess'=>'wait-recall-save','people'=>'|Settler|','location'=>'Synthetic Sanctuary','party'=>'','delivery_state'=>'emitted']);
-        $this->finish();$frontier=(int)$this->fixtureDb->fetchOne('SELECT max(id) AS id FROM synth_meta.history_events')['id'];$this->snapshot('wait-recall',1,3,$frontier,$this->other,null,800000);$this->select('wait-recall',1,3,'input_text',['text'=>'What did Codsworth do?']);
+        $this->finish();$frontier=(int)$this->fixtureDb->fetchOne('SELECT max(id) AS id FROM public.core_history_event')['id'];$this->snapshot('wait-recall',1,3,$frontier,$this->other,null,800000);$this->select('wait-recall',1,3,'input_text',['text'=>'What did Codsworth do?']);
         $this->assertSame([],$this->visible());$this->assertNull(synth_memory_capture_batch($this->fixtureDb,1));
     }
     public function testReboundHistoryOwnerCannotGrantEitherSameNamedNpcAConsequence(): void {
         $intent=$this->intent();$this->receipt($intent,$this->terminalResult($intent));$this->finish();$row=$this->consequenceRows()[0];$other=synth_protocol_actor_identity_id($this->fixtureDb,$this->other);
-        $this->fixtureDb->execQuery("UPDATE synth_meta.history_events SET event_payload=jsonb_set(event_payload,'{synth_wait_consequence,actor_identity_id}',$2::jsonb) WHERE id=$1",[$row['id'],(string)$other]);
+        $this->fixtureDb->execQuery("UPDATE public.core_history_event SET event_payload=jsonb_set(event_payload,'{synth_wait_consequence,actor_identity_id}',$2::jsonb) WHERE id=$1",[$row['id'],(string)$other]);
         $this->snapshot('wait-recall',1,2,(int)$row['id']);$this->select('wait-recall',1,2,'input_text',['text'=>'Did I wait?']);$this->assertSame([],$this->visible());
         $this->snapshot('wait-recall',1,3,(int)$row['id'],$this->other);$this->select('wait-recall',1,3,'input_text',['text'=>'Did I wait?']);$this->assertSame([],$this->visible());
     }
