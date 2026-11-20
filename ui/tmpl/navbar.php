@@ -48,7 +48,7 @@ $pluginVersionDisplay = 'N/A'; // Default value
 if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  try {
  if (method_exists($GLOBALS['db'], 'fetchOne')) {
- $pluginVersionRow = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
+ $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
  if ($pluginVersionRow && isset($pluginVersionRow['value']) && trim($pluginVersionRow['value']) !== '') {
  $version = trim($pluginVersionRow['value']);
  // Validate that the version follows the expected format

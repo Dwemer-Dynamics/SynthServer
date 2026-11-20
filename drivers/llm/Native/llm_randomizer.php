@@ -136,7 +136,7 @@ class LLMRandomizer {
         if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']))
             return intval($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']);
         $db = $GLOBALS['db'];
-        $result = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
+        $result = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
         
         if (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4) {
             return (int)$result['value'];
