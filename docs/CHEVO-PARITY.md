@@ -26,9 +26,9 @@ Counts cover non-test PHP. They exclude `vendor/`, `unittests/vendor/`, `tests/`
 
 | Measure | SYNTH (after #149) | chevo `e1f32e4` | Note |
 | --- | --- | --- | --- |
-| Base entities (`core/entities/base`) | 20 | 57 | |
-| System entities (`core/entities/system`) | 22 | 66 | |
-| DAOs (`core/dbmanager/dao/*.php`) | 22 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
+| Base entities (`core/entities/base`) | 21 | 57 | |
+| System entities (`core/entities/system`) | 23 | 66 | |
+| DAOs (`core/dbmanager/dao/*.php`) | 23 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
 | `$db->` calls | 1,320 | — | Lines by directory: managers 733, workers 165, ui 96, root 70, drivers 64, processor 48, debug 35, lib 32, core 13, other 11 |
 | `pg_*` calls | 870 | — | Mostly in `lib/postgresql.class.php`, `managers/*/Native`, `ui/` |
 | Global uses (`global $x`, `$GLOBALS[`) | 3,360 | — | 6,471 before the globals pass. |
@@ -65,7 +65,7 @@ See also [Behaviour gaps against chevo](#behaviour-gaps-against-chevo) for chevo
 | chevo area | SYNTH today | Status |
 | --- | --- | --- |
 | `core/dbmanager` (Doctrine ORM, DAOs, migrations, as the only DB boundary) | Doctrine with the hash-pinned migration manifest and `SchemaCheck` (`schema-check --offline`). The DAOs follow `ConfigSettingDao` (see `core/dbmanager/dao/README.md`). There are still about 1,330 `$db->` and 870 `pg_*` calls outside it. | partial |
-| `core/entities/base`, `core/entities/system` | 20 base and 22 system entities. Families with DAOs: config settings, API badges, connectors (LLM, TTS, STT, ITT), profile, location, location state, location marker, worldspace, NPC, NPC actor, NPC runtime actor, NPC history, NPC profile rules, NPC biography templates, plugin manifest revisions, relationship config. | partial |
+| `core/entities/base`, `core/entities/system` | 21 base and 23 system entities. Families with DAOs: config settings, API badges, connectors (LLM, TTS, STT, ITT), profile, location, location state, location marker, worldspace, NPC, NPC actor, NPC runtime actor, NPC history, NPC profile rules, NPC biography templates, plugin manifest revisions, relationship config, LLM request log. | partial |
 | `core_*` table naming and fresh-install migration | The schema was rebuilt from scratch in chevo style, with no upgrade migrations from the old tables. Every table has a `core_*` name (for example `core_npc`, `core_action_issued`, `core_log`). | parity |
 | API keys | The shared Dwemer `api_keys` store (#62). It is kept on purpose, rather than a server-private table. | SYNTH-specific |
 | `core/contracts` | `dialogue.php` and `narrator.php`, which are not PSR-4 yet. | partial |
@@ -115,7 +115,7 @@ Code moved from `lib/` lives under `managers/<Name>/Native/`. It was moved, not 
 
 | chevo area | SYNTH today | Status |
 | --- | --- | --- |
-| `drivers/llm` | `LlmDriverInterface`, `LlmWrapper`, and one driver per provider in `Drivers/` (OpenAI, OpenRouter, Google OpenAI, Groq, KoboldCpp, Player2). The six `connector/*json.php` files are 8-line hooks that keep the legacy class names. `connector/templates/` holds prompt templates. | parity |
+| `drivers/llm` | `LlmDriverInterface`, `LlmWrapper`, and one driver per provider in `Drivers/` (OpenAI, OpenRouter, Google OpenAI, Groq, KoboldCpp, Player2). The six `connector/*json.php` files are 8-line hooks that keep the legacy class names. `connector/templates/` holds prompt templates. Every request is logged to `core_llm_request_log` (`Logging/`: recorder, redaction, size bounds, retention) and `bin/llm-request-log.php` replays one through the same driver. | parity |
 | `drivers/tts` | `TtsDriverInterface`, `TtsWrapper`, and one driver per provider registered via `TtsProviderRegistry`, plus `SpeechAudio` and `SpeechStorage`. The provider bodies still read the legacy TTS globals. | parity (shape) |
 | `drivers/stt`, `drivers/itt` | Wrapper plus one driver per provider. `stt/`, `itt/` are thin hooks. | parity |
 
@@ -221,7 +221,7 @@ These came from comparing chevo's feature set with SYNTH. They are product work 
 | chevo behaviour | SYNTH today |
 | --- | --- |
 | Durable message queue (`core_message_queue`): a 202 reply, then a WebSocket `message_available` push, then a fetch that succeeds exactly once (a second fetch gets 409) | No queue table. Results come back through the existing response path; `GET /api/v1/messages/<id>` reads delivery state only; the client polls, with opt-in wake hints. |
-| LLM request log with replay (`core_llm_request_log`) | Not built. It waits on the schema merge listed above. |
+| LLM request log with replay (`core_llm_request_log`) | Built: see [LLM-REQUEST-LOG.md](LLM-REQUEST-LOG.md). Differences from chevo: the replayable input is the driver's own input (messages and parameters), not an `LLMRequest`; token counts are only filled when the provider body is read whole (non-streamed requests). |
 | 14 extension hook points, plus extension routes (`/api/v1/ext/<id>/`), workers and `ext_<id>_*` tables | 4 hook points (2 filters, 2 events). No extension routes, workers or tables. |
 | GameRpc channel (`rpc.request` / `rpc.response` over the socket) | The contract only. |
 | A separate Decisions connector for two-step actions | Two-step actions (#68) use the existing profile connectors. |

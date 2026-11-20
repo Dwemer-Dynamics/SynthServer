@@ -17,6 +17,7 @@ use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
+use Synth\Core\DbManager\Dao\LlmRequestLogDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
@@ -46,7 +47,7 @@ final class Database
      * @var list<class-string>
      */
     public const DAOS = [
-        ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
+        LlmRequestLogDao::class, ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
         LlmConnectorDao::class,
         TtsConnectorDao::class,
         SttConnectorDao::class,
