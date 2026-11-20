@@ -130,3 +130,28 @@ Files under: connector
 | --- | --- | --- |
 | global uses (all non-test PHP) | 3144 | 2926 |
 | `require_once` | 1838 | 1838 |
+
+### W3-functions
+
+All uses in `functions/` except two string literals. New `Bootstrap` helpers cover the remaining shapes:
+
+| Legacy form | Replacement |
+| --- | --- |
+| `$GLOBALS['N'][$a][$b] = $v;` | `Bootstrap::setPath('N', [$a, $b], $v)` |
+| `$GLOBALS['N'][$a][] = $v;` | `Bootstrap::appendPath('N', [$a], $v)` |
+| `unset($GLOBALS['N'][$a])` | `Bootstrap::unsetPath('N', [$a])` |
+| `global $x;` | `$x = &Bootstrap::ref('x');` (same reference to the same slot) |
+| `shuffle($GLOBALS['N'])`, `&$GLOBALS['N']` | `shuffle(Bootstrap::ref('N'))`, `= &Bootstrap::ref('N')` |
+
+`ref()` returns by reference, so by-reference arguments, `foreach (... as &$v)` sources and `global`-style aliases keep their semantics. The converter can leave nested uses inside a rewritten write expression; run it until it reports no changes.
+
+Exceptions: `functions/functions.php` lines naming the literal template placeholders `'{$GLOBALS["SYNTH_NAME"]}'` and `'{$GLOBALS["PLAYER_NAME"]}'`. They are replacement keys matched against prompt text, not accesses.
+
+Stacked on W2-connector.
+
+Files under: functions
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2926 | 2773 |
+| `require_once` | 1838 | 1838 |
