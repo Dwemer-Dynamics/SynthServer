@@ -99,7 +99,7 @@ function aiProfileShouldAttemptAutofill(array $currentNpcData, NpcMaster $npcMas
 function aiProfileGetAutofillTrigger(array $currentNpcData, NpcMaster $npcMaster): int
 {
     $extended = $npcMaster->getExtendedData($currentNpcData);
-    $trigger = intval($extended['auto_profile_trigger'] ?? ($GLOBALS['AUTOFILL_CUSTOM_PROFILES_TRIGGER'] ?? 20));
+    $trigger = intval($extended['auto_profile_trigger'] ?? (\Synth\Bootstrap::config('AUTOFILL_CUSTOM_PROFILES_TRIGGER') ?? 20));
     return max(10, min(100, $trigger));
 }
 
@@ -253,12 +253,12 @@ function aiProfileGenerate(array $options): array
     if (isset($options['connector_id']) && trim((string)$options['connector_id']) !== '') {
         $connectorId = intval($options['connector_id']);
     } elseif ($source === 'auto') {
-        $connectorId = intval($GLOBALS['CORE_CONNECTOR_DIARY'] ?? 0);
+        $connectorId = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_DIARY') ?? 0);
         if ($connectorId <= 0) {
-            $connectorId = intval($GLOBALS['CORE_CONNECTOR_PROFILES'] ?? 0);
+            $connectorId = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES') ?? 0);
         }
     } else {
-        $connectorId = intval($GLOBALS['CORE_CONNECTOR_PROFILES'] ?? 0);
+        $connectorId = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES') ?? 0);
     }
     $currentConnectorData = $connector->getById($connectorId);
     if (!$currentConnectorData) {

@@ -300,7 +300,7 @@ try {
     }
 
     /** @var sql $db */
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
 
     if ($field === 'LOCATION_BLACKLIST') {
         $data = filterCandidateBuildLocations($db);

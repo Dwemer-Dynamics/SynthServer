@@ -28,7 +28,7 @@ require_once __DIR__ . '/../../lib/classes/Logger.php';
 
         $GLOBALS["ENGINE_PATH"] = $enginePath;
 
-        $db = $GLOBALS["db"];
+        $db = \Synth\Bootstrap::db();
 
         require_once $enginePath . "lib/core/npc_master.class.php";
         require_once $enginePath . "lib/core/api_badge.class.php";

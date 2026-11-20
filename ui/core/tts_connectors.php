@@ -480,7 +480,7 @@ if ($ttsAction && isset($_POST['clone'])) {
 
 if ($ttsAction && isset($_POST['delete'])) {
  $deleteId = intval($_POST['delete']);
- $inUseProfiles = ['c' => \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->countUsingTtsConnector($deleteId)];
+ $inUseProfiles = ['c' => \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->countUsingTtsConnector($deleteId)];
  $inUsePlayer = ['c' => (\Synth\Managers\ConfigManager\ConfigManager::shared()->get('player', 'tts_connector_id') === strval($deleteId)) ? 1 : 0];
  $totalUse = intval($inUseProfiles['c'] ?? 0) + intval($inUsePlayer['c'] ?? 0);
  if ($totalUse > 0) {
@@ -546,7 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 }
 
 $rows = $ttsConnector->readAll();
-$usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->ttsConnectorUsage();
+$usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->ttsConnectorUsage();
 $usageMap = [];
 foreach ($usageRows as $row) {
  $usageMap[strval($row['tts_connector_id'] ?? '')] = intval($row['c'] ?? 0);
@@ -560,7 +560,7 @@ if ($playerConnectorId !== '') {
  $usageMap[$playerConnectorId] += 1;
 }
 
-$apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('lower_label');
+$apiRows = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labelsWithKeys('lower_label');
 $editId = intval($_GET['edit'] ?? 0);
 $editItem = $editId > 0 ? $ttsConnector->getById($editId) : false;
 $currentDriver = $ttsConnector->normalizeDriverValue($editItem['driver'] ?? '');

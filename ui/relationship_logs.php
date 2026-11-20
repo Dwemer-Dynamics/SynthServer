@@ -24,11 +24,11 @@ $webRoot = rtrim($webRoot, '/');
 // DB connection
 $db = \Synth\Bootstrap::db();
 $relationshipEnabled = in_array(
- strtolower(trim((string)($GLOBALS['RELATIONSHIP_SYSTEM_ENABLED'] ?? 'false'))),
+ strtolower(trim((string)(\Synth\Bootstrap::config('RELATIONSHIP_SYSTEM_ENABLED') ?? 'false'))),
  ['1', 'true', 'yes', 'on'],
  true
 );
-$relationshipConnectorId = (int)($GLOBALS['RELLLM_CONNECTOR'] ?? 0);
+$relationshipConnectorId = (int)(\Synth\Bootstrap::config('RELLLM_CONNECTOR') ?? 0);
 
 $TITLE = "SYNTH - Relationship LLM Logs";
 $isEmbedded = (isset($_GET['embed']) && $_GET['embed']);

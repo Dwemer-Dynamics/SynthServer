@@ -238,7 +238,7 @@ include(__DIR__.DIRECTORY_SEPARATOR."../tmpl/head.html");
  #custom-keys { grid-template-columns: 1fr; }
  }
 </style><main><div class="page-header synth-page-head"><h1 class="api-title synth-page-head-title">API Keys</h1><p class="page-subtitle synth-page-head-note">Manage API keys for LLM, TTS, and other service connectors</p></div><div id="toast" class="toast-notification"><span class="message"></span></div><form method="post" action="api_badge.php"><?php
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 $apiBadge = new ApiBadge();
 
 // Preset providers (case-insensitive matching)

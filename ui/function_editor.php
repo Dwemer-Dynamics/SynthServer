@@ -70,8 +70,8 @@ function functionEditorGetParameterSchemaVariableTokens()
 function functionEditorGetParameterSchemaVariableValues()
 {
     return [
-        'player_name' => trim(strval($GLOBALS['PLAYER_NAME'] ?? '')),
-        'synth_name' => trim(strval($GLOBALS['SYNTH_NAME'] ?? '')),
+        'player_name' => trim(strval(\Synth\Bootstrap::config('PLAYER_NAME') ?? '')),
+        'synth_name' => trim(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? '')),
     ];
 }
 
@@ -641,7 +641,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     }
                 }
 
-                if ($saved && $GLOBALS["db"]->execQuery("COMMIT") !== false) {
+                if ($saved && \Synth\Bootstrap::db()->execQuery("COMMIT") !== false) {
                     functionEditorRedirectWithNotice($codeName . " advanced options updated.", "ok", $isEmbed);
                 } else {
                     if ($transactionStarted) {
@@ -931,8 +931,8 @@ if ($catalogReady) {
         return strcasecmp(strval($left["code_name"] ?? ''), strval($right["code_name"] ?? ''));
     });
 
-    $countAll = intval($GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action")["c"] ?? 0);
-    $countEnabled = intval($GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action WHERE is_activated = TRUE")["c"] ?? 0);
+    $countAll = intval(\Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action")["c"] ?? 0);
+    $countEnabled = intval(\Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action WHERE is_activated = TRUE")["c"] ?? 0);
     $countDisabled = max(0, $countAll - $countEnabled);
     $activeActionRows = \Synth\Bootstrap::db()->fetchAll("
         SELECT

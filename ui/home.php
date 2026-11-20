@@ -46,7 +46,7 @@ $webRoot = rtrim($webRoot, '/');
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "profile_loader.php");
 
 $TITLE = "SYNTH Home";
-$db = (isset($GLOBALS["db"]) && is_object($GLOBALS["db"])) ? $GLOBALS["db"] : new sql();
+$db = (isset($GLOBALS["db"]) && is_object(\Synth\Bootstrap::db())) ? \Synth\Bootstrap::db() : new sql();
 $GLOBALS["db"] = $db;
 
 function synth_home_h($value): string
@@ -386,7 +386,7 @@ if ($hasGamePlugins) {
     $gamePluginRows = synth_home_rows($db, "SELECT " . implode(', ', $gamePluginSelect) . " FROM core_plugins" . $gamePluginOrder . " LIMIT 250");
 }
 
-$playerName = isset($GLOBALS['PLAYER_NAME']) && trim((string)$GLOBALS['PLAYER_NAME']) !== '' ? (string)$GLOBALS['PLAYER_NAME'] : 'Player';
+$playerName = isset($GLOBALS['PLAYER_NAME']) && trim((string)\Synth\Bootstrap::config('PLAYER_NAME')) !== '' ? (string)\Synth\Bootstrap::config('PLAYER_NAME') : 'Player';
 try {
     require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
     $playerHelper = new Player();

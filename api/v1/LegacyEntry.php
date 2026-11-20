@@ -83,7 +83,7 @@ final class LegacyEntry
         }
         require_once self::script('lib/runtime_bootstrap.php');
         synthRuntimeBootstrap(self::root(), ['run_db_updates' => false]);
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!is_object($db)) {
             throw new \RuntimeException('no database');
         }

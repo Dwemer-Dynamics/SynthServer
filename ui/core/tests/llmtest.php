@@ -87,10 +87,10 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  echo '<div class="status"><span class="label">Driver:</span><span class="ok">'.htmlspecialchars($driver).'</span></div>';
  // Build a minimal in-game style test context.
  $head = [
- ['role' => 'system', 'content' => strtr(($GLOBALS["PROMPT_HEAD"] ?? '') . ($GLOBALS["SYNTH_PERS"] ?? ''), ["#PLAYER_NAME#" => ($GLOBALS["PLAYER_NAME"] ?? 'Sole Survivor')])]
+ ['role' => 'system', 'content' => strtr((\Synth\Bootstrap::config("PROMPT_HEAD") ?? '') . (\Synth\Bootstrap::config("SYNTH_PERS") ?? ''), ["#PLAYER_NAME#" => (\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Sole Survivor')])]
  ];
  $prompt = [
- ['role' => 'user', 'content' => "Hey, ".($GLOBALS['SYNTH_NAME'] ?? 'SYNTH').", attack that monster!!"]
+ ['role' => 'user', 'content' => "Hey, ".(\Synth\Bootstrap::config('SYNTH_NAME') ?? 'SYNTH').", attack that monster!!"]
  ];
  $contextData = array_merge($head, $prompt);
 
@@ -98,8 +98,8 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"] = false;
  $GLOBALS["TEMPLATE_DIALOG"] = "";
  $FUNCTIONS_ARE_ENABLED = true;
- $FUNCTION_PARM_MOVETO = [$GLOBALS["PLAYER_NAME"] ?? 'Player'];
- $FUNCTION_PARM_INSPECT = [$GLOBALS["PLAYER_NAME"] ?? 'Player', 'monster'];
+ $FUNCTION_PARM_MOVETO = [\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'];
+ $FUNCTION_PARM_INSPECT = [\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player', 'monster'];
 
  require_once($enginePath . "prompts" . DIRECTORY_SEPARATOR . "command_prompt.php");
  require_once($enginePath . "functions" . DIRECTORY_SEPARATOR . "functions.php");
@@ -182,7 +182,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Request Payload:</span></div>';
  if (!empty($GLOBALS['DEBUG_DATA']['full'])) {
- $reqJson = json_encode($GLOBALS['DEBUG_DATA']['full'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+ $reqJson = json_encode(\Synth\Bootstrap::config('DEBUG_DATA')['full'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
  echo '<pre>'.htmlspecialchars($reqJson).'</pre>';
  } else {
  echo '<pre>No request payload captured.</pre>';
@@ -193,7 +193,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Debug (RAW/Actions):</span></div>';
  if (!empty($GLOBALS['DEBUG_DATA']['RAW'])) {
- $rawShow = is_string($GLOBALS['DEBUG_DATA']['RAW']) ? $GLOBALS['DEBUG_DATA']['RAW'] : json_encode($GLOBALS['DEBUG_DATA']['RAW'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+ $rawShow = is_string(\Synth\Bootstrap::config('DEBUG_DATA')['RAW']) ? \Synth\Bootstrap::config('DEBUG_DATA')['RAW'] : json_encode(\Synth\Bootstrap::config('DEBUG_DATA')['RAW'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
  echo '<pre>'.htmlspecialchars($rawShow).'</pre>';
  } else {
  echo '<pre>No RAW debug available.</pre>';
@@ -204,7 +204,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  if (!empty($GLOBALS['ALREADY_SENT_BUFFER'])) {
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Internal Buffers:</span></div>';
- $bufDump = is_string($GLOBALS['ALREADY_SENT_BUFFER']) ? $GLOBALS['ALREADY_SENT_BUFFER'] : print_r($GLOBALS['ALREADY_SENT_BUFFER'], true);
+ $bufDump = is_string(\Synth\Bootstrap::config('ALREADY_SENT_BUFFER')) ? \Synth\Bootstrap::config('ALREADY_SENT_BUFFER') : print_r(\Synth\Bootstrap::config('ALREADY_SENT_BUFFER'), true);
  echo '<pre>'.htmlspecialchars($bufDump).'</pre>';
  echo '</div>';
  }

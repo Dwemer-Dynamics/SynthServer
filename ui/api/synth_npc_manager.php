@@ -63,7 +63,7 @@ function synthNpcManagerFindNpc(array $input): array
     if ($id <= 0) {
         throw new InvalidArgumentException('NPC id is required');
     }
-    $row = $GLOBALS['db']->fetchOne("SELECT * FROM core_npc WHERE id = {$id} LIMIT 1");
+    $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_npc WHERE id = {$id} LIMIT 1");
     if (!is_array($row)) {
         throw new InvalidArgumentException('NPC not found');
     }
@@ -78,12 +78,12 @@ function synthNpcManagerList(): array
     $conditions = ["npc_name IS NOT NULL", "btrim(npc_name) <> ''"];
     $search = trim((string)($_GET['search'] ?? ''));
     if ($search !== '') {
-        $escapedSearch = $GLOBALS['db']->escape('%' . $search . '%');
+        $escapedSearch = \Synth\Bootstrap::db()->escape('%' . $search . '%');
         $conditions[] = "(npc_name ILIKE '{$escapedSearch}' OR race ILIKE '{$escapedSearch}' OR refid ILIKE '{$escapedSearch}')";
     }
     $where = implode(' AND ', $conditions);
-    $countRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS total FROM core_npc WHERE {$where}");
-    $rows = $GLOBALS['db']->fetchAll(
+    $countRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS total FROM core_npc WHERE {$where}");
+    $rows = \Synth\Bootstrap::db()->fetchAll(
         "SELECT id, npc_name FROM core_npc WHERE {$where} ORDER BY npc_name ASC, id ASC LIMIT {$limit} OFFSET {$offset}"
     );
 
@@ -120,7 +120,7 @@ function synthNpcManagerHistory(array $input): array
     $npcName = trim((string)($npc['npc_name'] ?? ''));
     $limit = max(1, min(100, intval($input['limit'] ?? 100)));
     $selectedEventType = trim((string)($input['event_type'] ?? ''));
-    $hiddenEventTypes = synthGetPersistedEventLogHiddenTypes($GLOBALS['db']);
+    $hiddenEventTypes = synthGetPersistedEventLogHiddenTypes(\Synth\Bootstrap::db());
     // Keep NPC History aligned with the PHP Adventure Log's default narrative event list.
     $allowedEventTypes = [
         'im_alive',
@@ -139,24 +139,24 @@ function synthNpcManagerHistory(array $input): array
         'lockpicked',
     ];
     $escapedAllowedEventTypes = array_map(static function ($eventType) {
-        return "'" . $GLOBALS['db']->escape($eventType) . "'";
+        return "'" . \Synth\Bootstrap::db()->escape($eventType) . "'";
     }, $allowedEventTypes);
     $allowedTypesWhere = 'a.type IN (' . implode(',', $escapedAllowedEventTypes) . ')';
-    $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($GLOBALS['db'], $npcName, 'a.people');
+    $peopleWhere = synthBuildNpcEventLogPeopleWhereClause(\Synth\Bootstrap::db(), $npcName, 'a.people');
     $visibleWhere = synthBuildVisibleEventLogWhereClause(
-        $GLOBALS['db'],
+        \Synth\Bootstrap::db(),
         $selectedEventType,
         $hiddenEventTypes
     );
-    $rows = $GLOBALS['db']->fetchAll(
+    $rows = \Synth\Bootstrap::db()->fetchAll(
         "SELECT a.rowid, a.type, a.data, a.people, a.gamets, a.localts, a.ts, a.sess
          FROM core_context_event a
          WHERE {$allowedTypesWhere} AND {$visibleWhere} AND {$peopleWhere}
          ORDER BY a.localts DESC, a.rowid DESC, a.gamets DESC, a.ts DESC
          LIMIT {$limit}"
     );
-    $visibleTypesWhere = synthBuildVisibleEventLogWhereClause($GLOBALS['db'], '', $hiddenEventTypes);
-    $eventTypes = $GLOBALS['db']->fetchAll(
+    $visibleTypesWhere = synthBuildVisibleEventLogWhereClause(\Synth\Bootstrap::db(), '', $hiddenEventTypes);
+    $eventTypes = \Synth\Bootstrap::db()->fetchAll(
         "SELECT a.type, COUNT(*) AS total
          FROM core_context_event a
          WHERE {$allowedTypesWhere} AND {$visibleTypesWhere} AND {$peopleWhere}
@@ -167,7 +167,7 @@ function synthNpcManagerHistory(array $input): array
     // Relationship changes are virtual rows read from this NPC's history snapshots.
     // Fetched regardless of the selected type so the type filter can always offer them.
     $relationshipRows = synthRelationshipTimelineIsVisible('', $hiddenEventTypes)
-        ? synthFetchRelationshipTimelineChanges($GLOBALS['db'], [
+        ? synthFetchRelationshipTimelineChanges(\Synth\Bootstrap::db(), [
             'npc_id' => intval($npc['id'] ?? 0),
             'limit' => $limit,
             'scan_limit' => 400,
@@ -291,7 +291,7 @@ function synthNpcManagerInjectEvent(array $input): array
 
     $recipients = synthNpcManagerResolveEventRecipients($input, $npc);
     $people = '|' . implode('|', array_column($recipients, 'name')) . '|';
-    $rowId = $GLOBALS['db']->insertReturningId('core_context_event', [
+    $rowId = \Synth\Bootstrap::db()->insertReturningId('core_context_event', [
         'ts' => max(0, intval(DataLastKnownTS())) + 1,
         'gamets' => max(0, intval(DataLastKnownGameTS())),
         'type' => 'inputtext',
@@ -322,16 +322,16 @@ function synthNpcManagerDeleteEvent(array $input): array
     }
 
     $npcName = trim((string)($npc['npc_name'] ?? ''));
-    $peopleWhere = synthBuildNpcEventLogPeopleWhereClause($GLOBALS['db'], $npcName, 'a.people');
-    $visibleWhere = synthBuildVisibleEventLogWhereClause($GLOBALS['db']);
-    $event = $GLOBALS['db']->fetchOne(
+    $peopleWhere = synthBuildNpcEventLogPeopleWhereClause(\Synth\Bootstrap::db(), $npcName, 'a.people');
+    $visibleWhere = synthBuildVisibleEventLogWhereClause(\Synth\Bootstrap::db());
+    $event = \Synth\Bootstrap::db()->fetchOne(
         "SELECT a.rowid FROM core_context_event a WHERE a.rowid = {$rowId} AND {$visibleWhere} AND {$peopleWhere} LIMIT 1"
     );
     if (!$event) {
         throw new InvalidArgumentException('Event is not available in this NPC history');
     }
 
-    $result = synthDeleteEventLogRow($GLOBALS['db'], $rowId);
+    $result = synthDeleteEventLogRow(\Synth\Bootstrap::db(), $rowId);
     if (empty($result['ok'])) {
         throw new RuntimeException((string)($result['message'] ?? 'Event could not be deleted'));
     }
@@ -343,8 +343,8 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
 {
     $locationName = trim((string)($lastCoords['location'] ?? ''));
     if ($locationName !== '') {
-        $escapedLocation = $GLOBALS['db']->escape($locationName);
-        $row = $GLOBALS['db']->fetchOne(
+        $escapedLocation = \Synth\Bootstrap::db()->escape($locationName);
+        $row = \Synth\Bootstrap::db()->fetchOne(
             "SELECT name, formid, worldspace, " .
             "CASE WHEN lower(name) = lower('{$escapedLocation}') THEN 1.0 ELSE similarity(name, '{$escapedLocation}') END AS score " .
             "FROM core_location_legacy WHERE COALESCE(name, '') <> '' " .
@@ -366,7 +366,7 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
         return null;
     }
 
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $x = floatval($lastCoords['x']);
     $y = floatval($lastCoords['y']);
     $worldspace = trim((string)($lastCoords['worldspace'] ?? ''));
@@ -399,7 +399,7 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
 function synthNpcManagerSaveReturnLocation(int $npcId, ?array $returnLocation): bool
 {
     if ($returnLocation === null) {
-        return $GLOBALS['db']->execQuery(
+        return \Synth\Bootstrap::db()->execQuery(
             "UPDATE core_npc SET metadata = COALESCE(metadata, '{}'::jsonb) - 'npc_manager_return_location' WHERE id = {$npcId}"
         ) !== false;
     }
@@ -408,10 +408,10 @@ function synthNpcManagerSaveReturnLocation(int $npcId, ?array $returnLocation): 
     if ($encoded === false) {
         return false;
     }
-    return $GLOBALS['db']->execQuery(
+    return \Synth\Bootstrap::db()->execQuery(
         "UPDATE core_npc SET metadata = jsonb_set(" .
         "COALESCE(metadata, '{}'::jsonb), '{npc_manager_return_location}', '" .
-        $GLOBALS['db']->escape($encoded) . "'::jsonb, true) WHERE id = {$npcId}"
+        \Synth\Bootstrap::db()->escape($encoded) . "'::jsonb, true) WHERE id = {$npcId}"
     ) !== false;
 }
 
@@ -447,7 +447,7 @@ function synthNpcManagerAction(array $input): array
     $savedReturn = is_array($metadata['npc_manager_return_location'] ?? null)
         ? $metadata['npc_manager_return_location']
         : null;
-    $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? 'Player'));
+    $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? 'Player'));
     if ($playerName === '') {
         $playerName = 'Player';
     }
