@@ -1,12 +1,12 @@
 <?php
 
-$GLOBALS['TASKS']['player2health'] = [];
-$GLOBALS['TASKS']['player2health']['fn'] = function () {
+\Synth\Bootstrap::setAt('TASKS', 'player2health', []);
+\Synth\Bootstrap::setPath('TASKS', ['player2health', 'fn'], function () {
     $enginePath = \Synth\Bootstrap::engineRoot();
-    if (!isset($GLOBALS['db'])) {
-        $GLOBALS['db'] = new sql();
+    if (!\Synth\Bootstrap::has('db')) {
+        \Synth\Bootstrap::set('db', new sql());
     }
 
     require_once $enginePath . 'lib/player2_health.php';
     synthPlayer2HealthTick();
-};
+});
