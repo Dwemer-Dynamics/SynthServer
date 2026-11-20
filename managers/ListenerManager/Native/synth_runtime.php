@@ -92,62 +92,17 @@ function synth_ensure_synthnpcs_view(object $db): void
 function synth_ensure_profile_defaults(object $db): void
 {
     static $done = false;
-    if ($done || !method_exists($db, 'execQuery') || !method_exists($db, 'fetchOne')) {
+    if ($done) {
         return;
     }
     $done = true;
 
-    $profileRow = $db->fetchOne("SELECT id FROM public.core_profiles ORDER BY id ASC LIMIT 1");
-    if (!is_array($profileRow) || empty($profileRow['id'])) {
+    $defaultNpcId = \Synth\Core\DbManager\Dao\ProfileDao::current($db)->repairDefaults();
+    if ($defaultNpcId === null) {
         return;
     }
 
-    $firstProfileId = intval($profileRow['id']);
-
-    $defaultNpcRow = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1");
-    if (!is_array($defaultNpcRow) || empty($defaultNpcRow['id'])) {
-        $db->execQuery("UPDATE public.core_profiles SET default_npc = '1' WHERE id = {$firstProfileId}");
-        $defaultNpcId = $firstProfileId;
-    } else {
-        $defaultNpcId = intval($defaultNpcRow['id']);
-    }
-
-    $defaultNarratorRow = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1");
-    if (!is_array($defaultNarratorRow) || empty($defaultNarratorRow['id'])) {
-        $db->execQuery("UPDATE public.core_profiles SET default_narrator = '1' WHERE id = {$firstProfileId}");
-    }
-
-    $db->execQuery("
-        WITH npc_default AS (
-            SELECT id FROM public.core_profiles WHERE default_npc = '1' ORDER BY id ASC LIMIT 1
-        )
-        UPDATE public.core_profiles p
-        SET default_npc = CASE WHEN p.id = (SELECT id FROM npc_default) THEN '1' ELSE '0' END
-        WHERE p.default_npc = '1'
-           OR p.id = (SELECT id FROM npc_default)
-    ");
-
-    $db->execQuery("
-        WITH narrator_default AS (
-            SELECT id FROM public.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1
-        )
-        UPDATE public.core_profiles p
-        SET default_narrator = CASE WHEN p.id = (SELECT id FROM narrator_default) THEN '1' ELSE '0' END
-        WHERE p.default_narrator = '1'
-           OR p.id = (SELECT id FROM narrator_default)
-    ");
-
-    $db->execQuery("
-        UPDATE public.core_npc
-        SET profile_id = {$defaultNpcId}
-        WHERE npc_name <> 'The Narrator'
-          AND (
-              profile_id IS NULL
-              OR NOT EXISTS (
-                  SELECT 1 FROM public.core_profiles p WHERE p.id = public.core_npc.profile_id
-              )
-          )
-    ");
+    \Synth\Core\DbManager\Dao\NpcDao::current($db)->assignProfileWhereMissing($defaultNpcId);
 }
 
 function synth_db_escape(object $db, string $value): string
@@ -352,16 +307,10 @@ function synth_parse_actor_pair_list(string $value): array
 
 function synth_default_npc_profile_id(object $db): ?int
 {
-    if (!method_exists($db, 'fetchOne')) {
-        return null;
-    }
+    $profiles = \Synth\Core\DbManager\Dao\ProfileDao::current($db);
+    $id = $profiles->defaultNpcId() ?? $profiles->firstId();
 
-    $row = $db->fetchOne("SELECT id FROM public.core_profiles WHERE default_npc='1' ORDER BY id ASC LIMIT 1");
-    if (!is_array($row) || empty($row['id'])) {
-        $row = $db->fetchOne("SELECT id FROM public.core_profiles ORDER BY id ASC LIMIT 1");
-    }
-
-    return (is_array($row) && !empty($row['id'])) ? intval($row['id']) : null;
+    return $id !== null && $id > 0 ? $id : null;
 }
 
 function synth_npc_name_to_codename(string $npcName): string

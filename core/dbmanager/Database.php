@@ -20,6 +20,9 @@ use Synth\Core\DbManager\Dao\ActorEventBatchDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
 use Synth\Core\DbManager\Dao\AuditRequestDao;
 use Synth\Core\DbManager\Dao\CatalogVersionDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationFieldDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
@@ -34,6 +37,7 @@ use Synth\Core\DbManager\Dao\DirectorNoteDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
+use Synth\Core\DbManager\Dao\LlmRequestLogDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationLegacyDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
@@ -55,6 +59,14 @@ use Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao;
 use Synth\Core\DbManager\Dao\MiddletermReplacementDao;
 use Synth\Core\DbManager\Dao\MiddletermResultDao;
 use Synth\Core\DbManager\Dao\MiddletermSourceDao;
+use Synth\Core\DbManager\Dao\NarratorContextStateDao;
+use Synth\Core\DbManager\Dao\NarratorDefinitionDao;
+use Synth\Core\DbManager\Dao\NarratorDefinitionRevisionDao;
+use Synth\Core\DbManager\Dao\NarratorLaneHeadDao;
+use Synth\Core\DbManager\Dao\NarratorPendingOutputDao;
+use Synth\Core\DbManager\Dao\NarratorStateDao;
+use Synth\Core\DbManager\Dao\NarratorTranscriptCursorDao;
+use Synth\Core\DbManager\Dao\NarratorTranscriptEntryDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao;
@@ -73,12 +85,31 @@ use Synth\Core\DbManager\Dao\QuestDao;
 use Synth\Core\DbManager\Dao\RechatChainDao;
 use Synth\Core\DbManager\Dao\RechatContinuationDao;
 use Synth\Core\DbManager\Dao\RechatSelectionDao;
+use Synth\Core\DbManager\Dao\RelationshipActorControlDao;
+use Synth\Core\DbManager\Dao\RelationshipActorControlEventDao;
 use Synth\Core\DbManager\Dao\RelationshipConfigDao;
+use Synth\Core\DbManager\Dao\RelationshipEvalQueueDao;
+use Synth\Core\DbManager\Dao\RelationshipEvaluationDao;
+use Synth\Core\DbManager\Dao\RelationshipEvaluationSourceDao;
+use Synth\Core\DbManager\Dao\RelationshipInitQueueDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionResultDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionResultPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipResponseInputDao;
+use Synth\Core\DbManager\Dao\RelationshipResponseSourceDao;
+use Synth\Core\DbManager\Dao\RelationshipResultDao;
+use Synth\Core\DbManager\Dao\RelationshipResultPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipRevisionDao;
+use Synth\Core\DbManager\Dao\RelationshipRevisionSourceDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\ResponseLogDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\SpeechDao;
+use Synth\Core\DbManager\Dao\SocialTaskClaimDao;
+use Synth\Core\DbManager\Dao\SocialTaskEventDao;
+use Synth\Core\DbManager\Dao\SocialTaskInputDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\VisualContextDao;
@@ -98,7 +129,7 @@ final class Database
      * @var list<class-string>
      */
     public const DAOS = [
-        ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
+        LlmRequestLogDao::class, ConfigSettingDao::class, NpcActorDao::class, NpcRuntimeActorDao::class, PluginManifestRevisionDao::class,
         LlmConnectorDao::class,
         TtsConnectorDao::class,
         SttConnectorDao::class,
@@ -162,6 +193,36 @@ final class Database
         QuestDao::class,
         ResponseLogDao::class,
         SpeechDao::class,
+        RelationshipActorControlEventDao::class,
+        RelationshipActorControlDao::class,
+        RelationshipEvaluationSourceDao::class,
+        RelationshipEvaluationDao::class,
+        RelationshipInteractionEvaluationDao::class,
+        RelationshipInteractionPriorDao::class,
+        RelationshipInteractionResultPriorDao::class,
+        RelationshipInteractionResultDao::class,
+        RelationshipResponseInputDao::class,
+        RelationshipResponseSourceDao::class,
+        RelationshipResultPriorDao::class,
+        RelationshipResultDao::class,
+        RelationshipRevisionSourceDao::class,
+        RelationshipRevisionDao::class,
+        SocialTaskClaimDao::class,
+        SocialTaskEventDao::class,
+        SocialTaskInputDao::class,
+        RelationshipEvalQueueDao::class,
+        RelationshipInitQueueDao::class,
+        NarratorContextStateDao::class,
+        NarratorDefinitionRevisionDao::class,
+        NarratorDefinitionDao::class,
+        NarratorLaneHeadDao::class,
+        NarratorPendingOutputDao::class,
+        NarratorStateDao::class,
+        NarratorTranscriptCursorDao::class,
+        NarratorTranscriptEntryDao::class,
+        CharacterGenerationFieldDao::class,
+        CharacterGenerationDao::class,
+        CharacterGenerationRevisionDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
