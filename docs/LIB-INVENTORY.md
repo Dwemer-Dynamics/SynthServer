@@ -29,7 +29,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L1 | `quest_*` to `managers/QuestManager` (done) |
 | L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` (done) |
 | L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (moved; DAO adoption pending) |
-| L4 | `visual_context*` to `managers/VisualContext` |
+| L4 | `visual_context*` to `managers/VisualContext` (done) |
 | L5 | rechat, auto chat, greeting, management guard |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers |
 | L7 | status, backup, save state, profile workers, supervisor, plugins |
@@ -241,8 +241,8 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/tts_pronunciation_preview.php` | 89 | manager | `workers/Speech` and `managers/TtsStudio` (speech plans, jobs, worker, cache, pronunciations, prosody) | L6 |
 | `lib/utils.php` | 36 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/utils_game_timestamp.php` | 944 | Synth\Lib class | `Synth\Lib\GameTime` (Fallout calendar helpers) | L11 |
-| `lib/visual_context.php` | 462 | manager | `managers/VisualContext` (new: request validation and owned result commit; `core_visual_context` DAO) | L4 |
-| `lib/visual_context_request.php` | 297 | manager | `managers/VisualContext` (new: request validation and owned result commit; `core_visual_context` DAO) | L4 |
+| `lib/visual_context.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context.php` | done (L4) |
+| `lib/visual_context_request.php` | 4 | hook (done) | `managers/VisualContext/Native/visual_context_request.php` | done (L4) |
 | `lib/voice_catalog.php` | 143 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
 | `lib/voice_clone_resolver.php` | 543 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
 | `lib/voice_clone_sync.php` | 409 | manager | `managers/TtsStudio` (voice catalogue, clone resolver and sync, sample trust boundary) | L6 |
