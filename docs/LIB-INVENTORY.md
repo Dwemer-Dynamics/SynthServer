@@ -30,7 +30,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` (done) |
 | L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (moved; DAO adoption pending) |
 | L4 | `visual_context*` to `managers/VisualContext` (done) |
-| L5 | rechat, auto chat, greeting, management guard |
+| L5 | rechat, auto chat, greeting, management guard (done) |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers |
 | L7 | status, backup, save state, profile workers, supervisor, plugins |
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat |
@@ -50,7 +50,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/SameOriginRequest.php` | 92 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/actor_event.php` | 120 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/auditing.php` | 77 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
-| `lib/auto_greeting.php` | 215 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
+| `lib/auto_greeting.php` | 4 | hook (done) | `managers/Conversation/Rechat/auto_greeting.php` | done (L5) |
 | `lib/autoload.php` | 14 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
 | `lib/automatic_backup.php` | 383 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
 | `lib/background_processor.php` | 178 | manager | `workers/Supervisor` (background processor) | L7 |
@@ -159,7 +159,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_ambient_npc.php` | 199 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/synth_attack_actions.php` | 47 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/synth_audience_control.php` | 134 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/synth_autochat.php` | 231 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
+| `lib/synth_autochat.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_autochat.php` | done (L5) |
 | `lib/synth_biography.php` | 117 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_character_forms.php` | 124 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_character_voice.php` | 73 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
@@ -192,19 +192,19 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_middleterm_scope.php` | 4 | hook (done) | `managers/MemoryManager/Native/synth_middleterm_scope.php` | done |
 | `lib/synth_npc_identity.php` | 50 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/synth_player_gifts.php` | 238 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/synth_player_rewrite.php` | 143 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
+| `lib/synth_player_rewrite.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_player_rewrite.php` | done (L5) |
 | `lib/synth_private_narrator.php` | 37 | manager | `managers/Narrator` (private narrator protocol; already moved by #120, this is its legacy-name hook) | done (#120) |
 | `lib/synth_profile_jobs.php` | 241 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
 | `lib/synth_profile_scope.php` | 105 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
 | `lib/synth_profile_state.php` | 184 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
 | `lib/synth_protocol_state.php` | 3137 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
-| `lib/synth_rechat_admission.php` | 222 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_emission.php` | 76 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_history.php` | 189 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_prepare.php` | 176 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_profile.php` | 95 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_routes.php` | 599 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
-| `lib/synth_rechat_selection.php` | 227 | manager | `managers/Conversation/Rechat` (admission, selection, history, prepare, emission, profile, routes, auto chat, greeting) | L5 |
+| `lib/synth_rechat_admission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_admission.php` | done (L5) |
+| `lib/synth_rechat_emission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_emission.php` | done (L5) |
+| `lib/synth_rechat_history.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_history.php` | done (L5) |
+| `lib/synth_rechat_prepare.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_prepare.php` | done (L5) |
+| `lib/synth_rechat_profile.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_profile.php` | done (L5) |
+| `lib/synth_rechat_routes.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_routes.php` | done (L5) |
+| `lib/synth_rechat_selection.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_selection.php` | done (L5) |
 | `lib/synth_relationship.php` | 4 | hook (done) | `managers/Relationships/Native/synth_relationship.php` | done |
 | `lib/synth_relationship_control.php` | 4 | hook (done) | `managers/Relationships/Native/synth_relationship_control.php` | done |
 | `lib/synth_relationship_dispatch.php` | 4 | hook (done) | `workers/Relationships/Native/synth_relationship_dispatch.php` | done |
