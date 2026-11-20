@@ -26,7 +26,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 
 try {
-    $result = synthWorldKnowledgeInstallFactoryCatalog($GLOBALS['db'], $rootPath);
+    $result = synthWorldKnowledgeInstallFactoryCatalog(\Synth\Bootstrap::db(), $rootPath);
     $redirect(
         'Factory catalog synchronized: ' . $result['catalog_id'] . '/' . $result['catalog_version']
         . ' (' . $result['row_count'] . ' articles). Custom articles were preserved.'

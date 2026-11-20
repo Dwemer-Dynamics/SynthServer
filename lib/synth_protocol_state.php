@@ -5,7 +5,6 @@ require_once __DIR__.'/synth_gift_menu.php';
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php';
 require_once __DIR__.'/synth_wait_actions.php';
-require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 // Converts the database BYTEA text representation used for deterministic response replay.
 function synth_protocol_decode_bytea($value): string
@@ -1454,7 +1453,6 @@ function synth_protocol_persist_action_result($db, array $event, string $session
             if ($capability === 'action.take_item_from_player' && (!synth_protocol_supports_player_items($event)
                 || !synth_protocol_supports_player_items($parent))) throw new DomainException('action_inventory_capability_mismatch');
             if ($capability==='action.barter') {
-                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
                 if (!\Synth\Managers\ActionsManager\TradeOffer::supported($event) || !\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !$transferReceipt)
                     throw new DomainException('action_inventory_capability_mismatch');
                 // The client owns the 45 s box; the server only refuses a receipt more than 5 minutes past the 60 s deadline.
@@ -1875,7 +1873,6 @@ function synth_protocol_record_action_intent($db, array $action): void
     $wait=synth_wait_action_is_intent($action) && (($event['protocol_version'] ?? 1)===2
         || ($action['name'] ?? '')==='release_wait' || ($action['server_code'] ?? '')==='ReleaseWait');
     if ($wait && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('wait_emission_claim_required');
-    require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
     $order=\Synth\Managers\ActionsManager\CompanionOrders::isIntent($action);
     if ($order && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('order_emission_claim_required');
     if ((($action['capability'] ?? '')==='action.read_quests'
@@ -1944,7 +1941,6 @@ function synth_protocol_record_action_intent($db, array $action): void
             }
             if ($giftMenu) synth_gift_menu_validate($event,$action,$context);
             if ($trade) {
-                require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
                 \Synth\Managers\ActionsManager\TradeOffer::validate($event,$action,$context);
             }
             if ($playerItem) {
@@ -2220,7 +2216,6 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
     if (($wireEvent['protocol_version']??1)===2 && in_array($row['action_name'],['WaitHere','wait_here','ReleaseWait','release_wait'],true))
         $result['detail']=synth_wait_result_context($db,$wireEvent)['message'];
     // This path can run before anything has registered the Composer autoloader; load the class the way the other callers do.
-    require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
     if (($wireEvent['protocol_version']??1)===2 && \Synth\Managers\ActionsManager\CompanionOrders::isIntent(['name'=>$row['action_name'],'server_code'=>$row['action_name'],'capability'=>$row['capability']??'']))
         $result['detail']=\Synth\Managers\ActionsManager\CompanionOrders::boundResultDetail($wireEvent,$row);
     if (($wireEvent['protocol_version'] ?? 1)===2
@@ -2285,7 +2280,6 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
             ...(($gift=synth_player_gift_for_event($db,$wireEvent))===null ? [] : ['verified_gift'=>$gift])], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
     if ($boundContext !== null && $row['action_name'] === 'Barter' && ($row['capability'] ?? '') === 'action.barter') {
-        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
         // The seller is told the verified outcome, never the client's free text.
         $tradeArguments = is_array($row['arguments'] ?? null) ? $row['arguments']
             : json_decode(strval($row['arguments'] ?? '{}'), true, flags: JSON_THROW_ON_ERROR);

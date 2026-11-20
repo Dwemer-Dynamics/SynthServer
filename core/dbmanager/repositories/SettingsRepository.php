@@ -6,7 +6,6 @@ use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
 require_once dirname(__DIR__).'/EntityManagerFactory.php';
-require_once dirname(__DIR__).'/dao/ConfigSettingDao.php';
 
 // Stored server-wide general settings on one legacy sql session. The reads live in ConfigSettingDao; this class only binds
 // that DAO to the caller's session, so each instance reads on the session it was built with.

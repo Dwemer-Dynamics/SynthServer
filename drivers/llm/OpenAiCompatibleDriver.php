@@ -3,7 +3,6 @@
 namespace Synth\Drivers\Llm;
 
 
-require_once __DIR__.'/LlmDriverInterface.php';
 require_once dirname(__DIR__, 2).'/lib/provider_stream.php';
 
 // Plain OpenAI-compatible chat streaming from the stored connector; credentials stay in memory. Reasoning,

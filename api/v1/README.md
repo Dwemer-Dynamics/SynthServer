@@ -10,16 +10,20 @@ unchanged and the client does not call these routes yet.
 | --- | --- | --- | --- |
 | `health`, `health/{live,db,api-keys-configured,npcs-available,llm}` | GET | `health.php` (`?check=`) | n/a |
 | `context/event` | POST | `main.php` | `context` |
+| `context/history` | POST | `SaveState\HistoryRead` (read-only) | `history.read`; body limit 1 KiB; 409 when the session is not the active load |
 | `dialogue/request` | POST | `main.php` | `activate`, `trigger`, `diary_request`, `action_result`, `social_task_request`, `social_task_progress`, `halt` |
 | `dialogue/spoken` | POST | `main.php` | `speech_receipt` |
 | `dialogue/cancel` | POST | `main.php` | `cancel` |
+| `dialogue/observe` | POST | `main.php` | `context` with `payload.observed_dialogue` (first-observed vanilla lines) |
 | `user/input` | POST | `main.php` | `input_text`, `input_audio` |
 | `save/loaded` | POST | `main.php` | `init` |
 | `save/created` | POST | `main.php` | `save_created` |
 | `narrator/checkpoint` | POST | `main.php` | `narrator_command`, `narrator_receipt` |
+| `narrator/transcribe` | POST | `stt.php` | multipart like `speech/transcribe`, same recording limit, `Cache-Control: no-store` |
 | `locations/save` | POST | `main.php` | `location_catalog` |
 | `books/read` | POST | `main.php` | `context` with `payload.reading_event` |
 | `npc/add` | POST | `gamedata.php` | `actor_profile` |
+| `npc/view` | POST | `CharacterManager\NpcViewRead` (read-only, over the NPC DAOs) | `npc.view.read`; body limit 1 KiB |
 | `plugins/manifest` | POST | `gamedata.php` | `loaded_plugins` |
 | `speech/transcribe` | POST | `stt.php` | multipart, validated by `stt.php` |
 | `vision/describe` | POST | `itt.php` | JSON, validated by `itt.php` |
@@ -28,7 +32,7 @@ unchanged and the client does not call these routes yet.
 | `tts/voice-preview` | POST | `voice/preview.php` | none; management guard and dashboard token |
 | `tts/voice-samples` | POST | `voice/samples.php` | none; management guard and dashboard token |
 | `tts/voice-sample` | POST | `voice/samples.php` with `voice_id` or `npc_id` required | none; management guard and dashboard token |
-| `edit`, `edit/...` | any | none | 501: the generic edit API is a later PR |
+| `edit`, `edit/...` | GET, HEAD, PATCH | `api/v1/editing/index.php` | config entity only; management guard |
 | `extensions` | GET | `ExtensionManager` | n/a (list) |
 | `extensions/{id}/enable`, `extensions/{id}/disable` | POST | `ExtensionManager` | n/a (id must be in the registry; same-origin guard) |
 

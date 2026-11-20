@@ -16,7 +16,6 @@ use Doctrine\ORM\Query\ResultSetMapping;
 use RuntimeException;
 use Synth\Core\Entities\Base\AbstractConfigSetting;
 
-require_once dirname(__DIR__, 2).'/entities/base/AbstractConfigSetting.php';
 
 /** Reads stored settings by scope and key. */
 final class ConfigSettingDao

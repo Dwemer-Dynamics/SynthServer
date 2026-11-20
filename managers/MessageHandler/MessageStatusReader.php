@@ -6,7 +6,6 @@ namespace Synth\Managers\MessageHandler;
 
 use Synth\Drivers\Tts\SpeechStorage;
 
-require_once dirname(__DIR__, 2) . '/drivers/tts/SpeechStorage.php';
 
 /**
  * Delivery state of one outbound NPC line. SYNTH's durable outbound queue is the TTS job (`core_worker_job`, run by

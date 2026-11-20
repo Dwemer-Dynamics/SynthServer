@@ -7,8 +7,6 @@ namespace Synth\Drivers\Tts;
 use Synth\Core\SpeechDriver;
 
 require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
-require_once __DIR__ . '/TtsDriverInterface.php';
-require_once __DIR__ . '/TtsSynthesisInterface.php';
 
 /**
  * The single entry point application code uses for speech.

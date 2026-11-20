@@ -21,7 +21,6 @@ require_once($localPath . "lib".DIRECTORY_SEPARATOR."emote_moods.php");
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use DOMDocument;
     use Exception;

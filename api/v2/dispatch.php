@@ -8,7 +8,6 @@ require_once dirname(__DIR__, 2).'/lib/synth_protocol_state.php';
 require_once dirname(__DIR__, 2).'/lib/player2_health.php';
 require_once dirname(__DIR__, 2).'/bootstrap.php';
 require_once __DIR__.'/routes.php';
-require_once __DIR__.'/ProtocolOutput.php';
 
 use Synth\Api\V2\ProtocolOutput;
 use Synth\Bootstrap;

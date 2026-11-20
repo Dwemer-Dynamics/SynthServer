@@ -82,7 +82,7 @@ $cooldownPeriod = 600;
 if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     // You can run this script directly with php: main.php "Player text"
     $GLOBALS["db"] = new sql();
-    $db = $GLOBALS["db"];
+    $db = \Synth\Bootstrap::db();
 
     $latsRid=$db->fetchAll("select * from core_context_event order by rowid desc LIMIT 1 OFFSET 0");
     $res=$db->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from core_context_event where rowid={$latsRid[0]["rowid"]}");
@@ -959,7 +959,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? $GLOBALS["MINIME_T5"] :
                 // Respect current in-game mode when selecting active connector slot.
                 $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
                     ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
-                    : $GLOBALS["db"]->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
+                    : \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
                 $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
                     ? (int)$result['value']
                     : 1;
@@ -1224,7 +1224,7 @@ if ($gameRequest[0]=="diary") {
     $cooldownKey = "DIARY_LAST_TIMESTAMP_" . $npcName;
 
     // Fetch the last diary trigger timestamp for this specific NPC
-    $diaryRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
+    $diaryRecord = \Synth\Bootstrap::db()->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . \Synth\Bootstrap::db()->escape($cooldownKey) . "'");
 
     // Check if the timestamp exists in the database
     if (!empty($diaryRecord)) {
@@ -1240,7 +1240,7 @@ if ($gameRequest[0]=="diary") {
 
     // Update the timestamp in the database for this specific NPC
     $currentTimestamp = time();
-    $GLOBALS["db"]->upsertRowOnConflict('public.core_config_setting',
+    \Synth\Bootstrap::db()->upsertRowOnConflict('public.core_config_setting',
         array(
             'scope' => 'conf', 'config_key' => $cooldownKey,
             'config_value' => $currentTimestamp
@@ -1327,7 +1327,7 @@ if (in_array($gameRequest[0],["combatbark"])) {
     $cooldownKey = "COMBAT_BARK_LAST_TIMESTAMP";
 
     // Fetch the last combat bark trigger timestamp
-    $combatBarkRecord = $GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $GLOBALS["db"]->escape($cooldownKey) . "'");
+    $combatBarkRecord = \Synth\Bootstrap::db()->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . \Synth\Bootstrap::db()->escape($cooldownKey) . "'");
 
     // Check if the timestamp exists in the database
     if (!empty($combatBarkRecord)) {
@@ -1343,7 +1343,7 @@ if (in_array($gameRequest[0],["combatbark"])) {
 
     // Update the timestamp in the database to the current time
     $currentTimestamp = time();
-    $GLOBALS["db"]->upsertRowOnConflict('public.core_config_setting',
+    \Synth\Bootstrap::db()->upsertRowOnConflict('public.core_config_setting',
         array(
             'scope' => 'conf', 'config_key' => $cooldownKey,
             'config_value' => $currentTimestamp
@@ -1843,7 +1843,7 @@ if ($gameRequest[0] == "narrator_welcome") {
         $connector = new LLMConnector();
 
         // Get global connector slot (respects in-game mode)
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
             ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
             : $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
@@ -1931,7 +1931,7 @@ if ($gameRequest[0] == "narrator_quest_comment") {
         $connector = new LLMConnector();
 
         // Get global connector slot (respects in-game mode)
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
             ? ['value'=>$GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']]
             : $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
@@ -2427,7 +2427,6 @@ if (!$synthAutoChat && synth_gift_menu_try_handoff($db, $GLOBALS['SYNTH_REQUEST_
 // history, quest, memory or dialogue work; the verified result drives speech.
 require_once __DIR__.'/lib/synth_jev_actions.php';
 synth_jev_prepare_actions($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null);
-require_once __DIR__.'/managers/ActionsManager/TwoStepActions.php';
 Synth\Managers\ActionsManager\TwoStepActions::prepare($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null);
 if (synth_wait_try_jev_handoff($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [], $transcript ?? null)) exit;
 

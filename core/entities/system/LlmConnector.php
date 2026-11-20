@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractLlmConnector;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractLlmConnector.php';
 
 /** One row of core_llm_connector. */
 final class LlmConnector extends AbstractLlmConnector

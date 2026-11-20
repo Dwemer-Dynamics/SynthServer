@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__.'/autoload.php';
 require_once __DIR__.'/synth_jev_actions.php';
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . 'synth_command_payload.php');
@@ -9,8 +10,6 @@ require_once __DIR__.'/synth_combat_target.php';
 require_once __DIR__.'/synth_attack_actions.php';
 require_once __DIR__.'/synth_social_contract.php';
 require_once __DIR__.'/synth_location.php';
-require_once dirname(__DIR__).'/managers/LocationManager/LocationCatalog.php';
-require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
 
 // An explicit validated wire event gives request-local context; otherwise the legacy request globals do.
 function synth_protocol_response_context(?array $wire = null): array
@@ -51,7 +50,6 @@ function synth_protocol_encode_response_line(string $type, array $payload, strin
     if ($context['protocol_version'] === 2) $line['context_sequence'] = $context['context_sequence'];
     if ($type === 'dialogue') {
         // A companion order names the exact NPC reply line it rides on.
-        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
         \Synth\Managers\ActionsManager\CompanionOrders::noteReplyLine($line);
     }
     return json_encode($line, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
@@ -281,7 +279,6 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
     }
     $order = in_array($serverCode,['FollowPlayer','StopFollowing','TakeASeat'],true);
     if ($order) {
-        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
         if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$serverCode) || !synth_wait_action_legacy_empty($line)) return null;
     }
     if ($capability==='action.attack' && ($event['protocol_version'] ?? 1)===2 && !synth_attack_supported($event)) return null;
@@ -297,7 +294,6 @@ function synth_protocol_action_from_legacy_line(array $line): ?array
         && (!synth_protocol_supports_player_caps($event) || synth_protocol_owns_rechat($event))) return null;
     if ($capability==='action.take_item_from_player' && !synth_player_item_request_allowed($event,$db)) return null;
     if ($capability==='action.barter') {
-        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
         if (!\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return null;
     }
     if ($capability==='action.open_inventory' && ($event['protocol_version'] ?? 1)===2 && !synth_gift_menu_request_allowed($event,$db)) return null;
@@ -557,7 +553,6 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if (($event['type'] ?? '') === 'init' && ($event['protocol_version'] ?? 1) === 2
         && str_starts_with($status, 'init_') && str_ends_with($status, '_accepted')
         && in_array('notify.wake', $event['capabilities'] ?? [], true)) {
-        require_once dirname(__DIR__).'/managers/Notification/NotifyPublisher.php';
         $notifyPort = \Synth\Managers\Notification\NotifyPublisher::acknowledgedPort();
         if ($notifyPort !== null) $statusPayload['notify_wake'] = ['port' => $notifyPort];
     }
@@ -569,7 +564,6 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
     if ($actorStats) $statusPayload['actor_stats'] = true;
     if ($actorCondition) $statusPayload['actor_condition'] = true;
     // Confirmed NPC sales: granted only to a flat init that negotiated the whole contract.
-    require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
     if (($event['type'] ?? '')==='init' && \Synth\Managers\ActionsManager\TradeOffer::supported($event)) $statusPayload['trade_confirmation'] = true;
     if ($privateNarrator) $statusPayload['private_narrator'] = true;
     if ($companionComments) $statusPayload['companion_combat_comments'] = true;

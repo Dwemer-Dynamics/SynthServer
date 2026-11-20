@@ -7,7 +7,6 @@ use Synth\Core\TurnRequest;
 
 require_once dirname(__DIR__).'/core/contracts/dialogue.php';
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
-require_once __DIR__.'/SaveState.php';
 
 // Request admission for an explicit conversation-intent (/talk) turn: the negotiated contract, a supported
 // mode and the claimed snapshot of the active save. Capability alone never selects this route, and the

@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__).'/managers/Narrator/PrivateNarratorProtocol.php';
 
 // Legacy function names for the private narrator protocol rules. The logic lives in
 // managers/Narrator/PrivateNarratorProtocol.php; these are thin hooks for existing callers.

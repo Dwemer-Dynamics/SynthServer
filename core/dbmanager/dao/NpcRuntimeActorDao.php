@@ -11,8 +11,6 @@ namespace Synth\Core\DbManager\Dao;
 use InvalidArgumentException;
 use Synth\Core\Entities\Base\AbstractNpcRuntimeActor;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractNpcRuntimeActor.php';
 
 /** Finds and stores runtime actors. */
 final class NpcRuntimeActorDao
