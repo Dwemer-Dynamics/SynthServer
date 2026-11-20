@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Synth\Managers\Notification;
 
+use Synth\Managers\GameRpc\RpcBridge;
 
 /**
  * The wake-up channel: a plugin-facing WebSocket listener plus a loopback-only HTTP listener on which the server's
@@ -11,7 +12,8 @@ namespace Synth\Managers\Notification;
  * the plugin to look again over the ordinary protocol, so a connection that gets one learns nothing.
  *
  * Wire contract (docs in protocol/v2/README.md): one `welcome` frame after the handshake, then `wake` frames.
- * Plugin frames are never interpreted; only close and ping control frames are answered.
+ * Plugin frames are ignored except close and ping, and the `hello` and `response` frames of the optional game RPC
+ * (managers/GameRpc/RpcBridge.php), which a client may send only after it was given a per-session token.
  */
 final class NotifyServer
 {
@@ -28,6 +30,7 @@ final class NotifyServer
     /** @var array<int, array{socket: resource, buffer: string, handshaken: bool, opened: float}> */
     private array $clients = [];
     private bool $stopped = false;
+    private readonly RpcBridge $rpc;
 
     public function __construct(string $webSocketAddress, string $httpAddress)
     {
@@ -37,6 +40,11 @@ final class NotifyServer
         }
         $this->webSocketServer = self::listen($webSocketAddress);
         $this->httpServer = self::listen($httpAddress);
+        // Game RPC (capability rpc.game): plugin connections bind to it with a token; loopback callers use /rpc/*.
+        $this->rpc = new RpcBridge(
+            fn(int $key, string $text): bool => $this->write($key, self::textFrame($text)),
+            fn(int $key) => $this->removeClient($key)
+        );
     }
 
     public function webSocketPort(): int
@@ -96,6 +104,7 @@ final class NotifyServer
             }
         }
         $this->dropStalledHandshakes();
+        $this->rpc->expire();
     }
 
     /** Sends one wake hint to every connected plugin. Returns how many were written. */
@@ -155,6 +164,16 @@ final class NotifyServer
             if ($end !== false && strlen($request) >= $end + 4 + self::declaredLength(substr($request, 0, $end))) {
                 break;
             }
+        }
+        $head = strpos($request, "\r\n\r\n");
+        if ($head !== false && preg_match('#^POST (/rpc/[a-z]+) HTTP/1\.#', $request, $route) === 1) {
+            $reply = $this->rpc->handleHttp($route[1], json_decode(substr($request, $head + 4), true), $socket);
+            if ($reply === null) {
+                return; // A call waits for the game: the bridge answers and closes the socket.
+            }
+            @fwrite($socket, RpcBridge::httpReply($reply[0], $reply[1] === [] ? '' : json_encode($reply[1])));
+            fclose($socket);
+            return;
         }
         $status = $this->handlePublish($request);
         @fwrite($socket, 'HTTP/1.1 ' . $status . "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -237,34 +256,55 @@ final class NotifyServer
         $this->readFrames($key);
     }
 
-    /** Plugin frames carry nothing the server uses; answer close and ping, drop anything unusual or large. */
+    /**
+     * Plugin frames: close and ping are answered, and a complete text frame goes to the RPC bridge (a hello, then responses).
+     * Frames must be masked, control frames at most 125 bytes, data frames at most RpcBridge::MAX_FRAME_BYTES; anything else
+     * drops the client. A client that never sends a valid hello stays an ordinary wake-up listener.
+     */
     private function readFrames(int $key): void
     {
         while (isset($this->clients[$key]) && strlen($this->clients[$key]['buffer']) >= 2) {
             $buffer = $this->clients[$key]['buffer'];
-            $opcode = ord($buffer[0]) & 0x0f;
+            $first = ord($buffer[0]);
+            $opcode = $first & 0x0f;
+            $final = ($first & 0x80) !== 0;
             $masked = (ord($buffer[1]) & 0x80) !== 0;
             $length = ord($buffer[1]) & 0x7f;
-            if (!$masked || $length > 125 || ($opcode >= 0x8 && (ord($buffer[0]) & 0x80) === 0)) {
+            $header = 2;
+            if ($length === 126) {
+                if (strlen($buffer) < 4) {
+                    return;
+                }
+                $length = (ord($buffer[2]) << 8) | ord($buffer[3]);
+                $header = 4;
+            } elseif ($length === 127) {
                 $this->removeClient($key);
                 return;
             }
-            if (strlen($buffer) < 6 + $length) {
+            $control = $opcode >= 0x8;
+            if (!$masked || $length > ($control ? 125 : RpcBridge::MAX_FRAME_BYTES) || ($control && !$final)) {
+                $this->removeClient($key);
                 return;
             }
-            $payload = substr($buffer, 6, $length);
-            $this->clients[$key]['buffer'] = substr($buffer, 6 + $length);
+            if (strlen($buffer) < $header + 4 + $length) {
+                return;
+            }
+            $mask = substr($buffer, $header, 4);
+            $payload = substr($buffer, $header + 4, $length);
+            $this->clients[$key]['buffer'] = substr($buffer, $header + 4 + $length);
+            for ($i = 0; $i < $length; $i++) {
+                $payload[$i] = $payload[$i] ^ $mask[$i % 4];
+            }
             if ($opcode === 0x8) {
                 $this->write($key, "\x88\x00");
                 $this->removeClient($key);
                 return;
             }
             if ($opcode === 0x9) {
-                $mask = substr($buffer, 2, 4);
-                for ($i = 0; $i < $length; $i++) {
-                    $payload[$i] = $payload[$i] ^ $mask[$i % 4];
-                }
                 $this->write($key, "\x8a" . chr($length) . $payload);
+            } elseif ($opcode === 0x1 && $final && !$this->rpc->onClientFrame($key, $payload)) {
+                $this->removeClient($key);
+                return;
             }
         }
     }
@@ -297,12 +337,14 @@ final class NotifyServer
         if (isset($this->clients[$key])) {
             @fclose($this->clients[$key]['socket']);
             unset($this->clients[$key]);
+            $this->rpc->onClientGone($key);
         }
     }
 
     private static function textFrame(string $text): string
     {
-        return "\x81" . chr(strlen($text)) . $text;
+        $length = strlen($text);
+        return "\x81" . ($length <= 125 ? chr($length) : "\x7e" . pack('n', $length)) . $text;
     }
 
     /** @return resource */
