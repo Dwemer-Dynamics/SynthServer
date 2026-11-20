@@ -480,7 +480,7 @@ if ($ttsAction && isset($_POST['clone'])) {
 
 if ($ttsAction && isset($_POST['delete'])) {
  $deleteId = intval($_POST['delete']);
- $inUseProfiles = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_profiles WHERE tts_connector_id = {$deleteId}");
+ $inUseProfiles = ['c' => \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->countUsingTtsConnector($deleteId)];
  $inUsePlayer = ['c' => (\Synth\Managers\ConfigManager\ConfigManager::shared()->get('player', 'tts_connector_id') === strval($deleteId)) ? 1 : 0];
  $totalUse = intval($inUseProfiles['c'] ?? 0) + intval($inUsePlayer['c'] ?? 0);
  if ($totalUse > 0) {
@@ -546,7 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_connector'])) {
 }
 
 $rows = $ttsConnector->readAll();
-$usageRows = $GLOBALS["db"]->fetchAll("SELECT tts_connector_id, COUNT(*) AS c FROM core_profiles WHERE tts_connector_id IS NOT NULL GROUP BY tts_connector_id");
+$usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->ttsConnectorUsage();
 $usageMap = [];
 foreach ($usageRows as $row) {
  $usageMap[strval($row['tts_connector_id'] ?? '')] = intval($row['c'] ?? 0);
