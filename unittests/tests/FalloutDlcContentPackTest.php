@@ -57,7 +57,7 @@ final class FalloutDlcContentPackTest extends DatabaseTestCase
             .'require $root."/conf/conf.sample.php";'
             .'synthRuntimeImportConfigVariables(get_defined_vars());'
             .'$GLOBALS["db"]=$db=new sql();'
-            .'require $root."/debug/db_updates.php";'
+            .'synthRuntimeApplySchemaMigrations($root);'
             .'exit(synthRuntimeNeedsDbUpdates()?1:0);';
         $process=proc_open([PHP_BINARY,'-r',$bootstrap],
             [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);

@@ -143,6 +143,26 @@ final class ConfigManager
         return $this->dao->upsert($scope, $key, synthSettingsStringifyValue($value), $description);
     }
 
+    /**
+     * Stores several settings of one scope in one statement (all or none). False when the write fails.
+     *
+     * @param array<string, mixed> $values key => value, stringified as set() does
+     */
+    public function setMany(string $scope, array $values): bool
+    {
+        $this->requireScope($scope);
+        $stored = [];
+        foreach ($values as $key => $value) {
+            $key = trim((string) $key);
+            if ($key === '') {
+                return false;
+            }
+            $stored[$key] = synthSettingsStringifyValue($value);
+        }
+
+        return $this->dao->upsertMany($scope, $stored);
+    }
+
     /** Removes a setting so it reads as its default again. */
     public function delete(string $scope, string $key): bool
     {
