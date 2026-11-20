@@ -11,9 +11,8 @@ use Doctrine\Migrations\MigratorConfiguration;
 use Doctrine\Migrations\Version\Version;
 use Synth\Migrations\Version20261117000000 as LegacyBaseline;
 
-// The one owner of versioned schema changes. tools/bootstrap-database.php and every caller of the debug/db_updates.php
-// compatibility entry come here; the frozen legacy chain in that file runs only from inside this class. It uses its
-// own transaction-capable PostgreSQL connection, never the shared-session read adapter (which refuses transactions
+// The one owner of versioned schema changes. tools/bootstrap-database.php comes here. It uses its own
+// transaction-capable PostgreSQL connection, never the shared-session read adapter (which refuses transactions
 // and must not end a legacy-owned one). Every invocation holds one session advisory lock for its whole run, so
 // concurrent runs go one at a time; a killed run releases the lock with its session and its open migration
 // transaction rolls back.
@@ -21,25 +20,16 @@ final class SchemaMigrations
 {
     public const METADATA_TABLE = 'synth_meta.doctrine_migration_versions';
     private const LOCK_NAME = 'synth-schema-migrations';
-    private const LEGACY_LOCK_NAME = 'synth-schema-migrations-legacy';
     // Snapshot compatibility metadata. The only supported source is the synth application schema; a new metadata
     // layout needs a new format value, never a reinterpretation of this one.
     public const SNAPSHOT_FORMAT = 'synth-schema-snapshot.v1';
     public const SNAPSHOT_SCHEMA = 'synth';
-
-    // Set only while this class itself includes debug/db_updates.php; any other include of that file delegates here.
-    private static bool $runningLegacyBody = false;
 
     private bool $locked = false;
 
     /** @param list<class-string> $additionalMigrations */
     private function __construct(private readonly Connection $connection, private readonly int $lockWaitSeconds,
         private readonly array $additionalMigrations) {}
-
-    public static function isRunningLegacyBody(): bool
-    {
-        return self::$runningLegacyBody;
-    }
 
     /**
      * $additionalMigrations is for tests only: already-declared migration classes registered beside this tree's, so a
@@ -77,8 +67,8 @@ final class SchemaMigrations
     }
 
     /**
-     * $settings with host, port and database taken from the legacy session's own connection. The legacy class can
-     * leave the port to libpq and the test adapter ignores every setting, so this is the database the legacy chain
+     * $settings with host, port and database taken from the runtime sql session's own connection. The session class can
+     * leave the port to libpq and the test adapter ignores every setting, so this is the database the runtime
      * and gate act on.
      */
     public static function settingsForLegacySession(object $legacy, #[\SensitiveParameter] array $settings): array
@@ -94,59 +84,40 @@ final class SchemaMigrations
 
     /**
      * Brings the database to the latest migration and returns the recorded versions. Records this tree does not
-     * contain are refused before anything changes. An empty database (LegacyBaseline::isEmptyDatabase) gets no legacy
-     * chain: the baseline migration installs its frozen schema and seeds in the same transaction as every later
-     * migration and the version records. Before the baseline is recorded, any other install whose legacy versions
-     * are older than the frozen set gets the legacy chain first; one that already claims them is verified as it
-     * stands. The baseline migration verifies and is recorded only if the result is complete. With the baseline as
-     * the latest record the schema is re-verified against the baseline's frozen contract (never the current runtime's
-     * readiness gate, which may already expect a pending migration's work) and refused if damaged, never repaired by
-     * the legacy chain; once later migrations are recorded they own the schema and the legacy checks no longer apply.
+     * contain are refused before anything changes. An empty database (LegacyBaseline::isEmptyDatabase) gets the
+     * baseline migration, which installs its frozen schema and seeds in the same transaction as every later migration
+     * and the version records. Any other database with no records is only accepted if it already is the complete
+     * baseline: the baseline migration verifies it before it is recorded and refuses a partial or drifted schema, which
+     * is never repaired (there is no upgrade path; recreate the database). With the baseline as the latest record the
+     * schema is re-verified against the baseline's frozen contract (never the current runtime's readiness gate, which
+     * may already expect a pending migration's work) and refused if damaged; once later migrations are recorded they
+     * own the schema and the baseline checks no longer apply.
      *
      * @return list<string>
      */
     public function migrate(): array
     {
         return $this->underLock(function (): array {
-            $legacy = $this->legacySession();
             $factory = $this->factory();
-            $this->refuseUnknownRecords($factory);
-            return $this->withLegacyLock($legacy, function () use ($legacy, $factory): array {
-                $recorded = $this->recordedVersions();
-                if ($recorded === []) {
-                    // An empty database is installed by the baseline migration itself, inside the transaction below.
-                    if (LegacyBaseline::isEmptyDatabase($this->connection)) return $this->migrateTo($factory, 'latest', true);
-                    if (!LegacyBaseline::legacyVersionsClaimCurrent($this->connection)) $this->runLegacyBody($legacy);
-                } elseif ($recorded === [LegacyBaseline::class]) {
-                    $problems = LegacyBaseline::problems($this->connection);
-                    if ($problems !== []) {
-                        throw new \RuntimeException('The database no longer matches its recorded legacy baseline and is not repaired automatically: '
-                            .implode('; ', $problems));
-                    }
-                }
-                return $this->migrateTo($factory, 'latest');
-            });
-        });
-    }
-
-    /**
-     * Runs the frozen legacy chain on a database with no migration records, under the same locks, and records nothing.
-     * Test fixtures use it to build a true pre-ledger legacy install; everything else uses migrate().
-     */
-    public function applyLegacyChainWithoutLedger(): void
-    {
-        $this->underLock(function (): void {
-            $legacy = $this->legacySession();
-            if ($this->recordedVersions() !== []) {
-                throw new \RuntimeException('This database records schema migrations; the legacy chain runs only through migrate()');
+            $recorded = $this->refuseUnknownRecords($factory);
+            if ($recorded === []) {
+                // An empty database is installed by the baseline migration itself, inside the transaction below.
+                return $this->migrateTo($factory, 'latest', LegacyBaseline::isEmptyDatabase($this->connection));
             }
-            $this->withLegacyLock($legacy, fn () => $this->runLegacyBody($legacy));
+            if ($recorded === [LegacyBaseline::class]) {
+                $problems = LegacyBaseline::problems($this->connection);
+                if ($problems !== []) {
+                    throw new \RuntimeException('The database no longer matches its recorded baseline and is not repaired automatically: '
+                        .implode('; ', $problems));
+                }
+            }
+            return $this->migrateTo($factory, 'latest');
         });
     }
 
     /**
      * Reverts recorded migrations down to $version ('first' removes every record). Only Doctrine migrations run;
-     * reverting the baseline removes its record and leaves the legacy schema and rows untouched.
+     * reverting the baseline removes its record and leaves the schema and rows untouched.
      *
      * @return list<string>
      */
@@ -256,8 +227,8 @@ final class SchemaMigrations
         );
     }
 
-    // A record this source tree does not know means the code is older than the database. Refuse before the legacy
-    // chain or any migration can touch it. Returns the recorded versions it checked.
+    // A record this source tree does not know means the code is older than the database. Refuse before any
+    // migration can touch it. Returns the recorded versions it checked.
     /** @return list<string> */
     private function refuseUnknownRecords(DependencyFactory $factory): array
     {
@@ -296,58 +267,6 @@ final class SchemaMigrations
             $factory->getMigrator()->migrate($plan, (new MigratorConfiguration())->setAllOrNothing(true));
         });
         return $this->recordedVersions();
-    }
-
-    // The legacy chain runs on the runtime sql session. It must reach this connection's database, and it must
-    // be idle: the chain's statements would otherwise join, and could end, a transaction its caller owns.
-    private function legacySession(): object
-    {
-        $legacy = $GLOBALS['db'] ?? null;
-        if (!is_object($legacy) || !method_exists($legacy, 'isTransactionIdle')) {
-            throw new \RuntimeException('SYNTH schema migrations need the legacy runtime session');
-        }
-        if (!$legacy->isTransactionIdle()) {
-            throw new \RuntimeException('SYNTH schema migrations refuse to run while the legacy session has an open transaction');
-        }
-        $identity = "SELECT current_database() || '|' || coalesce(inet_server_port(), 0) || '|' || extract(epoch FROM pg_postmaster_start_time()) AS identity";
-        $legacyIdentity = strval($legacy->fetchOne($identity)['identity'] ?? '');
-        if ($legacyIdentity === '' || $legacyIdentity !== strval($this->connection->fetchOne($identity))) {
-            throw new \RuntimeException('The schema migration connection and the legacy session reach different databases; check SYNTH_DB_HOST, SYNTH_DB_PORT and SYNTH_DB_NAME');
-        }
-        return $legacy;
-    }
-
-    // Also locked on the legacy session, under its own key, for the chain and the verification. After a
-    // killed run, an orphaned chain statement still executing there keeps this lock until it ends, though the owner's
-    // idle session has already released its own; a rerun waits for it instead of overlapping.
-    /** @template T @param callable():T $work @return T */
-    private function withLegacyLock(object $legacy, callable $work): mixed
-    {
-        if ($legacy->execQuery('SELECT pg_advisory_lock(hashtextextended($1, 0))', [self::LEGACY_LOCK_NAME]) === false) {
-            throw new \RuntimeException('SYNTH schema migrations could not lock the legacy session');
-        }
-        try {
-            return $work();
-        } finally {
-            $legacy->execQuery('SELECT pg_advisory_unlock(hashtextextended($1, 0))', [self::LEGACY_LOCK_NAME]);
-        }
-    }
-
-    private function runLegacyBody(object $legacy): void
-    {
-        self::$runningLegacyBody = true;
-        try {
-            // The chain's closures read $db from the including scope and from globals.
-            (static function (): void {
-                $db = $GLOBALS['db'];
-                require dirname(__DIR__, 2).'/debug/db_updates.php';
-            })();
-        } finally {
-            self::$runningLegacyBody = false;
-        }
-        if (!$legacy->isTransactionIdle()) {
-            throw new \RuntimeException('The legacy schema chain left a transaction open on the legacy session');
-        }
     }
 
     private function metadataTableExists(): bool
@@ -403,8 +322,8 @@ final class SchemaMigrations
         }
     }
 
-    // Session-level, not transaction-level: the lock must span the legacy chain, which runs outside any Doctrine
-    // transaction on the legacy session. Polling keeps the wait bounded without a server-side lock_timeout.
+    // Session-level, not transaction-level: the lock must span the whole run, including the migration transaction's
+    // commit. Polling keeps the wait bounded without a server-side lock_timeout.
     private function acquireLock(): void
     {
         $deadline = microtime(true) + $this->lockWaitSeconds;

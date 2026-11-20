@@ -159,13 +159,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     );
     
     if (isset($gameRequest[3]) && preg_match('/^\d+(?:\.\d+){1,3}/', trim((string)$gameRequest[3]))) {
-        $db->upsertRowOnConflict('public.core_config_setting',
-            array(
-                'scope' => 'conf', 'config_key' => "plugin_dll_version",
-                'config_value' =>$gameRequest[3]
-            ),
-            "id"
-        );
+        \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', "plugin_dll_version", $gameRequest[3]);
     }
 
     Logger::trace("INIT PROCESSING ".(time()-$now));
@@ -211,7 +205,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
             $cooldownSeconds = $cooldownMinutes * 60;
             
             // Check cooldown
-            $lastWelcomeTs = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='last_narrator_welcome'");
+            $lastWelcomeTs = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'last_narrator_welcome')];
             $currentTime = time();
             
             $canTrigger = true;
@@ -239,11 +233,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
                 );
                 
                 // Update last welcome timestamp
-                $db->upsertRowOnConflict('public.core_config_setting',
-                    array(
-                        'scope' => 'conf', 'config_key' => 'last_narrator_welcome',
-                        'config_value' => (string)$currentTime
-                    ), 'scope, config_key');
+                \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', 'last_narrator_welcome', (string)$currentTime);
                 
                 // Store flag to trigger narrator after init processing
                 $GLOBALS["TRIGGER_NARRATOR_WELCOME"] = true;
@@ -746,7 +736,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 $cooldownSeconds = $cooldownMinutes * 60;
                 
                 // Fetch last quest comment timestamp
-                $lastQuestCommentTs = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='QUEST_COMMENT_LAST_TIMESTAMP'");
+                $lastQuestCommentTs = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'QUEST_COMMENT_LAST_TIMESTAMP')];
                 $currentTime = time();
                 
                 $canTrigger = true;
@@ -776,11 +766,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     );
                     
                     // Update timestamp for successful quest comment
-                    $db->upsertRowOnConflict('public.core_config_setting',
-                        array(
-                            'scope' => 'conf', 'config_key' => "QUEST_COMMENT_LAST_TIMESTAMP",
-                            'config_value' => $currentTime
-                        ), 'scope, config_key');
+                    \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', "QUEST_COMMENT_LAST_TIMESTAMP", $currentTime);
                     
                     // Store flag to trigger narrator after init processing
                     $GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"] = true;
@@ -879,7 +865,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         return;
     }
     if ($vars[0]=="synth_context_mode") {
-        $cRw=$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='{$vars[0]}'");
+        $cRw=['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', $vars[0])];
         $vars[1]=(isset($cRw["value"])&&$cRw["value"]=="1")?"0":"1";
         synthQueueCommandResponse(
             "rolemaster",
@@ -956,14 +942,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         }
         
 
-        $confOptId = $db->escape($vars[0]);
-        $db->upsertRow('public.core_config_setting',
-            array(
-                'scope' => 'conf', 'config_key' => $vars[0],
-                'config_value' => $vars[1]
-            ),
-            "scope = 'conf' AND config_key = '{$confOptId}'"
-        );
+        \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $vars[0], $vars[1]);
     
     
     $MUST_END=true;
@@ -1127,13 +1106,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
     
     if (isset($gameRequest[3]) && $gameRequest[3]) {
-        $db->upsertRowOnConflict('public.core_config_setting',
-            array(
-                'scope' => 'conf', 'config_key' => "last_waitstart",
-                'config_value' =>$gameRequest[2]
-            ),
-            "id"
-        );
+        \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', "last_waitstart", $gameRequest[2]);
     }
     
     // AUTO_DIARY functionality - trigger diary entries for nearby NPCs with auto_diary_enabled
@@ -1168,7 +1141,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
 } elseif (strpos($gameRequest[0], "waitstop")===0) {
     
-    $lastgameTs=$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='last_waitstart'");
+    $lastgameTs=['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'last_waitstart')];
     
     $elapsed=($gameRequest[2]-$lastgameTs["value"])* 0.0000024;
     $db->insert(

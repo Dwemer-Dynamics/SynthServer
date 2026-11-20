@@ -1,6 +1,6 @@
 # Synthserver Data
 
-This directory contains seed data and SQL fragments consumed by `debug/db_updates.php`.
+This directory contains seed data and SQL fragments used by the installers, importers and tests.
 
 Current maintained data sets:
 

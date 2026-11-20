@@ -1,12 +1,11 @@
 <?php declare(strict_types=1);
 require_once __DIR__.'/DatabaseTestCase.php';
 
-// The schema migration owner through the real tools/bootstrap-database.php and the debug/db_updates.php compatibility
-// entry, each run in a child process against the disposable testdb so no per-process cache hides a step: an empty
-// database is installed by the baseline migration in one transaction and matches the legacy fresh install (default SQL,
-// then the chain), a failed or killed install leaves it empty, the legacy fresh install and recognized legacy upgrade
-// converge, reruns change nothing, drifted or partial schemas are never baselined or repaired by the legacy chain, unknown records stop everything first, the baseline reverts without touching the
-// legacy schema, and concurrent, direct, transactional or killed runs stay consistent.
+// The schema migration owner through the real tools/bootstrap-database.php, run in a child process against the
+// disposable testdb so no per-process cache hides a step: an empty database is installed by the baseline migration in
+// one transaction, a failed or killed install leaves it empty, reruns change nothing, drifted or partial schemas are
+// never baselined or repaired, unknown records stop everything first, the baseline reverts without touching the
+// schema, and concurrent, transactional or killed runs stay consistent.
 final class SchemaMigrationOwnerTest extends DatabaseTestCase
 {
     private const BASELINE = 'Synth\\Migrations\\Version20261117000000';
@@ -95,18 +94,6 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
     private function startBootstrap(): array
     {
         return $this->start([PHP_BINARY, dirname(__DIR__, 2).'/tools/bootstrap-database.php']);
-    }
-
-    // A legacy caller that requires debug/db_updates.php directly, as the UI pages do, after $before on its session.
-    private function startDirectUpdates(string $before = ''): array
-    {
-        $code = '$root='.var_export(dirname(__DIR__, 2), true).';'
-            .'require_once $root."/lib/runtime_bootstrap.php"; require_once $root."/tests/Fixtures/phpunit.class.php";'
-            .'require $root."/conf/conf.sample.php"; synthRuntimeImportConfigVariables(get_defined_vars());'
-            .'$GLOBALS["db"] = $db = new sql();'.$before
-            .'try { require $root."/debug/db_updates.php"; } catch (\Throwable $e) { fwrite(STDERR, $e->getMessage()."\n"); exit(3); }'
-            .'echo "direct entry finished\n";';
-        return $this->start([PHP_BINARY, '-r', $code]);
     }
 
     // A later PR's runtime in a child process: its readiness gate requires a table only its own pending migration
@@ -325,31 +312,11 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $result = $this->bootstrap();
         self::assertNotSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('no longer matches its recorded legacy baseline', $result['output']);
+        self::assertStringContainsString('no longer matches its recorded baseline', $result['output']);
         self::assertStringContainsString('index|public|core_memory_summary|memory_summaries_batch|', $result['output']);
         self::assertSame($recorded, $this->recorded());
         self::assertNull($this->value("SELECT to_regclass('public.memory_summaries_batch')"));
         self::assertSame('20260719001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'core_action'"));
-    }
-
-    public function testPartialLegacySchemaIsRefusedThenRecognizedOnceRepaired(): void
-    {
-        // Retired by the schema redesign: the repair path ran the frozen legacy chain's social task schema step.
-        self::markTestSkipped('The legacy upgrade chain is retired by the schema redesign.');
-        $this->rows("DELETE FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'");
-        $this->rows('DROP TABLE public.core_social_task_claim, public.core_social_task_event, public.core_social_task_input');
-        // A stray table of the same name makes the legacy social task schema file fail as one statement batch.
-        $this->rows('CREATE TABLE public.core_social_task_input (unexpected integer)');
-
-        $result = $this->bootstrap();
-        self::assertNotSame(0, $result['exit'], $result['output']);
-        self::assertSame([], $this->recorded());
-        self::assertNull($this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
-        self::assertNull($this->value("SELECT to_regclass('public.core_social_task_event')"));
-
-        $this->rows('DROP TABLE public.core_social_task_input');
-        $this->assertBootstrapSucceeds();
-        self::assertSame('20261102001', $this->value("SELECT version FROM public.core_catalog_version WHERE catalog_key = 'social_tasks_schema'"));
     }
 
     public function testBaselineRevertsWithoutTouchingLegacySchemaAndUnknownRecordsAreRefused(): void
@@ -373,13 +340,12 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
 
         $this->assertBootstrapSucceeds();
 
-        // Code older than the database: a record this tree does not contain stops every entry before any migration,
-        // and before the legacy chain could act on an older legacy version.
+        // Code older than the database: a record this tree does not contain stops every entry before any migration.
         $this->rows('DELETE FROM synth_meta.doctrine_migration_versions');
         $this->rows("UPDATE public.core_catalog_version SET version = 20260719001 WHERE catalog_key = 'core_action'");
         $this->rows("INSERT INTO synth_meta.doctrine_migration_versions (version) VALUES ('Synth\\Migrations\\Version29990101000000')");
         $data = $this->dataChecksum();
-        foreach ([$this->bootstrap(), $this->finish($this->startDirectUpdates())] as $result) {
+        foreach ([$this->bootstrap()] as $result) {
             self::assertNotSame(0, $result['exit'], $result['output']);
             self::assertStringContainsString('does not contain: Synth\\Migrations\\Version29990101000000', $result['output']);
         }
@@ -410,29 +376,6 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         self::assertSame([self::BASELINE, self::SHIPPED, self::LATER], array_keys($this->recorded()));
         self::assertSame($baseline[self::BASELINE], $this->recorded()[self::BASELINE]);
         self::assertSame($data, $this->dataChecksum(), 'A later migration must not change legacy rows it does not own.');
-    }
-
-    public function testDirectLegacyEntryUsesTheOwnerLockAndRefusesAnOpenTransaction(): void
-    {
-        $holder = pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer', PGSQL_CONNECT_FORCE_NEW);
-        self::assertNotFalse(pg_query($holder, self::LOCK));
-        $waiting = $this->startDirectUpdates();
-        sleep(3);
-        self::assertTrue(proc_get_status($waiting[0])['running'], 'A direct db_updates.php caller must wait for the lock.');
-        self::assertSame([], $this->recorded());
-        pg_close($holder);
-        $result = $this->finish($waiting);
-        self::assertSame(0, $result['exit'], $result['output']);
-        self::assertStringContainsString('direct entry finished', $result['output']);
-        self::assertSame([self::BASELINE, self::SHIPPED], array_keys($this->recorded()));
-
-        // Inside a caller's transaction the entry refuses before the legacy chain or any migration, so it cannot
-        // commit or end that work.
-        $this->rows('DELETE FROM synth_meta.doctrine_migration_versions');
-        $result = $this->finish($this->startDirectUpdates('$db->execQuery("BEGIN");'));
-        self::assertSame(3, $result['exit'], $result['output']);
-        self::assertStringContainsString('open transaction', $result['output']);
-        self::assertSame([], $this->recorded());
     }
 
     public function testConcurrentBootstrapsSerializeOnTheMigrationLock(): void

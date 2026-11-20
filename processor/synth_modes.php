@@ -275,7 +275,7 @@ function synthModeFlushQueuedRolecommands(): void
     }
 }
 
-$EXECUTION_MODE_=$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode'");
+$EXECUTION_MODE_=['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_mode')];
 $EXECUTION_MODE=isset($EXECUTION_MODE_["value"])?$EXECUTION_MODE_["value"]:"STANDARD";
 
 $EXECUTION_MODE=strtoupper($EXECUTION_MODE);
@@ -387,7 +387,7 @@ if ($EXECUTION_MODE=="STANDARD") {
     
 }
 
-$CONTEXT_MODE=$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_context_mode'");
+$CONTEXT_MODE=['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_context_mode')];
 if (isset($CONTEXT_MODE["value"]) && $CONTEXT_MODE["value"]==1) 
     $GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"]=true;
 else

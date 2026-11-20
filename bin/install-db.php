@@ -42,7 +42,7 @@ if ($databaseEncoding !== 'UTF8') {
     exit(1);
 }
 
-// A reinstall is destructive: remove the active, metadata, plugin, and snapshot schemas.
+// A reinstall is destructive: remove the active, metadata, plugin, snapshot and public schemas.
 $snapshotSchemas = pg_query($conn, "
     SELECT schema_name
       FROM information_schema.schemata
@@ -57,12 +57,14 @@ if ($snapshotSchemas) {
     }
 }
 
+// The baseline migration installs the whole schema into an empty database, so the rebuild leaves nothing behind: every
+// application schema, and everything in public (the core_* tables, functions and extensions), is dropped, then the two
+// extensions the baseline needs are created again in public.
 $Q[]="DROP SCHEMA IF EXISTS $schema CASCADE";
 $Q[]="DROP SCHEMA IF EXISTS plugins CASCADE";
 $Q[]="DROP SCHEMA IF EXISTS synth_meta CASCADE";
-$Q[]="DROP EXTENSION IF EXISTS vector CASCADE";
-$Q[]="CREATE SCHEMA $schema";
-$Q[]="CREATE SCHEMA plugins";
+$Q[]="DROP SCHEMA IF EXISTS public CASCADE";
+$Q[]="CREATE SCHEMA public";
 $Q[]="CREATE EXTENSION IF NOT EXISTS vector";
 $Q[]="CREATE EXTENSION IF NOT EXISTS pg_trgm";
 
@@ -76,32 +78,6 @@ foreach ($Q as $QS) {
   }
   
 }
-
-// Path to SQL file to import
-$sqlFile = $enginePath.'/data/database_default.sql';
-
-// Command to import SQL file using psql
-putenv("PGPASSWORD={$password}");
-$psqlCommand = "psql -h " . escapeshellarg($host) .
-    " -p " . escapeshellarg($port) .
-    " -U " . escapeshellarg($username) .
-    " -d " . escapeshellarg($dbname) .
-    " -v ON_ERROR_STOP=1" .
-    " -f " . escapeshellarg($sqlFile);
-
-// Execute psql command
-$output = [];
-$returnVar = 0;
-exec($psqlCommand, $output, $returnVar);
-
-if ($returnVar !== 0) {
-    echo "Failed to import SQL file.\n";
-    echo implode("\n", $output) . "\n";
-    exit;
-}
-
-echo "Baseline SQL imported successfully.\n";
-echo implode("\n", $output) . "\n";
 
 pg_close($conn);
 
