@@ -3,18 +3,18 @@ require_once(__DIR__ . '/../../../../lib/logger.php');
 require_once(__DIR__ . '/../../../../lib/synth_command_payload.php');
 
 
-$GLOBALS["active_profile"]=md5("The Narrator");
-$GLOBALS["CURRENT_CONNECTOR"]=DMgetCurrentModel();
-$GLOBALS["SYNTH_NO_EXAMPLES"]=true; // When no assistant entry in history, will try ti provide a bogus example.
+\Synth\Bootstrap::set('active_profile', md5("The Narrator"));
+\Synth\Bootstrap::set('CURRENT_CONNECTOR', DMgetCurrentModel());
+\Synth\Bootstrap::set('SYNTH_NO_EXAMPLES', true); // When no assistant entry in history, will try ti provide a bogus example.
 
 
 
-if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connector".DIRECTORY_SEPARATOR."{$GLOBALS["CURRENT_CONNECTOR"]}.php"))) {
-        logMsg("Choose a LLM model and connector. Used '{$GLOBALS["CURRENT_CONNECTOR"]}'",S_LOG_CRITICAL);
+if (!\Synth\Bootstrap::has('CURRENT_CONNECTOR') || (!file_exists($enginePath."connector".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CURRENT_CONNECTOR') . ".php")))) {
+        logMsg(("Choose a LLM model and connector. Used '" . \Synth\Bootstrap::config('CURRENT_CONNECTOR') . "'"),S_LOG_CRITICAL);
 
     } else {
-        logMsg("Using {$GLOBALS["CURRENT_CONNECTOR"]}");
-        require($enginePath."connector".DIRECTORY_SEPARATOR."{$GLOBALS["CURRENT_CONNECTOR"]}.php");
+        logMsg(("Using " . \Synth\Bootstrap::config('CURRENT_CONNECTOR')));
+        require($enginePath."connector".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CURRENT_CONNECTOR') . ".php"));
 
         $contextDataHistoric = DataLastDataExpandedFor("", -50);    // Full context
 
@@ -36,8 +36,8 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
         require($enginePath . "functions/functions_instruction.php");
 
         if (!function_exists('synthActionCatalogIsActionEnabled') || synthActionCatalogIsActionEnabled("ReturnBackHome")) {
-            $GLOBALS["ENABLED_FUNCTIONS"][]="ReturnBackHome";
-            $GLOBALS["FUNCTIONS"][]=\Synth\Bootstrap::config("BASE_FUNCTIONS")["ReturnBackHome"];
+            \Synth\Bootstrap::append('ENABLED_FUNCTIONS', "ReturnBackHome");
+            \Synth\Bootstrap::append('FUNCTIONS', \Synth\Bootstrap::config("BASE_FUNCTIONS")["ReturnBackHome"]);
         }
 
         $fnames=[];
@@ -50,7 +50,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
                     } else
                         $fnames[]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
-                    $GLOBALS["FUNCTION_SHORT_LIST"][]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
+                    \Synth\Bootstrap::append('FUNCTION_SHORT_LIST', \Synth\Bootstrap::config("F_NAMES")["$functionCode"]);
                 }
             }
         }
@@ -58,7 +58,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
             $userprompt="";
             $sysprompt="";
         } else {
-            $sysprompt="user request: \"{$GLOBALS["argv"][3]}\". (As game director, you now must issue an instruction to any actor to make this wish happen. If user is addressing an actor, use instruction on it)";
+            $sysprompt=("user request: \"" . \Synth\Bootstrap::config('argv')[3] . "\". (As game director, you now must issue an instruction to any actor to make this wish happen. If user is addressing an actor, use instruction on it)");
             $userprompt="* Fufill the user's request no matter what, even if it means breaking roleplay.";
         }
 
@@ -137,21 +137,21 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
         $customParm["MAX_TOKENS"]=4000;
 
-        $GLOBALS["HOOKS"]["JSON_TEMPLATE"][]=function() {
-            $GLOBALS["responseTemplate"] = ["instructions"=>[[
+        \Synth\Bootstrap::appendPath('HOOKS', ["JSON_TEMPLATE"], function() {
+            \Synth\Bootstrap::set('responseTemplate', ["instructions"=>[[
                 "character"=>"selected actor's full name",
                 "instruction"=>"the instruction for the actor, what should be said or done. Use 3rd person here.",
                 "action"=>implode("|",\Synth\Bootstrap::config("FUNCTION_SHORT_LIST")),
                 "target"=>"action's target",
                 "scene_note"=>"Something other actors should know about the instruction, if the instruction also involves another actors"
-            ]]];
+            ]]]);
 
 
-        };
+        });
 
-        $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
+        $connectionHandler = new (\Synth\Bootstrap::config('CURRENT_CONNECTOR'));
         // Force unset json schema
-        $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
+        \Synth\Bootstrap::setPath('CONNECTOR', [\Synth\Bootstrap::config("CURRENT_CONNECTOR"), "json_schema"], false);
 
         $connectionHandler->open($prompt,$customParm);
 
@@ -232,7 +232,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
 
 
         $rawbuffer.=PHP_EOL;
-        unset($GLOBALS["_JSON_BUFFER"]);
+        \Synth\Bootstrap::forget('_JSON_BUFFER');
         $response=__jpd_decode_lazy($rawbuffer);
 
 
@@ -249,7 +249,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
             $allOk=false;
 
 
-        if (isset($GLOBALS["argv"][4]) && \Synth\Bootstrap::config("argv")[4]=="notify") {
+        if (isset(\Synth\Bootstrap::config('argv')[4]) && \Synth\Bootstrap::config("argv")[4]=="notify") {
             $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)

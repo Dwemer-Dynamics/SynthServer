@@ -1,12 +1,12 @@
 <?php
 
-$GLOBALS['TASKS']['dynamicprofile'] = [];
-$GLOBALS['TASKS']['dynamicprofile']['fn'] = function () {
+\Synth\Bootstrap::setAt('TASKS', 'dynamicprofile', []);
+\Synth\Bootstrap::setPath('TASKS', ['dynamicprofile', 'fn'], function () {
     $enginePath = \Synth\Bootstrap::engineRoot();
-    $GLOBALS['ENGINE_PATH'] = $enginePath;
+    \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
-    if (!isset($GLOBALS['db'])) {
-        $GLOBALS['db'] = new sql();
+    if (!\Synth\Bootstrap::has('db')) {
+        \Synth\Bootstrap::set('db', new sql());
     }
 
     require_once $enginePath . 'prompts/command_prompt.php';
@@ -20,4 +20,4 @@ $GLOBALS['TASKS']['dynamicprofile']['fn'] = function () {
     triggerImmediateProfileProcessing();
     require_once $enginePath . 'lib/synth_diary_jobs.php';
     synth_diary_dispatch_jobs(\Synth\Bootstrap::db());
-};
+});

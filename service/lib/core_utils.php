@@ -11,14 +11,14 @@ define("S_LOG_INIT", 50);
 define("S_LOG_END", 51);
 
 
-$GLOBALS["AUDIT_MANAGER_RUNID"] = strrev(uniqid("di_",true));
-$GLOBALS["AUDIT_MANAGER_START_TIME"] = microtime(true);
+\Synth\Bootstrap::set('AUDIT_MANAGER_RUNID', strrev(uniqid("di_",true)));
+\Synth\Bootstrap::set('AUDIT_MANAGER_START_TIME', microtime(true));
 register_shutdown_function('_manager_audit_end');
-$GLOBALS["MANAGER_CONF_SAVE"]=json_encode(\Synth\Bootstrap::engineRoot()."/data/.manager.state.json",true);
+\Synth\Bootstrap::set('MANAGER_CONF_SAVE', json_encode(\Synth\Bootstrap::engineRoot()."/data/.manager.state.json",true));
 
 
 if (!isValidArray(\Synth\Bootstrap::config("MANAGER_CONF_SAVE"))) {
-    $GLOBALS["MANAGER_CONF_SAVE"]=[];
+    \Synth\Bootstrap::set('MANAGER_CONF_SAVE', []);
 }
 
 function _manager_audit_end() {
@@ -26,14 +26,14 @@ function _manager_audit_end() {
     $startTime = \Synth\Bootstrap::config("AUDIT_MANAGER_START_TIME");
     $elapsedTime = $endTime - $startTime;
 
-    $GLOBALS["AUDIT_MANAGER_RUNID_REQUEST"]=isset($GLOBALS["AUDIT_MANAGER_RUNID_REQUEST"])?\Synth\Bootstrap::config("AUDIT_MANAGER_RUNID_REQUEST"):"";
+    \Synth\Bootstrap::set('AUDIT_MANAGER_RUNID_REQUEST', \Synth\Bootstrap::has('AUDIT_MANAGER_RUNID_REQUEST')?\Synth\Bootstrap::config("AUDIT_MANAGER_RUNID_REQUEST"):"");
     
-    logMsg("Audit {$GLOBALS["AUDIT_MANAGER_RUNID"]}, {$GLOBALS["AUDIT_MANAGER_RUNID_REQUEST"]}, elapsed time: " . $elapsedTime . " seconds",S_LOG_END);
+    logMsg(("Audit " . \Synth\Bootstrap::config('AUDIT_MANAGER_RUNID') . ", " . \Synth\Bootstrap::config('AUDIT_MANAGER_RUNID_REQUEST') . ", elapsed time: ") . $elapsedTime . " seconds",S_LOG_END);
     
     // Save configuration vars
     $CONF=[];
     foreach (\Synth\Bootstrap::config("MANAGER_CONF_SAVE") as $v) {
-        $CONF[$v]=$GLOBALS[$v];
+        $CONF[$v]=\Synth\Bootstrap::config($v);
     }
 
     file_put_contents(\Synth\Bootstrap::engineRoot()."/data/.manager.state.json",json_encode($CONF),LOCK_EX);
@@ -53,7 +53,7 @@ function logMsg($text, $lvl = S_LOG_DEFAULT) {
 
     ];
 
-    if (isset($GLOBALS["LOG_LEVEL"]) && \Synth\Bootstrap::config("LOG_LEVEL") > $lvl ) {
+    if (\Synth\Bootstrap::has('LOG_LEVEL') && \Synth\Bootstrap::config("LOG_LEVEL") > $lvl ) {
         return;
     }
 
@@ -81,9 +81,9 @@ function logMsg($text, $lvl = S_LOG_DEFAULT) {
             echo "{$colors['YELLOW']}[END     ] {$text}{$colors['NC']}" . PHP_EOL;
             break;
         default:
-            if (isset($GLOBALS["LOG_LEVEL"]) && \Synth\Bootstrap::config("LOG_LEVEL") == $lvl) {
+            if (\Synth\Bootstrap::has('LOG_LEVEL') && \Synth\Bootstrap::config("LOG_LEVEL") == $lvl) {
                 echo "{$colors['BLUE']}[CUSTOM  ] {$text}{$colors['NC']}" . PHP_EOL;
-            } else if (isset($GLOBALS["LOG_LEVEL"]) && \Synth\Bootstrap::config("LOG_LEVEL") > $lvl) {
+            } else if (\Synth\Bootstrap::has('LOG_LEVEL') && \Synth\Bootstrap::config("LOG_LEVEL") > $lvl) {
                 echo "{$text}" . PHP_EOL;
             } else {
                 echo "{$colors['WHITE']}[UNKNOWN ] {$text}{$colors['NC']}" . PHP_EOL;

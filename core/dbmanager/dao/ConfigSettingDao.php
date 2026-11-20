@@ -101,6 +101,38 @@ final class ConfigSettingDao
     }
 
     /**
+     * Rows of one scope (only the named keys when given), ordered by key, read FOR SHARE: the rows stay unchangeable until the
+     * caller's open transaction ends, and the read joins that transaction because it runs on the same session. Returns [] when
+     * the read fails, as the legacy read did.
+     *
+     * @param list<string>|null $keys
+     * @return array<string, string> key => value ('' for NULL)
+     */
+    public function valuesForShare(string $scope, ?array $keys = null): array
+    {
+        $sql = 'SELECT config_key, config_value FROM public.core_config_setting WHERE scope = ?';
+        $parameters = [$scope];
+        if ($keys !== null) {
+            if ($keys === []) {
+                return [];
+            }
+            $sql .= ' AND config_key IN ('.implode(', ', array_fill(0, count($keys), '?')).')';
+            array_push($parameters, ...array_map('strval', $keys));
+        }
+        try {
+            $rows = $this->entityManager->getConnection()->fetchAllAssociative($sql.' ORDER BY config_key FOR SHARE', $parameters);
+        } catch (DbalException|DriverException $error) {
+            return [];
+        }
+        $values = [];
+        foreach ($rows as $row) {
+            $values[strval($row['config_key'])] = strval($row['config_value'] ?? '');
+        }
+
+        return $values;
+    }
+
+    /**
      * Every stored row of one scope, ordered by key, as id, value ('' for NULL), description and updated_at; throws when
      * unreadable.
      *
@@ -190,5 +222,76 @@ final class ConfigSettingDao
         }
 
         return true;
+    }
+
+    /**
+     * Rows of one scope whose key starts with the prefix (the prefix is literal: LIKE wildcards in it do not match),
+     * ordered by key (the first $limit when given), as id and value ('' for NULL). Returns [] when the table is unreadable, as the legacy read did.
+     *
+     * @return list<array{id: string, value: string}>
+     */
+    public function withPrefix(string $scope, string $prefix, ?int $limit = null): array
+    {
+        $mapping = (new ResultSetMapping())->addScalarResult('config_key', 'id')->addScalarResult('config_value', 'value');
+        try {
+            $rows = $this->entityManager->createNativeQuery(
+                "SELECT config_key, config_value FROM public.core_config_setting WHERE scope = ? AND config_key LIKE ? ESCAPE '!' ORDER BY config_key ASC"
+                .($limit !== null ? ' LIMIT '.max(0, $limit) : ''),
+                $mapping
+            )->setParameter(1, $scope)->setParameter(2, self::likePrefix($prefix))->getScalarResult();
+        } catch (DbalException|DriverException $error) {
+            return [];
+        }
+
+        return array_map(static fn(array $row): array => ['id' => strval($row['id']), 'value' => strval($row['value'] ?? '')], $rows);
+    }
+
+    /** Renames one setting's key within its scope; true when the statement ran, whether or not a row matched. */
+    public function rename(string $scope, string $key, string $newKey): bool
+    {
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'UPDATE public.core_config_setting SET config_key = ? WHERE scope = ? AND config_key = ?',
+                [$newKey, $scope, $key]
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes every row of one scope whose key starts with any of the prefixes, in one statement. True when the statement
+     * ran, whether or not a row matched; an empty list does nothing.
+     *
+     * @param list<string> $prefixes
+     */
+    public function deleteByPrefixes(string $scope, array $prefixes): bool
+    {
+        if ($prefixes === []) {
+            return true;
+        }
+        $parameters = [$scope];
+        $conditions = [];
+        foreach ($prefixes as $prefix) {
+            $conditions[] = "config_key LIKE ? ESCAPE '!'";
+            $parameters[] = self::likePrefix(strval($prefix));
+        }
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'DELETE FROM public.core_config_setting WHERE scope = ? AND ('.implode(' OR ', $conditions).')',
+                $parameters
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static function likePrefix(string $prefix): string
+    {
+        return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $prefix).'%';
     }
 }

@@ -2,16 +2,16 @@
 require_once(__DIR__ . '/../../../../lib/logger.php');
 require_once(__DIR__ . '/../../../../lib/synth_command_payload.php');
 
-$GLOBALS["CURRENT_CONNECTOR"]=DMgetCurrentModel();
-$GLOBALS["SYNTH_NO_EXAMPLES"]=true; // When no assistant entry in history, will try ti provide a bogus example.
+\Synth\Bootstrap::set('CURRENT_CONNECTOR', DMgetCurrentModel());
+\Synth\Bootstrap::set('SYNTH_NO_EXAMPLES', true); // When no assistant entry in history, will try ti provide a bogus example.
 
 
-if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connector".DIRECTORY_SEPARATOR."{$GLOBALS["CURRENT_CONNECTOR"]}.php"))) {
-        logMsg("Choose a LLM model and connector. Used '{$GLOBALS["CURRENT_CONNECTOR"]}'",S_LOG_CRITICAL);
+if (!\Synth\Bootstrap::has('CURRENT_CONNECTOR') || (!file_exists($enginePath."connector".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CURRENT_CONNECTOR') . ".php")))) {
+        logMsg(("Choose a LLM model and connector. Used '" . \Synth\Bootstrap::config('CURRENT_CONNECTOR') . "'"),S_LOG_CRITICAL);
 
     } else {
-        logMsg("Using {$GLOBALS["CURRENT_CONNECTOR"]}");
-        require($enginePath."connector".DIRECTORY_SEPARATOR."{$GLOBALS["CURRENT_CONNECTOR"]}.php");
+        logMsg(("Using " . \Synth\Bootstrap::config('CURRENT_CONNECTOR')));
+        require($enginePath."connector".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CURRENT_CONNECTOR') . ".php"));
 
         $contextDataHistoric = DataLastDataExpandedFor("", -15);    // Full context
         
@@ -33,14 +33,14 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
     // Database Prompt (Smart Impersonation)
 $commonprompt='';
         if (!\Synth\Bootstrap::config("argv")[3]) {
-            $sysprompt="Write dialogue for {$GLOBALS["PLAYER_NAME"]}";
+            $sysprompt=("Write dialogue for " . \Synth\Bootstrap::config('PLAYER_NAME'));
             $userprompt="";
         } else {
-            $sysprompt="Rewrite dialogue for {$GLOBALS["PLAYER_NAME"]}, using this text as source \"{$GLOBALS["PLAYER_NAME"]}:{$GLOBALS["argv"][3]}\". Pay attention to comments between brackets, that can guide you in length and verbosity.";
+            $sysprompt=("Rewrite dialogue for " . \Synth\Bootstrap::config('PLAYER_NAME') . ", using this text as source \"" . \Synth\Bootstrap::config('PLAYER_NAME') . ":" . \Synth\Bootstrap::config('argv')[3] . "\". Pay attention to comments between brackets, that can guide you in length and verbosity.");
             $userprompt="";
         }
         
-        $prompt[] = array('role' => 'system', 'content' => "You are an actor/actress roleplaying as {$GLOBALS["PLAYER_NAME"]}, and we are roleplaying Fallout in the wasteland. ");
+        $prompt[] = array('role' => 'system', 'content' => ("You are an actor/actress roleplaying as " . \Synth\Bootstrap::config('PLAYER_NAME') . ", and we are roleplaying Fallout in the wasteland. "));
         $prompt[] = array('role' => 'user', 'content' => "# Contextual data\n$historyData");
         $prompt[] = array('role' => 'user', 'content' =>"
 $sysprompt
@@ -51,16 +51,16 @@ $sysprompt
         $customParm["response_format"]=["type"=>"json_object"];
         $customParm["MAX_TOKENS"]=4000;
         
-        $GLOBALS["HOOKS"]["JSON_TEMPLATE"][]=function() {
-            $GLOBALS["responseTemplate"] = [
-                "character"=>"{$GLOBALS["PLAYER_NAME"]}",
+        \Synth\Bootstrap::appendPath('HOOKS', ["JSON_TEMPLATE"], function() {
+            \Synth\Bootstrap::set('responseTemplate', [
+                "character"=>((string)\Synth\Bootstrap::config('PLAYER_NAME')),
                 "dialogue"=>"Dialogue for character",
                 "scene_note"=>"Something other actors should know about the instruction, if the instruction also involves another actors"
-            ];
-        };
-        $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
+            ]);
+        });
+        \Synth\Bootstrap::setPath('CONNECTOR', [\Synth\Bootstrap::config("CURRENT_CONNECTOR"), "json_schema"], false);
 
-        $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
+        $connectionHandler = new (\Synth\Bootstrap::config('CURRENT_CONNECTOR'));
         $connectionHandler->open($prompt,$customParm);
 
         $buffer="";
