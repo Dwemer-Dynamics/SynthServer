@@ -168,3 +168,16 @@ Files under: service
 | --- | --- | --- |
 | global uses (all non-test PHP) | 2773 | 2660 |
 | `require_once` | 1838 | 1838 |
+
+### W5-root-scripts
+
+All uses in the root scripts (`main_synth_pipeline.php`, `player_rewrite.php`, `prompt.includes.php` and the small entry scripts). New helper `Bootstrap::bind($name, &$source)` replaces `$GLOBALS['gameRequest'] = &$gameRequest;`. Multi-argument `unset` splits into one `forget()` per name. The converter now reports `unset`/`isset` arguments it cannot rewrite instead of turning them into reads.
+
+Stacked on W4-service.
+
+Files under: root scripts
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2660 | 2349 |
+| `require_once` | 1838 | 1838 |

@@ -157,6 +157,12 @@ final class Bootstrap
         return $ref;
     }
 
+    /** `$GLOBALS[$name] = &$source`: the runtime value becomes a reference to the caller's variable. */
+    public static function bind(string $name, mixed &$source): void
+    {
+        $GLOBALS[$name] = &$source;
+    }
+
     /** `isset($GLOBALS[$name])`: the value exists and is not null. */
     public static function has(string $name): bool
     {
