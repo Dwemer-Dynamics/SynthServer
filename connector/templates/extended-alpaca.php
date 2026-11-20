@@ -1,10 +1,10 @@
 <?php
 
-$context="{$GLOBALS["SYNTH_NAME"]}'s Persona: {$GLOBALS["SYNTH_PERS"]}\n";
-            $context.="{$GLOBALS["PLAYER_NAME"]}'s Persona: {$GLOBALS["PLAYER_NAME"]}\n";
-            $context.="Scenario: {$GLOBALS["PROMPT_HEAD"]} \n";
-            $context.="Play the role of {$GLOBALS["SYNTH_NAME"]}. You must engage in a roleplaying chat with {$GLOBALS["PLAYER_NAME"]} below this line.Do not write dialogues for {$GLOBALS["PLAYER_NAME"]} and don't write narration.\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
+$context=(\Synth\Bootstrap::config('SYNTH_NAME') . "'s Persona: " . \Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+            $context.=(\Synth\Bootstrap::config('PLAYER_NAME') . "'s Persona: " . \Synth\Bootstrap::config('PLAYER_NAME') . "\n");
+            $context.=("Scenario: " . \Synth\Bootstrap::config('PROMPT_HEAD') . " \n");
+            $context.=("Play the role of " . \Synth\Bootstrap::config('SYNTH_NAME') . ". You must engage in a roleplaying chat with " . \Synth\Bootstrap::config('PLAYER_NAME') . " below this line.Do not write dialogues for " . \Synth\Bootstrap::config('PLAYER_NAME') . " and don't write narration.\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
 
             $contextHistory="";
             $n=0;
@@ -12,15 +12,15 @@ $context="{$GLOBALS["SYNTH_NAME"]}'s Persona: {$GLOBALS["SYNTH_PERS"]}\n";
 
                 if ($n==(sizeof($contextData)-1)) {   // Last prompt line
                     $instruction="### Input:\n".$s_msg["content"]."\n";
-                    $GLOBALS["DEBUG_DATA"][]=$instruction;
+                    \Synth\Bootstrap::append('DEBUG_DATA', $instruction);
 
                 } else {
                     if ($s_msg["role"]=="user") {
                         $contextHistory.="### Input:\n".$s_msg["content"];
-                        $GLOBALS["DEBUG_DATA"][]="### Input:\n".$s_msg["content"];
+                        \Synth\Bootstrap::append('DEBUG_DATA', "### Input:\n".$s_msg["content"]);
                     } elseif ($s_msg["role"]=="assistant") {
                         $contextHistory.="### Response:\n".$s_msg["content"];
-                        $GLOBALS["DEBUG_DATA"][]="### Response:\n".$s_msg["content"];
+                        \Synth\Bootstrap::append('DEBUG_DATA', "### Response:\n".$s_msg["content"]);
 
                     } elseif ($s_msg["role"]=="system") {
                     }  // Must rebuild this
@@ -29,8 +29,8 @@ $context="{$GLOBALS["SYNTH_NAME"]}'s Persona: {$GLOBALS["SYNTH_PERS"]}\n";
                 $n++;
             }
 
-            $context.="$contextHistory $instruction ### Response\n{$GLOBALS["SYNTH_NAME"]}:";
-            $GLOBALS["DEBUG_DATA"][]="ASSISTANT:";
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            $context.=("$contextHistory $instruction ### Response\n" . \Synth\Bootstrap::config('SYNTH_NAME') . ":");
+            \Synth\Bootstrap::append('DEBUG_DATA', "ASSISTANT:");
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
             
             ?>

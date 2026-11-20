@@ -1,13 +1,13 @@
 <?php
 
-$context="SYSTEM: {$GLOBALS["PROMPT_HEAD"]}.";
-            $context.="{$GLOBALS["SYNTH_PERS"]}\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\nUSER={$GLOBALS["PLAYER_NAME"]}";
+$context=("SYSTEM: " . \Synth\Bootstrap::config('PROMPT_HEAD') . ".");
+            $context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\nUSER=" . \Synth\Bootstrap::config('PLAYER_NAME'));
 
             //$context = preg_replace('/^(The Narrator:)(.*)/m', '[Author\'s notes: $2 ]', $context);
 
 
-            $GLOBALS["DEBUG_DATA"][]=$context;
+            \Synth\Bootstrap::append('DEBUG_DATA', $context);
 
             $contextHistory="\nSCENARIO:\n";
             $n=0;
@@ -27,12 +27,12 @@ $context="SYSTEM: {$GLOBALS["PROMPT_HEAD"]}.";
                         $s_msg_p=$s_msg["content"]; // Overwrite
 
                         $contextHistory.="$s_msg_p\n";
-                        $GLOBALS["DEBUG_DATA"][]="$s_msg_p\n";
+                        \Synth\Bootstrap::append('DEBUG_DATA', "$s_msg_p\n");
 
                     } elseif ($s_msg["role"]=="assistant") {
 
                         $contextHistory.="".$s_msg["content"]."\n";
-                        $GLOBALS["DEBUG_DATA"][]="".$s_msg["content"]."\n";
+                        \Synth\Bootstrap::append('DEBUG_DATA', "".$s_msg["content"]."\n");
 
                     } elseif ($s_msg["role"]=="system") {
                     }  // Must rebuild this
@@ -44,9 +44,9 @@ $context="SYSTEM: {$GLOBALS["PROMPT_HEAD"]}.";
             }
 
             $context.="{$contextHistory}{$instruction}ASSISTANT:";
-            $GLOBALS["DEBUG_DATA"][]="$instruction";
-            $GLOBALS["DEBUG_DATA"][]="ASSISTANT:";
+            \Synth\Bootstrap::append('DEBUG_DATA', "$instruction");
+            \Synth\Bootstrap::append('DEBUG_DATA', "ASSISTANT:");
 
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
             
             ?>

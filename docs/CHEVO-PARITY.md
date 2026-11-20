@@ -31,7 +31,7 @@ Counts cover non-test PHP. They exclude `vendor/`, `unittests/vendor/`, `tests/`
 | DAOs (`core/dbmanager/dao/*.php`) | 93 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
 | `$db->` calls | 1,320 | — | Lines by directory: managers 733, workers 165, ui 96, root 70, drivers 64, processor 48, debug 35, lib 32, core 13, other 11 |
 | `pg_*` calls | 870 | — | Mostly in `lib/postgresql.class.php`, `managers/*/Native`, `ui/` |
-| Global uses (`global $x`, `$GLOBALS[`) | 3,360 | — | 6,471 before the globals pass. |
+| Global uses (`global $x`, `$GLOBALS[`) | 2,926 | — | 6,471 before the globals pass. |
 | `require_once` | 1,838 | — | The autoloader is in place, but most includes of procedural files remain. |
 | `lib/*.php` | 189: 171 thin hooks and 18 real files | small final classes | See [lib/](#lib) |
 
@@ -192,7 +192,7 @@ For the counts by directory, see [Counts](#counts). The #149 description lists t
 
 The method and the converter are in [GLOBALS-PASS.md](GLOBALS-PASS.md). Its per-slice tables use the older `71d3eb8` baseline.
 
-- **Remaining global uses** by directory: managers 672, drivers 611, root scripts 338, ui 305, prompts 232, connector 212, core 205, workers 182, processor 182, functions 167, service 113, lib 86.
+- **Remaining global uses** by directory: managers 672, drivers 611, root scripts 338, ui 305, prompts 0, connector 0, core 205, workers 182, processor 182, functions 167, service 113, lib 86.
 - **What is left is mostly not mechanical.** The DB global is down to 4 declarations. The rest are mostly:
   - writes (`$GLOBALS['x'] = ...`),
   - `isset`, `empty` and `unset`,
@@ -200,7 +200,7 @@ The method and the converter are in [GLOBALS-PASS.md](GLOBALS-PASS.md). Its per-
   - prompt and template variables (`$alreadysent`, `$isEmbed`, `$responseTemplate`).
 - **Accessor pattern:**
   - Reads go through `\Synth\Bootstrap::db()`, `enginePath()`, `engineRoot()`, `requestEvent()`, `claimedRequest()`, `gameRequest()`, or `config('NAME', $default)` for anything else. Each reads `$GLOBALS[...] ?? null` and nothing more.
-  - Don't convert writes, by-reference uses or `new $GLOBALS[...]`.
+  - Writers use `set('NAME', $v)`, `isset` uses `has('NAME')` and `unset` uses `forget('NAME')` (W-series in GLOBALS-PASS.md). Don't convert by-reference uses or `new $GLOBALS[...]` by script.
   - Never run the converter on `bootstrap.php`, because it recurses.
   - To retire a name: add a setter on `Bootstrap` (or a request-context object), move the writers to it, then switch the accessor to read the object.
 - **`require_once` (1,838):** the rest load legacy function files, not classes. Plan:
