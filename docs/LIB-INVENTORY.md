@@ -28,7 +28,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L0 | this inventory |
 | L1 | `quest_*` to `managers/QuestManager` (done) |
 | L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` (done) |
-| L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (done) |
+| L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (moved; DAO adoption pending) |
 | L4 | `visual_context*` to `managers/VisualContext` |
 | L5 | rechat, auto chat, greeting, management guard |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers |
