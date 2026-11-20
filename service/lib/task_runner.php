@@ -5,7 +5,7 @@ function executeTaskAsync($taskname, $task): int
 {
     if (!function_exists('pcntl_fork')) {
         echo "[SYNC-$taskname] pcntl_fork unavailable; running task inline".PHP_EOL;
-        unset($GLOBALS['db']);
+        \Synth\Bootstrap::forget('db');
         try {
             $task['fn']();
         } catch (Throwable $error) {
@@ -31,7 +31,7 @@ function executeTaskAsync($taskname, $task): int
         return -1;
     }
     if ($pid === 0) {
-        unset($GLOBALS['db']);
+        \Synth\Bootstrap::forget('db');
         echo "[CHILD-$taskname] Starting task execution".PHP_EOL;
         try {
             $task['fn']();

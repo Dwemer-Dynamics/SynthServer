@@ -55,6 +55,61 @@ final class ProfileDao
         return $this->connection()->fetchAllAssociative('SELECT id, label, metadata FROM public.core_profiles ORDER BY label ASC');
     }
 
+    /**
+     * The id of the profile the Narrator settings point to (optionally only when it is $profileId), with that profile row and
+     * the setting row locked FOR SHARE until the caller's open transaction ends; null when nothing matches.
+     */
+    public function lockNarratorProfile(?int $profileId = null): ?int
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT p.id FROM public.core_profiles p JOIN public.core_config_setting n "
+            ."ON n.scope = 'narrator' AND n.config_key = 'profile_id' AND n.config_value = p.id::text "
+            .($profileId !== null ? 'WHERE p.id = ? ' : '').'FOR SHARE OF p, n',
+            $profileId !== null ? [$profileId] : []
+        );
+
+        return $id === false ? null : (int) $id;
+    }
+
+    /** The lowest profile id, or null when there are no profiles. */
+    public function firstId(): ?int
+    {
+        $id = $this->connection()->fetchOne('SELECT id FROM public.core_profiles ORDER BY id ASC LIMIT 1');
+
+        return $id === false ? null : (int) $id;
+    }
+
+    /**
+     * Makes sure exactly one profile is the default NPC profile and exactly one the default Narrator profile: a missing default
+     * falls back to the first profile, and extra flags are cleared (the lowest id wins). Returns the default NPC profile id, or
+     * null (and changes nothing) when there are no profiles.
+     */
+    public function repairDefaults(): ?int
+    {
+        $firstId = $this->firstId();
+        if ($firstId === null) {
+            return null;
+        }
+        $connection = $this->connection();
+        $defaultNpcId = $this->defaultNpcId();
+        if ($defaultNpcId === null) {
+            $connection->executeStatement("UPDATE public.core_profiles SET default_npc = '1' WHERE id = ?", [$firstId]);
+            $defaultNpcId = $firstId;
+        }
+        if ($connection->fetchOne("SELECT id FROM public.core_profiles WHERE default_narrator = '1' ORDER BY id ASC LIMIT 1") === false) {
+            $connection->executeStatement("UPDATE public.core_profiles SET default_narrator = '1' WHERE id = ?", [$firstId]);
+        }
+        foreach (['default_npc', 'default_narrator'] as $column) {
+            $connection->executeStatement(
+                "WITH chosen AS (SELECT id FROM public.core_profiles WHERE {$column} = '1' ORDER BY id ASC LIMIT 1) "
+                ."UPDATE public.core_profiles p SET {$column} = CASE WHEN p.id = (SELECT id FROM chosen) THEN '1' ELSE '0' END "
+                ."WHERE p.{$column} = '1' OR p.id = (SELECT id FROM chosen)"
+            );
+        }
+
+        return $defaultNpcId;
+    }
+
     /** The lowest id among profiles flagged as the default NPC profile, or null. */
     public function defaultNpcId(): ?int
     {

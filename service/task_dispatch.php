@@ -11,7 +11,7 @@ if ($argc !== 2 || !in_array($argv[1], SYNTH_TASK_DISPATCH_TASKS, true)) {
 }
 $taskname = $argv[1];
 @ob_end_clean();
-$GLOBALS['ENGINE_ROOT'] = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
+\Synth\Bootstrap::set('ENGINE_ROOT', __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR);
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/lib/core_utils.php';
@@ -23,7 +23,7 @@ try {
         'load_player_name' => true,
         'load_narrator' => true,
     ]);
-    $GLOBALS['argv'] = $argv;
+    \Synth\Bootstrap::set('argv', $argv);
     Logger::setCustomLog(\Synth\Bootstrap::engineRoot() . 'log/manager.log');
     Logger::deleteLogIfTooLarge(\Synth\Bootstrap::engineRoot() . 'log/manager.log');
 
