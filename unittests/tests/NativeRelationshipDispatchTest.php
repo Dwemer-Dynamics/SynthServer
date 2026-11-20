@@ -1112,6 +1112,7 @@ PHP;
         $locker=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);
         $this->assertNotFalse($locker);
         $script=<<<'PHP'
+require 'lib/autoload.php';
 require 'lib/postgresql.class.php';
 require 'lib/synth_rechat_profile.php';
 $db=new sql();

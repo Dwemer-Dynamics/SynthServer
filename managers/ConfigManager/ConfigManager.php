@@ -24,7 +24,7 @@ require_once dirname(__DIR__, 2) . '/lib/settings.php';
  * of the key and says where the winning value came from; keys that are global-only are never overridden.
  * See docs/CONFIG-SCOPES.md.
  */
-final class ConfigManager
+class ConfigManager
 {
     /** Where a value is stored. */
     public const SCOPES = ['general', 'conf', 'player', 'narrator', 'meta'];
@@ -66,6 +66,12 @@ final class ConfigManager
 
             return self::$shared = self::forSession($db);
         }
+    }
+
+    /** Replaces the process-wide manager (null forgets it). For tests that stub settings with a subclass. */
+    public static function inject(?self $manager): void
+    {
+        self::$shared = $manager;
     }
 
     /** Forgets the process-wide manager. For tests that change sessions. */
