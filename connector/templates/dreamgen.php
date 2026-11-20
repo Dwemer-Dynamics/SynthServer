@@ -1,10 +1,10 @@
 <?php
 
-$context="<setting>\n{$GLOBALS["PROMPT_HEAD"]}\n";
-$context.="{$GLOBALS["SYNTH_PERS"]}\n";
-$context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
+$context=("<setting>\n" . \Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
+$context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+$context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
 
-$GLOBALS["DEBUG_DATA"][]=$context;
+\Synth\Bootstrap::append('DEBUG_DATA', $context);
 
 $contextHistory="";
 $n=0;
@@ -17,9 +17,9 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
     } else {
         if ($s_msg["role"]=="user") {
             $contextHistory.=$s_msg["content"]."\n";
-            $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+            \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
         } elseif ($s_msg["role"]=="assistant") {
-            $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+            \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
             $contextHistory.=$s_msg["content"]."\n";
         } elseif ($s_msg["role"]=="system") {
         }  // Must rebuild this
@@ -31,5 +31,5 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
 }
 
 $context.="$contextHistory  $instruction \n";
-$GLOBALS["DEBUG_DATA"][]="$instruction";
-$GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+\Synth\Bootstrap::append('DEBUG_DATA', "$instruction");
+\Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
