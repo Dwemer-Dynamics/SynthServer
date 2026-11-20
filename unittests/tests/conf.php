@@ -116,6 +116,7 @@ $GLOBALS["CONNECTOR"]["koboldcppjson"]["template"]='chatml'; //Prompt format spe
 $GLOBALS["CONNECTOR"]["koboldcppjson"]["grammar"]=false; //Enforces use of JSON grammar at the cost of slower generation speed. 
 //[Text-to-Speech Service]
 $GLOBALS["TTSFUNCTION"]="phpunit";
+require_once dirname(__DIR__, 2) . '/tests/Fixtures/tts-phpunit.php'; // test-only speech provider
 
 //[Text-to-Speech Endpoints]
 //SYNTH XTTS

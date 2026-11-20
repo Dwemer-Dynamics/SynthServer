@@ -1574,7 +1574,7 @@ PHP;
     {
         $root=dirname(__DIR__,2);
         $script='require '.var_export($root.'/lib/chat_helper_functions.php',true).'; '
-            .'require '.var_export($root.'/tts/tts-phpunit.php',true).'; '
+            .'require '.var_export($root.'/tests/Fixtures/tts-phpunit.php',true).'; '
             .'require '.var_export($root.'/tts/tts-pockettts.php',true).'; '
             .'$GLOBALS["SYNTH_TTS_DRIVERS"]["pockettts"]=static fn()=>"pocket-fixture"; '
             .'$out=[]; foreach (["phpunit","pockettts","phpunit"] as $driver) { '

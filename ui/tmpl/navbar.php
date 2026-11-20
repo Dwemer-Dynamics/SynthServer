@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 if (defined('SYNTH_SHARED_NAVBAR_RENDERED')) {
  return;
 }
@@ -68,7 +69,7 @@ if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  }
  } catch (Exception $e) {
  // Just keep the default value and log the error
- error_log("Error fetching plugin version using global \$db: " . $e->getMessage());
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'navbar', "Error fetching plugin version using global \$db: " . $e->getMessage());
  }
 } else {
  // Only attempt to create a new DB connection if we don't already have a global one
@@ -112,7 +113,7 @@ if (isset($GLOBALS['db']) && is_object($GLOBALS['db'])) {
  }
  } catch (Exception $e) {
  // Just continue with the default value
- error_log("Error in navbar fallback DB connection: " . $e->getMessage());
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'navbar', "Error in navbar fallback DB connection: " . $e->getMessage());
  }
 }
 

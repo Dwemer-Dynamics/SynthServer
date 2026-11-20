@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
 
 // NPC delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
@@ -310,7 +311,7 @@ if (!function_exists('race_icon_web_path')) {
  $picturesRootUrl = rtrim($webRoot . '/data/pictures/', '/');
  $fs = realpath($picturesRootFs . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $portraitRel));
  $picturesRootFs=realpath($picturesRootFs);
- error_log("<$picturesRootFs><$fs>");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'npc_master', "<$picturesRootFs><$fs>");
  if ($fs !== false && strpos($fs, $picturesRootFs) === 0 && is_file($fs)) {
  return $picturesRootUrl . '/' . str_replace('%2F','/', rawurlencode($portraitRel));
  }
@@ -1176,7 +1177,7 @@ $totalRows = intval($rowCountRow['c'] ?? 0);
 $totalPages = max(1, (int)ceil($totalRows / max(1, $perPage)));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
-error_log("{$where} {$order} limit {$perPage} offset {$offset}");
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'npc_master', "{$where} {$order} limit {$perPage} offset {$offset}");
 $data = $npc->getAll("{$where} {$order} limit {$perPage} offset {$offset}");
 
 // Fetch identity labels once for this page; profile actions continue to submit exact row IDs.
@@ -1357,7 +1358,7 @@ if (isset($_GET['race_icon'])) {
   try { $row = $npc->getById($id); if ($row && !empty($row['metadata'])) { $tmp = json_decode((string)$row['metadata'], true); if (is_array($tmp)) { $portraitRel = (string)($tmp['portrait'] ?? ''); $portraitMediaId = (string)($tmp['portrait_media_id'] ?? ''); } } } catch (Throwable $e) {}
   }
 
-  error_log("$race, $webRoot, $refid, $md5, $name, $portraitRel, $gender");
+  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'npc_master', "$race, $webRoot, $refid, $md5, $name, $portraitRel, $gender");
 
   $url = race_icon_web_path($race, $webRoot, $refid, $md5, $name, $portraitRel, $gender, $portraitMediaId);
  echo json_encode(['url' => $url]);
