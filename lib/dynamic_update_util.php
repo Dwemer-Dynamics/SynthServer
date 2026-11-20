@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once __DIR__.'/synth_profile_jobs.php';
 require_once __DIR__.'/synth_diary_scope.php';
 // Function to process diary entries for all nearby NPCs (triggered by C++ with 400 unit range)
@@ -935,7 +936,7 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
         $successCount = 0;
         
         foreach ($fieldsToUpdate as $field) {
-            error_log("[processSingleDynamicProfile] Updating $npcName $field");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'processSingleDynamicProfile', "Updating $npcName $field");
 
             $result = updateDynamicProfileField($npcName, $field, $historyData);
 
@@ -1011,7 +1012,7 @@ function processNarratorDynamicProfile($db, bool $prepareOnly = false) {
         $successCount = 0;
         
         foreach ($fieldsToUpdate as $field) {
-            error_log("[processNarratorDynamicProfile] Updating The Narrator $field");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'processNarratorDynamicProfile', "Updating The Narrator $field");
             
             $result = updateDynamicProfileField("The Narrator", $field, $historyData);
             
@@ -1087,7 +1088,7 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
     }
     $promptCharacterName = $followerName;
     
-    error_log("generateFollowerDiary called for $followerName");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'dynamic_update_util', "generateFollowerDiary called for $followerName");
     
     // Special handling for The Narrator
     if ($followerName === "The Narrator") {

@@ -9,6 +9,7 @@ declare(strict_types=1);
 // The id is taken from the path and must be one the manager knows (an installed folder or an id still listed as
 // enabled); anything else answers 404 before state is touched. Answers carry status codes, never exception text.
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 2) . '/managers/ExtensionManager/ExtensionManager.php';
 require_once dirname(__DIR__, 2) . '/lib/management_request_guard.php';
 
@@ -62,7 +63,7 @@ use Synth\Managers\ExtensionManager\ExtensionManager;
             ?? ['id' => $id, 'enabled' => false, 'status' => 'disabled'];
         synthApiSend(200, ['ok' => true, 'extension' => $row]);
     } catch (\Throwable $error) {
-        error_log('[extensions] api failed: ' . get_class($error));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'extensions', 'api failed: ' . get_class($error));
         synthApiRefuse(500, 'Extension request failed', 'extension_request_failed');
     }
 })();
