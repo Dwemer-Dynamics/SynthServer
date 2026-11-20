@@ -669,7 +669,7 @@ final class NativeDialogueTurnTest extends TestCase
     // flushed. The explicit-owner route recorder is shared, not bypassed.
     public function testSharedWriterKeepsTheLegacyEmissionOrder(): void
     {
-        $source=file_get_contents(dirname(__DIR__,2).'/lib/response.php');
+        $source=file_get_contents(dirname(__DIR__,2).'/managers/MessageHandler/Native/response.php');
         $start=strpos($source,'function synth_protocol_write_response_line(');
         $writer=substr($source,$start,strpos($source,"\n}\n",$start)-$start);
         $order=array_map(fn($needle)=>strpos($writer,$needle),['synth_protocol_prepare_line(',
@@ -857,7 +857,7 @@ final class NativeDialogueTurnTest extends TestCase
         $this->assertSame(['cancelled','request_cancelled'],[$row['state'],$row['error_code']]);
         $dispatch=file_get_contents(dirname(__DIR__,2).'/api/v2/dispatch.php');
         $this->assertLessThan(strpos($dispatch,'$output->assertActive();'),strpos($dispatch,'$output->claimed($owner);'));
-        $state=file_get_contents(dirname(__DIR__,2).'/lib/synth_protocol_state.php');
+        $state=file_get_contents(dirname(__DIR__,2).'/managers/MessageHandler/Native/synth_protocol_state.php');
         // The owner is returned by the claim itself after its attested COMMIT: no second lock can strand it.
         $claim=substr($state,strpos($state,'function synth_protocol_claim_request('));
         $claim=substr($claim,0,strpos($claim,"\n}\n"));

@@ -474,7 +474,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('if ($ownedAttempt) @unlink($jobPath);',$worker);
         $this->assertStringNotContainsString('@unlink($lockPath)',$worker);
         $this->assertStringContainsString("PHP_OS_FAMILY==='Windows'?'c':'ce'",$worker);
-        foreach(['lib/synth_tts_worker.php','service/tts_dispatch.php'] as $file) {
+        foreach(['managers/TtsStudio/Native/synth_tts_worker.php','service/tts_dispatch.php'] as $file) {
             $this->assertStringContainsString("PHP_OS_FAMILY==='Windows'?'c':'ce'",file_get_contents(dirname(__DIR__,2).'/'.$file));
         }
         $supervisor=file_get_contents(dirname(__DIR__,2).'/service/start.sh');
@@ -1059,7 +1059,7 @@ final class RequestStreamingTest extends TestCase
         }
         $this->assertStringNotContainsString('FROM public.core_memory',$source);
         $this->assertStringContainsString('native_memory_batches AS MATERIALIZED',file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php'));
-        $minime=file_get_contents(dirname(__DIR__,2).'/lib/minimet5_service.php');
+        $minime=file_get_contents(dirname(__DIR__,2).'/drivers/llm/Native/minimet5_service.php');
         $this->assertStringContainsString("'detect:' : 'extract:'",$minime);
         $this->assertStringContainsString("hash('sha256',_minimeServiceBaseUrl()",$minime);
     }
