@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once(dirname(__DIR__) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "management_request_guard.php");
 session_start();
 
@@ -177,7 +178,7 @@ function getPeopleList($conn, $schema) {
  */
 function getEntriesByPerson($conn, $schema, $person) {
  // Debug log
- error_log("Searching for person: " . $person);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Searching for person: " . $person);
 
  $query = "
  SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
@@ -190,17 +191,17 @@ function getEntriesByPerson($conn, $schema, $person) {
  $result = pg_query_params($conn, $query, ['%' . $person . '%']);
 
  if (!$result) {
- error_log("Query error: " . pg_last_error($conn));
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'diarylog', "Query error: " . pg_last_error($conn));
  return [];
  }
 
  $entries = [];
  while ($row = pg_fetch_assoc($result)) {
- error_log("Found entry with people: " . $row['people']);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Found entry with people: " . $row['people']);
  $entries[] = $row;
  }
 
- error_log("Found " . count($entries) . " entries for person: " . $person);
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Found " . count($entries) . " entries for person: " . $person);
  return $entries;
 }
 
@@ -564,7 +565,7 @@ if ($useFalloutTime) {
  if (isset($_GET['month']) && isset($_GET['year'])) {
  $currentFalloutMonth = $falloutMonths[$month] ?? 'January';
  $currentFalloutYear = $year;
- error_log("Debug - Using URL parameters: month={$currentFalloutMonth}, year={$currentFalloutYear}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Using URL parameters: month={$currentFalloutMonth}, year={$currentFalloutYear}");
  }
 }
 
@@ -612,13 +613,13 @@ $allDatesQuery = "
  ORDER BY sort_field ASC
 ";
 
-error_log("Debug - SQL Query: {$allDatesQuery}");
+\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - SQL Query: {$allDatesQuery}");
 
 $allDatesResult = pg_query($conn, $allDatesQuery);
 
 if ($allDatesResult) {
- error_log("Debug - Processing events for month: {$falloutMonths[$month]}");
- error_log("Debug - Looking for events in year: {$year}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Processing events for month: {$falloutMonths[$month]}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Looking for events in year: {$year}");
 
  while ($dateRow = pg_fetch_assoc($allDatesResult)) {
  if (!$useFalloutTime) {
@@ -656,7 +657,7 @@ if ($allDatesResult) {
  //error_log("Debug - Looking for: Month={$month}, Year={$year}");
 
  if ($eventMonth == $month && $eventYear == $year) {
- error_log("Debug - Adding event for day {$eventDay}");
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Adding event for day {$eventDay}");
  $allEventDates[] = [
  'fallout_date' => convert_gamets2fallout_long_date_no_time($gamets),
  'fallout_month' => $falloutMonths[$eventMonth],

@@ -20,6 +20,7 @@ declare(strict_types=1);
  * management guards (allowed host, same-origin). Answers carry a generic message, never exception text.
  */
 
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 3) . '/lib/management_request_guard.php';
 require_once dirname(__DIR__, 3) . '/lib/RequestBody.php';
 require_once dirname(__DIR__, 3) . '/lib/runtime_bootstrap.php';
@@ -180,7 +181,7 @@ use Synth\Managers\ConfigManager\ConfigManager;
 
         synthApiSend(200, ['ok' => true, 'item' => $item($key)]);
     } catch (\Throwable $error) {
-        error_log('[edit] api failed: ' . get_class($error));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'edit', 'api failed: ' . get_class($error));
         synthApiRefuse(500, 'The edit could not be completed', 'edit_failed');
     }
 })();

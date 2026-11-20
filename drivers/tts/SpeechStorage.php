@@ -2,6 +2,7 @@
 
 namespace Synth\Drivers\Tts;
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 2) . '/lib/media_store.php';
 require_once dirname(__DIR__, 2) . '/lib/synth_protocol_state.php';
 
@@ -73,7 +74,7 @@ final class SpeechStorage
         } catch (\SYNTHProtocolCancelled) {
             return false;
         } catch (\Throwable) {
-            error_log('[SYNTH TTS] Status publication failed');
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'SYNTH TTS', 'Status publication failed');
             return false;
         } finally {
             if (is_file($temporary)) @unlink($temporary);

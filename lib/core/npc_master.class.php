@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 if (!function_exists('synthParseStableFormReference')) {
     require_once(__DIR__ . DIRECTORY_SEPARATOR . "game_plugins.php");
 }
@@ -266,7 +267,7 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
             $history = $GLOBALS['db']->fetchOne($historyQuery);
             $historyState = $history ? synthRelationshipTimelineState($history['extended_data'] ?? null) : null;
             if ($history && $historyState !== null && $currentState == $historyState) {
-                error_log("[REL] Timeline snapshot skipped for npc_id {$npcId} (relationship state unchanged)");
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'REL', "Timeline snapshot skipped for npc_id {$npcId} (relationship state unchanged)");
                 return true;
             }
 
@@ -286,10 +287,10 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
                 throw new RuntimeException('relationship history snapshot verification failed');
             }
 
-            error_log("[REL] Timeline snapshot for npc_id {$npcId} ({$normalizedSource})");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'REL', "Timeline snapshot for npc_id {$npcId} ({$normalizedSource})");
             return true;
         } catch (Throwable $e) {
-            error_log("[REL] Timeline stamp failed for npc_id " . (int)$npcId . ": " . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL', "Timeline stamp failed for npc_id " . (int)$npcId . ": " . $e->getMessage());
             return false;
         }
     }
@@ -1480,7 +1481,7 @@ class NpcMaster
             FROM core_npc_master WHERE actor_identity_id IS NULL
         ";
         $GLOBALS["db"]->execQuery($insertQuery);
-        error_log("[NPC BACKUP] " . date('Y-m-d H:i:s') . ", NPCs backup made in " . (time() - $startTime) . " secs ");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC BACKUP', "" . date('Y-m-d H:i:s') . ", NPCs backup made in " . (time() - $startTime) . " secs ");
         return true;
     }
 
@@ -1605,11 +1606,11 @@ SELECT
 FROM restore
 ";
 
-        error_log("[NPC RESTORE] using gamets: $timestamp.. " . date('Y-m-d H:i:s'));
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', "using gamets: $timestamp.. " . date('Y-m-d H:i:s'));
         $GLOBALS["db"]->query($query);
 
         if ($neverClearRelationshipData) {
-            error_log('[NPC RESTORE] Preserved current relationships because Never Clear Relationship Data is enabled');
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', 'Preserved current relationships because Never Clear Relationship Data is enabled');
         } else {
             $relationshipRestoreSucceeded = false;
             try {
@@ -1619,9 +1620,9 @@ FROM restore
                 }
                 $relationshipRestoreCount = (int)($relationshipRestoreResult['affected'] ?? 0);
                 $relationshipRestoreSucceeded = true;
-                error_log("[NPC RESTORE] Restored relationship timeline data for {$relationshipRestoreCount} NPCs at gamets $timestamp");
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', "Restored relationship timeline data for {$relationshipRestoreCount} NPCs at gamets $timestamp");
             } catch (Throwable $e) {
-                error_log("[NPC RESTORE] Failed to restore NPC relationships: " . $e->getMessage());
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'NPC RESTORE', "Failed to restore NPC relationships: " . $e->getMessage());
             }
 
             if ($relationshipRestoreSucceeded) {
@@ -1631,16 +1632,16 @@ FROM restore
                         throw new RuntimeException('future relationship clear query did not return a result');
                     }
                     $clearCount = (int)($clearResult['affected'] ?? 0);
-                    error_log("[NPC RESTORE] Cleared future relationship data for {$clearCount} NPCs with gamets > $timestamp");
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', "Cleared future relationship data for {$clearCount} NPCs with gamets > $timestamp");
                 } catch (Throwable $e) {
-                    error_log("[NPC RESTORE] Failed to clear future relationships: " . $e->getMessage());
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'NPC RESTORE', "Failed to clear future relationships: " . $e->getMessage());
                 }
             } else {
-                error_log('[NPC RESTORE] Skipped future relationship clear because timeline restore failed');
+                \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'NPC RESTORE', 'Skipped future relationship clear because timeline restore failed');
             }
         }
 
-        error_log("[NPC RESTORE] " . date('Y-m-d H:i:s') . ", NPCs restore made in " . (time() - $startTime) . " secs ");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'NPC RESTORE', "" . date('Y-m-d H:i:s') . ", NPCs restore made in " . (time() - $startTime) . " secs ");
         return true;
     }
 

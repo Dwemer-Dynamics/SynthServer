@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 define("_MINIMAL_DISTANCE_TO_BE_THE_SAME", 0.0);
 define("_MAXIMAL_DISTANCE_TO_BE_RELATED", 0.8);
 define("_MINIMAL_ELEMENTS_TO_TRIGGER_MESSAGE", 3);
@@ -115,11 +116,10 @@ function callConfiguredTts($textString, $mood, $stringforhash)
     }
 
     $ttsFile = __DIR__ . "/../tts/tts-" . $ttsFunction . ".php";
-    if (!file_exists($ttsFile)) {
-        return false;
+    if (file_exists($ttsFile)) {
+        require_once($ttsFile);
     }
-
-    require_once($ttsFile);
+    // A provider can also be registered before this call (the test fixture driver); otherwise nothing loaded it.
     // require_once does not reassign TTS_IN_USE when switching A -> B -> A in one process.
     $driver = $GLOBALS['SYNTH_TTS_DRIVERS'][$ttsFunction] ?? null;
     if (!is_callable($driver)) {
@@ -1228,18 +1228,18 @@ function unmoodSentence($sentence) {
     if (!$isPlayerSpeech) {
         $processAsterisks = shouldStripNpcOutputAsterisks();
         if (isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'])) {
-            error_log("[unmoodSentence] REMOVE_ASTERISKS_FROM_NPC_OUTPUT is setted to <{$GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']}>" );
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'unmoodSentence', "REMOVE_ASTERISKS_FROM_NPC_OUTPUT is setted to <{$GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']}>" );
         }
     }
 
 
     if (!$isPlayerSpeech && $processAsterisks === true ) {
-        error_log("[unmoodSentence] NPC output asterisk filtering is active! $sentence <" . ($GLOBALS['strip_emotes_from_output'] ?? 'N/A') . "> <" . ($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'] ?? 'N/A') . ">" );
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'unmoodSentence', "NPC output asterisk filtering is active! $sentence <" . ($GLOBALS['strip_emotes_from_output'] ?? 'N/A') . "> <" . ($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'] ?? 'N/A') . ">" );
 
         $output = formatNpcSpeechText($output);
     }
     else if (!$isPlayerSpeech) {
-        error_log("[unmoodSentence] NPC output asterisk filtering is disabled; keeping asterisk content in speech");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'unmoodSentence', "NPC output asterisk filtering is disabled; keeping asterisk content in speech");
         $output = formatNpcSpeechText($output);
     }
 
@@ -1536,7 +1536,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 if ($i + 1 < count($lines) && !preg_match('/^\*/', trim($lines[$i + 1]))) {
                     // Next line doesn't start with *, combine them
                     $recombinedLines[] = $currentLine . ' ' . trim($lines[$i + 1]);
-                    error_log("[returnLines] Recombined narration + dialogue: " . substr($currentLine . ' ' . trim($lines[$i + 1]), 0, 100));
+                    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'returnLines', "Recombined narration + dialogue: " . substr($currentLine . ' ' . trim($lines[$i + 1]), 0, 100));
                     $i += 2; // Skip next line since we combined it
                     continue;
                 }
@@ -1546,7 +1546,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             $i++;
         }
         $lines = $recombinedLines;
-        error_log("[returnLines] After recombination: " . count($lines) . " lines");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'returnLines', "After recombination: " . count($lines) . " lines");
     }
 
     foreach ($lines as $n => $sentence) {
@@ -2862,16 +2862,16 @@ function offerMemory($gameRequest)
     $timeThreshold=round($gameRequest[2]-(getGametsLimitFor($npc)/0.0000024),0)-1;
     $memorySearchInput = synthMemorySearchInputFromRequest($gameRequest);
 
-    error_log("[DataSearchMemoryByVector] Using timeThreshold $timeThreshold");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'DataSearchMemoryByVector', "Using timeThreshold $timeThreshold");
     $contextKeywords  = implode(" ", lastKeyWordsContext(5,$npc));
 
     if ($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
         $localStartTime = microtime(true);
-        error_log("[DataSearchMemoryByVector calling]  : " . (microtime(true) - $localStartTime) . " seconds");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'DataSearchMemoryByVector calling', " : " . (microtime(true) - $localStartTime) . " seconds");
         $res = DataSearchMemoryByVector($memorySearchInput, $npc, true,$timeThreshold);
-        error_log("[DataSearchMemoryByVector called 1]  : " . (microtime(true) - $localStartTime) . " seconds");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'DataSearchMemoryByVector called 1', " : " . (microtime(true) - $localStartTime) . " seconds");
         $res2 = DataSearchMemoryByVector($memorySearchInput, $npc,false,$timeThreshold);
-        error_log("[DataSearchMemoryByVector called 2]  : " . (microtime(true) - $localStartTime) . " seconds");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'DataSearchMemoryByVector called 2', " : " . (microtime(true) - $localStartTime) . " seconds");
 
         if (isset($res[0]) && isset($res2[0])) {
             $resFinal = ($res[0]['rank_any'] >= $res2[0]['rank_any']) ? $res : $res2;
@@ -2954,12 +2954,12 @@ function offerMemory($gameRequest)
                'strict_fallback' => !empty($strictSemanticFallback) ? 1 : 0,
            ]);
            Logger::trace("[MEMORY] Memory discarded by scoring" . $decisionContext);
-           error_log("[MEMORY] Memory discarded by scoring" . $decisionContext);
+           \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'MEMORY', "Memory discarded by scoring" . $decisionContext);
            return "";
         }
     } else {
         Logger::trace("[MEMORY] Memory not found");
-        error_log("[MEMORY] Memory not found");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'MEMORY', "Memory not found");
         return "";
     }
 
@@ -2973,7 +2973,7 @@ function offerMemory($gameRequest)
         } else {
             $s_prefix = "{$hoursAgo} hours ago ... ";
             Logger::trace("Discarding memory because recent ($hoursAgo} hours ago ... )"); ////DataSearchMemoryByVector filter  by gamets, this should happend if using it
-            error_log("[MEMORY] Discarding memory because recent ($hoursAgo} hours ago");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'MEMORY', "Discarding memory because recent ($hoursAgo} hours ago");
             return "";// Do not offer memory if its recent
         }
         $pattern = '/#Tags:.*/';
@@ -2981,10 +2981,10 @@ function offerMemory($gameRequest)
         $output = preg_replace($pattern, $replacement, $memory);
         $memory = $s_prefix . $output;
         Logger::trace("Final memory <".substr($memory,0,25)."...>");
-        error_log("Final memory <".substr($memory,0,25)."...>");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'chat_helper_functions', "Final memory <".substr($memory,0,25)."...>");
 
     }
-    error_log("[MEMORY] Returning memory");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'MEMORY', "Returning memory");
     return ($memory);
 }
 
@@ -5182,14 +5182,14 @@ function buildScopedPeopleForInfoActionEvent($eventData, $fallbackPeople = "")
     }));
     $fallbackScoped = normalizePeoplePipeList($fallbackNames);
     if ($fallbackScoped !== "") {
-        error_log("[SCOPE_INFOACTION] actor='{$actorName}' initial_detection_scoped='{$fallbackScoped}'");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SCOPE_INFOACTION', "actor='{$actorName}' initial_detection_scoped='{$fallbackScoped}'");
         return $fallbackScoped;
     }
 
     if ($actorName !== "") {
         $scopedPeople = normalizePeoplePipeList([$actorName]);
         if ($scopedPeople !== "") {
-            error_log("[SCOPE_INFOACTION] actor='{$actorName}' fallback_actor_scoped='{$scopedPeople}'");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SCOPE_INFOACTION', "actor='{$actorName}' fallback_actor_scoped='{$scopedPeople}'");
             return $scopedPeople;
         }
     }
@@ -5258,7 +5258,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
 
     $targetMeta = extractTalkTargetMetadata($eventData);
     if ($targetMeta["isBroadcast"]) {
-        error_log("[SCOPE] Broadcast target detected for {$eventType}; keeping fallback people");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SCOPE', "Broadcast target detected for {$eventType}; keeping fallback people");
         return $fallbackPeople;
     }
 
@@ -5285,11 +5285,11 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
     $scopedPeople = normalizePeoplePipeList($targetNames);
     if ($scopedPeople !== "") {
         $debugTargets = implode(",", $targetNames);
-        error_log("[SCOPE] {$eventType} listener='{$listenerName}' targets='{$debugTargets}' scoped='{$scopedPeople}'");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SCOPE', "{$eventType} listener='{$listenerName}' targets='{$debugTargets}' scoped='{$scopedPeople}'");
         return $scopedPeople;
     }
 
-    error_log("[SCOPE] {$eventType} produced empty scoped people; using fallback");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SCOPE', "{$eventType} produced empty scoped people; using fallback");
     return $fallbackPeople;
 }
 
