@@ -355,7 +355,7 @@ $eventLogHiddenTypes = synthGetPersistedEventLogHiddenTypes($db);
 $eventLogHiddenTypes = synthNormalizeEventLogTypeList($eventLogHiddenTypes);
 $eventLogVisibleWhereClause = synthBuildVisibleEventLogWhereClause($db, '', $eventLogHiddenTypes);
 
-// Read-only relationship changes derived from core_npc_master_history snapshots.
+// Read-only relationship changes derived from core_npc_history snapshots.
 // They are virtual rows: nothing is written back into the eventlog table.
 $eventLogRelationshipRows = synthRelationshipTimelineIsVisible('', $eventLogHiddenTypes)
  ? synthFetchRelationshipTimelineChanges($db, ['limit' => 200, 'scan_limit' => 800])

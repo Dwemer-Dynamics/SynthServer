@@ -320,8 +320,8 @@ try {
 }
 
 
-// Read-only relationship activity derived from core_npc_master_history snapshots.
-$hasNpcHistory = synth_home_table_exists($db, 'core_npc_master_history');
+// Read-only relationship activity derived from core_npc_history snapshots.
+$hasNpcHistory = synth_home_table_exists($db, 'core_npc_history');
 $relationshipActivity = [];
 if ($hasNpcHistory) {
     try {
