@@ -1,22 +1,22 @@
 <?php
 
-if (isset($GLOBALS["ONCE_PER_RUN"]) && $GLOBALS["ONCE_PER_RUN"]==true) {
+if (isset($GLOBALS["ONCE_PER_RUN"]) && \Synth\Bootstrap::config("ONCE_PER_RUN")==true) {
     return;
 
 }
 $startTime = microtime(true);
 
-$selectedNpc=$GLOBALS["SELECTED_NPC"];
+$selectedNpc=\Synth\Bootstrap::config("SELECTED_NPC");
 
 $npcMaster = new NpcMaster();
 $currentNpcData=isset($GLOBALS['SELECTED_NPC_ID'])
-    ? $npcMaster->getById(intval($GLOBALS['SELECTED_NPC_ID'])) : $npcMaster->getByName($selectedNpc);
+    ? $npcMaster->getById(intval(\Synth\Bootstrap::config('SELECTED_NPC_ID'))) : $npcMaster->getByName($selectedNpc);
 // This legacy generator has no saved native owner. Never redirect a selected row through a reused name.
 if (synth_npc_native_request() || !is_array($currentNpcData) || !$currentNpcData
     || ($currentNpcData['actor_identity_id'] ?? null)!==null
     || ($currentNpcData['npc_name'] ?? null)!==$selectedNpc) return;
 $connector = new LLMConnector();
-$currentConnectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_MEDIUMTERM"]);
+$currentConnectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_MEDIUMTERM"));
 
 $connector->setOldGlobals($currentConnectorData);
 $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData);
@@ -36,12 +36,12 @@ if (isset($extended_data["middle_term_memory"])&&sizeof($extended_data["middle_t
 }
 
 
-$dbNpcName=$GLOBALS["db"]->escape($selectedNpc);
+$dbNpcName=\Synth\Bootstrap::db()->escape($selectedNpc);
 $scopeConditionSql = dataGetMemoryScopeConditionSql($selectedNpc);
 
 $query="SELECT summary as content,gamets_truncated FROM core_memory where source_type='summary' AND summary is not null and $scopeConditionSql and companions like '%|$dbNpcName|%' and gamets_truncated>$gametsfrom order by gamets_truncated desc LIMIT 100";
 // error_log($query);
-$contextDataFull=$GLOBALS["db"]->fetchAll($query);
+$contextDataFull=\Synth\Bootstrap::db()->fetchAll($query);
 // $task=DataGetCurrentTask();
 $limit=10;
 
@@ -97,7 +97,7 @@ Read the context history, paying attention to character names and notable events
 // Query prompts table: use custom_prompt if set, otherwise default_prompt, otherwise hardcoded fallback
 $promptContent = null;
 try {
-    $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_summarizer'");
+    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_summarizer'");
     if ($promptData) {
         // Use custom_prompt if set, otherwise use default_prompt
         $promptContent = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -126,7 +126,7 @@ $head[] = [
 // Load request prompt from database with fallback to hardcoded default
 $requestPrompt = null;
 try {
-    $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_request'");
+    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_request'");
     if ($promptData) {
         // Use custom_prompt if set, otherwise use default_prompt
         $requestPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -154,7 +154,7 @@ if (!$requestPrompt) {
 }
 
 // Replace {SYNTH_NAME} placeholder with actual character name
-$request = str_replace('{SYNTH_NAME}', $GLOBALS['SYNTH_NAME'], $requestPrompt);
+$request = str_replace('{SYNTH_NAME}', \Synth\Bootstrap::config('SYNTH_NAME'), $requestPrompt);
 
 if (!empty($previous))
     $prompt[] = ['role' => 'user', 'content' => "# Previous Context History Summary:\n$previous"];

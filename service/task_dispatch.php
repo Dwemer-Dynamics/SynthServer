@@ -15,21 +15,21 @@ $GLOBALS['ENGINE_ROOT'] = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPAR
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/lib/core_utils.php';
-require_once $GLOBALS['ENGINE_ROOT'] . '/lib/runtime_bootstrap.php';
+require_once \Synth\Bootstrap::engineRoot() . '/lib/runtime_bootstrap.php';
 try {
-    synthRuntimeBootstrap($GLOBALS['ENGINE_ROOT'], [
+    synthRuntimeBootstrap(\Synth\Bootstrap::engineRoot(), [
         'load_general_settings' => true,
         'load_stt_connector' => false,
         'load_player_name' => true,
         'load_narrator' => true,
     ]);
     $GLOBALS['argv'] = $argv;
-    Logger::setCustomLog($GLOBALS['ENGINE_ROOT'] . 'log/manager.log');
-    Logger::deleteLogIfTooLarge($GLOBALS['ENGINE_ROOT'] . 'log/manager.log');
+    Logger::setCustomLog(\Synth\Bootstrap::engineRoot() . 'log/manager.log');
+    Logger::deleteLogIfTooLarge(\Synth\Bootstrap::engineRoot() . 'log/manager.log');
 
     require_once __DIR__ . '/processors/' . $taskname . '/entrypoint.php';
     Logger::info("Starting task execution: $taskname");
-    $GLOBALS['TASKS'][$taskname]['fn']();
+    \Synth\Bootstrap::config('TASKS')[$taskname]['fn']();
     Logger::info("Completed task execution: $taskname");
     echo "Legacy task completed.\n";
 } catch (Throwable $error) {

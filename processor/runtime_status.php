@@ -29,7 +29,7 @@ try {
         "run_db_updates" => false,
     ]);
 
-    $db = $GLOBALS["db"] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         throw new RuntimeException("Database unavailable.");
     }

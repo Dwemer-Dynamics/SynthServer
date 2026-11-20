@@ -2,7 +2,7 @@
 
 $GLOBALS['TASKS']['player2health'] = [];
 $GLOBALS['TASKS']['player2health']['fn'] = function () {
-    $enginePath = $GLOBALS['ENGINE_ROOT'];
+    $enginePath = \Synth\Bootstrap::engineRoot();
     if (!isset($GLOBALS['db'])) {
         $GLOBALS['db'] = new sql();
     }

@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 3).'/lib/synth_worker_origin.php';
 // Revalidate the exact frozen source versions and prior chain while the caller owns a short request transaction.
 function synth_middleterm_validate_input($db, array $row): array
 {
-    $input=synth_protocol_decode_json($row['input_payload']);$event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+    $input=synth_protocol_decode_json($row['input_payload']);$event=\Synth\Bootstrap::requestEvent()['json'];
     $regeneration=($row['regeneration_approval_id']??null)!==null;
     $context=synth_protocol_current_context($db,$event);
     $identity=$context ? synth_protocol_response_actor_identity($db,$event,$context) : null;
@@ -70,7 +70,7 @@ function synth_middleterm_validate_input($db, array $row): array
 // Private attempt tokens bound every provider wait; renewal never resurrects an expired or replaced lease.
 function synth_middleterm_assert_lease($db): void
 {
-    $lease=$GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE'];$event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+    $lease=\Synth\Bootstrap::config('SYNTH_MIDDLETERM_JOB_LEASE');$event=\Synth\Bootstrap::requestEvent()['json'];
     if (microtime(true)<($lease['renew_after'] ?? 0)) return;
     $row=$db->fetchOne("UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '15 seconds')
         WHERE id=".intval($lease['id'])." AND job_type='middleterm' AND payload->>'schema'='synth.middleterm.job.v1'
@@ -94,7 +94,7 @@ function synth_middleterm_generate($db, array $input): string
     }
     $manager->setOldGlobals($connector);$GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$connector;
     $GLOBALS['SYNTH_NAME']=$input['identity']['display_name'];$GLOBALS['CURRENT_CONNECTOR']=$connector['driver'];
-    $context=synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
+    $context=synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json']);
     $GLOBALS['PLAYER_NAME']=strval($context['player']['display_name'] ?? 'Player');
     $GLOBALS['gameRequest']=['middleterm'];
     $GLOBALS['FORCE_MAX_TOKENS']=2048;$GLOBALS['COMMAND_PROMPT']='';$GLOBALS['BASE_FUNCTIONS']=[];

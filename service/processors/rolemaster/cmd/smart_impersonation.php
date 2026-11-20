@@ -32,7 +32,7 @@ if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || (!file_exists($enginePath."connecto
        
     // Database Prompt (Smart Impersonation)
 $commonprompt='';
-        if (!$GLOBALS["argv"][3]) {
+        if (!\Synth\Bootstrap::config("argv")[3]) {
             $sysprompt="Write dialogue for {$GLOBALS["PLAYER_NAME"]}";
             $userprompt="";
         } else {
@@ -58,7 +58,7 @@ $sysprompt
                 "scene_note"=>"Something other actors should know about the instruction, if the instruction also involves another actors"
             ];
         };
-        $GLOBALS["CONNECTOR"][$GLOBALS["CURRENT_CONNECTOR"]]["json_schema"]=false;
+        $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
 
         $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
         $connectionHandler->open($prompt,$customParm);

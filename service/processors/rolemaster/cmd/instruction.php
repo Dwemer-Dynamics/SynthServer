@@ -2,23 +2,23 @@
 require_once(__DIR__ . '/../../../../lib/logger.php');
 require_once(__DIR__ . '/../../../../lib/synth_command_payload.php');
 
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/{$GLOBALS["DBDRIVER"]}.class.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/{$GLOBALS["DBDRIVER"]}.class.php");
 if (!isset($GLOBALS["db"])) { $GLOBALS["db"] = new sql(); }
 
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/core/api_badge.class.php");
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/core/llm_connector.class.php");
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/core/npc_master.class.php");
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/core/core_profiles.class.php");
-require_once($GLOBALS["ENGINE_ROOT"] . "/lib/relationship_manager.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/api_badge.class.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/llm_connector.class.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/npc_master.class.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/core_profiles.class.php");
+require_once(\Synth\Bootstrap::engineRoot() . "/lib/relationship_manager.php");
 
-$GLOBALS["ENGINE_PATH"]=$GLOBALS["ENGINE_ROOT"]; // Todo, make this uniform
+$GLOBALS["ENGINE_PATH"]=\Synth\Bootstrap::engineRoot(); // Todo, make this uniform
 
 $GLOBALS["active_profile"]=md5("The Narrator");
 $GLOBALS["CURRENT_CONNECTOR"]=DMgetCurrentModel();
 $GLOBALS["SYNTH_NO_EXAMPLES"]=true; // When no assistant entry in history, will try ti provide a bogus example.
 
 $connector=new LLMConnector();
-$currentConnectorData = $connector->getById(intval($GLOBALS["CORE_CONNECTOR_DIRECTOR"] ?? 0));
+$currentConnectorData = $connector->getById(intval(\Synth\Bootstrap::config("CORE_CONNECTOR_DIRECTOR") ?? 0));
 $connectionHandler = $connector->getConnector($currentConnectorData);
 
 $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]=$currentConnectorData;
@@ -26,13 +26,13 @@ $GLOBALS["CURRENT_CONNECTOR"]=$currentConnectorData["driver"];
 
 $connector->setOldGlobals($currentConnectorData);
 
-$isBoredInstruction = (($GLOBALS["argv"][4] ?? "") === "bored");
-$boredSeedActor = trim((string)($GLOBALS["argv"][5] ?? ""));
-$boredActors = json_decode((string)($GLOBALS["argv"][6] ?? "[]"), true);
+$isBoredInstruction = ((\Synth\Bootstrap::config("argv")[4] ?? "") === "bored");
+$boredSeedActor = trim((string)(\Synth\Bootstrap::config("argv")[5] ?? ""));
+$boredActors = json_decode((string)(\Synth\Bootstrap::config("argv")[6] ?? "[]"), true);
 $boredActors = is_array($boredActors) ? $boredActors : [];
 $boredActorMap = synthRolemasterBoredActorMap(
     $boredActors,
-    (string)($GLOBALS["PLAYER_NAME"] ?? ''),
+    (string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ''),
     $boredSeedActor
 );
 $GLOBALS["ROLEMASTER_BORED_MODE"] = $isBoredInstruction;
@@ -61,7 +61,7 @@ if (!isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]) ) {
 
         $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
         $contextDataWorld = DataLastInfoFor("", -2,$includeActorDescriptions=true,$excludeBusy=true)??[];
-        $nearbySceneContext = trim((string)($GLOBALS["PROMPT_NEARBY_SECTIONS"] ?? ""));
+        $nearbySceneContext = trim((string)(\Synth\Bootstrap::config("PROMPT_NEARBY_SECTIONS") ?? ""));
         $contextDataFull = array_merge($contextDataWorld, $contextDataHistoric);
         $historyData="";
 
@@ -105,20 +105,20 @@ if (!isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]) ) {
 
         if (!function_exists('synthActionCatalogIsActionEnabled') || synthActionCatalogIsActionEnabled("ReturnBackHome")) {
             $GLOBALS["ENABLED_FUNCTIONS"][]="ReturnBackHome";
-            $GLOBALS["FUNCTIONS"][]=$GLOBALS["BASE_FUNCTIONS"]["ReturnBackHome"];
+            $GLOBALS["FUNCTIONS"][]=\Synth\Bootstrap::config("BASE_FUNCTIONS")["ReturnBackHome"];
         }
 
         $fnames=[];
-        foreach ($GLOBALS["F_NAMES"] as $functionCode=>$functionName) {
-            if (in_array($functionCode,$GLOBALS["ENABLED_FUNCTIONS"])) {
+        foreach (\Synth\Bootstrap::config("F_NAMES") as $functionCode=>$functionName) {
+            if (in_array($functionCode,\Synth\Bootstrap::config("ENABLED_FUNCTIONS"))) {
                 if ($functionCode!="OpenInventory") {
                     $function=findFunctionByName($functionName);
                     if ($function) {
-                        $fnames[]=$GLOBALS["F_NAMES"]["$functionCode"]." ({$function["description"]})";
+                        $fnames[]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"]." ({$function["description"]})";
                         
                     } else 
-                        $fnames[]=$GLOBALS["F_NAMES"]["$functionCode"];
-                    $GLOBALS["FUNCTION_SHORT_LIST"][]=$GLOBALS["F_NAMES"]["$functionCode"];
+                        $fnames[]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
+                    $GLOBALS["FUNCTION_SHORT_LIST"][]=\Synth\Bootstrap::config("F_NAMES")["$functionCode"];
                 }
             }
         }
@@ -171,7 +171,7 @@ user request: actor \"a\" leaves the place
 
 ';
 }
-        if (!$GLOBALS["argv"][3]) {
+        if (!\Synth\Bootstrap::config("argv")[3]) {
             $userprompt="";
             $sysprompt="";
         } else {
@@ -216,7 +216,7 @@ user request: actor \"a\" leaves the place
         $functionList = "  ** " . implode("\n  ** ", $fnames);
         $directorInstructionRules = str_replace(
             ['{PLAYER_NAME}', '{FUNCTION_LIST}'],
-            [$GLOBALS["PLAYER_NAME"], $functionList],
+            [\Synth\Bootstrap::config("PLAYER_NAME"), $functionList],
             $directorInstructionRules
         );
         if ($isBoredInstruction) {
@@ -245,7 +245,7 @@ user request: actor \"a\" leaves the place
             $GLOBALS["responseTemplate"] = ["instructions"=>[[
                 "character"=>"selected actor's full name",
                 "instruction"=>"the instruction for the actor, what should be said or done. Use 3rd person here.",
-                "action"=>implode("|",$GLOBALS["FUNCTION_SHORT_LIST"]),
+                "action"=>implode("|",\Synth\Bootstrap::config("FUNCTION_SHORT_LIST")),
                 "target"=>"action's target",
                 "scene_note"=>"Something other actors should know about the instruction, if the instruction also involves another actors"
             ]]];
@@ -255,7 +255,7 @@ user request: actor \"a\" leaves the place
 
         
         // Force unset json schema
-        $GLOBALS["CONNECTOR"][$GLOBALS["CURRENT_CONNECTOR"]]["json_schema"]=false;
+        $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
 
         $connectionHandler->open($prompt,$customParm);
         
@@ -290,7 +290,7 @@ user request: actor \"a\" leaves the place
             if (!empty($GLOBALS["ROLEMASTER_BORED_MODE"])) {
                 $instructionText .= synthRolemasterBoredListenerRequirement(
                     (string)($response["target"] ?? ""),
-                    $GLOBALS["ROLEMASTER_BORED_ALLOWED_ACTORS"] ?? []
+                    \Synth\Bootstrap::config("ROLEMASTER_BORED_ALLOWED_ACTORS") ?? []
                 );
             }
         
@@ -355,7 +355,7 @@ user request: actor \"a\" leaves the place
                 $originalInstructionCount = count($response["instructions"]);
                 $response["instructions"] = synthRolemasterFilterBoredInstructions(
                     $response["instructions"],
-                    $GLOBALS["ROLEMASTER_BORED_ALLOWED_ACTORS"] ?? [],
+                    \Synth\Bootstrap::config("ROLEMASTER_BORED_ALLOWED_ACTORS") ?? [],
                     $boredSeedActor
                 );
                 if (empty($response["instructions"])) {
@@ -373,7 +373,7 @@ user request: actor \"a\" leaves the place
             $allOk=false;
 
         
-        if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
+        if (isset($GLOBALS["argv"][4]) && \Synth\Bootstrap::config("argv")[4]=="notify") {
             $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)

@@ -56,7 +56,7 @@ function synth_relationship_capture_interaction_evaluation($db, int $responseId,
         if (!$result) throw new RuntimeException('Unable to check interaction evaluation replay');
         if ($existing=pg_fetch_assoc($result)) return intval($existing['id']);
         $input=['schema'=>'synth.relationship.interaction.input.v1','evaluation_policy'=>'synth.relationship.policy.v2',
-            'owner'=>$event,'connector_id'=>intval($GLOBALS['RELLLM_CONNECTOR']),'system_prompt'=>$systemPrompt]+$snapshot;
+            'owner'=>$event,'connector_id'=>intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')),'system_prompt'=>$systemPrompt]+$snapshot;
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if (strlen($json)>262144) throw new LengthException('Interaction evaluation input too large');
         $result=@pg_query_params($connection,'INSERT INTO public.core_relationship_interaction_evaluation

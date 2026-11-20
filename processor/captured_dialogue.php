@@ -2,13 +2,13 @@
 
 function synthCapturedDialoguePlayerName(array $payload): string
 {
-    foreach ([$payload['player_name'] ?? null, $payload['player'] ?? null, $GLOBALS['PLAYER_NAME'] ?? null] as $candidate) {
+    foreach ([$payload['player_name'] ?? null, $payload['player'] ?? null, \Synth\Bootstrap::config('PLAYER_NAME') ?? null] as $candidate) {
         $name = trim(strval($candidate ?? ''));
         if ($name !== '' && strcasecmp($name, 'Player') !== 0 && strcasecmp($name, 'Sole Survivor') !== 0) {
             return $name;
         }
     }
-    return trim(strval($payload['player_name'] ?? $GLOBALS['PLAYER_NAME'] ?? 'Player'));
+    return trim(strval($payload['player_name'] ?? \Synth\Bootstrap::config('PLAYER_NAME') ?? 'Player'));
 }
 
 function synthCapturedDialogueNormalizeParticipant(string $name, string $playerName): string

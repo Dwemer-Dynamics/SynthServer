@@ -94,7 +94,7 @@ function synth_profile_assert_write_target($db, string $name): void
 {
     if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return;
     synth_protocol_assert_request_active();
-    $expected=$GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name] ?? null;
+    $expected=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name] ?? null;
     if (!$expected) throw new RuntimeException('Native profile target is outside the queued batch.');
     if ($name==='The Narrator' && ($expected['narrator'] ?? false)===true) return;
     $row=$db->fetchOne('SELECT id,actor_identity_id,npc_name FROM public.core_npc WHERE id='.intval($expected['npc_id'])

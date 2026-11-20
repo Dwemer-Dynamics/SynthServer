@@ -50,8 +50,8 @@ $requestId = trim(strval($wireEvent['request_id'] ?? ''));
 if ($requestId !== '') {
     Logger::setRequestId($requestId);
 }
-$speaker = trim(strval($GLOBALS['SYNTH_INPUT_TARGET'] ?? ''));
-$speakerFormId = trim(strval($GLOBALS['SYNTH_RESPONSE_SPEAKER_FORMID'] ?? ''));
+$speaker = trim(strval(\Synth\Bootstrap::config('SYNTH_INPUT_TARGET') ?? ''));
+$speakerFormId = trim(strval(\Synth\Bootstrap::config('SYNTH_RESPONSE_SPEAKER_FORMID') ?? ''));
 $text = trim(strval($wireEvent['payload']['text'] ?? ''));
 if ($speaker === '' || $speakerFormId === '' || $text === '') {
     synth_reject_json_request(422, 'External NPC TTS requires an actor identity and text');
