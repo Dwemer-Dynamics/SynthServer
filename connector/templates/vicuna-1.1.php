@@ -1,13 +1,13 @@
 <?php
 
-$GLOBALS["more_stopseq"][]="USER:";
-            $context="{$GLOBALS["PROMPT_HEAD"]}\n";
-            $context.="{$GLOBALS["SYNTH_PERS"]}\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
-            $context.="{$GLOBALS["SYNTH_NAME"]} IS THE ASSISTANT, {$GLOBALS["PLAYER_NAME"]} IS THE USER\n";
+\Synth\Bootstrap::append('more_stopseq', "USER:");
+            $context=(\Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
+            $context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
+            $context.=(\Synth\Bootstrap::config('SYNTH_NAME') . " IS THE ASSISTANT, " . \Synth\Bootstrap::config('PLAYER_NAME') . " IS THE USER\n");
 
 
-            $GLOBALS["DEBUG_DATA"][]=$context;
+            \Synth\Bootstrap::append('DEBUG_DATA', $context);
 
             $contextHistory="";
             $n=0;
@@ -16,13 +16,13 @@ $GLOBALS["more_stopseq"][]="USER:";
                 if ($n==(sizeof($contextData)-1)) {   // Last prompt line
 
                     $instruction="USER: ".$s_msg["content"]."\n";
-                    $GLOBALS["DEBUG_DATA"][]=$instruction;
+                    \Synth\Bootstrap::append('DEBUG_DATA', $instruction);
                 } else {
                     if ($s_msg["role"]=="user") {
                         $contextHistory.="USER:".$s_msg["content"]."\n";
-                          $GLOBALS["DEBUG_DATA"][]="USER:".$s_msg["content"]."\n";
+                          \Synth\Bootstrap::append('DEBUG_DATA', "USER:".$s_msg["content"]."\n");
                     } elseif ($s_msg["role"]=="assistant") {
-                         $GLOBALS["DEBUG_DATA"][]="ASSISTANT:".$s_msg["content"]."\n";
+                         \Synth\Bootstrap::append('DEBUG_DATA', "ASSISTANT:".$s_msg["content"]."\n");
                         $contextHistory.="ASSISTANT:".$s_msg["content"]."\n";
                     } elseif ($s_msg["role"]=="system") {
                     }  // Must rebuild this
@@ -33,8 +33,8 @@ $GLOBALS["more_stopseq"][]="USER:";
                 $n++;
             }
 
-            $context.="$contextHistory  $instruction ASSISTANT:{$GLOBALS["SYNTH_NAME"]}:";
-            $GLOBALS["DEBUG_DATA"][]="ASSISTANT:";
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            $context.=("$contextHistory  $instruction ASSISTANT:" . \Synth\Bootstrap::config('SYNTH_NAME') . ":");
+            \Synth\Bootstrap::append('DEBUG_DATA', "ASSISTANT:");
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
             
             ?>
