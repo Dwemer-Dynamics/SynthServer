@@ -2192,3 +2192,26 @@ table|public|core_location_state|BASE TABLE
 table|public|core_location|BASE TABLE
 table|public|core_relationship_config|BASE TABLE
 table|public|core_worldspace|BASE TABLE
+constraint|public|core_action_issued|core_action_issued_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_action_issued|core_action_issued_pkey|CREATE UNIQUE INDEX core_action_issued_pkey ON public.core_action_issued USING btree (rowid)
+constraint|public|core_audit_request|core_audit_request_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_audit_request|core_audit_request_pkey|CREATE UNIQUE INDEX core_audit_request_pkey ON public.core_audit_request USING btree (rowid)
+constraint|public|core_context_event|core_context_event_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_context_event|core_context_event_pkey|CREATE UNIQUE INDEX core_context_event_pkey ON public.core_context_event USING btree (rowid)
+constraint|public|core_director_note|core_director_note_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_director_note|core_director_note_pkey|CREATE UNIQUE INDEX core_director_note_pkey ON public.core_director_note USING btree (rowid)
+constraint|public|core_log|core_log_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_log|core_log_pkey|CREATE UNIQUE INDEX core_log_pkey ON public.core_log USING btree (rowid)
+constraint|public|core_memory|core_memory_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_memory|core_memory_pkey|CREATE UNIQUE INDEX core_memory_pkey ON public.core_memory USING btree (rowid)
+constraint|public|core_memory_log|core_memory_log_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_memory_log|core_memory_log_pkey|CREATE UNIQUE INDEX core_memory_log_pkey ON public.core_memory_log USING btree (rowid)
+constraint|public|core_quest|core_quest_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_quest|core_quest_pkey|CREATE UNIQUE INDEX core_quest_pkey ON public.core_quest USING btree (rowid)
+constraint|public|core_response_log|core_response_log_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_response_log|core_response_log_pkey|CREATE UNIQUE INDEX core_response_log_pkey ON public.core_response_log USING btree (rowid)
+constraint|public|core_speech|core_speech_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_speech|core_speech_pkey|CREATE UNIQUE INDEX core_speech_pkey ON public.core_speech USING btree (rowid)
+constraint|public|core_location_legacy|core_location_legacy_pkey|p|t|PRIMARY KEY (rowid)
+index|public|core_location_legacy|core_location_legacy_pkey|CREATE UNIQUE INDEX core_location_legacy_pkey ON public.core_location_legacy USING btree (rowid)
+column|public|core_location_legacy|rowid|bigint|int8|NO|nextval('core_location_legacy_rowid_seq'::regclass)|

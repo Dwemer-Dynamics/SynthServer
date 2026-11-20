@@ -14,11 +14,14 @@ namespace Synth\Core\DbManager;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
+use Synth\Core\DbManager\Dao\ActionIssuedDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ActorEventBatchDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
+use Synth\Core\DbManager\Dao\AuditRequestDao;
 use Synth\Core\DbManager\Dao\CatalogVersionDao;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
 use Synth\Core\DbManager\Dao\DialogueRouteDao;
 use Synth\Core\DbManager\Dao\DialogueUtteranceDao;
@@ -27,11 +30,14 @@ use Synth\Core\DbManager\Dao\DiaryInputDao;
 use Synth\Core\DbManager\Dao\DiaryInputSourceDao;
 use Synth\Core\DbManager\Dao\DiaryJobResultDao;
 use Synth\Core\DbManager\Dao\DiaryResultDao;
+use Synth\Core\DbManager\Dao\DirectorNoteDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\LocationDao;
+use Synth\Core\DbManager\Dao\LocationLegacyDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
+use Synth\Core\DbManager\Dao\LogDao;
 use Synth\Core\DbManager\Dao\MediaObjectDao;
 use Synth\Core\DbManager\Dao\MemoryBatchControlDao;
 use Synth\Core\DbManager\Dao\MemoryBatchControlEventDao;
@@ -39,6 +45,8 @@ use Synth\Core\DbManager\Dao\MemoryBatchDao;
 use Synth\Core\DbManager\Dao\MemoryBatchRebuildDao;
 use Synth\Core\DbManager\Dao\MemoryBatchSourceDao;
 use Synth\Core\DbManager\Dao\MemoryBatchSummarySourceDao;
+use Synth\Core\DbManager\Dao\MemoryDao;
+use Synth\Core\DbManager\Dao\MemoryLogDao;
 use Synth\Core\DbManager\Dao\MemorySummaryDao;
 use Synth\Core\DbManager\Dao\MemorySummaryRevisionDao;
 use Synth\Core\DbManager\Dao\MiddletermControlRevisionDao;
@@ -61,13 +69,16 @@ use Synth\Core\DbManager\Dao\PluginsDao;
 use Synth\Core\DbManager\Dao\ProfileDao;
 use Synth\Core\DbManager\Dao\PromptDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
+use Synth\Core\DbManager\Dao\QuestDao;
 use Synth\Core\DbManager\Dao\RechatChainDao;
 use Synth\Core\DbManager\Dao\RechatContinuationDao;
 use Synth\Core\DbManager\Dao\RechatSelectionDao;
 use Synth\Core\DbManager\Dao\RelationshipConfigDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
+use Synth\Core\DbManager\Dao\ResponseLogDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
+use Synth\Core\DbManager\Dao\SpeechDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\VisualContextDao;
@@ -140,6 +151,17 @@ final class Database
         RuntimeContextDao::class,
         PluginsDao::class,
         CatalogVersionDao::class,
+        ActionIssuedDao::class,
+        AuditRequestDao::class,
+        ContextEventDao::class,
+        DirectorNoteDao::class,
+        LocationLegacyDao::class,
+        LogDao::class,
+        MemoryDao::class,
+        MemoryLogDao::class,
+        QuestDao::class,
+        ResponseLogDao::class,
+        SpeechDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */

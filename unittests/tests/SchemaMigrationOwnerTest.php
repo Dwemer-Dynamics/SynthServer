@@ -715,7 +715,7 @@ final class SchemaMigrationOwnerTest extends DatabaseTestCase
         $this->assertDatabaseIsEmpty();
 
         $statements = \Synth\Migrations\Version20261117000000::freshInstallStatements();
-        self::assertCount(772, $statements);
+        self::assertCount(786, $statements);
         foreach ($statements as $statement) {
             self::assertStringEndsWith(';', rtrim($statement));
             self::assertStringNotContainsString('-- end-statement', $statement);
