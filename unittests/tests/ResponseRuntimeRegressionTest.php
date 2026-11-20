@@ -597,9 +597,9 @@ final class ResponseRuntimeRegressionTest extends TestCase
         foreach (['$data = isset($gameRequest[3]) ? $gameRequest[3] : \'\';','if (in_array($trimmedData, $combatGrunts)) {'] as $shape) {
             $this->assertStringContainsString($shape,$pipeline);
         }
-        $this->assertStringNotContainsString('->history(',file_get_contents($root.'/lib/synth_autochat.php'));
-        $this->assertStringNotContainsString('PLAYER_RESPEECH',file_get_contents($root.'/lib/synth_autochat.php'));
-        $this->assertStringNotContainsString('player_rewrite.php`',file_get_contents($root.'/lib/synth_autochat.php'));
+        $this->assertStringNotContainsString('->history(',file_get_contents($root.'/managers/Conversation/Rechat/synth_autochat.php'));
+        $this->assertStringNotContainsString('PLAYER_RESPEECH',file_get_contents($root.'/managers/Conversation/Rechat/synth_autochat.php'));
+        $this->assertStringNotContainsString('player_rewrite.php`',file_get_contents($root.'/managers/Conversation/Rechat/synth_autochat.php'));
     }
 
     public function testOriginInputSeparatesCanonicalTextFromServerTranscription(): void
