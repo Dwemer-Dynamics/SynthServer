@@ -93,6 +93,18 @@ final class Bootstrap
         $GLOBALS[$name] = $value;
     }
 
+    /** `$GLOBALS[$name][] = $value`. */
+    public static function append(string $name, mixed $value): void
+    {
+        $GLOBALS[$name][] = $value;
+    }
+
+    /** `$GLOBALS[$name][$key] = $value` (one array level). */
+    public static function setAt(string $name, mixed $key, mixed $value): void
+    {
+        $GLOBALS[$name][$key] = $value;
+    }
+
     /** `isset($GLOBALS[$name])`: the value exists and is not null. */
     public static function has(string $name): bool
     {
