@@ -133,10 +133,8 @@ function __jpd_decode_lazy($inputString) {
     $result=[];
     if (isset($matches[1])) {
         $jsonCode = __jpd_decode_lazy($matches[1]);
-        if (!isset($GLOBALS["_JSON_BUFFER"][__jpd_hash($jsonCode)])) {
-                $GLOBALS["_JSON_BUFFER"][
-                    __jpd_hash($jsonCode)
-                ] = $jsonCode;
+        if (!isset(\Synth\Bootstrap::config('_JSON_BUFFER')[__jpd_hash($jsonCode)])) {
+                \Synth\Bootstrap::setAt('_JSON_BUFFER', __jpd_hash($jsonCode), $jsonCode);
                 //echo "Found: " . md5($unit["message"]) . PHP_EOL;
                 $result[]=$jsonCode;
             } else
@@ -151,10 +149,8 @@ function __jpd_decode_lazy($inputString) {
     $result=[];
     if (isset($matches[1])) {
         $jsonCode = json_decode($matches[1],true);
-        if (!isset($GLOBALS["_JSON_BUFFER"][__jpd_hash($jsonCode)])) {
-                $GLOBALS["_JSON_BUFFER"][
-                    __jpd_hash($jsonCode)
-                ] = $jsonCode;
+        if (!isset(\Synth\Bootstrap::config('_JSON_BUFFER')[__jpd_hash($jsonCode)])) {
+                \Synth\Bootstrap::setAt('_JSON_BUFFER', __jpd_hash($jsonCode), $jsonCode);
                 //echo "Found: " . md5($unit["message"]) . PHP_EOL;
                 $result[]=$jsonCode;
             } else
@@ -166,10 +162,8 @@ function __jpd_decode_lazy($inputString) {
    
     $jsonCode = json_decode($inputString,true);
     if (is_array($jsonCode)) {
-        if (!isset($GLOBALS["_JSON_BUFFER"][__jpd_hash($jsonCode)])) {
-                $GLOBALS["_JSON_BUFFER"][
-                    __jpd_hash($jsonCode)
-                ] = $jsonCode;
+        if (!isset(\Synth\Bootstrap::config('_JSON_BUFFER')[__jpd_hash($jsonCode)])) {
+                \Synth\Bootstrap::setAt('_JSON_BUFFER', __jpd_hash($jsonCode), $jsonCode);
                 //echo "Found: " . md5($unit["message"]) . PHP_EOL;
                 $result[]=$jsonCode;
             } else
@@ -330,8 +324,8 @@ function __jpd_decode($inputString)
                 $pointer=$realData;
             
             foreach ($pointer as $message) {
-                if (!isset($GLOBALS["_JSON_BUFFER"][__jpd_hash($message)])) {
-                    $GLOBALS["_JSON_BUFFER"][__jpd_hash($message)] = $message;
+                if (!isset(\Synth\Bootstrap::config('_JSON_BUFFER')[__jpd_hash($message)])) {
+                    \Synth\Bootstrap::setAt('_JSON_BUFFER', __jpd_hash($message), $message);
                     //echo "Full object {$message["message"]}".PHP_EOL;
                     $result[]=$message;
                 }
@@ -377,10 +371,8 @@ function __jpd_decode($inputString)
             if (sizeof($partialJson) > 0) {
                 $result=[];
                 foreach ($partialJson as $unit) {
-                    if (!isset($GLOBALS["_JSON_BUFFER"][__jpd_hash($unit)])) {
-                        $GLOBALS["_JSON_BUFFER"][
-                            __jpd_hash($unit)
-                        ] = $unit;
+                    if (!isset(\Synth\Bootstrap::config('_JSON_BUFFER')[__jpd_hash($unit)])) {
+                        \Synth\Bootstrap::setAt('_JSON_BUFFER', __jpd_hash($unit), $unit);
                         //echo "Found: " . md5($unit["message"]) . PHP_EOL;
                         $result[]=$unit;
                     } else
