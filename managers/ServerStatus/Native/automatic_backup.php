@@ -24,7 +24,7 @@ class AutomaticBackup {
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_MAX_COUNT'");
+                $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTOMATIC_BACKUP_MAX_COUNT'));
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $v = intval($row['value']);
@@ -44,7 +44,7 @@ class AutomaticBackup {
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_DATABASE_BACKUPS'");
+                $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTOMATIC_DATABASE_BACKUPS'));
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $val = strtolower(trim((string)$row['value']));
@@ -160,7 +160,7 @@ class AutomaticBackup {
         try {
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $rows = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_MAX_COUNT'");
+                $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTOMATIC_BACKUP_MAX_COUNT'));
                 $row = is_array($rows) && count($rows) > 0 ? $rows[0] : null;
                 if ($row && isset($row['value'])) {
                     $v = intval($row['value']);
@@ -242,7 +242,7 @@ class AutomaticBackup {
             // 2) Also check persisted timestamp in DB (if available)
             $db = $this->getDatabaseConnection();
             if ($db) {
-                $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTOMATIC_BACKUP_LAST_TIMESTAMP'");
+                $row = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTOMATIC_BACKUP_LAST_TIMESTAMP')];
                 if (is_array($row) && isset($row['value'])) {
                     $last = strtotime((string)$row['value']);
                     if ($last !== false && (time() - $last) < $cooldownSeconds) {
@@ -278,7 +278,7 @@ class AutomaticBackup {
             $timestamp = date('Y-m-d H:i:s');
             
             // Update the backup timestamp for reference (not used for backup decisions)
-            $db->upsertRowOnConflict('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTOMATIC_BACKUP_LAST_TIMESTAMP','config_value'=>$timestamp], 'scope, config_key');
+            \Synth\Managers\ConfigManager\ConfigManager::shared()->set('meta', 'AUTOMATIC_BACKUP_LAST_TIMESTAMP', $timestamp);
             
             Logger::info("Updated last backup timestamp to: {$timestamp}");
             
