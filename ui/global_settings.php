@@ -365,7 +365,7 @@ function normalize_posted_value(string $type, $posted)
 
 // Settings are read and written through ConfigManager; the posted names come from the page's own field list.
 require_once dirname(__DIR__) . '/managers/ConfigManager/ConfigManager.php';
-$gsConfig = \Synth\Managers\ConfigManager\ConfigManager::forSession($GLOBALS["db"]);
+$gsConfig = \Synth\Managers\ConfigManager\ConfigManager::forSession(\Synth\Bootstrap::db());
 try {
  $generalSettingRows = $gsConfig->all('general');
 } catch (\Throwable $e) {

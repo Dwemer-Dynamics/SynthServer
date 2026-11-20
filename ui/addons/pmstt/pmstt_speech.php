@@ -17,7 +17,7 @@ require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."chat_helper_functions.php
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."data_functions.php");
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."synth_command_payload.php");
 
-$db = $GLOBALS["db"];
+$db = \Synth\Bootstrap::db();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

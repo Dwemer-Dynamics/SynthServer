@@ -77,17 +77,17 @@ if ($npcData) {
  created,
  ROW_NUMBER() OVER (PARTITION BY personality ORDER BY created) AS rn
  FROM core_npc_master_history
- WHERE npc_name = '".$GLOBALS["db"]->escape($npcName)."'
+ WHERE npc_name = '".\Synth\Bootstrap::db()->escape($npcName)."'
  ) AS sub
  WHERE rn = 1
  AND coalesce(npc_static_bio,'')||'\n'||personality is not null
  ORDER BY created";
 
 
- $hdata=$GLOBALS["db"]->fetchAll($query);
+ $hdata=\Synth\Bootstrap::db()->fetchAll($query);
 
  $connector = new LLMConnector();
- $currentConnectorData = $connector->getById($GLOBALS["CORE_CONNECTOR_MEDIUMTERM"]);
+ $currentConnectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_MEDIUMTERM"));
 
  $connector->setOldGlobals($currentConnectorData);
 

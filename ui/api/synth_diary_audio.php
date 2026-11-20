@@ -41,7 +41,7 @@ try {
         throw new InvalidArgumentException('A valid diary entry is required.');
     }
 
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $entry = $db->fetchOne(
         "SELECT rowid, summary AS content, companions AS people FROM public.core_memory WHERE source_type = 'diary' AND rowid = " . intval($entryId) . ' LIMIT 1'
     );
@@ -101,8 +101,8 @@ try {
     }
 
     $voiceId = trim(strval($isNarrator
-        ? ($GLOBALS['PATCH_OVERRIDE_VOICE'] ?? '')
-        : ($GLOBALS['TTS_NPC_RESOLVED_VOICE'] ?? $GLOBALS['PATCH_OVERRIDE_VOICE'] ?? '')));
+        ? (\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? '')
+        : (\Synth\Bootstrap::config('TTS_NPC_RESOLVED_VOICE') ?? \Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? '')));
     if ($voiceId === '') {
         throw new RuntimeException("No TTS voice could be resolved for {$author}.");
     }
@@ -138,9 +138,9 @@ try {
             $GLOBALS['PATCH_DONT_STORE_SPEECH_ON_DB'] = true;
             $GLOBALS['SCRIPTLINE_LISTENER'] = '';
             $GLOBALS['SCRIPTLINE_EXPRESSION'] = '';
-            $GLOBALS['TTS_FFMPEG_FILTERS'] = $GLOBALS['TTS_FFMPEG_FILTERS'] ?? [];
-            $GLOBALS['FEATURES'] = $GLOBALS['FEATURES'] ?? [];
-            $GLOBALS['FEATURES']['MISC'] = $GLOBALS['FEATURES']['MISC'] ?? [];
+            $GLOBALS['TTS_FFMPEG_FILTERS'] = \Synth\Bootstrap::config('TTS_FFMPEG_FILTERS') ?? [];
+            $GLOBALS['FEATURES'] = \Synth\Bootstrap::config('FEATURES') ?? [];
+            $GLOBALS['FEATURES']['MISC'] = \Synth\Bootstrap::config('FEATURES')['MISC'] ?? [];
             $GLOBALS['FEATURES']['MISC']['TTS_RANDOM_PITCH'] = false;
 
             $ttsOutput = callNpcTtsWithFallback($content, 'default', $cacheSeed);

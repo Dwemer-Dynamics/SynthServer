@@ -90,8 +90,8 @@ try {
     $GLOBALS['SCRIPTLINE_LISTENER'] = '';
     $GLOBALS['SCRIPTLINE_EXPRESSION'] = '';
     $GLOBALS['DEBUG_DATA'] = [];
-    $GLOBALS['FEATURES'] = $GLOBALS['FEATURES'] ?? [];
-    $GLOBALS['FEATURES']['MISC'] = $GLOBALS['FEATURES']['MISC'] ?? [];
+    $GLOBALS['FEATURES'] = \Synth\Bootstrap::config('FEATURES') ?? [];
+    $GLOBALS['FEATURES']['MISC'] = \Synth\Bootstrap::config('FEATURES')['MISC'] ?? [];
     $GLOBALS['FEATURES']['MISC']['TTS_RANDOM_PITCH'] = false;
     $GLOBALS['PATCH_DONT_STORE_SPEECH_ON_DB'] = true;
     $GLOBALS['PATCH_OVERRIDE_VOICE'] = $voice;
@@ -100,7 +100,7 @@ try {
     unset($GLOBALS['PATCH_OVERRIDE_VOICE_ID'], $GLOBALS['PATCH_OVERRIDE_TTS_LANGUAGE']);
 
     returnLines([$text], false);
-    $generated = strval($GLOBALS['TRACK']['FILES_GENERATED'][0] ?? '');
+    $generated = strval(\Synth\Bootstrap::config('TRACK')['FILES_GENERATED'][0] ?? '');
     $filename = basename($generated);
     if ($generated === '' || $filename === '') {
         throw new RuntimeException('No audio file was generated.');

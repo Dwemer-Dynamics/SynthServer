@@ -289,10 +289,10 @@ h1.api-title {
  padding: 12px;
 }
 </style><main><?php
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 $npc = new NpcMaster();
 
-$lastInfoRow=$GLOBALS["db"]->fetchOne("select max(gamets) as gamets from core_context_event where type='infosave'");
+$lastInfoRow=\Synth\Bootstrap::db()->fetchOne("select max(gamets) as gamets from core_context_event where type='infosave'");
 $LAST_INFOSAVE_EVENT=$lastInfoRow["gamets"];
 
 // Helper: resolve race icon web path if file exists
@@ -391,7 +391,7 @@ if (!function_exists('synthUiAutoLockProfileEnabled')) {
  if (!array_key_exists('AUTO_LOCK_PROFILE', $GLOBALS)) {
  return true;
  }
- $raw = $GLOBALS['AUTO_LOCK_PROFILE'];
+ $raw = \Synth\Bootstrap::config('AUTO_LOCK_PROFILE');
  if (is_bool($raw)) {
  return $raw;
  }
@@ -485,7 +485,7 @@ if (!function_exists('synthResolveNpcIdAfterCreate')) {
  function synthResolveNpcIdAfterCreate($npcName): int
  {
   try {
-   $row = $GLOBALS['db']->fetchOne(
+   $row = \Synth\Bootstrap::db()->fetchOne(
     "SELECT id FROM core_npc_master WHERE md5 = '" . md5((string)$npcName) . "' AND actor_identity_id IS NULL ORDER BY id DESC LIMIT 1"
    );
    return (int)($row['id'] ?? 0);
@@ -668,7 +668,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_favorite"])) {
  } else {
  $sql = "UPDATE core_npc_master SET npc_favorite = 1 - COALESCE(npc_favorite,0) WHERE id = {$id} RETURNING npc_favorite";
  }
- $row = $GLOBALS['db']->fetchOne($sql);
+ $row = \Synth\Bootstrap::db()->fetchOne($sql);
  $val = is_array($row) ? intval($row['npc_favorite'] ?? 0) : 0;
  echo json_encode(["ok"=>true, "favorite"=>$val]);
  } catch (Throwable $e) {
@@ -691,7 +691,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_lock"])) {
  } else {
  $sql = "UPDATE core_npc_master SET lock_profile = 1 - COALESCE(lock_profile,0) WHERE id = {$id} RETURNING lock_profile";
  }
- $row = $GLOBALS['db']->fetchOne($sql);
+ $row = \Synth\Bootstrap::db()->fetchOne($sql);
  $val = is_array($row) ? intval($row['lock_profile'] ?? 0) : 0;
  echo json_encode(["ok"=>true, "locked"=>$val]);
  } catch (Throwable $e) {
@@ -716,7 +716,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_unlock_npcs"])) 
              RETURNING 1
           )
           SELECT COUNT(*) AS c FROM upd";
-  $row = $GLOBALS['db']->fetchOne($sql);
+  $row = \Synth\Bootstrap::db()->fetchOne($sql);
   $unlocked = intval($row['c'] ?? 0);
   echo json_encode(["ok"=>true, "unlocked"=>$unlocked]);
  } catch (Throwable $e) {
@@ -734,7 +734,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_delete_npcs"])) 
  if ($confirm !== 'Delete') { echo json_encode(["ok"=>false, "error"=>"Confirmation text mismatch"]); exit; }
  // The narrator is stored in core_narrator, but preserve any stale imported narrator row by name.
  $sql = "with del as (delete from core_npc_master where (lock_profile is null or lock_profile = 0) and trim(lower(npc_name)) <> 'the narrator' returning 1) select count(*) as c from del";
- $row = $GLOBALS['db']->fetchOne($sql);
+ $row = \Synth\Bootstrap::db()->fetchOne($sql);
  $deleted = intval($row['c'] ?? 0);
  echo json_encode(["ok"=>true, "deleted"=>$deleted]);
  } catch (Throwable $e) {
@@ -770,8 +770,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_switch_profile"]
  $includeLockedRaw === 'true'
  );
 
- $sourceRow = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idAndLabel((int)$sourceProfileId);
- $targetRow = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idAndLabel((int)$targetProfileId);
+ $sourceRow = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->idAndLabel((int)$sourceProfileId);
+ $targetRow = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->idAndLabel((int)$targetProfileId);
  if (!is_array($sourceRow) || empty($sourceRow['id'])) {
  echo json_encode(["ok"=>false, "error"=>"Source profile not found"]);
  exit;
@@ -782,12 +782,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_switch_profile"]
  }
 
  $baseWhere = "profile_id = {$sourceProfileId} and id <> 1 and trim(lower(npc_name)) <> 'the narrator'";
- $countRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere}");
+ $countRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere}");
  $totalMatched = intval($countRow['c'] ?? 0);
 
  $skippedLocked = 0;
  if (!$includeLocked) {
- $skippedRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere} AND COALESCE(lock_profile,0)=1");
+ $skippedRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere} AND COALESCE(lock_profile,0)=1");
  $skippedLocked = intval($skippedRow['c'] ?? 0);
  }
 
@@ -800,7 +800,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_switch_profile"]
  RETURNING 1
  )
  SELECT COUNT(*) AS c FROM upd";
- $row = $GLOBALS['db']->fetchOne($sql);
+ $row = \Synth\Bootstrap::db()->fetchOne($sql);
  $updated = intval($row['c'] ?? 0);
 
  echo json_encode([
@@ -846,7 +846,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["set_portrait"])) {
  $rel = substr($path, strlen($galleryWeb));
  $rel = str_replace(['\\'], '/', $rel);
  $rel = ltrim($rel, '/');
- $galleryRoot = realpath($GLOBALS["ENGINE_PATH"] . '/data/pictures/gallery');
+ $galleryRoot = realpath(\Synth\Bootstrap::enginePath() . '/data/pictures/gallery');
  if ($galleryRoot === false) { echo json_encode(["ok"=>false, "error"=>"Gallery root missing"]); exit; }
  $srcFs = realpath($galleryRoot . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $rel));
  if ($srcFs === false || strpos($srcFs, $galleryRoot) !== 0) { echo json_encode(["ok"=>false, "error"=>"Invalid source path"]); exit; }
@@ -855,7 +855,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["set_portrait"])) {
  $allowed = ['jpg','jpeg','png','webp','gif'];
  if (!in_array($ext, $allowed, true)) { echo json_encode(["ok"=>false, "error"=>"Unsupported format"]); exit; }
 
- $profileRoot = rtrim($GLOBALS["ENGINE_PATH"] . '/data/pictures/profile/', '/\\') . DIRECTORY_SEPARATOR;
+ $profileRoot = rtrim(\Synth\Bootstrap::enginePath() . '/data/pictures/profile/', '/\\') . DIRECTORY_SEPARATOR;
  if (!is_dir($profileRoot)) { @mkdir($profileRoot, 0775, true); }
  $base = $md5 !== '' ? $md5 : ($refid !== '' ? $refid : preg_replace('/[^a-z0-9_-]+/i','_', (string)$name));
  if ($base === '') { echo json_encode(["ok"=>false, "error"=>"Cannot determine filename"]); exit; }
@@ -1064,10 +1064,10 @@ $lockOnly = (isset($_GET['lock']) && $_GET['lock'] === '1');
 $salOnly = (isset($_GET['sal']) && $_GET['sal'] === '1');
 
 // Preload profiles for filter dropdown
-$profileRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->filterRows();
+$profileRows = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->filterRows();
 // Default new NPCs to the configured default NPC profile.
 $firstProfileId = '';
-$defaultProfileRow = ['id' => \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->defaultNpcId()];
+$defaultProfileRow = ['id' => \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->defaultNpcId()];
 if (is_array($defaultProfileRow) && !empty($defaultProfileRow['id'])) {
  $firstProfileId = (string)$defaultProfileRow['id'];
 }
@@ -1077,8 +1077,8 @@ if (is_array($profileRows) && count($profileRows) > 0) {
  }
 }
 // Preload profile connector mappings and LLM connector labels for modal summary
-$profileConnRows = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS["db"])->connectorMappings();
-$llmRows = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->displayOptions();
+$profileConnRows = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->connectorMappings();
+$llmRows = \Synth\Core\DbManager\Dao\LlmConnectorDao::current(\Synth\Bootstrap::db())->displayOptions();
 $profilesById = [];
 foreach (($profileRows ?? []) as $pr) {
  $pid = (string)($pr['id'] ?? '');
@@ -1096,7 +1096,7 @@ foreach (($profileRows ?? []) as $pr) {
 // Build profile metadata lookup for inherited settings
 $profileMetaById = [];
 $profilePromptHeadsById = [];
-$globalPromptHead = (string)($GLOBALS['PROMPT_HEAD'] ?? '');
+$globalPromptHead = (string)(\Synth\Bootstrap::config('PROMPT_HEAD') ?? '');
 foreach (($profileConnRows ?? []) as $prow) {
  $pid = (string)($prow['id'] ?? '');
  if ($pid === '') continue;
@@ -1139,12 +1139,12 @@ foreach (($llmRows ?? []) as $lr) {
 
 $where = "trim(lower(npc_name)) <> 'the narrator'";
 if ($q !== ''){
- $qEsc = "%".$GLOBALS['db']->escape($q)."%";
+ $qEsc = "%".\Synth\Bootstrap::db()->escape($q)."%";
  // Match by name primarily; include a few related fields
  $where .= " and (npc_name ilike '".$qEsc."' or coalesce(race,'') ilike '".$qEsc."' or coalesce(voiceid,'') ilike '".$qEsc."' or coalesce(refid,'') ilike '".$qEsc."' or coalesce(tags,'') ilike '".$qEsc."')";
 }
 if ($nameLetterFilter !== '') {
- $letterEsc = $GLOBALS['db']->escape(strtolower($nameLetterFilter));
+ $letterEsc = \Synth\Bootstrap::db()->escape(strtolower($nameLetterFilter));
  $where .= " and lower(npc_name) like '".$letterEsc."%'";
 }
 if ($profileIdFilter !== ''){
@@ -1172,7 +1172,7 @@ if ($salOnly) {
 $order = "order by coalesce(npc_favorite,0) desc, coalesce(gamets_last_updated,0) desc, lower(npc_name) ".$alpha.", id asc";
 
 // Count with filters
-$rowCountRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master where {$where}");
+$rowCountRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master where {$where}");
 $totalRows = intval($rowCountRow['c'] ?? 0);
 $totalPages = max(1, (int)ceil($totalRows / max(1, $perPage)));
 if ($page > $totalPages) $page = $totalPages;
@@ -1185,11 +1185,11 @@ $nativeIdentityLabels=[];
 $nativeActorIds=array_values(array_unique(array_filter(array_map(
     static fn($row):int=>intval($row['actor_identity_id'] ?? 0),$data))));
 if ($nativeActorIds) {
- foreach ($GLOBALS['db']->fetchAll('SELECT id,full_form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id IN ('.implode(',',$nativeActorIds).')') as $identity) {
+ foreach (\Synth\Bootstrap::db()->fetchAll('SELECT id,full_form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id IN ('.implode(',',$nativeActorIds).')') as $identity) {
   $nativeIdentityLabels[intval($identity['id'])]=$identity['full_form_id'].' · '.$identity['origin_plugin'].' · '.$identity['playthrough_id'];
  }
 }
-$nativeSaveLabels=synthNpcActorSaveLabels($GLOBALS['db'],$nativeActorIds);
+$nativeSaveLabels=synthNpcActorSaveLabels(\Synth\Bootstrap::db(),$nativeActorIds);
 $editItem = null;
 
 if (!function_exists('renderNpcLetterFilter')) {
@@ -1374,7 +1374,7 @@ if (isset($_GET['history'])) {
  if ($id <= 0) { echo json_encode(['ok'=>false, 'error'=>'Invalid id']); exit; }
  // Skip the most recent snapshot (current state); show only historical entries
  $sel = "select history_id,npc_id,npc_name,npc_favorite,lock_profile,prompt_head,npc_static_bio,worldknowledge_tags,emote_moods,personality,relationships,occupation,appearance,skills,speechstyle,goals,voiceid,gender,race,refid,profile_id,dynamic_profile,md5,gamets_last_updated,created,core,base,tags from core_npc_master_history where npc_id = {$id} order by coalesce(gamets_last_updated,0) desc, created desc, history_id desc offset 1";
- $rows = $GLOBALS['db']->fetchAll($sel) ?: [];
+ $rows = \Synth\Bootstrap::db()->fetchAll($sel) ?: [];
  $entries = [];
  foreach ($rows as $r){
  $g = isset($r['gamets_last_updated']) ? floatval($r['gamets_last_updated']) : 0.0;
@@ -1429,7 +1429,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["restore_from_history"
  if ($historyId <= 0) { echo json_encode(["ok"=>false, "error"=>"Invalid history_id"]); exit; }
 
  // Fetch the historical record
- $histRow = $GLOBALS['db']->fetchOne("select * from core_npc_master_history where history_id = {$historyId}");
+ $histRow = \Synth\Bootstrap::db()->fetchOne("select * from core_npc_master_history where history_id = {$historyId}");
  if (!$histRow) { echo json_encode(["ok"=>false, "error"=>"Historical record not found"]); exit; }
 
  $npcId = intval($histRow['npc_id'] ?? 0);
@@ -1495,18 +1495,18 @@ if (isset($_GET['bio_search'])) {
  $pageSize = min(50, max(1, intval($_GET['pageSize'] ?? 20)));
  $where = [];
  if ($search !== '') {
- $q = '%'.$GLOBALS['db']->escape($search).'%';
+ $q = '%'.\Synth\Bootstrap::db()->escape($search).'%';
  $where[] = "(lower(npc_name) like lower('{$q}') or lower(core) like lower('{$q}'))";
  }
  if ($letter !== '' && preg_match('/^[A-Za-z]$/', $letter)) {
- $l = $GLOBALS['db']->escape(strtolower($letter));
+ $l = \Synth\Bootstrap::db()->escape(strtolower($letter));
  $where[] = "lower(npc_name) like '{$l}%'";
  }
  $whereSql = count($where) ? ('where '.implode(' and ', $where)) : '';
- $cntRow = $GLOBALS['db']->fetchOne("select count(*) as c from combined_bio_templates {$whereSql}");
+ $cntRow = \Synth\Bootstrap::db()->fetchOne("select count(*) as c from combined_bio_templates {$whereSql}");
  $total = intval($cntRow['c'] ?? 0);
  $offset = ($page - 1) * $pageSize;
- $rows = $GLOBALS['db']->fetchAll("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates {$whereSql} order by lower(npc_name) asc limit {$pageSize} offset {$offset}");
+ $rows = \Synth\Bootstrap::db()->fetchAll("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates {$whereSql} order by lower(npc_name) asc limit {$pageSize} offset {$offset}");
  $items = [];
  foreach (($rows ?? []) as $r) {
  $extFields = ['npc_static_bio','personality','appearance','relationships','occupation','skills','speechstyle','goals'];
@@ -1537,9 +1537,9 @@ if (isset($_GET['bio_detail'])) {
  header('Content-Type: application/json');
  $name = trim((string)($_GET['name'] ?? ''));
  if ($name === '') { echo json_encode(['ok'=>false,'error'=>'Missing name']); exit; }
- $esc = $GLOBALS['db']->escape($name);
+ $esc = \Synth\Bootstrap::db()->escape($name);
  // Case-insensitive exact match on npc_name to tolerate capitalization differences
- $r = $GLOBALS['db']->fetchOne("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates where lower(npc_name) = lower('{$esc}') limit 1");
+ $r = \Synth\Bootstrap::db()->fetchOne("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates where lower(npc_name) = lower('{$esc}') limit 1");
  if (!$r) { echo json_encode(['ok'=>false,'error'=>'Not found']); exit; }
  $r['npc_static_bio']=synth_biography_background(strval($r['npc_static_bio'] ?? ''),strval($r['skills'] ?? ''));
  $r['skills']='';
@@ -1560,8 +1560,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['import_from_bio'])) {
  $includeVM = ($_POST['include_voice_meta'] ?? '1') ? true : false;
  $profileId = isset($_POST['profile_id']) && $_POST['profile_id']!=='' ? intval($_POST['profile_id']) : null;
 
- $esc = $GLOBALS['db']->escape($name);
- $r = $GLOBALS['db']->fetchOne("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates where npc_name = '{$esc}' limit 1");
+ $esc = \Synth\Bootstrap::db()->escape($name);
+ $r = \Synth\Bootstrap::db()->fetchOne("select npc_name, core, voiceid, gender, race, refid, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags from combined_bio_templates where npc_name = '{$esc}' limit 1");
  if (!$r) { echo json_encode(['ok'=>false,'error'=>'Template not found']); exit; }
 
  $r['npc_static_bio']=synth_biography_background(strval($r['npc_static_bio'] ?? ''),strval($r['skills'] ?? ''));
@@ -3528,7 +3528,7 @@ document.addEventListener('DOMContentLoaded', () => {
  // Global LLM connector data for AI generate dropdown
  const AI_GEN_LLM_CONNECTORS = <?= json_encode($llmRows ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
  const AI_GEN_PROFILE_CONN = <?= json_encode($profilesConnById ?? [], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
- const AI_GEN_DEFAULT_CONNECTOR = <?= json_encode($GLOBALS["CORE_CONNECTOR_PROFILES"] ?? '', JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+ const AI_GEN_DEFAULT_CONNECTOR = <?= json_encode(\Synth\Bootstrap::config("CORE_CONNECTOR_PROFILES") ?? '', JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
 
  (function(){
  const regenBtn = document.getElementById('npc_modal_regen');

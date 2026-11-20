@@ -467,7 +467,7 @@ body .setting-key .profile-setting-sync-btn:hover { border-color:var(--synth-acc
         <span class="message"></span>
     </div>
 <?php
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 
 $profiles = new CoreProfile();
 
@@ -572,13 +572,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update"])) {
 
         if (array_key_exists($syncSettingKey, $metadata)) {
             $encodedValue = json_encode($metadata[$syncSettingKey], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $escapedValue = $GLOBALS['db']->escape($encodedValue);
-            $syncResult = $GLOBALS['db']->execQuery(
+            $escapedValue = \Synth\Bootstrap::db()->escape($encodedValue);
+            $syncResult = \Synth\Bootstrap::db()->execQuery(
                 "UPDATE core_profiles
                  SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{{$syncSettingKey}}', '{$escapedValue}'::jsonb, true)"
             );
         } else {
-            $syncResult = $GLOBALS['db']->execQuery(
+            $syncResult = \Synth\Bootstrap::db()->execQuery(
                 "UPDATE core_profiles
                  SET metadata = COALESCE(metadata, '{}'::jsonb) - '{$syncSettingKey}'"
             );
@@ -853,7 +853,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["inline_update_profile
         $data = [ $field => $val ];
         // Fallback direct update for llm_formatter_id to ensure persistence
         if ($field === 'llm_formatter_id') {
-            $ok = $GLOBALS["db"]->updateRow('core_profiles', ['llm_formatter_id' => $val], 'id = '.$id);
+            $ok = \Synth\Bootstrap::db()->updateRow('core_profiles', ['llm_formatter_id' => $val], 'id = '.$id);
         } else {
             $ok = $profiles->update($id, $data);
         }
@@ -908,8 +908,8 @@ if (!function_exists('synthUniqueProfileLabel')) {
             $label = 'Imported Profile';
         }
 
-        $escaped = $GLOBALS["db"]->escape($label);
-        $existing = $GLOBALS["db"]->fetchOne("SELECT id FROM core_profiles WHERE label = '{$escaped}' LIMIT 1");
+        $escaped = \Synth\Bootstrap::db()->escape($label);
+        $existing = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_profiles WHERE label = '{$escaped}' LIMIT 1");
         if (!$existing) {
             return $label;
         }
@@ -918,8 +918,8 @@ if (!function_exists('synthUniqueProfileLabel')) {
         $candidate = $base;
         $counter = 2;
         while (true) {
-            $escapedCandidate = $GLOBALS["db"]->escape($candidate);
-            $existingCandidate = $GLOBALS["db"]->fetchOne("SELECT id FROM core_profiles WHERE label = '{$escapedCandidate}' LIMIT 1");
+            $escapedCandidate = \Synth\Bootstrap::db()->escape($candidate);
+            $existingCandidate = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_profiles WHERE label = '{$escapedCandidate}' LIMIT 1");
             if (!$existingCandidate) {
                 return $candidate;
             }
@@ -972,7 +972,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
             exit;
         }
 
-        if ($GLOBALS["db"]->query("BEGIN") === false) {
+        if (\Synth\Bootstrap::db()->query("BEGIN") === false) {
             throw new Exception('Could not start profile import transaction');
         }
         $importTransactionStarted = true;
@@ -1015,11 +1015,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
             $model = $conn['model'];
 
             // Try to find existing connector by label + driver + model
-            $existingConn = $GLOBALS["db"]->fetchOne(
+            $existingConn = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT id FROM core_llm_connector WHERE label = '" .
-                $GLOBALS["db"]->escape($label) . "' AND driver = '" .
-                $GLOBALS["db"]->escape($driver) . "' AND model = '" .
-                $GLOBALS["db"]->escape($model) . "' LIMIT 1"
+                \Synth\Bootstrap::db()->escape($label) . "' AND driver = '" .
+                \Synth\Bootstrap::db()->escape($driver) . "' AND model = '" .
+                \Synth\Bootstrap::db()->escape($model) . "' LIMIT 1"
             );
 
             if ($existingConn) {
@@ -1048,10 +1048,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
             $label = $ttsConnector['label'];
             $driver = $ttsConnector['driver'];
 
-            $existingTts = $GLOBALS["db"]->fetchOne(
+            $existingTts = \Synth\Bootstrap::db()->fetchOne(
                 "SELECT id FROM core_tts_connector WHERE label = '" .
-                $GLOBALS["db"]->escape($label) . "' AND driver = '" .
-                $GLOBALS["db"]->escape($driver) . "' LIMIT 1"
+                \Synth\Bootstrap::db()->escape($label) . "' AND driver = '" .
+                \Synth\Bootstrap::db()->escape($driver) . "' LIMIT 1"
             );
 
             if ($existingTts) {
@@ -1117,7 +1117,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
         }
 
         if ($assignSlot !== null) {
-            if ($GLOBALS["db"]->query("UPDATE core_profiles SET slot = NULL WHERE slot = {$assignSlot}") === false) {
+            if (\Synth\Bootstrap::db()->query("UPDATE core_profiles SET slot = NULL WHERE slot = {$assignSlot}") === false) {
                 throw new Exception('Could not clear the selected profile slot');
             }
             $slotOk = $profiles->update($newProfileId, ['slot' => $assignSlot]);
@@ -1139,9 +1139,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
                 $whereParts[] = "profile_id = {$previousDefaultNpcId}";
             }
             $where = implode(' OR ', $whereParts);
-            $countRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$where}");
+            $countRow = \Synth\Bootstrap::db()->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$where}");
             $migratedNpcCount = (int)($countRow['c'] ?? 0);
-            if ($GLOBALS["db"]->query("UPDATE core_npc_master SET profile_id = {$newProfileId} WHERE {$where}") === false) {
+            if (\Synth\Bootstrap::db()->query("UPDATE core_npc_master SET profile_id = {$newProfileId} WHERE {$where}") === false) {
                 throw new Exception('Could not move current default NPCs to the imported profile');
             }
         }
@@ -1156,7 +1156,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
         if ($migrateOldDefaultNpcs) {
             $messageParts[] = "migrated {$migratedNpcCount} NPCs from old default/empty profile";
         }
-        if ($GLOBALS["db"]->query("COMMIT") === false) {
+        if (\Synth\Bootstrap::db()->query("COMMIT") === false) {
             throw new Exception('Could not commit imported profile');
         }
         $importTransactionStarted = false;
@@ -1169,7 +1169,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["import_profile"])) {
 
     } catch (Throwable $e) {
         if ($importTransactionStarted) {
-            $GLOBALS["db"]->query("ROLLBACK");
+            \Synth\Bootstrap::db()->query("ROLLBACK");
         }
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
@@ -1222,7 +1222,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["create_import_rule"])
     ];
 
     $importRules->create($data);
-    $last = $GLOBALS['db']->fetchOne("SELECT id FROM core_npc_profile_rule ORDER BY id DESC LIMIT 1");
+    $last = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_npc_profile_rule ORDER BY id DESC LIMIT 1");
     $newId = $last['id'] ?? '';
     echo json_encode(['ok' => true, 'id' => $newId]);
     exit;
@@ -1282,7 +1282,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_import_rule"])
 if ($profileAction && isset($_POST["create_blank"])) {
     try {
         $defaultMeta = json_encode(CoreProfile::defaultMetadata(), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-        $row = $GLOBALS["db"]->fetchOne("INSERT INTO core_profiles (label, metadata) VALUES ('New Profile', '".pg_escape_string($defaultMeta)."') RETURNING id");
+        $row = \Synth\Bootstrap::db()->fetchOne("INSERT INTO core_profiles (label, metadata) VALUES ('New Profile', '".pg_escape_string($defaultMeta)."') RETURNING id");
         $newId = is_array($row) ? ($row['id'] ?? '') : '';
         $redir = 'core_profiles.php' . ($newId !== '' ? ('?edit=' . urlencode($newId)) : '');
         header("Location: $redir");
@@ -1295,7 +1295,7 @@ if ($profileAction && isset($_POST["create_blank"])) {
 
 // Fetch Data
 $data = $profiles->readAll();
-$npcCountRows = $GLOBALS["db"]->fetchAll("SELECT profile_id, COUNT(*) AS c FROM core_npc_master WHERE trim(lower(npc_name)) <> 'the narrator' GROUP BY profile_id");
+$npcCountRows = \Synth\Bootstrap::db()->fetchAll("SELECT profile_id, COUNT(*) AS c FROM core_npc_master WHERE trim(lower(npc_name)) <> 'the narrator' GROUP BY profile_id");
 $profileIdToNpcCount = [];
 foreach ($npcCountRows as $r) {
     $pid = (string)($r['profile_id'] ?? '');
@@ -1308,9 +1308,9 @@ if (isset($_GET["edit"])) {
     $editItem = $profiles->getById($_GET["edit"]);
 }
 // Preload connector details for left list and editors
-$llmRows = $GLOBALS["db"]->fetchAll("SELECT c.* FROM core_llm_connector c ORDER BY LOWER(COALESCE(NULLIF(c.label,''), c.model)) ASC");
-$ttsRows = $GLOBALS["db"]->fetchAll("SELECT t.* FROM core_tts_connector t ORDER BY t.id ASC");
-$apiBadgeRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labels('id');
+$llmRows = \Synth\Bootstrap::db()->fetchAll("SELECT c.* FROM core_llm_connector c ORDER BY LOWER(COALESCE(NULLIF(c.label,''), c.model)) ASC");
+$ttsRows = \Synth\Bootstrap::db()->fetchAll("SELECT t.* FROM core_tts_connector t ORDER BY t.id ASC");
+$apiBadgeRows = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labels('id');
 // Key labels come from the shared key store; a connector whose key is missing there shows none.
 $apiBadgeLabels = array_column($apiBadgeRows, 'label', 'id');
 foreach ($llmRows as $i => $r) $llmRows[$i] = \Synth\Core\Contracts\ApiKeyRef::decorateRow($r);
@@ -1795,7 +1795,7 @@ $ttsById = $byId($ttsRows);
         $randomizerEnabled = !empty($profileMetadata['LLM_RANDOMIZER_ENABLED']);
         $fallbackEnabled = !empty($profileMetadata['LLM_FALLBACK_ENABLED']);
 
-        $usedSlotsRows = $GLOBALS["db"]->fetchAll("SELECT id, slot FROM core_profiles WHERE slot IS NOT NULL ORDER BY slot ASC");
+        $usedSlotsRows = \Synth\Bootstrap::db()->fetchAll("SELECT id, slot FROM core_profiles WHERE slot IS NOT NULL ORDER BY slot ASC");
         $usedSlots = [];
         foreach ($usedSlotsRows as $r){ $s=intval($r['slot']??0); if ($s>=1 && $s<=4) $usedSlots[$s]=(int)$r['id']; }
         $currentId = (int)($editItem['id'] ?? 0);

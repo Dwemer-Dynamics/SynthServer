@@ -83,7 +83,7 @@ function worldknowledgeAuditBuildWhereClause(bool $matchedOnly, string $status =
 
 function worldknowledgeAuditCountRows(bool $matchedOnly = false, string $status = ''): int
 {
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         return 0;
     }
@@ -101,7 +101,7 @@ function worldknowledgeAuditCountRows(bool $matchedOnly = false, string $status 
 function worldknowledgeAuditFetchRows(int $limit = 50, int $offset = 0, bool $matchedOnly = false, ?bool &$failed = null, string $status = ''): array
 {
     $failed = false;
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!$db) {
         $failed = true;
         return [];

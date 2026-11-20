@@ -34,7 +34,7 @@ echo '<link rel="stylesheet" type="text/css" href="../css/main.css">';
 echo '<main style="padding-top: 20px; padding-left: 20px; padding-right: 20px;">';
 
 try {
- $GLOBALS["db"]->execQuery("DELETE FROM public.core_memory WHERE source_type='summary'");
+ \Synth\Bootstrap::db()->execQuery("DELETE FROM public.core_memory WHERE source_type='summary'");
  echo "<h1>All entries in the memory summary table have been deleted successfully.</h1>";
 } catch (Throwable $e) {
  echo "<h1>Error deleting entries from memory summary: " . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . "</h1>";

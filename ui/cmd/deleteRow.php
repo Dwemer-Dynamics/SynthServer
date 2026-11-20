@@ -40,7 +40,7 @@ catch (InvalidArgumentException $error) { synthRowDeleteRespond(['ok'=>false,'er
 try {
     require_once $enginePath.'lib/runtime_bootstrap.php';
     synthRuntimeBootstrap($enginePath,['load_general_settings'=>false,'load_stt_connector'=>false]);
-    $deleted=synthDeleteLegacyRow($GLOBALS['db'],$input);
+    $deleted=synthDeleteLegacyRow(\Synth\Bootstrap::db(),$input);
     if (!$deleted) synthRowDeleteRespond(['ok'=>false,'error'=>'Row not found or protected game history. No row was deleted.'],409);
     synthRowDeleteRespond(['ok'=>true,'deleted'=>true],200);
 } catch (Throwable $error) {

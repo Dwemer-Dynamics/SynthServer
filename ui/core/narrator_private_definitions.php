@@ -11,7 +11,7 @@ if (!isset($_SESSION['private_narrator_csrf'])) $_SESSION['private_narrator_csrf
 function narrator_private_ready(): bool
 {
     require_once dirname(__DIR__, 2).'/lib/synth_private_narrator.php';
-    try { return synth_private_narrator_schema_ready($GLOBALS['db']); }
+    try { return synth_private_narrator_schema_ready(\Synth\Bootstrap::db()); }
     catch (Throwable) { return false; }
 }
 
@@ -31,7 +31,7 @@ function narrator_private_handle_post(): ?array
     try {
         if ($action === 'retire') {
             if ($definitionId === '') return [false, 'Choose a narrator to retire.'];
-            $GLOBALS['db']->withManagementTransaction(static function ($connection) use ($definitionId): void {
+            \Synth\Bootstrap::db()->withManagementTransaction(static function ($connection) use ($definitionId): void {
                 $retired = @pg_query_params($connection, 'UPDATE public.core_narrator_definition SET retired_at=NOW()
                     WHERE definition_id=$1 AND retired_at IS NULL', [$definitionId]);
                 if (!$retired || pg_affected_rows($retired) !== 1) throw new DomainException('Narrator is already retired.');
@@ -52,9 +52,9 @@ function narrator_private_handle_post(): ?array
         if ($fields['name'] === '') return [false, 'A narrator needs a name.'];
         $profileId = intval($_POST['profile_id'] ?? 0);
         $profileId = $profileId > 0 ? $profileId : null;
-        if ($profileId !== null && !\Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->exists($profileId))
+        if ($profileId !== null && !\Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->exists($profileId))
             return [false, 'Choose an existing profile or leave it on the default narrator profile.'];
-        $saved = $GLOBALS['db']->withManagementTransaction(static function ($connection) use ($definitionId, $fields, $profileId): int {
+        $saved = \Synth\Bootstrap::db()->withManagementTransaction(static function ($connection) use ($definitionId, $fields, $profileId): int {
             $id = $definitionId;
             if ($id === '') {
                 if (!@pg_query($connection, 'LOCK TABLE public.core_narrator_definition IN SHARE ROW EXCLUSIVE MODE'))
@@ -110,15 +110,15 @@ function narrator_private_render(string $webRoot, ?array $result = null): void
     $ready = narrator_private_ready();
     $definitions = $revisions = $profiles = [];
     if ($ready) {
-        $definitions = $GLOBALS['db']->fetchAll('SELECT DISTINCT ON (d.definition_id) d.definition_id,r.revision_id,r.name,r.personality,
+        $definitions = \Synth\Bootstrap::db()->fetchAll('SELECT DISTINCT ON (d.definition_id) d.definition_id,r.revision_id,r.name,r.personality,
                 r.background,r.style,r.voice,r.profile_id,r.created_at,
                 (SELECT COUNT(*) FROM public.core_narrator_definition_revision x WHERE x.definition_id=d.definition_id) AS revisions
             FROM public.core_narrator_definition d JOIN public.core_narrator_definition_revision r USING(definition_id)
             WHERE d.retired_at IS NULL ORDER BY d.definition_id,r.revision_id DESC') ?: [];
         usort($definitions, static fn($a, $b) => strcasecmp($a['name'], $b['name']));
-        foreach ($GLOBALS['db']->fetchAll('SELECT definition_id,revision_id,name,created_at FROM public.core_narrator_definition_revision
+        foreach (\Synth\Bootstrap::db()->fetchAll('SELECT definition_id,revision_id,name,created_at FROM public.core_narrator_definition_revision
             ORDER BY revision_id DESC LIMIT 200') ?: [] as $row) $revisions[$row['definition_id']][] = $row;
-        $profiles = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idLabels() ?: [];
+        $profiles = \Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->idLabels() ?: [];
     }
     $editing = null;
     $requested = is_string($_GET['narrator_definition'] ?? null) ? $_GET['narrator_definition'] : '';

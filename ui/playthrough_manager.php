@@ -71,7 +71,7 @@ foreach ($profiles as $i => $p) {
 
 // Use profile metadata for the initial render (fast), refresh live stats via AJAX later
 $activeProfileName = '';
-$livePlayerName = (string)($GLOBALS['PLAYER_NAME'] ?? 'Unknown');
+$livePlayerName = (string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? 'Unknown');
 $liveGameName = 'Fallout';
 $liveEventlogCount = 0; $liveWorldKnowledgeCount = 0; $liveLastGamets = 0;
 foreach ($profiles as $p) {

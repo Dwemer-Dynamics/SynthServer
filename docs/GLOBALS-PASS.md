@@ -73,3 +73,15 @@ Files under: core lib functions prompts connector stt tts itt debug bin tools bo
 | global uses (all non-test PHP) | 4432 | 3697 |
 | files with a global | 276 | 263 |
 | `require_once` | 1836 | 1836 |
+
+### G5-ui-api
+
+Reads in ui/ and api/ now go through the accessors.
+
+Files under: ui api
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 3697 | 3419 |
+| files with a global | 263 | 249 |
+| `require_once` | 1836 | 1836 |

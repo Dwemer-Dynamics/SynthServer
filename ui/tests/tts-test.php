@@ -28,7 +28,7 @@ if ($webRoot === '/') {
 $webRoot = rtrim($webRoot, '/');
 $isEmbed = isset($_GET['embed']) && strval($_GET['embed']) === '1';
 
-$GLOBALS["db"] = $GLOBALS["db"] ?? new sql();
+$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
 $ttsConnector = new TTSConnector();
 
 require_once($enginePath . "prompt.includes.php");
@@ -58,14 +58,14 @@ if (!$isEmbed) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connector) {
-    $originalTtsFunction = $GLOBALS["TTSFUNCTION"] ?? '';
-    $originalName = $GLOBALS["SYNTH_NAME"] ?? '';
+    $originalTtsFunction = \Synth\Bootstrap::config("TTSFUNCTION") ?? '';
+    $originalName = \Synth\Bootstrap::config("SYNTH_NAME") ?? '';
     $hadVoiceOverride = array_key_exists("PATCH_OVERRIDE_VOICE", $GLOBALS);
-    $oldVoiceOverride = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? null;
+    $oldVoiceOverride = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? null;
     $hadVoiceIdGlobal = array_key_exists("PATCH_OVERRIDE_VOICE_ID", $GLOBALS);
     $hadLanguageGlobal = array_key_exists("PATCH_OVERRIDE_TTS_LANGUAGE", $GLOBALS);
-    $oldVoiceIdGlobal = $GLOBALS["PATCH_OVERRIDE_VOICE_ID"] ?? null;
-    $oldLanguageGlobal = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"] ?? null;
+    $oldVoiceIdGlobal = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE_ID") ?? null;
+    $oldLanguageGlobal = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE") ?? null;
 
     try {
         $ttsConnector->setOldGlobals($connector);
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connector) {
         $GLOBALS["SCRIPTLINE_LISTENER"] = '';
         $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
         $GLOBALS["DEBUG_DATA"] = [];
-        $GLOBALS["FEATURES"] = $GLOBALS["FEATURES"] ?? [];
+        $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
         if (!isset($GLOBALS["FEATURES"]["MISC"])) {
             $GLOBALS["FEATURES"]["MISC"] = [];
         }
@@ -94,14 +94,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connector) {
         unset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]);
 
         returnLines([$testString], false);
-        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename(strval($GLOBALS["TRACK"]["FILES_GENERATED"][0])) : '';
+        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename(strval(\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0])) : '';
         if ($file !== '') {
             $audioUrl = $webRoot . '/soundcache/' . $file . '?ts=' . time();
         } else {
             $errorText = 'No audio was produced. Check the connector settings, API badge, endpoint, and provider logs.';
         }
 
-        $debugData = $GLOBALS["DEBUG_DATA"] ?? [];
+        $debugData = \Synth\Bootstrap::config("DEBUG_DATA") ?? [];
         $requestPreview = [
             'connector_id' => $connectorId,
             'connector_label' => strval($connector['label'] ?? ''),

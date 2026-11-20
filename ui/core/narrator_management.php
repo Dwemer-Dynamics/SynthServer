@@ -49,7 +49,7 @@ function narratorManagementGetNarratorActions()
  return [];
  }
 
- $rows = $GLOBALS["db"]->fetchAll("
+ $rows = \Synth\Bootstrap::db()->fetchAll("
  SELECT
  v.code_name,
  v.action_name,
@@ -144,10 +144,10 @@ if (
  }
 
  $customPrompt = trim((string)($_POST['custom_prompt'] ?? ''));
- $setCustomPromptSql = $customPrompt === '' ? 'NULL' : $GLOBALS["db"]->escapeLiteral($customPrompt);
- $updatedAtSql = $GLOBALS["db"]->escapeLiteral(date('Y-m-d H:i:s'));
- $promptKeySql = $GLOBALS["db"]->escapeLiteral($promptKey);
- $result = $GLOBALS["db"]->execQuery(
+ $setCustomPromptSql = $customPrompt === '' ? 'NULL' : \Synth\Bootstrap::db()->escapeLiteral($customPrompt);
+ $updatedAtSql = \Synth\Bootstrap::db()->escapeLiteral(date('Y-m-d H:i:s'));
+ $promptKeySql = \Synth\Bootstrap::db()->escapeLiteral($promptKey);
+ $result = \Synth\Bootstrap::db()->execQuery(
  "UPDATE core_prompt
  SET custom_prompt = {$setCustomPromptSql},
  updated_at = {$updatedAtSql}
@@ -168,9 +168,9 @@ if (
  exit;
  }
 
- $updatedAtSql = $GLOBALS["db"]->escapeLiteral(date('Y-m-d H:i:s'));
- $promptKeySql = $GLOBALS["db"]->escapeLiteral($promptKey);
- $result = $GLOBALS["db"]->execQuery(
+ $updatedAtSql = \Synth\Bootstrap::db()->escapeLiteral(date('Y-m-d H:i:s'));
+ $promptKeySql = \Synth\Bootstrap::db()->escapeLiteral($promptKey);
+ $result = \Synth\Bootstrap::db()->execQuery(
  "UPDATE core_prompt
  SET custom_prompt = NULL,
  updated_at = {$updatedAtSql}
@@ -188,12 +188,12 @@ if (
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_narrator'])) {
  try {
  $roleplayName = Narrator::normalizeRoleplayName($_POST['roleplay_name'] ?? Narrator::DEFAULT_ROLEPLAY_NAME);
- $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? ''));
+ $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
  if ($playerName !== '' && strcasecmp($roleplayName, $playerName) === 0) {
  throw new InvalidArgumentException('Narrator roleplay name cannot match the player name.');
  }
- $escapedRoleplayName = $GLOBALS["db"]->escape($roleplayName);
- $matchingNpc = $GLOBALS["db"]->fetchOne(
+ $escapedRoleplayName = \Synth\Bootstrap::db()->escape($roleplayName);
+ $matchingNpc = \Synth\Bootstrap::db()->fetchOne(
  "SELECT npc_name FROM core_npc_master WHERE LOWER(npc_name) = LOWER('{$escapedRoleplayName}') LIMIT 1"
  );
  if ($matchingNpc) {
@@ -343,24 +343,24 @@ $questCommentCooldown = $narrator->getInt('quest_comment_cooldown', 3);
 $hideFromContext = $narrator->getBool('hide_from_context', false);
 $inlineNarrationMode = strtolower(trim((string)($narrator->get('inline_narration_mode') ?? '')));
 if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
- if (isset($GLOBALS['INLINE_NARRATION_MODE']) && in_array(strtolower(trim((string)$GLOBALS['INLINE_NARRATION_MODE'])), ['disabled', 'narrator', 'npc', 'text_only'], true)) {
- $inlineNarrationMode = strtolower(trim((string)$GLOBALS['INLINE_NARRATION_MODE']));
+ if (isset($GLOBALS['INLINE_NARRATION_MODE']) && in_array(strtolower(trim((string)\Synth\Bootstrap::config('INLINE_NARRATION_MODE'))), ['disabled', 'narrator', 'npc', 'text_only'], true)) {
+ $inlineNarrationMode = strtolower(trim((string)\Synth\Bootstrap::config('INLINE_NARRATION_MODE')));
  } else {
  $inlineNarrationMode = 'disabled';
  }
 }
 $removePlayerAutochatAsterisks = $narrator->getBool(
  'remove_player_autochat_asterisks',
- isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)$GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS'] : true
+ isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true
 );
 $preserveAsterisksInContext = $narrator->getBool('preserve_asterisks_in_context', false);
 $removeAsterisksFromPlayerInput = $narrator->getBool(
  'remove_asterisks_from_player_input',
- isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)$GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT'] : true
+ isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true
 );
 $removeAsterisksFromNpcOutput = $narrator->getBool(
  'remove_asterisks_from_npc_output',
- isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)$GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'] : true
+ isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true
 );
 $diaryEnabled = $narrator->getBool('diary_enabled', false);
 $autoDiaryEnabled = $narrator->getBool('auto_diary_enabled', false);
@@ -412,13 +412,13 @@ $currentProfileData = $profilesConnById[$profileId] ?? null;
 
 $advancedPromptOrderSql = [];
 foreach ($advancedPromptKeys as $index => $advancedPromptKey) {
- $advancedPromptOrderSql[] = "WHEN " . $GLOBALS["db"]->escapeLiteral($advancedPromptKey) . " THEN " . ($index + 1);
+ $advancedPromptOrderSql[] = "WHEN " . \Synth\Bootstrap::db()->escapeLiteral($advancedPromptKey) . " THEN " . ($index + 1);
 }
 
-$advancedPromptRows = $GLOBALS["db"]->fetchAll(
+$advancedPromptRows = \Synth\Bootstrap::db()->fetchAll(
  "SELECT prompt_key, default_prompt, custom_prompt, description
  FROM core_prompt
- WHERE prompt_key IN (" . implode(', ', array_map([$GLOBALS["db"], 'escapeLiteral'], $advancedPromptKeys)) . ")
+ WHERE prompt_key IN (" . implode(', ', array_map([\Synth\Bootstrap::db(), 'escapeLiteral'], $advancedPromptKeys)) . ")
  ORDER BY CASE prompt_key " . implode(' ', $advancedPromptOrderSql) . " ELSE 999 END"
 );
 $advancedPrompts = is_array($advancedPromptRows) ? $advancedPromptRows : [];
