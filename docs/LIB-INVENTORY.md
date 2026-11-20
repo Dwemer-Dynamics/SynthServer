@@ -36,8 +36,8 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat (done) |
 | L9 | prompt, context, character helpers (done) |
 | L10 | ingress, request, response, protocol state, runtime (done) |
-| L11 | small `Synth\Lib` helpers and GameTime (done) |
-| L12 | split `chat_helper_functions.php` and `data_functions.php` |
+| L11 | calendar, token, semaphore, XML and legacy-row helpers (done); `utils.php` and `misc_ui_functions.php` stay until a `Synth\Lib` class replaces them |
+| L12 | split `chat_helper_functions.php` and `data_functions.php` by function group (done) |
 
 ## Files
 
@@ -55,7 +55,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/automatic_backup.php` | 4 | hook (done) | `managers/ServerStatus/Native/automatic_backup.php` | done (L7) |
 | `lib/background_processor.php` | 4 | hook (done) | `workers/Supervisor/Native/background_processor.php` | done (L7) |
 | `lib/cartesia_generation.php` | 4 | hook (done) | `managers/TtsStudio/Native/cartesia_generation.php` | done (L6) |
-| `lib/chat_helper_functions.php` | 5589 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
+| `lib/chat_helper_functions.php` | 234 | split (done L12) | 153 of its 160 functions moved to `managers/{MemoryManager,TtsStudio,PromptManager,ContextManager}/Native/chat_*.php`; the file keeps its constants, requires and 7 misc helpers | done (L12) |
 | `lib/classes/Logger.php` | 568 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/compact_context_history.php` | 4 | hook (done) | `managers/ContextManager/Native/compact_context_history.php` | done (L9) |
 | `lib/core/action_catalog.php` | 4 | hook (done) | `managers/ActionsManager/Native/action_catalog.php` | done (L8) |
@@ -96,7 +96,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/stt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/stt_connector.class.php` | done (L3) |
 | `lib/core/tts_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/tts_connector.class.php` | done (L3) |
 | `lib/core/tts_studio_provider_detection.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_studio_provider_detection.php` | done (L6) |
-| `lib/data_functions.php` | 8098 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
+| `lib/data_functions.php` | 180 | split (done L12) | all 156 top-level functions moved to `managers/{CharacterManager,PromptManager,ContextManager,MemoryManager}/Native/data_*.php` and `drivers/llm/Native/data_llm_calls.php`; the file keeps its requires and the guarded diary-connector helpers | done (L12) |
 | `lib/db_connection_settings.php` | 59 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
 | `lib/dynamic_update_util.php` | 4 | hook (done) | `workers/Profiles/Native/dynamic_update_util.php` | done (L7) |
 | `lib/emote_moods.php` | 4 | hook (done) | `managers/CharacterManager/Native/emote_moods.php` | done (L9) |
