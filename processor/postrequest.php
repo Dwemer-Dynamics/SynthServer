@@ -119,10 +119,7 @@ if ($minimeEnabled) {
 
             if (empty($currentConnectorData) && isset($GLOBALS["db"]) && $GLOBALS["db"]) {
                 foreach ($sceneClassifierLabels as $sceneClassifierLabel) {
-                    $sceneClassifierLabelEscaped = $GLOBALS["db"]->escape($sceneClassifierLabel);
-                    $sceneClassifierRow = $GLOBALS["db"]->fetchOne(
-                        "SELECT id FROM core_llm_connector WHERE LOWER(COALESCE(label,'')) = LOWER('{$sceneClassifierLabelEscaped}') LIMIT 1"
-                    );
+                    $sceneClassifierRow = ['id' => \Synth\Core\DbManager\Dao\LlmConnectorDao::current($GLOBALS["db"])->findIdByLabel($sceneClassifierLabel)];
                     if (is_array($sceneClassifierRow) && !empty($sceneClassifierRow["id"])) {
                         $sceneClassifierConnectorId = intval($sceneClassifierRow["id"]);
                         $currentConnectorData = $connector->getById($sceneClassifierConnectorId);
