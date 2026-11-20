@@ -32,7 +32,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L4 | `visual_context*` to `managers/VisualContext` (done) |
 | L5 | rechat, auto chat, greeting, management guard (done) |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers (done) |
-| L7 | status, backup, save state, profile workers, supervisor, plugins |
+| L7 | status, backup, save state, profile workers, supervisor, plugins (done) |
 | L8 | actions: catalogue, jev, attack, wait, gift, social, combat |
 | L9 | prompt, context, character helpers |
 | L10 | ingress, request, response, protocol state, runtime |
@@ -49,17 +49,17 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/RequestBody.php` | 59 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/SameOriginRequest.php` | 92 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/actor_event.php` | 120 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/auditing.php` | 77 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
+| `lib/auditing.php` | 4 | hook (done) | `managers/ServerStatus/Native/auditing.php` | done (L7) |
 | `lib/auto_greeting.php` | 4 | hook (done) | `managers/Conversation/Rechat/auto_greeting.php` | done (L5) |
 | `lib/autoload.php` | 14 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
-| `lib/automatic_backup.php` | 383 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
-| `lib/background_processor.php` | 178 | manager | `workers/Supervisor` (background processor) | L7 |
+| `lib/automatic_backup.php` | 4 | hook (done) | `managers/ServerStatus/Native/automatic_backup.php` | done (L7) |
+| `lib/background_processor.php` | 4 | hook (done) | `workers/Supervisor/Native/background_processor.php` | done (L7) |
 | `lib/cartesia_generation.php` | 4 | hook (done) | `managers/TtsStudio/Native/cartesia_generation.php` | done (L6) |
 | `lib/chat_helper_functions.php` | 5589 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/classes/Logger.php` | 568 | keep (lib class) | stays; one of the small final classes chevo keeps in lib/ | - |
 | `lib/compact_context_history.php` | 272 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/core/action_catalog.php` | 3202 | manager | `managers/ActionsManager/ActionCatalog` (the catalogue and its readers; `core_action` DAO) | L8 |
-| `lib/core/activity_status.php` | 405 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
+| `lib/core/activity_status.php` | 4 | hook (done) | `managers/ServerStatus/Native/activity_status.php` | done (L7) |
 | `lib/core/api_badge.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/api_badge.class.php` | done (L3) |
 | `lib/core/core_profiles.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/core_profiles.class.php` | done (L3) |
 | `lib/core/database_schema/bio_template_actor_map.sql` | 55 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
@@ -84,7 +84,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/database_schema/synth_social_tasks.sql` | 32 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/database_schema/visual_context.sql` | 106 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/database_schema/worldknowledge_parity_v1.sql` | 226 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/game_plugins.php` | 510 | manager | `managers/ExtensionManager` (plugin and package handling) | L7 |
+| `lib/core/game_plugins.php` | 4 | hook (done) | `managers/ExtensionManager/Native/game_plugins.php` | done (L7) |
 | `lib/core/import_rules.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/import_rules.class.php` | done (L3) |
 | `lib/core/itt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/itt_connector.class.php` | done (L3) |
 | `lib/core/llm_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/llm_connector.class.php` | done (L3) |
@@ -98,7 +98,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/tts_studio_provider_detection.php` | 4 | hook (done) | `managers/TtsStudio/Native/tts_studio_provider_detection.php` | done (L6) |
 | `lib/data_functions.php` | 8098 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/db_connection_settings.php` | 59 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
-| `lib/dynamic_update_util.php` | 1772 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
+| `lib/dynamic_update_util.php` | 4 | hook (done) | `workers/Profiles/Native/dynamic_update_util.php` | done (L7) |
 | `lib/emote_moods.php` | 118 | manager | `managers/CharacterManager` (identity, biography, forms, voice overlay, emote moods) | L9 |
 | `lib/eventlog_helper.php` | 922 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
 | `lib/fallout_catalogue_sql.php` | 4 | hook (done) | `managers/WorldKnowledgeManager/Fallout/fallout_catalogue_sql.php` | done (L2) |
@@ -110,7 +110,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/lazy_xml.php` | 331 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/legacy_row_management.php` | 33 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
 | `lib/llm_randomizer.php` | 4 | hook (done) | `drivers/llm/Native/llm_randomizer.php` | done (L6) |
-| `lib/log_trim.php` | 131 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
+| `lib/log_trim.php` | 4 | hook (done) | `managers/ServerStatus/Native/log_trim.php` | done (L7) |
 | `lib/logger.php` | 47 | keep (shim) | global `Logger` shim over `Synth\Lib\Logger`; goes when callers use the namespaced class | - |
 | `lib/management_request_guard.php` | 263 | Synth\Lib class | `Synth\Lib\ManagementRequestGuard` (next to LocalAccess and SameOriginRequest) | L5 |
 | `lib/media_store.php` | 4 | hook (done) | `drivers/tts/Native/media_store.php` | done (L6) |
@@ -123,16 +123,16 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/npc_tts_status.php` | 4 | hook (done) | `managers/TtsStudio/Native/npc_tts_status.php` | done (L6) |
 | `lib/observation_reaction.php` | 22 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/observed_dialogue.php` | 134 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
-| `lib/player2_health.php` | 214 | manager | `workers/Player2` (health) | L7 |
+| `lib/player2_health.php` | 4 | hook (done) | `workers/Player2/Native/player2_health.php` | done (L7) |
 | `lib/player_event.php` | 96 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/player_reaction.php` | 143 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/player_tts_helpers.php` | 4 | hook (done) | `managers/TtsStudio/Native/player_tts_helpers.php` | done (L6) |
-| `lib/playthrough_schema.php` | 212 | manager | `managers/SaveState` (playthrough snapshots, rollback, schema readiness) | L7 |
-| `lib/playthrough_snapshot.php` | 73 | manager | `managers/SaveState` (playthrough snapshots, rollback, schema readiness) | L7 |
-| `lib/plugin_package_manager.php` | 705 | manager | `managers/ExtensionManager` (plugin and package handling) | L7 |
+| `lib/playthrough_schema.php` | 4 | hook (done) | `managers/SaveState/Native/playthrough_schema.php` | done (L7) |
+| `lib/playthrough_snapshot.php` | 4 | hook (done) | `managers/SaveState/Native/playthrough_snapshot.php` | done (L7) |
+| `lib/plugin_package_manager.php` | 4 | hook (done) | `managers/ExtensionManager/Native/plugin_package_manager.php` | done (L7) |
 | `lib/postgresql.class.php` | 1172 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
 | `lib/power_awareness.php` | 97 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
-| `lib/profile_autofill_async.php` | 122 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
+| `lib/profile_autofill_async.php` | 4 | hook (done) | `workers/Profiles/Native/profile_autofill_async.php` | done (L7) |
 | `lib/prompt_composition.php` | 187 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/prompt_injections.php` | 163 | manager | `managers/PromptManager` (prompt composition, injections, condition/equipment/trigger prompts) | L9 |
 | `lib/provider_stream.php` | 4 | hook (done) | `drivers/llm/Native/provider_stream.php` | done (L6) |
@@ -148,7 +148,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/rolemaster_bored.php` | 82 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/rpg_comment.php` | 46 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/runtime_bootstrap.php` | 508 | keep (bootstrap) | stays until every caller uses `Synth\Bootstrap`; `lib/autoload.php` is the one autoloader entry | - |
-| `lib/save_rollback.php` | 217 | manager | `managers/SaveState` (playthrough snapshots, rollback, schema readiness) | L7 |
+| `lib/save_rollback.php` | 4 | hook (done) | `managers/SaveState/Native/save_rollback.php` | done (L7) |
 | `lib/schema_clone_function.sql` | 305 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); not moved here, no tables added | schema session |
 | `lib/scriptproxy_fallout.php` | 833 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/semaphore_manager.class.php` | 150 | Synth\Lib class | `Synth\Lib` helpers (lazy XML, tokenizer cost, semaphore, misc UI, utils, dynamic model, legacy row management) | L11 |
@@ -194,9 +194,9 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/synth_player_gifts.php` | 238 | manager | `managers/ActionsManager` (jev, attack, wait, gift, inventory, command payload, narrator actions, combat target, power, rpg comment, social contract/tasks/response, Fallout command builder) | L8 |
 | `lib/synth_player_rewrite.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_player_rewrite.php` | done (L5) |
 | `lib/synth_private_narrator.php` | 37 | manager | `managers/Narrator` (private narrator protocol; already moved by #120, this is its legacy-name hook) | done (#120) |
-| `lib/synth_profile_jobs.php` | 241 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
-| `lib/synth_profile_scope.php` | 105 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
-| `lib/synth_profile_state.php` | 184 | manager | `workers/Profiles` (profile jobs, scope, state, autofill, nearby diary updates) | L7 |
+| `lib/synth_profile_jobs.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_jobs.php` | done (L7) |
+| `lib/synth_profile_scope.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_scope.php` | done (L7) |
+| `lib/synth_profile_state.php` | 4 | hook (done) | `workers/Profiles/Native/synth_profile_state.php` | done (L7) |
 | `lib/synth_protocol_state.php` | 3137 | manager | `managers/MessageHandler` + `core/dbmanager/repositories` (protocol state is SQL over the protocol tables; response framing) | L10 |
 | `lib/synth_rechat_admission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_admission.php` | done (L5) |
 | `lib/synth_rechat_emission.php` | 4 | hook (done) | `managers/Conversation/Rechat/synth_rechat_emission.php` | done (L5) |
