@@ -4,29 +4,29 @@
 foreach ($normalizedContext as $n=>$s_msg) {
     if ($n==(sizeof($normalizedContext)-1)) {   // Last prompt line
         $context.="### Instruction: ".$s_msg.". Write a single reply only.\n";
-        $GLOBALS["DEBUG_DATA"][]="### Instruction: ".$s_msg."";
+        \Synth\Bootstrap::config("DEBUG_DATA")[]="### Instruction: ".$s_msg."";
 
     } else {
         $narratorContextLabel = preg_quote(synthGetNarratorRoleplayName(), '/');
         $s_msg_p = preg_replace('/^(' . $narratorContextLabel . ':)(.*)/m', '[Author\'s notes: $2 ]', $s_msg);
         $context.="$s_msg_p\n";
-        $GLOBALS["DEBUG_DATA"][]=$s_msg_p;
+        \Synth\Bootstrap::config("DEBUG_DATA")[]=$s_msg_p;
     }
 
 }
 
 $context.="### Response:";
-$GLOBALS["DEBUG_DATA"][]="### Response:";
-$GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+\Synth\Bootstrap::config("DEBUG_DATA")[]="### Response:";
+\Synth\Bootstrap::config("DEBUG_DATA")["prompt"]=$context;
 
 */
 
 
-$context="{$GLOBALS["PROMPT_HEAD"]}\n";
+$context=(\Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
 $context.=strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
-$context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
+$context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
 
-$context.="# RESPONSE EXAMPLES\n{$GLOBALS["PLAYER_NAME"]}: Tell me something\n".json_encode([
+$context.=("# RESPONSE EXAMPLES\n" . \Synth\Bootstrap::config('PLAYER_NAME') . ": Tell me something\n").json_encode([
     'character' => \Synth\Bootstrap::config('SYNTH_NAME'), 'listener' => \Synth\Bootstrap::config('PLAYER_NAME'),
     'mood' => 'sardonic', 'action' => 'Talk', 'target' => '',
     'message' => 'What do you want to talk about? ',
@@ -34,7 +34,7 @@ $context.="# RESPONSE EXAMPLES\n{$GLOBALS["PLAYER_NAME"]}: Tell me something\n".
 
 $context.="\n# DIALOGUE/CONVERSATION HISTORY \n";
 
-$GLOBALS["DEBUG_DATA"][]=$context;
+\Synth\Bootstrap::append('DEBUG_DATA', $context);
 $contextHistory="";
 $n=0;
 
@@ -57,14 +57,14 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
                 $InstIns=false;
             }
 
-            $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+            \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
 
 
         } else if ($s_msg["role"]=="assistant") {
 
              if (isset($s_msg["tool_calls"])) {
-                    $pb["system"].="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]}";
-                    $lastAction="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]} {$s_msg["tool_calls"][0]["function"]["arguments"]}";
+                    $pb["system"].=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]}");
+                    $lastAction=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]} {$s_msg["tool_calls"][0]["function"]["arguments"]}");
 
                     $localFuncCodeName=getFunctionCodeName($s_msg["tool_calls"][0]["function"]["name"]);
                     $localArguments=json_decode($s_msg["tool_calls"][0]["function"]["arguments"],true);
@@ -75,12 +75,12 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
 
 
                 } else {
-                    $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                    \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
                     //$contextHistory.=$s_msg["content"]."\n";
 
                     $dialogueTarget=extractDialogueTarget($s_msg["content"]);
                     // Trying to provide examples
-                    /*$contextHistory.="### Response:{\"character\": \"{$GLOBALS["SYNTH_NAME"]}\", \"listener\": \"{$dialogueTarget["target"]}\", \"mood\": \"\", \"action\": \"\",
+                    /*$contextHistory.="### Response:{\"character\": \"{\Synth\Bootstrap::config("SYNTH_NAME")}\", \"listener\": \"{$dialogueTarget["target"]}\", \"mood\": \"\", \"action\": \"\",
                                         \"target\": \"\", \"message\": \"".trim($dialogueTarget["cleanedString"])."\"}\n###\n";*/
 
                     $contextHistory.="".trim($dialogueTarget["cleanedString"]).
@@ -91,7 +91,7 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
         } else if ($s_msg["role"]=="tool") {
             $pb["system"].=$element["content"]."\n";
             $contextHistory.=synthBuildNarratorContextLine(strtr($lastAction,["#RESULT#"=>$s_msg["content"]]));
-            $GLOBALS["PATCH_STORE_FUNC_RES"]=strtr($lastAction,["#RESULT#"=>$s_msg["content"]]);
+            \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', strtr($lastAction,["#RESULT#"=>$s_msg["content"]]));
 
         } elseif ($s_msg["role"]=="system") {
 
@@ -107,13 +107,13 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
 if (\Synth\Bootstrap::config("CONNECTOR")["koboldcppjson"]["PREFILL_JSON"]) {
     $prefill = synth_provider_json_prefill(strval(\Synth\Bootstrap::config('SYNTH_NAME')));
     $context.="$contextHistory  $instruction \n### Response:\n".$prefill;
-    $GLOBALS["PATCH"]["PREAPPEND"]=$prefill;
+    \Synth\Bootstrap::setAt('PATCH', "PREAPPEND", $prefill);
 } else {
     $context.="$contextHistory  $instruction \n### Response:";
 
 }
 
-$GLOBALS["DEBUG_DATA"][]="$instruction";
-$GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+\Synth\Bootstrap::append('DEBUG_DATA', "$instruction");
+\Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
 
 ?>

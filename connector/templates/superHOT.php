@@ -1,9 +1,9 @@
 <?php
 
  $context="---\nstyle: roleplay\n";
-            $context.="characters:\n   {$GLOBALS["SYNTH_NAME"]}:{$GLOBALS["SYNTH_PERS"]}\n   {$GLOBALS["PLAYER_NAME"]}:Human\n";
-            $context.="summary: {$GLOBALS["PROMPT_HEAD"]} \n---\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
+            $context.=("characters:\n   " . \Synth\Bootstrap::config('SYNTH_NAME') . ":" . \Synth\Bootstrap::config('SYNTH_PERS') . "\n   " . \Synth\Bootstrap::config('PLAYER_NAME') . ":Human\n");
+            $context.=("summary: " . \Synth\Bootstrap::config('PROMPT_HEAD') . " \n---\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
             $contextHistory="";
             $n=0;
             foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
@@ -22,13 +22,13 @@
                     }  // Must rebuild this
                 }
 
-                $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
 
                 $n++;
             }
 
-            $context.="$contextHistory Human: $instruction\n{$GLOBALS["SYNTH_NAME"]}:";
+            $context.=("$contextHistory Human: $instruction\n" . \Synth\Bootstrap::config('SYNTH_NAME') . ":");
 
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
             
             ?>

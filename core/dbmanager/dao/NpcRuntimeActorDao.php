@@ -33,6 +33,24 @@ final class NpcRuntimeActorDao
             ->findOneBy(['playthroughId' => $playthroughId, 'lastFormId' => strtoupper($formId), 'status' => 'active']);
     }
 
+    /** How many runtime actors a playthrough holds in any status (the registry cap counts them all). */
+    public function countForPlaythrough(string $playthroughId): int
+    {
+        return (int) $this->connection()->fetchOne(
+            'SELECT count(*) FROM public.core_npc_runtime_actor WHERE playthrough_id = :playthrough_id', ['playthrough_id' => $playthroughId]);
+    }
+
+    /**
+     * The actors of a playthrough that left the save (status not_in_save) and carry this fingerprint: the recovery lookup.
+     *
+     * @return list<AbstractNpcRuntimeActor>
+     */
+    public function findUnlinkedByFingerprint(string $playthroughId, string $fingerprint): array
+    {
+        return array_values($this->fresh()->getRepository(AbstractNpcRuntimeActor::class)
+            ->findBy(['playthroughId' => $playthroughId, 'fingerprint' => strtolower($fingerprint), 'status' => 'not_in_save']));
+    }
+
     /**
      * Registers an actor, or refreshes an existing one (idempotent by playthrough and runtime actor id): the name, form id
      * hint and descriptive fields follow the client, the status returns to 'active' and the character never changes.
