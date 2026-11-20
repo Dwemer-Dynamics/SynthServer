@@ -60,35 +60,35 @@ namespace Synth\Drivers\Tts\Drivers {
     $starTime = microtime(true);
 
 
-    $lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?$GLOBALS["TTS"]["FORCED_LANG_DEV"]:($GLOBALS["TTS"]["MELOTTS"]["language"] ?? 'EN');
+    $lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:(\Synth\Bootstrap::config("TTS")["MELOTTS"]["language"] ?? 'EN');
 
 
-    if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&$GLOBALS["LANG_LLM_XTTS"]) {
-        $lang=$GLOBALS["LLM_LANG"];
+    if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
+        $lang=\Synth\Bootstrap::config("LLM_LANG");
 
     }
 
     if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
-        $lang=$GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+        $lang=\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
     if (empty($lang))
-        $lang=$GLOBALS["TTS"]["MELOTTS"]["language"] ?? 'EN';
+        $lang=\Synth\Bootstrap::config("TTS")["MELOTTS"]["language"] ?? 'EN';
 
 
 
 
-    $voice = $GLOBALS["PATCH_OVERRIDE_VOICE"]
-        ?? $GLOBALS["TTS"]["FORCED_VOICE_DEV"]
-        ?? ($GLOBALS["TTS"]["MELOTTS"]["voiceid"] ?? '');
+    $voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE")
+        ?? \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"]
+        ?? (\Synth\Bootstrap::config("TTS")["MELOTTS"]["voiceid"] ?? '');
 
 
     if (empty($voice)) {
 
-        $codename=strtr(strtolower(trim($GLOBALS["SYNTH_NAME"])),[" "=>"_","'"=>"+"]);
+        $codename=strtr(strtolower(trim(\Synth\Bootstrap::config("SYNTH_NAME"))),[" "=>"_","'"=>"+"]);
         $codename=preg_replace('/[^a-zA-Z0-9_+]/u', '', $codename);
 
-        $cn=$GLOBALS["db"]->escape("Voicetype/$codename");
-        $vtype=$GLOBALS["db"]->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='$cn'");
+        $cn=\Synth\Bootstrap::db()->escape("Voicetype/$codename");
+        $vtype=\Synth\Bootstrap::db()->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='$cn'");
         $voicetypeString=(isOk($vtype))?$vtype[0]["value"]:'';
         $voicetype=explode("\\",$voicetypeString);
         $voice=isset($voicetype[3]) ? strtolower($voicetype[3]) : '';
@@ -100,7 +100,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $voice = 'maleadult02';
 
 
-    $speed=floatval($GLOBALS["TTS"]["MELOTTS"]["speed"] ?? 1.0)+0.01;
+    $speed=floatval(\Synth\Bootstrap::config("TTS")["MELOTTS"]["speed"] ?? 1.0)+0.01;
 
 
     if (empty($voice))
@@ -134,9 +134,9 @@ namespace Synth\Drivers\Tts\Drivers {
 
     $result = synth_speech_fetch($url, $context, $http_response_header);
 
-    if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+    if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
         $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
-        $FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+        $FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
     } else {
 
@@ -153,8 +153,8 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
         $startTimeTrans = microtime(true);
-        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-            ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+            ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
         if (!synth_transcode_speech_cache($response,$fname,$filter)) {
             Logger::error('melotts audio conversion or owned cache publication failed');
             return false;

@@ -79,13 +79,13 @@ namespace Synth\Drivers\Tts\Drivers {
 		// Resolve API key: prefer API Badge 'ElevenLabs', fallback to schema
 		$apiKey = '';
 		try {
-			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-			if (!isset($GLOBALS["db"]) || !$GLOBALS["db"]) $GLOBALS["db"] = new sql();
+			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
 			require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
-			$row = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->keyByLowerLabel('elevenlabs');
+			$row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('elevenlabs');
 			if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
 		} catch (Throwable $_e) {}
-		if ($apiKey === '') $apiKey=$GLOBALS["TTS"]["ELEVEN_LABS"]["API_KEY"];
+		if ($apiKey === '') $apiKey=\Synth\Bootstrap::config("TTS")["ELEVEN_LABS"]["API_KEY"];
 
 		// Cache 
 		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
@@ -94,8 +94,8 @@ namespace Synth\Drivers\Tts\Drivers {
 	
 	    $starTime = microtime(true);
 
-        $settings = $GLOBALS["TTS"]["ELEVEN_LABS"] ?? [];
-        $overrideOptions = $GLOBALS["PATCH_OVERRIDE_TTS_OPTIONS"] ?? null;
+        $settings = \Synth\Bootstrap::config("TTS")["ELEVEN_LABS"] ?? [];
+        $overrideOptions = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_OPTIONS") ?? null;
         if (is_array($overrideOptions)) {
             $overrideDriver = strtolower(trim(strval($overrideOptions['driver'] ?? '')));
             if ($overrideDriver === '11labs' && isset($overrideOptions['metadata']) && is_array($overrideOptions['metadata'])) {
@@ -105,8 +105,8 @@ namespace Synth\Drivers\Tts\Drivers {
 
 		$voice = elevenLabsNormalizeString(elevenLabsGetSetting($settings, 'voice_id', ''), 'EXAVITQu4vr4xnSDxMaL');
 
-		if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && trim(strval($GLOBALS["PATCH_OVERRIDE_VOICE"])) !== '') {
-			$voice = trim(strval($GLOBALS["PATCH_OVERRIDE_VOICE"]));
+		if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE"))) !== '') {
+			$voice = trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE")));
         }
 
         $modelId = elevenLabsNormalizeString(elevenLabsGetSetting($settings, 'model_id', ''), 'eleven_monolingual_v1');

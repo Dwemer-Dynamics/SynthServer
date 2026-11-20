@@ -21,15 +21,15 @@ function synth_protocol_transcribe_media(array $media): string
         || !hash_equals($published['sha256'], $sha256)) {
         throw new RuntimeException('media_integrity_error');
     }
-    $event = is_array($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)
-        ? $GLOBALS['SYNTH_REQUEST_EVENT']['json']
+    $event = is_array(\Synth\Bootstrap::requestEvent()['json'] ?? null)
+        ? \Synth\Bootstrap::requestEvent()['json']
         : [];
-    synth_media_register($GLOBALS['db'] ?? null, $published, [
+    synth_media_register(\Synth\Bootstrap::db() ?? null, $published, [
         'request_id' => $event['request_id'] ?? '',
         'turn_id' => $event['turn_id'] ?? '',
         'generation' => $event['generation'] ?? null,
     ]);
-    synth_media_require_ready($GLOBALS['db'] ?? null, $published);
+    synth_media_require_ready(\Synth\Bootstrap::db() ?? null, $published);
 
     $extension = $contentType === 'audio/ogg' ? '.ogg' : '.wav';
     $resolvedRoot = realpath(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'soundcache');
@@ -46,7 +46,7 @@ function synth_protocol_transcribe_media(array $media): string
         throw new RuntimeException('stt_temporary_file_failed');
     }
     try {
-        $driver = strtolower(trim(strval($GLOBALS['STTFUNCTION'] ?? 'none')));
+        $driver = strtolower(trim(strval(\Synth\Bootstrap::config('STTFUNCTION') ?? 'none')));
         $connector = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . 'stt' . DIRECTORY_SEPARATOR . 'stt-' . $driver . '.php';
         if (!is_file($connector)) {
             throw new RuntimeException('stt_connector_unavailable');
@@ -59,7 +59,7 @@ function synth_protocol_transcribe_media(array $media): string
         $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
         $text = trim(strval(stt($temporary)));
         if ($text === '') {
-            $diagnostic=$GLOBALS['STT_LAST_DIAGNOSTIC'] ?? [];
+            $diagnostic=\Synth\Bootstrap::config('STT_LAST_DIAGNOSTIC') ?? [];
             if ($driver==='localwhisper' && ($diagnostic['driver'] ?? '')==='localwhisper') {
                 $status=$diagnostic['http_status_code'] ?? 0;
                 if (($diagnostic['stage'] ?? '')==='recognized_empty'

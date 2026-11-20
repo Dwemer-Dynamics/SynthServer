@@ -42,7 +42,7 @@ class KoboldCppJsonDriver
     // Background generation uses KoboldCpp's chat API: preserve supplied messages without dialogue JSON/action templates.
     public function fast_request($contextData, $customParms, $callName = '')
     {
-        $settings = $GLOBALS['CONNECTOR'][$this->name] ?? [];
+        $settings = \Synth\Bootstrap::config('CONNECTOR')[$this->name] ?? [];
         $url = rtrim(strval($settings['url'] ?? ''), '/').'/v1/chat/completions';
         if (!in_array(strtolower(strval(parse_url($url, PHP_URL_SCHEME))), ['http','https'], true)) {
             throw new InvalidArgumentException('KoboldCpp URL must use HTTP or HTTPS.');
@@ -56,7 +56,7 @@ class KoboldCppJsonDriver
                 || !is_string($message['content'] ?? null) || str_contains($message['content'], "\0")
                 || !preg_match('//u', $message['content'])) throw new InvalidArgumentException('Invalid KoboldCpp message.');
         }
-        $tokens = intval($GLOBALS['FORCE_MAX_TOKENS'] ?? $customParms['MAX_TOKENS'] ?? $settings['max_tokens'] ?? 512);
+        $tokens = intval(\Synth\Bootstrap::config('FORCE_MAX_TOKENS') ?? $customParms['MAX_TOKENS'] ?? $settings['max_tokens'] ?? 512);
         if ($tokens < 1) throw new InvalidArgumentException('Invalid KoboldCpp token limit.');
         $data = [
             'messages'=>$contextData, 'stream'=>false, 'max_tokens'=>$tokens,
@@ -76,7 +76,7 @@ class KoboldCppJsonDriver
         if (!empty($settings['API_KEY'])) $headers[] = 'Authorization: Bearer '.$settings['API_KEY'];
         $context = stream_context_create(['http'=>[
             'method'=>'POST', 'header'=>implode("\r\n", $headers), 'content'=>$body,
-            'timeout'=>max(1, min(120, intval($GLOBALS['HTTP_TIMEOUT'] ?? 30))),
+            'timeout'=>max(1, min(120, intval(\Synth\Bootstrap::config('HTTP_TIMEOUT') ?? 30))),
         ]]);
         $responseHeaders = [];
         $body = synth_provider_fetch($url, $context, $responseHeaders, 1048576);
@@ -100,12 +100,12 @@ class KoboldCppJsonDriver
         $instruction = '';
         $InstIns = false;
         $path='/api/extra/generate/stream/';
-        $url=$GLOBALS["CONNECTOR"][$this->name]["url"].$path;
+        $url=\Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"].$path;
         $context="";
 
         
-        $GLOBALS["PROMPT_HEAD"]=strtr($GLOBALS["PROMPT_HEAD"],["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]]);
-        $GLOBALS["SYNTH_PERS"]=strtr($GLOBALS["SYNTH_PERS"],["#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]]);
+        $GLOBALS["PROMPT_HEAD"]=strtr(\Synth\Bootstrap::config("PROMPT_HEAD"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
+        $GLOBALS["SYNTH_PERS"]=strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
 
         foreach ($contextData as $n=>$s_msg) {	// Have to mangle context format
 
@@ -145,74 +145,74 @@ class KoboldCppJsonDriver
         }
         */
 
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) {
+        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
             $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
         }
         $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
 
-        if (strpos($GLOBALS["SYNTH_PERS"],"#SpeechStyle")!==false) {
+        if (strpos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false) {
             $speechReinforcement="Use #SpeechStyle. ";
         } else
             $speechReinforcement="";
 
         $contextData[]=[
             'role' => 'user',
-            'content' => "{$prefix}. $speechReinforcement Use this JSON object to give your answer: ".json_encode($GLOBALS["responseTemplate"])
+            'content' => "{$prefix}. $speechReinforcement Use this JSON object to give your answer: ".json_encode(\Synth\Bootstrap::config("responseTemplate"))
         ];
         
-        if ($GLOBALS["CONNECTOR"][$this->name]["template"]=="alpaca") {
+        if (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="alpaca") {
            
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="vicuna-1") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="vicuna-1") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
            
 
-        }  elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="vicuna-1.1") {
+        }  elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="vicuna-1.1") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="chatml") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="chatml") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="chatml-c") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="chatml-c") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="synthia") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="synthia") {
 
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="extended-alpaca") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="extended-alpaca") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="superHOT") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="superHOT") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="zephyr") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="zephyr") {
 
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="openchat") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="openchat") {
 
            
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
 
-        } elseif ($GLOBALS["CONNECTOR"][$this->name]["template"]=="dreamgen") {
+        } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="dreamgen") {
 
            
             include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
@@ -226,25 +226,25 @@ class KoboldCppJsonDriver
 
        
         
-        $TEMPERATURE=((isset($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? $GLOBALS["CONNECTOR"][$this->name]["temperature"] : 0.9)+0);
-        $REP_PEN=((isset($GLOBALS["CONNECTOR"][$this->name]["rep_pen"]) ? $GLOBALS["CONNECTOR"][$this->name]["rep_pen"] : 1.12)+0);
-        $TOP_P=((isset($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ? $GLOBALS["CONNECTOR"][$this->name]["top_p"] : 0.9)+0);
+        $TEMPERATURE=((isset($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"] : 0.9)+0);
+        $REP_PEN=((isset($GLOBALS["CONNECTOR"][$this->name]["rep_pen"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["rep_pen"] : 1.12)+0);
+        $TOP_P=((isset($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"] : 0.9)+0);
 
-        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? $GLOBALS["CONNECTOR"][$this->name]["max_tokens"] : 48)+0);
+        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
 
 
-        if ($GLOBALS["CONNECTOR"][$this->name]["newline_as_stopseq"]) {
+        if (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["newline_as_stopseq"]) {
             $stop_sequence[]="\n";
         }
 
         if (isset($GLOBALS["more_stopseq"])) {
-            foreach ($GLOBALS["more_stopseq"] as $stopseq)
+            foreach (\Synth\Bootstrap::config("more_stopseq") as $stopseq)
                 $stop_sequence[]=$stopseq;
         }
 
         
         ///
-        $stop_sequence[]=$GLOBALS["CONNECTOR"][$this->name]["eos_token"];
+        $stop_sequence[]=\Synth\Bootstrap::config("CONNECTOR")[$this->name]["eos_token"];
         ///
         $postData = array(
 
@@ -253,23 +253,23 @@ class KoboldCppJsonDriver
             "top_p"=>$TOP_P,
             //"max_context_length"=>2048,
             "max_length"=>$MAX_TOKENS,
-            "min_p"=>$GLOBALS["CONNECTOR"][$this->name]["min_p"]+0,
-            "top_k"=>$GLOBALS["CONNECTOR"][$this->name]["top_k"]+0,
+            "min_p"=>\Synth\Bootstrap::config("CONNECTOR")[$this->name]["min_p"]+0,
+            "top_k"=>\Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_k"]+0,
             "rep_pen"=>$REP_PEN,
             "stop_sequence"=>$stop_sequence,
-            "use_default_badwordsids"=>$GLOBALS["CONNECTOR"][$this->name]["use_default_badwordsids"],
+            "use_default_badwordsids"=>\Synth\Bootstrap::config("CONNECTOR")[$this->name]["use_default_badwordsids"],
             "trim_stop"=>true
 
         );
 
         if ((isset($GLOBALS["CONNECTOR"][$this->name]["eos_token"]))&&!empty($GLOBALS["CONNECTOR"][$this->name]["eos_token"])) {
-                $eos_token_allow_grammar='| "'.$GLOBALS["CONNECTOR"][$this->name]["eos_token"].'"';
+                $eos_token_allow_grammar='| "'.\Synth\Bootstrap::config("CONNECTOR")[$this->name]["eos_token"].'"';
         } else
             $eos_token_allow_grammar='';
 
-        $postData["grammar"]=$GLOBALS["grammar"];
+        $postData["grammar"]=\Synth\Bootstrap::config("grammar");
 
-        if (!$GLOBALS["CONNECTOR"][$this->name]["grammar"])
+        if (!\Synth\Bootstrap::config("CONNECTOR")[$this->name]["grammar"])
             unset($postData["grammar"]);
 
 
@@ -282,15 +282,15 @@ class KoboldCppJsonDriver
         }
 
         if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
-            if ($GLOBALS["FORCE_MAX_TOKENS"]==null) {
+            if (\Synth\Bootstrap::config("FORCE_MAX_TOKENS")==null) {
                 unset($postData["max_length"]);
             } else {
-                $postData["max_length"]=$GLOBALS["FORCE_MAX_TOKENS"]+0;
+                $postData["max_length"]=\Synth\Bootstrap::config("FORCE_MAX_TOKENS")+0;
             }
 
         }
 
-        foreach (synthGetEnabledConnectorExtraParameters($GLOBALS["CONNECTOR"][$this->name] ?? []) as $k => $v) {
+        foreach (synthGetEnabledConnectorExtraParameters(\Synth\Bootstrap::config("CONNECTOR")[$this->name] ?? []) as $k => $v) {
                 $postData[$k]=$v;
         }
 
@@ -340,7 +340,7 @@ class KoboldCppJsonDriver
        
         
         if (!empty($GLOBALS["PATCH"]["PREAPPEND"])) {
-            $this->_jsonBuffer=$GLOBALS["PATCH"]["PREAPPEND"];
+            $this->_jsonBuffer=\Synth\Bootstrap::config("PATCH")["PREAPPEND"];
             $GLOBALS["PATCH"]["PREAPPEND"]="";
         }
         

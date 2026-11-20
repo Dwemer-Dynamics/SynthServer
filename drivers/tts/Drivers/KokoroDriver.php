@@ -50,7 +50,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		
 	    $starTime = microtime(true);
 
-		$url = $GLOBALS["TTS"]["KOKORO"]["endpoint"]."/v1/audio/speech";
+		$url = \Synth\Bootstrap::config("TTS")["KOKORO"]["endpoint"]."/v1/audio/speech";
 
 		// Request headers
 		$headers = array(
@@ -59,20 +59,20 @@ namespace Synth\Drivers\Tts\Drivers {
 		);
 		
 	
-		$voice=isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"])?$GLOBALS["TTS"]["FORCED_VOICE_DEV"]:$GLOBALS["TTS"]["KOKORO"]["voiceid"];
+		$voice=isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"]:\Synth\Bootstrap::config("TTS")["KOKORO"]["voiceid"];
 		
 		if (empty($voice))
-			$voice=$GLOBALS["TTS"]["KOKORO"]["voiceid"];
+			$voice=\Synth\Bootstrap::config("TTS")["KOKORO"]["voiceid"];
 	
 		if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]))
-			$voice=$GLOBALS["PATCH_OVERRIDE_VOICE"];
+			$voice=\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 
 		$data = array(
             'model'=>'kokoro',
 			'input' => $newString,
 			'voice' => $voice,
 			'response_format' => 'wav',
-            'speed' => $GLOBALS["TTS"]["KOKORO"]["speed"],
+            'speed' => \Synth\Bootstrap::config("TTS")["KOKORO"]["speed"],
             'stream'=>true,
 			"lang_code"=>"a" // wtf?
 
@@ -90,9 +90,9 @@ namespace Synth\Drivers\Tts\Drivers {
 		$response = synth_speech_fetch($url, $context, $http_response_header);
 
 
-		if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"])) {
+		if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
 			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
-			$FFMPEG_FILTER='-af "'.implode(",",$GLOBALS["TTS_FFMPEG_FILTERS"]).'"';
+			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 			
 		} else {
 			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
@@ -105,8 +105,8 @@ namespace Synth\Drivers\Tts\Drivers {
 			$fname=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 			$startTimeTrans = microtime(true);
-			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-			    ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+			    ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
 			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
 			    Logger::error('kokoro audio conversion or owned cache publication failed');
 			    return false;

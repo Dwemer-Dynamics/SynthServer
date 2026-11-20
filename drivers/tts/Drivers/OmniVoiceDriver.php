@@ -30,10 +30,10 @@ if (!function_exists('omnivoice_sanitize_language')) {
 if (!function_exists('omnivoice_apply_text_hooks')) {
     function omnivoice_apply_text_hooks(string $text): string {
         foreach (['OMNIVOICE_TEXTMODIFIER', 'XTTS_TEXTMODIFIER'] as $hookGroup) {
-            if (!isset($GLOBALS["HOOKS"][$hookGroup]) || !is_array($GLOBALS["HOOKS"][$hookGroup])) {
+            if (!isset($GLOBALS["HOOKS"][$hookGroup]) || !is_array(\Synth\Bootstrap::config("HOOKS")[$hookGroup])) {
                 continue;
             }
-            foreach ($GLOBALS["HOOKS"][$hookGroup] as $hook) {
+            foreach (\Synth\Bootstrap::config("HOOKS")[$hookGroup] as $hook) {
                 Logger::info("Calling hook." . __FILE__ . " " . __LINE__ . " " . __FUNCTION__);
                 $text = call_user_func($hook, $text);
             }
@@ -44,7 +44,7 @@ if (!function_exists('omnivoice_apply_text_hooks')) {
 
 if (!function_exists('omnivoice_fallback_codename')) {
     function omnivoice_fallback_codename(): string {
-        $name = $GLOBALS["SYNTH_NAME"] ?? $GLOBALS["HERIKA_NAME"] ?? '';
+        $name = \Synth\Bootstrap::config("SYNTH_NAME") ?? \Synth\Bootstrap::config("HERIKA_NAME") ?? '';
         $codename = str_replace(" ", "_", mb_strtolower(strval($name), 'UTF-8'));
         $codename = str_replace("'", "+", $codename);
         return preg_replace('/[^a-zA-Z0-9_+]/u', '', $codename);
@@ -115,8 +115,8 @@ if (!function_exists('omnivoice_fallback_candidates')) {
         // Planned replies retry only their captured NPC fallback through the shared reply executor.
         if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return [];
         $candidates = [
-            $GLOBALS["TTS"]["OMNIVOICE"]["fallback_male"] ?? '',
-            $GLOBALS["TTS"]["OMNIVOICE"]["fallback_female"] ?? '',
+            \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["fallback_male"] ?? '',
+            \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["fallback_female"] ?? '',
             omnivoice_fallback_codename(),
         ];
 
@@ -159,7 +159,7 @@ namespace Synth\Drivers\Tts\Drivers {
     $cacheHash = md5(trim($stringforhash));
     $cachePath = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache" . DIRECTORY_SEPARATOR;
 
-    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && $GLOBALS["AVOID_TTS_CACHE"] === false) {
+    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
         $cachedFile = $cachePath . $cacheHash . ".wav";
         if (file_exists($cachedFile)) {
             return $cachedFile;
@@ -168,14 +168,14 @@ namespace Synth\Drivers\Tts\Drivers {
 
     $starTime = microtime(true);
     $newString = omnivoice_apply_text_hooks($textString);
-    $endpoint = omnivoice_normalize_endpoint_url($GLOBALS["TTS"]["OMNIVOICE"]["endpoint"] ?? 'http://127.0.0.1:8021');
+    $endpoint = omnivoice_normalize_endpoint_url(\Synth\Bootstrap::config("TTS")["OMNIVOICE"]["endpoint"] ?? 'http://127.0.0.1:8021');
     $url = $endpoint . "/tts_to_audio";
 
     $lang = omnivoice_first_non_empty(
-        $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"] ?? '',
-        (!empty($GLOBALS["LANG_LLM_XTTS"]) ? ($GLOBALS["LLM_LANG"] ?? '') : ''),
-        $GLOBALS["TTS"]["FORCED_LANG_DEV"] ?? '',
-        $GLOBALS["TTS"]["OMNIVOICE"]["language"] ?? ''
+        \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE") ?? '',
+        (!empty($GLOBALS["LANG_LLM_XTTS"]) ? (\Synth\Bootstrap::config("LLM_LANG") ?? '') : ''),
+        \Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"] ?? '',
+        \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["language"] ?? ''
     );
     $lang = omnivoice_sanitize_language($lang);
     if ($lang !== '') {
@@ -183,9 +183,9 @@ namespace Synth\Drivers\Tts\Drivers {
     }
 
     $voice = omnivoice_first_non_empty(
-        $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? '',
-        $GLOBALS["TTS"]["FORCED_VOICE_DEV"] ?? '',
-        $GLOBALS["TTS"]["OMNIVOICE"]["voiceid"] ?? ''
+        \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? '',
+        \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"] ?? '',
+        \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["voiceid"] ?? ''
     );
 
     $result = omnivoice_post_tts($url, $newString, $voice, $lang);
@@ -205,9 +205,9 @@ namespace Synth\Drivers\Tts\Drivers {
         }
     }
 
-    if (is_array($GLOBALS["TTS_FFMPEG_FILTERS"] ?? null)) {
+    if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS") ?? null)) {
         $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"] = "adelay=150|150";
-        $FFMPEG_FILTER = '-af "' . implode(",", $GLOBALS["TTS_FFMPEG_FILTERS"]) . '"';
+        $FFMPEG_FILTER = '-af "' . implode(",", \Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")) . '"';
     } else {
         $FFMPEG_FILTER = '-filter:a "adelay=150|150"';
     }
@@ -217,8 +217,8 @@ namespace Synth\Drivers\Tts\Drivers {
         $fname = $cachePath . $cacheHash . ".wav";
 
         $startTimeTrans = microtime(true);
-        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array($GLOBALS['TTS_FFMPEG_FILTERS'])
-            ? implode(',',$GLOBALS['TTS_FFMPEG_FILTERS']) : 'adelay=150|150';
+        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+            ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
         if (!synth_transcode_speech_cache($response,$fname,$filter)) return false;
         $endTimeTrans = microtime(true) - $startTimeTrans;
 
@@ -227,7 +227,7 @@ namespace Synth\Drivers\Tts\Drivers {
         file_put_contents($cachePath . $cacheHash . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
         $GLOBALS["DEBUG_DATA"][] = (microtime(true) - $starTime) . " secs in omnivoice call";
 
-        if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && $GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) {
+        if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
             $tfolder = $cachePath . "/" . $voice;
             @mkdir($tfolder);
             copy($fname, $tfolder . "/" . basename($fname));

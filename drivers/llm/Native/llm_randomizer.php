@@ -134,8 +134,8 @@ class LLMRandomizer {
      */
     private static function getGlobalConnectorSlot() {
         if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']))
-            return intval($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']);
-        $db = $GLOBALS['db'];
+            return intval(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']);
+        $db = \Synth\Bootstrap::db();
         $result = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
         
         if (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4) {
@@ -223,7 +223,7 @@ class LLMRandomizer {
             return self::$player2ForceEnabled;
         }
 
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             self::$player2ForceEnabled = false;
             return false;
@@ -251,7 +251,7 @@ class LLMRandomizer {
             return (int)$existingId;
         }
 
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return null;
         }
@@ -333,7 +333,7 @@ class LLMRandomizer {
             return self::$player2ForceConnectorId ?: null;
         }
 
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             self::$player2ForceConnectorId = 0;
             return null;
@@ -355,7 +355,7 @@ class LLMRandomizer {
     }
 
     private static function upsertConfOpt($id, $value) {
-        $db = $GLOBALS['db'] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return false;
         }

@@ -50,15 +50,15 @@ namespace Synth\Drivers\Tts\Drivers {
 
     $start = microtime(true);
 
-    $ttsServiceUri = rtrim(strval($GLOBALS["TTS"]["MIMIC3"]["URL"] ?? 'http://127.0.0.1:59125'), '/') . "/api/tts";
+    $ttsServiceUri = rtrim(strval(\Synth\Bootstrap::config("TTS")["MIMIC3"]["URL"] ?? 'http://127.0.0.1:59125'), '/') . "/api/tts";
 
     $testP="?text=".urlencode($textString);
-    $voice = $GLOBALS["PATCH_OVERRIDE_VOICE"] ?? ($GLOBALS["TTS"]["MIMIC3"]["voice"] ?? 'en_UK/apope_low');
+    $voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE") ?? (\Synth\Bootstrap::config("TTS")["MIMIC3"]["voice"] ?? 'en_UK/apope_low');
     $voiceP="&voice=".urlencode($voice);
 
     $noiseScaleP="&noiseScale=0.667";
     $noiseW="&noiseW=0.8";
-    $lengthScaleP="&lengthScale=".urlencode($GLOBALS["TTS"]["MIMIC3"]["rate"] ?? '1');
+    $lengthScaleP="&lengthScale=".urlencode(\Synth\Bootstrap::config("TTS")["MIMIC3"]["rate"] ?? '1');
     $restP="&ssml=false&audioTarget=client";
     $result = synth_speech_fetch($ttsServiceUri.$testP.$voiceP.$noiseScaleP.$noiseW.$lengthScaleP.$restP);
 
