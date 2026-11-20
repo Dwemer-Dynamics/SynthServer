@@ -11,7 +11,7 @@
 require_once __DIR__ . '/../lib/classes/Logger.php';
 $maxWordsLimit = intval(\Synth\Bootstrap::config("MAX_WORDS_LIMIT") ?? 0);
 $MAXIMUM_WORDS=($maxWordsLimit>0)?"(Maximum {$maxWordsLimit} words)":"";
-$GLOBALS["MAXIMUM_WORDS"] = $MAXIMUM_WORDS;
+\Synth\Bootstrap::set('MAXIMUM_WORDS', $MAXIMUM_WORDS);
 $promptCharacterName = function_exists('synthGetPromptCharacterName')
     ? synthGetPromptCharacterName()
     : (\Synth\Bootstrap::config("SYNTH_NAME") ?? 'The Narrator');
@@ -20,9 +20,9 @@ $narratorRoleplayName = function_exists('synthGetNarratorRoleplayName')
     : 'The Narrator';
 
 $directNarratorDialogue = false;
-if (isset($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
+if (\Synth\Bootstrap::has('DIRECT_NARRATOR_DIALOGUE')) {
     $directNarratorDialogue = (bool)\Synth\Bootstrap::config("DIRECT_NARRATOR_DIALOGUE");
-} elseif (isset($GLOBALS["gameRequest"][0])) {
+} elseif (isset(\Synth\Bootstrap::gameRequest()[0])) {
     $directNarratorDialogue = (\Synth\Bootstrap::gameRequest()[0] === 'narrator_inputtext');
 } elseif (isset($gameRequest[0])) {
     $directNarratorDialogue = ($gameRequest[0] === 'narrator_inputtext');
@@ -99,11 +99,11 @@ if (!function_exists('synthExtractDirectedListenerNamesFromText')) {
 if (!function_exists('synthIsStrictDirectedPlayerResponseContext')) {
     function synthIsStrictDirectedPlayerResponseContext(): bool
     {
-        if (empty($GLOBALS["ENFORCE_STRICT_RECHAT_RESPONSE"])) {
+        if (empty(\Synth\Bootstrap::config('ENFORCE_STRICT_RECHAT_RESPONSE'))) {
             return false;
         }
 
-        if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
+        if (!\Synth\Bootstrap::has('gameRequest') || !is_array(\Synth\Bootstrap::gameRequest())) {
             return false;
         }
 
@@ -146,7 +146,7 @@ if (!function_exists('synthGetRechatPreviousSpeakerName')) {
 if (!function_exists('synthIsStrictRechatResponseEnabled')) {
     function synthIsStrictRechatResponseEnabled(): bool
     {
-        return !empty($GLOBALS["ENFORCE_STRICT_RECHAT_RESPONSE"]);
+        return !empty(\Synth\Bootstrap::config('ENFORCE_STRICT_RECHAT_RESPONSE'));
     }
 }
 
@@ -157,7 +157,7 @@ if (!function_exists('synthIsStrictRechatPromptContext')) {
             return false;
         }
 
-        if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
+        if (!\Synth\Bootstrap::has('gameRequest') || !is_array(\Synth\Bootstrap::gameRequest())) {
             return false;
         }
 
@@ -324,7 +324,7 @@ if ($inlineNarrationEnabled) {
 }
 
 if ($directNarratorDialogue) {
-    $TEMPLATE_DIALOG .= " Reply directly to {$GLOBALS["PLAYER_NAME"]} in spoken dialogue." .
+    $TEMPLATE_DIALOG .= (" Reply directly to " . \Synth\Bootstrap::config('PLAYER_NAME') . " in spoken dialogue.") .
         " If an narrator action matches the request, use it and keep the spoken line consistent with that action." .
         " Do not include third-person narration, scene description, stage directions, or text in asterisks.";
 }
@@ -333,15 +333,15 @@ if ($directNarratorDialogue) {
 
 
 
-if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
-    $GLOBALS["MEMORY_STATEMENT"]=".USE #MEMORY.";
+if (isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
+    \Synth\Bootstrap::set('MEMORY_STATEMENT', ".USE #MEMORY.");
 } else
-    $GLOBALS["MEMORY_STATEMENT"]="";
+    \Synth\Bootstrap::set('MEMORY_STATEMENT', "");
 
 
-if (!empty($GLOBALS["FUNCTIONS_ARE_ENABLED"])) {
+if (!empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED'))) {
     $TEMPLATE_ACTION="call a function to control {$promptCharacterName} or";
-    $TEMPLATE_ACTION="(Check #ACTIONS section. If {$GLOBALS["PLAYER_NAME"]}'s input asks, orders, permits, or clearly implies a concrete in-game action, choose the matching action instead of Talk. Questions that current observations already answer use Talk for an in-character description; known visible gear does not require Inspect or CheckInventory. Otherwise use Talk when no listed action fits.)";
+    $TEMPLATE_ACTION=("(Check #ACTIONS section. If " . \Synth\Bootstrap::config('PLAYER_NAME') . "'s input asks, orders, permits, or clearly implies a concrete in-game action, choose the matching action instead of Talk. Questions that current observations already answer use Talk for an in-character description; known visible gear does not require Inspect or CheckInventory. Otherwise use Talk when no listed action fits.)");
 } else {
     $TEMPLATE_ACTION="";
 }
