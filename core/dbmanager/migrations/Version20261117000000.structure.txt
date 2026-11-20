@@ -839,16 +839,16 @@ column|public|core_npc_profile_rule|match_name|text|text|YES||
 column|public|core_npc_profile_rule|match_race|text|text|YES||
 column|public|core_npc_profile_rule|priority|integer|int4|YES|0|
 column|public|core_npc_profile_rule|profile|integer|int4|YES||
-column|public|core_location|cleared|boolean|bool|YES||
-column|public|core_location|coords|point|point|YES||
-column|public|core_location|formid|bigint|int8|YES||
-column|public|core_location|is_interior|integer|int4|YES||
-column|public|core_location|name|text|text|YES||
-column|public|core_location|refs|text|text|YES||
-column|public|core_location|tags|text|text|YES||
-column|public|core_location|updated_at|timestamp without time zone|timestamp|YES||
-column|public|core_location|vanilla_location|boolean|bool|YES||
-column|public|core_location|worldspace|text|text|YES||
+column|public|core_location_legacy|cleared|boolean|bool|YES||
+column|public|core_location_legacy|coords|point|point|YES||
+column|public|core_location_legacy|formid|bigint|int8|YES||
+column|public|core_location_legacy|is_interior|integer|int4|YES||
+column|public|core_location_legacy|name|text|text|YES||
+column|public|core_location_legacy|refs|text|text|YES||
+column|public|core_location_legacy|tags|text|text|YES||
+column|public|core_location_legacy|updated_at|timestamp without time zone|timestamp|YES||
+column|public|core_location_legacy|vanilla_location|boolean|bool|YES||
+column|public|core_location_legacy|worldspace|text|text|YES||
 column|synth|log|localts|bigint|int8|NO||
 column|synth|log|prompt|text|text|YES||
 column|synth|log|response|text|text|YES||
@@ -1977,7 +1977,7 @@ table|public|core_faction|BASE TABLE
 table|public|core_plugins|BASE TABLE
 table|public|core_config_preset|BASE TABLE
 table|public|core_npc_profile_rule|BASE TABLE
-table|public|core_location|BASE TABLE
+table|public|core_location_legacy|BASE TABLE
 table|synth|log|BASE TABLE
 table|public|core_memory|BASE TABLE
 table|synth|memory_v|VIEW
@@ -2083,3 +2083,112 @@ table|public|core_npc_actor|BASE TABLE
 table|public|core_npc_runtime_actor|BASE TABLE
 table|public|core_plugin_manifest_revision|BASE TABLE
 column|synth|core_npc_master_history|scope_playthrough_id|text|text|YES||
+column|public|core_location_marker|baseid|integer|int4|NO||
+column|public|core_location_marker|cell_baseid|integer|int4|YES||
+column|public|core_location_marker|cell_plugin|text|text|YES||
+column|public|core_location_marker|disabled|boolean|bool|NO|false|
+column|public|core_location_marker|interior|boolean|bool|NO|false|
+column|public|core_location_marker|location_id|bigint|int8|NO||
+column|public|core_location_marker|marker_id|bigint|int8|NO||
+column|public|core_location_marker|marker_type|text|text|NO||
+column|public|core_location_marker|plugin|text|text|NO||
+column|public|core_location_marker|worldspace_id|integer|int4|YES||
+column|public|core_location_marker|x|double precision|float8|YES||
+column|public|core_location_marker|y|double precision|float8|YES||
+column|public|core_location_marker|z|double precision|float8|YES||
+column|public|core_location_state|cleared|boolean|bool|YES||
+column|public|core_location_state|discovered|boolean|bool|YES||
+column|public|core_location_state|location_id|bigint|int8|NO||
+column|public|core_location_state|playthrough_id|text|text|NO||
+column|public|core_location_state|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_location|baseid|integer|int4|NO||
+column|public|core_location|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_location|editor_id|text|text|YES||
+column|public|core_location|keywords|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_location|kind|text|text|NO|'game'::text|
+column|public|core_location|last_catalog_sha256|character|bpchar|YES||64
+column|public|core_location|location_id|bigint|int8|NO||
+column|public|core_location|map_worldspace_id|integer|int4|YES||
+column|public|core_location|map_x|double precision|float8|YES||
+column|public|core_location|map_y|double precision|float8|YES||
+column|public|core_location|name|text|text|NO||
+column|public|core_location|parent_baseid|integer|int4|YES||
+column|public|core_location|parent_location_id|bigint|int8|YES||
+column|public|core_location|parent_plugin|text|text|YES||
+column|public|core_location|plugin|text|text|NO||
+column|public|core_location|position_source|text|text|NO|'none'::text|
+column|public|core_location|region_location_id|bigint|int8|YES||
+column|public|core_location|tags|jsonb|jsonb|NO|'[]'::jsonb|
+column|public|core_location|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_relationship_config|affinity_baseline_revision|bigint|int8|NO|0|
+column|public|core_relationship_config|automatic_updates_locked|boolean|bool|NO|false|
+column|public|core_relationship_config|baseline_affinity|smallint|int2|YES||
+column|public|core_relationship_config|baseline_type|character varying|varchar|YES||50
+column|public|core_relationship_config|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_relationship_config|custom_info|text|text|YES||
+column|public|core_relationship_config|playthrough_id|text|text|NO||
+column|public|core_relationship_config|private_notes|text|text|YES||
+column|public|core_relationship_config|relation_detail|text|text|YES||
+column|public|core_relationship_config|revision|bigint|int8|NO|1|
+column|public|core_relationship_config|source_character_id|integer|int4|NO||
+column|public|core_relationship_config|target_character_id|integer|int4|NO||
+column|public|core_relationship_config|type_baseline_revision|bigint|int8|NO|0|
+column|public|core_relationship_config|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_worldspace|baseid|integer|int4|NO||
+column|public|core_worldspace|editor_id|text|text|YES||
+column|public|core_worldspace|map_worldspace_id|integer|int4|YES||
+column|public|core_worldspace|name|text|text|YES||
+column|public|core_worldspace|parent_worldspace_id|integer|int4|YES||
+column|public|core_worldspace|plugin|text|text|NO||
+column|public|core_worldspace|worldspace_id|integer|int4|NO||
+constraint|public|core_location_marker|core_location_marker_interior_check|c|t|CHECK (((NOT interior) OR (worldspace_id IS NULL)))
+constraint|public|core_location_marker|core_location_marker_location_fkey|f|t|FOREIGN KEY (location_id) REFERENCES core_location(location_id) ON DELETE CASCADE
+constraint|public|core_location_marker|core_location_marker_pkey|p|t|PRIMARY KEY (marker_id)
+constraint|public|core_location_marker|core_location_marker_ref_key|u|t|UNIQUE (location_id, marker_type, plugin, baseid)
+constraint|public|core_location_marker|core_location_marker_type_check|c|t|CHECK ((marker_type = ANY (ARRAY['map_marker'::text, 'location_center'::text, 'outside_entrance'::text, 'inside_entrance'::text, 'boss_treasure'::text, 'world_marker'::text, 'workshop'::text])))
+constraint|public|core_location_marker|core_location_marker_worldspace_fkey|f|t|FOREIGN KEY (worldspace_id) REFERENCES core_worldspace(worldspace_id) ON DELETE SET NULL
+constraint|public|core_location_state|core_location_state_location_fkey|f|t|FOREIGN KEY (location_id) REFERENCES core_location(location_id) ON DELETE CASCADE
+constraint|public|core_location_state|core_location_state_pkey|p|t|PRIMARY KEY (playthrough_id, location_id)
+constraint|public|core_location|core_location_baseid_check|c|t|CHECK (((baseid >= 0) AND (baseid <= 16777215)))
+constraint|public|core_location|core_location_keywords_check|c|t|CHECK ((jsonb_typeof(keywords) = 'array'::text))
+constraint|public|core_location|core_location_kind_check|c|t|CHECK ((kind = 'game'::text))
+constraint|public|core_location|core_location_map_fkey|f|t|FOREIGN KEY (map_worldspace_id) REFERENCES core_worldspace(worldspace_id) ON DELETE SET NULL
+constraint|public|core_location|core_location_parent_fkey|f|t|FOREIGN KEY (parent_location_id) REFERENCES core_location(location_id) ON DELETE SET NULL
+constraint|public|core_location|core_location_pkey|p|t|PRIMARY KEY (location_id)
+constraint|public|core_location|core_location_plugin_check|c|t|CHECK ((plugin = lower(plugin)))
+constraint|public|core_location|core_location_position_check|c|t|CHECK ((((map_x IS NULL) = (map_y IS NULL)) AND (NOT ((map_x = (0)::double precision) AND (map_y = (0)::double precision)))))
+constraint|public|core_location|core_location_position_source_check|c|t|CHECK ((position_source = ANY (ARRAY['map_marker'::text, 'world_marker'::text, 'center_marker'::text, 'parent'::text, 'none'::text])))
+constraint|public|core_location|core_location_ref_key|u|t|UNIQUE (plugin, baseid)
+constraint|public|core_location|core_location_region_fkey|f|t|FOREIGN KEY (region_location_id) REFERENCES core_location(location_id) ON DELETE SET NULL
+constraint|public|core_location|core_location_sha_check|c|t|CHECK (((last_catalog_sha256 IS NULL) OR (last_catalog_sha256 ~ '^[0-9a-f]{64}$'::text)))
+constraint|public|core_location|core_location_tags_check|c|t|CHECK ((jsonb_typeof(tags) = 'array'::text))
+constraint|public|core_relationship_config|core_relationship_config_affinity_check|c|t|CHECK (((baseline_affinity IS NULL) OR ((baseline_affinity >= '-100'::integer) AND (baseline_affinity <= 100))))
+constraint|public|core_relationship_config|core_relationship_config_baseline_revisions_check|c|t|CHECK (((affinity_baseline_revision >= 0) AND (affinity_baseline_revision <= revision) AND (type_baseline_revision >= 0) AND (type_baseline_revision <= revision)))
+constraint|public|core_relationship_config|core_relationship_config_detail_check|c|t|CHECK (((relation_detail IS NULL) OR (char_length(relation_detail) <= 512)))
+constraint|public|core_relationship_config|core_relationship_config_info_check|c|t|CHECK (((custom_info IS NULL) OR (char_length(custom_info) <= 4096)))
+constraint|public|core_relationship_config|core_relationship_config_notes_check|c|t|CHECK (((private_notes IS NULL) OR (char_length(private_notes) <= 4096)))
+constraint|public|core_relationship_config|core_relationship_config_pair_check|c|t|CHECK ((source_character_id <> target_character_id))
+constraint|public|core_relationship_config|core_relationship_config_pkey|p|t|PRIMARY KEY (playthrough_id, source_character_id, target_character_id)
+constraint|public|core_relationship_config|core_relationship_config_revision_check|c|t|CHECK ((revision >= 1))
+constraint|public|core_relationship_config|core_relationship_config_type_check|c|t|CHECK (((baseline_type IS NULL) OR ((baseline_type)::text ~ '^[a-z][a-z0-9_-]{0,49}$'::text)))
+constraint|public|core_worldspace|core_worldspace_baseid_check|c|t|CHECK (((baseid >= 0) AND (baseid <= 16777215)))
+constraint|public|core_worldspace|core_worldspace_map_fkey|f|t|FOREIGN KEY (map_worldspace_id) REFERENCES core_worldspace(worldspace_id) ON DELETE SET NULL
+constraint|public|core_worldspace|core_worldspace_parent_fkey|f|t|FOREIGN KEY (parent_worldspace_id) REFERENCES core_worldspace(worldspace_id) ON DELETE SET NULL
+constraint|public|core_worldspace|core_worldspace_pkey|p|t|PRIMARY KEY (worldspace_id)
+constraint|public|core_worldspace|core_worldspace_plugin_check|c|t|CHECK ((plugin = lower(plugin)))
+constraint|public|core_worldspace|core_worldspace_ref_key|u|t|UNIQUE (plugin, baseid)
+index|public|core_location_marker|core_location_marker_pkey|CREATE UNIQUE INDEX core_location_marker_pkey ON public.core_location_marker USING btree (marker_id)
+index|public|core_location_marker|core_location_marker_ref_key|CREATE UNIQUE INDEX core_location_marker_ref_key ON public.core_location_marker USING btree (location_id, marker_type, plugin, baseid)
+index|public|core_location_state|core_location_state_pkey|CREATE UNIQUE INDEX core_location_state_pkey ON public.core_location_state USING btree (playthrough_id, location_id)
+index|public|core_location|core_location_map_idx|CREATE INDEX core_location_map_idx ON public.core_location USING btree (map_worldspace_id, map_x, map_y) WHERE (map_x IS NOT NULL)
+index|public|core_location|core_location_parent_ref_idx|CREATE INDEX core_location_parent_ref_idx ON public.core_location USING btree (parent_plugin, parent_baseid)
+index|public|core_location|core_location_pkey|CREATE UNIQUE INDEX core_location_pkey ON public.core_location USING btree (location_id)
+index|public|core_location|core_location_ref_key|CREATE UNIQUE INDEX core_location_ref_key ON public.core_location USING btree (plugin, baseid)
+index|public|core_relationship_config|core_relationship_config_pkey|CREATE UNIQUE INDEX core_relationship_config_pkey ON public.core_relationship_config USING btree (playthrough_id, source_character_id, target_character_id)
+index|public|core_worldspace|core_worldspace_pkey|CREATE UNIQUE INDEX core_worldspace_pkey ON public.core_worldspace USING btree (worldspace_id)
+index|public|core_worldspace|core_worldspace_ref_key|CREATE UNIQUE INDEX core_worldspace_ref_key ON public.core_worldspace USING btree (plugin, baseid)
+table|public|core_location_marker|BASE TABLE
+table|public|core_location_state|BASE TABLE
+table|public|core_location|BASE TABLE
+table|public|core_relationship_config|BASE TABLE
+table|public|core_worldspace|BASE TABLE

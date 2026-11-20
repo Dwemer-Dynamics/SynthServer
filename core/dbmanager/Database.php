@@ -20,6 +20,10 @@ use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\ProfileDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
+use Synth\Core\DbManager\Dao\LocationDao;
+use Synth\Core\DbManager\Dao\LocationStateDao;
+use Synth\Core\DbManager\Dao\RelationshipConfigDao;
+use Synth\Core\DbManager\Dao\WorldspaceDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
@@ -41,7 +45,7 @@ final class Database
         TtsConnectorDao::class,
         SttConnectorDao::class,
         IttConnectorDao::class,
-        ProfileDao::class,
+        ProfileDao::class, LocationDao::class, LocationStateDao::class, WorldspaceDao::class, RelationshipConfigDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
