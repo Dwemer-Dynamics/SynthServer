@@ -405,11 +405,10 @@ function getHeightDescription(float $scale): string {
     // Load height descriptions from prompts table (cached)
     if ($heightDescriptions === null) {
         try {
-            $db = \Synth\Bootstrap::db();
-            $result = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) as prompt FROM core_prompt WHERE prompt_key = 'height_descriptions'");
+            $heightPrompt = \Synth\Core\DbManager\Dao\PromptDao::current()->effective('height_descriptions');
 
-            if ($result && !empty($result['prompt'])) {
-                $data = json_decode($result['prompt'], true);
+            if (!empty($heightPrompt)) {
+                $data = json_decode($heightPrompt, true);
                 $heightDescriptions = $data['height_descriptions'] ?? $fallbackDescriptions;
             } else {
                 // Database query succeeded but no data - use fallback
