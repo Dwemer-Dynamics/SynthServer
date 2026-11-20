@@ -14,6 +14,10 @@ namespace Synth\Core\DbManager;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
+use Synth\Core\DbManager\Dao\ActorActivationDao;
+use Synth\Core\DbManager\Dao\ActorEventBatchDao;
+use Synth\Core\DbManager\Dao\ActorIdentityDao;
+use Synth\Core\DbManager\Dao\CatalogVersionDao;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
 use Synth\Core\DbManager\Dao\DialogueRouteDao;
@@ -51,7 +55,9 @@ use Synth\Core\DbManager\Dao\NpcDao;
 use Synth\Core\DbManager\Dao\NpcHistoryDao;
 use Synth\Core\DbManager\Dao\NpcProfileRuleDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
+use Synth\Core\DbManager\Dao\PlaythroughProfileDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
+use Synth\Core\DbManager\Dao\PluginsDao;
 use Synth\Core\DbManager\Dao\ProfileDao;
 use Synth\Core\DbManager\Dao\PromptDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
@@ -60,6 +66,8 @@ use Synth\Core\DbManager\Dao\RechatContinuationDao;
 use Synth\Core\DbManager\Dao\RechatSelectionDao;
 use Synth\Core\DbManager\Dao\RelationshipConfigDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
+use Synth\Core\DbManager\Dao\RuntimeContextDao;
+use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\VisualContextDao;
@@ -124,6 +132,14 @@ final class Database
         MiddletermReplacementDao::class,
         MiddletermResultDao::class,
         MiddletermSourceDao::class,
+        PlaythroughProfileDao::class,
+        ActorIdentityDao::class,
+        ActorActivationDao::class,
+        ActorEventBatchDao::class,
+        RuntimeSessionDao::class,
+        RuntimeContextDao::class,
+        PluginsDao::class,
+        CatalogVersionDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
