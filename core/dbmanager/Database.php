@@ -64,10 +64,29 @@ use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RechatChainDao;
 use Synth\Core\DbManager\Dao\RechatContinuationDao;
 use Synth\Core\DbManager\Dao\RechatSelectionDao;
+use Synth\Core\DbManager\Dao\RelationshipActorControlDao;
+use Synth\Core\DbManager\Dao\RelationshipActorControlEventDao;
 use Synth\Core\DbManager\Dao\RelationshipConfigDao;
+use Synth\Core\DbManager\Dao\RelationshipEvalQueueDao;
+use Synth\Core\DbManager\Dao\RelationshipEvaluationDao;
+use Synth\Core\DbManager\Dao\RelationshipEvaluationSourceDao;
+use Synth\Core\DbManager\Dao\RelationshipInitQueueDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionResultDao;
+use Synth\Core\DbManager\Dao\RelationshipInteractionResultPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipResponseInputDao;
+use Synth\Core\DbManager\Dao\RelationshipResponseSourceDao;
+use Synth\Core\DbManager\Dao\RelationshipResultDao;
+use Synth\Core\DbManager\Dao\RelationshipResultPriorDao;
+use Synth\Core\DbManager\Dao\RelationshipRevisionDao;
+use Synth\Core\DbManager\Dao\RelationshipRevisionSourceDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
+use Synth\Core\DbManager\Dao\SocialTaskClaimDao;
+use Synth\Core\DbManager\Dao\SocialTaskEventDao;
+use Synth\Core\DbManager\Dao\SocialTaskInputDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\VisualContextDao;
@@ -140,6 +159,25 @@ final class Database
         RuntimeContextDao::class,
         PluginsDao::class,
         CatalogVersionDao::class,
+        RelationshipActorControlEventDao::class,
+        RelationshipActorControlDao::class,
+        RelationshipEvaluationSourceDao::class,
+        RelationshipEvaluationDao::class,
+        RelationshipInteractionEvaluationDao::class,
+        RelationshipInteractionPriorDao::class,
+        RelationshipInteractionResultPriorDao::class,
+        RelationshipInteractionResultDao::class,
+        RelationshipResponseInputDao::class,
+        RelationshipResponseSourceDao::class,
+        RelationshipResultPriorDao::class,
+        RelationshipResultDao::class,
+        RelationshipRevisionSourceDao::class,
+        RelationshipRevisionDao::class,
+        SocialTaskClaimDao::class,
+        SocialTaskEventDao::class,
+        SocialTaskInputDao::class,
+        RelationshipEvalQueueDao::class,
+        RelationshipInitQueueDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
