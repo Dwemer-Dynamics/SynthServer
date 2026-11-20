@@ -627,7 +627,7 @@ function processAutoDiary($gameRequest, $eventType) {
             $playerNameSafe = preg_replace('/[^a-zA-Z0-9_]/', '_', $playerName);
             $cooldownKey = "DIARY_LAST_TIMESTAMP_PLAYER_" . $playerNameSafe;
 
-            $diaryRecord = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($cooldownKey) . "'");
+            $diaryRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', $cooldownKey));
             if (!empty($diaryRecord) && isset($diaryRecord[0]['value'])) {
                 $lastTimestamp = intval($diaryRecord[0]['value']);
                 $timeSinceLastDiary = time() - $lastTimestamp;
@@ -684,7 +684,7 @@ function processAutoDiary($gameRequest, $eventType) {
             
             // Check narrator's diary cooldown
             $cooldownKey = "DIARY_LAST_TIMESTAMP_The_Narrator";
-            $diaryRecord = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($cooldownKey) . "'");
+            $diaryRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', $cooldownKey));
             
             if (!empty($diaryRecord) && isset($diaryRecord[0]['value'])) {
                 $lastTimestamp = intval($diaryRecord[0]['value']);
@@ -781,7 +781,7 @@ function processAutoDiary($gameRequest, $eventType) {
             ? max(0, intval($profileMeta['DIARY_COOLDOWN']))
             : $diaryCooldownPeriod;
         
-        $diaryRecord = $db->fetchAll("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($cooldownKey) . "'");
+        $diaryRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', $cooldownKey));
         
         if (!empty($diaryRecord)) {
             $lastTrigger = (int) $diaryRecord[0]['value'];
@@ -830,13 +830,7 @@ function processAutoDiary($gameRequest, $eventType) {
             // Generate diary entry for this NPC
             if (generateFollowerDiary($npcName, $gameRequest, $eventType)) {
                 $generatedCount++;
-                $db->upsertRowOnConflict('public.core_config_setting',
-                    array(
-                        'scope' => 'conf', 'config_key' => $cooldownKey,
-                        'config_value' => time()
-                    ),
-                    "id"
-                );
+                \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $cooldownKey, time());
                 Logger::info("AUTO_DIARY: Generated diary entry for $npcName");
             } else {
                 Logger::warn("AUTO_DIARY: Failed to generate diary entry for $npcName; cooldown was not started");
