@@ -18,11 +18,6 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
     if ($manageTransaction && $db->execQuery('BEGIN')===false) throw new RuntimeException('Unable to begin Fallout content import');
     $filled=0;
     try {
-        // Apply the reference-only map upgrade inside the same owned/borrowed
-        // transaction as content, so failed imports retain the previous schema.
-        $mapSchema=file_get_contents(dirname(__DIR__, 3).'/lib/core/database_schema/bio_template_actor_map.sql');
-        if ($mapSchema===false || trim($mapSchema)==='' || $db->execQuery($mapSchema)===false)
-            throw new RuntimeException('Unable to upgrade NPC stable mapping schema');
         foreach ($pack['npcs'] as $row) {
             $fields=['npc_name'=> $row['npc_name']]+$row['fields'];
             $placeholders=array_map(static fn($position)=>'$'.$position,range(1,count($fields)));

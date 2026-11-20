@@ -1214,7 +1214,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('to_jsonb(inserted)', $owned);
         $this->assertStringContainsString('finally', $owned);
         $this->assertStringContainsString('ROLLBACK', $owned);
-        $schema = file_get_contents(dirname(__DIR__,2).'/lib/core/database_schema/synth_protocol.sql');
+        $schema = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/migrations/Version20261117000000.fresh.sql');
         $this->assertStringContainsString('FOREIGN KEY (session_id, generation, context_sequence)', $schema);
         $this->assertStringNotContainsString('UPDATE public.core_context_event', $schema);
     }
