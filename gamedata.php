@@ -395,7 +395,7 @@ function handleLoadedPluginsUpdate(array $data): void
 
 function handleWorldLocationsUpdate(array $data): array
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     if (!array_key_exists('locations', $data) || !is_array($data['locations'])) {
         throw new InvalidArgumentException('world_locations missing locations payload');
     }
@@ -462,7 +462,7 @@ function handleWorldLocationsUpdate(array $data): array
 
 function handleWorldFactionsUpdate(array $data): array
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     if (!array_key_exists('factions', $data) || !is_array($data['factions'])) {
         throw new InvalidArgumentException('world_factions missing factions payload');
     }
@@ -510,7 +510,7 @@ function handleWorldFactionsUpdate(array $data): array
 
 function handleDialogueDeliveryUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $state = strtolower(trim((string)($data['state'] ?? '')));
     if ($state === 'dropped') {
         $state = 'aborted';
@@ -653,7 +653,7 @@ function synthResolveNearestExteriorLocationName(string $location, string $world
 
 function handleWorldContextUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
 
     $gamets = synthGameDataGamets($data, 'world_context');
     if ($gamets <= 0) {
@@ -762,7 +762,7 @@ function synthNearbyActorIsSceneParticipant(array $actor): bool
 
 function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $gamets = synthGameDataGamets($data, 'nearby_actors');
     if ($gamets <= 0) {
         return ['deferred' => true, 'reason' => 'missing_gamets'];
@@ -1068,7 +1068,7 @@ function synthNormalizeNearbyItemsContainer($items): array
 
 function handleNearbyItemsUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $gamets = synthGameDataGamets($data, 'nearby_items');
     if ($gamets <= 0) {
         return;
@@ -1151,7 +1151,7 @@ function handleNearbyItemsUpdate(array $data): void
 
 function handlePointsOfInterestUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $gamets = synthGameDataGamets($data, 'points_of_interest');
     if ($gamets <= 0) {
         return;
@@ -1237,7 +1237,7 @@ function handlePointsOfInterestUpdate(array $data): void
 
 function handleActiveQuestsUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $gamets = synthGameDataGamets($data, 'active_quests');
     if ($gamets <= 0) {
         return;
@@ -1334,7 +1334,7 @@ function handleActiveQuestsUpdate(array $data): void
 
 function handleTradeSummaryUpdate(array $data): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $gamets = synthGameDataGamets($data, 'trade_summary');
     if ($gamets <= 0) {
         return;
@@ -1721,7 +1721,7 @@ function sanitizeActorProfilePayload(array $data): array
 
 function synthApplyActorProfileRules(array $currentData, array $data, NpcMaster $npcMaster): void
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $factionNames = [];
     $factionFormIds = [];
     foreach (($data['factions'] ?? []) as $faction) {
@@ -1830,7 +1830,7 @@ function handleActorProfileUpdate(array $data, NpcMaster $npcMaster): void
 
     $profileFields = flattenActorProfileFields($data);
     $refid = trim((string)($profileFields['refid'] ?? ''));
-    synth_ensure_npc($GLOBALS['db'], $actorName, $refid, $profileFields);
+    synth_ensure_npc(\Synth\Bootstrap::db(), $actorName, $refid, $profileFields);
 
     $currentData = findNpcForGameData($npcMaster, $actorName, $data);
     if (!$currentData) {
@@ -1869,9 +1869,9 @@ function handleActorProfileUpdate(array $data, NpcMaster $npcMaster): void
 
     $baseid = firstNonEmptyString([$data['baseid'] ?? '', $data['identity']['baseid'] ?? '']);
     if ($baseid !== '') {
-        $GLOBALS['db']->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
             UPDATE synth.core_npc_master
-            SET base = '" . $GLOBALS['db']->escape($baseid) . "'
+            SET base = '" . \Synth\Bootstrap::db()->escape($baseid) . "'
             WHERE id = " . intval($currentData['id']) . "
         ");
     }
@@ -2201,7 +2201,7 @@ function handleFalloutStatsUpdate(array $data): void {
     }
 
     try {
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         $valueRows = [];
         foreach ($stats as $statKey => $statValue) {
             $valueRows[] = "('" . $db->escape($statKey) . "', '" . $db->escape((string)$statValue) . "')";
@@ -2256,7 +2256,7 @@ function handleMarketStockUpdate(array $data): void {
         return;
     }
 
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $factionFormId = $db->escape(strtoupper($data['faction']));
 
     // Build normalised stock array from the incoming list

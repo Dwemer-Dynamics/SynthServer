@@ -25,8 +25,8 @@ try {
     if ($lock===false || !chmod($path,0600)) throw new RuntimeException('Speech dispatch lock unavailable');
     if (!flock($lock,LOCK_EX|LOCK_NB)) exit(0);
     do {
-        foreach(synth_tts_due_jobs($GLOBALS['db']) as $id) synth_tts_launch_job($id,$root);
-        synth_tts_cleanup_job_inputs($GLOBALS['db'],$root);
+        foreach(synth_tts_due_jobs(\Synth\Bootstrap::db()) as $id) synth_tts_launch_job($id,$root);
+        synth_tts_cleanup_job_inputs(\Synth\Bootstrap::db(),$root);
         if ($argc===1) break;
         usleep(500000);
     } while ($running && ($maxSeconds===null || microtime(true)-$startedAt<$maxSeconds));

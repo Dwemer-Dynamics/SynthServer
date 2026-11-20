@@ -288,7 +288,7 @@ if ($currentDriver === '') {
  $currentDriver = sttPreferredDriver($connector, $driverOptions);
 }
 $currentMetadata = $connector->decodeMetadata($editingRow['metadata'] ?? '{}');
-$apiRows = (new \Synth\Core\ApiBadgeRepository($GLOBALS["db"]))->labelsWithKeys('lower_label');
+$apiRows = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->labelsWithKeys('lower_label');
 
 if (!$isEmbed) {
  require_once(__DIR__ . DIRECTORY_SEPARATOR . "profile_loader.php");

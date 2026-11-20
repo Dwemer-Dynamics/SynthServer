@@ -35,7 +35,7 @@ try {
 } catch (SYNTHProtocolCancelled $e) {
     // A closed response cannot be reopened by deferred work that lost its owner.
     synth_emit_cancelled_json_response();
-    synth_protocol_complete_request($GLOBALS['db'], 'cancelled', 'application/x-ndjson',
+    synth_protocol_complete_request(\Synth\Bootstrap::db(), 'cancelled', 'application/x-ndjson',
         strval($GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] ?? ''), 'request_cancelled');
 } catch (SYNTHTestRequestTerminated $e) {
     if (!getenv("PHPUNIT_TEST")) {

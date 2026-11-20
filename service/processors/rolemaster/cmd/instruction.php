@@ -75,7 +75,7 @@ if (!isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]) ) {
             $historyData .= $nearbySceneContext . PHP_EOL . PHP_EOL;
         }
         
-        $recap=$GLOBALS["db"]->fetchOne("SELECT * FROM core_director_note where type='story_summary' ORDER BY rowid DESC LIMIT 1");
+        $recap=\Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_director_note where type='story_summary' ORDER BY rowid DESC LIMIT 1");
         if (isset($recap["data"])) {
             $historyData=$recap["data"]."\n".$historyData;
 
@@ -126,7 +126,7 @@ if (!isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]) ) {
 // Load director examples prompt from database with fallback
 $commonprompt = null;
 try {
-    $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_examples_prompt'");
+    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_examples_prompt'");
     if ($promptData) {
         $commonprompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
     }
@@ -182,7 +182,7 @@ user request: actor \"a\" leaves the place
         // Load director system prompt from database with fallback
         $directorSystemPrompt = null;
         try {
-            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_system_prompt'");
+            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_system_prompt'");
             if ($promptData) {
                 $directorSystemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
@@ -200,7 +200,7 @@ user request: actor \"a\" leaves the place
         // Load director instruction rules from database with fallback
         $directorInstructionRules = null;
         try {
-            $promptData = $GLOBALS["db"]->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_instruction_rules'");
+            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_instruction_rules'");
             if ($promptData) {
                 $directorInstructionRules = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
@@ -327,7 +327,7 @@ user request: actor \"a\" leaves the place
             $action = make_replacements("$noteContent");
         
             // Insert into database
-            $GLOBALS["db"]->insert(
+            \Synth\Bootstrap::db()->insert(
                 'core_director_note',
                 array(
                     'localts' => time(),
@@ -374,7 +374,7 @@ user request: actor \"a\" leaves the place
 
         
         if (isset($GLOBALS["argv"][4]) && $GLOBALS["argv"][4]=="notify") {
-            $pluginVersionRow = $GLOBALS['db']->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
+            $pluginVersionRow = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='plugin_dll_version'");
             if ($pluginVersionRow && isset($pluginVersionRow['value'])) {
                 if ($allOk)
                     synthQueueCommandResponse(

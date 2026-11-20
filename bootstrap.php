@@ -64,6 +64,36 @@ final class Bootstrap
         return new self($root, $config, new \sql($config));
     }
 
+    /**
+     * The shared database handle, or null before the runtime session started. The compatibility global $db is
+     * the source of truth while legacy code (and tests) still assign it; the runtime instance is the fallback.
+     */
+    public static function db(): ?object
+    {
+        $db = $GLOBALS['db'] ?? null;
+        if (is_object($db)) return $db;
+        return self::$current?->db;
+    }
+
+    /** The engine root with a trailing separator (the legacy ENGINE_PATH), or null before the runtime session started. */
+    public static function enginePath(): ?string
+    {
+        $path = $GLOBALS['ENGINE_PATH'] ?? null;
+        if (is_string($path) && $path !== '') return $path;
+        return self::$current?->root;
+    }
+
+    /**
+     * One configuration value. A legacy global wins because settings loaded from the database are written there;
+     * then the values read from conf.sample.php / conf.php; then $default.
+     */
+    public static function config(string $name, mixed $default = null): mixed
+    {
+        if (array_key_exists($name, $GLOBALS)) return $GLOBALS[$name];
+        $config = self::$current?->config ?? [];
+        return array_key_exists($name, $config) ? $config[$name] : $default;
+    }
+
     // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case
     // configuration names are kept, and anything the files print is discarded so it cannot corrupt a JSON answer.
     public static function readConfiguration(string $root): array

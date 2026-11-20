@@ -384,7 +384,7 @@ $filterBrowseFieldConfigs = filter_browse_field_configs();
 
 $foreignOptions = [];
 try {
- $foreignOptions['core_llm_connector:id:label'] = $GLOBALS["db"]->fetchAll("SELECT id, label FROM core_llm_connector ORDER BY LOWER(label) ASC, id ASC");
+ $foreignOptions['core_llm_connector:id:label'] = \Synth\Bootstrap::db()->fetchAll("SELECT id, label FROM core_llm_connector ORDER BY LOWER(label) ASC, id ASC");
 } catch (\Throwable $e) {
  $foreignOptions['core_llm_connector:id:label'] = [];
 }
