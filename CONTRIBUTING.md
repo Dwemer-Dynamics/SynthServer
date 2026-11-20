@@ -29,8 +29,7 @@ client/server changes. A build or HTTP check does not prove in-game behavior.
 - Keep each change focused. Link the paired SYNTH client PR for protocol changes, and mirror
   `protocol/` byte-for-byte.
 - Every schema change is a Doctrine migration in `core/dbmanager/migrations/` that works for both
-  fresh installs and upgrades. `debug/db_updates.php` is the frozen legacy baseline; do not add
-  blocks to it. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md). Add the migration's entry to
+  fresh installs and upgrades. The legacy `debug/db_updates.php` chain is retired; a database is built only by the baseline migration. See [docs/SCHEMA-MIGRATIONS.md](docs/SCHEMA-MIGRATIONS.md). Add the migration's entry to
   `core/dbmanager/migrations/schema-manifest.json` (one per migration) and follow the
   [schema conventions](docs/SCHEMA-MIGRATIONS.md#schema-conventions); `php tools/schema-check.php --offline`
   must pass.
