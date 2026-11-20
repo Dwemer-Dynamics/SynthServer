@@ -1,8 +1,4 @@
 <?php
 
-// Keep configured providers selectable without silently changing a working connector.
-function synth_quickstart_service_choices(array $recommended, string $active, array $supported): array
-{
-    if ($active !== '' && in_array($active, $supported, true)) $recommended[] = $active;
-    return array_values(array_unique($recommended));
-}
+// Thin hook over the TTS Studio manager: managers/TtsStudio/Native/quickstart_service_choices.php
+require_once dirname(__DIR__).'/managers/TtsStudio/Native/quickstart_service_choices.php';

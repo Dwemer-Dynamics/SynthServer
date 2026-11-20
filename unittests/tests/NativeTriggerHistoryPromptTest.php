@@ -37,7 +37,7 @@ final class NativeTriggerHistoryPromptTest extends TestCase
             $this->assertStringContainsString('four stimpaks; leave at noon',$history);
             $this->assertStringContainsString('Four stimpaks and noon, sir.',$history);
         }
-        $source=file_get_contents(__DIR__.'/../../lib/data_functions.php');
+        $source=file_get_contents(__DIR__.'/../../managers/ContextManager/Native/data_history.php');
         $projection=strpos($source,'$rowData = synth_history_trigger_prompt_data($row, $nativeHistory);');
         $this->assertIsInt($projection);
         $this->assertLessThan(strpos($source,'// Figure out location form location field',$projection),$projection);

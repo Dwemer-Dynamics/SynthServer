@@ -463,9 +463,9 @@ final class RequestStreamingTest extends TestCase
 
     public function testDeferredSpeechAttemptsDoNotInferWorkerLivenessFromTimestampFiles(): void
     {
-        $producer=file_get_contents(dirname(__DIR__,2).'/lib/chat_helper_functions.php');
+        $producer=file_get_contents(dirname(__DIR__,2).'/managers/TtsStudio/Native/chat_tts.php');
         $start=strpos($producer,'function synth_spawn_deferred_npc_tts_worker(');
-        $producer=substr($producer,$start,strpos($producer,'function returnLines(',$start)-$start);
+        $producer=substr($producer,$start);
         $worker=file_get_contents(dirname(__DIR__,2).'/processor/npc_tts_worker.php');
         $this->assertStringContainsString("'-attempt-' . bin2hex(random_bytes(16))",$producer);
         $this->assertStringNotContainsString('filemtime(',$producer);
@@ -474,7 +474,7 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('if ($ownedAttempt) @unlink($jobPath);',$worker);
         $this->assertStringNotContainsString('@unlink($lockPath)',$worker);
         $this->assertStringContainsString("PHP_OS_FAMILY==='Windows'?'c':'ce'",$worker);
-        foreach(['lib/synth_tts_worker.php','service/tts_dispatch.php'] as $file) {
+        foreach(['managers/TtsStudio/Native/synth_tts_worker.php','service/tts_dispatch.php'] as $file) {
             $this->assertStringContainsString("PHP_OS_FAMILY==='Windows'?'c':'ce'",file_get_contents(dirname(__DIR__,2).'/'.$file));
         }
         $supervisor=file_get_contents(dirname(__DIR__,2).'/service/start.sh');
@@ -1059,7 +1059,7 @@ final class RequestStreamingTest extends TestCase
         }
         $this->assertStringNotContainsString('FROM public.core_memory',$source);
         $this->assertStringContainsString('native_memory_batches AS MATERIALIZED',file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php'));
-        $minime=file_get_contents(dirname(__DIR__,2).'/lib/minimet5_service.php');
+        $minime=file_get_contents(dirname(__DIR__,2).'/drivers/llm/Native/minimet5_service.php');
         $this->assertStringContainsString("'detect:' : 'extract:'",$minime);
         $this->assertStringContainsString("hash('sha256',_minimeServiceBaseUrl()",$minime);
     }
@@ -1153,7 +1153,7 @@ final class RequestStreamingTest extends TestCase
 
     public function testNativeRecallKeywordsUseOwnedHistoryInsteadOfGlobalSpeech(): void
     {
-        $source = file_get_contents(dirname(__DIR__,2).'/lib/chat_helper_functions.php');
+        $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/chat_memory.php');
         $names = explode('function lastSpeech(', explode('function lastNames(', $source, 2)[1], 2)[0];
         $keywords = explode('function lastKeyWordsNew(', explode('function lastKeyWordsContext(', $source, 2)[1], 2)[0];
         foreach ([$names,$keywords] as $reader) {
@@ -1178,7 +1178,7 @@ final class RequestStreamingTest extends TestCase
             $this->assertStringContainsString($guard,$query);
         }
         $this->assertStringNotContainsString('FROM public.core_context_event',$query);
-        $source = file_get_contents(dirname(__DIR__,2).'/lib/data_functions.php');
+        $source = file_get_contents(dirname(__DIR__,2).'/managers/ContextManager/Native/data_history.php');
         $history = explode('function buildHistoricContext(', $source, 2)[1];
         $this->assertStringContainsString("\$historySource = \$nativeHistory ? 'native_history' : 'core_context_event'",$history);
         $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent, $actor, responseRoles:true)',$history);

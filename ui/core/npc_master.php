@@ -1373,7 +1373,7 @@ if (isset($_GET['history'])) {
  $id = intval($_GET['id'] ?? 0);
  if ($id <= 0) { echo json_encode(['ok'=>false, 'error'=>'Invalid id']); exit; }
  // Skip the most recent snapshot (current state); show only historical entries
- $sel = "select history_id,npc_id,npc_name,npc_favorite,lock_profile,prompt_head,npc_static_bio,worldknowledge_tags,emote_moods,personality,relationships,occupation,appearance,skills,speechstyle,goals,voiceid,gender,race,refid,profile_id,dynamic_profile,md5,gamets_last_updated,created,core,base,tags from core_npc_master_history where npc_id = {$id} order by coalesce(gamets_last_updated,0) desc, created desc, history_id desc offset 1";
+ $sel = "select history_id,npc_id,npc_name,npc_favorite,lock_profile,prompt_head,npc_static_bio,worldknowledge_tags,emote_moods,personality,relationships,occupation,appearance,skills,speechstyle,goals,voiceid,gender,race,refid,profile_id,dynamic_profile,md5,gamets_last_updated,created,core,base,tags from core_npc_history where npc_id = {$id} order by coalesce(gamets_last_updated,0) desc, created desc, history_id desc offset 1";
  $rows = $GLOBALS['db']->fetchAll($sel) ?: [];
  $entries = [];
  foreach ($rows as $r){
@@ -1429,7 +1429,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["restore_from_history"
  if ($historyId <= 0) { echo json_encode(["ok"=>false, "error"=>"Invalid history_id"]); exit; }
 
  // Fetch the historical record
- $histRow = $GLOBALS['db']->fetchOne("select * from core_npc_master_history where history_id = {$historyId}");
+ $histRow = $GLOBALS['db']->fetchOne("select * from core_npc_history where history_id = {$historyId}");
  if (!$histRow) { echo json_encode(["ok"=>false, "error"=>"Historical record not found"]); exit; }
 
  $npcId = intval($histRow['npc_id'] ?? 0);
