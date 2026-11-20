@@ -52,7 +52,7 @@ function narrator_private_handle_post(): ?array
         if ($fields['name'] === '') return [false, 'A narrator needs a name.'];
         $profileId = intval($_POST['profile_id'] ?? 0);
         $profileId = $profileId > 0 ? $profileId : null;
-        if ($profileId !== null && !$GLOBALS['db']->fetchOne('SELECT 1 FROM public.core_profiles WHERE id='.$profileId))
+        if ($profileId !== null && !\Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->exists($profileId))
             return [false, 'Choose an existing profile or leave it on the default narrator profile.'];
         $saved = $GLOBALS['db']->withManagementTransaction(static function ($connection) use ($definitionId, $fields, $profileId): int {
             $id = $definitionId;
@@ -118,7 +118,7 @@ function narrator_private_render(string $webRoot, ?array $result = null): void
         usort($definitions, static fn($a, $b) => strcasecmp($a['name'], $b['name']));
         foreach ($GLOBALS['db']->fetchAll('SELECT definition_id,revision_id,name,created_at FROM public.core_narrator_definition_revision
             ORDER BY revision_id DESC LIMIT 200') ?: [] as $row) $revisions[$row['definition_id']][] = $row;
-        $profiles = $GLOBALS['db']->fetchAll('SELECT id,label FROM public.core_profiles ORDER BY id') ?: [];
+        $profiles = \Synth\Core\DbManager\Dao\ProfileDao::current($GLOBALS['db'])->idLabels() ?: [];
     }
     $editing = null;
     $requested = is_string($_GET['narrator_definition'] ?? null) ? $_GET['narrator_definition'] : '';
