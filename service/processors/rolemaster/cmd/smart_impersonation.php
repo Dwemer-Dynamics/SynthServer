@@ -60,7 +60,7 @@ $sysprompt
         };
         $GLOBALS["CONNECTOR"][\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["json_schema"]=false;
 
-        $connectionHandler = new \Synth\Bootstrap::config("CURRENT_CONNECTOR");
+        $connectionHandler = new $GLOBALS["CURRENT_CONNECTOR"];
         $connectionHandler->open($prompt,$customParm);
 
         $buffer="";
