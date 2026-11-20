@@ -52,6 +52,7 @@ chevo has these and SYNTH has no equivalent. Nobody is working on them, and they
 | chevo area | What SYNTH has today |
 | --- | --- |
 | `managers/ReferenceResolver` (deferred load-order references) | Designed in #66, not built. |
+| `managers/WorldManager` | `managers/WorldKnowledgeManager` and observed equipment cover part of it. |
 | Generic EntityEditor (create, read, update and delete over DB entities via `/api/v1/edit`) | `api/v1/editing` covers the `config` entity only: list, read and PATCH, with no create or delete. |
 | Dialogue websocket listener | `bin/notify-server.php` sends opt-in wake-up hints only. Dialogue stays HTTP. |
 | `managers/RumorManager` | A placeholder in chevo too. |
@@ -104,9 +105,8 @@ Code moved from `lib/` lives under `managers/<Name>/Native/`. It was moved, not 
 | ServerStatus | `HealthCheckManager` plus `Native/` backup, log trim, auditing. | parity |
 | TtsStudio | `VoiceSampleStore`, `VoicePreviewManager`, and `Native/` TTS jobs, pronunciation, voice catalog and cloning. | parity (class); Native procedural |
 | Relationships | `AuthoredRelationships`, `Native/` evaluator, `Legacy/` relationship system. | partial (procedural) |
-| WorldManager | `WorldManager` (Fallout date and time, day part, location with worldspace fallback, weather, the `<world>` prompt block), pure over a `world_context` payload. The old `synthWorldContext*` functions delegate to it. Hold and region lookups stay legacy. See its README. | parity (date, time, location, weather) |
 | NpcRegistration | `NpcRegistration` (placed actors by plugin and local id, runtime actors by client-minted id, rename, re-adoption, retire, post-load sync, caps), `ActorProfileRegistration` (the `actor_profile` record, moved from `gamedata.php`). No wire message for runtime actors yet (needs the paired protocol and client PRs), and `actor_profile` does not register placed actors until `ReferenceResolver` can decode form ids. See its README. | partial |
-| ReferenceResolver, RumorManager | — | not started |
+| ReferenceResolver, WorldManager, RumorManager | — | not started |
 | BglManager | — | deferred |
 | OghmaManager | Skyrim knowledge. SYNTH has `WorldKnowledgeManager` (with `Fallout/` content packs). | SYNTH-specific |
 | (no chevo equivalent) | `Conversation` (rechat, autochat), `QuestManager`, `VisualContext`, and the flat `SpeechManager`, `SessionManager`, `ReceiptManager`, `DialogueManager`. | SYNTH-specific |
