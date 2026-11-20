@@ -81,15 +81,14 @@ try {
         // Context for an explicit choice only: no session is preselected, and POST re-checks the exact generation.
         [$mode, $rows] = $db->withManagementTransaction(static function($connection) {
             synth_audience_lock_gate($connection, false);
-            $mode = pg_fetch_assoc(synth_audience_query($connection,
-                "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode'", []));
+            $mode = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_mode');
             $rows = pg_fetch_all(synth_audience_query($connection,
                 "SELECT session_id, active_generation, runtime_variant, playthrough_id, client_version,
                         audience_intent, audience_reset_epoch
                    FROM public.core_runtime_session
                   WHERE state='active' AND capabilities ? 'dialogue.everyone'
                   ORDER BY session_id LIMIT 17", []));
-            return [$mode ? $mode['value'] : 'STANDARD', $rows];
+            return [$mode ?? 'STANDARD', $rows];
         });
         $sessions = array_map(static fn(array $row) => [
             'session_id' => $row['session_id'], 'active_generation' => intval($row['active_generation']),

@@ -202,8 +202,7 @@ function DataLastKnownLocation()
 
 function synthWorldContextIsUnknown($value): bool
 {
-    $clean = strtolower(trim((string)$value));
-    return $clean === '' || $clean === 'unknown' || $clean === 'unknown location' || $clean === 'none' || $clean === 'null';
+    return \Synth\Managers\WorldManager\WorldManager::isUnknown($value);
 }
 
 function synthLatestWorldContextPayload(): ?array
@@ -247,84 +246,22 @@ function synthLatestWorldContextPayload(): ?array
 
 function synthWorldContextLocationFromPayload(?array $payload): string
 {
-    if (!is_array($payload)) {
-        return "";
-    }
-
-    $location = trim((string)($payload['location'] ?? ''));
-    if (!synthWorldContextIsUnknown($location)) {
-        return $location;
-    }
-
-    $worldspace = trim((string)($payload['worldspace'] ?? ''));
-    return synthWorldContextIsUnknown($worldspace) ? "" : $worldspace;
+    return \Synth\Managers\WorldManager\WorldManager::fromPayload($payload)->location();
 }
 
 function synthWorldContextWorldspaceFromPayload(?array $payload): string
 {
-    if (!is_array($payload)) {
-        return "";
-    }
-
-    $worldspace = trim((string)($payload['worldspace'] ?? ''));
-    return synthWorldContextIsUnknown($worldspace) ? "" : $worldspace;
+    return \Synth\Managers\WorldManager\WorldManager::fromPayload($payload)->worldspace();
 }
 
 function synthWorldContextDateText(?array $payload): string
 {
-    if (!is_array($payload) || empty($payload['game_time']) || !is_array($payload['game_time'])) {
-        return "";
-    }
-
-    $gameTime = $payload['game_time'];
-    $year = intval($gameTime['year'] ?? 0);
-    $month = intval($gameTime['month'] ?? 0);
-    $day = intval($gameTime['day'] ?? 0);
-    $months = [
-        1 => 'January',
-        2 => 'February',
-        3 => 'March',
-        4 => 'April',
-        5 => 'May',
-        6 => 'June',
-        7 => 'July',
-        8 => 'August',
-        9 => 'September',
-        10 => 'October',
-        11 => 'November',
-        12 => 'December',
-    ];
-
-    if ($year <= 0 || $month < 1 || $month > 12 || $day < 1 || $day > 31) {
-        return "";
-    }
-
-    return "{$months[$month]} {$day}, {$year}";
+    return \Synth\Managers\WorldManager\WorldManager::fromPayload($payload)->date();
 }
 
 function synthWorldContextTimeText(?array $payload): string
 {
-    if (!is_array($payload) || empty($payload['game_time']) || !is_array($payload['game_time'])) {
-        return "";
-    }
-
-    $hourFloat = floatval($payload['game_time']['hour'] ?? -1);
-    if ($hourFloat < 0.0) {
-        return "";
-    }
-
-    $totalMinutes = ((int)round($hourFloat * 60.0)) % 1440;
-    $hour24 = intdiv($totalMinutes, 60);
-    $minute = $totalMinutes % 60;
-    $ampm = $hour24 >= 12 ? "PM" : "AM";
-    $hour12 = $hour24 % 12;
-    if ($hour12 === 0) {
-        $hour12 = 12;
-    }
-
-    $clock = sprintf("%d:%02d %s", $hour12, $minute, $ampm);
-    $dayPart = hour2part_of_day(sprintf("%02d", $hour24));
-    return $dayPart !== "" ? "{$clock}, {$dayPart}" : $clock;
+    return \Synth\Managers\WorldManager\WorldManager::fromPayload($payload)->time();
 }
 
 function normalizeLocationContextToken($value, $stripStateSuffix = false)
@@ -619,48 +556,11 @@ function DataLastKnownLocationHuman($region=false,$cached=false)
 
 function buildWorldPrompt($gamets = 0)
 {
-    $worldLines = [];
-    $worldPayload = synthLatestWorldContextPayload();
-
-    $currentWorldspace = synthWorldContextWorldspaceFromPayload($worldPayload);
-    $currentLoc = trim(synthWorldContextLocationFromPayload($worldPayload));
-    if ($currentLoc === "") {
-        $currentLoc = trim(DataLastKnownLocationHuman(false, false));
-    }
-    if ($currentWorldspace !== "") {
-        $worldLines[] = "  <worldspace>" . xml_fragment_escape_text($currentWorldspace) . "</worldspace>";
-    }
-    if ($currentLoc !== "") {
-        $worldLines[] = "  <location>" . xml_fragment_escape_text($currentLoc) . "</location>";
-    }
-
-    $currentWeather = "";
-    if (is_array($worldPayload)) {
-        $currentWeather = trim((string)($worldPayload['weather'] ?? ''));
-    }
-    if ($currentWeather === "") {
-        $currentWeather = trim(DataLastKnownWeatherHuman());
-    }
-    if ($currentWeather !== "") {
-        $worldLines[] = "  <weather>" . xml_fragment_escape_text($currentWeather) . "</weather>";
-    }
-
-    $directDate = synthWorldContextDateText($worldPayload);
-    $directTime = synthWorldContextTimeText($worldPayload);
-    if ($directDate !== "" || $directTime !== "") {
-        if ($directDate !== "") {
-            $worldLines[] = "  <date>" . xml_fragment_escape_text($directDate) . "</date>";
-        }
-        if ($directTime !== "") {
-            $worldLines[] = "  <time>" . xml_fragment_escape_text($directTime) . "</time>";
-        }
-    }
-
-    if (empty($worldLines)) {
-        return "";
-    }
-
-    return "\n\n<world>\n" . implode("\n", $worldLines) . "\n</world>";
+    $world = \Synth\Managers\WorldManager\WorldManager::fromPayload(synthLatestWorldContextPayload());
+    // The older lookups run only when the latest world_context payload has no location or weather.
+    $fallbackLocation = trim($world->location()) === '' ? trim(DataLastKnownLocationHuman(false, false)) : '';
+    $fallbackWeather = $world->weather() === '' ? trim(DataLastKnownWeatherHuman()) : '';
+    return $world->promptBlock($fallbackLocation, $fallbackWeather);
 }
 
 function DataLastKnownWeatherHuman()

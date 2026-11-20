@@ -155,3 +155,16 @@ Files under: functions
 | --- | --- | --- |
 | global uses (all non-test PHP) | 2926 | 2773 |
 | `require_once` | 1838 | 1838 |
+
+### W4-service
+
+All uses in `service/`, including `new $GLOBALS['CURRENT_CONNECTOR']` (now `new (Bootstrap::config('CURRENT_CONNECTOR'))`), the dynamic-key read in `service/lib/core_utils.php` (`config($v)`) and the rolemaster task closure (`setPath('TASKS', ['rolemaster', 'fn'], function ...)`). Core (`core/`, except `core/dbmanager`) has no global uses.
+
+Stacked on W3-functions.
+
+Files under: service
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2773 | 2660 |
+| `require_once` | 1838 | 1838 |
