@@ -464,7 +464,7 @@ function synth_relationship_process_evaluation($db, int $jobId, callable $genera
     if (!$db->isTransactionIdle()) throw new LogicException('Relationship providers require an idle database connection');
     $job=synth_relationship_claim_evaluation($db,$jobId); if (!$job) return null;
     $previous=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_JOB_LEASE') ?? null;
-    $GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE']=['id'=>$jobId,'token'=>$job['lease_token']];
+    \Synth\Bootstrap::set('SYNTH_RELATIONSHIP_JOB_LEASE', ['id'=>$jobId,'token'=>$job['lease_token']]);
     try {
         $input=json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         $text=$generate($input);
@@ -474,7 +474,7 @@ function synth_relationship_process_evaluation($db, int $jobId, callable $genera
     } catch (Throwable $error) {
         synth_relationship_fail_evaluation($db,$jobId,$job['lease_token']); throw $error;
     } finally {
-        if ($previous===null) unset($GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE']);
-        else $GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE']=$previous;
+        if ($previous===null) \Synth\Bootstrap::forget('SYNTH_RELATIONSHIP_JOB_LEASE');
+        else \Synth\Bootstrap::set('SYNTH_RELATIONSHIP_JOB_LEASE', $previous);
     }
 }

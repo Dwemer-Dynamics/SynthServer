@@ -89,7 +89,7 @@ function synth_relationship_capture_configured_interaction($db, int $responseId,
 function synth_relationship_interaction_input($db, int $interactionId): ?array
 {
     if ($interactionId<1) throw new InvalidArgumentException('Invalid interaction evaluation key');
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
+    if (empty(\Synth\Bootstrap::claimedRequest())) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$interactionId) {
         $result=@pg_query_params($connection,'SELECT * FROM public.core_relationship_interaction_evaluation
             WHERE id=$1 AND session_id=$2 AND request_id=$3 AND generation=$4 AND context_sequence=$5

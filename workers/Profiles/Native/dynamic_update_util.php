@@ -36,17 +36,17 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
     
     // Temporarily switch context to this NPC
     $originalSYNTHName = \Synth\Bootstrap::config("SYNTH_NAME");
-    $GLOBALS["SYNTH_NAME"] = $npcName;
+    \Synth\Bootstrap::set('SYNTH_NAME', $npcName);
     
     try {
         $NPC_CONF = [
             "SYNTH_NAME" => $npcName,
             "PLAYER_NAME" => \Synth\Bootstrap::config("PLAYER_NAME"),
             "SYNTH_PERS" => "An NPC in the world of Fallout.",
-            "PROMPT_HEAD" => isset($GLOBALS["PROMPT_HEAD"]) ? \Synth\Bootstrap::config("PROMPT_HEAD") : "You are an NPC in the world of Fallout.",
-            "COMMAND_PROMPT" => isset($GLOBALS["COMMAND_PROMPT"]) ? \Synth\Bootstrap::config("COMMAND_PROMPT") : "",
-            "CONTEXT_HISTORY" => isset($GLOBALS["CONTEXT_HISTORY"]) ? \Synth\Bootstrap::config("CONTEXT_HISTORY") : 25,
-            "CONTEXT_HISTORY_DIARY" => isset($GLOBALS["CONTEXT_HISTORY_DIARY"]) ? \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") : 0,
+            "PROMPT_HEAD" => \Synth\Bootstrap::has('PROMPT_HEAD') ? \Synth\Bootstrap::config("PROMPT_HEAD") : "You are an NPC in the world of Fallout.",
+            "COMMAND_PROMPT" => \Synth\Bootstrap::has('COMMAND_PROMPT') ? \Synth\Bootstrap::config("COMMAND_PROMPT") : "",
+            "CONTEXT_HISTORY" => \Synth\Bootstrap::has('CONTEXT_HISTORY') ? \Synth\Bootstrap::config("CONTEXT_HISTORY") : 25,
+            "CONTEXT_HISTORY_DIARY" => \Synth\Bootstrap::has('CONTEXT_HISTORY_DIARY') ? \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") : 0,
             "CONNECTORS_DIARY" => $defaultDiaryConnector
         ];
 
@@ -124,17 +124,17 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
         $contextData = array_merge($head, $prompt);
         
         // Set the request type for diary so connector knows to use diary grammar
-        $originalGameRequest = isset($GLOBALS["gameRequest"]) ? \Synth\Bootstrap::gameRequest() : null;
-        $GLOBALS["gameRequest"] = [0 => "diary", 1 => time(), 2 => $gameRequest[2], 3 => "Auto diary for " . $npcName];
+        $originalGameRequest = \Synth\Bootstrap::has('gameRequest') ? \Synth\Bootstrap::gameRequest() : null;
+        \Synth\Bootstrap::set('gameRequest', [0 => "diary", 1 => time(), 2 => $gameRequest[2], 3 => "Auto diary for " . $npcName]);
         
         // Generate diary entry using LLM
         require_once(dirname(__DIR__, 3).'/lib' . '/../drivers/llm/LlmWrapper.php');
         $connectionHandler = \Synth\Drivers\Llm\LlmWrapper::legacyConnector($resolvedDiaryConnector);
         // Prefer connector's configured max_tokens; fallback to memory max token config; then a sane default
         $maxTokens = null;
-        if (isset($GLOBALS["CONNECTOR"][$resolvedDiaryConnector]["max_tokens"]) && \Synth\Bootstrap::config("CONNECTOR")[$resolvedDiaryConnector]["max_tokens"] !== '') {
+        if (isset(\Synth\Bootstrap::config('CONNECTOR')[$resolvedDiaryConnector]["max_tokens"]) && \Synth\Bootstrap::config("CONNECTOR")[$resolvedDiaryConnector]["max_tokens"] !== '') {
             $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$resolvedDiaryConnector]["max_tokens"];
-        } elseif (isset($GLOBALS["CONNECTOR"][$resolvedDiaryConnector]["MAX_TOKENS_MEMORY"])) {
+        } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$resolvedDiaryConnector]["MAX_TOKENS_MEMORY"])) {
             $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$resolvedDiaryConnector]["MAX_TOKENS_MEMORY"];
         } else {
             $maxTokens = 2048;
@@ -164,9 +164,9 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
         
         // Restore original gameRequest after diary generation
         if ($originalGameRequest !== null) {
-            $GLOBALS["gameRequest"] = $originalGameRequest;
+            \Synth\Bootstrap::set('gameRequest', $originalGameRequest);
         } else {
-            unset($GLOBALS["gameRequest"]);
+            \Synth\Bootstrap::forget('gameRequest');
         }
         
         if (!empty(trim($buffer))) {
@@ -203,7 +203,7 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
         Logger::error("DIARY_NEARBY: Error generating diary for $npcName: " . $e->getMessage());
     } finally {
         // Restore original context
-        $GLOBALS["SYNTH_NAME"] = $originalSYNTHName;
+        \Synth\Bootstrap::set('SYNTH_NAME', $originalSYNTHName);
     }
     
     return false;
@@ -422,10 +422,10 @@ function generatePlayerDiary($gameRequest, $eventType)
         'content' => implode("\n\n", $systemParts)
     ];
 
-    if (isset($GLOBALS["CONTEXT_HISTORY_DIARY"]) && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
+    if (\Synth\Bootstrap::has('CONTEXT_HISTORY_DIARY') && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
         $lastNDataForContext = \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") + 0;
     } else {
-        $lastNDataForContext = isset($GLOBALS["CONTEXT_HISTORY"]) ? (\Synth\Bootstrap::config("CONTEXT_HISTORY") + 0) : 25;
+        $lastNDataForContext = \Synth\Bootstrap::has('CONTEXT_HISTORY') ? (\Synth\Bootstrap::config("CONTEXT_HISTORY") + 0) : 25;
     }
 
     $sqlfilter = " and type<>'prechat' and type<>'itemfound' and type<>'infoaction' ";
@@ -448,12 +448,12 @@ function generatePlayerDiary($gameRequest, $eventType)
     $contextData = array_merge($head, $prompt);
 
     $originalGameRequest = \Synth\Bootstrap::gameRequest() ?? null;
-    $GLOBALS["gameRequest"] = [0 => "diary_player", 1 => time(), 2 => $gameRequest[2], 3 => "Diary for " . $playerName];
+    \Synth\Bootstrap::set('gameRequest', [0 => "diary_player", 1 => time(), 2 => $gameRequest[2], 3 => "Diary for " . $playerName]);
 
     $hadForce = array_key_exists('FORCE_MAX_TOKENS', $GLOBALS);
     $prevForce = $hadForce ? \Synth\Bootstrap::config('FORCE_MAX_TOKENS') : null;
     if ($hadForce) {
-        unset($GLOBALS['FORCE_MAX_TOKENS']);
+        \Synth\Bootstrap::forget('FORCE_MAX_TOKENS');
     }
 
     $buffer = "";
@@ -463,7 +463,7 @@ function generatePlayerDiary($gameRequest, $eventType)
         $coreConnectorId = trim((string)$player->get('diary_connector_id'));
         if ($coreConnectorId === '') {
             foreach (['CORE_CONNECTOR_SUMMARY', 'CORE_CONNECTOR_PLAYER', 'CORE_CONNECTOR_PROFILES'] as $globalConnectorKey) {
-                $candidateConnectorId = trim((string)($GLOBALS[$globalConnectorKey] ?? ''));
+                $candidateConnectorId = trim((string)(\Synth\Bootstrap::config($globalConnectorKey) ?? ''));
                 if ($candidateConnectorId !== '') {
                     $coreConnectorId = $candidateConnectorId;
                     break;
@@ -479,15 +479,15 @@ function generatePlayerDiary($gameRequest, $eventType)
         if (!empty($currentConnectorData)) {
             Logger::info("PLAYER_DIARY: Using core connector {$coreConnectorId} ({$currentConnectorData["driver"]}/{$currentConnectorData["model"]})");
             $connector->setOldGlobals($currentConnectorData);
-            $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-            unset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["stop"]);
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+            \Synth\Bootstrap::unsetPath('SYNTH_CORE_CURRENT_CONNECTOR_DATA', ["stop"]);
 
             $maxTokens = null;
             if (isset($currentConnectorData["max_tokens"]) && $currentConnectorData["max_tokens"] !== null && $currentConnectorData["max_tokens"] !== '') {
                 $maxTokens = (int)$currentConnectorData["max_tokens"];
-            } elseif (isset($GLOBALS["CONNECTOR"][$currentConnectorData["driver"]]["max_tokens"])) {
+            } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$currentConnectorData["driver"]]["max_tokens"])) {
                 $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$currentConnectorData["driver"]]["max_tokens"];
-            } elseif (isset($GLOBALS["CONNECTOR"][$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"])) {
+            } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"])) {
                 $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"];
             } else {
                 $maxTokens = 2048;
@@ -506,9 +506,9 @@ function generatePlayerDiary($gameRequest, $eventType)
             require_once(dirname(__DIR__, 3).'/lib' . '/../drivers/llm/LlmWrapper.php');
 
             $maxTokens = null;
-            if (isset($GLOBALS["CONNECTOR"][$diaryConnector]["max_tokens"]) && \Synth\Bootstrap::config("CONNECTOR")[$diaryConnector]["max_tokens"] !== '') {
+            if (isset(\Synth\Bootstrap::config('CONNECTOR')[$diaryConnector]["max_tokens"]) && \Synth\Bootstrap::config("CONNECTOR")[$diaryConnector]["max_tokens"] !== '') {
                 $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$diaryConnector]["max_tokens"];
-            } elseif (isset($GLOBALS["CONNECTOR"][$diaryConnector]["MAX_TOKENS_MEMORY"])) {
+            } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$diaryConnector]["MAX_TOKENS_MEMORY"])) {
                 $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$diaryConnector]["MAX_TOKENS_MEMORY"];
             } else {
                 $maxTokens = 2048;
@@ -540,13 +540,13 @@ function generatePlayerDiary($gameRequest, $eventType)
         }
 
         if ($hadForce) {
-            $GLOBALS['FORCE_MAX_TOKENS'] = $prevForce;
+            \Synth\Bootstrap::set('FORCE_MAX_TOKENS', $prevForce);
         }
 
         if ($originalGameRequest !== null) {
-            $GLOBALS["gameRequest"] = $originalGameRequest;
+            \Synth\Bootstrap::set('gameRequest', $originalGameRequest);
         } else {
-            unset($GLOBALS["gameRequest"]);
+            \Synth\Bootstrap::forget('gameRequest');
         }
     }
 
@@ -602,7 +602,7 @@ function processAutoDiary($gameRequest, $eventType) {
     
     // Add The Narrator if auto diary is enabled for narrator
     // The Narrator is always "nearby" (conceptually omnipresent)
-    if (!empty($GLOBALS["NARRATOR_AUTO_DIARY_ENABLED"])) {
+    if (!empty(\Synth\Bootstrap::config('NARRATOR_AUTO_DIARY_ENABLED'))) {
         $nearbyNpcs[] = "The Narrator";
         Logger::info("AUTO_DIARY: Added The Narrator to auto diary processing (auto toggle enabled)");
     }
@@ -614,7 +614,7 @@ function processAutoDiary($gameRequest, $eventType) {
     
     $processedCount = 0;
     $generatedCount = 0;
-    $diaryCooldownPeriod = isset($GLOBALS["DIARY_COOLDOWN"]) ? intval(\Synth\Bootstrap::config("DIARY_COOLDOWN")) : 30;
+    $diaryCooldownPeriod = \Synth\Bootstrap::has('DIARY_COOLDOWN') ? intval(\Synth\Bootstrap::config("DIARY_COOLDOWN")) : 30;
     
     if ($shouldProcessPlayerDiary) {
         try {
@@ -670,7 +670,7 @@ function processAutoDiary($gameRequest, $eventType) {
         // Special handling for The Narrator
         if ($npcName === "The Narrator") {
             // Check if narrator auto diary is enabled
-            if (empty($GLOBALS["NARRATOR_AUTO_DIARY_ENABLED"])) {
+            if (empty(\Synth\Bootstrap::config('NARRATOR_AUTO_DIARY_ENABLED'))) {
                 Logger::debug("AUTO_DIARY: The Narrator auto diary is disabled, skipping");
                 continue;
             }
@@ -1030,7 +1030,7 @@ function processNarratorDynamicProfile($db, bool $prepareOnly = false) {
  */
 function saveNarratorDynamicProfileUpdates($updatedFields) {
     require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
-    if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return synth_profile_record_result(\Synth\Bootstrap::db(),'The Narrator',$updatedFields);
+    if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) return synth_profile_record_result(\Synth\Bootstrap::db(),'The Narrator',$updatedFields);
     synth_profile_assert_write_target(\Synth\Bootstrap::db(),'The Narrator');
     
     try {
@@ -1050,7 +1050,7 @@ function saveNarratorDynamicProfileUpdates($updatedFields) {
         }
         
         // Update timestamp
-        $stamp=isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])
+        $stamp=\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')
             ? intval(synth_protocol_current_context(\Synth\Bootstrap::db(),\Synth\Bootstrap::requestEvent()['json'])['payload']['world']['game_time_ticks'] ?? 0) : time();
         if (!$narrator->set('gamets_last_updated', (string)$stamp)) $success=false;
         
@@ -1131,8 +1131,8 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
         
         $connector->setOldGlobals($currentConnectorData);
         $profile->setOldGlobals($currentProfileData);
-        $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-        unset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["stop"]);
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+        \Synth\Bootstrap::unsetPath('SYNTH_CORE_CURRENT_CONNECTOR_DATA', ["stop"]);
         
     } else {
         // Regular NPC processing
@@ -1165,8 +1165,8 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
         $profile->setOldGlobals($currentProfileData);
         $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData);
 
-        $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-        unset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["stop"]);
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+        \Synth\Bootstrap::unsetPath('SYNTH_CORE_CURRENT_CONNECTOR_DATA', ["stop"]);
     }
 
         
@@ -1186,14 +1186,14 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
     );
         
     // Use diary-specific context history if this is a diary request and CONTEXT_HISTORY_DIARY is set
-    if (isset($GLOBALS["CONTEXT_HISTORY_DIARY"]) && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
+    if (\Synth\Bootstrap::has('CONTEXT_HISTORY_DIARY') && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
         $lastNDataForContext = \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY")+0;
     } else {
-        $lastNDataForContext = (isset($GLOBALS["CONTEXT_HISTORY"])) ? (\Synth\Bootstrap::config("CONTEXT_HISTORY")+0) : 25;
+        $lastNDataForContext = (\Synth\Bootstrap::has('CONTEXT_HISTORY')) ? (\Synth\Bootstrap::config("CONTEXT_HISTORY")+0) : 25;
     }
 
     $sqlfilter=" and type<>'prechat' and type<>'itemfound' and type<>'infoaction' ";
-    $contextDataHistoric = DataLastDataExpandedFor("{$GLOBALS["SYNTH_NAME"]}", $lastNDataForContext * -1,$sqlfilter);
+    $contextDataHistoric = DataLastDataExpandedFor(((string)\Synth\Bootstrap::config('SYNTH_NAME')), $lastNDataForContext * -1,$sqlfilter);
     $contextDataHistoric = filterHistoricContextForNarratorVisibility(
         $contextDataHistoric,
         \Synth\Bootstrap::config("SYNTH_NAME") ?? ""
@@ -1230,16 +1230,16 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
     }
     
     // Set the request type for diary so connector knows to use diary grammar
-    $originalGameRequest = isset($GLOBALS["gameRequest"]) ? \Synth\Bootstrap::gameRequest() : null;
-    $GLOBALS["gameRequest"] = [0 => "diary", 1 => time(), 2 => $gameRequest[2], 3 => "Auto diary for " . $followerName];
+    $originalGameRequest = \Synth\Bootstrap::has('gameRequest') ? \Synth\Bootstrap::gameRequest() : null;
+    \Synth\Bootstrap::set('gameRequest', [0 => "diary", 1 => time(), 2 => $gameRequest[2], 3 => "Auto diary for " . $followerName]);
     
     // Determine max tokens: prefer DB connector setting; fallback to driver config; then memory config; then default
     $maxTokens = null;
     if (isset($currentConnectorData["max_tokens"]) && $currentConnectorData["max_tokens"] !== null && $currentConnectorData["max_tokens"] !== '') {
         $maxTokens = (int)$currentConnectorData["max_tokens"];
-    } elseif (isset($GLOBALS["CONNECTOR"][$currentConnectorData["driver"]]["max_tokens"])) {
+    } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$currentConnectorData["driver"]]["max_tokens"])) {
         $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$currentConnectorData["driver"]]["max_tokens"];
-    } elseif (isset($GLOBALS["CONNECTOR"][$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"])) {
+    } elseif (isset(\Synth\Bootstrap::config('CONNECTOR')[$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"])) {
         $maxTokens = (int)\Synth\Bootstrap::config("CONNECTOR")[$currentConnectorData["driver"]]["MAX_TOKENS_MEMORY"];
     } else {
         $maxTokens = 2048;
@@ -1248,21 +1248,21 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
     // Temporarily disable any global FORCE_MAX_TOKENS to avoid accidental clamping
     $hadForce = array_key_exists('FORCE_MAX_TOKENS', $GLOBALS);
     $prevForce = $hadForce ? \Synth\Bootstrap::config('FORCE_MAX_TOKENS') : null;
-    if ($hadForce) { unset($GLOBALS['FORCE_MAX_TOKENS']); }
+    if ($hadForce) { \Synth\Bootstrap::forget('FORCE_MAX_TOKENS'); }
 
     $overrideParameters["MAX_TOKENS"] = $maxTokens;
     $connectionHandler = $connector->getConnector(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA"));
     $buffer=$connectionHandler->fast_request($contextData,$overrideParameters,"diary");
 
     // Restore previous FORCE_MAX_TOKENS if it existed
-    if ($hadForce) { $GLOBALS['FORCE_MAX_TOKENS'] = $prevForce; }
+    if ($hadForce) { \Synth\Bootstrap::set('FORCE_MAX_TOKENS', $prevForce); }
 
     
     // Restore original gameRequest after diary generation
     if ($originalGameRequest !== null) {
-        $GLOBALS["gameRequest"] = $originalGameRequest;
+        \Synth\Bootstrap::set('gameRequest', $originalGameRequest);
     } else {
-        unset($GLOBALS["gameRequest"]);
+        \Synth\Bootstrap::forget('gameRequest');
     }
         
     if (!empty(trim($buffer))) {
@@ -1304,7 +1304,7 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
 }
 
 function getDynamicProfileHistoryData($npcName) {
-    if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
+    if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) {
         $db=\Synth\Bootstrap::db();synth_profile_assert_write_target($db,$npcName);
         $identityId=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$npcName]['actor_identity_id'] ?? null;
         $limit=max(1,min(200,intval(\Synth\Bootstrap::config('CONTEXT_HISTORY_DYNAMIC_PROFILE') ?? \Synth\Bootstrap::config('CONTEXT_HISTORY') ?? 50)));
@@ -1313,7 +1313,7 @@ function getDynamicProfileHistoryData($npcName) {
                 ORDER BY history_event_id DESC LIMIT $limit");
         $history=json_encode(['schema'=>'synth.profile.history.v1','scope'=>$identityId===null ? 'canonical_player' : 'canonical_actor',
             'events'=>array_reverse($rows ?: [])],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-        if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$npcName])) $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$npcName]['history']=$history;
+        if (isset(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$npcName])) \Synth\Bootstrap::setPath('SYNTH_NATIVE_PROFILE_INPUTS', [$npcName, 'history'], $history);
         return $history;
     }
     $historyData = "";
@@ -1324,9 +1324,9 @@ function getDynamicProfileHistoryData($npcName) {
     
     // Determine how much context history to use for dynamic profiles
     $dynamicProfileContextHistory = 50; // Default value
-    if (isset($GLOBALS["CONTEXT_HISTORY_DYNAMIC_PROFILE"]) && \Synth\Bootstrap::config("CONTEXT_HISTORY_DYNAMIC_PROFILE") > 0) {
+    if (\Synth\Bootstrap::has('CONTEXT_HISTORY_DYNAMIC_PROFILE') && \Synth\Bootstrap::config("CONTEXT_HISTORY_DYNAMIC_PROFILE") > 0) {
         $dynamicProfileContextHistory = \Synth\Bootstrap::config("CONTEXT_HISTORY_DYNAMIC_PROFILE");
-    } elseif (isset($GLOBALS["CONTEXT_HISTORY"]) && \Synth\Bootstrap::config("CONTEXT_HISTORY") > 0) {
+    } elseif (\Synth\Bootstrap::has('CONTEXT_HISTORY') && \Synth\Bootstrap::config("CONTEXT_HISTORY") > 0) {
         $dynamicProfileContextHistory = \Synth\Bootstrap::config("CONTEXT_HISTORY");
     }
     
@@ -1389,7 +1389,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
         require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
         $narrator = new Narrator();
         $npcData = $narrator->getNarratorData();
-        $GLOBALS['NARRATOR_ROLEPLAY_NAME'] = $narrator->getRoleplayName();
+        \Synth\Bootstrap::set('NARRATOR_ROLEPLAY_NAME', $narrator->getRoleplayName());
         $promptNpcName = $narrator->getRoleplayName();
     } else {
         require_once(dirname(__DIR__, 3).'/lib' . "/core/npc_master.class.php");
@@ -1397,7 +1397,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
         $npcData = $npcMaster->getByName($npcName);
     }
 
-    if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
+    if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) {
         $input=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$npcName] ?? null;
         if (!is_array($input) || $input['history']!==$historyData) throw new LogicException('Native profile prompt has no frozen input.');
         $npcData=$input['profile'];
@@ -1436,7 +1436,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
     
     // Fallback to $GLOBALS if database load failed
     if (empty($updatePrompt)) {
-        $updatePrompt = $GLOBALS[$promptName] ?? '';
+        $updatePrompt = \Synth\Bootstrap::config($promptName) ?? '';
     }
     
     if (empty($updatePrompt)) {
@@ -1495,7 +1495,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
             ["role" => "system", "content" => "You are an assistant. Analyze the dialogue history and character profile to update ONLY the " . ucfirst($field) . " for the character named '$promptNpcName'. Focus mostly on information about $promptNpcName and mostly ignore details about other characters mentioned in the dialogue."]
         ];
 
-        $GLOBALS["SYNTH_NAME"] = $npcName; //note none of these prompts will contain #SYNTH_NAME, as the dialogue flow doesnt do this replacement (which may be a bug)
+        \Synth\Bootstrap::set('SYNTH_NAME', $npcName); //note none of these prompts will contain #SYNTH_NAME, as the dialogue flow doesnt do this replacement (which may be a bug)
         $prompt = [
             ["role" => "user", "content" => "* Dialogue history:\n" . $historyData . ReplacePlayerNamePlaceholder($profileContextString)],
             ["role" => "user", "content" => "Character name: " . $promptNpcName . "\nCurrent " . ucfirst($field) . ":\n" . ReplacePlayerNamePlaceholder($isNarrator && function_exists('synthRenderNarratorRoleplayText') ? synthRenderNarratorRoleplayText($currentValue) : $currentValue)],
@@ -1510,16 +1510,16 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
         $connector=new LLMConnector();
         $currentConnectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_PROFILES"));
         if (!$currentConnectorData) throw new RuntimeException('Profile connector unavailable.');
-        $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]=$currentConnectorData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
         if (!$prepareOnly) $connector->setOldGlobals($currentConnectorData);
 
         // Get max tokens from core connector configuration (no hardcoded cap)
         $maxTokens = !empty($currentConnectorData["max_tokens"]) ? (int)$currentConnectorData["max_tokens"] : 4000;
         
-        if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
+        if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) {
             if (intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES'))!==$input['connector_id']) throw new LogicException('Native profile connector changed.');
-            $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$npcName]['prompts'][$field]=json_encode($contextData,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-            if ($prepareOnly) $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$npcName]['options'][$field]=['max_tokens'=>$maxTokens];
+            \Synth\Bootstrap::setPath('SYNTH_NATIVE_PROFILE_INPUTS', [$npcName, 'prompts', $field], json_encode($contextData,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+            if ($prepareOnly) \Synth\Bootstrap::setPath('SYNTH_NATIVE_PROFILE_INPUTS', [$npcName, 'options', $field], ['max_tokens'=>$maxTokens]);
             if (strlen(json_encode(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$npcName],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))>1048576) {
                 throw new LengthException('Native profile input exceeds its bound before provider dispatch.');
             }
@@ -1550,7 +1550,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
 }
 
 function saveDynamicProfileUpdates($npcName, $updatedFields, $db, $updateTimeStamp = true, $generationSource = null) {
-    if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return synth_profile_record_result($db,$npcName,$updatedFields);
+    if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) return synth_profile_record_result($db,$npcName,$updatedFields);
     synth_profile_assert_write_target($db,$npcName);
     try {
 
@@ -1579,7 +1579,7 @@ function saveDynamicProfileUpdates($npcName, $updatedFields, $db, $updateTimeSta
             $npcMaster->backupNpcById($currentNpcData["id"]);
 
             if ($updateTimeStamp) {
-                $currentNpcData["gamets_last_updated"]=isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])
+                $currentNpcData["gamets_last_updated"]=\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')
                     ? intval(synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json'])['payload']['world']['game_time_ticks'] ?? 0)
                     : DataLastKnownGameTS();
             }
@@ -1614,7 +1614,7 @@ function queueDynamicProfileBatch(array $npcNames, array $gameRequest): string {
     ];
     $requestEvent=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($requestEvent['protocol_version'] ?? 1)===2) {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($requestEvent['type'] ?? '')!=='profile_refresh') {
+        if (empty(\Synth\Bootstrap::claimedRequest()) || ($requestEvent['type'] ?? '')!=='profile_refresh') {
             throw new LogicException('Native profile queue requires its claimed profile refresh.');
         }
         synth_protocol_assert_request_active();

@@ -14,7 +14,7 @@ namespace Synth\Workers\Legacy;
 abstract class LegacyTaskWorker extends LegacyDispatchWorker
 {
     /**
-     * Returns the manager task name, the key of `$GLOBALS['TASKS']`, such as "middleterm".
+     * Returns the manager task name, the key of `\Synth\Bootstrap::config('TASKS')`, such as "middleterm".
      */
     abstract protected function task(): string;
 

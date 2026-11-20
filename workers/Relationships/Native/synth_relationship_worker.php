@@ -112,16 +112,16 @@ function synth_relationship_generate_evaluation($db, array $input): string
     $prompt=($input['schema'] ?? null)==='synth.relationship.interaction.input.v1'
         ? synth_relationship_interaction_prompt($input) : synth_relationship_evaluation_prompt($input);
     $connector->setOldGlobals($settings);
-    $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$settings;
-    $GLOBALS['CURRENT_CONNECTOR']=$settings['driver'];
-    $GLOBALS['PLAYER_NAME']=$input['context']['player']['display_name'];
-    $GLOBALS['SYNTH_NAME']=$input['context']['target']['display_name'];
-    $GLOBALS['gameRequest']=['relationship_eval'];
-    $GLOBALS['COMMAND_PROMPT']='';
-    $GLOBALS['BASE_FUNCTIONS']=[];
-    $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];
-    $GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
-    $GLOBALS['FORCE_MAX_TOKENS']=512;
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $settings['driver']);
+    \Synth\Bootstrap::set('PLAYER_NAME', $input['context']['player']['display_name']);
+    \Synth\Bootstrap::set('SYNTH_NAME', $input['context']['target']['display_name']);
+    \Synth\Bootstrap::set('gameRequest', ['relationship_eval']);
+    \Synth\Bootstrap::set('COMMAND_PROMPT', '');
+    \Synth\Bootstrap::set('BASE_FUNCTIONS', []);
+    \Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', []);
+    \Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
+    \Synth\Bootstrap::set('FORCE_MAX_TOKENS', 512);
     $handler=$connector->getConnector($settings);
     $text=$handler->fast_request($prompt,['MAX_TOKENS'=>512],'relationship_eval');
     if (!is_string($text)) throw new RuntimeException('Native relationship provider returned no text');

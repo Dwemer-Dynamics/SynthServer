@@ -14,7 +14,7 @@ function synth_profile_origin_rejected(Throwable $error): bool
 // Resolve every selected prompt before the first model call; retries never re-read prompt configuration.
 function synth_profile_prepare_fields(string $name, array $fields, string $history): array
 {
-    if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]) || !$fields
+    if (!isset(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$name]) || !$fields
         || array_diff($fields,array_keys(synth_profile_fields([])))) throw new LogicException('Invalid native profile field selection.');
     require_once dirname(__DIR__, 3).'/lib'.'/synth_biography.php';
     // An NPC selection left empty by the expertise policy has no native field to generate.
@@ -24,7 +24,7 @@ function synth_profile_prepare_fields(string $name, array $fields, string $histo
     foreach ($fields as $field) if (updateDynamicProfileField($name,$field,$history,true)!==true) {
         throw new RuntimeException('Native profile prompt preparation failed.');
     }
-    $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]['fields']=$fields;
+    \Synth\Bootstrap::setPath('SYNTH_NATIVE_PROFILE_INPUTS', [$name, 'fields'], $fields);
     return \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_INPUTS')[$name];
 }
 
@@ -93,11 +93,11 @@ function synth_profile_generate_field($db, array $input, string $field): string
     require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     $connector=new LLMConnector();$settings=$connector->getById($input['connector_id']);
     if (!$settings) throw new RuntimeException('Native profile connector unavailable.');
-    $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$settings;$connector->setOldGlobals($settings);
-    $GLOBALS['CURRENT_CONNECTOR']=$settings['driver'];
-    $GLOBALS['FORCE_MAX_TOKENS']=$input['options'][$field]['max_tokens'];
-    $GLOBALS['COMMAND_PROMPT']='';$GLOBALS['BASE_FUNCTIONS']=[];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];
-    $GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);$connector->setOldGlobals($settings);
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $settings['driver']);
+    \Synth\Bootstrap::set('FORCE_MAX_TOKENS', $input['options'][$field]['max_tokens']);
+    \Synth\Bootstrap::set('COMMAND_PROMPT', '');\Synth\Bootstrap::set('BASE_FUNCTIONS', []);\Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', []);
+    \Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
     $handler=$connector->getConnector($settings);
     $text=$handler->fast_request(json_decode($input['prompts'][$field],true,flags:JSON_THROW_ON_ERROR),$input['options'][$field],'profile');
     if (!is_string($text)) throw new RuntimeException('Native profile provider returned no text.');
@@ -137,10 +137,10 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             return pg_fetch_assoc($result)['lease_token'] ?? null;
         },2000);
         if (!$token) return;
-        $GLOBALS['SYNTH_PROFILE_JOB_LEASE']=['id'=>$jobId,'token'=>$token];$name=$queue['npcs'][0];
+        \Synth\Bootstrap::set('SYNTH_PROFILE_JOB_LEASE', ['id'=>$jobId,'token'=>$token]);$name=$queue['npcs'][0];
         try {
             synth_profile_assert_write_target($db,$name);
-            $GLOBALS['SYNTH_NAME']=$name;$GLOBALS['gameRequest']=$queue['gameRequest'];
+            \Synth\Bootstrap::set('SYNTH_NAME', $name);\Synth\Bootstrap::set('gameRequest', $queue['gameRequest']);
             $row=$db->fetchOne("SELECT input_payload,input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS valid
                 FROM public.core_character_generation WHERE job_id=$jobId");
             if ($row && !synthPostgresBoolean($row['valid'])) throw new LogicException('Frozen profile input hash mismatch.');
@@ -159,7 +159,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 if (!@pg_query_params($connection,"INSERT INTO public.core_character_generation(job_id,input_payload,input_sha256)
                     VALUES($1,$2::jsonb,encode(sha256(convert_to(($2::jsonb)::text,'UTF8')),'hex'))",[$jobId,$json])) throw new RuntimeException('Unable to freeze native profile job input.');
             },2000);
-            $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]=$input;$updates=[];
+            \Synth\Bootstrap::setAt('SYNTH_NATIVE_PROFILE_INPUTS', $name, $input);$updates=[];
             $db->withNativeRequestLock(static function($connection,array $event) use($db,$name,$input) {
                 synth_profile_assert_write_target($db,$name);
                 if ($name==='The Narrator') {
@@ -198,7 +198,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             },2000);
             $done=true;
         } catch (Throwable $error) {
-            unset($GLOBALS['SYNTH_PROFILE_JOB_LEASE']);
+            \Synth\Bootstrap::forget('SYNTH_PROFILE_JOB_LEASE');
             // A late attempt cannot change a replacement token. Persist only fixed, non-sensitive error codes.
             $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof InvalidArgumentException || $error instanceof LengthException;
@@ -209,7 +209,7 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                         $terminal ? 'input_or_result_invalid' : 'attempt_failed'])) throw new RuntimeException('Unable to record profile attempt failure.');
             },2000);
             Logger::warn('Native profile attempt did not complete; durable state retained.');
-        } finally { unset($GLOBALS['SYNTH_PROFILE_JOB_LEASE']); }
+        } finally { \Synth\Bootstrap::forget('SYNTH_PROFILE_JOB_LEASE'); }
     });
     return $done;
 }
