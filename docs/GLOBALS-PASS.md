@@ -85,3 +85,86 @@ Files under: ui api
 | global uses (all non-test PHP) | 3697 | 3419 |
 | files with a global | 263 | 249 |
 | `require_once` | 1836 | 1836 |
+
+## Writers pass (W-series)
+
+Second pass: writers, `isset`/`empty`/`unset` and string interpolation move behind `Synth\Bootstrap` too. State is still `$GLOBALS` (legacy files and tests assign it), so each call reads or writes exactly what the global did; the setters are the seam for moving the state into a request-context object name by name.
+
+| Legacy form | Replacement |
+| --- | --- |
+| `$GLOBALS['N'] = expr;` | `\Synth\Bootstrap::set('N', expr);` |
+| `$GLOBALS['N'] .= expr;` (and other compound operators) | `set('N', config('N') . (expr))` |
+| `isset($GLOBALS['N'])` | `\Synth\Bootstrap::has('N')` (exists and not null) |
+| `isset($GLOBALS['N']['k'])`, `empty($GLOBALS['N'])` | `isset(config('N')['k'])`, `empty(config('N'))` |
+| `unset($GLOBALS['N'])` | `\Synth\Bootstrap::forget('N')` |
+| `"... {$GLOBALS['N']} ..."` | `("... " . config('N') . " ...")` (a lone value becomes `(string)config('N')`) |
+
+Tools (token based, PHP `PhpToken`, no regex rewriting):
+
+- `php tools/globals-inventory.php <dir|file>...` lists remaining uses per name and kind.
+- `php tools/globals-convert.php [--names=A,B] [--dry] <dir|file>...` rewrites the forms above. It skips and lists (set `CONV_MANUAL=<file>` to write the list) anything it cannot prove safe: writes with array dimensions, writes that are not a statement, by-reference uses (`sort`, `preg_match`, `array_push`, `foreach ... as &`, `&$GLOBALS[...]`), multi-argument `isset`/`unset`, and heredocs. Never run it on `bootstrap.php`.
+- Dynamic keys (`$GLOBALS[$name]`) and `global $x;` are never converted.
+
+Retiring a name is three steps: all writers use `set`/`forget`, all readers use `config`/`has`, then the name moves into the context object and `config`/`set` stop touching `$GLOBALS` for it. The importers that write dynamic names (`synthRuntimeImportConfigVariables`, the settings loaders) must move first, because they create most names.
+
+### W1-prompts
+
+All uses in `prompts/` (two commented-out dead blocks removed, one dead heredoc comment removed). Counts are repository-wide.
+
+Files under: prompts
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 3360 | 3144 |
+| `require_once` | 1838 | 1838 |
+
+### W2-connector
+
+All uses in `connector/` (the LLM prompt templates and `__jpd.php`). One-level array writes use `Bootstrap::append('N', $v)` for `$GLOBALS['N'][] = $v` and `Bootstrap::setAt('N', $k, $v)` for `$GLOBALS['N'][$k] = $v`. Dead code inside comments keeps its meaning but names `\Synth\Bootstrap::config('N')` (`tools/globals-comments.php`), so the count reaches zero.
+
+Stacked on W1-prompts.
+
+Files under: connector
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 3144 | 2926 |
+| `require_once` | 1838 | 1838 |
+
+### W3-functions
+
+All uses in `functions/` except two string literals. New `Bootstrap` helpers cover the remaining shapes:
+
+| Legacy form | Replacement |
+| --- | --- |
+| `$GLOBALS['N'][$a][$b] = $v;` | `Bootstrap::setPath('N', [$a, $b], $v)` |
+| `$GLOBALS['N'][$a][] = $v;` | `Bootstrap::appendPath('N', [$a], $v)` |
+| `unset($GLOBALS['N'][$a])` | `Bootstrap::unsetPath('N', [$a])` |
+| `global $x;` | `$x = &Bootstrap::ref('x');` (same reference to the same slot) |
+| `shuffle($GLOBALS['N'])`, `&$GLOBALS['N']` | `shuffle(Bootstrap::ref('N'))`, `= &Bootstrap::ref('N')` |
+
+`ref()` returns by reference, so by-reference arguments, `foreach (... as &$v)` sources and `global`-style aliases keep their semantics. The converter can leave nested uses inside a rewritten write expression; run it until it reports no changes.
+
+Exceptions: `functions/functions.php` lines naming the literal template placeholders `'{$GLOBALS["SYNTH_NAME"]}'` and `'{$GLOBALS["PLAYER_NAME"]}'`. They are replacement keys matched against prompt text, not accesses.
+
+Stacked on W2-connector.
+
+Files under: functions
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2926 | 2773 |
+| `require_once` | 1838 | 1838 |
+
+### W4-service
+
+All uses in `service/`, including `new $GLOBALS['CURRENT_CONNECTOR']` (now `new (Bootstrap::config('CURRENT_CONNECTOR'))`), the dynamic-key read in `service/lib/core_utils.php` (`config($v)`) and the rolemaster task closure (`setPath('TASKS', ['rolemaster', 'fn'], function ...)`). Core (`core/`, except `core/dbmanager`) has no global uses.
+
+Stacked on W3-functions.
+
+Files under: service
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2773 | 2660 |
+| `require_once` | 1838 | 1838 |

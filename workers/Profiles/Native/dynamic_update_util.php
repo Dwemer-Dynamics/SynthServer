@@ -639,11 +639,7 @@ function processAutoDiary($gameRequest, $eventType) {
                     $processedCount++;
                     if (generatePlayerDiary($gameRequest, $eventType)) {
                         $generatedCount++;
-                        $db->query("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($cooldownKey) . "'");
-                        $db->insert('public.core_config_setting', [
-                            'scope' => 'conf', 'config_key' => $cooldownKey,
-                            'config_value' => (string)time()
-                        ]);
+                        \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $cooldownKey, (string)time());
                         Logger::info("AUTO_DIARY: Successfully generated player diary for {$playerName}");
                     } else {
                         Logger::warn("AUTO_DIARY: Failed to generate player diary for {$playerName}");
@@ -653,10 +649,7 @@ function processAutoDiary($gameRequest, $eventType) {
                 $processedCount++;
                 if (generatePlayerDiary($gameRequest, $eventType)) {
                     $generatedCount++;
-                    $db->insert('public.core_config_setting', [
-                        'scope' => 'conf', 'config_key' => $cooldownKey,
-                        'config_value' => (string)time()
-                    ]);
+                    \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $cooldownKey, (string)time());
                     Logger::info("AUTO_DIARY: Successfully generated player diary for {$playerName}");
                 } else {
                     Logger::warn("AUTO_DIARY: Failed to generate player diary for {$playerName}");
@@ -706,11 +699,7 @@ function processAutoDiary($gameRequest, $eventType) {
             if ($success) {
                 $generatedCount++;
                 // Update cooldown timestamp
-                $db->query("DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key='" . $db->escape($cooldownKey) . "'");
-                $db->insert('public.core_config_setting', [
-                    'scope' => 'conf', 'config_key' => $cooldownKey,
-                    'config_value' => (string)time()
-                ]);
+                \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $cooldownKey, (string)time());
                 Logger::info("AUTO_DIARY: Successfully generated diary for The Narrator");
             } else {
                 Logger::warn("AUTO_DIARY: Failed to generate diary for The Narrator");
@@ -1639,10 +1628,7 @@ function queueDynamicProfileBatch(array $npcNames, array $gameRequest): string {
     $encoded = json_encode($queueData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     $queueId = 'dynamic_profiles_queue_' . time() . '_' . uniqid();
 
-    if ($db->upsertRowOnConflict('public.core_config_setting', [
-        'scope' => 'conf', 'config_key' => $queueId,
-        'config_value' => $encoded,
-    ], 'scope, config_key') === false) {
+    if (\Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', $queueId, $encoded) === false) {
         throw new RuntimeException('Could not persist the dynamic profile batch');
     }
 
@@ -1673,7 +1659,7 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
     $profileProcessor = $profileProcessor ?? 'processSingleDynamicProfile';
 
     try {
-        $queueResults = $db->fetchAll("SELECT config_key AS id, config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key LIKE 'dynamic_profiles_queue_%' ORDER BY id LIMIT 5");
+        $queueResults = \Synth\Managers\ConfigManager\ConfigManager::shared()->getByPrefix('conf', 'dynamic_profiles_queue_', 5);
         if (empty($queueResults)) {
             Logger::debug("triggerImmediateProfileProcessing: No queue entries found");
             $result['updated']=synth_profile_dispatch_jobs($db,$nativePrepare,$nativeGenerate);
@@ -1699,8 +1685,7 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
                             .$db->escapeLiteral(strval($owner['session_id'] ?? '')).' AND request_id='.$db->escapeLiteral(strval($owner['request_id'] ?? '')));
                         // A just-admitted refresh can be queued before its response completes; keep waiting for it.
                         if ($state && !in_array($state['state'],['claimed','streaming'],true)) {
-                            $db->execQuery('UPDATE public.core_config_setting SET config_key='.$db->escapeLiteral('dynamic_profiles_failed_'.hash('sha256',$queueId))
-                                ." WHERE scope='conf' AND config_key=".$db->escapeLiteral($queueId));
+                            \Synth\Managers\ConfigManager\ConfigManager::shared()->rename('conf', $queueId, 'dynamic_profiles_failed_'.hash('sha256',$queueId));
                         }
                     }
                     Logger::warn('Native profile queue transfer failed; batch retained.');
@@ -1709,7 +1694,7 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
             }
             if (!$queueData || !isset($queueData['npcs']) || !isset($queueData['gameRequest'])) {
                 Logger::error("triggerImmediateProfileProcessing: Invalid queue data for $queueId");
-                $db->delete('public.core_config_setting', "scope = 'conf' AND config_key = '" . $db->escape($queueId) . "'");
+                \Synth\Managers\ConfigManager\ConfigManager::shared()->delete('conf', $queueId);
                 continue;
             }
 
@@ -1747,7 +1732,7 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
             }
 
             // Keep a job durable until every queued NPC has been attempted.
-            $db->delete('public.core_config_setting', "scope = 'conf' AND config_key = '" . $db->escape($queueId) . "'");
+            \Synth\Managers\ConfigManager\ConfigManager::shared()->delete('conf', $queueId);
             Logger::info("triggerImmediateProfileProcessing: Completed job - updated $successCount of " . count($npcs) . " profiles");
             $result['jobs']++;
             $result['npcs'] += count($npcs);

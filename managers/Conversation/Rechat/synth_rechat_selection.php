@@ -197,11 +197,9 @@ function synth_rechat_select_responder($db, array $event): array
                         }
                         if ($policy['random_narration'] && $lastRole!=='narrator'
                             && $sinceNarrator>=max(0,$policy['narration_cooldown']) && random_int(1,100)<=$policy['narration_chance']) {
-                            $result=@pg_query($connection,"SELECT p.id FROM public.core_profiles p JOIN public.core_config_setting n
-                                ON n.scope='narrator' AND n.config_key='profile_id' AND n.config_value=p.id::text FOR SHARE OF p,n");
-                            if (!$result) throw new RuntimeException('rechat_selection_narrator_query_failed');
-                            $narrator=pg_fetch_assoc($result);
-                            if ($narrator) { $role='narrator'; $profileId=$narrator['id']; $actorId=null; $npcId=null; $identity=null; }
+                            try { $narratorProfileId=\Synth\Core\DbManager\Dao\ProfileDao::current($db)->lockNarratorProfile(); }
+                            catch (\Throwable $error) { throw new RuntimeException('rechat_selection_narrator_query_failed',0,$error); }
+                            if ($narratorProfileId!==null) { $role='narrator'; $profileId=$narratorProfileId; $actorId=null; $npcId=null; $identity=null; }
                         }
                     }
                 }
