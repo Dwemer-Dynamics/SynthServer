@@ -57,7 +57,7 @@ chevo has these and SYNTH has no equivalent. Nobody is working on them, and they
 | Dialogue websocket listener | `bin/notify-server.php` sends opt-in wake-up hints only. Dialogue stays HTTP. |
 | `managers/RumorManager` | A placeholder in chevo too. |
 
-See also [Behaviour gaps against chevo](#behaviour-gaps-against-chevo) for chevo behaviours SYNTH lacks: LLM request log, extension hooks, GameRpc.
+See also [Behaviour gaps against chevo](#behaviour-gaps-against-chevo) for chevo behaviours SYNTH lacks: message queue, LLM request log, extension hooks, GameRpc.
 
 ## Core and persistence
 
@@ -97,9 +97,9 @@ Code moved from `lib/` lives under `managers/<Name>/Native/`. It was moved, not 
 | ListenerManager | `ListenerRouter` plus `Native/` ingress, request and runtime code. | partial |
 | LocationManager | `LocationCatalog` over `LocationDao` / `LocationStateDao`. | partial |
 | MemoryManager | `Native/` memory recall, ranking, vectors, diary, and middle-term. There is no `core_memory` DAO yet. | partial (procedural) |
-| MessageHandler | `MessageHandler` over `core_message_queue` (`MessageQueueDao`): admit, complete then notify, exactly-once delivery, cancel, expiry, retention and announcement retry. `SpeechMessages` connects the speech job to its message. `MessageStatusReader` (the legacy cache-key status) and `Native/` response and protocol state remain. No request scope or arbitrary message types yet: the only type is `speech`. | parity (queue on by default, `SYNTH_MESSAGE_QUEUE=0` turns it off) |
+| MessageHandler | `MessageStatusReader` (read side) and `Native/` response and protocol state. There is no queue table, so no create, cancel or expiry. | partial |
 | Narrator | `PrivateNarratorManager`, `PrivateNarratorProtocol`, `NarratorObjectIdentity`. | parity |
-| Notification | `NotifyServer`, `NotifyPublisher`, `NotifyConfig`, `NotifyHint` (opt-in): wake hints and `message_available {message_id}` pushes. | parity |
+| Notification | `NotifyServer`, `NotifyPublisher`, `NotifyConfig`, `NotifyHint` (opt-in). | parity |
 | PromptManager | `PromptManager` plus `Native/` prompt composition and injections. | parity (class); Native procedural |
 | SaveState | `SaveState`, `HistoryRead`, and `Native/` playthrough snapshot and rollback. | partial (no save storage) |
 | ServerStatus | `HealthCheckManager` plus `Native/` backup, log trim, auditing. | parity |
@@ -172,7 +172,7 @@ These tables have no primary key, so the generator skips them, and each needs a 
 
 Schema steps still to do:
 
-- Merge tables into chevo's `core_context_event` and `core_llm_request_log` (`core_message_queue` exists, added as its own migration).
+- Merge tables into chevo's `core_context_event`, `core_llm_request_log` and `core_message_queue`.
 - Rename `core_npc.id` to `character_id`, then the remaining column renames.
 - Replace the remaining views.
 - SchemaMigrations step 10b: delete `lib/core/database_schema/*.sql`. Three of those files are applied at runtime, so inline them into the baseline first.
@@ -217,7 +217,7 @@ These came from comparing chevo's feature set with SYNTH. They are product work 
 
 | chevo behaviour | SYNTH today |
 | --- | --- |
-| Durable message queue (`core_message_queue`): a 202 reply, then a WebSocket `message_available` push, then a fetch that succeeds exactly once (a second fetch gets 409) | Built (migration `Version20261120100000`) for speech results only: the dialogue reply carries `speech.message_id`, the speech worker completes the message and pushes `message_available`, and `GET /api/v1/messages/<id>` delivers it once (200, then 409). Not built: other message types, chevo's request scope (SYNTH scopes by session and generation) and a 202 for dialogue itself, which stays a streamed reply. The legacy cache-key path is served beside it and the queue is on by default (`SYNTH_MESSAGE_QUEUE=0` switches it off) (see [MessageHandler](../managers/MessageHandler/README.md)). |
+| Durable message queue (`core_message_queue`): a 202 reply, then a WebSocket `message_available` push, then a fetch that succeeds exactly once (a second fetch gets 409) | No queue table. Results come back through the existing response path; `GET /api/v1/messages/<id>` reads delivery state only; the client polls, with opt-in wake hints. |
 | LLM request log with replay (`core_llm_request_log`) | Not built. It waits on the schema merge listed above. |
 | 14 extension hook points, plus extension routes (`/api/v1/ext/<id>/`), workers and `ext_<id>_*` tables | 4 hook points (2 filters, 2 events). No extension routes, workers or tables. |
 | GameRpc channel (`rpc.request` / `rpc.response` over the socket) | The contract only. |
