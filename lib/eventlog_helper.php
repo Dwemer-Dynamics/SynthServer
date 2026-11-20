@@ -1,5 +1,6 @@
 <?php
 
+require_once __DIR__ . '/../lib/classes/Logger.php';
 if (!function_exists('synthGetVisibleEventLogExcludedTypes')) {
     function synthGetVisibleEventLogExcludedTypes()
     {
@@ -491,7 +492,7 @@ if (!function_exists('synthFetchRelationshipTimelineChanges')) {
         try {
             $rows = $db->fetchAll($query);
         } catch (Throwable $e) {
-            error_log('[REL TIMELINE] Snapshot query failed: ' . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL TIMELINE', 'Snapshot query failed: ' . $e->getMessage());
             return [];
         }
 

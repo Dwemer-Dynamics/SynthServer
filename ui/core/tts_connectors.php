@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 2) . '/managers/ConfigManager/ConfigManager.php';
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
@@ -445,8 +446,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import'])) {
  $redirectUrl = ttsPageUrl(['edit' => $importedIds[0]]);
  }
  } catch (Throwable $e) {
- error_log('[TTS CSV Import Error] ' . $e->getMessage());
- error_log('[TTS CSV Import Error] Stack trace: ' . $e->getTraceAsString());
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'TTS CSV Import Error', '' . $e->getMessage());
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'TTS CSV Import Error', 'Stack trace: ' . $e->getTraceAsString());
  $redirectUrl = ttsNoticeUrl('Import failed: ' . $e->getMessage());
  }
 

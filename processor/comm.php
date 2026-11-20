@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once($GLOBALS["ENGINE_PATH"]."/lib/dynamic_update_util.php");
 require_once($GLOBALS["ENGINE_PATH"]."/lib/utils_game_timestamp.php");
 require_once($GLOBALS["ENGINE_PATH"]."/lib/playthrough_snapshot.php");
@@ -127,7 +128,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     }
     $now=time();
 
-    error_log("[INIT] Pruning SYNTH data after loaded-save gamets {$gameRequest[2]}");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'INIT', "Pruning SYNTH data after loaded-save gamets {$gameRequest[2]}");
     synthMaybeHandleIncomingGametsRollback($gameRequest[2], 'init', true);
     try {
         $inFlightDeliverySql = synthBuildChatDeliveryStateSql(
@@ -948,7 +949,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
 } elseif (strpos($gameRequest[0], "infosave")===0) {    // user saves. lets backup all NPC state.
 
-    error_log("[INFOSAVE] Backup all profiles");
+    \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'INFOSAVE', "Backup all profiles");
     logEvent($gameRequest);
 
     $npcMaster=new NpcMaster();
@@ -1243,13 +1244,13 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         if (is_array($currentNpcData)) {
             $currentNpcData["profile_id"]=$profileData["id"];
             $npcMaster->updateByArray($currentNpcData);
-            error_log("[CORE SYSTEM] <{$currentNpcData["npc_name"]}> asigned to slot <{$profileData["label"]}>");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'CORE SYSTEM', "<{$currentNpcData["npc_name"]}> asigned to slot <{$profileData["label"]}>");
             
         } else {
-            error_log("[CORE SYSTEM] No valid NPC found {$activeProfile}");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'CORE SYSTEM', "No valid NPC found {$activeProfile}");
         }
     } else {
-        error_log("[CORE SYSTEM] No valid profile specified");
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'CORE SYSTEM', "No valid profile specified");
     }
     
     $MUST_END=true;

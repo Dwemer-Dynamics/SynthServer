@@ -6,6 +6,7 @@ use Logger;
 
 // Provider logic moved from connector/openaijson.php. The stateful open/process/close/fast_request API and behaviour are
 // unchanged; connector/openaijson.php remains as a thin hook so call sites and config keep working.
+require_once __DIR__ . '/../../../lib/classes/Logger.php';
 require_once dirname(__DIR__, 3) . '/lib/provider_stream.php';
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
@@ -135,7 +136,7 @@ class OpenAiJsonDriver
 
             $b_res = (!($i_pos === false));
         }
-        error_log("[OPENAI] is reasoning $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'OPENAI', "is reasoning $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
         return $b_res;
     }
 
@@ -169,7 +170,7 @@ class OpenAiJsonDriver
             }
             $b_res = (!($i_pos === false));
         }
-        error_log("[OPENAI] is openai $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
+        \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'OPENAI', "is openai $s_model / $i_pos ". ($b_res ? "Y" : "N") ); //debug
         return $b_res;
     }
 
@@ -887,7 +888,7 @@ class OpenAiJsonDriver
         if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && $GLOBALS["CONNECTOR"][$this->name]["json_schema"]) {
             $data["response_format"]=$GLOBALS["structuredOutputTemplate"];
         } else if (isset($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) && $GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) {
-            error_log("Enforcing JSON output for {$this->name} connector");
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'OpenAiJsonDriver', "Enforcing JSON output for {$this->name} connector");
             ;//It's enabled by default
         } else
             unset($data["response_format"]);
