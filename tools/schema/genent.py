@@ -16,7 +16,7 @@ cols=collections.OrderedDict(); pk={}
 for l in lines:
     p=l.split('|')
     if p[0]=='column' and p[1]=='public': cols.setdefault(p[2],[]).append(p[3:])
-    if p[0]=='constraint' and p[1]=='public' and p[4]=='p': pk[p[2]]=[c.strip() for c in re.search(r"PRIMARY KEY \((.*)\)",p[6]).group(1).split(',')]
+    if p[0]=='constraint' and p[1]=='public' and p[4]=='p': pk[p[2]]=[c.strip().strip('"') for c in re.search(r"PRIMARY KEY \((.*)\)",p[6]).group(1).split(',')]
 def camel(s,first=False):
     parts=s.split('_'); r=parts[0]+''.join(w.capitalize() for w in parts[1:])
     return r[0].upper()+r[1:] if first else r

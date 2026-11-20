@@ -3,7 +3,7 @@
 $rootPath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 
 // Ensure PLAYER_NAME is defined before using in prompt strings
-if (!isset($GLOBALS["PLAYER_NAME"]) || \Synth\Bootstrap::config("PLAYER_NAME") === '') {
+if (!\Synth\Bootstrap::has('PLAYER_NAME') || \Synth\Bootstrap::config("PLAYER_NAME") === '') {
     $safePlayerName = 'Player';
     try {
         require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
@@ -13,28 +13,21 @@ if (!isset($GLOBALS["PLAYER_NAME"]) || \Synth\Bootstrap::config("PLAYER_NAME") =
             'load_stt_connector' => false,
             'load_player_name' => true,
         ]);
-        if (isset($GLOBALS["PLAYER_NAME"]) && \Synth\Bootstrap::config("PLAYER_NAME") !== '') {
+        if (\Synth\Bootstrap::has('PLAYER_NAME') && \Synth\Bootstrap::config("PLAYER_NAME") !== '') {
             $safePlayerName = (string)\Synth\Bootstrap::config("PLAYER_NAME");
         }
     } catch (Throwable $_) {
         // Ignore and use fallback
     }
-    $GLOBALS["PLAYER_NAME"] = $safePlayerName;
+    \Synth\Bootstrap::set('PLAYER_NAME', $safePlayerName);
 }
 
 $COMMAND_PROMPT = "";
 
 // Database Prompt (Command Prompt)
 $COMMAND_PROMPT_FUNCTIONS="\n\n#Available Actions\nUse if your character needs to perform an action:";
-/*
-$COMMAND_PROMPT_FUNCTIONS = "
-Use tool calling to control {$GLOBALS["SYNTH_NAME"]}'s actions.
-Use tool calling if {$GLOBALS["PLAYER_NAME"]} commands an order.
-Only perform actions and tool calling if your character would find it necessary or must have to, even if it contradicts {$GLOBALS["PLAYER_NAME"]}'s requests.
-";
-*/
 // Database Prompt (Command Coherent Prompt)
-$COMMAND_PROMPT_ENFORCE_ACTIONS="Choose coherent ACTION to obey {$GLOBALS["PLAYER_NAME"]}.";
+$COMMAND_PROMPT_ENFORCE_ACTIONS=("Choose coherent ACTION to obey " . \Synth\Bootstrap::config('PLAYER_NAME') . ".");
 
 if (!function_exists('synthGetDialogueTargetVerb')) {
     function synthGetDialogueTargetVerb()
@@ -55,7 +48,7 @@ if (!function_exists('synthGetDialogueTargetVerb')) {
 }
 
 $dialogueTargetVerb = synthGetDialogueTargetVerb();
-$DIALOGUE_TARGET="({$dialogueTargetVerb} {$GLOBALS["SYNTH_NAME"]})";
+$DIALOGUE_TARGET=("({$dialogueTargetVerb} " . \Synth\Bootstrap::config('SYNTH_NAME') . ")");
 $MEMORY_OFFERING="";
 
 $RESPONSE_OK_NOTED="Okay, noted.";
