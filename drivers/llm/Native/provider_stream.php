@@ -27,6 +27,7 @@ final class SynthProviderStream
         $options = stream_context_get_options($context);
         $http = $options['http'] ?? [];
         $ssl = $options['ssl'] ?? [];
+        synth_provider_note_request($url, $http['content'] ?? null);
         $follow = !empty($http['follow_location'] ?? true);
         $timeout = max(1, min(1200000, intval(1000 * floatval($http['timeout'] ?? ini_get('default_socket_timeout')))));
         $this->handle = curl_init($url);
@@ -56,7 +57,10 @@ final class SynthProviderStream
                     $redirect = $follow && in_array($status, [301,302,303,307,308], true)
                         && count(preg_grep('/^Location:/i', $this->headers)) > 0;
                     $this->headersReady = $status >= 200 && !$redirect;
-                    if ($this->headersReady) $this->status = $status;
+                    if ($this->headersReady) {
+                        $this->status = $status;
+                        synth_provider_note_status($status);
+                    }
                 }
                 return strlen($line);
             },
@@ -261,10 +265,29 @@ function synth_provider_template_context(array $messages): array
     return $result;
 }
 
+// The LLM request log (drivers/llm/Logging) learns the provider URL, body and status from here; a call outside a logged
+// LLM request (memory embeddings, speech) is not captured. Headers, which carry the key, are never passed on.
+function synth_provider_note_request(string $url, $body): void
+{
+    if (class_exists(\Synth\Drivers\Llm\Logging\LlmRequestScope::class)) {
+        \Synth\Drivers\Llm\Logging\LlmRequestScope::note($url, is_string($body) ? $body : null);
+    }
+}
+
+function synth_provider_note_status(int $status): void
+{
+    if (class_exists(\Synth\Drivers\Llm\Logging\LlmRequestScope::class)) {
+        \Synth\Drivers\Llm\Logging\LlmRequestScope::noteStatus($status);
+    }
+}
+
 // Keep legacy/background calls and resource-based connector test doubles compatible.
 function synth_provider_open(string $url, $context)
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return fopen($url, 'r', false, $context);
+    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+        synth_provider_note_request($url, stream_context_get_options($context)['http']['content'] ?? null);
+        return fopen($url, 'r', false, $context);
+    }
     $stream = new SynthProviderStream($url, $context);
     if ($stream->failed()) { $stream->close(); return false; }
     return $stream;
@@ -284,8 +307,10 @@ function synth_provider_fetch(string $url, $context, ?array &$responseHeaders = 
 {
     $responseHeaders = [];
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+        synth_provider_note_request($url, stream_context_get_options($context)['http']['content'] ?? null);
         $body = file_get_contents($url, false, $context);
         $responseHeaders = $http_response_header ?? [];
+        synth_provider_note_status(intval(explode(' ', $responseHeaders[0] ?? '')[1] ?? 0));
         return $body;
     }
     $stream = new SynthProviderStream($url, $context, $maxBytes);

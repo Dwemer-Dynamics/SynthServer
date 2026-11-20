@@ -11,6 +11,8 @@ use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 
+require_once dirname(__DIR__).'/EntityManagerFactory.php';
+
 trait UsesEntityManager
 {
     private static ?self $instance = null;

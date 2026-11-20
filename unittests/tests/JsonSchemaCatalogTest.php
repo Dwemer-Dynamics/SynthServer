@@ -1679,7 +1679,7 @@ PHP;
 
     public function testPlannedCloneFailuresUseOnlyCapturedFallbackAndEndpoint(): void
     {
-        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/chat_helper_functions.php"; require $root."/lib/synth_tts_plan.php"; '. <<<'PHP'
+        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/chat_helper_functions.php"; require $root."/lib/autoload.php"; require $root."/lib/synth_tts_plan.php"; '. <<<'PHP'
 class FailedSpeechFixtureStream {
     public $context;
     public function stream_open($path,$mode,$options,&$opened_path) {
@@ -1909,7 +1909,7 @@ PHP;
 
     public function testCloudRemoteIdentityIsCapturedAndPaginationIsBounded(): void
     {
-        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/synth_tts_plan.php"; '
+        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/autoload.php"; require $root."/lib/synth_tts_plan.php"; '
             .'require $root."/tts/tts-cartesia.php"; require $root."/tts/tts-inworld.php"; '. <<<'PHP'
 class RemoteIdentityFixture {
     public $context; private string $body=''; private int $position=0;
@@ -1927,7 +1927,12 @@ class RemoteIdentityFixture {
 }
 function curl_exec($handle) { $GLOBALS['requests'][]=['fixture-curl-failure',60]; return false; }
 stream_wrapper_unregister('https'); stream_wrapper_register('https',RemoteIdentityFixture::class);
-$GLOBALS['db']=new class { public int $reads=0; public int $writes=0; public string $id=''; public function escape($value) { return $value; } public function fetchOne($sql) { ++$this->reads; if(!str_starts_with($sql,'SELECT config_value AS value FROM public.core_config_setting')) throw new LogicException('Unexpected SQL'); return ['value'=>$this->id]; } public function execQuery($sql) { ++$this->writes; throw new LogicException('Unexpected cache mutation'); } };
+$GLOBALS['db']=new class { public int $reads=0; public int $writes=0; public string $id=''; public function escape($value) { return $value; } };
+\Synth\Managers\ConfigManager\ConfigManager::inject(new class extends \Synth\Managers\ConfigManager\ConfigManager { public function __construct() {}
+    public function get(string $scope,string $key,?string $default=null): ?string { ++$GLOBALS['db']->reads; return $GLOBALS['db']->id; }
+    public function set(string $scope,string $key,mixed $value,?string $description=null): bool { ++$GLOBALS['db']->writes; throw new LogicException('Unexpected cache mutation'); }
+    public function delete(string $scope,string $key): bool { ++$GLOBALS['db']->writes; throw new LogicException('Unexpected cache mutation'); }
+    public function getByPrefix(string $scope,string $prefix,?int $limit=null): array { throw new LogicException('Unexpected prefix read'); } });
 $results=[]; $bounds=[];
 foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
     $create='getOrCreate'.$title.'Voice'; $list=$driver==='cartesia'?'listExistingCartesiaVoices':'listExistingInworldWorkspaceVoices';
@@ -1989,9 +1994,12 @@ PHP;
 
     public function testCloudSpeechConfigAndVoiceCachesStayBoundToCapturedCredentials(): void
     {
-        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/synth_tts_plan.php"; '
+        $script='$root='.var_export(dirname(__DIR__,2),true).'; require $root."/lib/autoload.php"; require $root."/lib/synth_tts_plan.php"; '
             .'require $root."/tts/tts-cartesia.php"; require $root."/tts/tts-inworld.php"; '. <<<'PHP'
-$GLOBALS['db']=new class { public int $reads=0; public function escape($value) { return $value; } public function fetchOne($sql) { if(str_starts_with($sql,'SELECT config_value AS value FROM public.core_config_setting')) return ['value'=>'fixture-captured-remote']; ++$this->reads; throw new RuntimeException('Unplanned settings read'); } public function fetchAll($sql) { return $this->fetchOne($sql); } };
+$GLOBALS['db']=new class { public int $reads=0; public function escape($value) { return $value; } };
+\Synth\Managers\ConfigManager\ConfigManager::inject(new class extends \Synth\Managers\ConfigManager\ConfigManager { public function __construct() {}
+    public function get(string $scope,string $key,?string $default=null): ?string { return 'fixture-captured-remote'; }
+    public function getByPrefix(string $scope,string $prefix,?int $limit=null): array { ++$GLOBALS['db']->reads; throw new RuntimeException('Unplanned settings read'); } });
 $rows=[]; $scopes=[];
 foreach(['cartesia'=>'Cartesia','inworld'=>'Inworld'] as $driver=>$title) {
     $getter='get'.$title.'ActiveConfig'; $resolver='resolve'.$title.'ConnectorRow'; $hydrate='hydrate'.$title.'ConnectorGlobals';
