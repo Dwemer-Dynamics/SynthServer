@@ -52,7 +52,6 @@ chevo has these and SYNTH has no equivalent. Nobody is working on them, and they
 | chevo area | What SYNTH has today |
 | --- | --- |
 | `managers/NpcRegistration` | Registration runs through `gamedata.php` (`actor_profile` record) and `NpcActorDao` / `NpcRuntimeActorDao`. The design is merged (#66). |
-| `managers/ReferenceResolver` (deferred load-order references) | Designed in #66, not built. |
 | `managers/WorldManager` | `managers/WorldKnowledgeManager` and observed equipment cover part of it. |
 | Generic EntityEditor (create, read, update and delete over DB entities via `/api/v1/edit`) | `api/v1/editing` covers the `config` entity only: list, read and PATCH, with no create or delete. |
 | Dialogue websocket listener | `bin/notify-server.php` sends opt-in wake-up hints only. Dialogue stays HTTP. |
@@ -106,7 +105,8 @@ Code moved from `lib/` lives under `managers/<Name>/Native/`. It was moved, not 
 | ServerStatus | `HealthCheckManager` plus `Native/` backup, log trim, auditing. | parity |
 | TtsStudio | `VoiceSampleStore`, `VoicePreviewManager`, and `Native/` TTS jobs, pronunciation, voice catalog and cloning. | parity (class); Native procedural |
 | Relationships | `AuthoredRelationships`, `Native/` evaluator, `Legacy/` relationship system. | partial (procedural) |
-| NpcRegistration, ReferenceResolver, WorldManager, RumorManager | — | not started |
+| ReferenceResolver | `PluginManifest` (load-order decode and encode, hash, diff), `ReferenceResolver` (typed reference statuses, manifest revisions per playthrough, `manifest_stale`), `DeferredReferences` (bounded pending references over event metadata). Not wired: no endpoint, and `core_context_event` has no `context_metadata` column yet, so pending references are not persisted. See its README. | partial |
+| NpcRegistration, WorldManager, RumorManager | — | not started |
 | BglManager | — | deferred |
 | OghmaManager | Skyrim knowledge. SYNTH has `WorldKnowledgeManager` (with `Fallout/` content packs). | SYNTH-specific |
 | (no chevo equivalent) | `Conversation` (rechat, autochat), `QuestManager`, `VisualContext`, and the flat `SpeechManager`, `SessionManager`, `ReceiptManager`, `DialogueManager`. | SYNTH-specific |
