@@ -18,6 +18,9 @@ use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ActorEventBatchDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
 use Synth\Core\DbManager\Dao\CatalogVersionDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationFieldDao;
+use Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
 use Synth\Core\DbManager\Dao\DialogueRouteDao;
@@ -47,6 +50,14 @@ use Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao;
 use Synth\Core\DbManager\Dao\MiddletermReplacementDao;
 use Synth\Core\DbManager\Dao\MiddletermResultDao;
 use Synth\Core\DbManager\Dao\MiddletermSourceDao;
+use Synth\Core\DbManager\Dao\NarratorContextStateDao;
+use Synth\Core\DbManager\Dao\NarratorDefinitionDao;
+use Synth\Core\DbManager\Dao\NarratorDefinitionRevisionDao;
+use Synth\Core\DbManager\Dao\NarratorLaneHeadDao;
+use Synth\Core\DbManager\Dao\NarratorPendingOutputDao;
+use Synth\Core\DbManager\Dao\NarratorStateDao;
+use Synth\Core\DbManager\Dao\NarratorTranscriptCursorDao;
+use Synth\Core\DbManager\Dao\NarratorTranscriptEntryDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao;
@@ -178,6 +189,17 @@ final class Database
         SocialTaskInputDao::class,
         RelationshipEvalQueueDao::class,
         RelationshipInitQueueDao::class,
+        NarratorContextStateDao::class,
+        NarratorDefinitionRevisionDao::class,
+        NarratorDefinitionDao::class,
+        NarratorLaneHeadDao::class,
+        NarratorPendingOutputDao::class,
+        NarratorStateDao::class,
+        NarratorTranscriptCursorDao::class,
+        NarratorTranscriptEntryDao::class,
+        CharacterGenerationFieldDao::class,
+        CharacterGenerationDao::class,
+        CharacterGenerationRevisionDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */

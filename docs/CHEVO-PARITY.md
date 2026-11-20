@@ -26,9 +26,9 @@ Counts cover non-test PHP. They exclude `vendor/`, `unittests/vendor/`, `tests/`
 
 | Measure | SYNTH (after #149) | chevo `e1f32e4` | Note |
 | --- | --- | --- | --- |
-| Base entities (`core/entities/base`) | 80 | 57 | |
-| System entities (`core/entities/system`) | 82 | 66 | |
-| DAOs (`core/dbmanager/dao/*.php`) | 82 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
+| Base entities (`core/entities/base`) | 91 | 57 | |
+| System entities (`core/entities/system`) | 93 | 66 | |
+| DAOs (`core/dbmanager/dao/*.php`) | 93 | 52 | Includes the `UsesEntityManager` and `ConnectorReferences` helpers. |
 | `$db->` calls | 1,320 | — | Lines by directory: managers 733, workers 165, ui 96, root 70, drivers 64, processor 48, debug 35, lib 32, core 13, other 11 |
 | `pg_*` calls | 870 | — | Mostly in `lib/postgresql.class.php`, `managers/*/Native`, `ui/` |
 | Global uses (`global $x`, `$GLOBALS[`) | 3,360 | — | 6,471 before the globals pass. |
@@ -65,7 +65,7 @@ See also [Behaviour gaps against chevo](#behaviour-gaps-against-chevo) for chevo
 | chevo area | SYNTH today | Status |
 | --- | --- | --- |
 | `core/dbmanager` (Doctrine ORM, DAOs, migrations, as the only DB boundary) | Doctrine with the hash-pinned migration manifest and `SchemaCheck` (`schema-check --offline`). The DAOs follow `ConfigSettingDao` (see `core/dbmanager/dao/README.md`). There are still about 1,330 `$db->` and 870 `pg_*` calls outside it. | partial |
-| `core/entities/base`, `core/entities/system` | 80 base and 82 system entities. Families with DAOs: relationships (actor control, evaluation, interaction, response, result, revision, queues) and social tasks, playthrough profiles, actor identity, runtime session and context, plugins, catalog version, memory batches and summaries, diary, middle-term, context, events and dialogue (history events, protocol events, rechat, dialogue, request execution, prompts, visual context, media objects), config settings, API badges, connectors (LLM, TTS, STT, ITT), profile, location, location state, location marker, worldspace, NPC, NPC actor, NPC runtime actor, NPC history, NPC profile rules, NPC biography templates, plugin manifest revisions, relationship config. | partial |
+| `core/entities/base`, `core/entities/system` | 91 base and 93 system entities. Families with DAOs: narrator and character generation, relationships (actor control, evaluation, interaction, response, result, revision, queues) and social tasks, playthrough profiles, actor identity, runtime session and context, plugins, catalog version, memory batches and summaries, diary, middle-term, context, events and dialogue (history events, protocol events, rechat, dialogue, request execution, prompts, visual context, media objects), config settings, API badges, connectors (LLM, TTS, STT, ITT), profile, location, location state, location marker, worldspace, NPC, NPC actor, NPC runtime actor, NPC history, NPC profile rules, NPC biography templates, plugin manifest revisions, relationship config. | partial |
 | `core_*` table naming and fresh-install migration | The schema was rebuilt from scratch in chevo style, with no upgrade migrations from the old tables. Every table has a `core_*` name (for example `core_npc`, `core_action_issued`, `core_log`). | parity |
 | API keys | The shared Dwemer `api_keys` store (#62). It is kept on purpose, rather than a server-private table. | SYNTH-specific |
 | `core/contracts` | `dialogue.php` and `narrator.php`, which are not PSR-4 yet. | partial |
@@ -164,7 +164,6 @@ Families with no entity or DAO yet. Table names omit the `core_` prefix.
 
 | Family | Tables |
 | --- | --- |
-| Narrator | `narrator_definition` / `_revision`, `narrator_state`, `_context_state`, `_lane_head`, `_pending_output`, `_transcript_cursor`, `_transcript_entry`, `character_generation` / `_field` / `_revision` |
 | Actions and world | `action`, `action_custom`, `action_intent`, `action_result`, `faction`, `item_description` (plus `_custom`), `location_marker`, `worldknowledge_article` / `_audit` / `_catalog`, `tts_pronunciation`, `config_preset`, `worker_job` |
 
 These tables have no primary key, so the generator skips them, and each needs a key or a composite-key entity first: `action_issued`, `audit_request`, `context_event`, `director_note`, `location_legacy`, `log`, `memory`, `memory_log`, `quest`, `response_log`, `speech`.
