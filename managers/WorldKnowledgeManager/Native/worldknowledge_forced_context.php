@@ -189,7 +189,7 @@ if (!function_exists('synthWorldKnowledgeCollectLocationSignalGroups')) {
             $worldspaceSelect = $hasWorldspace ? 'worldspace' : "'' AS worldspace";
             $rows = $db->fetchAll(
                 "SELECT name, {$worldspaceSelect}
-                   FROM public.core_location
+                   FROM public.core_location_legacy
                   WHERE btrim(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', ' ', 'g')) = '{$locationEsc}'
                   LIMIT 20"
             );
