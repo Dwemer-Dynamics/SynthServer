@@ -52,6 +52,7 @@ final class SpeechMessages
         if (in_array($job['state'], ['cancelled', 'stale'], true)) {
             return $handler->cancelRequest($job['session_id'], strval($job['request_id'])) > 0 ? 'cancelled' : 'skipped';
         }
+        require_once dirname(__DIR__, 2) . '/lib/npc_tts_status.php';
         $status = SpeechStorage::readStatus(strval($job['cache_key']), $root);
         unset($status['_job_id']);
         if ($job['state'] === 'ready' && ($status['status'] ?? '') === 'ready' && is_array($status['media'] ?? null)) {

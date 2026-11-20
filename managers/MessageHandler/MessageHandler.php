@@ -29,7 +29,7 @@ final class MessageHandler
     public const MAXIMUM_NOTIFY_ATTEMPTS = 5;
     public const MAXIMUM_PAYLOAD_BYTES = 1048576;
     /** Whether a build without an explicit SYNTH_MESSAGE_QUEUE setting uses the queue path. */
-    public const DEFAULT_ENABLED = false;
+    public const DEFAULT_ENABLED = true;
 
     /** @var Closure(int): bool */
     private Closure $notifier;

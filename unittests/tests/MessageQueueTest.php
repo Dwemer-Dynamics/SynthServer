@@ -188,6 +188,49 @@ final class MessageQueueTest extends DatabaseTestCase
         $this->assertNull($handler->status($delivered));
     }
 
+    public function testASpeechJobSettlesItsMessageWhenItIsFinal(): void
+    {
+        require_once dirname(__DIR__, 2) . '/managers/MessageHandler/SpeechMessages.php';
+        $db = $this->session;
+        $session = 'session-job';
+        $db->execQuery("INSERT INTO public.core_runtime_session(session_id,playthrough_id,game,runtime_variant,client_version,runtime_version,active_generation,state,updated_at)
+            VALUES('$session','save-1','fo4','flat','test','1.11.240',1,'active',NOW())");
+        $handler = $this->handler();
+        $jobs = [];
+        foreach (['running', 'failed', 'cancelled', 'ready'] as $index => $state) {
+            $utterance = "utt-$state";
+            $key = str_pad((string) ($index + 1), 32, 'a');
+            $db->execQuery("INSERT INTO public.core_worker_job(job_type,session_id,request_id,turn_id,generation,utterance_id,cache_key,payload,state)
+                VALUES('tts','$session','req-1','turn-1',1,'$utterance','$key','{\"schema\":\"synth.tts.job.v1\"}','$state')");
+            $job = $db->fetchOne("SELECT id FROM public.core_worker_job WHERE utterance_id = '$utterance'");
+            $jobs[$state] = intval($job['id']);
+            $handler->admit('speech', $session, 'req-1', 1, $utterance);
+        }
+        $root = sys_get_temp_dir();
+        $settle = static fn(string $state): string => \Synth\Managers\MessageHandler\SpeechMessages::settle($db, $jobs[$state], $root, $handler);
+        $id = static fn(string $state): int => (int) $handler->idFor('session-job', 'req-1', "utt-$state");
+
+        $this->assertSame('waiting', $settle('running'));
+        $this->assertSame('pending', $handler->status($id('running')));
+        $this->assertSame('completed', $settle('failed'));
+        $this->assertSame('skipped', $settle('failed'), 'settling twice changes nothing');
+        $delivered = $handler->deliver($id('failed'));
+        $this->assertSame('failed', json_decode((string) $delivered['payload'], true)['status']);
+        $this->assertSame('cancelled', $settle('cancelled'), 'a cancelled job cancels its request\'s messages');
+        $this->assertSame('cancelled', $handler->status($id('running')));
+        // A job that finished without readable ready media reports failed rather than leaving the client waiting.
+        $this->assertSame('skipped', $settle('ready'), 'the request was already cancelled');
+
+        // Admission is gated on the server switch and the client's capability.
+        $event = ['session_id' => 'session-gate', 'request_id' => 'req-1', 'generation' => 1, 'capabilities' => ['dialogue.text']];
+        putenv('SYNTH_MESSAGE_QUEUE=1');
+        $this->assertNull(\Synth\Managers\MessageHandler\SpeechMessages::admit($event, 'utt-1', $handler), 'no message.queue capability');
+        $event['capabilities'][] = 'message.queue';
+        $this->assertIsInt(\Synth\Managers\MessageHandler\SpeechMessages::admit($event, 'utt-1', $handler));
+        putenv('SYNTH_MESSAGE_QUEUE=0');
+        $this->assertNull(\Synth\Managers\MessageHandler\SpeechMessages::admit($event, 'utt-2', $handler), 'queue switched off');
+    }
+
     public function testTheMessageSchemaIsTheMigrationsStructure(): void
     {
         // The table is built by the migration alone: the status check and the (session, request, key) uniqueness are real.
@@ -290,6 +333,7 @@ final class MessageQueueTest extends DatabaseTestCase
         }
         curl_multi_close($multi);
         $counts = array_count_values($statuses);
+        ksort($counts);
         $this->assertSame([200 => 1, 409 => 19], $counts, 'one 200 and nineteen 409: ' . json_encode($counts) . (is_file($this->serverLog) ? substr((string) file_get_contents($this->serverLog), -1500) : ''));
         $this->assertEqualsCanonicalizing($this->payload(), $winner['payload'], 'jsonb may reorder keys');
         $this->assertSame(['id' => $id, 'session' => 'session-1', 'generation' => 1], ['id' => $winner['message_id'], 'session' => $winner['session_id'], 'generation' => $winner['generation']]);

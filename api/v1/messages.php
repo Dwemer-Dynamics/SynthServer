@@ -11,7 +11,7 @@ use Synth\Managers\MessageHandler\MessageHandler;
 //   The first GET of a completed message answers 200 with the stored payload and marks it delivered; every later GET answers 409
 //   {"status":"delivered"}. A message still being produced answers 409 {"status":"pending"}. A cancelled, expired or unknown id
 //   answers 404 with that status. HEAD never delivers: it answers the status code a GET would, without consuming the message.
-//   With the queue switched off (SYNTH_MESSAGE_QUEUE=0) these ids answer 404 {"status":"unknown"}.
+//   With the queue switched off (SYNTH_MESSAGE_QUEUE=0; the default is on) these ids answer 404 {"status":"unknown"}.
 // - A TTS cache key (32 hex digits): the legacy response path, the delivery state through tts_status.php, unchanged and
 //   repeatable, so a client that does not use the queue keeps working.
 
