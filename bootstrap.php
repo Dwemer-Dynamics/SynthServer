@@ -105,6 +105,58 @@ final class Bootstrap
         $GLOBALS[$name][$key] = $value;
     }
 
+    /** `$GLOBALS[$name][$k1][$k2]... = $value` for any depth. */
+    public static function setPath(string $name, array $path, mixed $value): void
+    {
+        $ref = &$GLOBALS[$name];
+        foreach ($path as $key) {
+            $ref = &$ref[$key];
+        }
+        $ref = $value;
+    }
+
+    /** `$GLOBALS[$name][$k1]...[] = $value`. */
+    public static function appendPath(string $name, array $path, mixed $value): void
+    {
+        $ref = &$GLOBALS[$name];
+        foreach ($path as $key) {
+            $ref = &$ref[$key];
+        }
+        $ref[] = $value;
+    }
+
+    /** `unset($GLOBALS[$name][$k1]...[$kn])`; a missing branch is a no-op, as for the legacy unset. */
+    public static function unsetPath(string $name, array $path): void
+    {
+        if (!array_key_exists($name, $GLOBALS)) {
+            return;
+        }
+        $last = array_pop($path);
+        $ref = &$GLOBALS[$name];
+        foreach ($path as $key) {
+            if (!is_array($ref) || !array_key_exists($key, $ref)) {
+                return;
+            }
+            $ref = &$ref[$key];
+        }
+        if (is_array($ref)) {
+            unset($ref[$last]);
+        }
+    }
+
+    /**
+     * A reference to the runtime value (and to `$path` inside it): the replacement for `global $x;` (`$x = &ref('x')`),
+     * `&$GLOBALS['x']` and by-reference arguments such as `shuffle($GLOBALS['x'])`.
+     */
+    public static function &ref(string $name, array $path = []): mixed
+    {
+        $ref = &$GLOBALS[$name];
+        foreach ($path as $key) {
+            $ref = &$ref[$key];
+        }
+        return $ref;
+    }
+
     /** `isset($GLOBALS[$name])`: the value exists and is not null. */
     public static function has(string $name): bool
     {
