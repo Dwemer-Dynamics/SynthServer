@@ -421,6 +421,11 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
         try {
             $GLOBALS['active_profile']=md5('The Narrator');$GLOBALS['SYNTH_NAME']='The Narrator';
             $GLOBALS['STTFUNCTION']='preserved-input-stt';
+            // The disposable fixture session is not a shared Doctrine session; settings read as unset here.
+            \Synth\Managers\ConfigManager\ConfigManager::inject(new class extends \Synth\Managers\ConfigManager\ConfigManager {
+                public function __construct() {}
+                public function get(string $scope,string $key,?string $default=null): ?string { return $default; }
+            });
             $loaded=synth_ambient_npc_load_profile($this->database,$event);
             $this->assertSame($this->actorId,(int)$loaded['character']['actor_identity_id']);
             $this->assertSame($this->profileId,(int)$loaded['profile']['id']);
@@ -428,6 +433,7 @@ final class NativeRelationshipDispatchTest extends DatabaseTestCase
             $this->assertSame('preserved-input-stt',$GLOBALS['STTFUNCTION']);
             $this->assertSame($event,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
         } finally {
+            \Synth\Managers\ConfigManager\ConfigManager::inject(null);
             foreach (array_keys($GLOBALS) as $key) if (!array_key_exists($key,$previous)) unset($GLOBALS[$key]);
             foreach ($previous as $key=>$value) $GLOBALS[$key]=$value;
         }
