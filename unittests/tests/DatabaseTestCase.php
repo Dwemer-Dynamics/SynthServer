@@ -208,44 +208,6 @@ abstract class DatabaseTestCase extends TestCase
         pg_close($mainConnection);
     }
 
-    // A pre-ledger legacy install before the legacy chain: an empty UTF-8 testdb with only data/database_default.sql
-    // imported. (An empty database is installed by the baseline migration instead; see recreateEmptyTestDatabase.)
-    protected static function recreateTestDatabaseFromDefaultSql(): void
-    {
-        self::recreateEmptyTestDatabase();
-
-        // Connect to the new test database
-        $connString = "host=localhost dbname=".self::$testDatabaseName." user=dwemer password=dwemer";
-        $testConnection = pg_connect($connString, PGSQL_CONNECT_FORCE_NEW);
-        if (!$testConnection) {
-            self::fail("Failed to connect to the newly created test database.");
-        }
-        // Drop and recreate database
-        $Q[]="DROP SCHEMA IF EXISTS public CASCADE";
-        $Q[]="DROP EXTENSION IF EXISTS vector CASCADE";
-        $Q[]="CREATE SCHEMA public";
-        $Q[]="CREATE EXTENSION vector";
-        foreach ($Q as $QS) {
-            $r = pg_query($testConnection, $QS);
-            if (!$r) {
-                self::fail("Failed to initialize test database schema: " . pg_last_error($testConnection));
-            }
-        }
-
-        // Import the base SQL through the active PostgreSQL connection so tests do not
-        // depend on a platform-specific psql executable being available on PATH.
-        $path = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR."..";
-        $sqlFile = $path.DIRECTORY_SEPARATOR."data".DIRECTORY_SEPARATOR."database_default.sql";
-        $sql = file_get_contents($sqlFile);
-        if ($sql === false) {
-            self::fail("Failed to read base SQL file: $sqlFile");
-        }
-        $importResult = pg_query($testConnection, $sql);
-        if (!$importResult) {
-            self::fail("Failed to import base SQL file: " . pg_last_error($testConnection));
-        }
-        pg_close($testConnection);
-    }
 
     public function copyTestDB(): void
     {
