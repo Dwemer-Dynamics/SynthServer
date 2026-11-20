@@ -1,12 +1,12 @@
 <?php
 
-$GLOBALS["more_stopseq"][]="<|end_of_text|>";
-$GLOBALS["more_stopseq"][]="<end_of_turn>"; // Meta-Llama-3.1-8B-Instruct-GGUF
+\Synth\Bootstrap::append('more_stopseq', "<|end_of_text|>");
+\Synth\Bootstrap::append('more_stopseq', "<end_of_turn>"); // Meta-Llama-3.1-8B-Instruct-GGUF
 
-$context="<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n{$GLOBALS["PROMPT_HEAD"]}\n";
-$context.="{$GLOBALS["SYNTH_PERS"]}\n";
-$context.="{$GLOBALS["COMMAND_PROMPT"]}\n#CONTEXT\n";
-$GLOBALS["DEBUG_DATA"][]=$context;
+$context=("<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n" . \Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
+$context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+$context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n#CONTEXT\n");
+\Synth\Bootstrap::append('DEBUG_DATA', $context);
 
 $contextHistory="";
 $n=0;
@@ -23,9 +23,9 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
     } else {
         if ($s_msg["role"]=="user") {
             $contextHistory.=$s_msg["content"]."\n";
-                $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
         } elseif ($s_msg["role"]=="assistant") {
-                $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
             $contextHistory.=$s_msg["content"]."\n";
         } elseif ($s_msg["role"]=="system") {
         }  // Must rebuild this
@@ -37,7 +37,7 @@ foreach ($contextData as $s_role=>$s_msg) {	// Have to mangle context format
 }
 
 $context.="$contextHistory  $instruction <|start_header_id|>assistant<|end_header_id|>";
-$GLOBALS["DEBUG_DATA"][]="$instruction";
-$GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+\Synth\Bootstrap::append('DEBUG_DATA', "$instruction");
+\Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
 
 ?>

@@ -1,8 +1,8 @@
 <?php
 
- $context="{$GLOBALS["PROMPT_HEAD"]}\n";
-            $context.="{$GLOBALS["SYNTH_PERS"]}\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\n";
+ $context=(\Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
+            $context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n");
             $context.="Dialogue history:\n";
 
             $contextHistory="";
@@ -16,11 +16,11 @@
                 } else {
                     if ($s_msg["role"]=="user") {
                         $contextHistory.="".$s_msg["content"]."\n";
-                        $GLOBALS["DEBUG_DATA"][]=$s_msg["content"]."\n";
+                        \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]."\n");
 
                     } elseif ($s_msg["role"]=="assistant") {
                         $contextHistory.="".$s_msg["content"]."\n";
-                        $GLOBALS["DEBUG_DATA"][]=$s_msg["content"]."\n";
+                        \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]."\n");
                     } elseif ($s_msg["role"]=="system") {
                     }  // Must rebuild this
                 }
@@ -29,7 +29,7 @@
             }
 
             $context.="$contextHistory $instruction ASSISTANT: ";
-            $GLOBALS["DEBUG_DATA"][]=" $instruction ASSISTANT:";
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            \Synth\Bootstrap::append('DEBUG_DATA', " $instruction ASSISTANT:");
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
             
             ?>
