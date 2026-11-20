@@ -1,0 +1,19 @@
+# Structure of Version20261120110000 (extension store and extension migration ledger). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+column|public|core_extension_migration|applied_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_extension_migration|extension_id|text|text|NO||
+column|public|core_extension_migration|name|text|text|NO||
+column|public|core_extension_migration|sha256|character|bpchar|NO||64
+column|public|core_extension_store|extension_id|text|text|NO||
+column|public|core_extension_store|store_key|text|text|NO||
+column|public|core_extension_store|updated_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_extension_store|value|jsonb|jsonb|NO||
+constraint|public|core_extension_migration|core_extension_migration_id_check|c|t|CHECK (((extension_id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$'::text) AND (length(extension_id) <= 64)))
+constraint|public|core_extension_migration|core_extension_migration_pkey|p|t|PRIMARY KEY (extension_id, name)
+constraint|public|core_extension_migration|core_extension_migration_sha_check|c|t|CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))
+constraint|public|core_extension_store|core_extension_store_id_check|c|t|CHECK (((extension_id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$'::text) AND (length(extension_id) <= 64)))
+constraint|public|core_extension_store|core_extension_store_key_check|c|t|CHECK (((length(store_key) >= 1) AND (length(store_key) <= 200)))
+constraint|public|core_extension_store|core_extension_store_pkey|p|t|PRIMARY KEY (extension_id, store_key)
+index|public|core_extension_migration|core_extension_migration_pkey|CREATE UNIQUE INDEX core_extension_migration_pkey ON public.core_extension_migration USING btree (extension_id, name)
+index|public|core_extension_store|core_extension_store_pkey|CREATE UNIQUE INDEX core_extension_store_pkey ON public.core_extension_store USING btree (extension_id, store_key)
+table|public|core_extension_migration|BASE TABLE
+table|public|core_extension_store|BASE TABLE
