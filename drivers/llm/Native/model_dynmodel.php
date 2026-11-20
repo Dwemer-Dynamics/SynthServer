@@ -1,6 +1,6 @@
 <?php
 
-$path = dirname((__FILE__)) . DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR ;
+$path = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
 
 function removeAndReturnNext(&$array, $value) {
     $key = array_search($value, $array);
