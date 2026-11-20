@@ -40,7 +40,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 		//xtts_fastapi_settings([]); //Check this
 		
-		/*if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+		/*if (!isset(\Synth\Bootstrap::config("AVOID_TTS_CACHE")))
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 		*/
@@ -59,12 +59,12 @@ namespace Synth\Drivers\Tts\Drivers {
 		);
 		
 	
-		$voice=isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"]:\Synth\Bootstrap::config("TTS")["KOKORO"]["voiceid"];
+		$voice=isset(\Synth\Bootstrap::config('TTS')["FORCED_VOICE_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"]:\Synth\Bootstrap::config("TTS")["KOKORO"]["voiceid"];
 		
 		if (empty($voice))
 			$voice=\Synth\Bootstrap::config("TTS")["KOKORO"]["voiceid"];
 	
-		if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]))
+		if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE'))
 			$voice=\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 
 		$data = array(
@@ -91,7 +91,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
 		if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+			\Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
 			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 			
 		} else {
@@ -105,7 +105,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			$fname=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 			$startTimeTrans = microtime(true);
-			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+			$filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
 			    ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
 			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
 			    Logger::error('kokoro audio conversion or owned cache publication failed');
@@ -114,7 +114,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			$endTimeTrans = microtime(true)-$startTimeTrans;
 			
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in kokoro call";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in kokoro call");
 			return "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 		} else {

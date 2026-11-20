@@ -76,7 +76,7 @@ function xtts_fastapi_settings($settings,$resetAfter=false) {
 	$finalData=array_merge($data,$settings);
 	
 	if ($resetAfter)
-		$GLOBALS["TTS"]["XTTSFASTAPI"]["RESET"]=true;
+		\Synth\Bootstrap::setPath('TTS', ["XTTSFASTAPI", "RESET"], true);
 
 	$options = array(
 		'http' => array(
@@ -160,7 +160,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 		//xtts_fastapi_settings([]); //Check this
 		
-		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
+		if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
 			if (synth_speech_cache_valid(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 		
@@ -178,15 +178,15 @@ namespace Synth\Drivers\Tts\Drivers {
 			'Content-Type: application/json'
 		);
 		
-		$lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:\Synth\Bootstrap::config("TTS")["XTTSFASTAPI"]["language"];
+		$lang=isset(\Synth\Bootstrap::config('TTS')["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:\Synth\Bootstrap::config("TTS")["XTTSFASTAPI"]["language"];
 		
 		
-		if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
+		if ((\Synth\Bootstrap::has('LLM_LANG'))&&(\Synth\Bootstrap::has('LANG_LLM_XTTS'))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
 			$lang=\Synth\Bootstrap::config("LLM_LANG");
 
 		}
 		
-		if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
+		if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE'))
         	$lang=\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
 		if (empty($lang))
@@ -216,7 +216,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		}
 	
 		// Hook for connector-specific text modifiers.
-		if (isset($GLOBALS["HOOKS"]) && isset($GLOBALS["HOOKS"]["XTTS_TEXTMODIFIER"]) && is_array(\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"])) {
+		if (\Synth\Bootstrap::has('HOOKS') && isset(\Synth\Bootstrap::config('HOOKS')["XTTS_TEXTMODIFIER"]) && is_array(\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"])) {
 			foreach (\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"] as $hook) {
 				Logger::info("Calling hook.".__FILE__." ".__LINE__." ".__FUNCTION__);
 				$newString=call_user_func($hook,$newString);
@@ -253,7 +253,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		$response = synth_speech_fetch($url, $context, $http_response_header);
 
 		// Planned replies use only their captured primary/configured fallback, never a guessed actor codename.
-		if ($response === FALSE && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
+		if ($response === FALSE && !\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) {
 			// Handle error
 			Logger::error("Error occurred. ".__FILE__." ".__LINE__." ".__FUNCTION__);
 			
@@ -283,14 +283,14 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
 		if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+			\Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
 			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 			
 		} else {
 			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
 		}
 		
-		if (isset($GLOBALS["TTS"]["XTTSFASTAPI"]["RESET"]) && \Synth\Bootstrap::config("TTS")["XTTSFASTAPI"]["RESET"]) {
+		if (isset(\Synth\Bootstrap::config('TTS')["XTTSFASTAPI"]["RESET"]) && \Synth\Bootstrap::config("TTS")["XTTSFASTAPI"]["RESET"]) {
 			xtts_fastapi_settings([]);
 		}
 
@@ -301,7 +301,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			$fname=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 			$startTimeTrans = microtime(true);
-			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+			$filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
 			    ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
 			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
 			    Logger::error('xtts-fastapi audio conversion or owned cache publication failed');
@@ -313,9 +313,9 @@ namespace Synth\Drivers\Tts\Drivers {
 			$textString.=PHP_EOL.print_r($http_response_header,true);
 			
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in xtts-fast-api call";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in xtts-fast-api call");
 
-			if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
+			if (\Synth\Bootstrap::has('DEVELOP_STORE_AUDIO_FOR_TRANING') && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
 				$rootPath=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" ;
 				$tfolder=$rootPath."/$voice";
 				@mkdir($tfolder);

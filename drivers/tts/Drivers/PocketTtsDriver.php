@@ -60,7 +60,7 @@ if (!function_exists('pockettts_normalize_endpoint_url')) {
 }
 
 function pockettts_scalar_setting($key, $default = '') {
-	if (!isset($GLOBALS["TTS"]["POCKETTTS"][$key]) || !is_scalar(\Synth\Bootstrap::config("TTS")["POCKETTTS"][$key])) {
+	if (!isset(\Synth\Bootstrap::config('TTS')["POCKETTTS"][$key]) || !is_scalar(\Synth\Bootstrap::config("TTS")["POCKETTTS"][$key])) {
 		return $default;
 	}
 
@@ -79,13 +79,13 @@ function pockettts_is_audio_cpp($endpoint = null) {
 
 function pockettts_backend_voice_payload($voice) {
 	// Frozen plans carry an exact immutable sample, including for the local audio.cpp API.
-	if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])
+	if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')
 		&& !array_key_exists((string)$voice, \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'])) {
 		throw new RuntimeException('Speech voice was not captured in the queued plan');
 	}
 	$plannedSample = \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'][(string)$voice] ?? null;
 	if (is_array($plannedSample)) return ['voice_ref' => $plannedSample['path']];
-	if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])
+	if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')
 		&& array_key_exists((string)$voice, \Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'])) return ['voice' => 'alba'];
 	$cleanName = basename((string)$voice, '.wav');
 	if ($cleanName !== '') {
@@ -305,7 +305,7 @@ function pockettts_settings($settings,$resetAfter=false) {
 	$finalData=array_merge($data,$settings);
 	
 	if ($resetAfter)
-		$GLOBALS["TTS"]["POCKETTTS"]["RESET"]=true;
+		\Synth\Bootstrap::setPath('TTS', ["POCKETTTS", "RESET"], true);
 
 	$options = array(
 		'http' => array(
@@ -389,7 +389,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 		//pockettts_settings([]); //Check this
 		
-		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
+		if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
 			if (synth_speech_cache_valid(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 		
@@ -405,15 +405,15 @@ namespace Synth\Drivers\Tts\Drivers {
 			'Content-Type: application/json'
 		);
 		
-		$lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:\Synth\Bootstrap::config("TTS")["POCKETTTS"]["language"];
+		$lang=isset(\Synth\Bootstrap::config('TTS')["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:\Synth\Bootstrap::config("TTS")["POCKETTTS"]["language"];
 		
 		
-		if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
+		if ((\Synth\Bootstrap::has('LLM_LANG'))&&(\Synth\Bootstrap::has('LANG_LLM_XTTS'))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
 			$lang=\Synth\Bootstrap::config("LLM_LANG");
 
 		}
 		
-		if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
+		if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE'))
         	$lang=\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
 		if (empty($lang))
@@ -441,7 +441,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		}
 	
 		// Hook for connector-specific text modifiers.
-		if (isset($GLOBALS["HOOKS"]) && isset($GLOBALS["HOOKS"]["XTTS_TEXTMODIFIER"]) && is_array(\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"])) {
+		if (\Synth\Bootstrap::has('HOOKS') && isset(\Synth\Bootstrap::config('HOOKS')["XTTS_TEXTMODIFIER"]) && is_array(\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"])) {
 			foreach (\Synth\Bootstrap::config("HOOKS")["XTTS_TEXTMODIFIER"] as $hook) {
 				Logger::info("Calling hook.".__FILE__." ".__LINE__." ".__FUNCTION__);
 				$newString=call_user_func($hook,$newString);
@@ -468,7 +468,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		$http_response_header = $requestResult['headers'];
 
 		// A frozen reply may retry its captured fallback voice, but must not discover a different service.
-		if ($response === false && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])
+		if ($response === false && !\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')
 			&& pockettts_should_try_fallback($endpoint, $requestResult['http_code'])) {
 			$fallbackEndpoint = pockettts_find_fallback_endpoint($endpoint);
 			if ($fallbackEndpoint !== null) {
@@ -483,7 +483,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			}
 		}
 
-		if ($response === FALSE && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
+		if ($response === FALSE && !\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) {
 			// Handle error
 			Logger::error("Error occurred. ".__FILE__." ".__LINE__." ".__FUNCTION__);
 			
@@ -503,14 +503,14 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
 		if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+			\Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
 			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 			
 		} else {
 			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
 		}
 		
-		if (isset($GLOBALS["TTS"]["POCKETTTS"]["RESET"]) && \Synth\Bootstrap::config("TTS")["POCKETTTS"]["RESET"]) {
+		if (isset(\Synth\Bootstrap::config('TTS')["POCKETTTS"]["RESET"]) && \Synth\Bootstrap::config("TTS")["POCKETTTS"]["RESET"]) {
 			pockettts_settings([]);
 		}
 
@@ -543,9 +543,9 @@ namespace Synth\Drivers\Tts\Drivers {
 			$textString.=PHP_EOL.print_r($http_response_header,true);
 			
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in pockettts call";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in pockettts call");
 
-			if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
+			if (\Synth\Bootstrap::has('DEVELOP_STORE_AUDIO_FOR_TRANING') && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
 				$rootPath=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" ;
 				$tfolder=$rootPath."/$voice";
 				@mkdir($tfolder);

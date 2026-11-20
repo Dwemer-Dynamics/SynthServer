@@ -56,7 +56,7 @@ function synth_protocol_transcribe_media(array $media): string
             throw new RuntimeException('stt_connector_invalid');
         }
         // A previous connector/call cannot lend its successful-empty provenance to this one.
-        $GLOBALS['STT_LAST_DIAGNOSTIC'] = [];
+        \Synth\Bootstrap::set('STT_LAST_DIAGNOSTIC', []);
         $text = trim(strval(stt($temporary)));
         if ($text === '') {
             $diagnostic=\Synth\Bootstrap::config('STT_LAST_DIAGNOSTIC') ?? [];

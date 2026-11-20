@@ -74,13 +74,13 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
 
-	    global $ELEVEN_LABS,$ELEVENLABS_API_KEY;
+	    $ELEVEN_LABS = &\Synth\Bootstrap::ref('ELEVEN_LABS'); $ELEVENLABS_API_KEY = &\Synth\Bootstrap::ref('ELEVENLABS_API_KEY');
 
 		// Resolve API key: prefer API Badge 'ElevenLabs', fallback to schema
 		$apiKey = '';
 		try {
-			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
+			if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+			if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) \Synth\Bootstrap::set('db', new sql());
 			require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
 			$row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('elevenlabs');
 			if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
@@ -88,7 +88,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		if ($apiKey === '') $apiKey=\Synth\Bootstrap::config("TTS")["ELEVEN_LABS"]["API_KEY"];
 
 		// Cache 
-		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+		if (!\Synth\Bootstrap::has('AVOID_TTS_CACHE'))
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 	
@@ -105,7 +105,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 		$voice = elevenLabsNormalizeString(elevenLabsGetSetting($settings, 'voice_id', ''), 'EXAVITQu4vr4xnSDxMaL');
 
-		if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE"))) !== '') {
+		if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE') && trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE"))) !== '') {
 			$voice = trim(strval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE")));
         }
 
@@ -210,7 +210,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			$size=filesize($wavName);
 			
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in 11labs call and $endTimeTrans microseconds in ffmpeg transcoding";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in 11labs call and $endTimeTrans microseconds in ffmpeg transcoding");
 			return "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 		} else {

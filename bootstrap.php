@@ -163,6 +163,16 @@ final class Bootstrap
         $GLOBALS[$name] = &$source;
     }
 
+    /** `$GLOBALS[$name][$k1]... ??= $default` as an expression: sets the default when missing or null, returns the value. */
+    public static function coalescePath(string $name, array $path, mixed $default): mixed
+    {
+        $ref = &$GLOBALS[$name];
+        foreach ($path as $key) {
+            $ref = &$ref[$key];
+        }
+        return $ref ??= $default;
+    }
+
     /** `isset($GLOBALS[$name])`: the value exists and is not null. */
     public static function has(string $name): bool
     {
