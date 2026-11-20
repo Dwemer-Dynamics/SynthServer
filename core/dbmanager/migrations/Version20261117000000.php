@@ -10,17 +10,16 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 use Doctrine\Migrations\Exception\AbortMigration;
 
-// The frozen legacy bootstrap baseline: the schema data/database_default.sql plus debug/db_updates.php produce at
-// 42c7e0e. On an existing install it only recognizes that baseline and changes no schema and no row. On an empty
-// database it installs it: up() adds the statements of Version20261117000000.fresh.sql (generated data, see
-// docs/SCHEMA-MIGRATIONS.md), so the complete schema and stock seeds are created in the owner's all-or-nothing
-// transaction without the legacy chain or a separate data/database_default.sql import. Either way postUp() verifies
-// inside that transaction, after the statements and before Doctrine records this version, so a failed, partial or
-// drifted install aborts and records nothing. Later schema changes are new migrations here, never new
-// debug/db_updates.php blocks.
+// The baseline: the frozen schema and stock seeds of the redesigned database. On an empty database up() adds the
+// statements of Version20261117000000.fresh.sql (generated data, see docs/SCHEMA-MIGRATIONS.md), so the complete
+// schema and seeds are created in the owner's all-or-nothing transaction. On a database that already holds exactly
+// this baseline (a reverted record, for example) it only recognizes it and changes no schema and no row. Either way
+// postUp() verifies inside that transaction, after the statements and before Doctrine records this version, so a
+// failed, partial or drifted install aborts and records nothing. The retired legacy upgrade chain no longer exists: a
+// database built any other way is recreated, never repaired. Later schema changes are new migrations here.
 //
-// The structure check compares against Version20261117000000.structure.txt, generated from a disposable PostgreSQL 15
-// inventory of that commit: every baseline table and view by name, every column (type, nullability, default,
+// The structure check compares against Version20261117000000.structure.txt, generated from a disposable PostgreSQL 17
+// inventory of the baseline: every baseline table and view by name, every column (type, nullability, default,
 // length), vector dimensions, and every primary key, foreign key, check and unique constraint and index by name and
 // definition. Objects not in the baseline are allowed. View and function bodies are not compared; the frozen seed check
 // only checks that the playthrough functions exist.
@@ -58,7 +57,7 @@ final class Version20261117000000 extends AbstractMigration
 
     // The fresh-install statements: generated data, checked by SHA-256 over its LF bytes before any statement is used.
     private const FRESH_INSTALL_FILE = 'Version20261117000000.fresh.sql';
-    private const FRESH_INSTALL_SHA256 = '74f05197bef16a1fd52e2aa2d02b4f89920f689e338a4abc628262ecd1adf2ca';
+    private const FRESH_INSTALL_SHA256 = '2aa5d94012f1fb5257a1b278e59c9e28c398326f704f87e4ad1205c430afed52';
     private const FRESH_INSTALL_STATEMENT_END = "\n-- end-statement\n";
 
     // Mandatory seeds: the five SYNTH prompt rows and the general settings the runtime managed at the baseline.
@@ -87,12 +86,12 @@ final class Version20261117000000 extends AbstractMigration
 
     public function getDescription(): string
     {
-        return 'Recognize the verified frozen debug/db_updates.php baseline';
+        return 'Install or recognize the verified baseline schema';
     }
 
     // An empty database gets the frozen baseline, one statement at a time (DBAL's pgsql driver reads only the first
     // result of a multi-statement query, so a later failing statement would go unnoticed). Anything else is verified
-    // as it stands; the migration owner has already run the legacy chain on a pre-ledger install that needed it.
+    // as it stands, and refused when it is not the complete baseline.
     public function up(Schema $schema): void
     {
         if (!self::isEmptyDatabase($this->connection)) return;
@@ -108,7 +107,7 @@ final class Version20261117000000 extends AbstractMigration
     public function postUp(Schema $schema): void
     {
         $problems = self::problems($this->connection);
-        $this->abortIf($problems !== [], 'Legacy baseline verification failed: '.implode('; ', $problems));
+        $this->abortIf($problems !== [], 'Baseline verification failed: '.implode('; ', $problems));
     }
 
     // Reverting removes this record and leaves every object and row in place, whether the baseline was recognized or
@@ -121,7 +120,7 @@ final class Version20261117000000 extends AbstractMigration
      * True when the database holds nothing a SYNTH install or anything else created: no schema besides public and
      * synth_meta, and no relation, function or standalone type in either that is not an extension member, apart from
      * the Doctrine version table (the owner creates synth_meta and that table first, in the same transaction). Only
-     * such a database is installed fresh; every other one keeps the legacy path, so nothing existing is replaced.
+     * such a database is installed fresh; every other one is only verified, so nothing existing is replaced.
      */
     public static function isEmptyDatabase(Connection $connection): bool
     {
@@ -166,15 +165,6 @@ final class Version20261117000000 extends AbstractMigration
             throw new \RuntimeException('The fresh-install baseline schema does not end with a statement end');
         }
         return $statements;
-    }
-
-    /**
-     * True when core_catalog_version already claims every frozen legacy version. Such an install gets no legacy chain:
-     * it is verified as it stands, so damage is refused instead of being half-repaired by version-gated steps.
-     */
-    public static function legacyVersionsClaimCurrent(Connection $connection): bool
-    {
-        return self::relationExists($connection, 'public', 'core_catalog_version') && self::versionShortfalls($connection) === [];
     }
 
     /**

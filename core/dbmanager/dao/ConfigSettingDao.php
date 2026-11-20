@@ -147,6 +147,36 @@ final class ConfigSettingDao
         return true;
     }
 
+    /**
+     * Stores several settings of one scope in one statement (all or none), replacing previous values. Descriptions are kept.
+     * Returns false when the statement fails, as the legacy writer did.
+     *
+     * @param array<string, string> $values config_key => config_value
+     */
+    public function upsertMany(string $scope, array $values): bool
+    {
+        if ($values === []) {
+            return true;
+        }
+        $rows = [];
+        $parameters = [];
+        foreach ($values as $key => $value) {
+            $rows[] = '(?, ?, ?)';
+            array_push($parameters, $scope, (string) $key, (string) $value);
+        }
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES '.implode(',', $rows)
+                .' ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value',
+                $parameters
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** Removes one setting (back to its default); true when the statement ran, whether or not a row existed. */
     public function delete(string $scope, string $key): bool
     {
