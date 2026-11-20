@@ -8,11 +8,11 @@ require_once(dirname(__DIR__, 3).'/lib'.DIRECTORY_SEPARATOR."logger.php");
  */
 function initializeLogTrimming($maxLines = 10000) {
     try {
-        if (!isset($GLOBALS['db']) || !is_object($GLOBALS['db'])) {
+        if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
             return;
         }
 
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         // Read enabled flag (default true)
         $enabledRow = @$db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope='meta' AND config_key='AUTO_TRIM_LOGS_ENABLED'");
         $enabled = true;

@@ -246,7 +246,7 @@ function synth_memory_process_job($db, int $jobId, callable $generate, ?callable
     if (!$db->isTransactionIdle()) throw new LogicException('Memory providers require an idle database connection');
     $job = synth_memory_claim($db,$jobId);
     if (!$job) return null;
-    $previousLease = $GLOBALS['SYNTH_MEMORY_JOB_LEASE'] ?? null;
+    $previousLease = \Synth\Bootstrap::config('SYNTH_MEMORY_JOB_LEASE') ?? null;
     $GLOBALS['SYNTH_MEMORY_JOB_LEASE'] = ['id'=>$jobId,'token'=>$job['lease_token']];
     try {
         $input = json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);

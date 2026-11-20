@@ -42,7 +42,7 @@ function synth_gift_menu_request_allowed(array $event, $db=null, ?array $context
 function synth_gift_menu_try_handoff($db, array $event): bool
 {
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || empty($GLOBALS['FUNCTIONS_ARE_ENABLED'])
-        || !synth_json_response_enabled() || !in_array('OpenInventory', $GLOBALS['ENABLED_FUNCTIONS'] ?? [], true)
+        || !synth_json_response_enabled() || !in_array('OpenInventory', \Synth\Bootstrap::config('ENABLED_FUNCTIONS') ?? [], true)
         || !synth_gift_menu_request_allowed($event,$db) || !synthActionCodeIsNegotiated('OpenInventory')) return false;
 
     $context = synth_protocol_current_context($db, $event);

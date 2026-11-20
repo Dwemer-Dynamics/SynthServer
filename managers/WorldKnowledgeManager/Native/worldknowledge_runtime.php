@@ -10,8 +10,8 @@ require_once dirname(__DIR__, 3).'/lib/quest_access.php';
  *  A native caller passes its admitted NPC and profile rows instead of the request globals. */
 function synthWorldKnowledgeSettingSource(string $name, ?array $npc = null, ?array $profile = null): string
 {
-    $npc = $npc ?? (is_array($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null)
-        ? $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA']
+    $npc = $npc ?? (is_array(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? null)
+        ? \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA')
         : []);
     foreach (['extended_data', 'metadata'] as $field) {
         $values = $npc[$field] ?? [];
@@ -22,8 +22,8 @@ function synthWorldKnowledgeSettingSource(string $name, ?array $npc = null, ?arr
             return 'npc';
         }
     }
-    $profile = $profile ?? (is_array($GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA'] ?? null)
-        ? $GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA']
+    $profile = $profile ?? (is_array(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_PROFILE_DATA') ?? null)
+        ? \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_PROFILE_DATA')
         : []);
     $metadata = $profile['metadata'] ?? [];
     if (is_string($metadata)) {
@@ -133,7 +133,7 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
 /** Identify known 2077 actors from captured native identity, never from dialogue or names. */
 function synthWorldKnowledgeCurrentNpcIsPrewar(?array $npc = null): bool
 {
-    $npc = $npc ?? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? null);
+    $npc = $npc ?? (\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? null);
     if (!is_array($npc)) {
         return false;
     }
@@ -161,23 +161,23 @@ function synthWorldKnowledgeCurrentNpcIsPrewar(?array $npc = null): bool
  *  ['db', 'npc', 'tags', 'name', 'world'] instead of the ordinary request globals. */
 function synthWorldKnowledgeKnowledgeTags(?array $context = null): array
 {
-    $currentNpc = $context === null ? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? []) : ($context['npc'] ?? []);
+    $currentNpc = $context === null ? (\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? []) : ($context['npc'] ?? []);
     if (synthWorldKnowledgeCurrentNpcIsPrewar($context === null ? null : (is_array($currentNpc) ? $currentNpc : []))) {
         // Location, worldspace and same-name postwar factory defaults cannot grant future lore.
         return ['prewar'];
     }
     $tags = [];
-    foreach (explode(',', strval($context === null ? ($GLOBALS['WORLDKNOWLEDGE'] ?? '') : ($context['tags'] ?? ''))) as $value) {
+    foreach (explode(',', strval($context === null ? (\Synth\Bootstrap::config('WORLDKNOWLEDGE') ?? '') : ($context['tags'] ?? ''))) as $value) {
         $tags[] = $value;
     }
 
     $npcName = synthWorldKnowledgeNormalizeAccessTag(strval($context === null
-        ? ($GLOBALS['SYNTH_NAME'] ?? '') : ($context['name'] ?? '')));
+        ? (\Synth\Bootstrap::config('SYNTH_NAME') ?? '') : ($context['name'] ?? '')));
     if ($npcName !== '') {
         $tags[] = $npcName;
     }
 
-    $db = $context === null ? ($GLOBALS['db'] ?? null) : ($context['db'] ?? null);
+    $db = $context === null ? (\Synth\Bootstrap::db() ?? null) : ($context['db'] ?? null);
     $npcCodename = is_array($currentNpc)
         ? trim(strval($currentNpc['npc_codename'] ?? ''))
         : '';
@@ -307,8 +307,8 @@ function synthWorldKnowledgeQuestAccessGates(array $row, ?array $questView = nul
 
     $view = $questView ?? ['schema' => 'synth.quest.access.v1', 'perspective' => 'npc',
         'observation' => 'unavailable', 'roles' => []];
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
-    $db = $GLOBALS['db'] ?? null;
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if ($questView === null && is_array($event) && ($event['protocol_version'] ?? null) === 2
         && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && is_object($db)) {
         try {

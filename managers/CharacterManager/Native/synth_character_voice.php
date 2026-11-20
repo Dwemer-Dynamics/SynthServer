@@ -55,9 +55,9 @@ function synth_character_request_voice_profile($db, array $profile): array
     if ($actorId<1) return $profile;
     if (!function_exists('synth_protocol_response_speaker')
         || synth_protocol_current_speech_role()!=='npc'
-        || ($GLOBALS['db'] ?? null)!==$db) return $profile;
+        || (\Synth\Bootstrap::db() ?? null)!==$db) return $profile;
     synth_protocol_assert_request_active();
-    $speaker=synth_protocol_response_speaker((string)($GLOBALS['SYNTH_NAME'] ?? ''),'npc');
+    $speaker=synth_protocol_response_speaker((string)(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''),'npc');
     if (!is_array($speaker)) return $profile;
     $speakerKey=synth_equipment_prompt_identity_key($speaker);
     if ($speakerKey===null) return $profile;

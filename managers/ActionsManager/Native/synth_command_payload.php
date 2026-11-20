@@ -169,7 +169,7 @@ function synthDecodeCommandAction(string $command, array $args = []): array
 
 function synthQueueCommandResponse(string $speaker, string $commandName, array $args = [], string $text = ''): void
 {
-    if (!isset($GLOBALS['db']) || !is_object($GLOBALS['db'])) {
+    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
         return;
     }
 
@@ -178,7 +178,7 @@ function synthQueueCommandResponse(string $speaker, string $commandName, array $
         return;
     }
 
-    $GLOBALS['db']->insert(
+    \Synth\Bootstrap::db()->insert(
         'responselog',
         [
             'localts' => time(),
@@ -212,29 +212,29 @@ function synthEncodeActionLine(string $actor, string $action, $parameter = '', s
     if ($action === '') {
         return '';
     }
-    if ($action==='OpenInventory' && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if ($action==='OpenInventory' && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         require_once __DIR__.'/synth_wait_actions.php';
-        if (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$GLOBALS['db'] ?? null)
+        if (!function_exists('synth_gift_menu_request_allowed') || !synth_gift_menu_request_allowed(\Synth\Bootstrap::requestEvent()['json'],\Synth\Bootstrap::db() ?? null)
             || !synth_wait_action_parameters_empty($parameter)
             || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
         $parameter=[];$parameterString='{}';
     }
-    if (in_array($action,['WaitHere','ReleaseWait'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
+    if (in_array($action,['WaitHere','ReleaseWait'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         require_once __DIR__.'/synth_wait_actions.php';
-        if (!synth_wait_action_supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)) return '';
+        if (!synth_wait_action_supported(\Synth\Bootstrap::requestEvent()['json'],$action)) return '';
         if (!synth_wait_action_parameters_empty($parameter)
             || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
         $parameter=[];$parameterString='{}';
     }
 
-    if (in_array($action,['FollowPlayer','StopFollowing','TakeASeat'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) {
-        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($GLOBALS['SYNTH_REQUEST_EVENT']['json'],$action)
+    if (in_array($action,['FollowPlayer','StopFollowing','TakeASeat'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
+        if (!\Synth\Managers\ActionsManager\CompanionOrders::supported(\Synth\Bootstrap::requestEvent()['json'],$action)
             || !synth_wait_action_parameters_empty($parameter)
             || ($parameterString!=='' && !synth_wait_action_parameters_empty(json_decode($parameterString)))) return '';
         $parameter=[];$parameterString='{}';
     }
 
-    if (in_array($action,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2) {
+    if (in_array($action,['Barter','GiveItemTo','GiveCapsTo','TakeCapsFromPlayer','TakeItemFromPlayer'],true) && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2) {
         if (!is_array($parameter) && $parameterString !== '') $parameter = json_decode($parameterString, true);
         if (!synthNativeTransferParametersValid($parameter,in_array($action,['GiveCapsTo','TakeCapsFromPlayer'],true))) return '';
         $parameterString = json_encode($parameter, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

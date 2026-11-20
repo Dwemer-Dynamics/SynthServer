@@ -16,7 +16,7 @@
  */
 
 // Ensure Logger is available
-require_once $GLOBALS["ENGINE_PATH"] . "lib/logger.php";
+require_once \Synth\Bootstrap::enginePath() . "lib/logger.php";
 
 /**
  * Queue a relationship evaluation for async processing
@@ -31,7 +31,7 @@ require_once $GLOBALS["ENGINE_PATH"] . "lib/logger.php";
  *   - listener_name: For NPC-to-NPC conversations
  */
 function _relQueueEvaluation($evalData) {
-    if (!isset($GLOBALS['db']) || !$GLOBALS['db']) {
+    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
         Logger::warn("[REL-ASYNC] Cannot queue: no database connection");
         return false;
     }
@@ -61,7 +61,7 @@ function _relQueueEvaluation($evalData) {
     // Use a simple key-value approach in a cache table or create our own
     // For simplicity, use the existing infrastructure
     try {
-        $escapedJson = $GLOBALS['db']->escape($jsonData);
+        $escapedJson = \Synth\Bootstrap::db()->escape($jsonData);
         $escapedNpcId = intval($npcId);
         $hasPlayerActionSql = $hasPlayerAction ? 'true' : 'false';
 
@@ -70,7 +70,7 @@ function _relQueueEvaluation($evalData) {
         // - If existing request has player action: DON'T replace (preserve player interaction)
         // - If neither has player action: Replace with new data (latest NPC-initiated)
         // This prevents NPC chatter from overwriting pending Player relationship evaluations
-        $GLOBALS['db']->query(
+        \Synth\Bootstrap::db()->query(
             "INSERT INTO core_relationship_eval_queue (npc_id, eval_data, created_at)
              VALUES ({$escapedNpcId}, '{$escapedJson}', NOW())
              ON CONFLICT (npc_id) DO UPDATE SET
@@ -104,7 +104,7 @@ function _relQueueEvaluation($evalData) {
  * @return array Results of processing
  */
 function _relProcessQueue($limit = 5) {
-    if (!isset($GLOBALS['db']) || !$GLOBALS['db']) {
+    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
         return ['processed' => 0, 'error' => 'no database'];
     }
 
@@ -112,7 +112,7 @@ function _relProcessQueue($limit = 5) {
 
     try {
         // Get pending evaluations (oldest first, prioritize items with fewer retries)
-        $rows = $GLOBALS['db']->fetchAll(
+        $rows = \Synth\Bootstrap::db()->fetchAll(
             "SELECT id, npc_id, eval_data, COALESCE(retry_count, 0) as retry_count
              FROM core_relationship_eval_queue
              ORDER BY COALESCE(retry_count, 0) ASC, created_at ASC
@@ -239,20 +239,20 @@ function _relProcessQueue($limit = 5) {
         // Delete successfully processed entries
         if (!empty($successIds)) {
             $idList = implode(',', array_map('intval', $successIds));
-            $GLOBALS['db']->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
+            \Synth\Bootstrap::db()->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
         }
 
         // Delete abandoned entries (exceeded max retries)
         if (!empty($abandonIds)) {
             $idList = implode(',', array_map('intval', $abandonIds));
-            $GLOBALS['db']->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
+            \Synth\Bootstrap::db()->query("DELETE FROM core_relationship_eval_queue WHERE id IN ({$idList})");
         }
 
         // Increment retry count for failed entries (will try again later)
         foreach ($retryIds as $retry) {
             $id = intval($retry['id']);
-            $escapedError = $GLOBALS['db']->escape($retry['error']);
-            $GLOBALS['db']->query(
+            $escapedError = \Synth\Bootstrap::db()->escape($retry['error']);
+            \Synth\Bootstrap::db()->query(
                 "UPDATE core_relationship_eval_queue
                  SET retry_count = COALESCE(retry_count, 0) + 1,
                      last_error = '{$escapedError}'
@@ -274,7 +274,7 @@ define('REL_QUEUE_MAX_RETRIES', 3);
  */
 function _relGetQueueStatus() {
     try {
-        $count = $GLOBALS['db']->fetchOne(
+        $count = \Synth\Bootstrap::db()->fetchOne(
             "SELECT COUNT(*) as cnt FROM core_relationship_eval_queue"
         );
         return ['pending' => intval($count['cnt'] ?? 0)];
@@ -291,7 +291,7 @@ function _relGetQueueStatus() {
  * @param string $npcName The NPC name
  */
 function _relQueueNpcInit($npcId, $npcName) {
-    if (!isset($GLOBALS['db']) || !$GLOBALS['db']) {
+    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
         return false;
     }
 
@@ -305,11 +305,11 @@ function _relQueueNpcInit($npcId, $npcName) {
     $jsonData = json_encode($queueData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     try {
-        $escapedJson = $GLOBALS['db']->escape($jsonData);
+        $escapedJson = \Synth\Bootstrap::db()->escape($jsonData);
         $escapedNpcId = intval($npcId);
 
         // Use relationship_init_queue for init requests (separate from eval queue)
-        $GLOBALS['db']->query(
+        \Synth\Bootstrap::db()->query(
             "INSERT INTO core_relationship_init_queue (npc_id, init_data, created_at)
              VALUES ({$escapedNpcId}, '{$escapedJson}', NOW())
              ON CONFLICT (npc_id) DO NOTHING"  // Don't replace - first request wins
@@ -330,14 +330,14 @@ function _relQueueNpcInit($npcId, $npcName) {
  * @param int $limit Max number to process per request
  */
 function _relProcessInitQueue($limit = 5) {
-    if (!isset($GLOBALS['db']) || !$GLOBALS['db']) {
+    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
         return ['processed' => 0];
     }
 
     $results = ['processed' => 0, 'retried' => 0, 'abandoned' => 0];
 
     try {
-        $rows = $GLOBALS['db']->fetchAll(
+        $rows = \Synth\Bootstrap::db()->fetchAll(
             "SELECT id, npc_id, init_data, COALESCE(retry_count, 0) as retry_count
              FROM core_relationship_init_queue
              ORDER BY COALESCE(retry_count, 0) ASC, created_at ASC
@@ -394,18 +394,18 @@ function _relProcessInitQueue($limit = 5) {
 
         if (!empty($successIds)) {
             $idList = implode(',', array_map('intval', $successIds));
-            $GLOBALS['db']->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
+            \Synth\Bootstrap::db()->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
         }
 
         if (!empty($abandonIds)) {
             $idList = implode(',', array_map('intval', $abandonIds));
-            $GLOBALS['db']->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
+            \Synth\Bootstrap::db()->query("DELETE FROM core_relationship_init_queue WHERE id IN ({$idList})");
         }
 
         foreach ($retryIds as $retry) {
             $id = intval($retry['id']);
-            $escapedError = $GLOBALS['db']->escape($retry['error']);
-            $GLOBALS['db']->query(
+            $escapedError = \Synth\Bootstrap::db()->escape($retry['error']);
+            \Synth\Bootstrap::db()->query(
                 "UPDATE core_relationship_init_queue
                  SET retry_count = COALESCE(retry_count, 0) + 1,
                      last_error = '{$escapedError}'

@@ -12,7 +12,7 @@ function synthNarratorActionRequestIsActive(): bool
         return true;
     }
 
-    $requestType = strtolower(trim(strval($GLOBALS['gameRequest'][0] ?? '')));
+    $requestType = strtolower(trim(strval(\Synth\Bootstrap::gameRequest()[0] ?? '')));
     return in_array($requestType, ['narrator_inputtext', 'narration', 'narrator_welcome', 'narrator_quest_comment'], true);
 }
 
@@ -40,7 +40,7 @@ function synthNarratorActionParameterArray(array $decodedAction): array
 
 function synthNarratorPlayerName(): string
 {
-    $playerName = trim(strval($GLOBALS['PLAYER_NAME'] ?? ''));
+    $playerName = trim(strval(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
     return $playerName !== '' ? $playerName : 'Player';
 }
 
@@ -92,7 +92,7 @@ function synthNarratorResolveItem(string $requestedName): ?array
         return null;
     }
 
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $escapedName = method_exists($db, 'escape')
         ? $db->escape($requestedName)
         : str_replace("'", "''", $requestedName);
@@ -301,13 +301,13 @@ function synthExecuteNarratorDirectorCommand(array $parameters): bool
         return false;
     }
 
-    if (isset($GLOBALS['db'], $GLOBALS['gameRequest']) && is_object($GLOBALS['db'])) {
-        $GLOBALS['db']->insert('actions_issued', [
+    if (isset($GLOBALS['db'], $GLOBALS['gameRequest']) && is_object(\Synth\Bootstrap::db())) {
+        \Synth\Bootstrap::db()->insert('actions_issued', [
             'action' => 'DirectorCommand',
             'fullcall' => synthEncodeActionLine('The Narrator', 'DirectorCommand', $parameters),
             'actorname' => 'The Narrator',
-            'ts' => $GLOBALS['gameRequest'][1] ?? time(),
-            'gamets' => $GLOBALS['gameRequest'][2] ?? 0,
+            'ts' => \Synth\Bootstrap::gameRequest()[1] ?? time(),
+            'gamets' => \Synth\Bootstrap::gameRequest()[2] ?? 0,
             'localts' => time(),
             'original' => $instruction,
         ]);

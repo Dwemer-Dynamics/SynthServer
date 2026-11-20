@@ -69,7 +69,7 @@ final class VoicePreviewManager
     public function listNpcsWithVoice(int $limit = 500): array
     {
         try {
-            $rows = $GLOBALS['db']->fetchAll(
+            $rows = \Synth\Bootstrap::db()->fetchAll(
                 "SELECT id, npc_name, voiceid FROM core_npc_master WHERE coalesce(voiceid, '') <> '' ORDER BY lower(npc_name) LIMIT "
                 . max(1, min(1000, $limit))
             );
@@ -156,7 +156,7 @@ final class VoicePreviewManager
             throw new VoicePreviewException(422, 'tts_not_configured', 'No TTS connector is configured for this NPC. Set one up in TTS Connectors first.');
         }
         $connectors->setOldGlobals($connector);
-        $function = (string) ($GLOBALS['TTSFUNCTION'] ?? '');
+        $function = (string) (\Synth\Bootstrap::config('TTSFUNCTION') ?? '');
         if (preg_match('/^[a-z0-9_-]+$/Di', $function) !== 1 || !is_file($this->enginePath . 'tts' . DIRECTORY_SEPARATOR . 'tts-' . $function . '.php')) {
             throw new VoicePreviewException(422, 'tts_not_configured', 'The TTS connector for this NPC is not available.');
         }

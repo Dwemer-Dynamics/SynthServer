@@ -37,3 +37,15 @@ Files under: drivers
 | global uses (all non-test PHP) | 6378 | 5649 |
 | files with a global | 303 | 301 |
 | `require_once` | 1836 | 1836 |
+
+### G2-managers
+
+Reads in managers/ now go through the accessors.
+
+Files under: managers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 5649 | 4754 |
+| files with a global | 301 | 281 |
+| `require_once` | 1836 | 1836 |

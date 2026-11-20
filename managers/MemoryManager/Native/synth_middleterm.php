@@ -302,7 +302,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             if (!$sources) return null;
         }
         require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
-        $connector=(new LLMConnector())->getById(intval($GLOBALS['CORE_CONNECTOR_MEDIUMTERM'] ?? 0));
+        $connector=(new LLMConnector())->getById(intval(\Synth\Bootstrap::config('CORE_CONNECTOR_MEDIUMTERM') ?? 0));
         if (!$connector) throw new RuntimeException('Middle-term connector unavailable.');
         $prompts=[];
         foreach (['middleterm_narrative_summarizer','middleterm_narrative_request'] as $key) {

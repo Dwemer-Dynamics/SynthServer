@@ -85,7 +85,7 @@ if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
     function synthWorldKnowledgeCurrentNpcSignals($db, ?array $npc = null): array
     {
         $explicit = $npc !== null;
-        $npc = $npc ?? ($GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] ?? []);
+        $npc = $npc ?? (\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA') ?? []);
         if (!is_array($npc)) {
             return ['race' => [], 'faction' => []];
         }
@@ -309,7 +309,7 @@ if (!function_exists('synthWorldKnowledgeAppendForcedRows')) {
     {
         $added = 0;
         foreach ($rows as $row) {
-            $remaining = intval($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] ?? PHP_INT_MAX);
+            $remaining = intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_REMAINING') ?? PHP_INT_MAX);
             if ($added >= $limit || $remaining <= 0 || synthWorldKnowledgeTopicWasInjected($row['topic'] ?? '')) {
                 continue;
             }
@@ -325,7 +325,7 @@ if (!function_exists('synthWorldKnowledgeAppendForcedRows')) {
                 synthWorldKnowledgeMarkTopicInjected($row['topic'] ?? '');
                 continue;
             }
-            $GLOBALS['WORLDKNOWLEDGE_HINT'] .= ($GLOBALS['WORLDKNOWLEDGE_HINT'] === '' ? '' : "\n")
+            $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
                 . synthWorldKnowledgeRenderArticleXml($row, $decision, $source);
             synthWorldKnowledgeMarkTopicInjected($row['topic'] ?? '');
             $added++;
@@ -343,7 +343,7 @@ if (!function_exists('synthWorldKnowledgeAppendForcedRows')) {
 if (!function_exists('synthWorldKnowledgeInjectForcedActorContext')) {
     function synthWorldKnowledgeInjectForcedActorContext($db): int
     {
-        if (intval($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] ?? PHP_INT_MAX) <= 0) {
+        if (intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_REMAINING') ?? PHP_INT_MAX) <= 0) {
             return 0;
         }
         $signals = synthWorldKnowledgeCurrentNpcSignals($db);
@@ -352,7 +352,7 @@ if (!function_exists('synthWorldKnowledgeInjectForcedActorContext')) {
         $isEnabled = static fn($value): bool => function_exists('isWorldKnowledgeEnabled')
             ? isWorldKnowledgeEnabled($value)
             : !in_array($value, [false, 0, '0', 'false', 'off', 'no', null], true);
-        if ($isEnabled($GLOBALS['RACE_WORLDKNOWLEDGE'] ?? true)) {
+        if ($isEnabled(\Synth\Bootstrap::config('RACE_WORLDKNOWLEDGE') ?? true)) {
             $added += synthWorldKnowledgeAppendForcedRows(
                 synthWorldKnowledgeFindRowsForSignals($db, $signals['race']),
                 $knowledgeTags,
@@ -360,8 +360,8 @@ if (!function_exists('synthWorldKnowledgeInjectForcedActorContext')) {
                 1
             );
         }
-        if (intval($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] ?? PHP_INT_MAX) > 0
-            && $isEnabled($GLOBALS['FACTION_WORLDKNOWLEDGE'] ?? true)) {
+        if (intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_REMAINING') ?? PHP_INT_MAX) > 0
+            && $isEnabled(\Synth\Bootstrap::config('FACTION_WORLDKNOWLEDGE') ?? true)) {
             $added += synthWorldKnowledgeAppendForcedRows(
                 synthWorldKnowledgeFindRowsForSignals($db, $signals['faction']),
                 $knowledgeTags,
@@ -376,10 +376,10 @@ if (!function_exists('synthWorldKnowledgeInjectForcedActorContext')) {
 if (!function_exists('synthWorldKnowledgeInjectForcedLocationContext')) {
     function synthWorldKnowledgeInjectForcedLocationContext($db): int
     {
-        if (intval($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] ?? PHP_INT_MAX) <= 0) {
+        if (intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_REMAINING') ?? PHP_INT_MAX) <= 0) {
             return 0;
         }
-        $enabledValue = $GLOBALS['LOCATION_WORLDKNOWLEDGE'] ?? true;
+        $enabledValue = \Synth\Bootstrap::config('LOCATION_WORLDKNOWLEDGE') ?? true;
         $enabled = function_exists('isWorldKnowledgeEnabled')
             ? isWorldKnowledgeEnabled($enabledValue)
             : !in_array($enabledValue, [false, 0, '0', 'false', null], true);
@@ -395,7 +395,7 @@ if (!function_exists('synthWorldKnowledgeInjectForcedLocationContext')) {
             'location',
             1
         );
-        if (intval($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] ?? PHP_INT_MAX) <= 0) {
+        if (intval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_REMAINING') ?? PHP_INT_MAX) <= 0) {
             return $added;
         }
         $added += synthWorldKnowledgeAppendForcedRows(

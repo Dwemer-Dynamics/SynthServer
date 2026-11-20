@@ -230,7 +230,7 @@ function getArrayKey($arr,$key) {
 function createProfile($npcname, $FORCE_PARMS = [], $overwrite = false, $baseprofile = '')
 {
     // This should be done at NpcMaster::createProfile
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if ($npcname == "The Narrator")   // Refuse to add Narrator [review this]
         return;
@@ -388,7 +388,7 @@ function createProfile($npcname, $FORCE_PARMS = [], $overwrite = false, $basepro
         if (empty($currentData['actor_identity_id'])) {
             $currentData['md5'] = md5($currentData["npc_name"]);
         }
-        $currentData['gamets_last_updated'] = $GLOBALS["gameRequest"][2];
+        $currentData['gamets_last_updated'] = \Synth\Bootstrap::gameRequest()[2];
 
         if ($EMPTY_PROFILE) {
             error_log("[CREATEPROFILE] Created initial empty profile");
@@ -413,7 +413,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
 
     // Helper function to get item description from combined view
     $getItemDescription = function($itemName, $baseid = null) {
-        global $db;
+        $db = \Synth\Bootstrap::db();
 
         // Try the shared runtime/stable/wildcard baseid resolver first if provided
         if (!empty($baseid)) {
@@ -450,7 +450,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
     $FOLLOWER_CONF['SYNTH_BACKGROUND'] = synth_biography_background(strval($FOLLOWER_CONF['SYNTH_BACKGROUND'] ?? ''),
         strval($FOLLOWER_CONF['SYNTH_SKILLS'] ?? ''));
     $FOLLOWER_CONF['SYNTH_SKILLS'] = ($FOLLOWER_CONF['SYNTH_NAME'] ?? '') === 'The Narrator' ? ''
-        : synth_actor_stats_for_request($GLOBALS['db'], strval($FOLLOWER_CONF['SYNTH_NAME'] ?? ''));
+        : synth_actor_stats_for_request(\Synth\Bootstrap::db(), strval($FOLLOWER_CONF['SYNTH_NAME'] ?? ''));
     $hasStructuredBiographyFields = false;
     foreach (array_keys($synthFields) as $structuredFieldName) {
         if (isset($FOLLOWER_CONF[$structuredFieldName]) && !empty(trim((string)$FOLLOWER_CONF[$structuredFieldName]))) {
@@ -475,7 +475,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
 
 
     // Native equipment comes from the owned turn snapshot, not mutable biography metadata.
-    $nativeEquipment = ($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) === 2;
+    $nativeEquipment = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
     if (!$nativeEquipment && $FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" && isset($metaData["equipment"]) && is_array($metaData["equipment"])) {
         $equipmentParts = [];
         $describedBaseids = []; // Track which baseids we've already described
@@ -558,7 +558,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
     }
 
     // Native inventory belongs to the exact turn snapshot, never this mutable legacy NPC metadata.
-    if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1) !== 2
+    if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) !== 2
         && $FOLLOWER_CONF["SYNTH_NAME"] !== "The Narrator" && isset($metaData["inventory"]) && is_array($metaData["inventory"])) {
         if (!isset($describedBaseids)) {
             $describedBaseids = [];
@@ -613,7 +613,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
     }
     // Add dialogue target's equipment (if DIALOGUE_TARGET is set)
     if (!$nativeEquipment && isset($GLOBALS["DIALOGUE_TARGET"]) && !empty($GLOBALS["DIALOGUE_TARGET"])) {
-        $targetName = $GLOBALS["DIALOGUE_TARGET"];
+        $targetName = \Synth\Bootstrap::config("DIALOGUE_TARGET");
         $targetNpcData = $npcMaster->getByName($targetName);
 
         if ($targetNpcData) {
@@ -738,7 +738,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
     }
 
     if (isset($GLOBALS["HOOKS"]["BIOGRAPHY_BUILDER"])) {
-        foreach ($GLOBALS["HOOKS"]["BIOGRAPHY_BUILDER"] as $fName => $builder) {
+        foreach (\Synth\Bootstrap::config("HOOKS")["BIOGRAPHY_BUILDER"] as $fName => $builder) {
             error_log("[buildDynamicBiography] BIOGRAPHY_BUILDER {$fName}");
 
             if (!is_callable($builder)) {
@@ -986,7 +986,7 @@ function write_php_assignments(array $assignments, string $filePath): bool {
 
 function getInGameSkillDataFor($npcName) {
 
-    $npcEscapedName=$GLOBALS["db"]->escape($npcName);
+    $npcEscapedName=\Synth\Bootstrap::db()->escape($npcName);
     $query="
 WITH npc_weapons AS (
   SELECT
@@ -1006,7 +1006,7 @@ HAVING COUNT(*)>1
 
 ORDER BY type, usage_count DESC;
 ";
-    $skillsData=$GLOBALS["db"]->fetchAll($query);
+    $skillsData=\Synth\Bootstrap::db()->fetchAll($query);
 
     if (sizeof ($skillsData)==0)
         return "";
@@ -1160,8 +1160,8 @@ function getBaseDataForNpcFromLog($npcname) {
         return null;
     }
 
-    $npcNameEscaped = $GLOBALS["db"]->escape($npcname);
-    $result = $GLOBALS["db"]->fetchOne("
+    $npcNameEscaped = \Synth\Bootstrap::db()->escape($npcname);
+    $result = \Synth\Bootstrap::db()->fetchOne("
         SELECT gender, race, refid
         FROM core_npc_master
         WHERE npc_name = '$npcNameEscaped'

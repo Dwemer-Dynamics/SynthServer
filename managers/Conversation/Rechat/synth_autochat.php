@@ -36,8 +36,8 @@ function synth_autochat_failure(Throwable $error): string
 // The accepted line of the current claimed request, or null for every other turn.
 function synth_autochat_line(): ?array
 {
-    $state = $GLOBALS['SYNTH_AUTOCHAT'] ?? null;
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $state = \Synth\Bootstrap::config('SYNTH_AUTOCHAT') ?? null;
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (!is_array($state) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !synth_autochat_selected($event)
         || ($state['utterance_id'] ?? null) !== synth_autochat_utterance_id($event)) return null;
     return $state;
@@ -75,10 +75,10 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     require_once __DIR__.'/synth_player_rewrite.php';
     require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     if (!synth_autochat_selected($event) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
-        || $event !== ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)) throw new LogicException('autochat_owner_required');
+        || $event !== (\Synth\Bootstrap::requestEvent()['json'] ?? null)) throw new LogicException('autochat_owner_required');
     // One owner guard for the component and its driver: same claimed event, then the canonical liveness check.
     $assertActive = static function () use ($event): void {
-        if ($event !== ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)) throw new LogicException('autochat_owner_changed');
+        if ($event !== (\Synth\Bootstrap::requestEvent()['json'] ?? null)) throw new LogicException('autochat_owner_changed');
         synth_protocol_assert_request_active();
     };
     $assertActive();
@@ -87,7 +87,7 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     $context = $saves->boundContext($event);
     $target = is_array($context['target'] ?? null) ? $context['target'] : null;
     $key = $target === null ? null : Synth\Core\CharacterKey::of($target);
-    $responder = $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] ?? null;
+    $responder = \Synth\Bootstrap::config('SYNTH_INPUT_TARGET_IDENTITY') ?? null;
     // The addressed target must also be the responder this request was bound to; Auto Chat never redirects.
     if ($key === null || !is_array($responder) || Synth\Core\CharacterKey::of($responder) !== $key) {
         throw new DomainException('rewrite_target_mismatch');
@@ -101,11 +101,11 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
         $player[strval($row['id'])] = strval($row['value'] ?? '');
     }
     $connectors = new LLMConnector();
-    $connectorId = intval($GLOBALS['CORE_CONNECTOR_PLAYER'] ?? 0);
+    $connectorId = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PLAYER') ?? 0);
     $connector = $connectorId > 0 ? $connectors->getById($connectorId) : null;
     if (!is_array($connector)) throw new DomainException('provider_unsupported');
     // The existing HTTP_TIMEOUT reaches the driver only as this call's transient config; no new setting.
-    $timeout = $GLOBALS['HTTP_TIMEOUT'] ?? Synth\Drivers\Llm\PlayerRewriteDriver::DEFAULT_HTTP_TIMEOUT;
+    $timeout = \Synth\Bootstrap::config('HTTP_TIMEOUT') ?? Synth\Drivers\Llm\PlayerRewriteDriver::DEFAULT_HTTP_TIMEOUT;
     $driver = new Synth\Drivers\Llm\LlmWrapper([new Synth\Drivers\Llm\PlayerRewriteDriver($assertActive,
         static fn(array $row): array => $connectors->dialogueProviderConfig($row) + ['http_timeout' => $timeout])]);
     $line = (new SynthPlayerRewrite($driver, $assertActive))->rewrite($request, $placed, $intent, $connector, $player, $history);
@@ -139,7 +139,7 @@ function synth_autochat_freeze_input(array $adapted, array $gameRequest): void
 {
     require_once dirname(__DIR__, 3).'/lib'.'/request.php';
     $line = synth_autochat_line();
-    $fields = $GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS'] ?? null;
+    $fields = \Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS') ?? null;
     $target = $line['target'] ?? null;
     if ($line === null || ($line['data'] ?? null) !== null || !is_array($fields) || !is_array($target) || empty($adapted['changed'])
         || ($fields['text'] ?? null) !== $line['text'] || ($fields['player'] ?? null) !== $line['player']
@@ -152,7 +152,7 @@ function synth_autochat_freeze_input(array $adapted, array $gameRequest): void
     $data = $player.': '.$line['text'].' (Talking to '.$label.')';
     if ($player === '' || $label === '' || ($adapted['text'] ?? null) !== $line['text'] || ($adapted['player'] ?? null) !== $player
         || ($adapted['target'] ?? null) !== $label || ($adapted['display'] ?? null) !== $data || ($gameRequest[3] ?? null) !== $data
-        || ($GLOBALS['SYNTH_PLAYER_INPUT_TEXT'] ?? null) !== $line['text'] || ($GLOBALS['SYNTH_INPUT_TARGET'] ?? null) !== $label) {
+        || (\Synth\Bootstrap::config('SYNTH_PLAYER_INPUT_TEXT') ?? null) !== $line['text'] || (\Synth\Bootstrap::config('SYNTH_INPUT_TARGET') ?? null) !== $label) {
         throw new LogicException('autochat_derived_text_mismatch');
     }
     $GLOBALS['SYNTH_AUTOCHAT']['data'] = $data;

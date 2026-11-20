@@ -171,7 +171,7 @@ function synthSelectAutoGreetingCandidate(
 
 function synthBuildAutoGreetingDirective(array $snapshot, array $previousSnapshot, NpcMaster $npcMaster): ?array
 {
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $resolveActorState = static function (string $name) use ($db, $npcMaster): array {
         $npc = $npcMaster->getByName($name);
         if (!is_array($npc)) {

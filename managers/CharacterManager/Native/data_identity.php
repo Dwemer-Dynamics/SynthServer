@@ -11,9 +11,9 @@ function ChangeSYNTHName($new_name="") {
 }
 
 function SaveOriginalSYNTHName() {
-    $b_already_saved = ($GLOBALS["ORIGINAL_SYNTH_NAME_SAVED"] ?? false);
+    $b_already_saved = (\Synth\Bootstrap::config("ORIGINAL_SYNTH_NAME_SAVED") ?? false);
     if (!$b_already_saved) {
-        $synth = ($GLOBALS["SYNTH_NAME"] ?? "");
+        $synth = (\Synth\Bootstrap::config("SYNTH_NAME") ?? "");
                 if ((strlen($synth) > 0) && ($synth !== "The Narrator") && ($synth !== "Player") && ($synth !== "LLMFallback") && (stripos($synth, "Narrator") === false) && (stripos($synth, "actor") === false) && (stripos($synth, "everyone") === false) && (stripos($synth, "*") === false) && (stripos($synth, "none") === false) ) {
             $GLOBALS["ORIGINAL_SYNTH_NAME"] = $synth;
             $GLOBALS["ORIGINAL_SYNTH_NAME_SAVED"] = true;
@@ -22,11 +22,11 @@ function SaveOriginalSYNTHName() {
 }
 
 function GetOriginalSYNTHName() {
-    $b_already_saved = ($GLOBALS["ORIGINAL_SYNTH_NAME_SAVED"] ?? false);
+    $b_already_saved = (\Synth\Bootstrap::config("ORIGINAL_SYNTH_NAME_SAVED") ?? false);
     if ($b_already_saved) {
-        $synth = $GLOBALS["ORIGINAL_SYNTH_NAME"] ?? '';
+        $synth = \Synth\Bootstrap::config("ORIGINAL_SYNTH_NAME") ?? '';
     } else {
-        $synth = $GLOBALS["SYNTH_NAME"];
+        $synth = \Synth\Bootstrap::config("SYNTH_NAME");
     }
     return $synth;
 }
@@ -34,12 +34,12 @@ function GetOriginalSYNTHName() {
 function get_connector_id($s_driver='', $s_model='', $s_url='') {
     $i_res = -1;
     if (isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
-        $i_res = $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["id"] ?? -1;
+        $i_res = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA")["id"] ?? -1;
     }
     if ($i_res < 0) {
         if ((strlen($s_model) > 0) && (strlen($s_url) > 0)  && (strlen($s_driver) > 0)) {
             $query = "SELECT id FROM public.core_llm_connector WHERE (url='{$s_url}') AND (model='{$s_model}') AND (driver='{$s_driver}') LIMIT 1 ";
-            $ret = $GLOBALS["db"]->fetchAll($query);
+            $ret = \Synth\Bootstrap::db()->fetchAll($query);
             if ($ret) {
                 $i_res = intval($ret[0]['id'] ?? -1);
             }
@@ -54,17 +54,17 @@ function ReplacePlayerNamePlaceholder($s_input) {
     if ((strlen(trim($s_input))) > 12) {
         $promptCharacterName = function_exists('synthGetPromptCharacterName')
             ? synthGetPromptCharacterName()
-            : $GLOBALS["SYNTH_NAME"];
+            : \Synth\Bootstrap::config("SYNTH_NAME");
         $narratorRoleplayName = function_exists('synthGetNarratorRoleplayName')
             ? synthGetNarratorRoleplayName()
             : 'The Narrator';
         $s_res = strtr($s_input, [
             "{SYNTH_NAME}" =>$promptCharacterName,
             "{NARRATOR_NAME}" =>$narratorRoleplayName,
-            "{PLAYER_NAME}"=>$GLOBALS["PLAYER_NAME"],
+            "{PLAYER_NAME}"=>\Synth\Bootstrap::config("PLAYER_NAME"),
             "#SYNTH_NAME#" =>$promptCharacterName,
             "#NARRATOR_NAME#" =>$narratorRoleplayName,
-            "#PLAYER_NAME#"=>$GLOBALS["PLAYER_NAME"]
+            "#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")
         ]);
     }
     return $s_res;

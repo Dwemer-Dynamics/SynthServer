@@ -41,7 +41,7 @@ function synthIsActorInCurrentTravelingParty(string $actorName): bool
 
 function DataGetCurrentTask(string $scope = 'journal')
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if (!in_array($scope,['journal','speaker'],true)) throw new InvalidArgumentException('Unknown quest prompt scope.');
 
@@ -53,7 +53,7 @@ function DataGetCurrentTask(string $scope = 'journal')
         return "";
     }
 
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__, 3).'/lib'.'/quest_knowledge.php';
         $context=synth_protocol_current_context($db,$event);
@@ -104,7 +104,7 @@ function DataGetCurrentTask(string $scope = 'journal')
 
 function DataLastRetFunc($actor, $lastNelements = -2)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $lastDialogFull = array();
     $results = $db->fetchAll("select  a.data  as data  FROM  core_context_event a
     WHERE data like '%$actor%' and type in ('funcret')  order by gamets desc,ts desc LIMIT 1 OFFSET 0");
@@ -140,7 +140,7 @@ function DataLastRetFunc($actor, $lastNelements = -2)
 
 function DataLastAction($actor)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = array();
     $cnActor = $db->escape($actor);
@@ -153,12 +153,12 @@ function DataLastAction($actor)
 
 function DataActorHasDied($actor)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = array();
     $cnActor = $db->escape($actor);
 
-    $rows = $GLOBALS["db"]->fetchAll("select 1 as n,gamets from core_context_event where type='death'
+    $rows = \Synth\Bootstrap::db()->fetchAll("select 1 as n,gamets from core_context_event where type='death'
         and (data like '%defeated $cnActor%' or data like '%killed $cnActor%')
         order by gamets desc limit 1");
     if ($rows)
@@ -170,16 +170,16 @@ function DataActorHasDied($actor)
 
 function DataLastKnowDate()
 {
-    $snapshot = synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+    $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return synthWorldContextDateText($snapshot['world'] ?? null);
     if (isset($GLOBALS["CACHE_LAST_KNOW_DATE"])) {
-        return $GLOBALS["CACHE_LAST_KNOW_DATE"];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOW_DATE");
     }
 
     $payloadDate = synthWorldContextDateText(synthLatestWorldContextPayload());
     if ($payloadDate !== "") {
         $GLOBALS["CACHE_LAST_KNOW_DATE"] = $payloadDate;
-        return $GLOBALS["CACHE_LAST_KNOW_DATE"];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOW_DATE");
     }
 
     $GLOBALS["CACHE_LAST_KNOW_DATE"] = "";
@@ -188,15 +188,15 @@ function DataLastKnowDate()
 
 function DataLastKnownLocation()
 {
-    $snapshot = synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+    $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return synthWorldContextLocationFromPayload($snapshot['world'] ?? null);
     if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION"])) {
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION"];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION");
     }
 
     $location = synthWorldContextLocationFromPayload(synthLatestWorldContextPayload());
     $GLOBALS["CACHE_LAST_KNOWN_LOCATION"] = $location;
-    return $GLOBALS["CACHE_LAST_KNOWN_LOCATION"];
+    return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION");
 
 }
 
@@ -208,7 +208,7 @@ function synthWorldContextIsUnknown($value): bool
 
 function synthLatestWorldContextPayload(): ?array
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $snapshot = synth_protocol_prompt_snapshot($db);
     if ($snapshot !== null) return is_array($snapshot['world'] ?? null) ? $snapshot['world'] : null;
 
@@ -393,13 +393,13 @@ function getCanonicalRegionAliases($value)
 
 function DataLastKnownLocationContextParts($cached = false)
 {
-    $snapshot = synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+    $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) {
         $location = synthWorldContextLocationFromPayload($snapshot['world'] ?? null);
         return ['location' => $location, 'location_base' => normalizeLocationContextToken($location, true), 'region_raw' => ''];
     }
     if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"])) {
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
     }
 
     $payload = synthLatestWorldContextPayload();
@@ -410,7 +410,7 @@ function DataLastKnownLocationContextParts($cached = false)
             "location_base" => normalizeLocationContextToken($payloadLocation, true),
             "region_raw" => "",
         ];
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
     }
 
     $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"] = [
@@ -419,7 +419,7 @@ function DataLastKnownLocationContextParts($cached = false)
         "region_raw" => "",
     ];
 
-    return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"];
+    return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
 }
 
 function DataLastKnownLocationBaseHuman($cached = false)
@@ -473,10 +473,10 @@ function resolveCanonicalRegionFromLocationRows($rows, $candidateKey)
 
 function locationsTableColumns()
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     if (isset($GLOBALS["CACHE_LOCATIONS_TABLE_COLUMNS"])) {
-        return $GLOBALS["CACHE_LOCATIONS_TABLE_COLUMNS"];
+        return \Synth\Bootstrap::config("CACHE_LOCATIONS_TABLE_COLUMNS");
     }
 
     $columns = [];
@@ -506,7 +506,7 @@ function locationsTableColumns()
 
 function lookupCanonicalRegionByLocationCandidate($candidate)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $candidateKey = trim(strtolower(normalizeLocationContextToken($candidate, true)));
     if ($candidateKey === "") {
@@ -514,7 +514,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
     }
 
     if (isset($GLOBALS["CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE"][$candidateKey])) {
-        return $GLOBALS["CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE"][$candidateKey];
+        return \Synth\Bootstrap::config("CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE")[$candidateKey];
     }
 
     $columns = locationsTableColumns();
@@ -576,7 +576,7 @@ function DataLastKnownCanonicalRegionHuman($cached = false)
 {
     $cacheKey = "REGION_CANONICAL";
     if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey])) {
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cacheKey];
     }
 
     $parts = DataLastKnownLocationContextParts($cached);
@@ -607,7 +607,7 @@ function DataLastKnownLocationHuman($region=false,$cached=false)
 
     $cache_key = $region ? "REGION" : "LOC";
     if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cache_key]))
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cache_key];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cache_key];
 
     $parts = DataLastKnownLocationContextParts($cached);
     $val = $region ? ($parts["region_raw"] ?? "") : ($parts["location"] ?? "");
@@ -665,14 +665,14 @@ function buildWorldPrompt($gamets = 0)
 
 function DataLastKnownWeatherHuman()
 {
-    $snapshot = synth_protocol_prompt_snapshot($GLOBALS['db'] ?? null);
+    $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return trim(strval($snapshot['world']['weather'] ?? ''));
     $cacheKey = "WEATHER";
     if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey])) {
-        return $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey];
+        return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cacheKey];
     }
 
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $payload = synthLatestWorldContextPayload();
     if (is_array($payload)) {

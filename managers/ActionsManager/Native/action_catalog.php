@@ -220,7 +220,7 @@ function synthActionCatalogSqlText($value)
         return "''";
     }
 
-    return $GLOBALS["db"]->escapeLiteral($text);
+    return \Synth\Bootstrap::db()->escapeLiteral($text);
 }
 
 function synthActionCatalogSqlJson($value, $allowNull = false)
@@ -241,7 +241,7 @@ function synthActionCatalogSqlJson($value, $allowNull = false)
         }
     }
 
-    return $GLOBALS["db"]->escapeLiteral($json) . '::jsonb';
+    return \Synth\Bootstrap::db()->escapeLiteral($json) . '::jsonb';
 }
 
 function synthActionCatalogJsonEncode($value)
@@ -593,8 +593,8 @@ function synthNormalizeActionCatalogDisplayText($text)
         return '';
     }
 
-    $text = synthNormalizeActionCatalogDisplayToken($text, $GLOBALS["SYNTH_NAME"] ?? '', 'NPC');
-    $text = synthNormalizeActionCatalogDisplayToken($text, $GLOBALS["PLAYER_NAME"] ?? '', 'PLAYER');
+    $text = synthNormalizeActionCatalogDisplayToken($text, \Synth\Bootstrap::config("SYNTH_NAME") ?? '', 'NPC');
+    $text = synthNormalizeActionCatalogDisplayToken($text, \Synth\Bootstrap::config("PLAYER_NAME") ?? '', 'PLAYER');
     $text = synthNormalizeActionCatalogDisplayToken($text, 'The Narrator', 'NPC');
     $text = synthNormalizeActionCatalogDisplayToken($text, 'Narrator', 'NPC');
 
@@ -611,8 +611,8 @@ function synthNormalizeActionCatalogDisplayActionName($text)
         return '';
     }
 
-    $text = synthNormalizeActionCatalogDisplayToken($text, $GLOBALS["SYNTH_NAME"] ?? '', 'Npc');
-    $text = synthNormalizeActionCatalogDisplayToken($text, $GLOBALS["PLAYER_NAME"] ?? '', 'Player');
+    $text = synthNormalizeActionCatalogDisplayToken($text, \Synth\Bootstrap::config("SYNTH_NAME") ?? '', 'Npc');
+    $text = synthNormalizeActionCatalogDisplayToken($text, \Synth\Bootstrap::config("PLAYER_NAME") ?? '', 'Player');
     $text = synthNormalizeActionCatalogDisplayToken($text, 'The Narrator', 'Npc');
     $text = synthNormalizeActionCatalogDisplayToken($text, 'Narrator', 'Npc');
 
@@ -852,7 +852,7 @@ function synthActionCatalogEncodeActionsIssuedOriginalValue($originalValue, $dep
 
 function synthActionCatalogApplyFollowupChainToActionsIssuedOriginal($originalValue)
 {
-    $depth = intval($GLOBALS["FOLLOWUP_CHAIN_NEXT_DEPTH"] ?? 0);
+    $depth = intval(\Synth\Bootstrap::config("FOLLOWUP_CHAIN_NEXT_DEPTH") ?? 0);
     if ($depth <= 0) {
         return strval($originalValue);
     }
@@ -959,10 +959,10 @@ function synthActionCatalogGetLastIssuedActionFollowupChainDepth($codeName)
         return 0;
     }
 
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1) === 2) {
         require_once dirname(__DIR__, 3).'/lib' . '/synth_protocol_state.php';
-        $depth = synth_protocol_action_followup_depth($GLOBALS['db'], $event, $codeName);
+        $depth = synth_protocol_action_followup_depth(\Synth\Bootstrap::db(), $event, $codeName);
         if ($depth === null) {
             Logger::warn('Native action follow-up ancestry unavailable; further action chaining disabled.');
             return synthActionCatalogGetFollowupChainLimit();
@@ -1024,7 +1024,7 @@ function synthActionCatalogGetCurrentNpcLookup()
     static $cachedKey = null;
     static $cachedLookup = null;
 
-    $synthName = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
+    $synthName = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
     if ($cachedKey === $synthName && is_array($cachedLookup)) {
         return $cachedLookup;
     }
@@ -1060,13 +1060,13 @@ function synthActionCatalogGetRuntimeRequirementContext()
     static $cachedKey = null;
     static $cachedContext = null;
 
-    $requestType = strtolower(trim(strval($GLOBALS["gameRequest"][0] ?? '')));
+    $requestType = strtolower(trim(strval(\Synth\Bootstrap::gameRequest()[0] ?? '')));
     $cacheKey = implode('|', [
-        trim(strval($GLOBALS["SYNTH_NAME"] ?? '')),
-        trim(strval($GLOBALS["PLAYER_NAME"] ?? '')),
+        trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? '')),
+        trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? '')),
         !empty($GLOBALS["IS_NPC"]) ? '1' : '0',
         $requestType,
-        strval($GLOBALS["gameRequest"][2] ?? ''),
+        strval(\Synth\Bootstrap::gameRequest()[2] ?? ''),
         !empty($GLOBALS["is_rolemastered"]) ? '1' : '0',
     ]);
 
@@ -1083,12 +1083,12 @@ function synthActionCatalogGetRuntimeRequirementContext()
 
     $cachedKey = $cacheKey;
     $cachedContext = [
-        'npc_name' => trim(strval($GLOBALS["SYNTH_NAME"] ?? '')),
-        'player_name' => trim(strval($GLOBALS["PLAYER_NAME"] ?? '')),
+        'npc_name' => trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? '')),
+        'player_name' => trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? '')),
         'request_type' => $requestType,
         'is_rechat' => in_array($requestType, ['rechat', 'narration'], true),
         'is_npc_mode' => !empty($GLOBALS["IS_NPC"]),
-        'is_rolemastered' => synthResolveNpcRolemasterState($GLOBALS["SYNTH_NAME"] ?? '', [
+        'is_rolemastered' => synthResolveNpcRolemasterState(\Synth\Bootstrap::config("SYNTH_NAME") ?? '', [
             'metadata' => $metadata,
             'extended' => $extended,
             'npc_data' => $lookup['npc_data'],
@@ -1388,28 +1388,28 @@ function synthActionCatalogGetLastActionsIssuedMap()
     static $cachedKey = null;
     static $cachedRows = null;
 
-    if (!isset($GLOBALS["db"]) || !($GLOBALS["db"] instanceof sql)) {
+    if (!isset($GLOBALS["db"]) || !(\Synth\Bootstrap::db() instanceof sql)) {
         return [];
     }
 
-    $localActorName = trim(strval($GLOBALS["SYNTH_NAME"] ?? ''));
+    $localActorName = trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? ''));
     if ($localActorName === '') {
         return [];
     }
 
-    $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1) === 2) {
         require_once dirname(__DIR__, 3).'/lib' . '/synth_protocol_state.php';
         // Current-turn issuance can advance after a read; never reuse the legacy name-only cache.
-        return synth_protocol_last_actions_issued($GLOBALS['db'], $event, $localActorName);
+        return synth_protocol_last_actions_issued(\Synth\Bootstrap::db(), $event, $localActorName);
     }
 
     if ($cachedKey === $localActorName && is_array($cachedRows)) {
         return $cachedRows;
     }
 
-    $escapedActorName = $GLOBALS["db"]->escape($localActorName);
-    $rows = $GLOBALS["db"]->fetchAll(
+    $escapedActorName = \Synth\Bootstrap::db()->escape($localActorName);
+    $rows = \Synth\Bootstrap::db()->fetchAll(
         "SELECT * FROM (
             SELECT DISTINCT ON (action) *
             FROM actions_issued
@@ -1448,7 +1448,7 @@ function synthActionCatalogIsActionOnCooldown($codeName, $cooldownSeconds)
         return false;
     }
 
-    $ingameNow = convert_gamets2seconds($GLOBALS["gameRequest"][2]);
+    $ingameNow = convert_gamets2seconds(\Synth\Bootstrap::gameRequest()[2]);
     $lastTriggered = convert_gamets2seconds($lastActionsIssuedMap[$codeName]["gamets"] ?? 0);
     if ($ingameNow <= 0 || $lastTriggered <= 0) {
         return false;
@@ -1491,30 +1491,30 @@ function synthActionCatalogResetCache()
 function synthActionCatalogDbReady()
 {
     if (isset($GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"])) {
-        return $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"];
+        return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_DB_READY");
     }
 
-    if (($GLOBALS["DBDRIVER"] ?? '') !== 'postgresql') {
+    if ((\Synth\Bootstrap::config("DBDRIVER") ?? '') !== 'postgresql') {
         $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"] = false;
         return false;
     }
 
-    if (!isset($GLOBALS["db"]) || !($GLOBALS["db"] instanceof sql)) {
+    if (!isset($GLOBALS["db"]) || !(\Synth\Bootstrap::db() instanceof sql)) {
         $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"] = false;
         return false;
     }
 
-    $coreAction = $GLOBALS["db"]->fetchOne("
+    $coreAction = \Synth\Bootstrap::db()->fetchOne("
         SELECT 1 AS exists
         FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'core_action'
     ");
-    $coreActionCustom = $GLOBALS["db"]->fetchOne("
+    $coreActionCustom = \Synth\Bootstrap::db()->fetchOne("
         SELECT 1 AS exists
         FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name = 'core_action_custom'
     ");
-    $combinedView = $GLOBALS["db"]->fetchOne("
+    $combinedView = \Synth\Bootstrap::db()->fetchOne("
         SELECT 1 AS exists
         FROM information_schema.views
         WHERE table_schema = 'synth' AND table_name = 'combined_core_action'
@@ -1532,7 +1532,7 @@ function synthActionCatalogGetExistingCustomImportVersion($codeName)
         return null;
     }
 
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT import_version
         FROM public.core_action_custom
         WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
@@ -1548,7 +1548,7 @@ function synthActionCatalogGetExistingCustomImportVersion($codeName)
 
 function synthActionCatalogResolveFunctionCodeName($functionName)
 {
-    $resolver = $GLOBALS['SYNTH_ACTION_CODE_RESOLVER'] ?? null;
+    $resolver = \Synth\Bootstrap::config('SYNTH_ACTION_CODE_RESOLVER') ?? null;
     if (is_callable($resolver)) {
         return $resolver($functionName);
     }
@@ -1559,7 +1559,7 @@ function synthActionCatalogResolveFunctionCodeName($functionName)
 function synthBuildActionCatalogFunctionDefinitionsByCode($runtimeFunctions = null)
 {
     $definitions = [];
-    $runtimeFunctions = is_array($runtimeFunctions) ? $runtimeFunctions : ($GLOBALS["FUNCTIONS"] ?? []);
+    $runtimeFunctions = is_array($runtimeFunctions) ? $runtimeFunctions : (\Synth\Bootstrap::config("FUNCTIONS") ?? []);
     $canonicalCodes = synthActionCatalogCanonicalActionCodeSet();
 
     foreach ($runtimeFunctions as $functionEntry) {
@@ -1661,9 +1661,9 @@ function synthDeleteNonCanonicalActionCatalogRows($updateCustomRows = true)
 
     $inList = implode(',', $literals);
     if ($updateCustomRows) {
-        $GLOBALS["db"]->execQuery("DELETE FROM public.core_action_custom WHERE code_name NOT IN ({$inList})");
+        \Synth\Bootstrap::db()->execQuery("DELETE FROM public.core_action_custom WHERE code_name NOT IN ({$inList})");
     }
-    $GLOBALS["db"]->execQuery("DELETE FROM public.core_action WHERE code_name NOT IN ({$inList})");
+    \Synth\Bootstrap::db()->execQuery("DELETE FROM public.core_action WHERE code_name NOT IN ({$inList})");
 }
 
 function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
@@ -1677,7 +1677,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
 
     $existingCustomMetadataByCode = [];
     if ($updateCustomRows) {
-        $existingCustomRows = $GLOBALS["db"]->fetchAll("
+        $existingCustomRows = \Synth\Bootstrap::db()->fetchAll("
             SELECT code_name, metadata
             FROM public.core_action_custom
         ");
@@ -1701,7 +1701,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
             $existingCustomMetadataByCode[strtolower(trim(strval($row['code_name'])))] ?? []
         );
 
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
             INSERT INTO public.core_action (
                 code_name,
                 action_name,
@@ -1748,7 +1748,7 @@ function synthSyncActionCatalogBaseRows($rowsByCode, $updateCustomRows = true)
         ");
 
         if ($updateCustomRows) {
-            $GLOBALS["db"]->execQuery("
+            \Synth\Bootstrap::db()->execQuery("
                 UPDATE public.core_action_custom
                 SET
                     action_name = " . synthActionCatalogSqlText($row['action_name'] ?? '') . ",
@@ -1793,14 +1793,14 @@ function synthDeleteUnexpectedBaseActionCatalogRows($rowsByCode, $updateCustomRo
     $seedCodeList = implode(',', array_unique($seedCodeLiterals));
     $builtinFilter = "metadata @> '{\"source\":\"functions.php\",\"builtin\":true}'::jsonb";
 
-    $GLOBALS["db"]->execQuery("
+    \Synth\Bootstrap::db()->execQuery("
         DELETE FROM public.core_action
         WHERE {$builtinFilter}
           AND LOWER(code_name) NOT IN ({$seedCodeList})
     ");
 
     if ($updateCustomRows) {
-        $GLOBALS["db"]->execQuery("
+        \Synth\Bootstrap::db()->execQuery("
             DELETE FROM public.core_action_custom
             WHERE {$builtinFilter}
               AND LOWER(code_name) NOT IN ({$seedCodeList})
@@ -1811,15 +1811,15 @@ function synthDeleteUnexpectedBaseActionCatalogRows($rowsByCode, $updateCustomRo
 function synthGetActionCatalogRowsByCode()
 {
     if (isset($GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"])) {
-        return $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"];
+        return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
     }
 
     $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"] = [];
     if (!synthActionCatalogDbReady()) {
-        return $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"];
+        return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
     }
 
-    $rows = $GLOBALS["db"]->fetchAll("
+    $rows = \Synth\Bootstrap::db()->fetchAll("
         SELECT
             code_name,
             action_name,
@@ -1863,7 +1863,7 @@ function synthGetActionCatalogRowsByCode()
         $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"][$codeName] = $normalizedRow;
     }
 
-    return $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"];
+    return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
 }
 
 function synthGetActionCatalogRow($codeName)
@@ -2088,7 +2088,7 @@ function synthActionCatalogIsNarratorMode()
 {
     $role=synth_protocol_owned_response_role();
     if ($role!==null) return $role==='narrator';
-    $requestType = strtolower(trim(strval($GLOBALS["gameRequest"][0] ?? '')));
+    $requestType = strtolower(trim(strval(\Synth\Bootstrap::gameRequest()[0] ?? '')));
     if (in_array($requestType, [
         'narrator_inputtext',
         'narration',
@@ -2102,7 +2102,7 @@ function synthActionCatalogIsNarratorMode()
         return true;
     }
 
-    return strcasecmp(trim(strval($GLOBALS["SYNTH_NAME"] ?? '')), 'The Narrator') === 0;
+    return strcasecmp(trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? '')), 'The Narrator') === 0;
 }
 
 function synthActionCatalogBuildFunctionEntryFromRow($row)
@@ -2145,7 +2145,7 @@ function synthActionCatalogHasBaseRows()
         return false;
     }
 
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT 1 AS has_row
         FROM public.core_action
         LIMIT 1
@@ -2176,7 +2176,7 @@ function synthSeedActionCatalogBaseRowsFromSeedFile()
     }
 
     try {
-        $GLOBALS["db"]->execQuery($sql);
+        \Synth\Bootstrap::db()->execQuery($sql);
         synthActionCatalogResetCache();
         return synthActionCatalogHasBaseRows();
     } catch (Throwable $e) {
@@ -2258,10 +2258,10 @@ function synthActionCatalogApplyRowsToRuntimeFunctions()
     }
 
     $runtimeFunctionMap = [];
-    $fallbackBaseFunctionMap = is_array($GLOBALS["SYNTH_BASE_FUNCTIONS_FALLBACK"] ?? null)
-        ? $GLOBALS["SYNTH_BASE_FUNCTIONS_FALLBACK"]
+    $fallbackBaseFunctionMap = is_array(\Synth\Bootstrap::config("SYNTH_BASE_FUNCTIONS_FALLBACK") ?? null)
+        ? \Synth\Bootstrap::config("SYNTH_BASE_FUNCTIONS_FALLBACK")
         : [];
-    foreach ($GLOBALS["FUNCTIONS"] ?? [] as $functionEntry) {
+    foreach (\Synth\Bootstrap::config("FUNCTIONS") ?? [] as $functionEntry) {
         if (!is_array($functionEntry) || empty($functionEntry['name'])) {
             continue;
         }
@@ -2346,7 +2346,7 @@ function synthActionCatalogUpsertCustomToggle($codeName, $enabled)
     }
 
     $literalCode = synthActionCatalogSqlText($codeName);
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT
             code_name,
             action_name,
@@ -2371,7 +2371,7 @@ function synthActionCatalogUpsertCustomToggle($codeName, $enabled)
 
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         INSERT INTO public.core_action_custom (
             code_name,
             action_name,
@@ -2428,7 +2428,7 @@ function synthActionCatalogDeleteCustomOverride($codeName)
         return false;
     }
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         DELETE FROM public.core_action_custom
         WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
     ");
@@ -2446,7 +2446,7 @@ function synthActionCatalogUpsertCustomConfigValue($codeName, $configKey, $value
     }
 
     $literalCode = synthActionCatalogSqlText($codeName);
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT
             code_name,
             action_name,
@@ -2481,7 +2481,7 @@ function synthActionCatalogUpsertCustomConfig($codeName, $configValues)
     }
 
     $literalCode = synthActionCatalogSqlText($codeName);
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT
             code_name,
             action_name,
@@ -2520,7 +2520,7 @@ function synthActionCatalogUpsertCustomConfig($codeName, $configValues)
 
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         INSERT INTO public.core_action_custom (
             code_name,
             action_name,
@@ -2578,7 +2578,7 @@ function synthActionCatalogUpsertCustomParameters($codeName, $parameters)
     }
 
     $literalCode = synthActionCatalogSqlText($codeName);
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT
             code_name,
             action_name,
@@ -2607,7 +2607,7 @@ function synthActionCatalogUpsertCustomParameters($codeName, $parameters)
     );
     $actionName = synthNormalizeActionCatalogDisplayActionName(strval($row['action_name'] ?? ''));
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         INSERT INTO public.core_action_custom (
             code_name,
             action_name,
@@ -2665,7 +2665,7 @@ function synthActionCatalogUpsertCustomTextFields($codeName, $fieldValues)
     }
 
     $literalCode = synthActionCatalogSqlText($codeName);
-    $row = $GLOBALS["db"]->fetchOne("
+    $row = \Synth\Bootstrap::db()->fetchOne("
         SELECT
             code_name,
             action_name,
@@ -2703,7 +2703,7 @@ function synthActionCatalogUpsertCustomTextFields($codeName, $fieldValues)
     $description = strval($fieldValues['description'] ?? ($row['description'] ?? ''));
     $returnMessage = strval($fieldValues['return_message'] ?? ($row['return_message'] ?? ''));
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         INSERT INTO public.core_action_custom (
             code_name,
             action_name,
@@ -2793,7 +2793,7 @@ function synthActionCatalogUpsertCustomRow($row)
         : synthActionCatalogIsGameFunction($metadata);
     $importVersion = synthActionCatalogNormalizeImportVersion($row['import_version'] ?? 0);
 
-    $result = $GLOBALS["db"]->execQuery("
+    $result = \Synth\Bootstrap::db()->execQuery("
         INSERT INTO public.core_action_custom (
             code_name,
             action_name,
@@ -2947,14 +2947,14 @@ function synthActionCatalogBuildScriptProxyContext($actionParts, $actionParts2, 
         'parameter_target' => $parameterTarget,
         'parameters' => $parameterData,
         'config' => $resolvedConfig,
-        'request_ts' => $GLOBALS["gameRequest"][1] ?? time(),
-        'game_ts' => $GLOBALS["gameRequest"][2] ?? 0,
+        'request_ts' => \Synth\Bootstrap::gameRequest()[1] ?? time(),
+        'game_ts' => \Synth\Bootstrap::gameRequest()[2] ?? 0,
         'local_ts' => time(),
-        'player_name' => strval($GLOBALS["PLAYER_NAME"] ?? 'Player'),
+        'player_name' => strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'),
         'player_refid' => defined('PLAYER_REFID') ? strval(PLAYER_REFID) : '0x00000014',
-        'cache_people_limited' => strval($GLOBALS["CACHE_PEOPLE_LIMITED"] ?? ''),
-        'cache_location' => strval($GLOBALS["CACHE_LOCATION"] ?? ''),
-        'cache_party' => strval($GLOBALS["CACHE_PARTY"] ?? ''),
+        'cache_people_limited' => strval(\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED") ?? ''),
+        'cache_location' => strval(\Synth\Bootstrap::config("CACHE_LOCATION") ?? ''),
+        'cache_party' => strval(\Synth\Bootstrap::config("CACHE_PARTY") ?? ''),
         'local_ts_ms' => (int) round(microtime(true) * 1000),
     ];
 }
@@ -3013,7 +3013,7 @@ function synthActionCatalogExecuteScriptProxyDbInserts($dbInserts, $context)
             $data['original'] = synthActionCatalogApplyFollowupChainToActionsIssuedOriginal($data['original']);
         }
 
-        $GLOBALS["db"]->insert($dbInsert['table'], $data);
+        \Synth\Bootstrap::db()->insert($dbInsert['table'], $data);
         $executed = true;
     }
 
@@ -3068,7 +3068,7 @@ function synthActionCatalogBuildScriptProxyInfoActionMessage($codeName, $context
     $arguments = synthActionCatalogBuildScriptProxyReturnArguments($context);
     $actorName = trim(strval($context['actor_name'] ?? ''));
     $hadSYNTHName = array_key_exists('SYNTH_NAME', $GLOBALS);
-    $previousSYNTHName = $GLOBALS['SYNTH_NAME'] ?? null;
+    $previousSYNTHName = \Synth\Bootstrap::config('SYNTH_NAME') ?? null;
 
     if ($actorName !== '') {
         $GLOBALS['SYNTH_NAME'] = $actorName;
@@ -3083,8 +3083,8 @@ function synthActionCatalogBuildScriptProxyInfoActionMessage($codeName, $context
             '#ITEM#' => trim(strval($arguments['item'] ?? ($arguments['location'] ?? ''))),
             '#AMOUNT#' => trim(strval($arguments['amount'] ?? '')),
             '#LOCATION#' => trim(strval($arguments['location'] ?? ($arguments['item'] ?? ''))),
-            '#SYNTH_NAME#' => strval($GLOBALS['SYNTH_NAME'] ?? 'NPC'),
-            '#PLAYER_NAME#' => strval($GLOBALS['PLAYER_NAME'] ?? 'Player'),
+            '#SYNTH_NAME#' => strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? 'NPC'),
+            '#PLAYER_NAME#' => strval(\Synth\Bootstrap::config('PLAYER_NAME') ?? 'Player'),
         ]);
     }
 
@@ -3127,7 +3127,7 @@ function synthActionCatalogLogScriptProxyInfoAction($codeName, $context, $row)
         return false;
     }
 
-    $gameRequestCopy = $GLOBALS['gameRequest'] ?? [];
+    $gameRequestCopy = \Synth\Bootstrap::gameRequest() ?? [];
     if (!is_array($gameRequestCopy)) {
         return false;
     }

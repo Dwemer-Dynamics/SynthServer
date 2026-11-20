@@ -47,7 +47,7 @@ function getNpcLevel(string $npcName): ?int {
             return null;
         }
         
-        $db = $GLOBALS["db"];
+        $db = \Synth\Bootstrap::db();
         $escapedName = $db->escape($npcName);
         
         $npcData = $db->fetchOne("SELECT metadata FROM core_npc_master WHERE npc_name = '{$escapedName}' LIMIT 1");

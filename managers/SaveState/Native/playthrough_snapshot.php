@@ -15,14 +15,14 @@ function timeline_break_is_enabled() {
 	if (!isset($GLOBALS["TIMELINE_BREAK_AUTOSNAPSHOT"])) {
 		$GLOBALS["TIMELINE_BREAK_AUTOSNAPSHOT"] = true;
 	}
-	return !!$GLOBALS["TIMELINE_BREAK_AUTOSNAPSHOT"];
+	return !!\Synth\Bootstrap::config("TIMELINE_BREAK_AUTOSNAPSHOT");
 }
 
 function timeline_break_min_days() {
 	if (!isset($GLOBALS["TIMELINE_BREAK_MIN_DAYS"])) {
 		$GLOBALS["TIMELINE_BREAK_MIN_DAYS"] = 3;
 	}
-	return intval($GLOBALS["TIMELINE_BREAK_MIN_DAYS"]);
+	return intval(\Synth\Bootstrap::config("TIMELINE_BREAK_MIN_DAYS"));
 }
 
 /**

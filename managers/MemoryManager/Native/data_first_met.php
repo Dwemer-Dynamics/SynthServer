@@ -5,10 +5,10 @@
 
 function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
 
-    $fn=$GLOBALS["db"]->escape($followerName);
+    $fn=\Synth\Bootstrap::db()->escape($followerName);
 
     // Check if already recorded - with error handling
-    $already = @$GLOBALS["db"]->fetchAll("select 1 as t from core_memory_log where event='first_met' and message like '%met {$fn}%'");
+    $already = @\Synth\Bootstrap::db()->fetchAll("select 1 as t from core_memory_log where event='first_met' and message like '%met {$fn}%'");
     if ($already === false) {
         Logger::warn("[AddFirstTimeMet] Query to memory table failed for follower: {$followerName}");
         return;
@@ -20,7 +20,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
     }
 
     // Get first interaction timestamp - with error handling
-    $realFirst = @$GLOBALS["db"]->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
+    $realFirst = @\Synth\Bootstrap::db()->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
 
     if ($realFirst === false) {
         Logger::warn("[AddFirstTimeMet] Query to speech table failed for follower: {$followerName}");
@@ -33,7 +33,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
         $momentum=$realFirst[0]["localts"];
         $fallout_date=$realFirst[0]["fallout_date"]; // game timestamp converted to fallout date YYYY-MM-DD HH:MM:SS
 
-        logMemory($GLOBALS["PLAYER_NAME"], $followerName,
+        logMemory(\Synth\Bootstrap::config("PLAYER_NAME"), $followerName,
         "(Important note: {$GLOBALS["PLAYER_NAME"]} met {$followerName} for the first time on {$fallout_date}. This is an important event, so use tag #FirstTimeMet.)",
         $momentum, $gamets,'first_met',$ts);
     }
@@ -42,7 +42,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
 }
 
 function DataRetrieveFirstTimeMet($s_player_name, $s_npc_name) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
 	$s_res = "";
 
@@ -93,7 +93,7 @@ function DataRetrieveFirstTimeMet($s_player_name, $s_npc_name) {
 }
 
 function GetFirstTimeMetMemory($s_player_name, $s_npc_name) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $i_res = 0;
 
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
@@ -135,7 +135,7 @@ function GetFirstTimeMet($s_player_name, $s_npc_name) {
 }
 
 function GetLastInteraction($s_player_name, $s_npc_name) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 	$i_res = 0;
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
@@ -153,7 +153,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 }
 
 function GetLastSpeechTs() {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $i_res=0;
 	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM speech
         WHERE (gamets > 0) ORDER BY gamets DESC LIMIT 1 ");
@@ -165,7 +165,7 @@ function GetLastSpeechTs() {
 }
 
 function GetFirstInteraction($s_player_name, $s_npc_name) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 	$i_res = 0;
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
 		$s_player = $db->escape($s_player_name);
@@ -183,7 +183,7 @@ function GetFirstInteraction($s_player_name, $s_npc_name) {
 }
 
 function DataRetrieveLastTimeTalk($s_player_name, $s_npc_name) {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
 	$s_res = "";
 

@@ -26,7 +26,7 @@ if (!function_exists('synthRollbackTableExists')) {
         }
 
         try {
-            $db = $GLOBALS["db"] ?? null;
+            $db = \Synth\Bootstrap::db() ?? null;
             if (!$db) {
                 $cache[$table] = false;
                 return false;
@@ -51,7 +51,7 @@ if (!function_exists('synthRollbackDelete')) {
             return;
         }
 
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return;
         }
@@ -88,7 +88,7 @@ if (!function_exists('synthRollbackClearConfOpt')) {
             return;
         }
 
-        $db = $GLOBALS["db"] ?? null;
+        $db = \Synth\Bootstrap::db() ?? null;
         if (!$db) {
             return;
         }
@@ -101,7 +101,7 @@ if (!function_exists('synthRollbackClearConfOpt')) {
 if (!function_exists('synthRollbackPruneFutureData')) {
     function synthRollbackPruneFutureData(int $targetGamets, string $source = 'unknown', bool $force = false): array
     {
-        $event = $GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+        $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
         if (in_array($event['protocol_version'] ?? null, [1, 2], true)) {
             // The legacy tables have no complete timeline ownership. Even a valid
             // native request (or force=true) cannot safely delete their global rows.
@@ -178,7 +178,7 @@ if (!function_exists('synthRollbackPruneFutureData')) {
 if (!function_exists('synthMaybeHandleIncomingGametsRollback')) {
     function synthMaybeHandleIncomingGametsRollback($incomingGamets, string $source = 'unknown', bool $force = false): array
     {
-        if (in_array($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? null, [1, 2], true)) {
+        if (in_array(\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? null, [1, 2], true)) {
             return synthRollbackPruneFutureData(intval($incomingGamets), $source, $force);
         }
         $targetGamets = synthRollbackNormalizeGamets($incomingGamets);
@@ -200,7 +200,7 @@ if (!function_exists('synthMaybeHandleIncomingGametsRollback')) {
         }
 
         // Passive guards should not treat small out-of-order telemetry as a loaded save.
-        $rollbackThreshold = intval($GLOBALS["SYNTH_ROLLBACK_GAMETS_THRESHOLD"] ?? 1000000);
+        $rollbackThreshold = intval(\Synth\Bootstrap::config("SYNTH_ROLLBACK_GAMETS_THRESHOLD") ?? 1000000);
         if ($targetGamets >= ($previousMaxGamets - max(1, $rollbackThreshold))) {
             return [
                 'rolled_back' => false,

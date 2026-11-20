@@ -5,7 +5,7 @@
 
 function DataDequeue($timestamp = 0)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     if ($timestamp !== 0) {
         $clause="and localts<={$timestamp} ";
     } else {
@@ -33,7 +33,7 @@ function DataDequeue($timestamp = 0)
 
 function DataLastDataFor($actor, $lastNelements = -10)
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
     $lastDialogFull = array();
     $results = $db->fetchAll("select
     case
@@ -171,7 +171,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
     $nearbyEquipmentDescriptionResolver = null;
     if ($nearbyActorsEquipmentDescriptions) {
         $nearbyEquipmentDescriptionResolver = static function ($itemName, $baseid = null) {
-            global $db;
+            $db = \Synth\Bootstrap::db();
 
             if (!empty($baseid)) {
                 $record = lookupDescriptionByFormID((string)$baseid);
@@ -208,14 +208,14 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                     continue;
 
             $actorName=trim(str_replace("(far away)","",$actor));
-            if ($actorName==$GLOBALS["SYNTH_NAME"])
+            if ($actorName==\Synth\Bootstrap::config("SYNTH_NAME"))
                 continue;
 
             /* if (!(strpos($GLOBALS["SYNTH_NAME"],"actor")===false)) { // debug
                 Logger::warn("DataLastInfoFor: unexpected value for SYNTH_NAME={$GLOBALS["SYNTH_NAME"]} | actor={$actor} actorname={$actorName} ");
             } */
 
-            if ((strpos($actor,"(")===false) && ($GLOBALS["SYNTH_NAME"]!="The Narrator") && (strpos($GLOBALS["SYNTH_NAME"],"actor")===false)) {
+            if ((strpos($actor,"(")===false) && (\Synth\Bootstrap::config("SYNTH_NAME")!="The Narrator") && (strpos(\Synth\Bootstrap::config("SYNTH_NAME"),"actor")===false)) {
                 $interactions=DirectConversationsWith($actor);
                 if ($interactions==0) {
                     $ittext="{$actor} ({$GLOBALS["SYNTH_NAME"]} never talked to {$actorName} before, {$GLOBALS["SYNTH_NAME"]} should speak to this person as to a stranger or traveler...)";
@@ -228,7 +228,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                 $ittext="{$actor}";
             }
 
-            if ($actor==$GLOBALS["PLAYER_NAME"]) {
+            if ($actor==\Synth\Bootstrap::config("PLAYER_NAME")) {
                 // Player - read from core_player table (don't reveal they're "the player character")
                 $profileString = "$actor";
 
@@ -244,7 +244,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
                     $playerBio = ResolvePlayerBackstory($player);
                     $bioKnownByAll = filter_var((string)($player->get('bio_known_by_all') ?? ''), FILTER_VALIDATE_BOOLEAN);
-                    $isNarrator = isset($GLOBALS["SYNTH_NAME"]) && strcasecmp((string)$GLOBALS["SYNTH_NAME"], "The Narrator") === 0;
+                    $isNarrator = isset($GLOBALS["SYNTH_NAME"]) && strcasecmp((string)\Synth\Bootstrap::config("SYNTH_NAME"), "The Narrator") === 0;
                     if ($nearbyActorsIncludeBasicSummary && $playerBio !== "" && ($bioKnownByAll || $isNarrator)) {
                         $profileString = synthAppendNearbyActorSentence($profileString, "Backstory: " . $playerBio);
                     }
@@ -274,7 +274,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                     }
 
                     // Power Awareness: Add relative power assessment for player
-                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && $GLOBALS["POWER_AWARENESS_ENABLED"]) {
+                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
                         require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "power_awareness.php");
 
                         // Get player's level
@@ -282,7 +282,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
                         // Get assessing actor's level (the NPC looking at the player)
                         if (!empty($GLOBALS["SYNTH_NAME"])) {
-                            $assessorLevel = getNpcLevel($GLOBALS["SYNTH_NAME"]);
+                            $assessorLevel = getNpcLevel(\Synth\Bootstrap::config("SYNTH_NAME"));
 
                             if ($assessorLevel !== null && $playerLevel !== null) {
                                 $powerComparison = calculatePowerComparison($assessorLevel, $playerLevel);
@@ -346,7 +346,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                     }
 
                     // Power Awareness: Add relative power assessment
-                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && $GLOBALS["POWER_AWARENESS_ENABLED"]) {
+                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
                         require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "power_awareness.php");
 
                         // Get current NPC's level
@@ -354,7 +354,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
                         // Get assessing actor's level (the NPC looking at this person)
                         if (!empty($GLOBALS["SYNTH_NAME"])) {
-                            $assessorLevel = getNpcLevel($GLOBALS["SYNTH_NAME"]);
+                            $assessorLevel = getNpcLevel(\Synth\Bootstrap::config("SYNTH_NAME"));
 
                             if ($assessorLevel !== null && $npcLevel !== null) {
                                 $powerComparison = calculatePowerComparison($assessorLevel, $npcLevel);
@@ -447,7 +447,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         if (!$followername)
             continue;
 
-        if ($followername==$GLOBALS["PLAYER_NAME"]) {
+        if ($followername==\Synth\Bootstrap::config("PLAYER_NAME")) {
             $followers[]="$followername (roleplayed by player)";
 
         } else {
@@ -463,7 +463,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
     }
 
     $followers[]="{$GLOBALS["PLAYER_NAME"]}";
-    $followersV2[]=$GLOBALS["PLAYER_NAME"];
+    $followersV2[]=\Synth\Bootstrap::config("PLAYER_NAME");
 
     if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
         $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
@@ -488,7 +488,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         $seenBaseIDs = [];
         $itemDescriptions = [];
         $groupedItems = [];
-        $playerName = $GLOBALS["PLAYER_NAME"] ?? "Player";
+        $playerName = \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player";
         $playerLookingTag = " ({$playerName} is looking at this)";
         $playerHoldingTag = " ({$playerName} is holding this)";
         $shorterNearbyItemList = !empty($GLOBALS["SHORTER_NEARBY_ITEM_LIST"]);
@@ -530,7 +530,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                 }
 
                 // If filter is enabled and item has no description, skip it
-                if (isset($GLOBALS["GROUND_ITEMS_DESCRIPTIONS_ONLY"]) && $GLOBALS["GROUND_ITEMS_DESCRIPTIONS_ONLY"] && !$hasDescription) {
+                if (isset($GLOBALS["GROUND_ITEMS_DESCRIPTIONS_ONLY"]) && \Synth\Bootstrap::config("GROUND_ITEMS_DESCRIPTIONS_ONLY") && !$hasDescription) {
                     continue;
                 }
 
@@ -662,7 +662,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         $followersString = "";
     }
 
-	if ($followersString!=$GLOBALS["PLAYER_NAME"] && !empty($followersString)) {
+	if ($followersString!=\Synth\Bootstrap::config("PLAYER_NAME") && !empty($followersString)) {
 	    if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
 	        $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
 	    }
@@ -677,7 +677,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
     if (isset($arr_poi) && is_array($arr_poi) && (count($arr_poi) > 0)) {
         // Filter blacklisted locations
         if (isset($GLOBALS["LOCATION_BLACKLIST"]) && !empty($GLOBALS["LOCATION_BLACKLIST"])) {
-            $blacklistedLocations = array_map('trim', explode(',', strtolower($GLOBALS["LOCATION_BLACKLIST"])));
+            $blacklistedLocations = array_map('trim', explode(',', strtolower(\Synth\Bootstrap::config("LOCATION_BLACKLIST"))));
             $arr_poi = array_filter($arr_poi, function($poi) use ($blacklistedLocations) {
                 $poiLower = strtolower($poi);
                 foreach ($blacklistedLocations as $blacklistedLocation) {
@@ -702,7 +702,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
     // Rolemaster notes
 
     $timeCut=time();
-    $rolemasterNotes=$GLOBALS["db"]->fetchAll("SELECT data FROM core_director_note where type='scenenote' and localts+ttl>$timeCut order by localts asc");
+    $rolemasterNotes=\Synth\Bootstrap::db()->fetchAll("SELECT data FROM core_director_note where type='scenenote' and localts+ttl>$timeCut order by localts asc");
     if (is_array($rolemasterNotes) && !empty($rolemasterNotes)) {
         $notes=[];
         foreach ($rolemasterNotes as $note)
@@ -715,8 +715,8 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
     // Compact CHIM-style nearby actor list from the latest structured game snapshot.
     $nearbyActorsList = !empty($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"]) &&
-        is_array($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"])
-        ? array_values($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"])
+        is_array(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))
+        ? array_values(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))
         : synthNearbyActorNamesFromPayload(false, false);
     if (!empty($nearbyActorsList)) {
         if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
@@ -753,14 +753,14 @@ function DataLocationsAround($current_location = "") {
 function DataPosibleLocationsToGo()
 {
     if (isset($GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"])) {
-        return $GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"];
+        return \Synth\Bootstrap::config("CACHE_POSIBLE_LOCATIONS_TO_GO");
     }
 
     $retData = synthPointsOfInterestFromStructuredPayload();
 
     // Location blacklist // $LOCATION_BLACKLIST
-    if (isset($GLOBALS["LOCATION_BLACKLIST"]) && (strlen($GLOBALS["LOCATION_BLACKLIST"])>0)) {
-        $LOCATION_BLACKLIST_ARRAY = explode(",", $GLOBALS["LOCATION_BLACKLIST"]);
+    if (isset($GLOBALS["LOCATION_BLACKLIST"]) && (strlen(\Synth\Bootstrap::config("LOCATION_BLACKLIST"))>0)) {
+        $LOCATION_BLACKLIST_ARRAY = explode(",", \Synth\Bootstrap::config("LOCATION_BLACKLIST"));
         //$LOCATION_BLACKLIST_ARRAY = empty($GLOBALS["LOCATION_BLACKLIST"]) ? [] : explode(",", $GLOBALS["LOCATION_BLACKLIST"]);
         if (count($LOCATION_BLACKLIST_ARRAY) > 0) {
             foreach ($retData as $k => $v) {
@@ -781,12 +781,12 @@ function DataPosibleLocationsToGo()
         }
     }
     $GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"] = array_values($retData);
-    return $GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"];
+    return \Synth\Bootstrap::config("CACHE_POSIBLE_LOCATIONS_TO_GO");
 }
 
 function synthLatestPointsOfInterestPayload()
 {
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='points_of_interest' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
     if (!is_array($rows) || empty($rows)) {
@@ -809,7 +809,7 @@ function synthPointsOfInterestFromStructuredPayload()
         return [];
     }
 
-    $playerName = trim((string)($payload['player'] ?? ($GLOBALS["PLAYER_NAME"] ?? "Player")));
+    $playerName = trim((string)($payload['player'] ?? (\Synth\Bootstrap::config("PLAYER_NAME") ?? "Player")));
     $retData = [];
     foreach ($pois as $poi) {
         if (!is_array($poi)) {
@@ -845,19 +845,19 @@ function synthPointsOfInterestFromStructuredPayload()
 function DataPosibleMoveToTargets()
 {
     if (isset($GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"])) {
-        return $GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"];
+        return \Synth\Bootstrap::config("CACHE_POSIBLE_MOVETO_TARGETS");
     }
 
     $retData = synthNearbyActorNamesFromPayload(true, false);
 
     $GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"] = array_values($retData);
-    return $GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"];
+    return \Synth\Bootstrap::config("CACHE_POSIBLE_MOVETO_TARGETS");
 }
 
 function DataPosibleInspectTargets($pack=true)
 {
     if (isset($GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack])) {
-        return $GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack];
+        return \Synth\Bootstrap::config("CACHE_POSIBLE_INSPECT_TARGETS")[(int)$pack];
     }
 
     $retData = synthNearbyActorNamesFromPayload(false, false);
@@ -891,7 +891,7 @@ function DataPosibleInspectTargets($pack=true)
     }
 
     $GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack] = array_values($retData);
-    return $GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack];
+    return \Synth\Bootstrap::config("CACHE_POSIBLE_INSPECT_TARGETS")[(int)$pack];
 }
 
 function synthDescribeConditionStat(string $kind, float $cur, float $max): string
@@ -1119,7 +1119,7 @@ function synthBuildPlayerSurvivalConditionBlock(?array $survival = null): string
         return '';
     }
 
-    $playerName = trim((string)($GLOBALS['PLAYER_NAME'] ?? 'The Sole Survivor'));
+    $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? 'The Sole Survivor'));
     if ($playerName === '') {
         $playerName = 'The Sole Survivor';
     }
@@ -1351,8 +1351,8 @@ function synthSnapshotQuestRows(array $snapshot): array
 
 function DataQuestJournal($quest)
 {
-    global $db;
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $db = \Synth\Bootstrap::db();
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__, 3).'/lib'.'/quest_knowledge.php';
         $context=synth_protocol_current_context($db,$event);

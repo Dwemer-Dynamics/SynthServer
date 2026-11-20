@@ -36,10 +36,10 @@
  *   require_once(__DIR__."/../ext/relationship_system/postrequest.php");
  */
 
-require_once $GLOBALS["ENGINE_PATH"] . "lib/relationship_runtime.php";
+require_once \Synth\Bootstrap::enginePath() . "lib/relationship_runtime.php";
 
 // Native evidence is accepted only by final protocol completion. Its dedicated lanes run in the service manager.
-if (($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'] ?? 1)===2) return;
+if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) return;
 
 // Master toggle - if disabled, skip everything in this file
 if (!synthRelationshipSettingEnabled()) {
@@ -47,10 +47,10 @@ if (!synthRelationshipSettingEnabled()) {
 }
 
 // Ensure Logger is available
-require_once $GLOBALS["ENGINE_PATH"] . "lib/logger.php";
+require_once \Synth\Bootstrap::enginePath() . "lib/logger.php";
 
 // Entry-level logging - track when this file is loaded and for which NPC
-$_relEntryNpcName = $GLOBALS["SYNTH_NAME"] ?? 'NULL';
+$_relEntryNpcName = \Synth\Bootstrap::config("SYNTH_NAME") ?? 'NULL';
 Logger::debug("[REL-ENTRY] postrequest.php loaded for SYNTH_NAME='{$_relEntryNpcName}'");
 
 /**
@@ -59,8 +59,8 @@ Logger::debug("[REL-ENTRY] postrequest.php loaded for SYNTH_NAME='{$_relEntryNpc
  */
 if (!function_exists('_relGetConversationListener')) {
     function _relGetConversationListener($speakerName) {
-        $escapedSpeaker = $GLOBALS["db"]->escape($speakerName);
-        $row = $GLOBALS["db"]->fetchOne(
+        $escapedSpeaker = \Synth\Bootstrap::db()->escape($speakerName);
+        $row = \Synth\Bootstrap::db()->fetchOne(
             "SELECT listener FROM speech WHERE speaker = '{$escapedSpeaker}' ORDER BY localts DESC LIMIT 1"
         );
         return $row ? $row['listener'] : null;
@@ -73,7 +73,7 @@ if (!function_exists('_relGetConversationListener')) {
 if (!function_exists('_relIsPlayer')) {
     function _relIsPlayer($name) {
         if (empty($name)) return false;
-        $playerName = $GLOBALS["PLAYER_NAME"] ?? "Player";
+        $playerName = \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player";
         // Case-insensitive comparison
         return strcasecmp($name, $playerName) === 0 || strcasecmp($name, "Player") === 0;
     }
@@ -97,8 +97,8 @@ if (!function_exists('_relIsValidNpcTarget')) {
  */
 if (!function_exists('_relGetNpcIdByName')) {
     function _relGetNpcIdByName($npcName) {
-        $escapedName = $GLOBALS["db"]->escape($npcName);
-        $npcRow = $GLOBALS["db"]->fetchOne(
+        $escapedName = \Synth\Bootstrap::db()->escape($npcName);
+        $npcRow = \Synth\Bootstrap::db()->fetchOne(
             "SELECT id FROM core_npc_master WHERE npc_name = '" . $escapedName . "' LIMIT 1"
         );
         return $npcRow ? intval($npcRow['id']) : null;
@@ -131,13 +131,13 @@ $npcName = null;
 $npcNameSource = 'none';
 
 if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["npc_name"])) {
-    $npcName = $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["npc_name"];
+    $npcName = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA")["npc_name"];
     $npcNameSource = 'SYNTH_CORE_CURRENT_NPC_DATA';
 } elseif (isset($currentNpcData["npc_name"])) {
     $npcName = $currentNpcData["npc_name"];
     $npcNameSource = 'currentNpcData';
 } elseif (!empty($GLOBALS["SYNTH_NAME"])) {
-    $npcName = $GLOBALS["SYNTH_NAME"];
+    $npcName = \Synth\Bootstrap::config("SYNTH_NAME");
     $npcNameSource = 'SYNTH_NAME';
 }
 
@@ -160,11 +160,11 @@ $listenerName = null;
 $listenerSource = 'none';
 
 if (!empty($GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"])) {
-    $listenerName = $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"];
+    $listenerName = \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC");
     $listenerSource = 'SCRIPTLINE_LISTENER_ATOMIC';
 } elseif (!empty($GLOBALS["SCRIPTLINE_LISTENER"])) {
     // SCRIPTLINE_LISTENER may have multiple listeners comma-separated, take first
-    $listeners = explode(',', $GLOBALS["SCRIPTLINE_LISTENER"]);
+    $listeners = explode(',', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
     $listenerName = trim($listeners[0]);
     $listenerSource = 'SCRIPTLINE_LISTENER';
 } else {
@@ -187,15 +187,15 @@ Logger::info("[REL] Processing relationship evaluation for NPC: {$npcName}");
 // Get NPC ID
 $npcId = null;
 if (!empty($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["id"])) {
-    $npcId = intval($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["id"]);
+    $npcId = intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA")["id"]);
 } elseif (isset($currentNpcData["id"]) && intval($currentNpcData["id"]) > 0) {
     $npcId = intval($currentNpcData["id"]);
 } elseif (!empty($GLOBALS["SYNTH_ID"])) {
-    $npcId = intval($GLOBALS["SYNTH_ID"]);
+    $npcId = intval(\Synth\Bootstrap::config("SYNTH_ID"));
 } else {
     // Look up by name
-    $escapedName = $GLOBALS["db"]->escape($npcName);
-    $npcRow = $GLOBALS["db"]->fetchOne(
+    $escapedName = \Synth\Bootstrap::db()->escape($npcName);
+    $npcRow = \Synth\Bootstrap::db()->fetchOne(
         "SELECT id FROM core_npc_master WHERE npc_name = '" . $escapedName . "' LIMIT 1"
     );
     if ($npcRow) {
@@ -216,13 +216,13 @@ if ($useRelLLM && $npcId) {
 
     // Get recent dialogue
     if (!empty($GLOBALS["talkedSoFar"])) {
-        $context['dialogue'] = $GLOBALS["talkedSoFar"];
+        $context['dialogue'] = \Synth\Bootstrap::config("talkedSoFar");
     }
 
     // Get recent events from buffer
     if (!empty($GLOBALS["BUFFER"])) {
         $context['events'] = [];
-        foreach ($GLOBALS["BUFFER"] as $item) {
+        foreach (\Synth\Bootstrap::config("BUFFER") as $item) {
             if (isset($item['content'])) {
                 $context['events'][] = $item['content'];
             }
@@ -253,14 +253,14 @@ if ($useRelLLM && $npcId) {
 
     // Nearby NPCs (loaded AI agents) - for filtering relationship context
     if (!empty($GLOBALS["CACHE_PEOPLE"])) {
-        $context['nearby_npcs'] = _relSplitPeopleList($GLOBALS["CACHE_PEOPLE"]);
+        $context['nearby_npcs'] = _relSplitPeopleList(\Synth\Bootstrap::config("CACHE_PEOPLE"));
     }
 
     // Add listener name to context for explicit SPEAKER/LISTENER identification
     $context['listener_name'] = $isNpcToNpcConversation ? $listenerName : 'Player';
 
     // Get the NPC's response
-    $npcResponse = !empty($GLOBALS["talkedSoFar"]) ? implode(" ", $GLOBALS["talkedSoFar"]) : "";
+    $npcResponse = !empty($GLOBALS["talkedSoFar"]) ? implode(" ", \Synth\Bootstrap::config("talkedSoFar")) : "";
 
     // Clean up: If NPC response starts with player's text (echo bug), remove it
     // This happens when the main LLM accidentally echoes the player's input
@@ -310,7 +310,7 @@ if ($useRelLLM && $npcId) {
 
 if (!$useRelLLM && !empty($GLOBALS["talkedSoFar"])) {
     synthRelationshipProcessInlineCompletedResponse(
-        $GLOBALS["talkedSoFar"],
+        \Synth\Bootstrap::config("talkedSoFar"),
         (string)$npcName
     );
 }

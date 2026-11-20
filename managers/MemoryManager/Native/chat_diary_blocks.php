@@ -11,7 +11,7 @@ function synthBuildLatestDiaryContextBlock(string $npcName, array $profileData):
 // Saved instruction notes remain a separate NPC-owned journal section, not generated diary prose.
 function synthBuildSavedSocialTaskContextBlock(string $npcName,array $profileData): string
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json']??[];$db=$GLOBALS['db']??null;
+    $event=\Synth\Bootstrap::requestEvent()['json']??[];$db=\Synth\Bootstrap::db()??null;
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])||!is_object($db)||($event['protocol_version']??1)!==2)return '';
     require_once dirname(__DIR__, 3).'/lib'.'/synth_social_tasks.php';
     if (!synth_social_supported($event)||synth_protocol_response_is_narrator(trim($npcName)))return '';
@@ -43,7 +43,7 @@ function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileDat
         return '';
     }
 
-    $db = $GLOBALS['db'] ?? null;
+    $db = \Synth\Bootstrap::db() ?? null;
     if (!is_object($db) || !method_exists($db, 'fetchOne') || !method_exists($db, 'escape')) {
         return '';
     }
@@ -51,7 +51,7 @@ function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileDat
     try {
         if ($native) {
             require_once dirname(__DIR__, 3).'/lib'.'/synth_diary_state.php';
-            $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'];
+            $event=\Synth\Bootstrap::requestEvent()['json'];
             $actorId=intval($profileData['actor_identity_id'] ?? 0);
             if ($narrator) {
                 // The current canonical snapshot owns Narrator history; profile IDs and roleplay names cannot redirect it.

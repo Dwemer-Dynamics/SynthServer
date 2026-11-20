@@ -37,7 +37,7 @@ final class ConditionProjector
     public static function enabled($db, array $config = [], array $profileMetadata = [], array $npcMetadata = []): bool
     {
         $layers = [$npcMetadata['CONDITION_CONTEXT_ENABLED'] ?? null, $profileMetadata['CONDITION_CONTEXT_ENABLED'] ?? null,
-            $GLOBALS['CONDITION_CONTEXT_ENABLED'] ?? null];
+            \Synth\Bootstrap::config('CONDITION_CONTEXT_ENABLED') ?? null];
         $stored = null;
         if ($db !== null) {
             try {

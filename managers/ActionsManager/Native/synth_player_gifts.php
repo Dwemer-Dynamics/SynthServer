@@ -74,7 +74,7 @@ function synth_player_item_request_text(array $event, $db=null): ?string
 {
     if (!in_array($event['type'] ?? '',['input_text','input_audio'],true)) return null;
     if ($event['type']==='input_text') return is_string($event['payload']['text'] ?? null) ? $event['payload']['text'] : null;
-    $frozen=$GLOBALS['SYNTH_PLAYER_ITEM_INPUT'] ?? [];
+    $frozen=\Synth\Bootstrap::config('SYNTH_PLAYER_ITEM_INPUT') ?? [];
     if (isset($frozen['owner_sha256'],$frozen['text']) && hash_equals($frozen['owner_sha256'],hash('sha256',synth_protocol_canonical_json($event)))) return $frozen['text'];
     return null;
 }

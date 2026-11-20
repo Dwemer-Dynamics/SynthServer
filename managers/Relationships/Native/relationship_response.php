@@ -19,7 +19,7 @@ function synth_relationship_has_open_command(string $text): bool
 // Bind in-process evidence to one claimed native request and its immutable context.
 function synth_relationship_response_owner(): ?array
 {
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null;
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? null;
     if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)
         || ($event['protocol_version'] ?? 1)!==2 || intval($event['context_sequence'] ?? 0)<1) return null;
     return array_intersect_key($event,array_flip(['session_id','request_id','turn_id','generation','context_sequence','runtime_variant']));
@@ -62,7 +62,7 @@ function synth_relationship_capture_route(?string $lineToken, string $listener, 
         || !preg_match('/^([a-f0-9]{32}):([0-9]{1,3})$/D',$lineToken,$parts)
         || $parts[1]!==$capture['attempt'] || !isset($capture['entries'][intval($parts[2])])) return;
     $entry=&$capture['entries'][intval($parts[2])];
-    $event=$GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? [];
+    $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($event['payload']['kind'] ?? '')==='bored' && in_array('dialogue.ambient_npc',$event['capabilities'] ?? [],true)) {
         require_once dirname(__DIR__, 3).'/lib/synth_ambient_npc.php';
         $ambient=synth_ambient_npc_projection($event);
@@ -112,7 +112,7 @@ function synth_relationship_finish_response(bool $accepted): void
 // Optional post-completion evidence: failures never change an already completed dialogue response.
 function synth_relationship_store_response($db, array $event, string $body): void
 {
-    $capture=$GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'] ?? null;
+    $capture=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE') ?? null;
     if (empty($capture['accepted']) || $capture['owner']!==synth_relationship_response_owner()
         || !synthRelationshipSettingEnabled() || strlen($body)>2*1024*1024) return;
     try {
@@ -242,7 +242,7 @@ function synth_relationship_store_response($db, array $event, string $body): voi
 // Response emitters call this only after durable completion; optional bounded SQL never changes an emitted reply.
 function synth_relationship_complete_inline_response($db): void
 {
-    $capture=$GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'] ?? null;
+    $capture=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE') ?? null;
     if (empty($capture['accepted']) || ($capture['evaluation_mode'] ?? null)!=='inline'
         || $capture['owner']!==synth_relationship_response_owner() || !synthRelationshipSettingEnabled()
         || synthRelationshipUsesDedicatedConnector()) return;

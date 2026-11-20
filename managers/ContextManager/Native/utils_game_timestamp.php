@@ -143,7 +143,7 @@ function convert_dow_gregorian2dow_fallout($s_dow_name_gregorian = "") {
 }
 
 function fallout_calendar_timestamp($dateString = null) {
-    $value = trim((string)($dateString ?? ($GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00')));
+    $value = trim((string)($dateString ?? (\Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00')));
     if (preg_match('/^(\d{1,4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/', $value, $matches) !== 1) {
         $value = '2287-10-23 00:00:00';
         preg_match('/^(\d{1,4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})$/', $value, $matches);
@@ -219,7 +219,7 @@ function convert_gamets2gregorian_date($gamets) {
 function convert_gamets2fallout_long_date($gamets) {
     $s_result = "";
 
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
 
     $f_gamets = floatval($gamets);
@@ -249,7 +249,7 @@ function convert_gamets2fallout_long_date($gamets) {
 function convert_gamets2fallout_long_date2($gamets) {
     $s_result = "";
 
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
 
     $f_gamets = floatval($gamets);
@@ -281,7 +281,7 @@ function convert_gamets2fallout_long_date2($gamets) {
 function convert_gamets2fallout_long_date_no_time($gamets) {
     $s_result = "";
 
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
 
     $f_gamets = floatval($gamets);
@@ -307,7 +307,7 @@ function convert_gamets2fallout_long_date_no_time($gamets) {
 function convert_gamets2fallout_date($gamets) {
     $sRes = "";
 
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
 
     $f_gamets = floatval($gamets);
@@ -325,7 +325,7 @@ function convert_gamets2fallout_date($gamets) {
 //----------------------------------------------------------------------------
 
 function gamets2timestamp($gamets) {
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
     $f_seconds = floatval($gamets) * 0.00864;
     $ts_time = $fallout_start_timestamp + intval($f_seconds );
@@ -374,7 +374,7 @@ function gamets2seconds_between($gamets_start, $gamets_end) {
 
 
 function gamets2str_format_date($gamets, $dt_format = 'Y-m-d H:i:s') {
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
     $f_seconds = floatval($gamets) * 0.00864;
     $ts_time = $fallout_start_timestamp + intval($f_seconds );
@@ -392,7 +392,7 @@ function gamets2str_format_gregorian_date($gamets, $dt_format = 'Y-m-d H:i:s') {
 
 
 function gamets2str_dow_gregorian($gamets) {
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
     $f_seconds = floatval($gamets) * 0.00864;
     $ts_time = $fallout_start_timestamp + intval($f_seconds);
@@ -403,7 +403,7 @@ function gamets2str_dow_gregorian($gamets) {
 
 
 function gamets2str_dow_fallout($gamets) {
-    $s_fallout_start_date = $GLOBALS["fallout_start_date"] ?? '2287-10-23 00:00:00';
+    $s_fallout_start_date = \Synth\Bootstrap::config("fallout_start_date") ?? '2287-10-23 00:00:00';
     $fallout_start_timestamp = fallout_calendar_timestamp($s_fallout_start_date);
     $f_seconds = floatval($gamets) * 0.00864;
     $ts_time = $fallout_start_timestamp + intval($f_seconds);
@@ -688,7 +688,7 @@ function fallout_month_explained($s_fallout_month_name) {
 
 function DataLastKnownGameTS() {
 // retrieve gamets from core_context_event
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $lastLoc=$db->fetchAll("SELECT MAX(gamets) AS m_gts FROM core_context_event WHERE (gamets > 0) LIMIT 1");
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
@@ -710,7 +710,7 @@ function DataLastKnownGameTS() {
 
 function DataLastKnownTS() {
 // retrieve gamets from core_context_event
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $lastLoc=$db->fetchAll("SELECT MAX(ts) AS m_gts FROM core_context_event WHERE (gamets > 0)");
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
@@ -731,7 +731,7 @@ function DataLastKnownTS() {
 function DataLastKnownGameTS_record() {
 // retrieve gamets and date in variuos formats from most recent record in eventlog
 // require convert_gamets SQL functions in database
-    global $db;
+    $db = \Synth\Bootstrap::db();
 
     $arr_result = [];
     $arr_result["exitcode"] = 0;
