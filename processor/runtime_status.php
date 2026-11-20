@@ -34,7 +34,7 @@ try {
         throw new RuntimeException("Database unavailable.");
     }
 
-    $modeRow = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_mode'");
+    $modeRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_mode')];
     $mode = strtoupper(trim((string)($modeRow["value"] ?? "STANDARD")));
     $allowedModes = [
         "STANDARD" => 0,
@@ -51,7 +51,7 @@ try {
         $mode = "STANDARD";
     }
 
-    $slotRow = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='synth_profile_model'");
+    $slotRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
     $profileModel = max(1, min(4, intval($slotRow["value"] ?? 1)));
     $slotLabels = [
         1 => "Standard",

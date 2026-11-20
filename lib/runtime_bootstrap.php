@@ -353,7 +353,7 @@ if (!function_exists('synthRuntimeSchemaMigrationOwner')) {
 
 if (!function_exists('synthRuntimeApplySchemaMigrations')) {
     // Schema changes for the legacy runtime session's database, through the one migration owner and its lock. Used by
-    // tools/bootstrap-database.php and by every caller of the debug/db_updates.php compatibility entry.
+    // tools/bootstrap-database.php and by the quickstart page.
     function synthRuntimeApplySchemaMigrations(string $enginePath): void
     {
         $migrations = synthRuntimeSchemaMigrationOwner($enginePath);

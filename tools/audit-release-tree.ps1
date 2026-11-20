@@ -110,8 +110,6 @@ try {
         'processor/request.php',
         'prompts/prompts.php',
         'service/manager.php',
-        'debug/db_updates.php',
-        'data/database_default.sql',
         'ui/home.php',
         'ui/core/config_hub.php',
         'ui/tmpl/head.html',

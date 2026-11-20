@@ -1027,12 +1027,7 @@ final class RequestStreamingTest extends TestCase
     public function testNativeMemoryDispatchHonorsOptOutBeforeAnyDatabaseWork(): void
     {
         $bootstrap=file_get_contents(dirname(__DIR__,2).'/lib/runtime_bootstrap.php');
-        $migration=file_get_contents(dirname(__DIR__,2).'/debug/db_updates.php');
-        preg_match("/'synth_protocol_schema' => ([0-9]+)/",$bootstrap,$version);
-        $this->assertNotEmpty($version[1]);
-        $this->assertStringContainsString("\$updateVersion('synth_protocol_schema', ".$version[1].");",$migration);
-        preg_match_all("/updateVersion\('synth_protocol_schema', ([0-9]+)\)/",$migration,$versions);
-        $this->assertSame(max(array_map('intval',$versions[1])),intval($version[1]),'Bootstrap must require the newest protocol migration');
+        $this->assertStringContainsString("'synth_protocol_schema' =>",$bootstrap);
         $previous=$GLOBALS['FEATURES'] ?? null;
         try {
             foreach ([false,0,'false','OFF',' no '] as $disabled) {
@@ -1154,10 +1149,6 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
         $this->assertStringContainsString("hashtextextended('synth-memory:'",$source);
         $this->assertStringContainsString('}, 2000);',$source);
-        $migration = file_get_contents(dirname(__DIR__,2).'/debug/db_updates.php');
-        $timestampCheck = explode('$forceRecreate = false;',explode('$checkFunctionExists = function', $migration,2)[1],2)[0];
-        $this->assertStringContainsString("routine_schema = 'synth'",$timestampCheck);
-        $this->assertStringNotContainsString("routine_schema = 'public'",$timestampCheck);
     }
 
     public function testNativeRecallKeywordsUseOwnedHistoryInsteadOfGlobalSpeech(): void
