@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Synth\Drivers\Llm;
 
 use Synth\Core\LlmDriver;
+use Synth\Drivers\Llm\Logging\DatabaseLlmRequestRecorder;
+use Synth\Drivers\Llm\Logging\LlmCallLog;
+use Synth\Drivers\Llm\Logging\LlmRequestRecorder;
+use Synth\Drivers\Llm\Logging\LoggedLegacyConnector;
 
 require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
 
@@ -18,6 +22,10 @@ require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
  * - Stateful providers: legacyConnector() validates the driver name and returns the provider driver from Drivers/
  *   (open/process/close/fast_request). connector/<name>.php are thin hooks that keep the legacy global class names;
  *   a provider file added to connector/ outside the built-in set still loads as before.
+ *
+ * Both shapes are logged to core_llm_request_log (Logging/): stream() here, and the stateful drivers through
+ * LoggedLegacyConnector. The log is redacted and bounded, never breaks the request, and complements the per-request files
+ * in log/ (which stay).
  */
 final class LlmWrapper implements LlmDriver
 {
@@ -35,7 +43,7 @@ final class LlmWrapper implements LlmDriver
     ];
 
     /** @param list<LlmDriver> $drivers asked in order; the first one that supports a connector streams it */
-    public function __construct(private readonly array $drivers)
+    public function __construct(private readonly array $drivers, private readonly ?LlmRequestRecorder $recorder = null)
     {
         if ($drivers === []) {
             throw new \InvalidArgumentException('LlmWrapper needs at least one driver.');
@@ -53,7 +61,38 @@ final class LlmWrapper implements LlmDriver
         if ($driver === null) {
             throw new \DomainException('provider_unsupported');
         }
-        $driver->stream($connector, $messages, $onText);
+        $log = new LlmCallLog($this->recorder ?? new DatabaseLlmRequestRecorder());
+        $reply = '';
+        $name = method_exists($driver, 'getName') ? (string) $driver->getName() : $driver::class;
+        $log->begin('stream', $name, (string) ($connector['model'] ?? ''), isset($connector['id']) ? (int) $connector['id'] : null,
+            'dialogue', ['call' => 'stream', 'connector' => self::connectorSummary($connector), 'messages' => $messages]);
+        try {
+            $driver->stream($connector, $messages, static function ($text) use ($onText, &$reply): void {
+                $reply .= (string) $text;
+                $onText($text);
+            });
+        } catch (\Throwable $error) {
+            $log->end(LlmCallLog::statusFor($error), $reply, $error);
+            throw $error;
+        }
+        $log->end('completed', $reply);
+    }
+
+    /**
+     * The connector fields a replay needs to find its connector again, without any key.
+     *
+     * @return array<string, mixed>
+     */
+    private static function connectorSummary(array $connector): array
+    {
+        $summary = [];
+        foreach (['id', 'driver', 'model', 'url', 'label'] as $field) {
+            if (isset($connector[$field]) && is_scalar($connector[$field])) {
+                $summary[$field] = $connector[$field];
+            }
+        }
+
+        return $summary;
     }
 
     /** Returns the first driver that supports the connector row, or null. */
@@ -83,9 +122,19 @@ final class LlmWrapper implements LlmDriver
     /**
      * Loads connector/<driver>.php and returns a new instance of its class.
      *
+     * Wrapped in LoggedLegacyConnector unless $logged is false (the replay tool's own control calls); $connectorRow is the
+     * stored connector row, which tells the log the connector id and model.
+     *
      * @throws \InvalidArgumentException When the name is not a provider present in connector/.
      */
-    public static function legacyConnector(string $driver, ?string $root = null): object
+    public static function legacyConnector(string $driver, ?string $root = null, ?array $connectorRow = null, bool $logged = true): object
+    {
+        $provider = self::loadLegacyConnector($driver, $root);
+
+        return $logged ? new LoggedLegacyConnector($provider, $driver, $connectorRow) : $provider;
+    }
+
+    private static function loadLegacyConnector(string $driver, ?string $root): object
     {
         if (!self::hasLegacyConnector($driver, $root)) {
             throw new \InvalidArgumentException("LLM connector \"{$driver}\" is not available.");
