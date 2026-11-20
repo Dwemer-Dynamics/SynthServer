@@ -1,10 +1,10 @@
 <?php
 
- $GLOBALS["more_stopseq"][]="<|end|>";
-            $context="<|system|>\n{$GLOBALS["PROMPT_HEAD"]}\n";
-            $context.="{$GLOBALS["SYNTH_PERS"]}\n";
-            $context.="{$GLOBALS["COMMAND_PROMPT"]}\n#CONTEXT\n";
-            $GLOBALS["DEBUG_DATA"][]=$context;
+ \Synth\Bootstrap::append('more_stopseq', "<|end|>");
+            $context=("<|system|>\n" . \Synth\Bootstrap::config('PROMPT_HEAD') . "\n");
+            $context.=(\Synth\Bootstrap::config('SYNTH_PERS') . "\n");
+            $context.=(\Synth\Bootstrap::config('COMMAND_PROMPT') . "\n#CONTEXT\n");
+            \Synth\Bootstrap::append('DEBUG_DATA', $context);
 
             $contextHistory="";
             $n=0;
@@ -22,9 +22,9 @@
                 } else {
                     if ($s_msg["role"]=="user") {
                         $contextHistory.=$s_msg["content"]."\n";
-                          $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                          \Synth\Bootstrap::config("DEBUG_DATA")[]=$s_msg["content"];
                     } elseif ($s_msg["role"]=="assistant") {
-                         $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                         \Synth\Bootstrap::config("DEBUG_DATA")[]=$s_msg["content"];
                         $contextHistory.=$s_msg["content"]."\n";
                     } elseif ($s_msg["role"]=="system") {
                     }  // Must rebuild this
@@ -48,14 +48,14 @@
                 }  else {
                         if ($s_msg["role"]=="user") {
                             $contextHistory.=$s_msg["content"]."\n";
-                            $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                            \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
 
 
                         } else if ($s_msg["role"]=="assistant") {
 
                             if (isset($s_msg["tool_calls"])) {
-                                    $pb["system"].="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]}";
-                                    $lastAction="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]} {$s_msg["tool_calls"][0]["function"]["arguments"]}";
+                                    $pb["system"].=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]}");
+                                    $lastAction=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$s_msg["tool_calls"][0]["function"]["name"]} {$s_msg["tool_calls"][0]["function"]["arguments"]}");
 
                                     $localFuncCodeName=getFunctionCodeName($s_msg["tool_calls"][0]["function"]["name"]);
                     $localArguments=json_decode($s_msg["tool_calls"][0]["function"]["arguments"],true);
@@ -66,7 +66,7 @@
 
 
                                 } else {
-                                    $GLOBALS["DEBUG_DATA"][]=$s_msg["content"];
+                                    \Synth\Bootstrap::append('DEBUG_DATA', $s_msg["content"]);
                                     //$contextHistory.=$s_msg["content"]."\n";
 
                                     $dialogueTarget=extractDialogueTarget($s_msg["content"]);
@@ -78,7 +78,7 @@
                     } else if ($s_msg["role"]=="tool") {
                         $pb["system"].=$element["content"]."\n";
                         $contextHistory.=synthBuildNarratorContextLine(strtr($lastAction,["#RESULT#"=>$s_msg["content"]]));
-                        $GLOBALS["PATCH_STORE_FUNC_RES"]=strtr($lastAction,["#RESULT#"=>$s_msg["content"]]);
+                        \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', strtr($lastAction,["#RESULT#"=>$s_msg["content"]]));
 
                     } else if ($s_msg["role"]=="system") {
                         }  // Must rebuild this
@@ -91,8 +91,8 @@
 
 
             $context.="$contextHistory  $instruction <|assistant|>";
-            $GLOBALS["DEBUG_DATA"][]="$instruction";
-            $GLOBALS["DEBUG_DATA"]["prompt"]=$context;
+            \Synth\Bootstrap::append('DEBUG_DATA', "$instruction");
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "prompt", $context);
 
 
 
