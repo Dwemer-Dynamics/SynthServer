@@ -1051,7 +1051,6 @@ function synthActionCodeIsNegotiated(string $codeName): bool
         if (!synth_attack_supported($event)) return false;
     }
     if (($event['protocol_version'] ?? 1)===2 && in_array($codeName,['FollowPlayer','StopFollowing','TakeASeat'],true)) {
-        require_once dirname(__DIR__).'/managers/ActionsManager/CompanionOrders.php';
         if (!\Synth\Managers\ActionsManager\CompanionOrders::supported($event,$codeName)) return false;
     }
     if ($codeName==='ReadQuests' && !synth_protocol_player_journal_action_allowed()) return false;
@@ -1064,7 +1063,6 @@ function synthActionCodeIsNegotiated(string $codeName): bool
     if ($codeName === 'TakeItemFromPlayer'
         && (!function_exists('synth_player_item_request_allowed') || !synth_player_item_request_allowed($event,$GLOBALS['db'] ?? null))) return false;
     if ($codeName === 'Barter') {
-        require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
         if (!function_exists('synth_protocol_supports_transfer') || !\Synth\Managers\ActionsManager\TradeOffer::requestAllowed($event)) return false;
     }
     if ($codeName === 'GiveItemTo'

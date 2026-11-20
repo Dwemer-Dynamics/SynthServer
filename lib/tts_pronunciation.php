@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/PronunciationDictionary.php';
+
 // Provide Fallout pronunciations when the database has not been migrated yet.
 function synthDefaultTtsPronunciationEntries(): array
 {
@@ -200,61 +202,25 @@ final class SynthTtsPronunciationDictionary
     }
 }
 
+// The rule logic lives in Synth\Lib\PronunciationDictionary; these functions are the thin hooks the legacy callers use.
 function synthTtsPronunciationBoolean($value): bool
 {
-    if (is_bool($value)) {
-        return $value;
-    }
-    return in_array(strtolower(trim(strval($value))), ['1', 't', 'true', 'yes', 'on'], true);
+    return \Synth\Lib\PronunciationDictionary::truthy($value);
 }
 
 function synthTtsPronunciationNormalizeTags($tags): array
 {
-    $normalized = [];
-    foreach (explode(',', strval($tags)) as $tag) {
-        $tag = strtolower(trim($tag));
-        if ($tag === '' || strlen($tag) > 64) {
-            continue;
-        }
-        $normalized[$tag] = $tag;
-    }
-    return array_values($normalized);
+    return \Synth\Lib\PronunciationDictionary::normalizeTags($tags);
 }
 
 function synthTtsPronunciationNormalizeScopeValues($values): array
 {
-    $normalized = [];
-    foreach (explode(',', strval($values)) as $value) {
-        $value = trim($value);
-        if ($value === '' || strlen($value) > 120) {
-            continue;
-        }
-        $key = function_exists('mb_strtolower')
-            ? mb_strtolower($value, 'UTF-8')
-            : strtolower($value);
-        $normalized[$key] = $value;
-    }
-    return array_values($normalized);
+    return \Synth\Lib\PronunciationDictionary::normalizeScopeValues($values);
 }
 
 function synthTtsPronunciationValueMatches(string $value, array $allowedValues): bool
 {
-    $value = function_exists('mb_strtolower')
-        ? mb_strtolower(trim($value), 'UTF-8')
-        : strtolower(trim($value));
-    if ($value === '') {
-        return false;
-    }
-
-    foreach ($allowedValues as $allowedValue) {
-        $allowedValue = function_exists('mb_strtolower')
-            ? mb_strtolower(trim(strval($allowedValue)), 'UTF-8')
-            : strtolower(trim(strval($allowedValue)));
-        if ($value === $allowedValue) {
-            return true;
-        }
-    }
-    return false;
+    return \Synth\Lib\PronunciationDictionary::valueMatches($value, $allowedValues);
 }
 
 // Require every populated speaker filter while allowing alternatives within each filter.
@@ -265,28 +231,7 @@ function synthTtsPronunciationEntryAllows(
     string $race = ''
 ): bool
 {
-    $entryNames = synthTtsPronunciationNormalizeScopeValues($entry['npc_names'] ?? '');
-    if (!empty($entryNames) && !synthTtsPronunciationValueMatches($npcName, $entryNames)) {
-        return false;
-    }
-
-    $entryRaces = synthTtsPronunciationNormalizeScopeValues($entry['races'] ?? '');
-    if (!empty($entryRaces) && !synthTtsPronunciationValueMatches($race, $entryRaces)) {
-        return false;
-    }
-
-    $entryTags = synthTtsPronunciationNormalizeTags($entry['oghma_tags'] ?? '');
-    if (empty($entryTags)) {
-        return true;
-    }
-
-    $knowledgeTags = array_values(array_unique(array_map(
-        static fn($tag): string => strtolower(trim(strval($tag))),
-        $knowledgeTags ?? []
-    )));
-
-    return in_array('knowall', $knowledgeTags, true)
-        || !empty(array_intersect($entryTags, $knowledgeTags));
+    return \Synth\Lib\PronunciationDictionary::entryAllows($entry, $knowledgeTags, $npcName, $race);
 }
 
 // Resolve active rows with custom scoped entries taking priority over global defaults.
@@ -305,44 +250,7 @@ function synthTtsPronunciationEntries(
         $rows = $cachedRows;
     }
 
-    $resolved = [];
-    foreach (array_slice($rows, 0, 1024) as $row) {
-        if (!synthTtsPronunciationBoolean($row['enabled'] ?? true)
-            || !synthTtsPronunciationEntryAllows($row, $knowledgeTags, $npcName, $race)) {
-            continue;
-        }
-
-        $source = trim(strval($row['source_text'] ?? $row['source'] ?? ''));
-        $spoken = trim(strval($row['spoken_text'] ?? $row['spoken'] ?? ''));
-        if ($source === '' || $spoken === '' || strlen($source) > 120 || strlen($spoken) > 240) {
-            continue;
-        }
-
-        $normalizedSource = function_exists('mb_strtolower')
-            ? mb_strtolower($source, 'UTF-8')
-            : strtolower($source);
-        $isBuiltin = synthTtsPronunciationBoolean($row['is_builtin'] ?? false);
-        $specificity = 0;
-        $specificity += !empty(synthTtsPronunciationNormalizeScopeValues($row['npc_names'] ?? '')) ? 1 : 0;
-        $specificity += !empty(synthTtsPronunciationNormalizeScopeValues($row['races'] ?? '')) ? 1 : 0;
-        $specificity += !empty(synthTtsPronunciationNormalizeTags($row['oghma_tags'] ?? '')) ? 1 : 0;
-        $priority = ($isBuiltin ? 0 : 10) + $specificity;
-        if (isset($resolved[$normalizedSource]) && $resolved[$normalizedSource]['priority'] > $priority) {
-            continue;
-        }
-
-        $resolved[$normalizedSource] = [
-            'source' => $source,
-            'spoken' => $spoken,
-            'priority' => $priority,
-        ];
-    }
-
-    $entries = array_values($resolved);
-    usort($entries, static function (array $left, array $right): int {
-        return strlen($right['source']) <=> strlen($left['source']);
-    });
-    return array_slice($entries, 0, 256);
+    return \Synth\Lib\PronunciationDictionary::resolve($rows, $knowledgeTags, $npcName, $race);
 }
 
 function synthApplyTtsPronunciationDictionary(
@@ -356,36 +264,5 @@ function synthApplyTtsPronunciationDictionary(
         return $text;
     }
 
-    $entries = synthTtsPronunciationEntries($rows, $knowledgeTags, $npcName, $race);
-    if (empty($entries)) {
-        return $text;
-    }
-
-    $replacements = [];
-    $patterns = [];
-    foreach ($entries as $entry) {
-        $source = strval($entry['source'] ?? '');
-        if ($source === '') {
-            continue;
-        }
-        $normalized = function_exists('mb_strtolower')
-            ? mb_strtolower($source, 'UTF-8')
-            : strtolower($source);
-        $replacements[$normalized] = strval($entry['spoken'] ?? '');
-        $patterns[] = preg_quote($source, '~');
-    }
-    if (empty($patterns)) {
-        return $text;
-    }
-
-    $pattern = '~(?<![\p{L}\p{N}_])(?:' . implode('|', $patterns) . ')(?![\p{L}\p{N}_])~iu';
-    $replaced = preg_replace_callback($pattern, static function (array $match) use ($replacements): string {
-        $matched = strval($match[0] ?? '');
-        $normalized = function_exists('mb_strtolower')
-            ? mb_strtolower($matched, 'UTF-8')
-            : strtolower($matched);
-        return $replacements[$normalized] ?? $matched;
-    }, $text);
-
-    return is_string($replaced) ? $replaced : $text;
+    return \Synth\Lib\PronunciationDictionary::apply($text, synthTtsPronunciationEntries($rows, $knowledgeTags, $npcName, $race));
 }

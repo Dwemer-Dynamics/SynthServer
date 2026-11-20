@@ -9,8 +9,6 @@ namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractLlmConnector;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractLlmConnector.php';
 
 /** Finds rows of core_llm_connector. */
 final class LlmConnectorDao

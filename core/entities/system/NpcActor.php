@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractNpcActor;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractNpcActor.php';
 
 /** One row of core_npc_actor, copied out of the loaded entity so changing it never touches the database. */
 final class NpcActor extends AbstractNpcActor

@@ -246,9 +246,9 @@ function synthQuickstartApplyTtsSelection(TTSConnector $connector, $selectedDriv
     }
 
     if ($previousPreferredId > 0 && $previousPreferredId !== $selectedId) {
-        $GLOBALS['db']->query("UPDATE core_profiles SET tts_connector_id = {$selectedId} WHERE tts_connector_id = {$previousPreferredId}");
+        \Synth\Bootstrap::db()->query("UPDATE core_profiles SET tts_connector_id = {$selectedId} WHERE tts_connector_id = {$previousPreferredId}");
     }
-    $GLOBALS['db']->query("UPDATE core_profiles SET tts_connector_id = {$selectedId} WHERE tts_connector_id IS NULL OR default_narrator = '1' OR default_npc = '1'");
+    \Synth\Bootstrap::db()->query("UPDATE core_profiles SET tts_connector_id = {$selectedId} WHERE tts_connector_id IS NULL OR default_narrator = '1' OR default_npc = '1'");
 
     if (!class_exists('Player')) {
         require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
@@ -404,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
             }
             if ($apiKey !== '') $keys[$slug] = $apiKey;
         }
-        $db = $GLOBALS['db'];
+        $db = \Synth\Bootstrap::db();
         require_once dirname(__DIR__) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
         $apiBadges = new \Synth\Core\ApiBadgeRepository($db);
         foreach ($keys as $slug => $apiKey) {
@@ -426,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
             if ($s === '') return null;
             return in_array($s, ['1','true','on','yes'], true);
         };
-        $rowPid = $GLOBALS['db']->fetchOne("SELECT id FROM core_profiles ORDER BY CASE WHEN lower(label)='default' THEN 0 WHEN default_narrator='1' THEN 1 WHEN default_npc='1' THEN 2 ELSE 3 END, id ASC LIMIT 1");
+        $rowPid = \Synth\Bootstrap::db()->fetchOne("SELECT id FROM core_profiles ORDER BY CASE WHEN lower(label)='default' THEN 0 WHEN default_narrator='1' THEN 1 WHEN default_npc='1' THEN 2 ELSE 3 END, id ASC LIMIT 1");
         $pid = isset($rowPid['id']) ? intval($rowPid['id']) : 0;
         if ($pid <= 0) { echo json_encode(['ok'=>false,'error'=>'No profile found']); exit; }
         $worldknowledge  = $truthy($_POST['worldknowledge_infinium'] ?? null);
@@ -568,7 +568,7 @@ require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "llm_randomizer.php");
 require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . 'conf_loader.php');
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "stt_connector.class.php");
-$db = $GLOBALS['db'];
+$db = \Synth\Bootstrap::db();
 
 // Load current configurations
 $currentConf = conf_loader_load();

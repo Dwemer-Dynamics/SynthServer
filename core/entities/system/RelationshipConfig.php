@@ -8,9 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractRelationshipConfig;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractRelationshipConfig.php';
-
 /** One row of core_relationship_config. */
 final class RelationshipConfig extends AbstractRelationshipConfig
 {

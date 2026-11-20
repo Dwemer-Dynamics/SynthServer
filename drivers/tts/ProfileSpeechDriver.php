@@ -3,7 +3,6 @@
 namespace Synth\Drivers\Tts;
 
 
-require_once __DIR__.'/TtsDriverInterface.php';
 
 // Explicit profile speech planning and the durable TTS queue edge. Plans carry only the profile connector's
 // own provider block and the resolved NPC voice, never another provider or per-turn prompt globals.

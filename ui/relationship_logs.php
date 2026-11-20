@@ -22,7 +22,7 @@ if ($webRoot == '/') $webRoot = '';
 $webRoot = rtrim($webRoot, '/');
 
 // DB connection
-$db = $GLOBALS["db"];
+$db = \Synth\Bootstrap::db();
 $relationshipEnabled = in_array(
  strtolower(trim((string)($GLOBALS['RELATIONSHIP_SYSTEM_ENABLED'] ?? 'false'))),
  ['1', 'true', 'yes', 'on'],

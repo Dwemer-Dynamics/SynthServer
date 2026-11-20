@@ -8,9 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractLocation;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractLocation.php';
-
 /** One row of core_location. */
 final class Location extends AbstractLocation
 {

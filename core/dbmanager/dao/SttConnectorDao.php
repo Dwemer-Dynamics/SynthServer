@@ -9,8 +9,6 @@ namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractSttConnector;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractSttConnector.php';
 
 /** Finds rows of core_stt_connector. */
 final class SttConnectorDao

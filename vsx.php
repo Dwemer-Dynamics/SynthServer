@@ -8,7 +8,6 @@ $path = __DIR__ . DIRECTORY_SEPARATOR;
 $GLOBALS['ENGINE_PATH'] = $path;
 require_once $path . 'lib/RequestBody.php';
 require_once $path . 'lib/voice_sample.php';
-require_once $path . 'managers/TtsStudio/VoiceSampleStore.php';
 require_once $path . 'lib/runtime_bootstrap.php';
 require_once $path . 'lib/fuz_convert.php';
 require_once $path . 'lib/voice_clone_sync.php';
@@ -25,7 +24,7 @@ function synthVsxRespond(int $status, array $payload): void
 function synthVsxCheckSession(array $metadata): void
 {
     if ($metadata['schema'] !== 'synth.voice_sample.v2') return;
-    $db = $GLOBALS['db'];
+    $db = \Synth\Bootstrap::db();
     $session = $db->escapeLiteral($metadata['session_id']);
     $row = $db->fetchOne("SELECT active_generation, state FROM public.core_runtime_session WHERE session_id={$session}");
     if (!$row || $row['state'] !== 'active' || intval($row['active_generation']) !== $metadata['generation']) {

@@ -11,9 +11,6 @@ namespace Synth\Core\DbManager\Dao;
 use InvalidArgumentException;
 use Synth\Core\Entities\Base\AbstractLocation;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractLocation.php';
-
 /** Finds and stores catalog locations and their markers. */
 final class LocationDao
 {

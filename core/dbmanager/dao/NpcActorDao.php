@@ -10,8 +10,6 @@ namespace Synth\Core\DbManager\Dao;
 use InvalidArgumentException;
 use Synth\Core\Entities\Base\AbstractNpcActor;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractNpcActor.php';
 
 /** Finds and stores placed actors. */
 final class NpcActorDao

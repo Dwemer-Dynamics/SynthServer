@@ -2617,7 +2617,6 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     $identityColumns = $nativeHistory ? ',history_event_id,utterance_id,reader_identity_id,reader_player_id,speaker_identity_id,response_role,response_actor_identity_id' : '';
     // dialogue.conversation: rows of the request's own conversation fill the row limit first (the same fixed
     // preference as the native lane); the selected rows keep their chronological order.
-    require_once dirname(__DIR__).'/managers/Conversation/ConversationManager.php';
     $conversationRank = $nativeHistory ? \Synth\Managers\Conversation\ConversationManager::rankSql($db, $nativeEvent) : null;
     if ($conversationRank !== null) $identityColumns .= ',ts,rowid';
     $query=$historyPrefix.($conversationRank !== null ? 'SELECT * FROM (' : '')."select

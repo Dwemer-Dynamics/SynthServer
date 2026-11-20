@@ -627,7 +627,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                 $message = $errorMessage;
                 $messageType = "err";
             } else {
-                $transactionStarted = $GLOBALS["db"]->execQuery("BEGIN") !== false;
+                $transactionStarted = \Synth\Bootstrap::db()->execQuery("BEGIN") !== false;
                 $saved = false;
                 if ($transactionStarted) {
                     $saved = synthActionCatalogUpsertCustomTextFields($codeName, [
@@ -645,7 +645,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
                     functionEditorRedirectWithNotice($codeName . " advanced options updated.", "ok", $isEmbed);
                 } else {
                     if ($transactionStarted) {
-                        $GLOBALS["db"]->execQuery("ROLLBACK");
+                        \Synth\Bootstrap::db()->execQuery("ROLLBACK");
                     }
                     $message = "Could not update advanced options.";
                     $messageType = "err";
@@ -785,13 +785,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["action"])) {
             $message = "Action catalog tables are not available yet. Run database updates first.";
             $messageType = "err";
         } else {
-            $baseRow = $GLOBALS["db"]->fetchOne("
+            $baseRow = \Synth\Bootstrap::db()->fetchOne("
                 SELECT 1 AS exists
                 FROM public.core_action
                 WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
                 LIMIT 1
             ");
-            $customRow = $GLOBALS["db"]->fetchOne("
+            $customRow = \Synth\Bootstrap::db()->fetchOne("
                 SELECT 1 AS exists
                 FROM public.core_action_custom
                 WHERE LOWER(code_name) = LOWER(" . synthActionCatalogSqlText($codeName) . ")
@@ -886,7 +886,7 @@ if ($catalogReady) {
     }
 
     $whereSql = count($whereParts) > 0 ? ("WHERE " . implode(" AND ", $whereParts)) : "";
-    $rows = $GLOBALS["db"]->fetchAll("
+    $rows = \Synth\Bootstrap::db()->fetchAll("
         SELECT
             v.code_name,
             v.action_name,
@@ -934,7 +934,7 @@ if ($catalogReady) {
     $countAll = intval($GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action")["c"] ?? 0);
     $countEnabled = intval($GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM synth.combined_core_action WHERE is_activated = TRUE")["c"] ?? 0);
     $countDisabled = max(0, $countAll - $countEnabled);
-    $activeActionRows = $GLOBALS["db"]->fetchAll("
+    $activeActionRows = \Synth\Bootstrap::db()->fetchAll("
         SELECT
             v.code_name,
             v.action_name,

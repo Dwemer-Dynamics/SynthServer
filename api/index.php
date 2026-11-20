@@ -55,6 +55,9 @@ require_once dirname(__DIR__) . '/lib/autoload.php';
 require_once dirname(__DIR__) . '/lib/RequestBody.php';
 $synthApiBodyLimits = [
     'speech/transcribe' => 16777216 + 65536, // a 16 MiB recording plus multipart framing
+    'narrator/transcribe' => 16777216 + 65536, // the private narrator's recording, bounded like speech/transcribe
+    'context/history' => 1024,               // a history.read request
+    'npc/view' => 1024,                      // an npc.view.read request
     'vision/describe' => 1048576,            // a visual-context event; the image itself goes to media.php
     'voice/preview.php' => 4096,
     'voice/samples.php' => 4096,

@@ -70,7 +70,6 @@ function synth_media_is_wave(string $bytes): bool
 // True when a valid RIFF/WAVE carries only digital silence (thin hook into the TTS driver layer).
 function synth_media_wave_is_silent(string $bytes): bool
 {
-    require_once dirname(__DIR__) . '/drivers/tts/WaveSilence.php';
     return \Synth\Drivers\Tts\WaveSilence::isSilent($bytes);
 }
 

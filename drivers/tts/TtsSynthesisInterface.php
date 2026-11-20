@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Synth\Drivers\Tts;
 
-require_once __DIR__ . '/TtsDriverInterface.php';
 
 /**
  * A speech driver that voices a line before it returns (the private narrator), instead of queueing it for the

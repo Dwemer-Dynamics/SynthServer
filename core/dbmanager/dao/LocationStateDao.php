@@ -10,9 +10,6 @@ namespace Synth\Core\DbManager\Dao;
 use Doctrine\DBAL\ParameterType;
 use Synth\Core\Entities\Base\AbstractLocationState;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractLocationState.php';
-
 /** Finds and records location observations. */
 final class LocationStateDao
 {

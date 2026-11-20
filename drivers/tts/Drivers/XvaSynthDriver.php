@@ -35,7 +35,6 @@ function xvasynth_private_output(): array|false
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use Synth\Drivers\Tts\TtsProviderInterface;
 

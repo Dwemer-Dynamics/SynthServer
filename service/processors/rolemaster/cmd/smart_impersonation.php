@@ -117,7 +117,7 @@ $sysprompt
             $action = make_replacements("$noteContent");
         
             // Insert into database
-            $GLOBALS["db"]->insert(
+            \Synth\Bootstrap::db()->insert(
                 'core_director_note',
                 array(
                     'localts' => time(),

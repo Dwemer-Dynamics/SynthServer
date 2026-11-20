@@ -9,8 +9,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractNpcRuntimeActor;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractNpcRuntimeActor.php';
 
 /** One row of core_npc_runtime_actor, copied out of the loaded entity so changing it never touches the database. */
 final class NpcRuntimeActor extends AbstractNpcRuntimeActor

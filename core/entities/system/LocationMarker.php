@@ -8,9 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractLocationMarker;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractLocationMarker.php';
-
 /** One row of core_location_marker. */
 final class LocationMarker extends AbstractLocationMarker
 {

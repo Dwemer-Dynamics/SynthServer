@@ -8,9 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractWorldspace;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractWorldspace.php';
-
 /** One row of core_worldspace. */
 final class Worldspace extends AbstractWorldspace
 {

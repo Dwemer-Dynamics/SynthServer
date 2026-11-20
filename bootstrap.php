@@ -46,15 +46,8 @@ final class Bootstrap
         require_once __DIR__.'/lib/postgresql.class.php';
         require_once __DIR__.'/lib/settings.php';
         require_once __DIR__.'/lib/core/llm_connector.class.php';
-        require_once __DIR__.'/managers/DialogueManager.php';
-        require_once __DIR__.'/managers/PrivateNarratorManager.php';
-        require_once __DIR__.'/managers/ReceiptManager.php';
         require_once __DIR__.'/core/dbmanager/repositories/CharacterRepository.php';
         require_once __DIR__.'/core/dbmanager/repositories/SettingsRepository.php';
-        require_once __DIR__.'/drivers/llm/LlmWrapper.php';
-        require_once __DIR__.'/drivers/llm/OpenAiCompatibleDriver.php';
-        require_once __DIR__.'/drivers/tts/TtsWrapper.php';
-        require_once __DIR__.'/drivers/tts/ProfileSpeechDriver.php';
     }
 
     /** The instance the legacy runtime session started (Bootstrap::runtime), or null before it ran. */
@@ -69,6 +62,36 @@ final class Bootstrap
         $config = self::readConfiguration($root);
         if (($config['DBDRIVER'] ?? '') !== 'postgresql') throw new \RuntimeException('PostgreSQL is not configured');
         return new self($root, $config, new \sql($config));
+    }
+
+    /**
+     * The shared database handle, or null before the runtime session started. The compatibility global $db is
+     * the source of truth while legacy code (and tests) still assign it; the runtime instance is the fallback.
+     */
+    public static function db(): ?object
+    {
+        $db = $GLOBALS['db'] ?? null;
+        if (is_object($db)) return $db;
+        return self::$current?->db;
+    }
+
+    /** The engine root with a trailing separator (the legacy ENGINE_PATH), or null before the runtime session started. */
+    public static function enginePath(): ?string
+    {
+        $path = $GLOBALS['ENGINE_PATH'] ?? null;
+        if (is_string($path) && $path !== '') return $path;
+        return self::$current?->root;
+    }
+
+    /**
+     * One configuration value. A legacy global wins because settings loaded from the database are written there;
+     * then the values read from conf.sample.php / conf.php; then $default.
+     */
+    public static function config(string $name, mixed $default = null): mixed
+    {
+        if (array_key_exists($name, $GLOBALS)) return $GLOBALS[$name];
+        $config = self::$current?->config ?? [];
+        return array_key_exists($name, $config) ? $config[$name] : $default;
     }
 
     // conf.sample.php then conf.php in one isolated scope, without writing runtime globals. Only upper-case

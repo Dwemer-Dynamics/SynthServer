@@ -139,7 +139,6 @@ if (!function_exists('omnivoice_fallback_candidates')) {
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use Logger;
 

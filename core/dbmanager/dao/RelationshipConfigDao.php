@@ -13,9 +13,6 @@ use Doctrine\DBAL\Exception as DbalException;
 use InvalidArgumentException;
 use Synth\Core\Entities\Base\AbstractRelationshipConfig;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractRelationshipConfig.php';
-
 /** Finds, creates and edits authored relationships. */
 final class RelationshipConfigDao
 {

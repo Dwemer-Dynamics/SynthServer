@@ -7,7 +7,6 @@ namespace Synth\Drivers\Llm;
 use Synth\Core\LlmDriver;
 
 require_once dirname(__DIR__, 2) . '/core/contracts/dialogue.php';
-require_once __DIR__ . '/LlmDriverInterface.php';
 
 /**
  * The single entry point application code uses for an LLM call.

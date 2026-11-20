@@ -5,5 +5,4 @@
 if (PHP_SAPI!=='cli') {http_response_code(404);exit;}
 if ($argc!==1) {fwrite(STDERR,"Usage: php service/relationship_dispatch.php\n");exit(2);}
 $enginePath=dirname(__DIR__).DIRECTORY_SEPARATOR;
-require_once $enginePath.'workers/Relationships/RelationshipRunner.php';
 exit(\Synth\Workers\Relationships\RelationshipRunner::dispatch($enginePath));

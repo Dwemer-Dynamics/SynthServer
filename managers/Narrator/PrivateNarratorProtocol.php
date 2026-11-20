@@ -2,7 +2,6 @@
 
 namespace Synth\Managers\Narrator;
 
-require_once __DIR__.'/NarratorObjectIdentity.php';
 
 // Private narrator protocol rules shared by the request boundary and the context claim: the capability gate, the
 // trust-boundary shape of the three narrator events (protocol/v2/schemas/narrator.schema.json) and the lane-state
