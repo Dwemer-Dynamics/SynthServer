@@ -3,24 +3,24 @@
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 @ob_end_clean();
 
-$GLOBALS["ENGINE_ROOT"] = __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR;
+\Synth\Bootstrap::set('ENGINE_ROOT', __DIR__.DIRECTORY_SEPARATOR."..".DIRECTORY_SEPARATOR);
 
 error_reporting(E_ALL);
 echo "[MANAGER] START".PHP_EOL;
 
 
-require_once("{$GLOBALS["ENGINE_ROOT"]}/service/lib/core_utils.php");
-require_once("{$GLOBALS["ENGINE_ROOT"]}/lib/runtime_bootstrap.php");
+require_once((\Synth\Bootstrap::engineRoot() . "/service/lib/core_utils.php"));
+require_once((\Synth\Bootstrap::engineRoot() . "/lib/runtime_bootstrap.php"));
 synthRuntimeBootstrap(\Synth\Bootstrap::engineRoot(), [
     'load_general_settings' => true,
     'load_stt_connector' => false,
     'load_player_name' => true,
     'load_narrator' => true,
 ]);
-require_once("{$GLOBALS["ENGINE_ROOT"]}/lib/logger.php");
+require_once((\Synth\Bootstrap::engineRoot() . "/lib/logger.php"));
 
 if (isset($argv) && is_array($argv)) {
-    $GLOBALS["argv"] = $argv;
+    \Synth\Bootstrap::set('argv', $argv);
 }
 
 Logger::setCustomLog(\Synth\Bootstrap::engineRoot()."log/manager.log");
@@ -36,7 +36,7 @@ $managerFailed = false;
 if (isset($argv[1])) {
     $taskname=$argv[1];
     Logger::debug("Attempting to run task: $taskname");
-    if (isset($GLOBALS["TASKS"][$taskname])) {
+    if (isset(\Synth\Bootstrap::config('TASKS')[$taskname])) {
         $task=\Synth\Bootstrap::config("TASKS")[$taskname];
         echo "Running task $taskname asynchronously".PHP_EOL;
         Logger::info("Starting async task execution: $taskname");
