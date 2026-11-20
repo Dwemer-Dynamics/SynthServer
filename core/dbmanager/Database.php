@@ -15,10 +15,34 @@ use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
+use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
+use Synth\Core\DbManager\Dao\DialogueRouteDao;
+use Synth\Core\DbManager\Dao\DialogueUtteranceDao;
+use Synth\Core\DbManager\Dao\DiaryControlRevisionDao;
+use Synth\Core\DbManager\Dao\DiaryInputDao;
+use Synth\Core\DbManager\Dao\DiaryInputSourceDao;
+use Synth\Core\DbManager\Dao\DiaryJobResultDao;
+use Synth\Core\DbManager\Dao\DiaryResultDao;
+use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
+use Synth\Core\DbManager\Dao\MediaObjectDao;
+use Synth\Core\DbManager\Dao\MemoryBatchControlDao;
+use Synth\Core\DbManager\Dao\MemoryBatchControlEventDao;
+use Synth\Core\DbManager\Dao\MemoryBatchDao;
+use Synth\Core\DbManager\Dao\MemoryBatchRebuildDao;
+use Synth\Core\DbManager\Dao\MemoryBatchSourceDao;
+use Synth\Core\DbManager\Dao\MemoryBatchSummarySourceDao;
+use Synth\Core\DbManager\Dao\MemorySummaryDao;
+use Synth\Core\DbManager\Dao\MemorySummaryRevisionDao;
+use Synth\Core\DbManager\Dao\MiddletermControlRevisionDao;
+use Synth\Core\DbManager\Dao\MiddletermInputDao;
+use Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao;
+use Synth\Core\DbManager\Dao\MiddletermReplacementDao;
+use Synth\Core\DbManager\Dao\MiddletermResultDao;
+use Synth\Core\DbManager\Dao\MiddletermSourceDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao;
@@ -29,9 +53,18 @@ use Synth\Core\DbManager\Dao\NpcProfileRuleDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
 use Synth\Core\DbManager\Dao\ProfileDao;
+use Synth\Core\DbManager\Dao\PromptDao;
+use Synth\Core\DbManager\Dao\ProtocolEventDao;
+use Synth\Core\DbManager\Dao\RechatChainDao;
+use Synth\Core\DbManager\Dao\RechatContinuationDao;
+use Synth\Core\DbManager\Dao\RechatSelectionDao;
 use Synth\Core\DbManager\Dao\RelationshipConfigDao;
+use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
+use Synth\Core\DbManager\Dao\VisualContextDao;
+use Synth\Core\DbManager\Dao\VisualDescriptionRevisionDao;
+use Synth\Core\DbManager\Dao\VisualResultDao;
 use Synth\Core\DbManager\Dao\WorldspaceDao;
 use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
@@ -58,6 +91,39 @@ final class Database
         NpcBiographyTemplateActorDao::class,
         NpcBiographyTemplateCustomDao::class,
         NpcProfileRuleDao::class,
+        HistoryEventDao::class,
+        ProtocolEventDao::class,
+        RechatChainDao::class,
+        RechatContinuationDao::class,
+        RechatSelectionDao::class,
+        DialogueOriginPolicyDao::class,
+        DialogueRouteDao::class,
+        DialogueUtteranceDao::class,
+        RequestExecutionDao::class,
+        PromptDao::class,
+        VisualContextDao::class,
+        VisualResultDao::class,
+        VisualDescriptionRevisionDao::class,
+        MediaObjectDao::class,
+        DiaryControlRevisionDao::class,
+        DiaryInputSourceDao::class,
+        DiaryInputDao::class,
+        DiaryJobResultDao::class,
+        DiaryResultDao::class,
+        MemoryBatchControlEventDao::class,
+        MemoryBatchControlDao::class,
+        MemoryBatchRebuildDao::class,
+        MemoryBatchSourceDao::class,
+        MemoryBatchSummarySourceDao::class,
+        MemoryBatchDao::class,
+        MemorySummaryDao::class,
+        MemorySummaryRevisionDao::class,
+        MiddletermControlRevisionDao::class,
+        MiddletermInputDao::class,
+        MiddletermRegenerationApprovalDao::class,
+        MiddletermReplacementDao::class,
+        MiddletermResultDao::class,
+        MiddletermSourceDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
