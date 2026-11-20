@@ -65,42 +65,33 @@ final class Bootstrap
     }
 
     /**
-     * The shared database handle, or null before the runtime session started. The compatibility global $db is
-     * the source of truth while legacy code (and tests) still assign it; the runtime instance is the fallback.
+     * The shared database handle (legacy `$GLOBALS['db']`), or null when none is installed. Legacy code and tests assign
+     * that global, so it stays the one source of truth; reads behave exactly as `$GLOBALS['db'] ?? null` did.
      */
     public static function db(): ?object
     {
         $db = $GLOBALS['db'] ?? null;
-        if (is_object($db)) return $db;
-        return self::$current?->db;
+        return is_object($db) ? $db : null;
     }
 
-    /** The engine root with a trailing separator (the legacy ENGINE_PATH), or null before the runtime session started. */
+    /** The engine root with a trailing separator (legacy ENGINE_PATH), or null when the runtime session did not set it. */
     public static function enginePath(): ?string
     {
         $path = $GLOBALS['ENGINE_PATH'] ?? null;
-        if (is_string($path) && $path !== '') return $path;
-        return self::$current?->root;
+        return is_string($path) && $path !== '' ? $path : null;
     }
 
-    /**
-     * One configuration value. A legacy global wins (settings loaded from the database are written there) unless it is
-     * null, as `$GLOBALS[$name] ?? $default` did; then the values read from conf.sample.php / conf.php; then $default.
-     */
+    /** One configuration or runtime value: `$GLOBALS[$name] ?? $default`. */
     public static function config(string $name, mixed $default = null): mixed
     {
-        $value = $GLOBALS[$name] ?? null;
-        if ($value !== null) return $value;
-        $config = self::$current?->config ?? [];
-        return $config[$name] ?? $default;
+        return $GLOBALS[$name] ?? $default;
     }
 
-    /** The legacy ENGINE_ROOT (set by service entries; the engine path when they did not set it), or null. */
+    /** The legacy ENGINE_ROOT (set by service entries), or null. */
     public static function engineRoot(): ?string
     {
         $root = $GLOBALS['ENGINE_ROOT'] ?? null;
-        if (is_string($root) && $root !== '') return $root;
-        return self::enginePath();
+        return is_string($root) && $root !== '' ? $root : null;
     }
 
     /** The validated request event of this request (legacy SYNTH_REQUEST_EVENT), or null outside a request. */

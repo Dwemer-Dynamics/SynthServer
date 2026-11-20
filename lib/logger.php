@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/autoload.php";
 
 // Compatibility shim: the logger lives in Synth\Lib\Logger (lib/classes/Logger.php). This global class keeps the
 // existing `Logger::info($message, $logFile)` call sites working and forwards everything to it. New code should call
