@@ -45,13 +45,13 @@ final class PluginManifestRevisionDao
     /** One revision by id, or null. */
     public function find(int $id): ?AbstractPluginManifestRevision
     {
-        return $this->entityManager->find(AbstractPluginManifestRevision::class, $id);
+        return $this->fresh()->find(AbstractPluginManifestRevision::class, $id);
     }
 
     /** The newest revision recorded for a playthrough, or null. */
     public function latest(string $playthroughId): ?AbstractPluginManifestRevision
     {
-        return $this->entityManager->getRepository(AbstractPluginManifestRevision::class)
+        return $this->fresh()->getRepository(AbstractPluginManifestRevision::class)
             ->findOneBy(['playthroughId' => $playthroughId], ['id' => 'DESC']);
     }
 }
