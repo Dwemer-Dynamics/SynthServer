@@ -1279,7 +1279,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && $GLOBALS["TRIGGER_NARRATOR_WE
     $narratorProfileId = $narrator->getProfileId();
     if (!$narratorProfileId) {
         // Try to find The Narrator profile
-        $narratorProfile = $db->fetchOne("SELECT id FROM core_profiles WHERE name = 'The Narrator' LIMIT 1");
+        $narratorProfile = ['id' => \Synth\Core\DbManager\Dao\ProfileDao::current($db)->findIdByName('The Narrator')];
         if ($narratorProfile && isset($narratorProfile['id'])) {
             $narratorProfileId = $narratorProfile['id'];
         }
@@ -1311,7 +1311,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) && $GLOBALS["TRIGGER_NARRA
     $narratorProfileId = $narrator->getProfileId();
     if (!$narratorProfileId) {
         // Try to find The Narrator profile
-        $narratorProfile = $db->fetchOne("SELECT id FROM core_profiles WHERE name = 'The Narrator' LIMIT 1");
+        $narratorProfile = ['id' => \Synth\Core\DbManager\Dao\ProfileDao::current($db)->findIdByName('The Narrator')];
         if ($narratorProfile && isset($narratorProfile['id'])) {
             $narratorProfileId = $narratorProfile['id'];
         }
