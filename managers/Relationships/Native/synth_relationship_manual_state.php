@@ -5,16 +5,16 @@ function synth_relationship_manual_state_cte(): string
 {
     return ", manual_relationship_candidates AS MATERIALIZED (
         SELECT r.*,h.playthrough_id FROM public.core_relationship_revision r
-        JOIN synth_meta.history_events h ON h.id=r.history_event_id
+        JOIN public.core_history_event h ON h.id=r.history_event_id
         JOIN relationship_graph_scopes scope ON scope.session_id=h.session_id AND scope.generation=h.generation
             AND scope.playthrough_id=h.playthrough_id AND scope.reader_identity_id=r.actor_identity_id AND h.id<=scope.cutoff
         JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.target_identity_id=r.actor_identity_id AND c.playthrough_id=h.playthrough_id
-        JOIN synth.actor_identities actor ON actor.id=r.actor_identity_id AND actor.playthrough_id=c.playthrough_id AND actor.game='fo4'
+        JOIN public.core_actor_identity actor ON actor.id=r.actor_identity_id AND actor.playthrough_id=c.playthrough_id AND actor.game='fo4'
             AND upper(actor.full_form_id)=upper(c.context_payload#>>'{target,form_id}')
             AND lower(actor.origin_plugin)=lower(c.context_payload#>>'{target,origin_plugin}')
             AND actor.playthrough_id=c.context_payload#>>'{target,playthrough_id}'
-        JOIN synth.actor_identities subject ON subject.id=r.subject_identity_id AND subject.game='fo4' AND subject.playthrough_id=c.playthrough_id
+        JOIN public.core_actor_identity subject ON subject.id=r.subject_identity_id AND subject.game='fo4' AND subject.playthrough_id=c.playthrough_id
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='relationship_manual' AND h.event_payload->>'delivery_state'='derived'
             AND c.history_event_id<h.id AND r.prior_history_event_id IS NULL AND r.result_history_event_id IS NULL
             AND r.interaction_result_history_event_id IS NULL AND r.actor_identity_id<>r.subject_identity_id
@@ -36,7 +36,7 @@ function synth_relationship_manual_state_cte(): string
     ), relationship_reset_history AS MATERIALIZED (
         SELECT r.history_event_id,r.actor_identity_id,r.subject_identity_id,h.session_id,h.generation,h.context_sequence,h.playthrough_id
         FROM public.core_relationship_revision r
-        JOIN synth_meta.history_events h ON h.id=r.history_event_id
+        JOIN public.core_history_event h ON h.id=r.history_event_id
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='relationship_manual'
             AND h.event_payload#>>'{manual_correction,schema}'='synth.relationship.manual.v2'
             AND h.event_payload#>'{manual_correction,state}'='null'::jsonb

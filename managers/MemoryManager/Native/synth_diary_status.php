@@ -41,7 +41,7 @@ function synth_diary_request_status($db): string
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event,true);
         if (!synth_protocol_current_context($db,$event)) throw new LogicException('Diary context unavailable.');
-        $result=@pg_query_params($connection,'SELECT response_body FROM synth_meta.request_executions WHERE session_id=$1 AND request_id=$2',
+        $result=@pg_query_params($connection,'SELECT response_body FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',
             [$event['session_id'],$event['request_id']]);
         if (!$result || !($row=pg_fetch_assoc($result))) throw new RuntimeException('Diary admission unavailable.');
         $lines=explode("\n",trim(synth_protocol_decode_bytea($row['response_body'])));
@@ -68,7 +68,7 @@ function synth_diary_request_status($db): string
             JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
                 AND c.snapshot_sequence=i.context_sequence
             LEFT JOIN public.core_diary_result r ON r.input_id=i.id
-            LEFT JOIN synth_meta.history_events h ON h.id=r.history_event_id
+            LEFT JOIN public.core_history_event h ON h.id=r.history_event_id
             WHERE i.session_id=$1 AND i.request_id=$2 AND i.generation=$3 AND i.context_sequence=$5 AND i.diary_role IN ('npc','narrator','player')
                 AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
                 AND i.input_payload->>'diary_role'=i.diary_role AND i.input_payload->'context'=c.context_payload
@@ -102,7 +102,7 @@ function synth_diary_request_status($db): string
                 $sources=$db->fetchOne(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned)." SELECT count(*) AS n,
                     (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=$inputId) AS total
                     FROM public.core_diary_input_source s JOIN native_history v ON v.history_event_id=s.history_event_id
-                    JOIN synth_meta.history_events h ON h.id=s.history_event_id JOIN public.core_diary_input i ON i.id=s.input_id
+                    JOIN public.core_history_event h ON h.id=s.history_event_id JOIN public.core_diary_input i ON i.id=s.input_id
                     WHERE s.input_id=$inputId AND s.source_sha256=encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex')
                         AND EXISTS(SELECT 1 FROM jsonb_array_elements(i.input_payload->'history') evidence
                             WHERE evidence->>'history_event_id'=s.history_event_id::text AND evidence->>'source_sha256'=s.source_sha256)");

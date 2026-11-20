@@ -24,14 +24,14 @@ function synth_middleterm_owned_cte(string $historyCte): string
             i.session_id,i.generation,i.context_sequence,i.request_id,i.input_sha256,i.regeneration_approval_id,
             i.input_payload,r.history_event_id,r.narrative,r.result_sha256
         FROM public.core_middleterm_input i JOIN public.core_middleterm_result r ON r.input_id=i.id
-        JOIN synth_meta.history_events h ON h.id=r.history_event_id AND h.session_id=i.session_id
+        JOIN public.core_history_event h ON h.id=r.history_event_id AND h.session_id=i.session_id
             AND h.generation=i.generation AND h.context_sequence=i.context_sequence
             AND h.request_id=i.request_id AND h.playthrough_id=i.playthrough_id
-        JOIN synth.actor_identities a ON a.id=i.actor_identity_id AND a.playthrough_id=i.playthrough_id AND a.game='fo4'
+        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.playthrough_id=i.playthrough_id AND a.game='fo4'
         WHERE EXISTS(SELECT 1 FROM native_history_scopes scope WHERE scope.session_id=i.session_id
             AND scope.generation=i.generation AND scope.playthrough_id=i.playthrough_id
             AND scope.reader_identity_id=i.actor_identity_id AND scope.cutoff>=h.id)
-        AND EXISTS(SELECT 1 FROM synth_meta.request_executions e JOIN public.core_protocol_event p
+        AND EXISTS(SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
             ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation
                 AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
             WHERE e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
@@ -81,7 +81,7 @@ function synth_middleterm_owned_cte(string $historyCte): string
         JOIN public.core_middleterm_result fresh ON fresh.history_event_id=replacement.history_event_id
         JOIN public.core_middleterm_input input ON input.id=fresh.input_id AND input.regeneration_approval_id=replacement.approval_id
             AND input.actor_identity_id=target.actor_identity_id AND input.playthrough_id=target.playthrough_id
-        JOIN synth_meta.history_events h ON h.id=fresh.history_event_id AND h.session_id=input.session_id AND h.generation=input.generation
+        JOIN public.core_history_event h ON h.id=fresh.history_event_id AND h.session_id=input.session_id AND h.generation=input.generation
             AND h.context_sequence=input.context_sequence AND h.request_id=input.request_id AND h.playthrough_id=input.playthrough_id
         JOIN public.core_middleterm_regeneration_approval approval ON approval.history_event_id=replacement.approval_id
             AND approval.narrative_id=target.history_event_id AND approval.actor_identity_id=target.actor_identity_id
@@ -106,7 +106,7 @@ function synth_middleterm_history_cte($db, array $event, string $actor, ?int $jo
     return synth_middleterm_owned_cte(synth_memory_visible_batch_cte($db,$event,$actor,$journalReaderIdentityId)).",
     middleterm_scoped_controls AS MATERIALIZED (
         SELECT c.*,h.event_payload,h.session_id,h.generation,h.context_sequence,h.playthrough_id,h.request_id,i.actor_identity_id
-        FROM native_history_scopes scope JOIN synth_meta.history_events h
+        FROM native_history_scopes scope JOIN public.core_history_event h
             ON h.session_id=scope.session_id AND h.generation=scope.generation
                 AND h.playthrough_id=scope.playthrough_id AND h.id<=scope.cutoff
         JOIN public.core_middleterm_control_revision c ON c.history_event_id=h.id
@@ -237,7 +237,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         $identity=$context ? synth_protocol_response_actor_identity($db,$event,$context) : null;
         if (!is_array($identity) || isset($identity['kind'])) return null;
         $actor=synth_protocol_actor_identity_id($db,$identity);$name=$identity['display_name'];
-        $npc=$db->fetchOne('SELECT * FROM synth.core_npc_master WHERE actor_identity_id='.$actor);
+        $npc=$db->fetchOne('SELECT * FROM public.core_npc WHERE actor_identity_id='.$actor);
         if (!$npc) return null;
         $profile=$db->fetchOne('SELECT metadata FROM public.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
         if (!synth_middleterm_enabled($npc,$profile ?: [])) return null;
@@ -282,7 +282,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         if ($approvalId!==null && $approved===null) return null;
         if ($approved!==null) {
             // A management snapshot is not an owner: only verified, completed immutable ingress may adopt approval.
-            $owner=@pg_query_params($connection,"SELECT 1 FROM synth_meta.request_executions e JOIN public.core_protocol_event p
+            $owner=@pg_query_params($connection,"SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
                 USING(session_id,request_id,generation,turn_id,event_type)
                 WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.state='complete'
                     AND p.event_sha256=e.request_sha256 AND p.event_sha256=$5 AND p.canonical_event=$4::jsonb",
@@ -339,7 +339,7 @@ function synth_middleterm_has_unsaved_control($db,array $event,int $actorId): bo
     $result=$db->fetchOne("SELECT EXISTS(SELECT 1 FROM public.core_middleterm_control_revision c
         JOIN public.core_middleterm_input i ON i.actor_identity_id=$actorId
         JOIN public.core_middleterm_result r ON r.input_id=i.id AND r.history_event_id=c.narrative_id
-        JOIN synth_meta.history_events h ON h.id=c.history_event_id
+        JOIN public.core_history_event h ON h.id=c.history_event_id
         JOIN public.core_runtime_context snapshot ON snapshot.session_id=h.session_id AND snapshot.generation=h.generation
         WHERE h.session_id=".$db->escapeLiteral($event['session_id']).' AND h.generation='.intval($event['generation'])
         .' AND snapshot.snapshot_sequence='.intval($event['context_sequence'])

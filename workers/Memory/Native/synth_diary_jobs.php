@@ -35,7 +35,7 @@ function synth_diary_admit_request($db): string
             : ($event['payload']['include_player'] ? 'role setting or no diary connector' : 'no diary connector');
         $body=synth_protocol_encode_ack($queued ? 'diary_queued' : 'diary_disabled',
             ['detail'=>"Queued: $queued; disabled ($disabledReason): $disabled. Generation runs in the background."]);
-        $result=@pg_query_params($connection,"UPDATE synth_meta.request_executions SET state='complete',
+        $result=@pg_query_params($connection,"UPDATE public.core_request_execution SET state='complete',
             response_content_type='application/x-ndjson',response_body=convert_to($3,'UTF8'),completed_at=clock_timestamp()
             WHERE session_id=$1 AND request_id=$2 AND state='claimed' RETURNING request_id",[$event['session_id'],$event['request_id'],$body]);
         if (!$result || pg_num_rows($result)!==1) throw new LogicException('Diary admission was not claimed.');
@@ -344,10 +344,10 @@ function synth_diary_dispatch_jobs($db, ?callable $generate=null): int
         lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.state IN ('claimed','streaming','complete')))")===false) throw new RuntimeException('Unable to retire diary work.');
-    $jobs=$db->fetchAll("SELECT j.id FROM public.core_worker_job j JOIN synth_meta.request_executions e
+    $jobs=$db->fetchAll("SELECT j.id FROM public.core_worker_job j JOIN public.core_request_execution e
         ON e.session_id=j.session_id AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'
         WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.available_at<=clock_timestamp()
             AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp())) ORDER BY j.available_at,j.id LIMIT 5");

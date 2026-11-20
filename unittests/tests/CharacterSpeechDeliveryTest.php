@@ -31,7 +31,7 @@ final class CharacterSpeechDeliveryTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".str_replace("'","''",$value)."'"; }
             public function fetchOne(string $sql): array {
                 $this->queries[]=$sql;
-                if (str_contains($sql,'request_executions')) return ['state'=>'claimed','runtime_state'=>'active',
+                if (str_contains($sql,'core_request_execution')) return ['state'=>'claimed','runtime_state'=>'active',
                     'active_generation'=>3,'active_turn_id'=>'turn-speech','active_turn_sequence'=>7];
                 if (str_contains($sql,'core_runtime_context')) return ['context_payload'=>$this->context];
                 throw new RuntimeException('Unexpected canonical speech query: '.$sql);

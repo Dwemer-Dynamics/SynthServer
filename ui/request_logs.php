@@ -111,7 +111,7 @@ function getAuditRequestColumns(sql $db): array
         $db,
         "SELECT column_name
          FROM information_schema.columns
-         WHERE table_schema = 'synth' AND table_name = 'audit_request'"
+         WHERE table_schema = 'public' AND table_name = 'core_audit_request'"
     );
     $columnKey = "column_name";
 
@@ -277,7 +277,7 @@ $page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
 if ($cleanLogRequested) {
-    safeExec($db, "DELETE FROM audit_request");
+    safeExec($db, "DELETE FROM core_audit_request");
     header("Location: " . requestLogsUrl(1, $limit, $isEmbedded), true, 303);
     exit;
 }
@@ -329,13 +329,13 @@ if (count($selectExpressions) === 0) {
     $rows = safeFetchAll(
         $db,
         "SELECT " . implode(", ", $selectExpressions) . "
-         FROM audit_request
+         FROM core_audit_request
          ORDER BY {$orderBy}
          LIMIT {$limit} OFFSET {$offset}"
     );
 }
 
-$totalRow = safeFetchOne($db, "SELECT COUNT(*) AS total FROM audit_request");
+$totalRow = safeFetchOne($db, "SELECT COUNT(*) AS total FROM core_audit_request");
 $totalRecords = intval($totalRow["total"] ?? 0);
 $totalPages = max(1, (int)ceil($totalRecords / $limit));
 

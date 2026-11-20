@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_narrator'])) {
  }
  $escapedRoleplayName = $GLOBALS["db"]->escape($roleplayName);
  $matchingNpc = $GLOBALS["db"]->fetchOne(
- "SELECT npc_name FROM core_npc_master WHERE LOWER(npc_name) = LOWER('{$escapedRoleplayName}') LIMIT 1"
+ "SELECT npc_name FROM core_npc WHERE LOWER(npc_name) = LOWER('{$escapedRoleplayName}') LIMIT 1"
  );
  if ($matchingNpc) {
  throw new InvalidArgumentException('Narrator roleplay name cannot match an existing NPC name.');

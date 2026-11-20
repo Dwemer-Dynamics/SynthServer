@@ -41,23 +41,23 @@ final class FalloutContentPackTest extends DatabaseTestCase
     public function testExistingProfileFillsBlanksButPreservesVoiceRelationshipsAndEdits(): void
     {
         $db=$this->db();$root=dirname(__DIR__,2);
-        $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','content-fixture','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
+        $identity=$db->fetchOne("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','content-fixture','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
         synth_upsert_npc_profile($db,'Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm'],intval($identity['id']));
         $id=intval($identity['id']);
-        $db->execQuery("UPDATE synth.core_npc_master SET npc_static_bio=NULL,personality='Edited personality.',voiceid='unchanged_voice',relationships='unchanged relationship text' WHERE actor_identity_id=$id");
+        $db->execQuery("UPDATE public.core_npc SET npc_static_bio=NULL,personality='Edited personality.',voiceid='unchanged_voice',relationships='unchanged relationship text' WHERE actor_identity_id=$id");
         synthInstallFalloutContentPack($db,$root,true);
-        $profile=$db->fetchOne("SELECT * FROM synth.core_npc_master WHERE actor_identity_id=$id");
+        $profile=$db->fetchOne("SELECT * FROM public.core_npc WHERE actor_identity_id=$id");
         self::assertNotEmpty($profile['npc_static_bio']);
         self::assertSame('Edited personality.',$profile['personality']);
         self::assertSame('unchanged_voice',$profile['voiceid']);
         self::assertSame('unchanged relationship text',$profile['relationships']);
-        $db->execQuery("UPDATE synth.core_npc_master SET npc_static_bio=NULL,lock_profile=1 WHERE actor_identity_id=$id");
+        $db->execQuery("UPDATE public.core_npc SET npc_static_bio=NULL,lock_profile=1 WHERE actor_identity_id=$id");
         synthInstallFalloutContentPack($db,$root,true);
-        self::assertNull($db->fetchOne("SELECT npc_static_bio FROM synth.core_npc_master WHERE actor_identity_id=$id")['npc_static_bio']);
-        $db->execQuery("UPDATE synth.core_npc_master SET core=NULL,occupation='',appearance=NULL,skills='',goals=NULL,worldknowledge_tags=NULL,personality='A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',speechstyle='Speaks plainly and reacts to the Sole Survivor and the current situation.' WHERE actor_identity_id=$id");
-        $before=$db->fetchOne("SELECT core,npc_static_bio,occupation,appearance,skills,goals,worldknowledge_tags,personality,speechstyle,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id=$id");
+        self::assertNull($db->fetchOne("SELECT npc_static_bio FROM public.core_npc WHERE actor_identity_id=$id")['npc_static_bio']);
+        $db->execQuery("UPDATE public.core_npc SET core=NULL,occupation='',appearance=NULL,skills='',goals=NULL,worldknowledge_tags=NULL,personality='A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',speechstyle='Speaks plainly and reacts to the Sole Survivor and the current situation.' WHERE actor_identity_id=$id");
+        $before=$db->fetchOne("SELECT core,npc_static_bio,occupation,appearance,skills,goals,worldknowledge_tags,personality,speechstyle,voiceid,relationships FROM public.core_npc WHERE actor_identity_id=$id");
         synth_upsert_npc_profile($db,'Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm'], $id);
-        self::assertSame($before,$db->fetchOne("SELECT core,npc_static_bio,occupation,appearance,skills,goals,worldknowledge_tags,personality,speechstyle,voiceid,relationships FROM synth.core_npc_master WHERE actor_identity_id=$id"));
+        self::assertSame($before,$db->fetchOne("SELECT core,npc_static_bio,occupation,appearance,skills,goals,worldknowledge_tags,personality,speechstyle,voiceid,relationships FROM public.core_npc WHERE actor_identity_id=$id"));
     }
 
     public function testContactRefreshFillsOldSeedWithoutReplacingEditsOrAnotherSave(): void
@@ -65,18 +65,18 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $db=$this->db();
         $owners=[];
         foreach (['contact-save-one','contact-save-two'] as $save) {
-            $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','$save','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
+            $identity=$db->fetchOne("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','$save','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
             $owners[]=intval($identity['id']);
             synth_upsert_npc_profile($db,'Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm','voice'=>'robotmrhandy'],intval($identity['id']));
         }
         [$first,$other]=$owners;
-        $db->execQuery("UPDATE synth.core_npc_master SET core=NULL,npc_static_bio='',personality='A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',speechstyle='Speaks plainly and reacts to the Sole Survivor and the current situation.',occupation='My edited occupation.',voiceid='my_manual_voice',relationships='My edited relationships.' WHERE actor_identity_id=$first");
-        $before=$db->fetchOne("SELECT id,md5,profile_id FROM synth.core_npc_master WHERE actor_identity_id=$first");
-        $otherBefore=$db->fetchOne("SELECT * FROM synth.core_npc_master WHERE actor_identity_id=$other");
+        $db->execQuery("UPDATE public.core_npc SET core=NULL,npc_static_bio='',personality='A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',speechstyle='Speaks plainly and reacts to the Sole Survivor and the current situation.',occupation='My edited occupation.',voiceid='my_manual_voice',relationships='My edited relationships.' WHERE actor_identity_id=$first");
+        $before=$db->fetchOne("SELECT id,md5,profile_id FROM public.core_npc WHERE actor_identity_id=$first");
+        $otherBefore=$db->fetchOne("SELECT * FROM public.core_npc WHERE actor_identity_id=$other");
 
         // The contact path must use the captured base identity even if the displayed name changed.
         synth_upsert_npc_profile($db,'My renamed Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm','voice'=>'captured_new_voice','race'=>'HandyRace'],$first);
-        $profile=$db->fetchOne("SELECT * FROM synth.core_npc_master WHERE actor_identity_id=$first");
+        $profile=$db->fetchOne("SELECT * FROM public.core_npc WHERE actor_identity_id=$first");
         $template=synth_fetch_bio_template($db,'My renamed Codsworth','','Fallout4.esm|000179FF');
         foreach (['core','npc_static_bio','personality','speechstyle'] as $field) {
             self::assertNotEmpty($template[$field]);
@@ -90,7 +90,7 @@ final class FalloutContentPackTest extends DatabaseTestCase
         self::assertSame('My edited relationships.',$profile['relationships']);
         self::assertSame('HandyRace',$profile['race']);
         foreach ($before as $field=>$value) self::assertSame($value,$profile[$field]);
-        self::assertSame($otherBefore,$db->fetchOne("SELECT * FROM synth.core_npc_master WHERE actor_identity_id=$other"));
+        self::assertSame($otherBefore,$db->fetchOne("SELECT * FROM public.core_npc WHERE actor_identity_id=$other"));
     }
 
     public function testMalformedContentIsRejectedBeforeDatabaseWrites(): void
@@ -127,13 +127,13 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $merged=synth_biography_background($factory['npc_static_bio'],$factory['skills']);
         $rows=[];
         foreach (['fresh','legacy','edited','ambiguous','locked','unbound','conflicting','edited_personality'] as $index=>$case) {
-            $identity=$db->fetchOne("INSERT INTO synth.actor_identities(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','repair-$case','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
+            $identity=$db->fetchOne("INSERT INTO public.core_actor_identity(game,playthrough_id,origin_plugin,full_form_id,display_name) VALUES('fo4','repair-$case','Fallout4.esm','0x0001CA7D','Codsworth') RETURNING id");
             synth_upsert_npc_profile($db,'Codsworth','0x0001CA7D',['baseid'=>'Fallout4.esm|000179FF','reference_origin_plugin'=>'Fallout4.esm'],intval($identity['id']));
-            $rows[$case]=intval($db->fetchOne('SELECT id FROM synth.core_npc_master WHERE actor_identity_id='.intval($identity['id']))['id']);
+            $rows[$case]=intval($db->fetchOne('SELECT id FROM public.core_npc WHERE actor_identity_id='.intval($identity['id']))['id']);
         }
-        $fresh=$db->fetchOne('SELECT npc_static_bio,skills FROM synth.core_npc_master WHERE id='.$rows['fresh']);
+        $fresh=$db->fetchOne('SELECT npc_static_bio,skills FROM public.core_npc WHERE id='.$rows['fresh']);
         self::assertSame([$merged,null],[$fresh['npc_static_bio'],$fresh['skills']]);
-        $set=static fn(string $case,string $sql,array $params=[])=>$db->execQuery("UPDATE synth.core_npc_master SET $sql WHERE id=".$rows[$case],$params);
+        $set=static fn(string $case,string $sql,array $params=[])=>$db->execQuery("UPDATE public.core_npc SET $sql WHERE id=".$rows[$case],$params);
         foreach (['legacy','locked','unbound','conflicting','edited_personality'] as $case) $set($case,'npc_static_bio=$1,skills=$2',[$factory['npc_static_bio'],$factory['skills']]);
         $set('edited','npc_static_bio=$1,skills=$2',['Operator background.','Operator expertise.']);
         $set('ambiguous','npc_static_bio=$1,skills=NULL',[$factory['npc_static_bio']]);
@@ -141,9 +141,9 @@ final class FalloutContentPackTest extends DatabaseTestCase
         $set('unbound',"metadata=metadata-'bio_template'");
         $set('edited_personality',"personality='Operator personality.'");
         $conflict=$rows['conflicting'];
-        $db->execQuery("UPDATE synth.actor_identities SET full_form_id='0x0001CA7E' WHERE id=(SELECT actor_identity_id FROM synth.core_npc_master WHERE id=$conflict)");
+        $db->execQuery("UPDATE public.core_actor_identity SET full_form_id='0x0001CA7E' WHERE id=(SELECT actor_identity_id FROM public.core_npc WHERE id=$conflict)");
         $db->execQuery("INSERT INTO public.core_npc_biography_template_actor(template_name,reference_plugin,reference_local_formid) VALUES('fo4_piper','Fallout4.esm','0001CA7E')");
-        $snapshot=static fn()=>$db->fetchAll('SELECT id,npc_static_bio,skills,lock_profile FROM synth.core_npc_master WHERE id IN ('.implode(',',$rows).') ORDER BY id');
+        $snapshot=static fn()=>$db->fetchAll('SELECT id,npc_static_bio,skills,lock_profile FROM public.core_npc WHERE id IN ('.implode(',',$rows).') ORDER BY id');
         // Run the operator CLI in its own process so it loads the production sql class and its pinned transaction.
         $run=static function(array $args): array {
             $environment=getenv();
@@ -169,13 +169,13 @@ final class FalloutContentPackTest extends DatabaseTestCase
         [$summary]=$run(['--apply']);
         self::assertSame(2,$summary['applied']);
         $after=$snapshot();
-        $legacy=$db->fetchOne('SELECT npc_static_bio,skills FROM synth.core_npc_master WHERE id='.$rows['legacy']);
+        $legacy=$db->fetchOne('SELECT npc_static_bio,skills FROM public.core_npc WHERE id='.$rows['legacy']);
         self::assertSame([$merged,null],[$legacy['npc_static_bio'],$legacy['skills']]);
         foreach ($before as $index=>$row) if (!in_array(intval($row['id']),[$rows['legacy'],$rows['edited_personality']],true)) self::assertSame($row,$after[$index]);
         [$summary]=$run(['--apply']);
         self::assertSame([0,0],[$summary['applied'],$summary['repair']]);
         self::assertSame($after,$snapshot());
-        self::assertSame('Operator personality.',$db->fetchOne('SELECT personality FROM synth.core_npc_master WHERE id='.$rows['edited_personality'])['personality']);
+        self::assertSame('Operator personality.',$db->fetchOne('SELECT personality FROM public.core_npc WHERE id='.$rows['edited_personality'])['personality']);
         fwrite(STDOUT,'BIOGRAPHY_REPAIR '.json_encode(['fixture_rows'=>8,'first_applied'=>2,'second_applied'=>$summary['applied'],'preserved'=>['edited','ambiguous','locked','unbound','conflicting'],'summary'=>$summary]).PHP_EOL);
     }
 

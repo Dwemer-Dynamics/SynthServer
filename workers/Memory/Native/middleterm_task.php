@@ -33,7 +33,7 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
 
     $allEnabledMtNpc=$GLOBALS["db"]->fetchAll("
         SELECT n.*
-        FROM core_npc_master n
+        FROM core_npc n
         LEFT JOIN core_profiles p ON p.id = n.profile_id
         WHERE n.actor_identity_id IS NULL AND (
             lower(COALESCE(n.extended_data->>'middle_term_enabled', '')) IN ('1', 'true', 't', 'yes', 'on')

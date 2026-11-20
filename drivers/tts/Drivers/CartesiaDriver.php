@@ -1035,7 +1035,7 @@ function getCartesiaVoiceName() {
                     $GLOBALS["db"] = new sql();
                 }
                 $npcRow = $GLOBALS["db"]->fetchOne(
-                    "SELECT voiceid FROM core_npc_master WHERE lower(npc_name) = lower('" . $GLOBALS["db"]->escape($GLOBALS["SYNTH_NAME"] ?? '') . "') LIMIT 1"
+                    "SELECT voiceid FROM core_npc WHERE lower(npc_name) = lower('" . $GLOBALS["db"]->escape($GLOBALS["SYNTH_NAME"] ?? '') . "') LIMIT 1"
                 );
                 if (is_array($npcRow) && !empty($npcRow['voiceid'])) {
                     $voice = trim($npcRow['voiceid']);

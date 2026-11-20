@@ -74,7 +74,7 @@ function DirectConversationsWith($actor, $speaker="")
 
     $listenerprmt=$db->escape($actor);
     $gametsLimit=round(($GLOBALS["gameRequest"][2]??0)-(getGametsLimitFor($actor)/0.0000024),0);
-    $lastLoc=$db->fetchAll("SELECT count(*) as N FROM speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
+    $lastLoc=$db->fetchAll("SELECT count(*) as N FROM core_speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
 
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DirectConversationsWith: zero interactions {$speakerprmt} - {$listenerprmt} ");
@@ -102,7 +102,7 @@ function isIndividualMemoryEnabledForNpc($npcName)
     $enabled = false;
     try {
         $escaped = $GLOBALS["db"]->escape($npcName);
-        $row = $GLOBALS["db"]->fetchOne("SELECT extended_data FROM core_npc_master WHERE npc_name='$escaped' LIMIT 1");
+        $row = $GLOBALS["db"]->fetchOne("SELECT extended_data FROM core_npc WHERE npc_name='$escaped' LIMIT 1");
         if (is_array($row) && !empty($row["extended_data"])) {
             $extendedData = json_decode($row["extended_data"], true);
             if (

@@ -134,10 +134,10 @@ final class CharacterFormVoiceTest extends TestCase
             public function escapeLiteral($value): string { return "'".str_replace("'","''",(string)$value)."'"; }
             public function fetchOne(string $sql): array {
                 $this->queries[]=$sql;
-                if (str_contains($sql,'request_executions')) return ['state'=>'claimed','runtime_state'=>'active',
+                if (str_contains($sql,'core_request_execution')) return ['state'=>'claimed','runtime_state'=>'active',
                     'active_generation'=>3,'active_turn_id'=>'turn-curie','active_turn_sequence'=>7];
                 if (str_contains($sql,'core_runtime_context')) return ['context_payload'=>$this->context];
-                if (str_contains($sql,'actor_identities')) return $this->identity;
+                if (str_contains($sql,'core_actor_identity')) return $this->identity;
                 throw new RuntimeException('Unexpected form voice query: '.$sql);
             }
             public function execQuery(string $sql): never { throw new RuntimeException('Voice overlay attempted a database write.'); }

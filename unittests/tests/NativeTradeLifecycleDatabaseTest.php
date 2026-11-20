@@ -17,7 +17,7 @@ final class TradeFixtureDatabase extends sql
             $this->execQuery("SET LOCAL statement_timeout='2s'");
             $this->execQuery('SELECT pg_advisory_xact_lock(hashtext($1))', [$event['session_id']]);
             synth_protocol_assert_request_active(); $canonical = synth_protocol_canonical_json($event);
-            $result = $this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
+            $result = $this->execQuery('SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id)
                 WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256',
                 [$event['session_id'], $event['request_id'], $canonical, hash('sha256', $canonical)]);
             if (!pg_fetch_assoc($result)) throw new LogicException('trade_fixture_canonical_owner_changed');
@@ -94,7 +94,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
     private function persist(array $event): void
     {
         $canonical = synth_protocol_canonical_json($event); $hash = hash('sha256', $canonical);
-        $this->database->execQuery("INSERT INTO synth_meta.request_executions(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
+        $this->database->execQuery("INSERT INTO public.core_request_execution(session_id,request_id,turn_id,generation,request_sha256,event_type,state)
             VALUES($1,$2,$3,$4,$5,$6,'claimed') ON CONFLICT(session_id,request_id) DO UPDATE SET request_sha256=$5,event_type=$6",
             [$event['session_id'], $event['request_id'], $event['turn_id'], $event['generation'], $hash, $event['type']]);
         $this->database->execQuery("INSERT INTO public.core_protocol_event(session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
@@ -153,7 +153,7 @@ final class NativeTradeLifecycleDatabaseTest extends DatabaseTestCase
     private function answer(array $receipt): array
     {
         // The offering turn completed before the player answered.
-        $this->database->execQuery("UPDATE synth_meta.request_executions SET state='complete' WHERE session_id=$1 AND request_id='trade-input'", [self::SESSION]);
+        $this->database->execQuery("UPDATE public.core_request_execution SET state='complete' WHERE session_id=$1 AND request_id='trade-input'", [self::SESSION]);
         $this->persist($receipt);
         synth_protocol_persist_action_result($this->database, $receipt, self::SESSION);
         $game = ['action_result', 0, 0, ''];

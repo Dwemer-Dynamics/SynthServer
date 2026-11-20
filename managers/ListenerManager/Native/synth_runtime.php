@@ -84,7 +84,7 @@ function synth_ensure_synthnpcs_view(object $db): void
             gamets_last_updated,
             tags,
             md5
-        FROM synth.core_npc_master
+        FROM public.core_npc
         WHERE npc_name <> 'The Narrator'
     ");
 }
@@ -138,13 +138,13 @@ function synth_ensure_profile_defaults(object $db): void
     ");
 
     $db->execQuery("
-        UPDATE synth.core_npc_master
+        UPDATE public.core_npc
         SET profile_id = {$defaultNpcId}
         WHERE npc_name <> 'The Narrator'
           AND (
               profile_id IS NULL
               OR NOT EXISTS (
-                  SELECT 1 FROM public.core_profiles p WHERE p.id = synth.core_npc_master.profile_id
+                  SELECT 1 FROM public.core_profiles p WHERE p.id = public.core_npc.profile_id
               )
           )
     ");
@@ -567,7 +567,7 @@ function synth_ensure_npc(object $db, string $npcName, string $refid = '', array
         $db->withNativeRequestLock(static function() use($db,$npcName,$refid,$profileFields):void {
             $actorId=synth_npc_request_actor_id($db,$npcName);
             if ($actorId===null) throw new RuntimeException('Native NPC profile has no captured actor owner.');
-            $identity=$db->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id='.$actorId);
+            $identity=$db->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id='.$actorId);
             $context=synth_protocol_current_context($db,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
             if (!$identity || !$context) throw new RuntimeException('Native NPC profile snapshot is unavailable.');
             // Dialogue text and stale caller globals are not sources of physical/voice profile metadata.
@@ -714,7 +714,7 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
     $conflict=$actorId===null ? '(npc_name) WHERE actor_identity_id IS NULL'
         : '(actor_identity_id) WHERE actor_identity_id IS NOT NULL';
     if ($db->execQuery("
-        INSERT INTO synth.core_npc_master (
+        INSERT INTO public.core_npc (
             actor_identity_id,
             npc_name,
             npc_favorite,
@@ -767,49 +767,49 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
         )
         ON CONFLICT {$conflict} DO UPDATE SET
             npc_name = EXCLUDED.npc_name,
-            md5 = COALESCE(NULLIF(synth.core_npc_master.md5, ''), EXCLUDED.md5),
-            core = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.core ELSE COALESCE(NULLIF(synth.core_npc_master.core, ''), EXCLUDED.core) END,
-            npc_static_bio = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.npc_static_bio ELSE COALESCE(NULLIF(synth.core_npc_master.npc_static_bio, ''), EXCLUDED.npc_static_bio) END,
-            worldknowledge_tags = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.worldknowledge_tags ELSE COALESCE(NULLIF(synth.core_npc_master.worldknowledge_tags, ''), EXCLUDED.worldknowledge_tags) END,
+            md5 = COALESCE(NULLIF(public.core_npc.md5, ''), EXCLUDED.md5),
+            core = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.core ELSE COALESCE(NULLIF(public.core_npc.core, ''), EXCLUDED.core) END,
+            npc_static_bio = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.npc_static_bio ELSE COALESCE(NULLIF(public.core_npc.npc_static_bio, ''), EXCLUDED.npc_static_bio) END,
+            worldknowledge_tags = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.worldknowledge_tags ELSE COALESCE(NULLIF(public.core_npc.worldknowledge_tags, ''), EXCLUDED.worldknowledge_tags) END,
             personality = CASE
-                WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.personality
-                WHEN synth.core_npc_master.personality IN (
+                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.personality
+                WHEN public.core_npc.personality IN (
                     'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',
                     'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.'
                 )
                     THEN EXCLUDED.personality
-                ELSE COALESCE(NULLIF(synth.core_npc_master.personality, ''), EXCLUDED.personality)
+                ELSE COALESCE(NULLIF(public.core_npc.personality, ''), EXCLUDED.personality)
             END,
-            relationships = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.relationships ELSE COALESCE(NULLIF(synth.core_npc_master.relationships, ''), EXCLUDED.relationships) END,
-            occupation = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.occupation ELSE COALESCE(NULLIF(synth.core_npc_master.occupation, ''), EXCLUDED.occupation) END,
-            appearance = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.appearance ELSE COALESCE(NULLIF(synth.core_npc_master.appearance, ''), EXCLUDED.appearance) END,
-            skills = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.skills ELSE COALESCE(NULLIF(synth.core_npc_master.skills, ''), EXCLUDED.skills) END,
+            relationships = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.relationships ELSE COALESCE(NULLIF(public.core_npc.relationships, ''), EXCLUDED.relationships) END,
+            occupation = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.occupation ELSE COALESCE(NULLIF(public.core_npc.occupation, ''), EXCLUDED.occupation) END,
+            appearance = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.appearance ELSE COALESCE(NULLIF(public.core_npc.appearance, ''), EXCLUDED.appearance) END,
+            skills = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.skills ELSE COALESCE(NULLIF(public.core_npc.skills, ''), EXCLUDED.skills) END,
             speechstyle = CASE
-                WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.speechstyle
-                WHEN synth.core_npc_master.speechstyle = 'Speaks plainly and reacts to the Sole Survivor and the current situation.'
+                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.speechstyle
+                WHEN public.core_npc.speechstyle = 'Speaks plainly and reacts to the Sole Survivor and the current situation.'
                     THEN EXCLUDED.speechstyle
-                ELSE COALESCE(NULLIF(synth.core_npc_master.speechstyle, ''), EXCLUDED.speechstyle)
+                ELSE COALESCE(NULLIF(public.core_npc.speechstyle, ''), EXCLUDED.speechstyle)
             END,
-            goals = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.goals ELSE COALESCE(NULLIF(synth.core_npc_master.goals, ''), EXCLUDED.goals) END,
-            gender = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.gender ELSE COALESCE(NULLIF(EXCLUDED.gender, ''), synth.core_npc_master.gender) END,
-            race = CASE WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.race ELSE COALESCE(NULLIF(EXCLUDED.race, ''), synth.core_npc_master.race) END,
+            goals = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.goals ELSE COALESCE(NULLIF(public.core_npc.goals, ''), EXCLUDED.goals) END,
+            gender = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.gender ELSE COALESCE(NULLIF(EXCLUDED.gender, ''), public.core_npc.gender) END,
+            race = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.race ELSE COALESCE(NULLIF(EXCLUDED.race, ''), public.core_npc.race) END,
             voiceid = CASE
-                WHEN synth.core_npc_master.lock_profile = 1 THEN synth.core_npc_master.voiceid
+                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.voiceid
                 WHEN " . ($isMappedCreature ? "TRUE" : "FALSE") . "
                  AND (
-                    NULLIF(synth.core_npc_master.voiceid, '') IS NULL
-                    OR lower(synth.core_npc_master.voiceid) = lower(" . synth_sql_nullable_string($db, $actorProfileVoice) . ")
+                    NULLIF(public.core_npc.voiceid, '') IS NULL
+                    OR lower(public.core_npc.voiceid) = lower(" . synth_sql_nullable_string($db, $actorProfileVoice) . ")
                  ) THEN EXCLUDED.voiceid
-                ELSE COALESCE(NULLIF(synth.core_npc_master.voiceid, ''), NULLIF(EXCLUDED.voiceid, ''))
+                ELSE COALESCE(NULLIF(public.core_npc.voiceid, ''), NULLIF(EXCLUDED.voiceid, ''))
             END,
-            refid = COALESCE(NULLIF(EXCLUDED.refid, ''), synth.core_npc_master.refid),
-            base = COALESCE(NULLIF(EXCLUDED.base, ''), synth.core_npc_master.base),
-            profile_id = COALESCE(synth.core_npc_master.profile_id, EXCLUDED.profile_id),
-            metadata = COALESCE(synth.core_npc_master.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+            refid = COALESCE(NULLIF(EXCLUDED.refid, ''), public.core_npc.refid),
+            base = COALESCE(NULLIF(EXCLUDED.base, ''), public.core_npc.base),
+            profile_id = COALESCE(public.core_npc.profile_id, EXCLUDED.profile_id),
+            metadata = COALESCE(public.core_npc.metadata, '{}'::jsonb) || EXCLUDED.metadata,
             extended_data = CASE
-                WHEN synth.core_npc_master.lock_profile = 1
-                    THEN COALESCE(synth.core_npc_master.extended_data, '{}'::jsonb)
-                ELSE COALESCE(synth.core_npc_master.extended_data, '{}'::jsonb) || EXCLUDED.extended_data
+                WHEN public.core_npc.lock_profile = 1
+                    THEN COALESCE(public.core_npc.extended_data, '{}'::jsonb)
+                ELSE COALESCE(public.core_npc.extended_data, '{}'::jsonb) || EXCLUDED.extended_data
             END,
             gamets_last_updated = EXCLUDED.gamets_last_updated
     ")===false) throw new RuntimeException('Unable to persist NPC profile.');

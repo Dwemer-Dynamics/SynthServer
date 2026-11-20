@@ -144,7 +144,7 @@ function DataLastAction($actor)
 
     $lastDialogFull = array();
     $cnActor = $db->escape($actor);
-    $results = $db->fetchOne("select  *  FROM synth.actions_issued
+    $results = $db->fetchOne("select  *  FROM public.core_action_issued
     WHERE actorname='$cnActor' order by gamets desc,ts desc LIMIT 1 OFFSET 0");
 
     return $results;

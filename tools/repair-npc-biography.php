@@ -26,7 +26,7 @@ $fetch=static function(string $sql,array $params) use ($connection): array {
         throw new RuntimeException('Unable to lock biography mappings');
     $rows=$fetch('SELECT n.id,n.actor_identity_id,n.npc_name,n.refid,n.base,n.lock_profile,n.npc_static_bio,n.skills,n.metadata::text AS metadata,
         n.extended_data::text AS extended_data,a.origin_plugin,a.full_form_id,a.game
-        FROM synth.core_npc_master n LEFT JOIN synth.actor_identities a ON a.id=n.actor_identity_id ORDER BY n.id',[]);
+        FROM public.core_npc n LEFT JOIN public.core_actor_identity a ON a.id=n.actor_identity_id ORDER BY n.id',[]);
     foreach ($rows ?: [] as $row) {
         $metadata=json_decode(strval($row['metadata'] ?? ''),true);
         $template=is_array($metadata) && is_string($metadata['bio_template'] ?? null) ? $metadata['bio_template'] : '';
@@ -53,12 +53,12 @@ $fetch=static function(string $sql,array $params) use ($connection): array {
         if ($result['status']!=='no_expertise' && $result['status']!=='already_repaired')
             $reports[]=['id'=>intval($row['id']),'npc_name'=>$row['npc_name'],'template'=>$template]+$result;
         if (!$apply || $result['status']!=='repair') continue;
-        $updated=$fetch('UPDATE synth.core_npc_master SET npc_static_bio=$1,skills=NULL WHERE id=$2 AND COALESCE(lock_profile,0)<>1
+        $updated=$fetch('UPDATE public.core_npc SET npc_static_bio=$1,skills=NULL WHERE id=$2 AND COALESCE(lock_profile,0)<>1
             AND npc_static_bio IS NOT DISTINCT FROM $3 AND skills IS NOT DISTINCT FROM $4
             AND actor_identity_id=$5 AND metadata IS NOT DISTINCT FROM $6::jsonb
             AND base IS NOT DISTINCT FROM $7 AND refid IS NOT DISTINCT FROM $8
             AND extended_data IS NOT DISTINCT FROM $11::jsonb
-            AND EXISTS (SELECT 1 FROM synth.actor_identities a WHERE a.id=$5 AND a.full_form_id=$9 AND a.origin_plugin=$10)
+            AND EXISTS (SELECT 1 FROM public.core_actor_identity a WHERE a.id=$5 AND a.full_form_id=$9 AND a.origin_plugin=$10)
             RETURNING id',[$result['npc_static_bio'],intval($row['id']),$row['npc_static_bio'],$row['skills'],
                 $row['actor_identity_id'],$row['metadata'],$row['base'],$row['refid'],$row['full_form_id'],$row['origin_plugin'],$row['extended_data']]);
         if (!is_array($updated) || count($updated)!==1) throw new RuntimeException('NPC profile changed during repair: '.intval($row['id']));

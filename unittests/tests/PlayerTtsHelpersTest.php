@@ -29,7 +29,7 @@ $GLOBALS['db']=new class {
     public function escapeLiteral(string $value): string { return "'".$value."'"; }
     public function query(string $query): never { $this->workQueries++;throw new LogicException('unexpected_echo_work'); }
     public function fetchOne(string $query): ?array {
-        if (!str_contains($query,'synth_meta.request_executions')) { $this->voiceQueries++;return null; }
+        if (!str_contains($query,'public.core_request_execution')) { $this->voiceQueries++;return null; }
         $this->ownerQueries++;
         return ['state'=>$this->case==='cancelled'?'cancelled':'streaming','error_code'=>null,
             'runtime_state'=>'active','active_generation'=>$this->case==='generation'?8:7,
@@ -124,7 +124,7 @@ $GLOBALS['db']=new class {
     public function escapeLiteral(string $value): string { return "'".$value."'"; }
     public function query(string $query): never { throw new LogicException('unexpected_publication_work'); }
     public function fetchOne(string $query): ?array {
-        if (!str_contains($query,'synth_meta.request_executions')) return null;
+        if (!str_contains($query,'public.core_request_execution')) return null;
         return ['state'=>$this->cancel?'cancelled':'streaming','error_code'=>null,'runtime_state'=>'active',
             'active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
     }

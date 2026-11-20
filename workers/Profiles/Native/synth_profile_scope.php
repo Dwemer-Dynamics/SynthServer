@@ -19,8 +19,8 @@ function synth_profile_refresh_bindings($db, array $event, bool $stableKeys=fals
         if (!isset($visible[$key]) || $visible[$key]['display_name']!==$identity['display_name']) {
             throw new RuntimeException('profile_refresh_actor_not_in_snapshot');
         }
-        $rows=$db->fetchAll('SELECT n.id,n.actor_identity_id,n.npc_name FROM synth.core_npc_master n
-            JOIN synth.actor_identities a ON a.id=n.actor_identity_id
+        $rows=$db->fetchAll('SELECT n.id,n.actor_identity_id,n.npc_name FROM public.core_npc n
+            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
             WHERE a.game=\'fo4\' AND upper(a.full_form_id)=upper('.$db->escapeLiteral($identity['form_id']).')
                 AND lower(a.origin_plugin)=lower('.$db->escapeLiteral($identity['origin_plugin']).')
                 AND a.playthrough_id='.$db->escapeLiteral($identity['playthrough_id']).' ORDER BY n.id LIMIT 2');
@@ -44,7 +44,7 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
     }
     $session=$db->escapeLiteral($owner['session_id']);$request=$db->escapeLiteral($owner['request_id']);
     $origin=$db->fetchOne("SELECT p.canonical_event,p.event_sha256 FROM public.core_protocol_event p
-        JOIN synth_meta.request_executions e ON e.session_id=p.session_id AND e.request_id=p.request_id
+        JOIN public.core_request_execution e ON e.session_id=p.session_id AND e.request_id=p.request_id
             AND e.generation=p.generation AND e.turn_id=p.turn_id AND e.event_type=p.event_type
             AND e.request_sha256=p.event_sha256 AND e.state='complete'
         JOIN public.core_runtime_session r ON r.session_id=e.session_id AND r.active_generation=e.generation
@@ -97,7 +97,7 @@ function synth_profile_assert_write_target($db, string $name): void
     $expected=$GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'][$name] ?? null;
     if (!$expected) throw new RuntimeException('Native profile target is outside the queued batch.');
     if ($name==='The Narrator' && ($expected['narrator'] ?? false)===true) return;
-    $row=$db->fetchOne('SELECT id,actor_identity_id,npc_name FROM synth.core_npc_master WHERE id='.intval($expected['npc_id'])
+    $row=$db->fetchOne('SELECT id,actor_identity_id,npc_name FROM public.core_npc WHERE id='.intval($expected['npc_id'])
         .($db->isTransactionIdle() ? '' : ' FOR UPDATE'));
     if (!$row || intval($row['actor_identity_id'])!==$expected['actor_identity_id']) {
         throw new RuntimeException('Native profile target link changed.');

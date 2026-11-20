@@ -72,7 +72,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
         }
         fclose($file);$file=null;
         $admit=static function($connection) use($db,$event,$input,$hash,$id,$actor,$root,&$keep): int {
-            $origin=@pg_query_params($connection,"SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e
+            $origin=@pg_query_params($connection,"SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e
                 USING(session_id,request_id,generation,turn_id) WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3
                 AND p.event_sha256=e.request_sha256 AND p.event_sha256=$4",[$event['session_id'],$event['request_id'],$event['generation'],
                     hash('sha256',synth_protocol_canonical_json($event))]);
@@ -134,7 +134,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Speech worker requires an idle database connection');
     $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256 FROM public.core_worker_job j
-        JOIN synth_meta.request_executions e USING(session_id,request_id,generation,turn_id)
+        JOIN public.core_request_execution e USING(session_id,request_id,generation,turn_id)
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_sha256=e.request_sha256
         WHERE j.id=".intval($jobId)." AND j.job_type='tts' AND j.payload->>'schema'='synth.tts.job.v1'
@@ -226,7 +226,7 @@ function synth_tts_due_jobs($db): array
             lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
         WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND state IN ('pending','running')
             AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN synth_meta.request_executions e USING(session_id)
+                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
                     WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
                         AND r.active_turn_id=j.turn_id AND r.active_turn_sequence::text=j.payload->>'context_sequence'
                         AND e.request_id=j.request_id AND e.generation=j.generation AND e.turn_id=j.turn_id

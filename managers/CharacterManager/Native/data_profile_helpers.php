@@ -1163,7 +1163,7 @@ function getBaseDataForNpcFromLog($npcname) {
     $npcNameEscaped = $GLOBALS["db"]->escape($npcname);
     $result = $GLOBALS["db"]->fetchOne("
         SELECT gender, race, refid
-        FROM core_npc_master
+        FROM core_npc
         WHERE npc_name = '$npcNameEscaped'
         ORDER BY id DESC
         LIMIT 1

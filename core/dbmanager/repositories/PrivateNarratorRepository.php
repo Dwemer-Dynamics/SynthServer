@@ -219,7 +219,7 @@ class PrivateNarratorRepository
             if ($row['state'] === $outcome) return [$outcome, $head['state_id']];
             if ($row['state'] === 'cancelled') return ['cancelled', $head['state_id']];
             if ($row['state'] !== 'generated') throw new NarratorRejected('receipt_conflict');
-            $origin = $this->lockedOne($connection, "SELECT 1 FROM synth_meta.request_executions e
+            $origin = $this->lockedOne($connection, "SELECT 1 FROM public.core_request_execution e
                 JOIN public.core_narrator_definition d ON d.definition_id=$3 AND d.edit_generation=$4
                 JOIN public.core_runtime_session r ON r.session_id=e.session_id AND r.state='active'
                     AND r.active_generation=e.generation AND r.active_turn_id=e.turn_id AND r.active_turn_sequence=$6
@@ -261,7 +261,7 @@ class PrivateNarratorRepository
         $params = [$event['session_id'], $event['generation'], $event['request_id']];
         if (!@pg_query_params($connection, "UPDATE public.core_narrator_pending_output SET state='cancelled',updated_at=NOW()
                 WHERE session_id=$1 AND generation=$2 AND request_id<>$3 AND state IN ('pending','generated')", $params)
-            || !@pg_query_params($connection, "UPDATE synth_meta.request_executions SET state='cancelled',response_body=NULL,
+            || !@pg_query_params($connection, "UPDATE public.core_request_execution SET state='cancelled',response_body=NULL,
                 error_code='request_cancelled',completed_at=NOW() WHERE session_id=$1 AND generation=$2 AND request_id<>$3
                 AND event_type='narrator_turn' AND state IN ('claimed','streaming')", $params))
             throw new \RuntimeException('Unable to retire private narrator replies');
