@@ -17,16 +17,22 @@ use LogicException;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
-use Synth\Core\DbManager\Dao\ProfileDao;
-use Synth\Core\DbManager\Dao\SttConnectorDao;
-use Synth\Core\DbManager\Dao\TtsConnectorDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
-use Synth\Core\DbManager\Dao\RelationshipConfigDao;
-use Synth\Core\DbManager\Dao\WorldspaceDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
+use Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao;
+use Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao;
+use Synth\Core\DbManager\Dao\NpcBiographyTemplateDao;
+use Synth\Core\DbManager\Dao\NpcDao;
+use Synth\Core\DbManager\Dao\NpcHistoryDao;
+use Synth\Core\DbManager\Dao\NpcProfileRuleDao;
 use Synth\Core\DbManager\Dao\NpcRuntimeActorDao;
 use Synth\Core\DbManager\Dao\PluginManifestRevisionDao;
+use Synth\Core\DbManager\Dao\ProfileDao;
+use Synth\Core\DbManager\Dao\RelationshipConfigDao;
+use Synth\Core\DbManager\Dao\SttConnectorDao;
+use Synth\Core\DbManager\Dao\TtsConnectorDao;
+use Synth\Core\DbManager\Dao\WorldspaceDao;
 use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
@@ -46,6 +52,12 @@ final class Database
         SttConnectorDao::class,
         IttConnectorDao::class,
         ProfileDao::class, LocationDao::class, LocationStateDao::class, WorldspaceDao::class, RelationshipConfigDao::class,
+        NpcDao::class,
+        NpcHistoryDao::class,
+        NpcBiographyTemplateDao::class,
+        NpcBiographyTemplateActorDao::class,
+        NpcBiographyTemplateCustomDao::class,
+        NpcProfileRuleDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */

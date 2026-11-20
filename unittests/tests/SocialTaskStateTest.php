@@ -11,7 +11,7 @@ final class SocialTaskFixtureDatabase
     public function execQuery(string $sql,array $params=[])
     {
         $result=$params ? pg_query_params($this->connection,$sql,$params) : pg_query($this->connection,$sql);
-        if (!$result) throw new RuntimeException('Quest fixture query failed');
+        if (!$result) throw new RuntimeException('Quest fixture query failed: '.pg_last_error($this->connection));
         return $result;
     }
     public function fetchOne(string $sql): ?array {return pg_fetch_assoc($this->execQuery($sql)) ?: null;}
