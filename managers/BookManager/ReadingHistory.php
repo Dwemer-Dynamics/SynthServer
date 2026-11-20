@@ -13,7 +13,6 @@ namespace Synth\Managers\BookManager;
 use DomainException;
 use RuntimeException;
 
-require_once __DIR__ . '/ReadingEvent.php';
 require_once __DIR__ . '/../../lib/synth_protocol_state.php';
 
 final class ReadingHistory

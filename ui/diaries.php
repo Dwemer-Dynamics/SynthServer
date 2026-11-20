@@ -17,7 +17,7 @@ $isEmbed=($_GET['embed'] ?? '')==='1';
 $TITLE='SYNTH Diaries';
 $error='';$view=null;
 try {
-    $view=synth_diary_browser_load($GLOBALS['db'],$_GET);
+    $view=synth_diary_browser_load(\Synth\Bootstrap::db(),$_GET);
 } catch (InvalidArgumentException $exception) {
     http_response_code(400);$error='Choose valid diary filters and try again.';
 } catch (Throwable $exception) {

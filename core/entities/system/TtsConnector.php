@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractTtsConnector;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractTtsConnector.php';
 
 /** One row of core_tts_connector. */
 final class TtsConnector extends AbstractTtsConnector

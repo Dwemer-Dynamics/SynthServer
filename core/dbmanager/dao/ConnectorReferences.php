@@ -11,7 +11,6 @@ use Doctrine\DBAL\Connection;
 use Synth\Core\Contracts\ApiKeyRef;
 use Synth\Core\Doctrine\EntityManagerFactory;
 
-require_once dirname(__DIR__, 2).'/contracts/ApiKeyRef.php';
 require_once dirname(__DIR__).'/EntityManagerFactory.php';
 
 /** Reads the four connector tables for references to one API key. Read-only. */

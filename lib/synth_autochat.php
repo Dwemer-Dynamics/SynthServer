@@ -51,7 +51,6 @@ function synth_autochat_line(): ?array
 // keep their witness scope in every other reader.
 function synth_autochat_pair_history(array $rows, string $targetName): array
 {
-    require_once dirname(__DIR__).'/managers/ContextManager.php';
     $messages = [];
     foreach (array_reverse($rows) as $row) {
         $text = strval($row['data'] ?? '');
@@ -75,9 +74,6 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     require_once __DIR__.'/synth_dialogue_policy.php';
     require_once __DIR__.'/synth_player_rewrite.php';
     require_once __DIR__.'/core/llm_connector.class.php';
-    require_once dirname(__DIR__).'/drivers/llm/LlmWrapper.php';
-    require_once dirname(__DIR__).'/drivers/llm/PlayerRewriteDriver.php';
-    require_once dirname(__DIR__).'/managers/ContextManager.php';
     if (!synth_autochat_selected($event) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
         || $event !== ($GLOBALS['SYNTH_REQUEST_EVENT']['json'] ?? null)) throw new LogicException('autochat_owner_required');
     // One owner guard for the component and its driver: same claimed event, then the canonical liveness check.

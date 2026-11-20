@@ -27,7 +27,6 @@ if (!is_file($autoload)) {
 }
 require_once $autoload;
 require_once $root . '/core/dbmanager/SharedApiKeyStore.php';
-require_once $root . '/core/dbmanager/dao/ApiBadgeDao.php';
 
 $pins = json_decode((string) file_get_contents($root . '/core/dbmanager/shared-schema-manifest.json'), true, 8, JSON_THROW_ON_ERROR);
 $copies = 'match';

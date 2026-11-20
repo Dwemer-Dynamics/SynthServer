@@ -39,7 +39,6 @@ $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;
 $managerPath = $enginePath . 'managers' . DIRECTORY_SEPARATOR . 'TtsStudio' . DIRECTORY_SEPARATOR;
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'management_request_guard.php';
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'RequestBody.php';
-require_once $managerPath . 'VoiceSampleStore.php';
 
 $refusal = synthManagementRequestRefusal($_SERVER, 'browser');
 if ($refusal !== null) {
@@ -82,8 +81,6 @@ $npc = null;
 if ($npcId !== null) {
     try {
         require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
-        require_once $managerPath . 'VoicePreviewException.php';
-        require_once $managerPath . 'VoicePreviewManager.php';
         synthRuntimeBootstrap($enginePath, [
             'rotate_logs' => false, 'load_general_settings' => false, 'load_stt_connector' => false, 'load_tts_connector' => false,
         ]);

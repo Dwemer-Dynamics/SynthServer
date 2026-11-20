@@ -131,7 +131,6 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
                 if ($mutation==='action.take_item_from_player' && (!synth_protocol_supports_player_items($parent)
                     || !synth_protocol_supports_player_items($current))) throw new DomainException('action_inventory_ancestry_capability');
                 if ($mutation==='action.barter') {
-                    require_once dirname(__DIR__).'/managers/ActionsManager/TradeOffer.php';
                     if (!\Synth\Managers\ActionsManager\TradeOffer::supported($parent) || !\Synth\Managers\ActionsManager\TradeOffer::supported($current) || !$paired)
                         throw new DomainException('action_inventory_ancestry_capability');
                 }

@@ -9,8 +9,6 @@ namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractIttConnector;
 
-require_once __DIR__.'/UsesEntityManager.php';
-require_once dirname(__DIR__, 2).'/entities/base/AbstractIttConnector.php';
 
 /** Finds rows of core_itt_connector. */
 final class IttConnectorDao

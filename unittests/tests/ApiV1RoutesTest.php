@@ -215,6 +215,26 @@ final class ApiV1RoutesTest extends TestCase
         self::assertSame(403, $status);
     }
 
+    // The four read-style routes decide their refusals before any database read: method, body size, shape and type.
+    public function testHistoryNpcViewObserveAndNarratorTranscribeRefuseBadRequests(): void
+    {
+        foreach (['context/history', 'npc/view', 'dialogue/observe', 'narrator/transcribe'] as $route) {
+            [$status, , $allow] = $this->call('GET', "/api/v1/$route");
+            self::assertSame([405, 'POST'], [$status, $allow], $route);
+        }
+        foreach ([['context/history', 'history.read', 'npc.view.read'], ['npc/view', 'npc.view.read', 'history.read']] as [$route, $type, $wrongType]) {
+            [$status, $body] = $this->call('POST', "/api/v1/$route", '{"type":"' . $wrongType . '"}');
+            self::assertSame([400, 'invalid_request'], [$status, json_decode($body, true)['code'] ?? null], $route);
+            [$status] = $this->call('POST', "/api/v1/$route", '[1]');
+            self::assertSame(400, $status, $route);
+            [$status] = $this->call('POST', "/api/v1/$route", '{"type":"' . $type . '","pad":"' . str_repeat('x', 2000) . '"}');
+            self::assertSame(413, $status, "$route body limit");
+        }
+        // An ordinary context event is not observed dialogue.
+        [$status, $body] = $this->call('POST', '/api/v1/dialogue/observe', '{"type":"context","payload":{}}');
+        self::assertSame([422, 'route_type_mismatch'], [$status, json_decode($body, true)['code'] ?? null]);
+    }
+
     public function testExtensionRoutesListRefuseAndNeverLeakDetails(): void
     {
         [$status, $body] = $this->call('GET', '/api/v1/extensions');

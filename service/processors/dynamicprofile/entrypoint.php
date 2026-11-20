@@ -19,5 +19,5 @@ $GLOBALS['TASKS']['dynamicprofile']['fn'] = function () {
 
     triggerImmediateProfileProcessing();
     require_once $enginePath . 'lib/synth_diary_jobs.php';
-    synth_diary_dispatch_jobs($GLOBALS['db']);
+    synth_diary_dispatch_jobs(\Synth\Bootstrap::db());
 };

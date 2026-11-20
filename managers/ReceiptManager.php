@@ -7,7 +7,6 @@ use Synth\Core\UtteranceRepository;
 
 require_once dirname(__DIR__).'/core/entities/dialogue.php';
 require_once dirname(__DIR__).'/core/dbmanager/repositories/UtteranceRepository.php';
-require_once __DIR__.'/SessionManager.php';
 
 // Delivery receipts for emitted dialogue lines: binding to the claimed snapshot, the heard policy and the one
 // owned receipt write. It needs no provider, speech, knowledge or turn services.

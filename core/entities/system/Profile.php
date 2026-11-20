@@ -8,8 +8,6 @@ namespace Synth\Core\Entities\System;
 
 use Synth\Core\Entities\Base\AbstractProfile;
 
-require_once __DIR__.'/CopiesMappedEntity.php';
-require_once dirname(__DIR__).'/base/AbstractProfile.php';
 
 /** One row of core_profiles. */
 final class Profile extends AbstractProfile

@@ -28,7 +28,6 @@ if (!function_exists('piper_tts_synthesis_url')) {
 
 namespace Synth\Drivers\Tts\Drivers {
 
-    require_once dirname(__DIR__) . '/TtsProviderInterface.php';
 
     use Logger;
 

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/lib/autoload.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
