@@ -28,7 +28,7 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | L0 | this inventory |
 | L1 | `quest_*` to `managers/QuestManager` (done) |
 | L2 | `worldknowledge_*` and `fallout_*` to `managers/WorldKnowledgeManager` (done) |
-| L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs |
+| L3 | `core/*.class.php` connectors, profiles and NPC master onto the existing DAOs (moved; DAO adoption pending) |
 | L4 | `visual_context*` to `managers/VisualContext` |
 | L5 | rechat, auto chat, greeting, management guard |
 | L6 | tts, voice, stt, itt, audio and LLM driver helpers |
@@ -60,8 +60,8 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/compact_context_history.php` | 272 | manager | `managers/ContextManager` (history compaction, observed dialogue, ambient NPCs, actor/player events and reactions, audience, control, dialogue policy) | L9 |
 | `lib/core/action_catalog.php` | 3202 | manager | `managers/ActionsManager/ActionCatalog` (the catalogue and its readers; `core_action` DAO) | L8 |
 | `lib/core/activity_status.php` | 405 | manager | `managers/ServerStatus` (activity status, backup, log trimming, auditing) | L7 |
-| `lib/core/api_badge.class.php` | 101 | entity / DAO | `ApiBadgeDao` + `ApiBadgeRepository` (exist); the legacy class becomes a thin hook | L3 |
-| `lib/core/core_profiles.class.php` | 390 | entity / DAO | `ProfileDao` (exists) for rows, `CharacterManager` for behaviour | L3 |
+| `lib/core/api_badge.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/api_badge.class.php` | done (L3) |
+| `lib/core/core_profiles.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/core_profiles.class.php` | done (L3) |
 | `lib/core/database_schema/bio_template_actor_map.sql` | 55 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/database_schema/core_action.sql` | 94 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/database_schema/core_api_badge.sql` | 115 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
@@ -85,16 +85,16 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/database_schema/visual_context.sql` | 106 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/database_schema/worldknowledge_parity_v1.sql` | 226 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/game_plugins.php` | 510 | manager | `managers/ExtensionManager` (plugin and package handling) | L7 |
-| `lib/core/import_rules.class.php` | 185 | manager | `ConfigManager\ImportRules` | L3 |
-| `lib/core/itt_connector.class.php` | 325 | entity / DAO | `IttConnectorDao` (exists) | L3 |
-| `lib/core/llm_connector.class.php` | 494 | entity / DAO | `LlmConnectorDao` (exists); normalisation stays in `drivers/llm` | L3 |
+| `lib/core/import_rules.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/import_rules.class.php` | done (L3) |
+| `lib/core/itt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/itt_connector.class.php` | done (L3) |
+| `lib/core/llm_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/llm_connector.class.php` | done (L3) |
 | `lib/core/local_llm_setup.php` | 305 | driver | `drivers/llm` (randomiser, local server catalogue, provider streaming, MiniMeT5) | L6 |
-| `lib/core/narrator.class.php` | 551 | entity / DAO | narrator and player settings: `ConfigManager` scopes over `ConfigSettingDao` | L3 |
-| `lib/core/npc_master.class.php` | 1929 | entity / DAO | `NpcActorDao` / `NpcRuntimeActorDao` (exist) + `CharacterManager` | L3 |
-| `lib/core/player.class.php` | 196 | entity / DAO | narrator and player settings: `ConfigManager` scopes over `ConfigSettingDao` | L3 |
+| `lib/core/narrator.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/narrator.class.php` | done (L3) |
+| `lib/core/npc_master.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/npc_master.class.php` | done (L3) |
+| `lib/core/player.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/player.class.php` | done (L3) |
 | `lib/core/settings_presets.php` | 264 | manager | `ConfigManager` (settings schema, presets, loaders); `settings.php` is the legacy loader that fills globals | config session |
-| `lib/core/stt_connector.class.php` | 506 | entity / DAO | `SttConnectorDao` (exists) | L3 |
-| `lib/core/tts_connector.class.php` | 982 | entity / DAO | `TtsConnectorDao` (exists); provider probing goes to `managers/TtsStudio` | L3 |
+| `lib/core/stt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/stt_connector.class.php` | done (L3) |
+| `lib/core/tts_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/tts_connector.class.php` | done (L3) |
 | `lib/core/tts_studio_provider_detection.php` | 96 | driver | `drivers/tts` / `managers/TtsStudio` (provider detection) | L6 |
 | `lib/data_functions.php` | 8098 | split | split by concern into the managers above (diary/context/prompt/profile/memory blocks, tokens, name helpers), leaving a hook; the two biggest files, done last | L12 |
 | `lib/db_connection_settings.php` | 59 | driver / db adapter | `core/dbmanager` adapter (the `sql` class); stays while raw SQL callers remain and shrinks as DAOs replace them | schema session |
