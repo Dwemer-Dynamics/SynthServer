@@ -28,14 +28,14 @@ function synth_middleterm_approval_cte(string $prefix='WITH',bool $savedScope=fa
     // Bound the history reader's planner at saved approvals; management lookups retain predicate pushdown by exact ID/token.
     return $prefix.' regeneration_receipts AS '.($savedScope?'MATERIALIZED ':'')."(
         SELECT q.* FROM public.core_middleterm_regeneration_approval q
-        JOIN synth_meta.history_events h ON h.id=q.history_event_id AND h.session_id=q.session_id
+        JOIN public.core_history_event h ON h.id=q.history_event_id AND h.session_id=q.session_id
             AND h.generation=q.generation AND h.context_sequence=q.context_sequence AND h.playthrough_id=q.playthrough_id
         JOIN public.core_runtime_context origin ON origin.session_id=q.session_id AND origin.generation=q.generation
             AND origin.snapshot_sequence=q.context_sequence AND origin.playthrough_id=q.playthrough_id
         JOIN public.core_middleterm_result result ON result.history_event_id=q.narrative_id
         JOIN public.core_middleterm_input target ON target.id=result.input_id
             AND target.actor_identity_id=q.actor_identity_id AND target.playthrough_id=q.playthrough_id
-        JOIN synth.actor_identities actor ON actor.id=q.actor_identity_id AND actor.playthrough_id=q.playthrough_id AND actor.game='fo4'
+        JOIN public.core_actor_identity actor ON actor.id=q.actor_identity_id AND actor.playthrough_id=q.playthrough_id AND actor.game='fo4'
         WHERE h.request_id IS NULL AND h.event_payload->>'type'='middleterm_regeneration'
             AND h.event_payload->>'delivery_state'='derived' AND origin.player_identity_id IS NOT NULL
             AND origin.player_identity_id<>q.actor_identity_id
@@ -64,7 +64,7 @@ function synth_middleterm_approval_cte(string $prefix='WITH',bool $savedScope=fa
 // Keep the existing NPC-over-profile opt-out authoritative for both confirmation and later worker admission.
 function synth_middleterm_regeneration_enabled($db,int $actorId): bool
 {
-    $npc=$db->fetchOne('SELECT n.extended_data,p.metadata FROM synth.core_npc_master n
+    $npc=$db->fetchOne('SELECT n.extended_data,p.metadata FROM public.core_npc n
         LEFT JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
     if (!$npc) return false;
     $extended=json_decode($npc['extended_data']??'{}',true,512,JSON_THROW_ON_ERROR);
@@ -92,7 +92,7 @@ function synth_middleterm_approve_regeneration($db,array $input): array
         }
         $result=@pg_query_params($connection,"SELECT c.*,r.runtime_variant FROM public.core_runtime_context c
             JOIN public.core_runtime_session r USING(session_id)
-            JOIN synth.actor_identities a ON a.id=$4 AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
+            JOIN public.core_actor_identity a ON a.id=$4 AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
             WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
                 AND r.state='active' AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id
                 AND c.history_event_id IS NOT NULL AND c.player_identity_id IS NOT NULL AND a.id<>c.player_identity_id",
@@ -117,7 +117,7 @@ function synth_middleterm_approve_regeneration($db,array $input): array
                 synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
             VALUES('middleterm_regeneration','Confirmed native narrative regeneration',$2,0,$3,$3,'','','','derived',$4,$5,$6,NULL) RETURNING *
         ), history AS (
-            INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
             SELECT synth_session_id,synth_generation,synth_context_sequence,NULL,$2,rowid,to_jsonb(publication)
                 ||jsonb_build_object('middleterm_regeneration',value.payload,'middleterm_regeneration_sha256',
                     encode(sha256(convert_to(value.payload::text,'UTF8')),'hex')) FROM publication CROSS JOIN value RETURNING id
@@ -187,7 +187,7 @@ function synth_middleterm_regeneration_status($db,array $event,int $actorId,int 
         replacement.target_history_event_id=raw.narrative_id AND replacement.session_id=raw.session_id
             AND replacement.generation=raw.generation AND job.state='ready'
             AND EXISTS(SELECT 1 FROM public.core_middleterm_result result JOIN public.core_middleterm_input input ON input.id=result.input_id
-                JOIN synth_meta.history_events history ON history.id=result.history_event_id AND history.session_id=input.session_id
+                JOIN public.core_history_event history ON history.id=result.history_event_id AND history.session_id=input.session_id
                     AND history.generation=input.generation AND history.request_id=input.request_id AND history.context_sequence=input.context_sequence
                     AND history.playthrough_id=input.playthrough_id
                 WHERE result.history_event_id=replacement.history_event_id AND input.id=job.middleterm_input_id
@@ -205,7 +205,7 @@ function synth_middleterm_regeneration_status($db,array $event,int $actorId,int 
         LEFT JOIN LATERAL (SELECT j.* FROM public.core_middleterm_input i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id
             WHERE i.regeneration_approval_id=raw.history_event_id AND j.job_type='middleterm' ORDER BY j.id DESC LIMIT 1) job ON true
         LEFT JOIN public.core_runtime_session session ON session.session_id=job.session_id AND session.active_generation=job.generation AND session.state='active'
-        LEFT JOIN synth_meta.request_executions execution ON execution.session_id=job.session_id AND execution.request_id=job.request_id
+        LEFT JOIN public.core_request_execution execution ON execution.session_id=job.session_id AND execution.request_id=job.request_id
             AND execution.generation=job.generation AND execution.turn_id=job.turn_id
         WHERE raw.session_id=".$db->escapeLiteral($event['session_id']).' AND raw.generation='.intval($event['generation'])
             ." AND raw.actor_identity_id=$actorId AND raw.narrative_id=$narrativeId ORDER BY raw.history_event_id DESC LIMIT 1");

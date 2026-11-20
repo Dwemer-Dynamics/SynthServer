@@ -139,8 +139,8 @@ if (!function_exists('synthRollbackPruneFutureData')) {
 
         foreach ([
             'core_context_event',
-            'speech',
-            'actions_issued',
+            'core_speech',
+            'core_action_issued',
             'core_quest',
         ] as $table) {
             synthRollbackDelete($table, "gamets>={$targetGamets}", $stats);
@@ -149,7 +149,7 @@ if (!function_exists('synthRollbackPruneFutureData')) {
         synthRollbackDelete('core_memory', "gamets_truncated>{$targetGamets}", $stats);
         synthRollbackDelete('core_memory_log', "gamets>{$targetGamets}", $stats);
 
-        synthRollbackDelete('responselog', "1=1", $stats);
+        synthRollbackDelete('core_response_log', "1=1", $stats);
         synthRollbackDelete('core_director_note', "1=1", $stats);
         synthRollbackDelete('core_relationship_eval_queue', "1=1", $stats);
         synthRollbackDelete('core_relationship_init_queue', "1=1", $stats);

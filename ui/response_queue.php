@@ -102,13 +102,13 @@ $summary = synthResponseQueueFetchOne(
         SUM(CASE WHEN sent = 0 THEN 1 ELSE 0 END) AS pending,
         SUM(CASE WHEN sent <> 0 THEN 1 ELSE 0 END) AS delivered,
         MAX(localts) AS latest_localts
-     FROM responselog"
+     FROM core_response_log"
 );
 
 $rows = synthResponseQueueFetchAll(
     $db,
     "SELECT rowid, localts, sent, actor, action, tag, text
-     FROM responselog
+     FROM core_response_log
      ORDER BY rowid DESC
      LIMIT " . intval($limit)
 );

@@ -74,7 +74,7 @@ final class ReadingHistory
     private static function alreadyRecorded($db, array $event, array $reading, array $player, array $input): bool
     {
         $payload = $event['payload'];
-        $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM synth_meta.history_events
+        $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM public.core_history_event
             WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND event_payload->>'type'='reading_event'
               AND context_sequence>=$5 AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",
             [$event['session_id'], $event['generation'], $payload['playthrough_id'], $reading['event_id'],

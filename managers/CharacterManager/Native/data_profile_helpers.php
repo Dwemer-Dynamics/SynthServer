@@ -1163,7 +1163,7 @@ function getBaseDataForNpcFromLog($npcname) {
     $npcNameEscaped = \Synth\Bootstrap::db()->escape($npcname);
     $result = \Synth\Bootstrap::db()->fetchOne("
         SELECT gender, race, refid
-        FROM core_npc_master
+        FROM core_npc
         WHERE npc_name = '$npcNameEscaped'
         ORDER BY id DESC
         LIMIT 1

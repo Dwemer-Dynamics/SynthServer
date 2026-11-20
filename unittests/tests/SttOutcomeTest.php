@@ -152,7 +152,7 @@ $db=new class($published,$cancel) {
     public array $completions=[];
     public function __construct(private array $published,private bool $cancel) {}
     public function escapeLiteral($v): string {return "'".str_replace("'","''",strval($v))."'";}
-    public function execQuery($sql) {if(str_contains($sql,'UPDATE synth_meta.request_executions'))$this->completions[]=$sql;return true;}
+    public function execQuery($sql) {if(str_contains($sql,'UPDATE public.core_request_execution'))$this->completions[]=$sql;return true;}
     public function fetchOne($sql) {
         if(str_contains($sql,'FROM public.core_media_object'))return ['state'=>'ready','content_type'=>'audio/wav','byte_length'=>$this->published['size'],'sha256'=>$this->published['sha256']];
         $cancelled=$this->cancel && ($GLOBALS['STT_LAST_DIAGNOSTIC']['stage']??'')==='recognized_empty';

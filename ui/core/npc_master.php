@@ -486,7 +486,7 @@ if (!function_exists('synthResolveNpcIdAfterCreate')) {
  {
   try {
    $row = $GLOBALS['db']->fetchOne(
-    "SELECT id FROM core_npc_master WHERE md5 = '" . md5((string)$npcName) . "' AND actor_identity_id IS NULL ORDER BY id DESC LIMIT 1"
+    "SELECT id FROM core_npc WHERE md5 = '" . md5((string)$npcName) . "' AND actor_identity_id IS NULL ORDER BY id DESC LIMIT 1"
    );
    return (int)($row['id'] ?? 0);
   } catch (Throwable $e) {
@@ -664,9 +664,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_favorite"])) {
  $hasValue = array_key_exists('value', $_POST);
  if ($hasValue) {
  $v = ($_POST['value']==='1'||$_POST['value']===1||$_POST['value']===true)?1:0;
- $sql = "UPDATE core_npc_master SET npc_favorite = {$v} WHERE id = {$id} RETURNING npc_favorite";
+ $sql = "UPDATE core_npc SET npc_favorite = {$v} WHERE id = {$id} RETURNING npc_favorite";
  } else {
- $sql = "UPDATE core_npc_master SET npc_favorite = 1 - COALESCE(npc_favorite,0) WHERE id = {$id} RETURNING npc_favorite";
+ $sql = "UPDATE core_npc SET npc_favorite = 1 - COALESCE(npc_favorite,0) WHERE id = {$id} RETURNING npc_favorite";
  }
  $row = $GLOBALS['db']->fetchOne($sql);
  $val = is_array($row) ? intval($row['npc_favorite'] ?? 0) : 0;
@@ -687,9 +687,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_lock"])) {
  $hasValue = array_key_exists('value', $_POST);
  if ($hasValue) {
  $v = ($_POST['value']==='1'||$_POST['value']===1||$_POST['value']===true)?1:0;
- $sql = "UPDATE core_npc_master SET lock_profile = {$v} WHERE id = {$id} RETURNING lock_profile";
+ $sql = "UPDATE core_npc SET lock_profile = {$v} WHERE id = {$id} RETURNING lock_profile";
  } else {
- $sql = "UPDATE core_npc_master SET lock_profile = 1 - COALESCE(lock_profile,0) WHERE id = {$id} RETURNING lock_profile";
+ $sql = "UPDATE core_npc SET lock_profile = 1 - COALESCE(lock_profile,0) WHERE id = {$id} RETURNING lock_profile";
  }
  $row = $GLOBALS['db']->fetchOne($sql);
  $val = is_array($row) ? intval($row['lock_profile'] ?? 0) : 0;
@@ -709,7 +709,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_unlock_npcs"])) 
   if ($confirm !== 'Unlock') { echo json_encode(["ok"=>false, "error"=>"Confirmation text mismatch"]); exit; }
 
   $sql = "WITH upd AS (
-             UPDATE core_npc_master
+             UPDATE core_npc
              SET lock_profile = 0
              WHERE COALESCE(lock_profile, 0) = 1
                AND trim(lower(npc_name)) <> 'the narrator'
@@ -733,7 +733,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_delete_npcs"])) 
  $confirm = trim((string)($_POST['confirm'] ?? ''));
  if ($confirm !== 'Delete') { echo json_encode(["ok"=>false, "error"=>"Confirmation text mismatch"]); exit; }
  // The narrator is stored in core_narrator, but preserve any stale imported narrator row by name.
- $sql = "with del as (delete from core_npc_master where (lock_profile is null or lock_profile = 0) and trim(lower(npc_name)) <> 'the narrator' returning 1) select count(*) as c from del";
+ $sql = "with del as (delete from core_npc where (lock_profile is null or lock_profile = 0) and trim(lower(npc_name)) <> 'the narrator' returning 1) select count(*) as c from del";
  $row = $GLOBALS['db']->fetchOne($sql);
  $deleted = intval($row['c'] ?? 0);
  echo json_encode(["ok"=>true, "deleted"=>$deleted]);
@@ -782,18 +782,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["bulk_switch_profile"]
  }
 
  $baseWhere = "profile_id = {$sourceProfileId} and id <> 1 and trim(lower(npc_name)) <> 'the narrator'";
- $countRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere}");
+ $countRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc WHERE {$baseWhere}");
  $totalMatched = intval($countRow['c'] ?? 0);
 
  $skippedLocked = 0;
  if (!$includeLocked) {
- $skippedRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master WHERE {$baseWhere} AND COALESCE(lock_profile,0)=1");
+ $skippedRow = $GLOBALS['db']->fetchOne("SELECT COUNT(*) AS c FROM core_npc WHERE {$baseWhere} AND COALESCE(lock_profile,0)=1");
  $skippedLocked = intval($skippedRow['c'] ?? 0);
  }
 
  $lockClause = $includeLocked ? "1=1" : "COALESCE(lock_profile,0)=0";
  $sql = "WITH upd AS (
- UPDATE core_npc_master
+ UPDATE core_npc
  SET profile_id = {$targetProfileId}
  WHERE {$baseWhere}
  AND {$lockClause}
@@ -1172,7 +1172,7 @@ if ($salOnly) {
 $order = "order by coalesce(npc_favorite,0) desc, coalesce(gamets_last_updated,0) desc, lower(npc_name) ".$alpha.", id asc";
 
 // Count with filters
-$rowCountRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc_master where {$where}");
+$rowCountRow = $GLOBALS["db"]->fetchOne("SELECT COUNT(*) AS c FROM core_npc where {$where}");
 $totalRows = intval($rowCountRow['c'] ?? 0);
 $totalPages = max(1, (int)ceil($totalRows / max(1, $perPage)));
 if ($page > $totalPages) $page = $totalPages;
@@ -1185,7 +1185,7 @@ $nativeIdentityLabels=[];
 $nativeActorIds=array_values(array_unique(array_filter(array_map(
     static fn($row):int=>intval($row['actor_identity_id'] ?? 0),$data))));
 if ($nativeActorIds) {
- foreach ($GLOBALS['db']->fetchAll('SELECT id,full_form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id IN ('.implode(',',$nativeActorIds).')') as $identity) {
+ foreach ($GLOBALS['db']->fetchAll('SELECT id,full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id IN ('.implode(',',$nativeActorIds).')') as $identity) {
   $nativeIdentityLabels[intval($identity['id'])]=$identity['full_form_id'].' · '.$identity['origin_plugin'].' · '.$identity['playthrough_id'];
  }
 }
@@ -1373,7 +1373,7 @@ if (isset($_GET['history'])) {
  $id = intval($_GET['id'] ?? 0);
  if ($id <= 0) { echo json_encode(['ok'=>false, 'error'=>'Invalid id']); exit; }
  // Skip the most recent snapshot (current state); show only historical entries
- $sel = "select history_id,npc_id,npc_name,npc_favorite,lock_profile,prompt_head,npc_static_bio,worldknowledge_tags,emote_moods,personality,relationships,occupation,appearance,skills,speechstyle,goals,voiceid,gender,race,refid,profile_id,dynamic_profile,md5,gamets_last_updated,created,core,base,tags from core_npc_master_history where npc_id = {$id} order by coalesce(gamets_last_updated,0) desc, created desc, history_id desc offset 1";
+ $sel = "select history_id,npc_id,npc_name,npc_favorite,lock_profile,prompt_head,npc_static_bio,worldknowledge_tags,emote_moods,personality,relationships,occupation,appearance,skills,speechstyle,goals,voiceid,gender,race,refid,profile_id,dynamic_profile,md5,gamets_last_updated,created,core,base,tags from core_npc_history where npc_id = {$id} order by coalesce(gamets_last_updated,0) desc, created desc, history_id desc offset 1";
  $rows = $GLOBALS['db']->fetchAll($sel) ?: [];
  $entries = [];
  foreach ($rows as $r){
@@ -1429,7 +1429,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["restore_from_history"
  if ($historyId <= 0) { echo json_encode(["ok"=>false, "error"=>"Invalid history_id"]); exit; }
 
  // Fetch the historical record
- $histRow = $GLOBALS['db']->fetchOne("select * from core_npc_master_history where history_id = {$historyId}");
+ $histRow = $GLOBALS['db']->fetchOne("select * from core_npc_history where history_id = {$historyId}");
  if (!$histRow) { echo json_encode(["ok"=>false, "error"=>"Historical record not found"]); exit; }
 
  $npcId = intval($histRow['npc_id'] ?? 0);

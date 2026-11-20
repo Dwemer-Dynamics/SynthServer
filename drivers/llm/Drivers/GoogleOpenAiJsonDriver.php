@@ -340,7 +340,7 @@ class GoogleOpenAiJsonDriver
 
             if (\Synth\Bootstrap::db()) {
                 \Synth\Bootstrap::db()->insert(
-                'audit_request',
+                'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => $error["message"]
@@ -361,7 +361,7 @@ class GoogleOpenAiJsonDriver
 
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                         array(
                             'request' => json_encode($data),
                             'result' => $error_message
@@ -374,7 +374,7 @@ class GoogleOpenAiJsonDriver
             } else  {
                 if (\Synth\Bootstrap::db()) {
                     \Synth\Bootstrap::db()->insert(
-                    'audit_request',
+                    'core_audit_request',
                     array(
                         'request' => json_encode($data),
                         'result' => "Ok"

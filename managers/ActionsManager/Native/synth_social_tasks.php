@@ -20,7 +20,7 @@ function synth_social_owned($db,array $event,callable $operation): mixed {
     return $db->withNativeRequestLock(static function($connection,array $owner) use($event,$operation) {
         if ($owner!==$event) throw new LogicException('social_owner_changed');
         $canonical=synth_protocol_canonical_json($event);
-        $proof=@pg_query_params($connection,"SELECT 1 FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id)
+        $proof=@pg_query_params($connection,"SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id)
             WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3 AND p.canonical_event=$4::jsonb
                 AND p.event_sha256=$5 AND e.request_sha256=p.event_sha256 AND e.generation=p.generation
                 AND p.event_type=$6 AND e.event_type=p.event_type AND e.state IN ('claimed','streaming','complete')",
@@ -45,13 +45,13 @@ function synth_social_visible($db,array $event): array {
             origin.event_sha256 AS input_origin_sha256,progress_origin.event_sha256 AS progress_origin_sha256,
             CASE WHEN octet_length(origin.canonical_event::text)<=1048576 THEN origin.canonical_event::text END AS input_origin,
             CASE WHEN octet_length(progress_origin.canonical_event::text)<=1048576 THEN progress_origin.canonical_event::text END AS progress_origin
-        FROM public.core_social_task_input i JOIN synth_meta.history_events input_history ON input_history.id=i.history_event_id
+        FROM public.core_social_task_input i JOIN public.core_history_event input_history ON input_history.id=i.history_event_id
         JOIN public.core_social_task_event e ON e.task_id=i.task_id
-        JOIN synth_meta.history_events progress_history ON progress_history.id=e.history_event_id
+        JOIN public.core_history_event progress_history ON progress_history.id=e.history_event_id
         JOIN public.core_protocol_event origin ON origin.session_id=input_history.session_id AND origin.request_id=input_history.request_id
-        JOIN synth_meta.request_executions accepted ON accepted.session_id=origin.session_id AND accepted.request_id=origin.request_id
+        JOIN public.core_request_execution accepted ON accepted.session_id=origin.session_id AND accepted.request_id=origin.request_id
         JOIN public.core_protocol_event progress_origin ON progress_origin.session_id=progress_history.session_id AND progress_origin.request_id=progress_history.request_id
-        JOIN synth_meta.request_executions progress_execution ON progress_execution.session_id=progress_origin.session_id AND progress_execution.request_id=progress_origin.request_id
+        JOIN public.core_request_execution progress_execution ON progress_execution.session_id=progress_origin.session_id AND progress_execution.request_id=progress_origin.request_id
         WHERE i.player_identity_id=$player AND $inputVisible AND $progressVisible
             AND accepted.request_sha256=origin.event_sha256 AND accepted.state='complete'
             AND progress_execution.request_sha256=progress_origin.event_sha256 AND progress_execution.generation=progress_history.generation
@@ -137,7 +137,7 @@ function synth_social_history($connection,array $event,array $context,string $ta
         INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
             synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
         VALUES('social_task_note',$1,$2,$3,$4,$4,'','','','derived',$5,$6,$7,$8) RETURNING *
-      ) INSERT INTO synth_meta.history_events(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+      ) INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
         SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,to_jsonb(publication)
             ||jsonb_build_object('social_task_id',$9::text,'social_task_state',$10::jsonb)
         FROM publication RETURNING id",
@@ -275,7 +275,7 @@ function synth_social_progress($db,array $event): array {
 function synth_social_spoken_proof($connection,array $event,array $task,array $proof): bool {
     if (array_keys($proof)!==['request_id','line_id'] && array_keys($proof)!==['line_id','request_id'])return false;
     $result=@pg_query_params($connection,"SELECT r.speaker,r.listener,r.listener_state,r.line_sha256,e.response_body,p.canonical_event
-        FROM public.core_dialogue_route r JOIN synth_meta.request_executions e USING(session_id,request_id)
+        FROM public.core_dialogue_route r JOIN public.core_request_execution e USING(session_id,request_id)
         JOIN public.core_protocol_event p USING(session_id,request_id)
         WHERE r.session_id=$1 AND r.request_id=$2 AND r.line_id=$3 AND r.generation=$4
             AND e.state='complete' AND e.request_sha256=p.event_sha256 AND e.generation=r.generation",
@@ -293,14 +293,14 @@ function synth_social_spoken_proof($connection,array $event,array $task,array $p
             && synth_social_arrival_parent_valid($connection,$origin);
         if (($origin['type']??'')!=='trigger'||($origin['payload']['kind']??'')!=='rechat')return false;
         $parent=$origin['payload']['reply_to_request_id']??'';if($parent===''||isset($visited[$parent]))return false;$visited[$parent]=true;
-        $r=@pg_query_params($connection,"SELECT p.canonical_event FROM public.core_protocol_event p JOIN synth_meta.request_executions e USING(session_id,request_id) WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3 AND e.state='complete' AND e.request_sha256=p.event_sha256",[$event['session_id'],$parent,$event['generation']]);
+        $r=@pg_query_params($connection,"SELECT p.canonical_event FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id) WHERE p.session_id=$1 AND p.request_id=$2 AND p.generation=$3 AND e.state='complete' AND e.request_sha256=p.event_sha256",[$event['session_id'],$parent,$event['generation']]);
         if(!$r||!($p=pg_fetch_assoc($r)))return false;$origin=json_decode($p['canonical_event'],true);
     }
     return false;
 }
 function synth_social_arrival_parent_valid($connection,array $parent): bool {
     if (($parent['type']??'')!=='social_task_progress'||($parent['payload']['phase']??'')!=='arrived')return false;
-    $r=@pg_query_params($connection,"SELECT 1 FROM public.core_social_task_event e JOIN synth_meta.history_events h ON h.id=e.history_event_id
+    $r=@pg_query_params($connection,"SELECT 1 FROM public.core_social_task_event e JOIN public.core_history_event h ON h.id=e.history_event_id
         JOIN public.core_protocol_event p ON p.session_id=h.session_id AND p.request_id=h.request_id
         WHERE e.task_id=$1 AND e.execution_id=$2 AND e.status='arrived' AND h.session_id=$3 AND h.generation=$4 AND h.request_id=$5
             AND p.canonical_event=$6::jsonb AND p.event_sha256=$7 AND e.event_payload=h.event_payload->'social_task_state'",

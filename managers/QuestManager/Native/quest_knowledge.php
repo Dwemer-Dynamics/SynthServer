@@ -330,10 +330,10 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
                 'active_quests',c.context_payload->'active_quests') AS context_payload,
             p.canonical_event,p.event_sha256,p.event_type,e.turn_id,s.execution_mode,s.input_text,
             CASE WHEN d.request_id IS NULL THEN 'native_typed' ELSE 'origin_policy' END AS origin_source
-        FROM native_history n JOIN synth_meta.history_events h ON h.id=n.history_event_id
+        FROM native_history n JOIN public.core_history_event h ON h.id=n.history_event_id
         JOIN public.core_runtime_context c ON c.session_id=h.session_id AND c.generation=h.generation
             AND c.snapshot_sequence=h.context_sequence AND c.playthrough_id=h.playthrough_id
-        JOIN synth_meta.request_executions e ON e.session_id=h.session_id AND e.request_id=h.request_id
+        JOIN public.core_request_execution e ON e.session_id=h.session_id AND e.request_id=h.request_id
             AND e.generation=h.generation AND e.state='complete'
         JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
             AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
@@ -342,10 +342,10 @@ function synthQuestKnowledgeReportQuery($db, array $event, int $actor, bool $mat
         CROSS JOIN LATERAL (SELECT
             CASE WHEN d.request_id IS NULL THEN coalesce(p.canonical_event#>>'{payload,control,mode}','STANDARD') ELSE d.execution_mode END AS execution_mode,
             CASE WHEN d.request_id IS NULL THEN p.canonical_event#>>'{payload,text}' ELSE d.input_text END AS input_text) s
-        JOIN synth.actor_identities player ON player.id=c.player_identity_id AND player.game='fo4' AND player.playthrough_id=c.playthrough_id
+        JOIN public.core_actor_identity player ON player.id=c.player_identity_id AND player.game='fo4' AND player.playthrough_id=c.playthrough_id
             AND upper(player.full_form_id)=upper(c.context_payload->'player'->>'form_id')
             AND lower(player.origin_plugin)=lower(c.context_payload->'player'->>'origin_plugin')
-        JOIN synth.actor_identities target ON target.id=c.target_identity_id AND target.game='fo4' AND target.playthrough_id=c.playthrough_id
+        JOIN public.core_actor_identity target ON target.id=c.target_identity_id AND target.game='fo4' AND target.playthrough_id=c.playthrough_id
             AND upper(target.full_form_id)=upper(c.context_payload->'target'->>'form_id')
             AND lower(target.origin_plugin)=lower(c.context_payload->'target'->>'origin_plugin')
         WHERE n.type IN ('inputtext','inputtext_s') AND n.reader_identity_id=c.target_identity_id
@@ -386,7 +386,7 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
         $canonical=synth_protocol_canonical_json($event);
         // Recheck the canonical owner on the captured handle, including narrator reads.
         $result=@pg_query_params($connection,"SELECT c.context_payload
-            FROM synth_meta.request_executions e JOIN public.core_protocol_event p USING(session_id,request_id)
+            FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
             JOIN public.core_runtime_session r ON r.session_id=e.session_id
             JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$4
             WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.turn_id=$5
@@ -425,7 +425,7 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
         if (!synthQuestKnowledgeIdentity($reader)) return $unavailable;
         if ($reader['playthrough_id']!==($payload['playthrough_id'] ?? null)
             || strcasecmp($reader['form_id'],'0x00000014')===0) return $unavailable;
-        $result=@pg_query_params($connection,"SELECT id FROM synth.actor_identities WHERE game='fo4'
+        $result=@pg_query_params($connection,"SELECT id FROM public.core_actor_identity WHERE game='fo4'
             AND upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3",
             [$reader['form_id'],$reader['origin_plugin'],$reader['playthrough_id']]);
         if (!$result) throw new RuntimeException('quest_knowledge_reader_read_failed');

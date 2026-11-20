@@ -76,7 +76,7 @@ if ($npcData) {
  SELECT personality,npc_static_bio,
  created,
  ROW_NUMBER() OVER (PARTITION BY personality ORDER BY created) AS rn
- FROM core_npc_master_history
+ FROM core_npc_history
  WHERE npc_name = '".$GLOBALS["db"]->escape($npcName)."'
  ) AS sub
  WHERE rn = 1

@@ -92,7 +92,7 @@ function synth_actor_stats_for_request($db,string $npcName): string
     $context=synth_protocol_current_context($db,$event);
     $actorId=synth_npc_request_actor_id($db,$npcName,$context);
     $identity=$actorId===null ? null
-        : $db->fetchOne('SELECT full_form_id AS form_id,origin_plugin,playthrough_id FROM synth.actor_identities WHERE id='.intval($actorId));
+        : $db->fetchOne('SELECT full_form_id AS form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id='.intval($actorId));
     return synth_actor_stats_prompt($event,is_array($identity) && is_array($context) ? synth_actor_stats_state($context,$identity) : null);
 }
 

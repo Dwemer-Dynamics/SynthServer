@@ -128,7 +128,7 @@ if (!function_exists('synthGetRechatPreviousSpeakerName')) {
             try {
                 global $db;
                 if (isset($db)) {
-                    $row = $db->fetchOne("SELECT speaker FROM speech ORDER BY rowid DESC LIMIT 1");
+                    $row = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
                     $speaker = trim((string)($row["speaker"] ?? ""));
                 }
             } catch (\Throwable $e) {
