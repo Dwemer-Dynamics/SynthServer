@@ -19,6 +19,7 @@ use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
+use Synth\Core\DbManager\Dao\MessageQueueDao;
 use Synth\Core\DbManager\Dao\NpcActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao;
 use Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao;
@@ -58,6 +59,7 @@ final class Database
         NpcBiographyTemplateActorDao::class,
         NpcBiographyTemplateCustomDao::class,
         NpcProfileRuleDao::class,
+        MessageQueueDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */

@@ -24,6 +24,17 @@
                 "file": "Version20261117100000.structure.txt",
                 "entries": 16
             }
+        },
+        "Version20261120100000": {
+            "class": "Synth\\Migrations\\Version20261120100000",
+            "files": {
+                "Version20261120100000.php": "44634ef9a19007358f48b45ddd3fedf5d9bc0053179a91de133c614764b3dec0",
+                "Version20261120100000.structure.txt": "e95d329d98bc2e9809a3a47abbed4cd38f16ab7980e2c661e8e5eff1168e2a9b"
+            },
+            "structure": {
+                "file": "Version20261120100000.structure.txt",
+                "entries": 24
+            }
         }
     }
 }

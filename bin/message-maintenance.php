@@ -11,6 +11,12 @@
  * (`core_worker_job`, type `tts`) are older than the retention, and how many history events (`core_context_event`)
  * exist.
  *
+ * It also keeps the durable message queue (`core_message_queue`, managers/MessageHandler) tidy. With --apply it marks pending
+ * and completed messages past their expiry as expired, cancels the messages whose speech job was cancelled, announces
+ * completed messages again whose wake-up did not reach a client (at most five attempts each), and deletes delivered, cancelled
+ * and expired messages older than the retention; active work is never deleted. Without --apply the `message_queue` section only
+ * counts. Retention: `terminal_older_than_retention` is what a run would delete.
+ *
  * Deliberately not touched: `core_context_event` is the conversation history that dialogue, memory and save ancestry
  * read, so it is only counted here, never pruned; finished speech jobs are retired by the speech worker together with
  * their private input files (`synth_tts_cleanup_job_inputs`), so they are only counted. Exit code: 0 done, 1 failed,
@@ -65,6 +71,13 @@ try {
         $deleted = $expired;
     }
 
+    $queue = \Synth\Managers\MessageHandler\MessageHandler::current();
+    $queueActions = ['expired' => 0, 'cancelled' => 0, 'announced' => 0, 'purged' => 0];
+    if ($apply) {
+        $queueActions = ['expired' => $queue->expire(), 'cancelled' => $queue->cancelCancelledWork(),
+            'announced' => $queue->retryNotifications(), 'purged' => $queue->purge($days)];
+    }
+
     $report = [
         'retention_days' => $days,
         'applied' => $apply,
@@ -74,6 +87,7 @@ try {
             'remaining' => $count('SELECT COUNT(*) AS n FROM public.core_response_log'),
         ],
         'finished_speech_jobs_older_than_retention' => $count("SELECT COUNT(*) AS n FROM public.core_worker_job WHERE job_type='tts' AND state IN ('ready','failed','cancelled','stale') AND updated_at < now() - interval '" . $days . " days'"),
+        'message_queue' => $queue->report($days) + ['actions' => $queueActions],
         'history_events' => $count('SELECT COUNT(*) AS n FROM public.core_context_event'),
     ];
     echo json_encode($report, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
