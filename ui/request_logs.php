@@ -111,7 +111,7 @@ function getAuditRequestColumns(sql $db): array
         $db,
         "SELECT column_name
          FROM information_schema.columns
-         WHERE table_schema = 'synth' AND table_name = 'audit_request'"
+         WHERE table_schema = 'public' AND table_name = 'core_audit_request'"
     );
     $columnKey = "column_name";
 
