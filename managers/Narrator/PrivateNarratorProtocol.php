@@ -79,9 +79,7 @@ final class PrivateNarratorProtocol
     // An install whose migration has not run yet keeps publishing contexts and never grants the capability.
     public static function schemaReady($db): bool
     {
-        $row = $db->fetchOne("SELECT to_regclass('public.core_narrator_context_state') IS NOT NULL
-            AND to_regclass('public.core_narrator_pending_output') IS NOT NULL AS ready");
-        return in_array($row['ready'] ?? false, [true, 't'], true);
+        return \Synth\Core\DbManager\Dao\NarratorContextStateDao::current($db)->storageReady();
     }
 
     // Runs inside synth_protocol_claim_request's transaction under the session advisory lock, after the context
@@ -94,42 +92,28 @@ final class PrivateNarratorProtocol
         $generation = intval($event['generation']);
         $sequence = intval($payload['snapshot_sequence']);
         $playthrough = strval($payload['playthrough_id']);
-        $head = $db->execQuery('SELECT state_id,playthrough_id FROM public.core_narrator_lane_head
-            WHERE session_id=$1 AND generation=$2 FOR UPDATE', [$sessionId, $generation]);
-        if ($head === false) throw new \RuntimeException('Unable to read private narrator lane');
-        $head = pg_fetch_assoc($head);
-        if ($head === false) {
+        try { $head = \Synth\Core\DbManager\Dao\NarratorLaneHeadDao::current($db)->lockHead($sessionId, $generation); }
+        catch (\Throwable $failure) { throw new \RuntimeException('Unable to read private narrator lane', 0, $failure); }
+        if ($head === null) {
             $state = null;
             $anchor = synth_protocol_loaded_context($db, $event);
             if ($anchor !== null) {
-                $saved = $db->execQuery('SELECT n.state_id FROM public.core_narrator_context_state n
-                    LEFT JOIN public.core_narrator_state s ON s.state_id=n.state_id
-                    WHERE n.session_id=$1 AND n.generation=$2 AND n.snapshot_sequence=$3 AND n.playthrough_id=$4
-                        AND (n.state_id IS NULL OR s.playthrough_id=n.playthrough_id)',
-                    [$anchor['session_id'], intval($anchor['generation']), intval($anchor['snapshot_sequence']), $playthrough]);
-                if ($saved === false) throw new \RuntimeException('Unable to read saved private narrator state');
-                $saved = pg_fetch_assoc($saved);
+                try { $state = \Synth\Core\DbManager\Dao\NarratorContextStateDao::current($db)->savedStateId(strval($anchor['session_id']), intval($anchor['generation']),
+                    intval($anchor['snapshot_sequence']), $playthrough); }
+                catch (\Throwable $failure) { throw new \RuntimeException('Unable to read saved private narrator state', 0, $failure); }
                 // A save made before this feature (or without it) restores the empty state.
-                if ($saved !== false && $saved['state_id'] !== null) $state = intval($saved['state_id']);
             }
-            if ($db->execQuery('INSERT INTO public.core_narrator_lane_head(session_id,generation,playthrough_id,state_id)
-                VALUES($1,$2,$3,$4)', [$sessionId, $generation, $playthrough, $state]) === false) {
-                throw new \RuntimeException('Unable to open private narrator lane');
-            }
+            try { \Synth\Core\DbManager\Dao\NarratorLaneHeadDao::current($db)->open($sessionId, $generation, $playthrough, $state); }
+            catch (\Throwable $failure) { throw new \RuntimeException('Unable to open private narrator lane', 0, $failure); }
             // A load or same-world replacement starts a new lane; replies owned by any earlier lane of this playthrough
             // can no longer reach a transcript.
-            if ($db->execQuery("UPDATE public.core_narrator_pending_output SET state='cancelled',updated_at=NOW()
-                WHERE playthrough_id=$1 AND state IN ('pending','generated') AND NOT (session_id=$2 AND generation=$3)",
-                [$playthrough, $sessionId, $generation]) === false) {
-                throw new \RuntimeException('Unable to retire superseded private narrator replies');
-            }
+            try { \Synth\Core\DbManager\Dao\NarratorPendingOutputDao::current($db)->cancelSuperseded($playthrough, $sessionId, $generation); }
+            catch (\Throwable $failure) { throw new \RuntimeException('Unable to retire superseded private narrator replies', 0, $failure); }
             $head = ['state_id' => $state, 'playthrough_id' => $playthrough];
         } elseif ($head['playthrough_id'] !== $playthrough) {
             throw new \DomainException('context_playthrough_mismatch');
         }
-        if ($db->execQuery('INSERT INTO public.core_narrator_context_state(session_id,generation,snapshot_sequence,playthrough_id,state_id)
-            VALUES($1,$2,$3,$4,$5)', [$sessionId, $generation, $sequence, $playthrough, $head['state_id']]) === false) {
-            throw new \RuntimeException('Unable to capture private narrator state');
-        }
+        try { \Synth\Core\DbManager\Dao\NarratorContextStateDao::current($db)->capture($sessionId, $generation, $sequence, $playthrough, $head['state_id']); }
+        catch (\Throwable $failure) { throw new \RuntimeException('Unable to capture private narrator state', 0, $failure); }
     }
 }

@@ -252,17 +252,10 @@ function lookupDescriptionRecordByCandidates(array $candidateBaseIds, bool $requ
         }
     }
 
-    foreach (['core_item_description_custom', 'core_item_description'] as $tableName) {
+    $itemDaos = [\Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::current($db), \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)];
+    foreach ($itemDaos as $itemDao) {
         foreach ($candidateRows as $candidateRow) {
-            $escapedPlugin = $db->escape($candidateRow['plugin']);
-            $escapedBaseId = $db->escape($candidateRow['baseid']);
-            $record = $db->fetchOne(
-                "SELECT plugin, baseid, name, description
-                   FROM public.{$tableName}
-                  WHERE plugin = '{$escapedPlugin}'
-                    AND baseid = '{$escapedBaseId}'
-                  LIMIT 1"
-            );
+            $record = $itemDao->recordByKey((string)$candidateRow['plugin'], (string)$candidateRow['baseid']);
 
             if (!$record) {
                 continue;
@@ -371,12 +364,9 @@ function synthLookupCapturedEquipmentDescription(string $formId, string $plugin)
     }
     $localFormId = synthExtractLocalFormIdFromRuntimeFormId($formId);
     // Do not use wildcard, bare runtime-ID or name fallbacks across plugins.
-    foreach (['core_item_description_custom', 'core_item_description'] as $table) {
-        $result = $db->execQuery("SELECT description FROM public.{$table}
-            WHERE plugin=$1 AND baseid=$2 AND description<>'' LIMIT 1", [$plugin, $localFormId]);
-        if ($result === false) return null;
-        $row = pg_fetch_assoc($result);
-        if (is_string($row['description'] ?? null)) return $row['description'];
+    foreach ([\Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::current($db), \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)] as $itemDao) {
+        $description = $itemDao->descriptionByKey($plugin, $localFormId);
+        if ($description !== null) return $description;
     }
     return null;
 }

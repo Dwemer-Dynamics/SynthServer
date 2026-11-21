@@ -24,4 +24,17 @@ final class FactionDao
     {
         return array_values($this->fresh()->getRepository(AbstractFaction::class)->findBy([], ['formid' => 'ASC'], max(1, $limit)));
     }
+
+    /** Names of the factions with these form ids. @param list<string> $formIds @return list<array<string, mixed>> */
+    public function namesByFormIds(array $formIds): array
+    {
+        if ($formIds === []) {
+            return [];
+        }
+
+        return $this->connection()->fetchAllAssociative(
+            'SELECT name FROM public.core_faction WHERE formid IN ('.implode(', ', array_fill(0, count($formIds), '?')).')',
+            array_map('strval', array_values($formIds))
+        );
+    }
 }

@@ -24,4 +24,17 @@ final class ProtocolEventDao
     {
         return array_values($this->fresh()->getRepository(AbstractProtocolEvent::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
+
+    /** The request id of the first quest_updated trigger recorded for this context sequence, or null. */
+    public function firstQuestUpdateRequestId(string $sessionId, int $generation, string $contextSequence): ?string
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT request_id FROM public.core_protocol_event
+             WHERE session_id = ? AND generation = ? AND event_type = 'trigger'
+               AND canonical_event->'payload'->>'kind' = 'quest_updated' AND canonical_event->>'context_sequence' = ? ORDER BY id LIMIT 1",
+            [$sessionId, $generation, $contextSequence]
+        );
+
+        return $id === false ? null : (string) $id;
+    }
 }

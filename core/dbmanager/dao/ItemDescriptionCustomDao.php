@@ -24,4 +24,20 @@ final class ItemDescriptionCustomDao
     {
         return array_values($this->fresh()->getRepository(AbstractItemDescriptionCustom::class)->findBy([], ['plugin' => 'ASC', 'baseid' => 'ASC'], max(1, $limit)));
     }
+
+    /** Plugin, base id, name and description of one item, or null. @return array<string, mixed>|null */
+    public function recordByKey(string $plugin, string $baseid): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? LIMIT 1', [$plugin, $baseid]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** The non-empty description of one item, or null. */
+    public function descriptionByKey(string $plugin, string $baseid): ?string
+    {
+        $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
+
+        return is_string($value) ? $value : null;
+    }
 }

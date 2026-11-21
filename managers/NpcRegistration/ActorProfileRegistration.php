@@ -127,11 +127,7 @@ final class ActorProfileRegistration
 
         $factionFormIds = array_values(array_unique($factionFormIds));
         if (!empty($factionFormIds)) {
-            $formIdLiterals = implode(', ', array_map(
-                static fn($formId) => "'" . $db->escape($formId) . "'",
-                $factionFormIds
-            ));
-            foreach ($db->fetchAll("SELECT name FROM public.core_faction WHERE formid IN ({$formIdLiterals})") as $factionRow) {
+            foreach (\Synth\Core\DbManager\Dao\FactionDao::current($db)->namesByFormIds($factionFormIds) as $factionRow) {
                 $name = trim((string)($factionRow['name'] ?? ''));
                 if ($name !== '') {
                     $factionNames[] = $name;
@@ -146,36 +142,8 @@ final class ActorProfileRegistration
                 static fn($mod) => $mod !== ''
             ))
             : [];
-        $modsArray = empty($mods)
-            ? "ARRAY[]::text[]"
-            : "ARRAY['" . implode("','", array_map([$db, 'escape'], $mods)) . "']::text[]";
-        $factionsArray = empty($factionNames)
-            ? "ARRAY[]::text[]"
-            : "ARRAY['" . implode("','", array_map([$db, 'escape'], $factionNames)) . "']::text[]";
-
-        $npcName = $db->escape((string)($currentData['npc_name'] ?? ''));
-        $npcRace = $db->escape((string)($currentData['race'] ?? ''));
-        $npcGender = $db->escape((string)($currentData['gender'] ?? ''));
-        $npcBase = $db->escape((string)($currentData['base'] ?? ''));
-        $rules = $db->fetchAll("
-            SELECT *
-              FROM public.core_npc_profile_rule r
-             WHERE r.enabled = TRUE
-               AND (NULLIF(BTRIM(r.match_name), '') IS NULL OR '{$npcName}' ~ r.match_name)
-               AND (NULLIF(BTRIM(r.match_race), '') IS NULL OR '{$npcRace}' ~ r.match_race)
-               AND (NULLIF(BTRIM(r.match_gender), '') IS NULL OR '{$npcGender}' ~ r.match_gender)
-               AND (NULLIF(BTRIM(r.match_base), '') IS NULL OR '{$npcBase}' ~ r.match_base)
-               AND (
-                    NULLIF(BTRIM(r.match_faction), '') IS NULL
-                    OR EXISTS (
-                        SELECT 1
-                          FROM unnest({$factionsArray}) AS npc_faction(name)
-                         WHERE npc_faction.name ~ r.match_faction
-                    )
-               )
-               AND (r.match_mods IS NULL OR r.match_mods <@ {$modsArray})
-             ORDER BY r.priority DESC, r.id DESC
-        ");
+        $rules = \Synth\Core\DbManager\Dao\NpcProfileRuleDao::current($db)->matching((string)($currentData['npc_name'] ?? ''), (string)($currentData['race'] ?? ''),
+            (string)($currentData['gender'] ?? ''), (string)($currentData['base'] ?? ''), $factionNames, $mods);
 
         if (empty($rules)) {
             return;

@@ -24,4 +24,14 @@ final class NarratorPendingOutputDao
     {
         return array_values($this->fresh()->getRepository(AbstractNarratorPendingOutput::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Cancels the pending or generated replies of this playthrough that belong to any lane other than this session generation. */
+    public function cancelSuperseded(string $playthroughId, string $sessionId, int $generation): void
+    {
+        $this->connection()->executeStatement(
+            "UPDATE public.core_narrator_pending_output SET state = 'cancelled', updated_at = NOW()
+             WHERE playthrough_id = ? AND state IN ('pending', 'generated') AND NOT (session_id = ? AND generation = ?)",
+            [$playthroughId, $sessionId, $generation]
+        );
+    }
 }
