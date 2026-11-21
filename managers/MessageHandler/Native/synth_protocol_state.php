@@ -596,21 +596,13 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
 function synth_protocol_persist_context($db, array $event, string $sessionId): void
 {
     $payload = $event['payload'];
-    $session = $db->escapeLiteral($sessionId);
     $generation = intval($event['generation']);
     $sequence = intval($payload['snapshot_sequence']);
-    $playthroughId = $db->escapeLiteral($payload['playthrough_id']);
-    $latest = ($event['protocol_version'] ?? 1) === 2 ? $db->fetchOne(
-        "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-          ORDER BY snapshot_sequence DESC LIMIT 1"
-    ) : $db->fetchOne(
-        "SELECT MAX(snapshot_sequence) AS latest
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-            AND playthrough_id={$playthroughId}"
-    );
+    $playthroughId = strval($payload['playthrough_id']);
+    $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db);
+    $latest = ($event['protocol_version'] ?? 1) === 2
+        ? $contexts->latestSnapshot($sessionId, $generation)
+        : $contexts->latestSequenceInPlaythrough($sessionId, $generation, $playthroughId);
     if ($latest && $latest['latest'] !== null && $sequence <= intval($latest['latest'])) {
         synth_protocol_fail('stale_context', 409, [['field' => 'payload.snapshot_sequence', 'issue' => 'must_advance']]);
     }
@@ -634,30 +626,15 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
     foreach ($payload['audience'] as $actor) {
         $audienceIds[] = synth_protocol_actor_identity_id($db, $actor);
     }
-    $audienceJson = $db->escapeLiteral(json_encode($audienceIds, JSON_UNESCAPED_SLASHES));
-    $contextJson = $db->escapeLiteral(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    $targetSql = $targetId === null ? 'NULL' : strval($targetId);
+    $audienceJson = json_encode($audienceIds, JSON_UNESCAPED_SLASHES);
+    $contextJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     // claim_request holds the same transaction lock used by native event insertions.
     // This is an insertion frontier, not a delivery or mutable-history revision frontier.
-    $historyFrontier = ($event['protocol_version'] ?? 1) === 2
-        ? "(SELECT COALESCE(MAX(id),0) FROM public.core_history_event
-              WHERE session_id={$session} AND generation={$generation} AND playthrough_id={$playthroughId})"
-        : 'NULL';
-    if ($db->execQuery(
-        "INSERT INTO public.core_runtime_context
-            (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
-             target_identity_id, audience_identity_ids, context_payload, history_event_id)
-         VALUES ({$session}, {$generation}, {$sequence}, {$playthroughId}, {$playerId},
-                 {$targetSql}, {$audienceJson}::jsonb, {$contextJson}::jsonb,
-                 {$historyFrontier})"
-    ) === false) {
+    if (!$contexts->insertSnapshot($sessionId, $generation, $sequence, $playthroughId, $playerId, $targetId, strval($audienceJson),
+        strval($contextJson), ($event['protocol_version'] ?? 1) === 2)) {
         throw new RuntimeException('Unable to persist acknowledged context and history frontier');
     }
-    $db->execQuery(
-        "UPDATE public.core_runtime_session
-            SET playthrough_id={$playthroughId}, updated_at=NOW()
-          WHERE session_id={$session}"
-    );
+    \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->setPlaythrough($sessionId, $playthroughId);
     if (is_array($payload['world'] ?? null)) {
         synth_protocol_persist_world_context($db, $event, $payload['world']);
     }
@@ -684,16 +661,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
-        if ($db->execQuery("UPDATE public.core_runtime_context c
-            SET history_event_id=GREATEST(c.history_event_id,COALESCE((
-                SELECT MAX(h.id) FROM public.core_history_event h
-                 WHERE h.session_id=c.session_id AND h.generation=c.generation
-                   AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
-                   AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
-            ),0))
-            WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
-            [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
+        if (!$contexts->finalizeHistoryFrontier($sessionId, $generation, $sequence, $playthroughId, strval($event['request_id']))) {
             throw new RuntimeException('Unable to finalize captured observation history frontier');
         }
         // Private narrator state is captured beside this snapshot by opaque ID; the snapshot itself is not touched.
