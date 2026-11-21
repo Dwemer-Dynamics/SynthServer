@@ -127,7 +127,7 @@ final class Logger
         }
         $requestId = (string)preg_replace('/[^A-Za-z0-9_.:-]/', '_', $requestId);
         self::$requestId = substr($requestId, 0, 96);
-        \Synth\Bootstrap::set('SYNTH_REQUEST_ID', self::$requestId);
+        $GLOBALS['SYNTH_REQUEST_ID'] = self::$requestId;
     }
 
     public static function getRequestId(): string
@@ -135,7 +135,7 @@ final class Logger
         if (self::$requestId !== '') {
             return self::$requestId;
         }
-        if (!empty(\Synth\Bootstrap::config('SYNTH_REQUEST_ID'))) {
+        if (!empty($GLOBALS['SYNTH_REQUEST_ID'])) {
             self::setRequestId(\Synth\Bootstrap::config('SYNTH_REQUEST_ID'));
             return self::$requestId;
         }
