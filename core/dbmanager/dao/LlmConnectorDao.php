@@ -103,4 +103,24 @@ final class LlmConnectorDao
     {
         return array_values($this->fresh()->getRepository(AbstractLlmConnector::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** Takes the transaction-scoped advisory lock that serializes the local model setup wizard; false when the statement fails. */
+    public function lockLocalSetup(): bool
+    {
+        try {
+            $this->connection()->executeQuery("SELECT pg_advisory_xact_lock(hashtext('synth_local_llm_setup'))");
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Id and option_label (the label, else the model, else the id) of every connector, for a settings select list. @return list<array<string, mixed>> */
+    public function settingOptions(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(model, ''), CAST(id AS text)) AS option_label FROM public.core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label, ''), model)) ASC"
+        );
+    }
 }
