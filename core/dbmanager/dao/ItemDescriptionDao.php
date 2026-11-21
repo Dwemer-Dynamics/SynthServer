@@ -6,10 +6,12 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractItemDescription;
 
 /** Finds rows of core_item_description. */
-final class ItemDescriptionDao
+class ItemDescriptionDao
 {
     use UsesEntityManager;
 
@@ -23,5 +25,20 @@ final class ItemDescriptionDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractItemDescription::class)->findBy([], ['plugin' => 'ASC', 'baseid' => 'ASC'], max(1, $limit)));
+    }
+
+    /** Inserts a standard item description unless one exists for the plugin and base id. False when the statement fails. */
+    public function insertIfMissing(string $plugin, string $baseid, string $name, string $description): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES (?,?,?,?) ON CONFLICT(plugin,baseid) DO NOTHING',
+                [$plugin, $baseid, $name, $description]
+            );
+
+            return true;
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
     }
 }

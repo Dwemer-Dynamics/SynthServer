@@ -4,6 +4,7 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__, 2).'/lib/synth_protocol_state.php';
 require_once dirname(__DIR__, 2).'/lib/worldknowledge_forced_context.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 /** Authored replacements must protect every ordinary catalogue access path. */
 final class QuestAccessPolicyTest extends TestCase
@@ -29,6 +30,7 @@ final class QuestAccessPolicyTest extends TestCase
 
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->savedGlobals as $key => [$exists, $value]) {
             if ($exists) $GLOBALS[$key] = $value;
             else unset($GLOBALS[$key]);
@@ -95,6 +97,7 @@ final class QuestAccessPolicyTest extends TestCase
             public function __construct(private array $row) {}
             public function fetchAll(string $query): array { return [$this->row]; }
         };
+        DaoTestDoubles::worldKnowledgeFrom($db);
         $rows = synthWorldKnowledgeFetchEffectiveCatalog($db);
         $topics = array_column($rows, 'canonical_topic');
         $this->assertSame(count($topics), count(array_unique($topics)));
@@ -115,6 +118,7 @@ final class QuestAccessPolicyTest extends TestCase
                 throw new SYNTHProtocolCancelled('Quest policy catalogue cancelled');
             }
         };
+        DaoTestDoubles::worldKnowledgeFrom($db);
         try {
             synthWorldKnowledgeFetchEffectiveCatalog($db);
             $this->fail('Cancelled catalogue read continued');
@@ -275,6 +279,7 @@ final class QuestAccessPolicyTest extends TestCase
         };
         $decisions = [synthWorldKnowledgeAccessDecision($this->row(), ['knowall']),
             synthWorldKnowledgeAccessDecision($this->row('quest_unreviewed_future'), ['knowall'])];
+        DaoTestDoubles::worldKnowledgeFrom($db);
         synthWorldKnowledgeRecordAudit($db, ['access_decisions' => $decisions]);
         $this->assertStringContainsString('INSERT INTO public.core_worldknowledge_audit', $db->query);
         $this->assertStringNotContainsString(self::ADVANCED_SECRET, $db->query);

@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/worldknowledge_vocabulary.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 final class WorldKnowledgeVocabularyTest extends TestCase
 {
@@ -14,6 +15,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
     }
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->saved as $key=>$state) {
             if ($state['exists']) $GLOBALS[$key]=$state['value']; else unset($GLOBALS[$key]);
         }
@@ -81,6 +83,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function escapeLiteral(string $text): string { return "'".$this->escape($text)."'"; }
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
+            DaoTestDoubles::worldKnowledgeFrom($GLOBALS['db']);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot';
             $GLOBALS['WORLDKNOWLEDGE_EXTRACTOR_FALLBACK']=false;
@@ -133,6 +136,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
             $GLOBALS['db']=$db;
+            DaoTestDoubles::worldKnowledgeFrom($db);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot,knowall,commonwealth';
             $GLOBALS['WORLDKNOWLEDGE_INFINIUM']=true;

@@ -20,30 +20,27 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
     try {
         foreach ($pack['npcs'] as $row) {
             $fields=['npc_name'=> $row['npc_name']]+$row['fields'];
-            $placeholders=array_map(static fn($position)=>'$'.$position,range(1,count($fields)));
-            if ($db->execQuery('INSERT INTO public.core_npc_biography_template ('.implode(',',array_keys($fields)).') VALUES ('.implode(',',$placeholders).') ON CONFLICT(npc_name) DO NOTHING',array_values($fields))===false)
+            if (!\Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->insertIfMissing($fields))
                 throw new RuntimeException('Unable to import NPC template');
             $reference=($row['mapping_kind'] ?? 'base')==='reference';
-            $mappingColumns=$reference ? 'reference_plugin,reference_local_formid' : 'base_plugin,base_local_formid';
             $mappingIds=$reference ? [$row['reference_local_formid']]
                 : array_merge([$row['baseid']],$row['base_aliases'] ?? []);
             foreach ($mappingIds as $mappingId)
-                if ($db->execQuery('INSERT INTO public.core_npc_biography_template_actor(template_name,'.$mappingColumns.',exact_name,is_nonverbal_creature) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
-                    [$row['npc_name'],$row['plugin'],$mappingId,$row['display_name'],$row['is_nonverbal_creature'] ? 'true' : 'false'])===false)
+                if (!\Synth\Core\DbManager\Dao\NpcBiographyTemplateActorDao::current($db)->insertMappingIfMissing(
+                    $row['npc_name'],$reference,$row['plugin'],$mappingId,$row['display_name'],(bool)$row['is_nonverbal_creature']))
                     throw new RuntimeException('Unable to import NPC stable mapping');
         }
         foreach ($pack['items'] as $row) {
-            $values=array_map(static fn($key)=>$row[$key],['plugin','baseid','name','description']);
-            if ($db->execQuery('INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES ($1,$2,$3,$4) ON CONFLICT(plugin,baseid) DO NOTHING',$values)===false)
+            if (!\Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)->insertIfMissing($row['plugin'],$row['baseid'],$row['name'],$row['description']))
                 throw new RuntimeException('Unable to import item description');
         }
         if ($fillExistingProfiles) {
             $names=array_column($pack['npcs'],'npc_name');
-            $profiles=$db->fetchAll('SELECT n.*,a.origin_plugin FROM public.core_npc n JOIN public.core_actor_identity a ON a.id=n.actor_identity_id WHERE COALESCE(n.lock_profile,0)<>1 ORDER BY n.id FOR UPDATE OF n');
-            foreach ($profiles ?: [] as $profile) {
+            $profiles=\Synth\Core\DbManager\Dao\NpcDao::current($db)->lockUnlockedProfilesWithOrigin();
+            foreach ($profiles as $profile) {
                 $template=synth_fetch_bio_template($db,$profile['npc_name'],$profile['refid'] ?? '',$profile['base'] ?? '',$profile['origin_plugin']);
                 if (!$template || !in_array($template['npc_name'],$names,true)) continue;
-                $updates=[];$values=[];
+                $updates=[];
                 foreach (SYNTH_FALLOUT_CONTENT_FIELDS as $field) {
                     // Authored expertise is filled only as part of the background, never into skills.
                     if ($field==='skills') continue;
@@ -53,12 +50,11 @@ function synthInstallFalloutContentPack(object $db,string $root,bool $fillExisti
                     $value=trim(strval($template[$field] ?? ''));
                     if ($field==='npc_static_bio') $value=synth_biography_background($value,strval($template['skills'] ?? ''));
                     if (($current==='' || $placeholder) && $value!=='') {
-                        $values[]=$value;$updates[]=$field.'=$'.count($values);
+                        $updates[$field]=$value;
                     }
                 }
                 if ($updates!==[]) {
-                    $values[]=intval($profile['id']);
-                    if ($db->execQuery('UPDATE public.core_npc SET '.implode(',',$updates).' WHERE id=$'.count($values).' AND COALESCE(lock_profile,0)<>1',$values)===false)
+                    if (!\Synth\Core\DbManager\Dao\NpcDao::current($db)->fillUnlockedProfile(intval($profile['id']),$updates))
                         throw new RuntimeException('Unable to fill existing NPC profile');
                     ++$filled;
                 }
@@ -87,10 +83,7 @@ function synthInstallFalloutContentBundle(object $db,string $root,bool $fillExis
         $report['worldknowledge']=synthWorldKnowledgeInstallFactoryCatalog($db,$root,false);
         // Older populated installations have no unique key on this legacy table.
         if ($db->execQuery('LOCK TABLE public.core_catalog_version IN SHARE ROW EXCLUSIVE MODE')===false
-            || $db->execQuery('INSERT INTO public.core_catalog_version(catalog_key,version) SELECT $1,$2 WHERE NOT EXISTS (SELECT 1 FROM public.core_catalog_version WHERE catalog_key=$1)',
-                ['fallout4_content_pack',SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION])===false
-            || $db->execQuery('UPDATE public.core_catalog_version SET version=GREATEST(version,$2) WHERE catalog_key=$1',
-                ['fallout4_content_pack',SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION])===false)
+            || !\Synth\Core\DbManager\Dao\CatalogVersionDao::current($db)->recordVersion('fallout4_content_pack',SYNTH_FALLOUT_CONTENT_MIGRATION_VERSION))
             throw new RuntimeException('Unable to record Fallout content bundle version');
         if ($db->execQuery('COMMIT')===false) throw new RuntimeException('Unable to commit Fallout content bundle');
     } catch (Throwable $error) { $db->execQuery('ROLLBACK');throw $error; }

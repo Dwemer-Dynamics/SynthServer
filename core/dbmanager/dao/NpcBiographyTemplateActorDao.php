@@ -6,10 +6,12 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractNpcBiographyTemplateActor;
 
 /** Finds rows of core_npc_biography_template_actor. */
-final class NpcBiographyTemplateActorDao
+class NpcBiographyTemplateActorDao
 {
     use UsesEntityManager;
 
@@ -23,5 +25,24 @@ final class NpcBiographyTemplateActorDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractNpcBiographyTemplateActor::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
+    }
+
+    /**
+     * Maps one form id of a standard template to its NPC unless the mapping already exists. A reference mapping stores the
+     * reference plugin and local form id, a base mapping the base plugin and local form id. False when the statement fails.
+     */
+    public function insertMappingIfMissing(string $templateName, bool $reference, string $plugin, string $localFormId, string $exactName, bool $nonverbal): bool
+    {
+        $columns = $reference ? 'reference_plugin,reference_local_formid' : 'base_plugin,base_local_formid';
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_npc_biography_template_actor(template_name,'.$columns.',exact_name,is_nonverbal_creature) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING',
+                [$templateName, $plugin, $localFormId, $exactName, $nonverbal ? 'true' : 'false']
+            );
+
+            return true;
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
     }
 }

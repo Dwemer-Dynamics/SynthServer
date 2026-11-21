@@ -8,6 +8,7 @@ final class FalloutAliasContentPackTestAdapter
     private int $maps=0;
     public function __construct(private sql $db,private ?int $failureMap=null) {}
     public function isTransactionIdle(): bool { return $this->db->isTransactionIdle(); }
+    public function GetLastError(): string { return $this->db->GetLastError(); }
     public function execQuery(string $query,array $parameters=[])
     {
         $this->queries[]=$query;

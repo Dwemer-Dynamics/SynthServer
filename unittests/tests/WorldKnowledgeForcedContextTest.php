@@ -3,6 +3,7 @@
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../../lib/settings.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 require_once __DIR__ . '/../../lib/worldknowledge_forced_context.php';
 
 final class WorldKnowledgeForcedContextTest extends TestCase
@@ -255,6 +256,7 @@ final class WorldKnowledgeForcedContextTest extends TestCase
                 return [];
             }
         };
+        DaoTestDoubles::worldKnowledgeFrom($GLOBALS['db']);
         $GLOBALS['WORLDKNOWLEDGE'] = 'domain:medicine';
         $GLOBALS['SYNTH_NAME'] = 'Nick Valentine';
         $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] = ['npc_codename' => 'nick_valentine'];
@@ -267,6 +269,7 @@ final class WorldKnowledgeForcedContextTest extends TestCase
             $this->assertContains('nick_valentine', $tags);
             $this->assertNotContains('common', $tags);
         } finally {
+            DaoTestDoubles::reset();
             $GLOBALS['db'] = $previousDb;
         }
     }
