@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractVisualContext;
 
 /** Finds rows of core_visual_context. */
-final class VisualContextDao
+class VisualContextDao
 {
     use UsesEntityManager;
 

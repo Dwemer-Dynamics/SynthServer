@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractMediaObject;
 
 /** Finds rows of core_media_object. */
-final class MediaObjectDao
+class MediaObjectDao
 {
     use UsesEntityManager;
 

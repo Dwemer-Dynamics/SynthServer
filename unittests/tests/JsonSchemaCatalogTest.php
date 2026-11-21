@@ -1134,6 +1134,10 @@ final class JsonSchemaCatalogTest extends TestCase
             public function escapeLiteral($value): string { return "'".str_replace("'", "''", $value)."'"; }
             public function fetchOne($query): array { return $this->row; }
         };
+        \Synth\Core\DbManager\Dao\VisualContextDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\VisualContextDao {
+            public function __construct(private object $fake) {}
+            public function findByCapture(string $captureId, bool $activeOnly = false): ?array { return $this->fake->row; }
+        });
         $db->row = ['metadata' => json_encode($capture), 'response_payload' => '{"ok":true}', 'description' => 'Exact captured scene'];
         $event = $capture;
         $event['payload'] = ['actor' => $capture['subject'], 'capture_id' => $capture['capture_id']];
@@ -1150,7 +1154,11 @@ final class JsonSchemaCatalogTest extends TestCase
         }
         $db->row['response_payload'] = '{"ok":false}';
         $this->expectException(DomainException::class);
-        synth_visual_bound_capture($db, $event);
+        try {
+            synth_visual_bound_capture($db, $event);
+        } finally {
+            \Synth\Core\DbManager\Dao\VisualContextDao::inject(null);
+        }
     }
 
     public function testV2ResponseEchoesExactBindingWithoutChangingV1(): void
