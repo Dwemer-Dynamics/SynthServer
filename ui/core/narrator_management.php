@@ -11,9 +11,6 @@ synthRuntimeBootstrap($enginePath, [
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "action_catalog.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "core_profiles.class.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 
 // Determine web root
 $scriptPath = $_SERVER['SCRIPT_NAME'];
@@ -370,7 +367,6 @@ $profileMgr = new CoreProfile();
 $allProfiles = $profileMgr->readAll();
 
 // Load connector data for display
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "llm_connector.class.php");
 $connectorMgr = new LLMConnector();
 $allConnectors = $connectorMgr->readAll();
 $ttsConnectorMgr = new TTSConnector();

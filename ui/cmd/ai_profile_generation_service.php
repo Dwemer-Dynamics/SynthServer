@@ -14,10 +14,6 @@ require_once $aiProfileEnginePath . "lib" . DIRECTORY_SEPARATOR . "data_function
 require_once $aiProfileEnginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php";
 require_once $aiProfileEnginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php";
 require_once $aiProfileEnginePath . "lib" . DIRECTORY_SEPARATOR . "dynamic_update_util.php";
-require_once $aiProfileEnginePath . "lib/core/npc_master.class.php";
-require_once $aiProfileEnginePath . "lib/core/core_profiles.class.php";
-require_once $aiProfileEnginePath . "lib/core/api_badge.class.php";
-require_once $aiProfileEnginePath . "lib/core/llm_connector.class.php";
 require_once $aiProfileEnginePath . "lib" . DIRECTORY_SEPARATOR . "lazy_xml.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "ai_profile_generation_helper.php";
 

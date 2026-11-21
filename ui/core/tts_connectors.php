@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 require_once dirname(__DIR__, 2) . '/managers/ConfigManager/ConfigManager.php';
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
@@ -17,8 +17,6 @@ synthRuntimeBootstrap($enginePath, [
 ]);
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "api_badge.class.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 
 $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
 $uiPos = strpos($scriptPath, '/ui/');

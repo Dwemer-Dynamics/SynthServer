@@ -12,7 +12,6 @@ synthRuntimeBootstrap($enginePath, [
     'load_narrator' => true,
 ]);
 
-require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."core/api_badge.class.php");
 
 $method = $_SERVER['REQUEST_METHOD'];
 

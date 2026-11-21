@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 ob_start();
 error_reporting(E_ERROR);
 
@@ -26,12 +26,8 @@ try {
     require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'model_dynmodel.php');
     require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'data_functions.php');
     require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'chat_helper_functions.php');
-    require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'core_profiles.class.php');
-    require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'narrator.class.php');
-    require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'npc_master.class.php');
-    require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'tts_connector.class.php');
-
-    if (function_exists('requireFilesRecursively')) {
+    
+if (function_exists('requireFilesRecursively')) {
         requireFilesRecursively($enginePath . 'ext' . DIRECTORY_SEPARATOR, 'globals.php');
     }
     require_once($enginePath . 'prompt.includes.php');
