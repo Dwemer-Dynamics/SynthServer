@@ -1,13 +1,14 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/worldknowledge_vocabulary.php';
-require_once __DIR__.'/DaoTestDoubles.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 final class WorldKnowledgeVocabularyTest extends TestCase
 {
     private array $saved=[];
     protected function setUp(): void
     {
+        DaoTestDoubles::worldContextFromGlobalDb();
         foreach (['SYNTH_CORE_CURRENT_NPC_DATA'] as $key) {
             $this->saved[$key]=['exists'=>array_key_exists($key,$GLOBALS),'value'=>$GLOBALS[$key] ?? null];
             unset($GLOBALS[$key]);
@@ -15,6 +16,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
     }
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->saved as $key=>$state) {
             if ($state['exists']) $GLOBALS[$key]=$state['value']; else unset($GLOBALS[$key]);
         }

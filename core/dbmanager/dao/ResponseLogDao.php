@@ -108,4 +108,24 @@ final class ResponseLogDao
 
         return true;
     }
+
+    /**
+     * Marks every unsent response as sent, up to the local time when one is given, and returns the rows it marked in row order
+     * (one atomic statement, so concurrent requests never take the same line twice). A failed statement reads as no rows.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function claimUnsent(int $untilLocalTime = 0): array
+    {
+        $clause = $untilLocalTime !== 0 ? "AND localts <= {$untilLocalTime} " : '';
+        try {
+            return $this->connection()->fetchAllAssociative(
+                "UPDATE core_response_log SET sent = 1
+                 WHERE rowid IN (SELECT rowid FROM core_response_log WHERE sent = 0 {$clause} ORDER BY rowid ASC)
+                 RETURNING *, rowid"
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
+    }
 }

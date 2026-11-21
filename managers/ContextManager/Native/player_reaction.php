@@ -71,24 +71,8 @@ function synthCompanionCommentSpeakerAvailable(array $context, array $participan
 function synthPlayerReactionEvidence($db, array $event, array $context, string $eventId, bool $requireQuiet = false): ?array
 {
     $player=$context['player'];
-    $result=$db->execQuery("SELECT (h.event_payload->>'party')::jsonb AS party,
-            EXTRACT(EPOCH FROM (clock_timestamp()-h.recorded_at))*1000 AS elapsed_ms
-        FROM public.core_runtime_context c
-        JOIN public.core_runtime_session r ON r.session_id=c.session_id AND r.active_generation=c.generation
-            AND r.playthrough_id=c.playthrough_id AND r.state='active'
-        JOIN public.core_actor_activation a ON a.session_id=c.session_id AND a.generation=c.generation
-            AND a.actor_identity_id=c.target_identity_id AND a.state='active'
-        JOIN public.core_history_event h ON h.session_id=c.session_id AND h.generation=c.generation
-            AND h.playthrough_id=c.playthrough_id AND h.id<=c.history_event_id
-            AND h.context_sequence<=c.snapshot_sequence AND h.event_payload->>'type'='player_event'
-            AND (h.event_payload->>'party')::jsonb->>'event_id'=$4
-        JOIN public.core_runtime_context original ON original.session_id=h.session_id AND original.generation=h.generation
-            AND original.snapshot_sequence=h.context_sequence AND original.player_identity_id=c.player_identity_id
-        WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
-          AND c.received_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp()",
-        [$event['session_id'],$event['generation'],$event['context_sequence'],$eventId]);
-    if ($result===false) throw new RuntimeException('player_reaction_history_read_failed');
-    $row=pg_fetch_assoc($result);
+    $row=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->recentPlayerEventEvidence(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']),$eventId);
+    if ($row===false) throw new RuntimeException('player_reaction_history_read_failed');
     if (!$row) return null;
     $party=json_decode($row['party'],true,flags:JSON_THROW_ON_ERROR);
     $identity=array_intersect_key($player,array_flip(['form_id','origin_plugin','playthrough_id']));
@@ -112,14 +96,9 @@ function synthPlayerReactionEvidence($db, array $event, array $context, string $
 // and one end yields at most one remark across the generic and companion kinds.
 function synthPlayerReactionFirstClaim($db, array $event, string $eventId, string $playthrough): bool
 {
-    $first=$db->execQuery("SELECT request_id FROM public.core_protocol_event
-        WHERE session_id=$1 AND generation=$2 AND event_type='trigger'
-          AND canonical_event->'payload'->>'kind' IN ('player_reaction','companion_combat_comment')
-          AND canonical_event->'payload'->>'event_id'=$3
-          AND canonical_event->'payload'->'actor'->>'playthrough_id'=$4 ORDER BY id LIMIT 1",
-        [$event['session_id'],$event['generation'],$eventId,$playthrough]);
+    $first=\Synth\Core\DbManager\Dao\ProtocolEventDao::current($db)->firstReactionRequestId(strval($event['session_id']),intval($event['generation']),$eventId,$playthrough);
     if ($first===false) throw new RuntimeException('player_reaction_claim_read_failed');
-    return (pg_fetch_assoc($first)['request_id'] ?? null)===$event['request_id'];
+    return $first===$event['request_id'];
 }
 
 // Override legacy/custom victory cues only for a successfully bound native player reaction; retain RPG policy extras.

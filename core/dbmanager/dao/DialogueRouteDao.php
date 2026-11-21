@@ -60,4 +60,44 @@ final class DialogueRouteDao
                     AND core_dialogue_route.utterance_id IS NOT DISTINCT FROM EXCLUDED.utterance_id
                 RETURNING line_id", $parameters);
     }
+
+    /**
+     * The emitted line of one utterance of a request at a context sequence: line id, line hash, speaker and listener JSON and
+     * listener state. Null when there is none or the statement failed.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function emittedLine(string $sessionId, string $requestId, int $generation, int $contextSequence, string $utteranceId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT line_id, line_sha256, speaker, listener_state, listener
+                 FROM public.core_dialogue_route WHERE session_id = :session AND request_id = :request AND generation = :generation
+                    AND context_sequence = :sequence AND utterance_id = :utterance',
+                ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'sequence' => $contextSequence, 'utterance' => $utteranceId]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Every route of a request at a context sequence that carries an utterance id, in storage order. Null when the statement failed.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public function utteranceRoutes(string $sessionId, string $requestId, int $generation, int $contextSequence): ?array
+    {
+        try {
+            return $this->connection()->fetchAllAssociative(
+                'SELECT * FROM public.core_dialogue_route
+                 WHERE session_id = :session AND request_id = :request AND generation = :generation AND context_sequence = :sequence AND utterance_id IS NOT NULL',
+                ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'sequence' => $contextSequence]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+    }
 }
