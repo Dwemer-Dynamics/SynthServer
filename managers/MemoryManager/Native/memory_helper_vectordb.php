@@ -60,7 +60,7 @@ function storeMemory($embeddings, $text, $id, $category='past dialogues' )
 		return false;
 	}
 
-	\Synth\Bootstrap::db()->execQuery("update core_memory set embedding='[" . $embedding_str . "]' where rowid=$id");
+	\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->setEmbeddingVector($id, "[" . $embedding_str . "]");
 	return true;
 }
 
@@ -117,8 +117,7 @@ function storeMemoryWorldKnowledge($embeddings, $text, $id)
 	}
 
 	$canonicalTopic = synthWorldKnowledgeCanonicalTopic($id);
-	$cleanedid = \Synth\Bootstrap::db()->escape($canonicalTopic);
-	\Synth\Bootstrap::db()->execQuery("update core_worldknowledge_article set vector384='[" . $embedding_str . "]' where lower(split_part(topic, ',', 1))=lower('$cleanedid')");
+	\Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current(\Synth\Bootstrap::db())->setVectorByTopic($canonicalTopic, "[" . $embedding_str . "]");
 	return true;
 }
 
@@ -153,9 +152,9 @@ function deleteElement($id, $onlyEmbedding = false)
 	}
 
 	if ($onlyEmbedding) {
-		\Synth\Bootstrap::db()->execQuery("UPDATE public.core_memory SET embedding = NULL WHERE rowid = {$cleanId}");
+		\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->clearEmbeddingVector($cleanId);
 	} else {
-		\Synth\Bootstrap::db()->execQuery("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = {$cleanId}");
+		\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->deleteSummaryRow($cleanId);
 	}
 
 	return true;

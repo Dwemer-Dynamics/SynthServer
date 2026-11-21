@@ -49,6 +49,34 @@ class NpcDao
         );
     }
 
+    /** The extended_data JSON text of the legacy NPC row with this name, or null when there is none. */
+    public function legacyExtendedDataByName(string $npcName): ?string
+    {
+        $value = $this->connection()->fetchOne('SELECT extended_data FROM core_npc WHERE npc_name=? LIMIT 1', [$npcName]);
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /**
+     * The legacy NPC rows (without a native actor) that have middle-term memory enabled: by their own extended_data key, else by their
+     * profile's MIDDLE_TERM_MEMORY_ENABLED. @return list<array<string, mixed>>
+     */
+    public function legacyMiddletermNpcs(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT n.*
+        FROM core_npc n
+        LEFT JOIN core_profiles p ON p.id = n.profile_id
+        WHERE n.actor_identity_id IS NULL AND (
+            lower(COALESCE(n.extended_data->>'middle_term_enabled', '')) IN ('1', 'true', 't', 'yes', 'on')
+            OR (
+                NOT jsonb_exists(COALESCE(n.extended_data, '{}'::jsonb), 'middle_term_enabled')
+                AND lower(COALESCE(p.metadata->>'MIDDLE_TERM_MEMORY_ENABLED', '')) IN ('1', 'true', 't', 'yes', 'on')
+            )
+        )"
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractNpc> */
     public function findAll(int $limit = 1000): array
     {
