@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__.'/DaoTestDoubles.php';
 require_once dirname(__DIR__,2).'/lib/synth_character_voice.php';
 require_once dirname(__DIR__,2).'/lib/response.php';
 require_once dirname(__DIR__,2).'/lib/logger.php';
@@ -144,6 +145,7 @@ final class CharacterFormVoiceTest extends TestCase
         };
         try {
             $GLOBALS['db']=$db;
+            DaoTestDoubles::ownerFrom($db);
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>2,'game'=>'fo4',
                 'runtime_variant'=>'flat','session_id'=>'session-curie','request_id'=>'request-curie',
@@ -155,6 +157,7 @@ final class CharacterFormVoiceTest extends TestCase
             $GLOBALS['TTSFUNCTION']='inworld';
             $assertion($db);
         } finally {
+            DaoTestDoubles::reset();
             foreach ($saved as $key=>[$exists,$value]) {
                 if ($exists) $GLOBALS[$key]=$value; else unset($GLOBALS[$key]);
             }

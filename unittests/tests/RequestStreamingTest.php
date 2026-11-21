@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__.'/DaoTestDoubles.php';
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'request.php';
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'synth_protocol_state.php';
 require_once dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'lib'.DIRECTORY_SEPARATOR.'provider_stream.php';
@@ -1395,6 +1396,7 @@ final class RequestStreamingTest extends TestCase
             'capabilities' => ['dialogue.turn_ownership'], 'type' => 'input_text'];
         try {
             $GLOBALS['db'] = $db;
+            DaoTestDoubles::ownerFrom($db);
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $event + ['json' => $event];
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
             $this->assertTrue(synth_protocol_owns_dialogue_turn($event));
@@ -1441,6 +1443,7 @@ final class RequestStreamingTest extends TestCase
             $event['capabilities'] = [];
             $this->assertFalse(synth_protocol_owns_dialogue_turn($event));
         } finally {
+            DaoTestDoubles::reset();
             foreach ($previous as $key => $value) {
                 if ($value === null) unset($GLOBALS[$key]); else $GLOBALS[$key] = $value;
             }
@@ -1805,7 +1808,7 @@ final class RequestStreamingTest extends TestCase
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
         try {
-            $GLOBALS['db']=$db;$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+            $GLOBALS['db']=$db;DaoTestDoubles::ownerFrom($db);$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>2,'session_id'=>'session:one','request_id'=>'request:one',
                 'turn_id'=>'turn:one','generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','type'=>'input_text']];
             $GLOBALS['gameRequest']=['inputtext',123,999999,'current'];
@@ -1828,7 +1831,7 @@ final class RequestStreamingTest extends TestCase
             try {synth_protocol_record_action_intent($db,$action);$this->fail('Failed insertion was accepted');}
             catch(RuntimeException $error){$this->assertSame('Unable to persist action intent.',$error->getMessage());}
             $this->assertCount(1,$db->history,'Failed intent must not add issuance evidence');
-        } finally {foreach($previous as $key=>$value)$GLOBALS[$key]=$value;}
+        } finally {DaoTestDoubles::reset();foreach($previous as $key=>$value)$GLOBALS[$key]=$value;}
     }
 
     public function testNativeCooldownReaderCombinesSavedFrontierWithOnlyCurrentTurnIssuance(): void
