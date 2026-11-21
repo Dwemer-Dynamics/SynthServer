@@ -1348,7 +1348,8 @@ final class RequestStreamingTest extends TestCase
             } finally { DaoTestDoubles::resetClaim(); }
             $byName = [];
             foreach ($calls as [$name, $args]) $byName[$name][] = $args;
-            $this->assertSame([['session:one', 2, 'req:context']], $byName['cancelRequest'] ?? []);
+            // One call on the request row and one on its jobs.
+            $this->assertSame([['session:one', 2, 'req:context'], ['session:one', 2, 'req:context']], $byName['cancelRequest'] ?? []);
             if ($anchored) {
                 $this->assertSame([['session:one', 2, 'turn:old', 7]], $byName['clearTurn'] ?? []);
                 // Request and job cancellation are both scoped to the anchored turn and context sequence 7.

@@ -155,6 +155,19 @@ final class DaoTestDoubles
         RequestExecutionDao::inject(null);
     }
 
+    /**
+     * Forgets every DAO that an earlier test configured with Database::boot*(). A test whose fixture owns its PostgreSQL connection
+     * (and an open transaction on it) needs its DAOs bound to that fixture, not to a session booted by another test.
+     */
+    public static function forgetBooted(): void
+    {
+        foreach (\Synth\Core\DbManager\Database::DAOS as $daoClass) {
+            if (method_exists($daoClass, 'inject')) {
+                $daoClass::inject(null);
+            }
+        }
+    }
+
     public static function reset(): void
     {
         RequestExecutionDao::inject(null);
