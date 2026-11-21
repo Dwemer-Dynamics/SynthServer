@@ -555,6 +555,11 @@ function synth_protocol_encode_ack(string $status, array $detail = [], ?array $w
         && in_array('notify.wake', $event['capabilities'] ?? [], true)) {
         $notifyPort = \Synth\Managers\Notification\NotifyPublisher::acknowledgedPort();
         if ($notifyPort !== null) $statusPayload['notify_wake'] = ['port' => $notifyPort];
+        // Game RPC rides the same connection, so it needs the channel and its own opt-in; the token binds that connection to this session.
+        if ($notifyPort !== null && in_array('rpc.game', $event['capabilities'] ?? [], true) && is_string($event['session_id'] ?? null)) {
+            $rpcToken = \Synth\Managers\GameRpc\RpcLoopback::mintSessionToken($event['session_id']);
+            if ($rpcToken !== null) $statusPayload['rpc_game'] = ['token' => $rpcToken];
+        }
     }
     if ($observedDialogue) $statusPayload['observed_dialogue'] = true;
     if ($readingEvents) $statusPayload['reading_events'] = true;
