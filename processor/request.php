@@ -38,13 +38,13 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 
 	if ($functionCodeName == "Attack") {
 		if (strpos($returnFunction[3],"Error")!==false) {
-			$GLOBALS["FUNCTIONS_ARE_ENABLED"]=false;	// RE-Enable functions	// Endless loop if enabled
+			\Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);	// RE-Enable functions	// Endless loop if enabled
 			$request="Specify a valid target:(available targets: ".implode(",",\Synth\Bootstrap::config("FUNCTION_PARM_INSPECT")).")";
 			Logger::info("Request function again {$returnFunction[3]}");
 		}
 
 	} else {
-		if (isset($GLOBALS["FUNCSERV"][$functionCodeName])) {
+		if (isset(\Synth\Bootstrap::config('FUNCSERV')[$functionCodeName])) {
 			call_user_func_array(\Synth\Bootstrap::config("FUNCSERV")[$functionCodeName],[]);
 		}
 
@@ -60,16 +60,16 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 			$selectedMemory = $currentMemory;
 		}
 	}
-	$GLOBALS["DEBUG_DATA"]["memories"]["selected"]=$selectedMemory;
-	$GLOBALS["MEMORY_INJECTION_RESULT"]=$selectedMemory["briefing"] ?? "No relevant memory was found.";
+	\Synth\Bootstrap::setPath('DEBUG_DATA', ["memories", "selected"], $selectedMemory);
+	\Synth\Bootstrap::set('MEMORY_INJECTION_RESULT', $selectedMemory["briefing"] ?? "No relevant memory was found.");
 
 	$request=strtr(selectRandomInArray($PROMPTS[$gameRequest[0]]["cue"]),["#MEMORY_INJECTION_RESULT#"=>\Synth\Bootstrap::config("MEMORY_INJECTION_RESULT")]);
 
 
 } else if ($gameRequest[0] == "diary") {
 	// Check if this is a narrator diary request and if narrator diary is disabled
-	if (isset($GLOBALS["SYNTH_NAME"]) && \Synth\Bootstrap::config("SYNTH_NAME") === "The Narrator") {
-		if (!isset($GLOBALS["NARRATOR_DIARY_ENABLED"]) || !\Synth\Bootstrap::config("NARRATOR_DIARY_ENABLED")) {
+	if (\Synth\Bootstrap::has('SYNTH_NAME') && \Synth\Bootstrap::config("SYNTH_NAME") === "The Narrator") {
+		if (!\Synth\Bootstrap::has('NARRATOR_DIARY_ENABLED') || !\Synth\Bootstrap::config("NARRATOR_DIARY_ENABLED")) {
 			Logger::info("[DIARY] Narrator diary is disabled, skipping");
 			synth_buffer_command_response_line("The Narrator", "DebugNotification", ["message" => "The Narrator's diary is disabled"]);
 			terminate();
@@ -80,9 +80,9 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 	$diaryCharacterName = function_exists('synthGetPromptCharacterName')
 		? synthGetPromptCharacterName()
 		: \Synth\Bootstrap::config("SYNTH_NAME");
-	$diaryPrompt = isset($GLOBALS["DIARY_PROMPT"]) && !empty($GLOBALS["DIARY_PROMPT"])
+	$diaryPrompt = \Synth\Bootstrap::has('DIARY_PROMPT') && !empty(\Synth\Bootstrap::config('DIARY_PROMPT'))
 		? strtr(\Synth\Bootstrap::config("DIARY_PROMPT"),['{$GLOBALS["SYNTH_NAME"]}'=>$diaryCharacterName,'{$GLOBALS["PLAYER_NAME"]}'=>\Synth\Bootstrap::config("PLAYER_NAME"),'#SYNTH_NAME#'=>$diaryCharacterName,'#NARRATOR_NAME#'=>function_exists('synthGetNarratorRoleplayName') ? synthGetNarratorRoleplayName() : 'The Narrator','#PLAYER_NAME#'=>\Synth\Bootstrap::config("PLAYER_NAME")])
-		: "Please write a short summary of {$GLOBALS["PLAYER_NAME"]} and {$diaryCharacterName}s last dialogues and events written above into {$diaryCharacterName}s diary . WRITE AS IF YOU WERE {$diaryCharacterName}.";
+		: ("Please write a short summary of " . \Synth\Bootstrap::config('PLAYER_NAME') . " and {$diaryCharacterName}s last dialogues and events written above into {$diaryCharacterName}s diary . WRITE AS IF YOU WERE {$diaryCharacterName}.");
 
 	// Add current game date/time context to the prompt
 	$diaryPrompt = "Current date and time: {$fallout_date}. " . $diaryPrompt;
@@ -90,7 +90,7 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 	$request = $diaryPrompt;
 
 	logMemory(\Synth\Bootstrap::config("PLAYER_NAME"), \Synth\Bootstrap::config("SYNTH_NAME"),
-        "(Important note: Something important happened here for {$GLOBALS["PLAYER_NAME"]} on {$fallout_date}. You should use the tag #PlotRelevantEvent)",
+        ("(Important note: Something important happened here for " . \Synth\Bootstrap::config('PLAYER_NAME') . " on {$fallout_date}. You should use the tag #PlotRelevantEvent)"),
         $momentum, $gameRequest[2],'diary_intent',$gameRequest[1]);
 
 } else if ($gameRequest[0] == "narrator_welcome") {
@@ -161,7 +161,7 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 			$request = selectRandomInArray($requestPromptData["cue"]); // Add support for arrays here
 		else {
 			Logger::warn("Request cue is empty! - ".$gameRequest[0]." - ".print_r($requestPromptData,true)." - ".__FILE__.":".__LINE__);
-			$request = "{$GLOBALS["TEMPLATE_DIALOG"]}";
+			$request = ((string)\Synth\Bootstrap::config('TEMPLATE_DIALOG'));
 		}
 	}
 }

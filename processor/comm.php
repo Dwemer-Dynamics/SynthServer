@@ -38,9 +38,9 @@ if (!function_exists("resolvePeopleForIncomingEvent")) {
         if ($fallbackPeople === "") {
             if ($isPluginAuthoritativeActorEvent) {
                 $fallbackPeople = "";
-            } elseif (isset($GLOBALS["CACHE_PEOPLE_LIMITED"]) && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED")) !== "") {
+            } elseif (\Synth\Bootstrap::has('CACHE_PEOPLE_LIMITED') && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED")) !== "") {
                 $fallbackPeople = (string)\Synth\Bootstrap::config("CACHE_PEOPLE_LIMITED");
-            } elseif (isset($GLOBALS["CACHE_PEOPLE"]) && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE")) !== "") {
+            } elseif (\Synth\Bootstrap::has('CACHE_PEOPLE') && trim((string)\Synth\Bootstrap::config("CACHE_PEOPLE")) !== "") {
                 $fallbackPeople = (string)\Synth\Bootstrap::config("CACHE_PEOPLE");
             } elseif (!$strictModeEnabled) {
                 $fallbackPeople = DataBeingsInCloseRange(true);
@@ -236,7 +236,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
                 \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', 'last_narrator_welcome', (string)$currentTime);
                 
                 // Store flag to trigger narrator after init processing
-                $GLOBALS["TRIGGER_NARRATOR_WELCOME"] = true;
+                \Synth\Bootstrap::set('TRIGGER_NARRATOR_WELCOME', true);
                 
                 Logger::info("Narrator welcome message will be triggered");
             }
@@ -390,18 +390,18 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         $distance = isset($speech["distance"]) ? floatval($speech["distance"]) : 0.0;
 
         // Store distance globally for context building
-        $GLOBALS["LAST_SPEECH_DISTANCE"] = $distance;
+        \Synth\Bootstrap::set('LAST_SPEECH_DISTANCE', $distance);
 
         if (isset($speech["spatial_volume"])) {
-            $GLOBALS["LAST_SPEECH_VOLUME"] = max(0.0, min(1.0, floatval($speech["spatial_volume"])));
+            \Synth\Bootstrap::set('LAST_SPEECH_VOLUME', max(0.0, min(1.0, floatval($speech["spatial_volume"]))));
         } else {
-            unset($GLOBALS["LAST_SPEECH_VOLUME"]);
+            \Synth\Bootstrap::forget('LAST_SPEECH_VOLUME');
         }
 
         if (isset($speech["spatial_reason"]) && is_string($speech["spatial_reason"])) {
-            $GLOBALS["LAST_SPEECH_REASON"] = trim($speech["spatial_reason"]);
+            \Synth\Bootstrap::set('LAST_SPEECH_REASON', trim($speech["spatial_reason"]));
         } else {
-            unset($GLOBALS["LAST_SPEECH_REASON"]);
+            \Synth\Bootstrap::forget('LAST_SPEECH_REASON');
         }
 
         $topic = isset($speech["debug"]) ? $speech["debug"] : null;
@@ -452,7 +452,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         // actor-originated audience scope. For direct NPC replies to player prompts,
         // we temporarily inherit the latest player-scoped audience as SOT until fresh
         // spatial truth is available for that reply.
-        $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
+        $playerName = \Synth\Bootstrap::has('PLAYER_NAME') ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
         $normalizedPlayerName = normalizeActorNameForComparison($playerName);
         $normalizedSpeechSpeaker = normalizeActorNameForComparison($speechSpeaker);
         $normalizedSpeechListener = normalizeActorNameForComparison($speechListener);
@@ -715,8 +715,8 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     } else
         $MUST_END=true;
     /*
-    if (isset($GLOBALS["FEATURES"]["MISC"]["QUEST_COMMENT"]))
-        if ($GLOBALS["FEATURES"]["MISC"]["QUEST_COMMENT"]===false)
+    if (isset(\Synth\Bootstrap::config("FEATURES")["MISC"]["QUEST_COMMENT"]))
+        if (\Synth\Bootstrap::config("FEATURES")["MISC"]["QUEST_COMMENT"]===false)
             $MUST_END=true;
     */
     // Check if quest comments are enabled for narrator
@@ -769,7 +769,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     \Synth\Managers\ConfigManager\ConfigManager::shared()->set('conf', "QUEST_COMMENT_LAST_TIMESTAMP", $currentTime);
                     
                     // Store flag to trigger narrator after init processing
-                    $GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"] = true;
+                    \Synth\Bootstrap::set('TRIGGER_NARRATOR_QUEST_COMMENT', true);
                     
                     Logger::info("Narrator quest comment will be triggered");
                 }
@@ -1007,7 +1007,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     if (($requestEvent['protocol_version'] ?? 1) === 2) {
         $nativeBindings = [];
         try {
-            if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($requestEvent['type'] ?? '') !== 'profile_refresh') {
+            if (empty(\Synth\Bootstrap::claimedRequest()) || ($requestEvent['type'] ?? '') !== 'profile_refresh') {
                 throw new LogicException('Native profile eligibility requires its claimed profile refresh.');
             }
             require_once(\Synth\Bootstrap::enginePath() . "/lib/synth_profile_scope.php");
@@ -1164,7 +1164,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     
     Logger::info("diary_narrator: Direct narrator diary request received");
     
-    if (empty($GLOBALS["NARRATOR_DIARY_ENABLED"])) {
+    if (empty(\Synth\Bootstrap::config('NARRATOR_DIARY_ENABLED'))) {
         synth_buffer_command_response_line("The Narrator", "DebugNotification", ["message" => "Narrator diary is disabled."]);
         Logger::warn("diary_narrator: Narrator diary is disabled");
         terminate();
@@ -1192,7 +1192,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     Logger::info("diary_player: Direct player diary request received");
     
     if (!isPlayerDiaryEnabled()) {
-        $playerName = isset($GLOBALS["PLAYER_NAME"]) && trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) !== ''
+        $playerName = \Synth\Bootstrap::has('PLAYER_NAME') && trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) !== ''
             ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME"))
             : "Player";
         synth_buffer_command_response_line($playerName, "DebugNotification", ["message" => $playerName . " diary is disabled."]);
@@ -1266,7 +1266,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
 } 
 
 // Trigger narrator welcome message if flagged during init
-if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && \Synth\Bootstrap::config("TRIGGER_NARRATOR_WELCOME")) {
+if (\Synth\Bootstrap::has('TRIGGER_NARRATOR_WELCOME') && \Synth\Bootstrap::config("TRIGGER_NARRATOR_WELCOME")) {
     // Change the request type to narrator_welcome so main.php processes it
     $gameRequest[0] = "narrator_welcome";
     $MUST_END = false; // Don't end, continue to main.php
@@ -1289,7 +1289,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && \Synth\Bootstrap::config("TRI
         if (function_exists('synthRuntimeSetActiveProfile')) {
             synthRuntimeSetActiveProfile($narratorProfileId);
         } else {
-            $GLOBALS["active_profile"] = $narratorProfileId;
+            \Synth\Bootstrap::set('active_profile', $narratorProfileId);
         }
     } else {
         Logger::warn("[NARRATOR_WELCOME] Could not find narrator profile, welcome message cancelled");
@@ -1298,7 +1298,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_WELCOME"]) && \Synth\Bootstrap::config("TRI
 }
 
 // Trigger narrator quest comment if flagged during quest event
-if (isset($GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) && \Synth\Bootstrap::config("TRIGGER_NARRATOR_QUEST_COMMENT")) {
+if (\Synth\Bootstrap::has('TRIGGER_NARRATOR_QUEST_COMMENT') && \Synth\Bootstrap::config("TRIGGER_NARRATOR_QUEST_COMMENT")) {
     // Change the request type to narrator_quest_comment so main.php processes it
     $gameRequest[0] = "narrator_quest_comment";
     $MUST_END = false; // Don't end, continue to main.php
@@ -1321,7 +1321,7 @@ if (isset($GLOBALS["TRIGGER_NARRATOR_QUEST_COMMENT"]) && \Synth\Bootstrap::confi
         if (function_exists('synthRuntimeSetActiveProfile')) {
             synthRuntimeSetActiveProfile($narratorProfileId);
         } else {
-            $GLOBALS["active_profile"] = $narratorProfileId;
+            \Synth\Bootstrap::set('active_profile', $narratorProfileId);
         }
     } else {
         Logger::warn("[NARRATOR_QUEST_COMMENT] Could not find narrator profile, quest comment cancelled");

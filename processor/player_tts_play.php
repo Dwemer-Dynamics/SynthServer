@@ -6,14 +6,14 @@ ini_set("log_errors", "1");
 
 $root = dirname(__DIR__);
 $path = $root . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $path;
-$GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
-$GLOBALS["SYNTH_RESPONSE_STREAMING"] = false;
-$GLOBALS["SYNTH_GAME_ID"] = "fo4";
-$GLOBALS["SYNTH_WORLD_NAME"] = "Commonwealth";
-$GLOBALS["SYNTH_NAME"] = "Player";
-$GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-$GLOBALS["AUDIT_RUNID_REQUEST"] = "player_menu_tts_play";
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', "fo4");
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', "Commonwealth");
+\Synth\Bootstrap::set('SYNTH_NAME', "Player");
+\Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', "player_menu_tts_play");
 
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "request.php");
@@ -53,10 +53,10 @@ function synthGeneratePlayerTtsCacheNow(string $line, string $cachePath): void
 
     try {
         $gameRequest = &$playerTtsRequest;
-        $GLOBALS["gameRequest"] = &$playerTtsRequest;
-        $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] = false;
-        $GLOBALS["AVOID_TTS_CACHE"] = false;
-        $GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] = $cachePath;
+        \Synth\Bootstrap::bind('gameRequest', $playerTtsRequest);
+        \Synth\Bootstrap::set('PLAYER_TTS_WRITE_OUTPUT', false);
+        \Synth\Bootstrap::set('AVOID_TTS_CACHE', false);
+        \Synth\Bootstrap::set('PLAYER_TTS_EXPECTED_CACHE_PATH', $cachePath);
         require(\Synth\Bootstrap::enginePath() . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");
 
         if (!is_file($cachePath) || filesize($cachePath) <= 44) {
@@ -66,24 +66,24 @@ function synthGeneratePlayerTtsCacheNow(string $line, string $cachePath): void
         }
     } finally {
         if ($hadGameRequest) {
-            $GLOBALS["gameRequest"] = $oldGameRequest;
+            \Synth\Bootstrap::set('gameRequest', $oldGameRequest);
         } else {
-            unset($GLOBALS["gameRequest"]);
+            \Synth\Bootstrap::forget('gameRequest');
         }
         if ($hadWriteOutput) {
-            $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] = $oldWriteOutput;
+            \Synth\Bootstrap::set('PLAYER_TTS_WRITE_OUTPUT', $oldWriteOutput);
         } else {
-            unset($GLOBALS["PLAYER_TTS_WRITE_OUTPUT"]);
+            \Synth\Bootstrap::forget('PLAYER_TTS_WRITE_OUTPUT');
         }
         if ($hadAvoidCache) {
-            $GLOBALS["AVOID_TTS_CACHE"] = $oldAvoidCache;
+            \Synth\Bootstrap::set('AVOID_TTS_CACHE', $oldAvoidCache);
         } else {
-            unset($GLOBALS["AVOID_TTS_CACHE"]);
+            \Synth\Bootstrap::forget('AVOID_TTS_CACHE');
         }
         if ($hadExpectedCachePath) {
-            $GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] = $oldExpectedCachePath;
+            \Synth\Bootstrap::set('PLAYER_TTS_EXPECTED_CACHE_PATH', $oldExpectedCachePath);
         } else {
-            unset($GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"]);
+            \Synth\Bootstrap::forget('PLAYER_TTS_EXPECTED_CACHE_PATH');
         }
     }
 }
@@ -145,14 +145,14 @@ synthRuntimeBootstrap($path, [
 $event = synth_decode_event_from_request();
 $payload = strval($event["payload"] ?? "");
 
-$GLOBALS["SYNTH_REQUEST_EVENT"] = $event;
+\Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', $event);
 $gameRequest = [
     "player_menu_tts_play",
     strval($event["ts"] ?? time()),
     strval($event["gamets"] ?? time()),
     $payload,
 ];
-$GLOBALS["gameRequest"] = &$gameRequest;
+\Synth\Bootstrap::bind('gameRequest', $gameRequest);
 
 synth_start_json_response_buffer();
 
