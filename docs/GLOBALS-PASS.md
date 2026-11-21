@@ -238,7 +238,7 @@ Files under: ui api
 
 All uses in `lib/`, `stt/`, `tts/`, `debug/`, `tools/` and `conf/`, including the importers that create most runtime names: `lib/runtime_bootstrap.php` (`synthRuntimeImportConfigVariables` and its option importer), `lib/settings.php` (flat and nested settings writers, `$cursor =& Bootstrap::ref($rootKey)`), `lib/db_connection_settings.php`, `conf/conf_loader.php` and `tools/schema-check.php`. They now write through `Bootstrap::set($name, $value)`, so once the other writers have moved, `Bootstrap` can switch its storage for every name in one place.
 
-Exceptions: `tools/globals-comments.php` and `tools/globals-convert.php` mention the tokens in their own comments (they are the converter).
+Exceptions: `lib/classes/Logger.php` keeps its two `$GLOBALS['SYNTH_REQUEST_ID']` uses, because the logger is required standalone (before any autoloader) and must not depend on `Bootstrap`. `tools/globals-comments.php` and `tools/globals-convert.php` mention the tokens in their own comments (they are the converter).
 
 Stacked on W9-ui-api (#181).
 
@@ -246,5 +246,5 @@ Files under: lib stt tts debug tools conf
 
 | | before | after |
 | --- | --- | --- |
-| global uses (all non-test PHP) | about 1071 | 936 |
+| global uses (all non-test PHP) | about 1071 | 938 |
 | `require_once` | 1838 | 1838 |
