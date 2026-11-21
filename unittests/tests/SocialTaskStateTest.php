@@ -8,6 +8,8 @@ final class SocialTaskFixtureDatabase
     private ?array $lockOwner=null;
     public function __construct(public $connection) {}
     public function escapeLiteral(string $value): string {return pg_escape_literal($this->connection,$value);}
+    public function getCatalogueSqlConnection(): \PgSql\Connection {return $this->connection;}
+    public function GetLastError(): string {return pg_last_error($this->connection);}
     public function execQuery(string $sql,array $params=[])
     {
         $result=$params ? pg_query_params($this->connection,$sql,$params) : pg_query($this->connection,$sql);

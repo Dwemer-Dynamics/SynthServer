@@ -146,4 +146,17 @@ final class ProfileDao
     {
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /**
+     * Whether any profile has a connector in the given model slot column (llm_primary_id, llm_secondary_id, llm_tertiary_id or
+     * llm_quaternary_id). Any other column name is refused.
+     */
+    public function hasConnectorInSlot(string $column): bool
+    {
+        if (!in_array($column, ['llm_primary_id', 'llm_secondary_id', 'llm_tertiary_id', 'llm_quaternary_id'], true)) {
+            throw new \InvalidArgumentException('Unknown model slot column.');
+        }
+
+        return $this->connection()->fetchOne("SELECT id FROM core_profiles WHERE {$column} IS NOT NULL AND {$column} > 0 LIMIT 1") !== false;
+    }
 }

@@ -13,14 +13,7 @@ function DataDequeue($timestamp = 0)
     }
     // Use atomic UPDATE...RETURNING to prevent race conditions where multiple concurrent
     // requests could fetch the same dialogue before it's marked as sent
-    $results = $db->fetchAll(
-        "UPDATE core_response_log
-         SET sent=1
-         WHERE rowid IN (
-             SELECT rowid FROM core_response_log WHERE sent=0 $clause ORDER BY rowid ASC
-         )
-         RETURNING *, rowid"
-    );
+    $results = \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->claimUnsent($timestamp !== 0 ? intval($timestamp) : 0);
 
     $finalData = array();
     foreach ($results as $row) {
@@ -35,18 +28,7 @@ function DataLastDataFor($actor, $lastNelements = -10)
 {
     $db = \Synth\Bootstrap::db();
     $lastDialogFull = array();
-    $results = $db->fetchAll("select
-    case
-      when type like 'info%' or type like 'death%' or  type like 'funcret%' or type like 'location%' or data like '%background chat%' then 'The Narrator:'
-      else ''
-    end||a.data  as data
-    FROM  core_context_event a WHERE data like '%$actor%'
-    and type<>'combatend'
-    and type<>'bored' and type<>'init' and type<>'lockpicked' and type<>'info' and type<>'funcret'  and type<>'quest'
-    and type<>'user_input'
-    and data not ilike '%sSubtitle%'
-    and data not ilike '%sSpeakerName%'
-    and type<>'funccall'  and type<>'togglemodel' order by gamets desc,ts desc,localts desc,rowid desc LIMIT 150 OFFSET 0");
+    $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->eventDataMentioning((string)$actor);
     $lastData = "";
 
 
@@ -182,10 +164,9 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
             $itemName = trim((string)$itemName);
             if ($itemName !== '' && $itemName !== '<Missing Name>' && isset($db)) {
-                $escapedName = $db->escape($itemName);
-                $rows = $db->fetchAll("SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER('{$escapedName}') LIMIT 1");
-                if (!empty($rows[0]['description'])) {
-                    return (string)$rows[0]['description'];
+                $combinedDescription = \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)->combinedDescriptionByName($itemName);
+                if (!empty($combinedDescription)) {
+                    return $combinedDescription;
                 }
             }
 
@@ -788,7 +769,8 @@ function synthLatestPointsOfInterestPayload()
 {
     $db = \Synth\Bootstrap::db();
 
-    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='points_of_interest' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyRow('points_of_interest');
+    $rows = $latestParty === null ? [] : [$latestParty];
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
@@ -1366,7 +1348,7 @@ function DataQuestJournal($quest)
     if (empty($quest)||($quest=="None")||true) {
 
         $results = $snapshot !== null ? synthSnapshotQuestRows($snapshot)
-            : $db->fetchAll("SElECT name,id_quest,briefing,briefing2 as notes, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC");
+            : \Synth\Core\DbManager\Dao\QuestDao::current($db)->allQuestsSelectedFirst();
         $finalRow = [];
         foreach ($results as $row) {
             if (isset($finalRow[$row["id_quest"]])) {
@@ -1391,8 +1373,7 @@ function DataQuestJournal($quest)
 
     } else {
         $lastDialogFull = array();
-        $results = $db->fetchAll("SElECT  name,id_quest,briefing,data
-      FROM core_quest where lower(id_quest)=lower('$quest') or lower(name)=lower('$quest') ");
+        $results = \Synth\Core\DbManager\Dao\QuestDao::current($db)->findByIdOrName((string)$quest);
         $lastOne = -1;
         $data = array();
         if (!$results) {

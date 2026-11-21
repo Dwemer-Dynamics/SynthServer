@@ -55,11 +55,10 @@ function synth_control_apply($db, array $event, ?\PgSql\Connection $connection =
     }
     if ($setting === 'model_slot') {
         $column = [1=>'llm_primary_id',2=>'llm_secondary_id',3=>'llm_tertiary_id',4=>'llm_quaternary_id'][intval($value)];
-        if (!$db->fetchOne("SELECT id FROM core_profiles WHERE {$column} IS NOT NULL AND {$column}>0 LIMIT 1"))
+        if (!\Synth\Core\DbManager\Dao\ProfileDao::current($db)->hasConnectorInSlot($column))
             throw new DomainException('model_slot_unconfigured');
     }
-    $literal = $db->escapeLiteral($value);
-    if ($db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_profile_model',{$literal}) ON CONFLICT (scope, config_key) DO UPDATE SET config_value=EXCLUDED.config_value") === false)
+    if (!\Synth\Managers\ConfigManager\ConfigManager::forSession($db)->set('conf','synth_profile_model',strval($value)))
         throw new RuntimeException('control_write_failed');
 }
 
@@ -94,7 +93,7 @@ function synth_control_note_talk_slot($db, array $event): void
         if (!is_int($slot) || $slot < 1 || $slot > 4) return;
         $last = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_talk_slot_seen') ?? '1';
         if (strval($slot) === strval($last)) return;
-        if ($db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES ('conf', 'synth_talk_slot_seen','{$slot}') ON CONFLICT (scope, config_key) DO UPDATE SET config_value=EXCLUDED.config_value") === false) return;
+        if (!\Synth\Managers\ConfigManager\ConfigManager::forSession($db)->set('conf','synth_talk_slot_seen',strval($slot))) return;
         if ($slot !== 1) Logger::info("[talk] Model Slot {$slot} is selected, but native /talk ignores it and uses the profile's primary (Standard) connector");
     } catch (Throwable) {
     }

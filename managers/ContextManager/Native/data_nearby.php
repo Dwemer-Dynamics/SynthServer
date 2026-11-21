@@ -9,22 +9,14 @@ function PackIntoSummary($onlyMissingDiary=false)
     $db = \Synth\Bootstrap::db();
 
     if ($onlyMissingDiary) {
-        $results = $db->query("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
-        select gamets,1,message,message,'diary',uid,
-            case
-                when nullif(trim(speaker), '') is null then ''
-                else '|' || trim(both '|' from trim(speaker)) || '|'
-            end,
-            'global'
-        from core_memory_log
-        where event in ('diary','auto_diary')
-        and uid not in (select uid from core_memory where source_type='summary' AND classifier in  ('diary','auto_diary'))");
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->packMissingDiaries();
 
         $maxRow=0;
 
     } else {
-        $lastGameTsRecord = \Synth\Bootstrap::db()->fetchOne("select gamets as gamets from core_context_event order by gamets desc LIMIT 1"); // 2.1ms
-        $results = \Synth\Bootstrap::db()->fetchAll("select gamets_truncated from core_memory where source_type='summary' order by gamets_truncated desc LIMIT 1"); // 0.5ms, faster
+        $newestGameTs = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->newestGameTimestamp();
+        $lastGameTsRecord = $newestGameTs === null ? false : ['gamets' => $newestGameTs];
+        $results = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->lastSummaryGameTimestamp();
 
         $maxRow = isset($results[0]["gamets_truncated"]) ? intval($results[0]["gamets_truncated"]) : 0;
         $minRow = intval($lastGameTsRecord["gamets"]);
@@ -37,152 +29,9 @@ function PackIntoSummary($onlyMissingDiary=false)
         }
         // Queue boundaries are hard-cut by location changes. Dialogue rows inherit
         // the most recent world-context location so they remain in the scene queue.
-        $query="insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,scope,companions)
-                                with source_rows as (
-                                    select
-                                        uid,
-                                        gamets,
-                                        coalesce(ts, 0) as ts,
-                                        message,
-                                        speaker,
-                                        listener,
-                                        round(gamets::numeric/$pfi, 0) as time_bucket,
-                                        trim(regexp_replace(coalesce(
-                                            substring(message from '(?i)\\(context\\s+(?:new\\s+)?location:\\s*([^,\\)]+)'),
-                                            substring(message from '(?i)\\(at\\s+([^\\)]+)\\)'),
-                                            ''
-                                        ), '\\s+', ' ', 'g')) as location_key
-                                    from memory_v
-                                    where message not ilike 'Dear Diary%'
-                                      and gamets>$maxRow
-                                ),
-                                location_grouped_rows as (
-                                    select
-                                        *,
-                                        count(location_key) filter (where location_key <> '') over (
-                                            order by gamets asc, ts asc, uid asc
-                                            rows between unbounded preceding and current row
-                                        ) as location_group
-                                    from source_rows
-                                ),
-                                normalized_rows as (
-                                    select
-                                        uid,
-                                        gamets,
-                                        ts,
-                                        message,
-                                        speaker,
-                                        listener,
-                                        time_bucket,
-                                        case
-                                            when location_group=0 then null
-                                            else lower(max(nullif(location_key, '')) over (partition by location_group))
-                                        end as location_key
-                                    from location_grouped_rows
-                                ),
-                                queue_boundaries as (
-                                    select
-                                        uid,
-                                        gamets,
-                                        ts,
-                                        message,
-                                        speaker,
-                                        listener,
-                                        time_bucket,
-                                        location_key,
-                                        lag(location_key) over (order by gamets asc, ts asc, uid asc) as prev_location_key,
-                                        lag(time_bucket) over (order by gamets asc, ts asc, uid asc) as prev_time_bucket
-                                    from normalized_rows
-                                ),
-                                queued_rows as (
-                                    select
-                                        uid,
-                                        gamets,
-                                        ts,
-                                        message,
-                                        speaker,
-                                        listener,
-                                        case
-                                            when prev_time_bucket is null then 1
-                                            when location_key is null then 1
-                                            when prev_location_key is null then 1
-                                            when location_key<>prev_location_key then 1
-                                            when time_bucket<>prev_time_bucket then 1
-                                            else 0
-                                        end as is_new_queue
-                                    from queue_boundaries
-                                ),
-                                grouped_rows as (
-                                    select
-                                        uid,
-                                        gamets,
-                                        ts,
-                                        message,
-                                        speaker,
-                                        listener,
-                                        sum(is_new_queue) over (
-                                            order by gamets asc, ts asc, uid asc
-                                            rows between unbounded preceding and current row
-                                        ) as queue_id
-                                    from queued_rows
-                                ),
-                                grouped_summaries as (
-                                    select
-                                        queue_id,
-                                        max(gamets) as gamets_truncated,
-                                        count(*) as n,
-                                        STRING_AGG(message, chr(13) || chr(10) || chr(13) || chr(10) order by gamets asc, ts asc, uid asc) AS packed_message,
-                                        NULL as summary,
-                                        'dialogue' as classifier,
-                                        max(uid) as uid,
-                                        'global' as scope
-                                    from grouped_rows
-                                    group by queue_id
-                                    having count(*)>=$minEventsPerSummary
-                                ),
-                                queue_participants as (
-                                    select queue_id, '|' || string_agg(name, '|' order by name) || '|' as companions
-                                    from (
-                                        select distinct
-                                            queue_id,
-                                            trim(regexp_replace(person, '\\s*\\([^)]*\\)\\s*$', '', 'g')) as name
-                                        from grouped_rows
-                                        cross join lateral unnest(array[speaker, listener]) as participant(person)
-                                        where lower(trim(person)) not in ('', '-', '--', 'unknown', 'the narrator')
-                                    ) participant_names
-                                    where name <> ''
-                                    group by queue_id
-                                )
-                                select * from (
-                                    select
-                                        summaries.gamets_truncated,
-                                        summaries.n,
-                                        summaries.packed_message,
-                                        summaries.summary,
-                                        summaries.classifier,
-                                        summaries.uid,
-                                        summaries.scope,
-                                        participants.companions
-                                    from grouped_summaries summaries
-                                    left join queue_participants participants on participants.queue_id=summaries.queue_id
-                                    order by summaries.gamets_truncated asc
-                                ) as T
-                                where gamets_truncated>$maxRow and gamets_truncated<$minRowTs";
-        //error_log($query);
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->packDialogueSummaries($maxRow, $minRowTs, $pfi, $minEventsPerSummary);
 
-        $results = $db->query($query);
-
-        $results = $db->query("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
-                                    select gamets,1,message,message,'diary',uid,
-                                        case
-                                            when nullif(trim(speaker), '') is null then ''
-                                            else '|' || trim(both '|' from trim(speaker)) || '|'
-                                        end,
-                                        'global'
-                                    from core_memory_log
-                                    where event='diary'
-                                    and gamets>$maxRow
-                                ");
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->packDiariesAfter($maxRow);
 
     }
 
@@ -196,8 +45,7 @@ function DataRechatHistory()
     $db = \Synth\Bootstrap::db();
     // Include only actual rechat turns. Player input is not part of the rechat budget.
     // Keep the row payload so callers can scope the count to the current speaker.
-    $lastRechat=$db->fetchAll("select type,data,gamets FROM  core_context_event a  WHERE type in ('rechat','narration')
-    and localts>".(time()-120)."  order by gamets desc,ts desc LIMIT 10 OFFSET 0");
+    $lastRechat=\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentRechatRows(time()-120);
 
     return $lastRechat;
 
@@ -421,7 +269,8 @@ function synthLatestNearbyActorsPayload()
 {
     $db = \Synth\Bootstrap::db();
 
-    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyRow('nearby_actors');
+    $rows = $latestParty === null ? [] : [$latestParty];
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
@@ -535,7 +384,8 @@ function synthLatestNearbyItemsPayload()
 {
     $db = \Synth\Bootstrap::db();
 
-    $rows = $db->fetchAll("SELECT party FROM core_context_event WHERE type='nearby_items' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyRow('nearby_items');
+    $rows = $latestParty === null ? [] : [$latestParty];
     if (!is_array($rows) || empty($rows)) {
         return null;
     }
