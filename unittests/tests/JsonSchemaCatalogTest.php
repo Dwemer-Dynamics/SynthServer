@@ -992,9 +992,12 @@ final class JsonSchemaCatalogTest extends TestCase
             $this->assertFalse(generateFollowerDiary('The Narrator',[],'manual_narrator'));
             $this->assertSame(0,$db->reads,'Native diary must stop before legacy lookup or provider work.');
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>1]];
+            require_once __DIR__.'/DaoTestDoubles.php';
+            DaoTestDoubles::latestDiaryFrom($db);
             $this->assertStringContainsString('Legacy &lt;entry&gt;',synthBuildLatestDiaryContextBlock('Piper',$profile));
             $this->assertSame(1,$db->reads,'Explicit legacy diary lookup must remain available.');
         } finally {
+            if (class_exists('DaoTestDoubles',false)) DaoTestDoubles::reset();
             foreach ($keys as $key) { if (array_key_exists($key,$previous)) $GLOBALS[$key]=$previous[$key];else unset($GLOBALS[$key]); }
         }
     }

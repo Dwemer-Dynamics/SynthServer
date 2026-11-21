@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractMemory;
 
 /** Finds rows of core_memory. */
-final class MemoryDao
+class MemoryDao
 {
     use UsesEntityManager;
 

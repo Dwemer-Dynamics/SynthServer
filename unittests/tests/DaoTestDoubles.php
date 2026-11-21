@@ -88,8 +88,28 @@ final class DaoTestDoubles
         });
     }
 
+    /** MemoryDao::latestDiaryEntry() answered by $fake->fetchOne() with the legacy diary query. */
+    public static function latestDiaryFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\MemoryDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\MemoryDao {
+            public function __construct(private object $fake) {}
+
+            public function latestDiaryEntry(string $companion): ?array
+            {
+                $row = $this->fake->fetchOne("SELECT topic, summary AS content
+                 FROM public.core_memory
+                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower('{$this->fake->escape($companion)}')
+                 ORDER BY gamets DESC, localts DESC, rowid DESC
+                 LIMIT 1");
+
+                return is_array($row) ? $row : null;
+            }
+        });
+    }
+
     public static function reset(): void
     {
+        \Synth\Core\DbManager\Dao\MemoryDao::inject(null);
         RequestExecutionDao::inject(null);
     }
 }
