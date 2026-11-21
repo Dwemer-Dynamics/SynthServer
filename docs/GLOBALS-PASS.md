@@ -322,3 +322,12 @@ Root scripts (`main_synth_pipeline.php`, `gamedata.php`, `itt.php`, `player_rewr
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1790 | 1768 |
 | global uses | 64 | 64 |
+
+### R3-drivers
+
+Directory: drivers. `tools/require-prune.php` deleted 13 class-file `require_once` lines and replaced 6 `Logger.php` lines by `autoload.php`. Stacked on R2 (#190).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1768 | 0 |
+| global uses | 64 | 64 |
