@@ -8,16 +8,8 @@ function synth_relationship_interaction_inputs($connection, $db, array $event, i
     $interaction=synth_relationship_interaction_context($db,$responseId,$entryIndex);
     if (!$interaction) return null;
     $canonical=synth_protocol_canonical_json($event);
-    $result=@pg_query_params($connection,"SELECT p.id AS owner_event_id,origin.id AS response_event_id,i.response_payload
-        FROM public.core_protocol_event p JOIN public.core_request_execution e USING(session_id,request_id)
-        CROSS JOIN public.core_relationship_response_input i
-        JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
-        WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4
-            AND e.request_sha256=p.event_sha256 AND e.state='complete' AND i.history_event_id=$5
-            AND i.session_id=p.session_id AND i.request_id=p.request_id",
-        [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical),$responseId]);
-    if (!$result) throw new RuntimeException('Unable to verify relationship interaction owner');
-    $row=pg_fetch_assoc($result);if (!$row) return null;
+    $row=\Synth\Core\DbManager\Dao\RelationshipResponseInputDao::current($db)->interactionOwner($event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical),$responseId);
+    if (!$row) return null;
     $context=synth_protocol_current_context($db,$event);if (!$context) return null;
     $responder=synth_relationship_responder($db,$event,$context);if (!$responder) return null;
     $response=json_decode($row['response_payload'],true,flags:JSON_THROW_ON_ERROR);$lines=[];
@@ -50,26 +42,16 @@ function synth_relationship_capture_interaction_evaluation($db, int $responseId,
         $snapshot=synth_relationship_interaction_inputs($connection,$db,$event,$responseId,$entryIndex);
         if (!$snapshot) return null;
         $pair=$snapshot['interaction']['actor_ids'];
-        $result=@pg_query_params($connection,'SELECT id FROM public.core_relationship_interaction_evaluation
-            WHERE session_id=$1 AND request_id=$2 AND response_history_event_id=$3 AND listener_identity_id=$4',
-            [$event['session_id'],$event['request_id'],$responseId,$pair['listener']]);
-        if (!$result) throw new RuntimeException('Unable to check interaction evaluation replay');
-        if ($existing=pg_fetch_assoc($result)) return intval($existing['id']);
+        $existing=\Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao::current($db)->replayId($event['session_id'],$event['request_id'],$responseId,$pair['listener']);
+        if ($existing!==null) return $existing;
         $input=['schema'=>'synth.relationship.interaction.input.v1','evaluation_policy'=>'synth.relationship.policy.v2',
             'owner'=>$event,'connector_id'=>intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')),'system_prompt'=>$systemPrompt]+$snapshot;
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if (strlen($json)>262144) throw new LengthException('Interaction evaluation input too large');
-        $result=@pg_query_params($connection,'INSERT INTO public.core_relationship_interaction_evaluation
-            (speaker_identity_id,listener_identity_id,response_history_event_id,session_id,request_id,generation,context_sequence,input_payload,input_sha256)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,encode(sha256(convert_to(($8::jsonb)::text,\'UTF8\')),\'hex\')) RETURNING id',
-            [$pair['speaker'],$pair['listener'],$responseId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$json]);
-        if (!$result) throw new RuntimeException('Unable to freeze interaction evaluation');
-        $id=intval(pg_fetch_assoc($result)['id']);
+        $id=\Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao::current($db)->freeze($pair['speaker'],$pair['listener'],$responseId,$event['session_id'],$event['request_id'],
+            $event['generation'],$event['context_sequence'],$json);
         foreach ($snapshot['interaction']['relationships'] as $role=>$state) {
-            if ($state!==null && @pg_query_params($connection,'INSERT INTO public.core_relationship_interaction_prior
-                (interaction_id,actor_identity_id,prior_history_event_id) VALUES($1,$2,$3)',[$id,$pair[$role],$state['revision']])===false) {
-                throw new RuntimeException('Unable to freeze interaction prior');
-            }
+            if ($state!==null) \Synth\Core\DbManager\Dao\RelationshipInteractionPriorDao::current($db)->add($id,$pair[$role],$state['revision']);
         }
         return $id;
     },2000);
@@ -91,12 +73,8 @@ function synth_relationship_interaction_input($db, int $interactionId): ?array
     if ($interactionId<1) throw new InvalidArgumentException('Invalid interaction evaluation key');
     if (empty(\Synth\Bootstrap::claimedRequest())) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$interactionId) {
-        $result=@pg_query_params($connection,'SELECT * FROM public.core_relationship_interaction_evaluation
-            WHERE id=$1 AND session_id=$2 AND request_id=$3 AND generation=$4 AND context_sequence=$5
-                AND input_sha256=encode(sha256(convert_to(input_payload::text,\'UTF8\')),\'hex\')',
-            [$interactionId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence']]);
-        if (!$result) throw new RuntimeException('Unable to validate interaction evaluation');
-        $row=pg_fetch_assoc($result);if (!$row) return null;
+        $row=\Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao::current($db)->verifiedInput($interactionId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence']);
+        if (!$row) return null;
         $input=json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         if (($input['schema'] ?? null)!=='synth.relationship.interaction.input.v1'
             || ($input['evaluation_policy'] ?? null)!=='synth.relationship.policy.v2'
@@ -110,14 +88,11 @@ function synth_relationship_interaction_input($db, int $interactionId): ?array
         $snapshot=synth_relationship_interaction_inputs($connection,$db,$event,intval($row['response_history_event_id']),$input['interaction']['entry_index']);
         if (!$snapshot || array_intersect_key($input,$snapshot)!=$snapshot
             || $snapshot['interaction']['actor_ids']!==['speaker'=>intval($row['speaker_identity_id']),'listener'=>intval($row['listener_identity_id'])]) return null;
-        $result=@pg_query_params($connection,'SELECT actor_identity_id,prior_history_event_id FROM public.core_relationship_interaction_prior
-            WHERE interaction_id=$1 ORDER BY actor_identity_id',[$interactionId]);
-        if (!$result) throw new RuntimeException('Unable to validate interaction prior edges');
         $expected=[];
         foreach ($snapshot['interaction']['relationships'] as $role=>$state) {
             if ($state!==null) $expected[$snapshot['interaction']['actor_ids'][$role]]=strval($state['revision']);
         }
-        $actual=[];foreach (pg_fetch_all($result) as $prior) $actual[intval($prior['actor_identity_id'])]=$prior['prior_history_event_id'];
+        $actual=[];foreach (\Synth\Core\DbManager\Dao\RelationshipInteractionPriorDao::current($db)->forInteraction($interactionId) as $prior) $actual[intval($prior['actor_identity_id'])]=$prior['prior_history_event_id'];
         return $actual==$expected ? $input : null;
     },2000);
 }

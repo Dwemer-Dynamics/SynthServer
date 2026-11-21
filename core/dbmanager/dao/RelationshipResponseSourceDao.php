@@ -24,4 +24,13 @@ final class RelationshipResponseSourceDao
     {
         return array_values($this->fresh()->getRepository(AbstractRelationshipResponseSource::class)->findBy([], ['responseHistoryEventId' => 'ASC', 'sourceHistoryEventId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Freezes that this response depends on this raw input event. */
+    public function add(int $responseHistoryEventId, int $sourceHistoryEventId): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_relationship_response_source VALUES(:p1,:p2)',
+            ['p1' => $responseHistoryEventId, 'p2' => $sourceHistoryEventId]
+        );
+    }
 }
