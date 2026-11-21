@@ -19,25 +19,25 @@ if (!function_exists('mb_scrub')) {
     }
 }
 
-$GLOBALS["AVOID_TTS_CACHE"]=true;
-$GLOBALS["SYNTH_NO_EXAMPLES"]=true; // Keep prompt examples disabled for the SYNTH runtime.
-$GLOBALS["MEMORY_THRESHOLD_MODIFIER"]=0;    // POST MEMORY
-$GLOBALS["fallout_start_date"] = '2287-10-23 00:00:00'; // Fallout 4 start period used for in-game date conversion.
-$GLOBALS["SYNTH_GAME_ID"] = "fo4";
-$GLOBALS["SYNTH_WORLD_NAME"] = "Commonwealth";
-$GLOBALS["WORLDKNOWLEDGE_HINT"] = "";
-$GLOBALS["WORLDKNOWLEDGE_INJECTED_TOPICS"] = [];
-unset($GLOBALS["_JSON_BUFFER"]);
-$GLOBALS["SEMAPHORES_TIMEOUT"] = 300;
-$GLOBALS["TTS_INJECT_NONVERBAL_VOCALIZATION"] = true; // Spice the TTS with non-verbal vocalization when expressing strong emotion.
-$GLOBALS['use_emotions_expression'] = true;
+\Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+\Synth\Bootstrap::set('SYNTH_NO_EXAMPLES', true); // Keep prompt examples disabled for the SYNTH runtime.
+\Synth\Bootstrap::set('MEMORY_THRESHOLD_MODIFIER', 0);    // POST MEMORY
+\Synth\Bootstrap::set('fallout_start_date', '2287-10-23 00:00:00'); // Fallout 4 start period used for in-game date conversion.
+\Synth\Bootstrap::set('SYNTH_GAME_ID', "fo4");
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', "Commonwealth");
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', "");
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_INJECTED_TOPICS', []);
+\Synth\Bootstrap::forget('_JSON_BUFFER');
+\Synth\Bootstrap::set('SEMAPHORES_TIMEOUT', 300);
+\Synth\Bootstrap::set('TTS_INJECT_NONVERBAL_VOCALIZATION', true); // Spice the TTS with non-verbal vocalization when expressing strong emotion.
+\Synth\Bootstrap::set('use_emotions_expression', true);
 
 
 // Cooldown for some actions
 $COOLDOWNMAP=[];
 
 $path = dirname((__FILE__)) . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"]=$path;
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
 
 require_once($path . "lib/runtime_bootstrap.php");
 require_once($path . "lib/request.php");
@@ -81,7 +81,7 @@ $cooldownPeriod = 600;
 
 if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     // You can run this script directly with php: main.php "Player text"
-    $GLOBALS["db"] = new sql();
+    \Synth\Bootstrap::set('db', new sql());
     $db = \Synth\Bootstrap::db();
 
     $latsRid=$db->fetchAll("select * from core_context_event order by rowid desc LIMIT 1 OFFSET 0");
@@ -107,12 +107,12 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
         "response_format" => "json",
     ]);
     $receivedData = synth_event_to_received_data($synthRequestEvent);
-    $GLOBALS["SYNTH_REQUEST_EVENT"] = $synthRequestEvent;
-    $GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
+    \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', $synthRequestEvent);
+    \Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
     synthRuntimeSetActiveProfile($argv[2] ?? '');
-    $GLOBALS["FUNCTIONS_ARE_ENABLED"]=true;
+    \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
 
-    unset($GLOBALS["db"]);
+    \Synth\Bootstrap::forget('db');
 } else {
     $synthRequestEvent = synth_decode_event_from_request($synthIngressEvent ?? null);
     if (!empty($synthRequestEvent["request_id"])) {
@@ -123,15 +123,15 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
         Logger::bootstrapRequestId("main");
     }
     $receivedData = mb_scrub(synth_event_to_received_data($synthRequestEvent));
-    $GLOBALS["SYNTH_REQUEST_EVENT"] = $synthRequestEvent;
-    $GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
+    \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', $synthRequestEvent);
+    \Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
     $acceptHeader = strtolower((string)($_SERVER["HTTP_ACCEPT"] ?? ""));
     $streamHeader = strtolower((string)($_SERVER["HTTP_X_SYNTH_STREAM"] ?? ""));
-    $GLOBALS["SYNTH_RESPONSE_STREAMING"] = synth_should_stream_json_response(
+    \Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', synth_should_stream_json_response(
         $synthRequestEvent,
         $acceptHeader,
         $streamHeader
-    );
+    ));
 
     // Runtime profile is resolved from JSON payload data later in the pipeline.
 
@@ -198,7 +198,7 @@ ignore_user_abort(true);
 set_time_limit(1200);
 
 $momentum=time();
-$GLOBALS["runid"]=uniqid("run_",false);
+\Synth\Bootstrap::set('runid', uniqid("run_",false));
 // Array with sentences talked so far
 $talkedSoFar = array();
 
@@ -213,29 +213,29 @@ $ERROR_TRIGGERED=false;
 $LAST_ROLE="user";
 
 // SCRIPT LINE QUEUE
-$GLOBALS["SCRIPTLINE_EXPRESSION"]="";
-$GLOBALS["SCRIPTLINE_LISTENER"]="";
-$GLOBALS["SCRIPTLINE_ANIMATION"]="";
+\Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', "");
+\Synth\Bootstrap::set('SCRIPTLINE_LISTENER', "");
+\Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "");
 
-$GLOBALS["TTS_FFMPEG_FILTERS"]=[];
+\Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
 
 /**********************
 MAIN FLOW
 ***********************/
 
-if (isset($GLOBALS["SYNTH_REQUEST_EVENT"]) && is_array(\Synth\Bootstrap::requestEvent())) {
+if (\Synth\Bootstrap::has('SYNTH_REQUEST_EVENT') && is_array(\Synth\Bootstrap::requestEvent())) {
     $gameRequest = synth_event_to_game_request(\Synth\Bootstrap::requestEvent());
 } else {
     $gameRequest = ["", "", "", ""];
 }
-$GLOBALS["gameRequest"] = &$gameRequest;
-unset($GLOBALS["SYNTH_TURN_PEOPLE_SNAPSHOT"]);
+\Synth\Bootstrap::bind('gameRequest', $gameRequest);
+\Synth\Bootstrap::forget('SYNTH_TURN_PEOPLE_SNAPSHOT');
 
 
 $startTime = microtime(true);
-$GLOBALS["SYNTH_TURN_START_TIME"] = $startTime;
-//error_log("Audit run ID: " . $GLOBALS["AUDIT_RUNID"]. " ({$gameRequest[0]}) started: ".$startTime);
-$GLOBALS["AUDIT_RUNID_REQUEST"]=$gameRequest[0];
+\Synth\Bootstrap::set('SYNTH_TURN_START_TIME', $startTime);
+//error_log("Audit run ID: " . \Synth\Bootstrap::config("AUDIT_RUNID"). " ({$gameRequest[0]}) started: ".$startTime);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', $gameRequest[0]);
 
 $gameRequest[0] = strtolower($gameRequest[0]); // Who put 'diary' uppercase?
 if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST') && $gameRequest[0] !== 'request') {
@@ -250,7 +250,7 @@ Logger::info("[main] Request start" . Logger::formatContext([
     "type" => $gameRequest[0],
     "ts" => $gameRequest[1] ?? "",
     "gamets" => $gameRequest[2] ?? "",
-    "streaming" => !empty($GLOBALS["SYNTH_RESPONSE_STREAMING"]),
+    "streaming" => !empty(\Synth\Bootstrap::config('SYNTH_RESPONSE_STREAMING')),
 ]));
 
 // Native timestamps do not authorize pruning shared legacy history. Save/timeline
@@ -277,8 +277,9 @@ if (in_array($gameRequest[0], ["conversation_start", "conversation_end"], true))
 
 // Database Connection
 $db = \Synth\Bootstrap::db() ?? new sql();
-$GLOBALS["db"] = $db;
-unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'], $GLOBALS['SYNTH_AUTOCHAT']);
+\Synth\Bootstrap::set('db', $db);
+\Synth\Bootstrap::forget('SYNTH_AMBIENT_NPC_EXCHANGE');
+\Synth\Bootstrap::forget('SYNTH_AUTOCHAT');
 $inventoryPromptText = '';
 $synthAutoChat = false;
 
@@ -299,11 +300,11 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
     }
     // Claim admission has committed. Early context ACK work and terminal error reporting
     // need the same durable owner marker as dialogue; keep the canonical event unchanged.
-    $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
+    \Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
     if (in_array($wireEvent['type'] ?? '', ['init', 'context', 'activate', 'cancel', 'halt'], true)) {
         if (($wireEvent['type'] ?? '')==='context' && in_array('social.tasks.v1',$wireEvent['capabilities'] ?? [],true)) {
             require_once $path.'lib/synth_social_tasks.php';
-            $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=synth_social_offers($db,$wireEvent);
+            \Synth\Bootstrap::set('SYNTH_SOCIAL_ACK_TASKS', synth_social_offers($db,$wireEvent));
         }
         // The negotiated init ACK reports the audience reset it committed; its stored body is what replays return.
         synth_protocol_emit_ack(($wireEvent['type'] ?? 'event') . '_accepted',
@@ -320,7 +321,7 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
                 require_once $path.'lib/synth_social_response.php';
                 synth_social_emit_arrival($db,$wireEvent,$task,rtrim($path,DIRECTORY_SEPARATOR));
             } else {
-                $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=[$task];
+                \Synth\Bootstrap::set('SYNTH_SOCIAL_ACK_TASKS', [$task]);
                 synth_protocol_emit_ack($wireEvent['type']==='social_task_request'
                     ? 'social_task_accepted' : 'social_task_progress_accepted');
             }
@@ -385,8 +386,8 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
                         strval($wireEvent['payload']['control']['mode'] ?? 'STANDARD'),$transcript);
                     $task=synth_social_admit_from_input($db,$wireEvent,$transcript);
                     if ($task!==null) {
-                        $GLOBALS['SYNTH_SOCIAL_ACK_TASKS']=[$task];
-                        $GLOBALS['SYNTH_SOCIAL_INPUT_TEXT']=$taskText;
+                        \Synth\Bootstrap::set('SYNTH_SOCIAL_ACK_TASKS', [$task]);
+                        \Synth\Bootstrap::set('SYNTH_SOCIAL_INPUT_TEXT', $taskText);
                         synth_protocol_emit_ack('social_task_accepted');
                         exit;
                     }
@@ -425,7 +426,7 @@ if (PHP_SAPI !== 'cli' && !getenv('PHPUNIT_TEST')) {
             $body=synth_diary_admit_request($db);
             header('Content-Type: application/x-ndjson; charset=utf-8');
             header('Cache-Control: no-store');
-            $GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY']=$body;
+            \Synth\Bootstrap::set('SYNTH_PROTOCOL_RESPONSE_BODY', $body);
             echo $body;
         } catch (SYNTHProtocolCancelled $error) { throw $error; }
         catch (Throwable $error) {
@@ -480,7 +481,7 @@ if ($gameRequest[0] === "captured_dialogue") {
 require_once($path . "processor" .DIRECTORY_SEPARATOR."synth_modes.php");
 
 // Capture settings before any target profile overrides; rechat inherits the original owned mode, not today's global mode.
-if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+if (!empty(\Synth\Bootstrap::claimedRequest())) {
     require_once $path.'lib/synth_dialogue_policy.php';
     try {
         synth_dialogue_capture_origin_policy($db,\Synth\Bootstrap::requestEvent()['json'],$GLOBALS,
@@ -498,7 +499,7 @@ if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
 // provider call, no echo and no history; it is not retried (the request claim replays the stored failure).
 if ($synthAutoChat) {
     try {
-        synth_autochat_prepare($db, $GLOBALS['SYNTH_REQUEST_EVENT']['json'], $gameRequest, $transcript ?? null);
+        synth_autochat_prepare($db, \Synth\Bootstrap::requestEvent()['json'], $gameRequest, $transcript ?? null);
         $inventoryPromptText = synth_autochat_line()['text'];
     } catch (SYNTHProtocolCancelled $error) { throw $error; }
     catch (Throwable $error) {
@@ -577,12 +578,12 @@ $fast_commands = ["updateprofile","updateprofile_narrator","diary","diary_narrat
     "updateprofiles_batch_async","core_profile_assign","switchrace","combatbark",
     "region"];
 
-$GLOBALS["all_fast_commands"] = $fast_commands;
+\Synth\Bootstrap::set('all_fast_commands', $fast_commands);
 
 $semaphore_timeout = \Synth\Bootstrap::config("SEMAPHORES_TIMEOUT") ?? 300;
 
 
-// Use logical id "MAIN" so other code can still find $GLOBALS["SEMAPHORES"]["MAIN"]
+// Use logical id "MAIN" so other code can still find \Synth\Bootstrap::config("SEMAPHORES")["MAIN"]
 if (!in_array($gameRequest[0],$fast_commands)) {
     if (!SemaphoreWait("MAIN", $semaphore_timeout, 1003, null)) {
         Logger::warn("[main] main semaphore wait failed for {$gameRequest[0]}");
@@ -605,7 +606,7 @@ require(__DIR__."/processor/misc.php");
 // Will change  $gameRequest[3] with the rewritten LLM request.
 
 $player_rewrite_speech = "";
-if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && isset($GLOBALS["PLAYER_RESPEECH"]) && \Synth\Bootstrap::config("PLAYER_RESPEECH")) {
+if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]) && \Synth\Bootstrap::has('PLAYER_RESPEECH') && \Synth\Bootstrap::config("PLAYER_RESPEECH")) {
     // Use preg_replace to remove the name and colon before the dialogue
     $cleaned_player_dialogue = addcslashes(preg_replace('/^[^:]+:/', '', $gameRequest[3]),'"');
     error_log($cleaned_player_dialogue);
@@ -627,15 +628,15 @@ if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narr
         $player_rewrite_speech=`php player_rewrite.php $escapedDialogue $escapedNpc`;
         $player_rewrite_speech=cleanResponse($player_rewrite_speech);
         $player_rewrite_speech=sanitizePlayerRespeechText($player_rewrite_speech, \Synth\Bootstrap::config("PLAYER_NAME") ?? null);
-        $gameRequest[3]="{$GLOBALS["PLAYER_NAME"]}:$player_rewrite_speech";
-        $GLOBALS["SYNTH_EXECUTION_MODE"] = "AUTOCHAT"; //required when using STANDARD/WHISPER and ** prefix triggers speech database fix
+        $gameRequest[3]=(\Synth\Bootstrap::config('PLAYER_NAME') . ":$player_rewrite_speech");
+        \Synth\Bootstrap::set('SYNTH_EXECUTION_MODE', "AUTOCHAT"); //required when using STANDARD/WHISPER and ** prefix triggers speech database fix
     }
 }
 
 
 // Narrator inititalization
 // Note: We should check if we need to load Narrator profile in all type of requests.
-if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']['profile_token'])) {
+if (!empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE')['profile_token'])) {
     synthRuntimeSetActiveProfile(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE')['profile_token']);
 }
 require(__DIR__."/processor/narrator_init.php");
@@ -645,8 +646,8 @@ require(__DIR__."/processor/narrator_init.php");
 // Also, we must not declare functions on this file (main.php).
 
 // Profile loading
-if (!isset($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"])) {
-    $GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"] = false;
+if (!\Synth\Bootstrap::has('NARRATOR_BORED_EVENT_ACTIVE')) {
+    \Synth\Bootstrap::set('NARRATOR_BORED_EVENT_ACTIVE', false);
 }
 
 if (in_array(($gameRequest[0] ?? ''), ['bored', 'auto_greeting'], true) && synthRuntimeGetActiveProfile() === null) {
@@ -708,7 +709,7 @@ if (in_array($inputRequestType, ["inputtext", "inputtext_s", "cheatmode", "visio
         $inputProfileFields = function_exists('synth_extract_npc_profile_fields')
             ? synth_extract_npc_profile_fields((string)($gameRequest[3] ?? ""))
             : [];
-        if (empty($inputProfileFields) && isset($GLOBALS["SYNTH_REQUEST_EVENT"]["payload"])) {
+        if (empty($inputProfileFields) && isset(\Synth\Bootstrap::requestEvent()["payload"])) {
             $inputProfileFields = function_exists('synth_extract_npc_profile_fields')
                 ? synth_extract_npc_profile_fields((string)\Synth\Bootstrap::requestEvent()["payload"])
                 : [];
@@ -716,7 +717,7 @@ if (in_array($inputRequestType, ["inputtext", "inputtext_s", "cheatmode", "visio
         $inputRefid = function_exists('synth_extract_npc_refid')
             ? synth_extract_npc_refid((string)($gameRequest[3] ?? ""), $inputProfileFields)
             : "";
-        if ($inputRefid === "" && isset($GLOBALS["SYNTH_REQUEST_EVENT"]["payload"])) {
+        if ($inputRefid === "" && isset(\Synth\Bootstrap::requestEvent()["payload"])) {
             $inputRefid = function_exists('synth_extract_npc_refid')
                 ? synth_extract_npc_refid((string)\Synth\Bootstrap::requestEvent()["payload"], $inputProfileFields)
                 : "";
@@ -767,7 +768,7 @@ if (in_array($inputRequestType, ["inputtext", "inputtext_s", "cheatmode", "visio
 
 
 // Bored
-if (($gameRequest[0] ?? '') === 'bored' && empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
+if (($gameRequest[0] ?? '') === 'bored' && empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE'))) {
     require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narratorSettings = new Narrator();
     if ($narratorSettings->getBool('bored_enabled', false)) {
@@ -775,7 +776,7 @@ if (($gameRequest[0] ?? '') === 'bored' && empty($GLOBALS['SYNTH_AMBIENT_NPC_EXC
         $boredRoll = random_int(1, 100);
         if ($boredRoll <= $boredChance) {
             synthRuntimeSetActiveProfile(md5('The Narrator'));
-            $GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"] = true;
+            \Synth\Bootstrap::set('NARRATOR_BORED_EVENT_ACTIVE', true);
             Logger::info("[NARRATOR_BORED] Routing bored event through The Narrator runtime (roll {$boredRoll}/{$boredChance})");
         } else {
             Logger::info("[NARRATOR_BORED] Keeping bored event on NPC runtime (roll {$boredRoll}/{$boredChance})");
@@ -783,7 +784,7 @@ if (($gameRequest[0] ?? '') === 'bored' && empty($GLOBALS['SYNTH_AMBIENT_NPC_EXC
     }
 }
 
-if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
+if (!empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE'))) {
     require_once $path.'lib/synth_ambient_npc.php';
     try {
         $loadedAmbientProfile=synth_ambient_npc_load_profile($db,\Synth\Bootstrap::requestEvent()['json']);
@@ -810,12 +811,12 @@ if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
     ]);
 
     // Initialize OVERRIDES array for all profile types
-$OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::config("MINIME_T5") : false;
-    $OVERRIDES["STTFUNCTION"] = isset($GLOBALS["STTFUNCTION"]) ? \Synth\Bootstrap::config("STTFUNCTION") : "";
-    $OVERRIDES["TTSFUNCTION_PLAYER"] = isset($GLOBALS["TTSFUNCTION_PLAYER"]) ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER") : "";
-    $OVERRIDES["TTSFUNCTION_PLAYER_VOICE"] = isset($GLOBALS["TTSFUNCTION_PLAYER_VOICE"]) ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_VOICE") : "";
-    $OVERRIDES["TTSFUNCTION_PLAYER_VOICE_ID"] = isset($GLOBALS["TTSFUNCTION_PLAYER_VOICE_ID"]) ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_VOICE_ID") : "";
-    $OVERRIDES["TTSFUNCTION_PLAYER_LANGUAGE"] = isset($GLOBALS["TTSFUNCTION_PLAYER_LANGUAGE"]) ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_LANGUAGE") : "";
+$OVERRIDES["MINIME_T5"] = \Synth\Bootstrap::has('MINIME_T5') ? \Synth\Bootstrap::config("MINIME_T5") : false;
+    $OVERRIDES["STTFUNCTION"] = \Synth\Bootstrap::has('STTFUNCTION') ? \Synth\Bootstrap::config("STTFUNCTION") : "";
+    $OVERRIDES["TTSFUNCTION_PLAYER"] = \Synth\Bootstrap::has('TTSFUNCTION_PLAYER') ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER") : "";
+    $OVERRIDES["TTSFUNCTION_PLAYER_VOICE"] = \Synth\Bootstrap::has('TTSFUNCTION_PLAYER_VOICE') ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_VOICE") : "";
+    $OVERRIDES["TTSFUNCTION_PLAYER_VOICE_ID"] = \Synth\Bootstrap::has('TTSFUNCTION_PLAYER_VOICE_ID') ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_VOICE_ID") : "";
+    $OVERRIDES["TTSFUNCTION_PLAYER_LANGUAGE"] = \Synth\Bootstrap::has('TTSFUNCTION_PLAYER_LANGUAGE') ? \Synth\Bootstrap::config("TTSFUNCTION_PLAYER_LANGUAGE") : "";
 
     // Direct narrator requests must load the narrator runtime profile even if the
     // inbound request still carries the current NPC profile hash.
@@ -842,7 +843,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
             $profile = new CoreProfile();
             $currentProfileData = $profile->getById($narratorData["profile_id"]);
 
-            $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
             $connector = new LLMConnector();
             $npcMaster = new NpcMaster(); // LLMRandomizer persists connector state through NPC metadata
@@ -856,7 +857,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
             // Load narrator character data into GLOBALS (this sets PROMPT_HEAD and all character fields)
             $narrator->loadCharacterIntoGlobals();
 
-            $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
             error_log("[CORE SYSTEM] Using Narrator profile from core_narrator table, profile: {$currentProfileData["label"]}");
         } else {
@@ -864,7 +865,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
         }
     } else {
         // Regular NPC profile loading
-        //$OVERRIDES["PROMPT_HEAD"]=$GLOBALS["PROMPT_HEAD"];
+        //$OVERRIDES["PROMPT_HEAD"]=\Synth\Bootstrap::config("PROMPT_HEAD");
 
         $npcMaster=new NpcMaster();
         Logger::phaseStart("profile_npc_lookup", [
@@ -908,7 +909,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
                 $fallbackNpcData = $db->fetchOne("SELECT * FROM core_npc WHERE lower(npc_name)=lower('{$escapedNpcName}') LIMIT 1");
                 if ($fallbackNpcData) {
                     $npcMaster->setOldGlobalsFromCurrentNpcData($fallbackNpcData, false);
-                    $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $fallbackNpcData;
+                    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $fallbackNpcData);
                     error_log("[CORE SYSTEM] Resolved unknown profile hash to NPC '{$fallbackNpcData["npc_name"]}' from request payload");
                 } else {
                     error_log("[CORE SYSTEM] Could not resolve NPC '{$fallbackNpcName}' for unknown profile hash");
@@ -949,7 +950,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
             }
 
             if ($currentProfileData) {
-                $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
                 Logger::phaseStart("profile_connector_select", [
                     "npc" => $fallbackNpcData["npc_name"] ?? "",
@@ -957,7 +958,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
                 ]);
                 $connector = new LLMConnector();
                 // Respect current in-game mode when selecting active connector slot.
-                $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
+                $result = isset(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot'])
                     ? ['value'=>\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']]
                     : ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
                 $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
@@ -975,7 +976,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
                 if ($currentConnectorData) {
                     $connector->setOldGlobals($currentConnectorData);
                     $profile->setOldGlobals($currentProfileData);
-                    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+                    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
                     if ($fallbackNpcData) {
                         $npcMaster->setOldGlobalsFromCurrentNpcData($fallbackNpcData, false);
                         error_log("[CORE SYSTEM] Loaded fallback NPC profile '{$currentProfileData["label"]}' for '{$fallbackNpcData["npc_name"]}'");
@@ -995,7 +996,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
 
             // Profile has been migrated
             $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData, false);
-            $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $currentNpcData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $currentNpcData);
 
             $profile=new CoreProfile();
 
@@ -1011,9 +1012,9 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
 
             $currentProfileData=$profile->getById($currentNpcData["profile_id"]);
 
-            $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"]=$currentProfileData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
-            if (!empty($GLOBALS['AUTOFILL_CUSTOM_PROFILES'])) {
+            if (!empty(\Synth\Bootstrap::config('AUTOFILL_CUSTOM_PROFILES'))) {
                 require_once __DIR__ . DIRECTORY_SEPARATOR . "ui" . DIRECTORY_SEPARATOR . "cmd" . DIRECTORY_SEPARATOR . "ai_profile_generation_service.php";
                 require_once __DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "profile_autofill_async.php";
                 if (aiProfileShouldAttemptAutofill($currentNpcData, $npcMaster)) {
@@ -1054,9 +1055,9 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
             $connector->setOldGlobals($currentConnectorData);
             $profile->setOldGlobals($currentProfileData);
             $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData, false);
-                $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $currentNpcData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $currentNpcData);
 
-            $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]=$currentConnectorData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
             $debugLang = \Synth\Bootstrap::config("LLM_LANG") ?? "unset";
             $debugOverrideTtsLang = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE") ?? "unset";
@@ -1071,14 +1072,14 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
         "model" => $currentConnectorData["model"] ?? "",
     ], "info");
 
-//$GLOBALS["MINIME_T5"]=$OVERRIDES["MINIME_T5"];
-    $GLOBALS["STTFUNCTION"]=$OVERRIDES["STTFUNCTION"];
-    $GLOBALS["TTSFUNCTION_PLAYER"]=$OVERRIDES["TTSFUNCTION_PLAYER"];
-    $GLOBALS["TTSFUNCTION_PLAYER_VOICE"]=$OVERRIDES["TTSFUNCTION_PLAYER_VOICE"];
-    $GLOBALS["TTSFUNCTION_PLAYER_VOICE_ID"]=$OVERRIDES["TTSFUNCTION_PLAYER_VOICE_ID"];
-    $GLOBALS["TTSFUNCTION_PLAYER_LANGUAGE"]=$OVERRIDES["TTSFUNCTION_PLAYER_LANGUAGE"];
+//\Synth\Bootstrap::config("MINIME_T5")=$OVERRIDES["MINIME_T5"];
+    \Synth\Bootstrap::set('STTFUNCTION', $OVERRIDES["STTFUNCTION"]);
+    \Synth\Bootstrap::set('TTSFUNCTION_PLAYER', $OVERRIDES["TTSFUNCTION_PLAYER"]);
+    \Synth\Bootstrap::set('TTSFUNCTION_PLAYER_VOICE', $OVERRIDES["TTSFUNCTION_PLAYER_VOICE"]);
+    \Synth\Bootstrap::set('TTSFUNCTION_PLAYER_VOICE_ID', $OVERRIDES["TTSFUNCTION_PLAYER_VOICE_ID"]);
+    \Synth\Bootstrap::set('TTSFUNCTION_PLAYER_LANGUAGE', $OVERRIDES["TTSFUNCTION_PLAYER_LANGUAGE"]);
 
-    // $GLOBALS["PROMPT_HEAD"]=$OVERRIDES["PROMPT_HEAD"];
+    // \Synth\Bootstrap::config("PROMPT_HEAD")=$OVERRIDES["PROMPT_HEAD"];
 
 } else {
     $isNarratorRequestWithoutProfile = in_array($gameRequest[0], [
@@ -1098,7 +1099,7 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
             $currentProfileData = $profile->getById($narratorData["profile_id"]);
 
             if ($currentProfileData) {
-                $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
                 $connector = new LLMConnector();
                 $npcMaster = new NpcMaster(); // LLMRandomizer persists connector state through NPC metadata
@@ -1110,24 +1111,24 @@ $OVERRIDES["MINIME_T5"] = isset($GLOBALS["MINIME_T5"]) ? \Synth\Bootstrap::confi
                     $connector->setOldGlobals($currentConnectorData);
                     $profile->setOldGlobals($currentProfileData);
                     $narrator->loadCharacterIntoGlobals();
-                    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+                    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
                     error_log("[CORE SYSTEM] Using Narrator profile without explicit profile hash, profile: {$currentProfileData["label"]}");
                 } else {
                     Logger::error("[CORE SYSTEM] Narrator request without profile hash could not resolve connector");
-                    $GLOBALS["USING_DEFAULT_PROFILE"] = true;
+                    \Synth\Bootstrap::set('USING_DEFAULT_PROFILE', true);
                 }
             } else {
                 Logger::error("[CORE SYSTEM] Narrator request without profile hash could not resolve profile");
-                $GLOBALS["USING_DEFAULT_PROFILE"] = true;
+                \Synth\Bootstrap::set('USING_DEFAULT_PROFILE', true);
             }
         } else {
             Logger::error("[CORE SYSTEM] Narrator request without profile hash has no narrator profile configured");
-            $GLOBALS["USING_DEFAULT_PROFILE"] = true;
+            \Synth\Bootstrap::set('USING_DEFAULT_PROFILE', true);
         }
     } else {
         //error_log(__FILE__.". Using default profile because no active profile was resolved");
-        $GLOBALS["USING_DEFAULT_PROFILE"]=true;
+        \Synth\Bootstrap::set('USING_DEFAULT_PROFILE', true);
     }
 }
 
@@ -1148,13 +1149,13 @@ if ($requestModelSlot !== null && !empty($currentProfileData) && empty($currentC
         'detail'=>'Model slot '.intval($requestModelSlot).' has no connector on the responding profile.'],
         synth_protocol_next_line_suffix('status'));
     synth_protocol_write_response_line('response_end', ['status'=>'error'], 'end');
-    $GLOBALS['SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED'] = true;
+    \Synth\Bootstrap::set('SYNTH_JSON_RESPONSE_STREAM_FINAL_EMITTED', true);
     synth_protocol_complete_request($db, 'failed', 'application/x-ndjson',
         strval(\Synth\Bootstrap::config('SYNTH_PROTOCOL_RESPONSE_BODY') ?? ''), 'model_slot_unconfigured');
     exit;
 }
 
-if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]) && \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA") && !synth_protocol_response_is_narrator()) {
+if (\Synth\Bootstrap::has('SYNTH_CORE_CURRENT_NPC_DATA') && \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA") && !synth_protocol_response_is_narrator()) {
     $npcMasterForVoiceRefresh = isset($npcMaster) && ($npcMaster instanceof NpcMaster)
         ? $npcMaster
         : new NpcMaster();
@@ -1169,7 +1170,7 @@ if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]) && \Synth\Bootstrap::config("
         "voiceid" => $refreshedNpcData["voiceid"] ?? "",
     ], "info");
     if ($refreshedNpcData) {
-                $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $refreshedNpcData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $refreshedNpcData);
     }
 }
 
@@ -1177,7 +1178,7 @@ if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]) && \Synth\Bootstrap::config("
 
 if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext","cheatmode"]) ) {
     // Empty request
-    if (empty($gameRequest[3]) || trim($gameRequest[3])=="{$GLOBALS["PLAYER_NAME"]}:") {
+    if (empty($gameRequest[3]) || trim($gameRequest[3])==(\Synth\Bootstrap::config('PLAYER_NAME') . ":")) {
         error_log("[MAIN] Empty request... aborting");
         terminate();
     } else {
@@ -1213,11 +1214,11 @@ if ($gameRequest[0]=="diary") {
         ? synthResolveDiaryConnectorName()
         : (\Synth\Bootstrap::config("CONNECTORS_DIARY") ?? '');
     if (!empty($resolvedDiaryConnector)) {
-        $GLOBALS["CURRENT_CONNECTOR"] = $resolvedDiaryConnector;
+        \Synth\Bootstrap::set('CURRENT_CONNECTOR', $resolvedDiaryConnector);
     }
 
     // Add configurable cooldown for diary events to prevent spam (per NPC)
-    $diaryCooldownPeriod = isset($GLOBALS["DIARY_COOLDOWN"]) ? intval(\Synth\Bootstrap::config("DIARY_COOLDOWN")) : 30;
+    $diaryCooldownPeriod = \Synth\Bootstrap::has('DIARY_COOLDOWN') ? intval(\Synth\Bootstrap::config("DIARY_COOLDOWN")) : 30;
 
     // Create a per-NPC cooldown key using the current NPC's name
     $npcName = preg_replace('/[^a-zA-Z0-9_]/', '_', \Synth\Bootstrap::config("SYNTH_NAME"));
@@ -1233,7 +1234,7 @@ if ($gameRequest[0]=="diary") {
 
         if ($timeElapsed < $diaryCooldownPeriod) {
             // Cooldown is still active for this NPC, exit
-            Logger::info("DIARY is on cooldown for {$GLOBALS["SYNTH_NAME"]}. Try again in " . ($diaryCooldownPeriod - $timeElapsed) . " seconds.");
+            Logger::info(("DIARY is on cooldown for " . \Synth\Bootstrap::config('SYNTH_NAME') . ". Try again in ") . ($diaryCooldownPeriod - $timeElapsed) . " seconds.");
             terminate();
         }
     }
@@ -1277,11 +1278,11 @@ if (in_array($gameRequest[0],["bored"])) {
         logEvent($localGameRequest);
     }
 
-    if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE'])) {
+    if (!empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE'))) {
         // The owned native origin stays in this request and uses its captured NPC pair.
-    } elseif (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"])) {
+    } elseif (!empty(\Synth\Bootstrap::config('NARRATOR_BORED_EVENT_ACTIVE'))) {
         Logger::info("[NARRATOR_BORED] Using narrator bored flow");
-    } elseif ((isset($GLOBALS["BORED_EVENT_SERVERSIDE"])&&(\Synth\Bootstrap::config("BORED_EVENT_SERVERSIDE")))) {
+    } elseif ((\Synth\Bootstrap::has('BORED_EVENT_SERVERSIDE')&&(\Synth\Bootstrap::config("BORED_EVENT_SERVERSIDE")))) {
         $boredPayload = json_decode((string)($gameRequest[3] ?? ''), true);
         $boredPayload = is_array($boredPayload) ? $boredPayload : [];
         $boredSeedActor = trim((string)($boredPayload['actor_name'] ?? $boredPayload['speaker'] ?? ''));
@@ -1317,7 +1318,7 @@ if (in_array($gameRequest[0],["bored"])) {
 // Combat bark event - log as infoaction and apply cooldown
 if (in_array($gameRequest[0],["combatbark"])) {
     // Add configurable cooldown for combat barks to prevent spam (global across all NPCs)
-    $combatBarkCooldownPeriod = isset($GLOBALS["COMBAT_BARK_COOLDOWN"]) ? intval(\Synth\Bootstrap::config("COMBAT_BARK_COOLDOWN")) : 30;
+    $combatBarkCooldownPeriod = \Synth\Bootstrap::has('COMBAT_BARK_COOLDOWN') ? intval(\Synth\Bootstrap::config("COMBAT_BARK_COOLDOWN")) : 30;
 
     // Use a global cooldown key (shared across all NPCs)
     $cooldownKey = "COMBAT_BARK_LAST_TIMESTAMP";
@@ -1343,7 +1344,7 @@ if (in_array($gameRequest[0],["combatbark"])) {
 
     $localGameRequest=$gameRequest;
     $localGameRequest[0]="infoaction";
-    $localGameRequest[3].=" ({$GLOBALS["SYNTH_NAME"]} shouts during combat)";
+    $localGameRequest[3].=(" (" . \Synth\Bootstrap::config('SYNTH_NAME') . " shouts during combat)");
     logEvent($localGameRequest);
 }
 
@@ -1359,10 +1360,10 @@ if ($rechatAllowsActionsForPrompt) {
 }
 if (in_array($gameRequest[0], $actionCapableRequestTypes, true)) {
     $FUNCTIONS_ARE_ENABLED=true;
-    $GLOBALS["FUNCTIONS_ARE_ENABLED"]=true;
+    \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
 } else {
     $FUNCTIONS_ARE_ENABLED=false;
-    $GLOBALS["FUNCTIONS_ARE_ENABLED"]=false;
+    \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
 }
 
 // Direct narrator dialogue is an explicit action-capable request path.
@@ -1389,20 +1390,20 @@ Logger::phaseStart("party_context_prepare", [
     "type" => $gameRequest[0] ?? "",
     "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
 ]);
-$GLOBALS["CACHE_PARTY"]=DataGetCurrentPartyConf();
+\Synth\Bootstrap::set('CACHE_PARTY', DataGetCurrentPartyConf());
 $currentParty=json_decode(\Synth\Bootstrap::config("CACHE_PARTY"),true);
 if (is_array($currentParty)) {
     if (in_array(\Synth\Bootstrap::config("SYNTH_NAME"),array_keys($currentParty))) {
-        $GLOBALS["IS_NPC"]=false;
+        \Synth\Bootstrap::set('IS_NPC', false);
     } else
-        $GLOBALS["IS_NPC"]=true;
+        \Synth\Bootstrap::set('IS_NPC', true);
 } else
-    $GLOBALS["IS_NPC"]=false;
+    \Synth\Bootstrap::set('IS_NPC', false);
 Logger::phaseEnd("party_context_prepare", [
     "type" => $gameRequest[0] ?? "",
     "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
     "party_count" => is_array($currentParty) ? count($currentParty) : 0,
-    "is_npc" => !empty($GLOBALS["IS_NPC"]) ? 1 : 0,
+    "is_npc" => !empty(\Synth\Bootstrap::config('IS_NPC')) ? 1 : 0,
 ], "info");
 
 // RECHAT PRE MANAGMENT
@@ -1429,27 +1430,27 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
     try {
         $ownedRound=synth_rechat_prepared_selection($db,\Synth\Bootstrap::requestEvent()['json']);
         if ($ownedRound['role']==='terminal') throw new LogicException('rechat_round_terminal');
-        $GLOBALS['RECHAT_PREVIOUS_SPEAKER']=$ownedRound['previous_speaker']['display_name'];
-        $GLOBALS['RECHAT_REQUEST_PAYLOAD']=['speaker'=>\Synth\Bootstrap::config('RECHAT_PREVIOUS_SPEAKER'),
-            'speaker_formid'=>$ownedRound['previous_speaker']['form_id']];
-        $GLOBALS['RECHAT_RESOLVED_TARGET']=['selected'=>\Synth\Bootstrap::config('SYNTH_NAME'),'mode'=>$ownedRound['policy']['mode'],
-            'chain_id'=>strval($ownedRound['chain_id']),'people_pipe'=>strval($gameRequest[4] ?? '')];
+        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', $ownedRound['previous_speaker']['display_name']);
+        \Synth\Bootstrap::set('RECHAT_REQUEST_PAYLOAD', ['speaker'=>\Synth\Bootstrap::config('RECHAT_PREVIOUS_SPEAKER'),
+            'speaker_formid'=>$ownedRound['previous_speaker']['form_id']]);
+        \Synth\Bootstrap::set('RECHAT_RESOLVED_TARGET', ['selected'=>\Synth\Bootstrap::config('SYNTH_NAME'),'mode'=>$ownedRound['policy']['mode'],
+            'chain_id'=>strval($ownedRound['chain_id']),'people_pipe'=>strval($gameRequest[4] ?? '')]);
         if (intval($ownedRound['round_number'])>=intval($ownedRound['budget'])) {
-            $GLOBALS['PROMPT_HEAD'].="\n[This is your final response in this exchange. Conclude your current thought naturally - you are not leaving, just finishing what you were saying for now.]";
+            \Synth\Bootstrap::set('PROMPT_HEAD', \Synth\Bootstrap::config('PROMPT_HEAD') . ("\n[This is your final response in this exchange. Conclude your current thought naturally - you are not leaving, just finishing what you were saying for now.]"));
         }
         if ($ownedRound['role']==='narrator') {
-            $narrationRow=$db->fetchOne("SELECT custom_prompt,default_prompt FROM core_prompt WHERE prompt_key='random_narration_prompt'");
+            $narrationRow=\Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('random_narration_prompt');
             $narrationPrompt=!empty($narrationRow['custom_prompt']) ? $narrationRow['custom_prompt'] : ($narrationRow['default_prompt'] ?? '');
             if (!$narrationPrompt) {
                 $narrationPrompt='Describe the current scene visually using ONLY details from the provided context. Focus on the characters present - their appearance, expressions, body language, and what they are wearing. Include environmental details like lighting and atmosphere. Keep it grounded and concise (2-3 sentences). Do not invent new information, advance the plot, or include dialogue.';
             }
-            $GLOBALS['RANDOM_NARRATION_PROMPT']=$narrationPrompt;
+            \Synth\Bootstrap::set('RANDOM_NARRATION_PROMPT', $narrationPrompt);
         }
         $visibleChatStateSql=synthBuildChatDeliveryStateSql('delivery_state');
         $sqlfilter=" and (type in ('prechat','inputtext','logaction','infoaction','death','itemfound','itemtransfer','backgroundchat') or (type='chat' and {$visibleChatStateSql} and data like '(Context%') )";
         if (!$ownedRound['policy']['allow_actions']) {
             $FUNCTIONS_ARE_ENABLED=false;
-            $GLOBALS['FUNCTIONS_ARE_ENABLED']=false;
+            \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
         }
     } catch (SYNTHProtocolCancelled $error) { throw $error; }
     catch (Throwable $error) {
@@ -1472,7 +1473,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
 
     if ($gameRequest[0] === "rechat") {
         $rechatPayload = synthParseServerSideRechatPayload($gameRequest[3] ?? "");
-        $GLOBALS["RECHAT_PREVIOUS_SPEAKER"] = trim((string)($rechatPayload["speaker"] ?? ""));
+        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', trim((string)($rechatPayload["speaker"] ?? "")));
         if (function_exists('synthRechatActorBlockReason')) {
             $rechatSpeakerName = trim((string)($rechatPayload["speaker"] ?? ""));
             $rechatSpeakerData = null;
@@ -1502,8 +1503,8 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
             "mode" => $resolvedRechatTarget["mode"] ?? "",
             "candidate_count" => is_array($resolvedRechatTarget["candidates"] ?? null) ? count($resolvedRechatTarget["candidates"]) : 0,
         ], "info");
-        $GLOBALS["RECHAT_REQUEST_PAYLOAD"] = $rechatPayload;
-        $GLOBALS["RECHAT_RESOLVED_TARGET"] = $resolvedRechatTarget;
+        \Synth\Bootstrap::set('RECHAT_REQUEST_PAYLOAD', $rechatPayload);
+        \Synth\Bootstrap::set('RECHAT_RESOLVED_TARGET', $resolvedRechatTarget);
 
         if (empty($resolvedRechatTarget["selected"])) {
             Logger::info("[RECHAT_SELECT] No valid responder selected; terminating rechat");
@@ -1531,7 +1532,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
 
     // Pre-calculated rechat budget with final-round closing prompt
 
-    $sessionKey = isset($GLOBALS["RECHAT_RESOLVED_TARGET"])
+    $sessionKey = \Synth\Bootstrap::has('RECHAT_RESOLVED_TARGET')
         ? synthBuildServerSideRechatSessionKey(\Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET"))
         : md5(\Synth\Bootstrap::config("SYNTH_NAME") . "_" . floor(time() / 120));
     $budgetFile = sys_get_temp_dir() . "/synth_rechat_" . $sessionKey . ".json";
@@ -1571,8 +1572,8 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
     $currentRound = intval($budgetState['used'] ?? 0);
     if ($currentRound >= $budget) {
         Logger::info("Rechat: pre-roll budget exhausted ({$currentRound}/{$budget}) - terminating");
-        Logger::info("[RECHAT_COUNT] exhausted speaker={$GLOBALS["SYNTH_NAME"]} chain_id=" .
-            (isset($GLOBALS["RECHAT_RESOLVED_TARGET"]["chain_id"]) ? \Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET")["chain_id"] : "") .
+        Logger::info(("[RECHAT_COUNT] exhausted speaker=" . \Synth\Bootstrap::config('SYNTH_NAME') . " chain_id=") .
+            (isset(\Synth\Bootstrap::config('RECHAT_RESOLVED_TARGET')["chain_id"]) ? \Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET")["chain_id"] : "") .
             " used={$currentRound} budget={$budget}");
         @unlink($budgetFile);
         terminate();
@@ -1581,13 +1582,13 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
     $budgetState['used'] = $currentRound + 1;
     $budgetState['ts'] = time();
     file_put_contents($budgetFile, json_encode($budgetState));
-    Logger::info("[RECHAT_COUNT] speaker={$GLOBALS["SYNTH_NAME"]} chain_id=" .
-        (isset($GLOBALS["RECHAT_RESOLVED_TARGET"]["chain_id"]) ? \Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET")["chain_id"] : "") .
+    Logger::info(("[RECHAT_COUNT] speaker=" . \Synth\Bootstrap::config('SYNTH_NAME') . " chain_id=") .
+        (isset(\Synth\Bootstrap::config('RECHAT_RESOLVED_TARGET')["chain_id"]) ? \Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET")["chain_id"] : "") .
         " used={$budgetState['used']} budget={$budget}");
 
     // All gates passed - detect final round and inject closing prompt
     if ($currentRound + 1 >= $budget) {
-        $GLOBALS["PROMPT_HEAD"] .= "\n[This is your final response in this exchange. Conclude your current thought naturally - you are not leaving, just finishing what you were saying for now.]";
+        \Synth\Bootstrap::set('PROMPT_HEAD', \Synth\Bootstrap::config('PROMPT_HEAD') . ("\n[This is your final response in this exchange. Conclude your current thought naturally - you are not leaving, just finishing what you were saying for now.]"));
         Logger::info("Rechat: final round ({$currentRound}/{$budget}) - closing prompt injected");
     }
 
@@ -1619,13 +1620,13 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
     // Trigger after any NPC response (after first NPC responds to player)
     // AND only on "rechat" events (not on events already converted to "narration")
     // AND only if The Narrator wasn't the last speaker (prevent consecutive narrations)
-    if (!empty($GLOBALS["RANDOM_NARATION"]) && \Synth\Bootstrap::config("RANDOM_NARATION") && $gameRequest[0] === "rechat" && sizeof($rechatHistory) >= 1) {
+    if (!empty(\Synth\Bootstrap::config('RANDOM_NARATION')) && \Synth\Bootstrap::config("RANDOM_NARATION") && $gameRequest[0] === "rechat" && sizeof($rechatHistory) >= 1) {
         // Check if the last event was a narration event (if so, skip to prevent consecutive narrations)
         $lastEvent = $db->fetchOne("SELECT type FROM core_context_event WHERE type IN ('rechat', 'narration') ORDER BY gamets DESC, ts DESC LIMIT 1");
         $wasLastNarration = ($lastEvent && $lastEvent['type'] === 'narration');
 
         // Check cooldown - ensure at least N non-narration events occurred since last narration
-        $cooldownRounds = isset($GLOBALS["RANDOM_NARRATION_COOLDOWN"]) ? intval(\Synth\Bootstrap::config("RANDOM_NARRATION_COOLDOWN")) : 2;
+        $cooldownRounds = \Synth\Bootstrap::has('RANDOM_NARRATION_COOLDOWN') ? intval(\Synth\Bootstrap::config("RANDOM_NARRATION_COOLDOWN")) : 2;
         $eventsSinceNarration = $db->fetchOne("
             SELECT COUNT(*) as count
             FROM core_context_event
@@ -1646,7 +1647,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
             Logger::info("[RANDOM_NARRATION] Skipped - Last event was narration, preventing consecutive narrations");
         } else {
             $randomChance = rand(1, 100);
-            $narrationChance = isset($GLOBALS["RANDOM_NARATION_CHANCE"]) ? intval(\Synth\Bootstrap::config("RANDOM_NARATION_CHANCE")) : 15;
+            $narrationChance = \Synth\Bootstrap::has('RANDOM_NARATION_CHANCE') ? intval(\Synth\Bootstrap::config("RANDOM_NARATION_CHANCE")) : 15;
 
             if ($randomChance <= $narrationChance) {
                 Logger::info("[RANDOM_NARRATION] Triggered (chance: $randomChance <= $narrationChance)");
@@ -1664,7 +1665,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
                 $profile = new CoreProfile();
                 $currentProfileData = $profile->getById($narratorData["profile_id"]);
 
-                $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
                 $connector = new LLMConnector();
                 $npcMaster = new NpcMaster(); // LLMRandomizer persists connector state through NPC metadata
@@ -1678,12 +1679,12 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
                 // Load narrator character data into GLOBALS
                 $narrator->loadCharacterIntoGlobals();
 
-                $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
                 // Load random narration prompt from database with fallback
                 $narrationPrompt = null;
                 try {
-                    $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'random_narration_prompt'");
+                    $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('random_narration_prompt');
                     if ($promptData) {
                         // Use custom_prompt if set, otherwise use default_prompt
                         $narrationPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -1708,7 +1709,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
                 Logger::info("[RANDOM_NARRATION] Sent X-Event-Type: narration header");
 
                 // Store narration prompt for later injection (after prompts.php is loaded)
-                $GLOBALS["RANDOM_NARRATION_PROMPT"] = $narrationPrompt;
+                \Synth\Bootstrap::set('RANDOM_NARRATION_PROMPT', $narrationPrompt);
 
                 Logger::info("[RANDOM_NARRATION] Executing as The Narrator with narration request");
 
@@ -1729,7 +1730,7 @@ $sqlfilter=" and (type in ('prechat','inputtext','logaction','infoaction','death
 
     if (!filter_var(\Synth\Bootstrap::config("RECHAT_ALLOW_ACTIONS") ?? false, FILTER_VALIDATE_BOOLEAN)) {
         $FUNCTIONS_ARE_ENABLED=false;       // Enabling this can be funny => CHAOS MODE
-        $GLOBALS["FUNCTIONS_ARE_ENABLED"]=false;
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
     }
     Logger::phaseEnd("rechat_pre_management", [
         "type" => $gameRequest[0] ?? "",
@@ -1747,7 +1748,7 @@ Logger::phaseStart("post_rechat_runtime_prepare", [
 
 if (
     in_array($gameRequest[0], ["inputtext", "inputtext_s", "vision"], true) &&
-    empty($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])
+    empty(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA'))
 ) {
     $jsonSpeaker = function_exists('synth_extract_conversation_target')
         ? synth_extract_conversation_target((string)($gameRequest[3] ?? ""))
@@ -1759,7 +1760,7 @@ if (
         }
     }
 
-    if (empty($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
+    if (empty(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA'))) {
         $profile = new CoreProfile();
         $currentProfileData = $profile->getDefaultNpc();
         if ($currentProfileData) {
@@ -1782,11 +1783,11 @@ if (
                 if (!empty($npcData)) {
                     $npcMaster->setOldGlobalsFromCurrentNpcData($npcData, false);
                 } elseif ($jsonSpeaker !== "") {
-                    $GLOBALS["SYNTH_NAME"] = $jsonSpeaker;
+                    \Synth\Bootstrap::set('SYNTH_NAME', $jsonSpeaker);
                 }
-                $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
-                $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-                $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData["driver"] ?? "";
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+                \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData["driver"] ?? "");
             } else {
                 Logger::error("[PROFILE_SELECT] Default NPC profile has no usable LLM connector");
             }
@@ -1830,13 +1831,13 @@ if ($gameRequest[0] == "narrator_welcome") {
             terminate();
         }
 
-        $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
         $connector = new LLMConnector();
 
         // Get global connector slot (respects in-game mode)
         $db = \Synth\Bootstrap::db();
-        $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
+        $result = isset(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot'])
             ? ['value'=>\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']]
             : ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
         $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
@@ -1869,15 +1870,15 @@ if ($gameRequest[0] == "narrator_welcome") {
         // Load narrator character data into GLOBALS
         $narrator->loadCharacterIntoGlobals();
 
-        $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
         // Keep connector globals populated for shared connector helpers.
-        $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData['driver'];
+        \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData['driver']);
 
         // Load welcome prompt from prompts table with hardcoded fallback
         $welcomePrompt = null;
         try {
-            $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'narrator_welcome_prompt'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('narrator_welcome_prompt');
             if ($promptData) {
                 $welcomePrompt = (!empty($promptData['custom_prompt']))
                     ? $promptData['custom_prompt']
@@ -1892,7 +1893,7 @@ if ($gameRequest[0] == "narrator_welcome") {
             $welcomePrompt = "Give a brief (2-3 sentence) recap of recent events and adventures. Welcome the player back to their journey.";
         }
 
-        $GLOBALS["NARRATOR_WELCOME_PROMPT"] = $welcomePrompt;
+        \Synth\Bootstrap::set('NARRATOR_WELCOME_PROMPT', $welcomePrompt);
     } else {
         Logger::error("[NARRATOR_WELCOME] Narrator profile_id not found in core_narrator table");
         Logger::error("[NARRATOR_WELCOME] Please configure The Narrator in Narrator Management");
@@ -1918,13 +1919,13 @@ if ($gameRequest[0] == "narrator_quest_comment") {
             terminate();
         }
 
-        $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
         $connector = new LLMConnector();
 
         // Get global connector slot (respects in-game mode)
         $db = \Synth\Bootstrap::db();
-        $result = isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])
+        $result = isset(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot'])
             ? ['value'=>\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']]
             : ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
         $connectorSlot = (isset($result['value']) && $result['value'] >= 1 && $result['value'] <= 4)
@@ -1957,10 +1958,10 @@ if ($gameRequest[0] == "narrator_quest_comment") {
         // Load narrator character data into GLOBALS
         $narrator->loadCharacterIntoGlobals();
 
-        $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
 
         // Keep connector globals populated for shared connector helpers.
-        $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData['driver'];
+        \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData['driver']);
     } else {
         Logger::error("[NARRATOR_QUEST_COMMENT] Narrator profile_id not found in core_narrator table");
         Logger::error("[NARRATOR_QUEST_COMMENT] Please configure The Narrator in Narrator Management");
@@ -1986,12 +1987,12 @@ if ($executionMode=="INJECTION_LOG") {
 }
 
 // What is this for?
-if ($gameRequest[0] === "continue" && empty($GLOBALS["RECHAT_PREVIOUS_SPEAKER"])) {
+if ($gameRequest[0] === "continue" && empty(\Synth\Bootstrap::config('RECHAT_PREVIOUS_SPEAKER'))) {
     try {
         $lastSpeechRow = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
-        $GLOBALS["RECHAT_PREVIOUS_SPEAKER"] = trim((string)($lastSpeechRow["speaker"] ?? ""));
+        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', trim((string)($lastSpeechRow["speaker"] ?? "")));
     } catch (\Throwable $e) {
-        $GLOBALS["RECHAT_PREVIOUS_SPEAKER"] = "";
+        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', "");
     }
 }
 
@@ -2008,20 +2009,20 @@ error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime
  CONTEXT DATA BUILDING
 ***********************/
 
-$GLOBALS["DIRECT_NARRATOR_DIALOGUE"] = (
+\Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', (
     $gameRequest[0] === "narrator_inputtext"
     || (
         synth_protocol_response_is_narrator()
         && in_array($gameRequest[0], ["cheatmode", "instruction"], true)
     )
-);
+));
 
 // Narrator-scoped requests must execute with the narrator runtime profile even
 // when the inbound request still carries a valid NPC profile hash. If that hash
 // wins earlier profile loading, narrator-only actions get filtered out of the
 // runtime function list before response processing.
 $ownedResponseRole=synth_protocol_owned_response_role();
-if ($ownedResponseRole!==null && $ownedResponseRole!=='narrator') $GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
+if ($ownedResponseRole!==null && $ownedResponseRole!=='narrator') \Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
 $isNarratorScopedRequest = in_array($gameRequest[0], [
     "narrator_inputtext",
     "narration",
@@ -2044,7 +2045,7 @@ if ($isNarratorScopedRequest && !synth_protocol_response_is_narrator()) {
         $currentProfileData = $profile->getById($narratorData["profile_id"]);
 
         if ($currentProfileData) {
-            $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
 
             $connector = new LLMConnector();
             $npcMaster = new NpcMaster();
@@ -2057,11 +2058,11 @@ if ($isNarratorScopedRequest && !synth_protocol_response_is_narrator()) {
                 $profile->setOldGlobals($currentProfileData);
                 $narrator->loadCharacterIntoGlobals();
 
-                $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-                $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData['driver'] ?? (\Synth\Bootstrap::config("CURRENT_CONNECTOR") ?? "");
-    unset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]);
-                $GLOBALS["IS_NPC"] = false;
-                $GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
+                \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+                \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData['driver'] ?? (\Synth\Bootstrap::config("CURRENT_CONNECTOR") ?? ""));
+    \Synth\Bootstrap::forget('SYNTH_CORE_CURRENT_NPC_DATA');
+                \Synth\Bootstrap::set('IS_NPC', false);
+                \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
 
                 error_log("[CORE SYSTEM] Re-synced narrator runtime profile before prompt build");
             } else {
@@ -2113,7 +2114,7 @@ if (in_array('Training', \Synth\Bootstrap::config("ENABLED_FUNCTIONS")) && isset
         }
 
         $functionName = "Train" . ucfirst($skill);
-        $GLOBALS["FUNCTIONS"][] = [
+        \Synth\Bootstrap::append('FUNCTIONS', [
             "name" => $functionName,
             "description" => (function_exists('synthGetPromptCharacterName') ? synthGetPromptCharacterName() : \Synth\Bootstrap::config("SYNTH_NAME")) . " offers {$tier} {$skill} training.",
             "parameters" => [
@@ -2126,38 +2127,38 @@ if (in_array('Training', \Synth\Bootstrap::config("ENABLED_FUNCTIONS")) && isset
                 ],
                 "required" => [""],
             ],
-        ];
-        $GLOBALS["ENABLED_FUNCTIONS"][] = $functionName;
-        $GLOBALS["F_NAMES"][$functionName] = $functionName;
+        ]);
+        \Synth\Bootstrap::append('ENABLED_FUNCTIONS', $functionName);
+        \Synth\Bootstrap::setAt('F_NAMES', $functionName, $functionName);
     }
 }
 
 // Native facts override legacy/custom victory cues only after all prompt sources have loaded.
 if (($wireEvent['type'] ?? '')==='trigger'
     && in_array($wireEvent['payload']['kind'] ?? '',['player_reaction','companion_combat_comment'],true)
-    && isset($GLOBALS['SYNTH_EXTERNAL_REQUEST']['player_change'])) {
+    && isset(\Synth\Bootstrap::config('SYNTH_EXTERNAL_REQUEST')['player_change'])) {
     require_once __DIR__.'/lib/player_reaction.php';
-    synthApplyPlayerReactionPrompt($PROMPTS,$GLOBALS['SYNTH_EXTERNAL_REQUEST']['player_change'],
+    synthApplyPlayerReactionPrompt($PROMPTS,\Synth\Bootstrap::config('SYNTH_EXTERNAL_REQUEST')['player_change'],
         strval(\Synth\Bootstrap::config('TEMPLATE_DIALOG') ?? ''));
 }
 
 // Inject random narration prompt if this is a narration event
 // This must happen AFTER prompts.php is loaded to avoid being overwritten
 // Inject as the "cue" so it appears as the penultimate user message (like section 81 for normal NPCs)
-if (isset($GLOBALS["RANDOM_NARRATION_PROMPT"]) && $gameRequest[0] == "narration") {
+if (\Synth\Bootstrap::has('RANDOM_NARRATION_PROMPT') && $gameRequest[0] == "narration") {
     $PROMPTS["narration"]["cue"] = [\Synth\Bootstrap::config("RANDOM_NARRATION_PROMPT")];
     Logger::info("[RANDOM_NARRATION] Injected narration prompt as cue");
 }
 
-if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']) && $gameRequest[0]==='bored') {
+if (!empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE')) && $gameRequest[0]==='bored') {
     $ambient=synth_ambient_npc_projection(\Synth\Bootstrap::requestEvent()['json'] ?? []);
     if ($ambient===null) throw new LogicException('ambient_prompt_owner_changed');
     $PROMPTS['bored']['cue']=[synth_ambient_npc_cue($ambient).' '.(\Synth\Bootstrap::config('TEMPLATE_DIALOG') ?? '')];
     $PROMPTS['bored']['player_request']=[];
-} elseif (!empty($GLOBALS["NARRATOR_BORED_EVENT_ACTIVE"]) && $gameRequest[0] == "bored") {
+} elseif (!empty(\Synth\Bootstrap::config('NARRATOR_BORED_EVENT_ACTIVE')) && $gameRequest[0] == "bored") {
     $boredPrompt = null;
     try {
-        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'narrator_bored_prompt'");
+        $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('narrator_bored_prompt');
         if ($promptData) {
             $boredPrompt = !empty($promptData['custom_prompt']) ? $promptData['custom_prompt'] : ($promptData['default_prompt'] ?? null);
         }
@@ -2180,7 +2181,7 @@ if (!empty($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']) && $gameRequest[0]==='bored')
 
 // Inject narrator welcome prompt if this is a narrator_welcome event
 if ($gameRequest[0] == "narrator_welcome") {
-    $welcomePrompt = isset($GLOBALS["NARRATOR_WELCOME_PROMPT"]) && !empty($GLOBALS["NARRATOR_WELCOME_PROMPT"])
+    $welcomePrompt = \Synth\Bootstrap::has('NARRATOR_WELCOME_PROMPT') && !empty(\Synth\Bootstrap::config('NARRATOR_WELCOME_PROMPT'))
         ? \Synth\Bootstrap::config("NARRATOR_WELCOME_PROMPT")
         : "Give a brief (2-3 sentence) recap of recent events and adventures. Welcome the player back to their journey.";
 
@@ -2193,7 +2194,7 @@ Logger::phaseStart("request_processor", [
     "npc" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
 ]);
 require(__DIR__.DIRECTORY_SEPARATOR."processor".DIRECTORY_SEPARATOR."request.php");
-if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && ($gameRequest[0] ?? '') === 'combatbark') {
+if (!empty(\Synth\Bootstrap::claimedRequest()) && ($gameRequest[0] ?? '') === 'combatbark') {
     // Combat calls are a brief one-shot, not a full conversational reply. Keep the configured lower cap.
     $configuredBarkTokens = intval(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA')['max_tokens'] ?? 0);
     $overrideParameters['MAX_TOKENS'] = $configuredBarkTokens > 0 ? min(192, $configuredBarkTokens) : 192;
@@ -2225,19 +2226,19 @@ Logger::phaseStart("pre_llm_cache_resolution", [
     "type" => $gameRequest[0] ?? "",
     "npc" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
 ]);
-if (!isset($GLOBALS["CACHE_PEOPLE"])) {
-    $GLOBALS["CACHE_PEOPLE"]=DataBeingsInCloseRange();
+if (!\Synth\Bootstrap::has('CACHE_PEOPLE')) {
+    \Synth\Bootstrap::set('CACHE_PEOPLE', DataBeingsInCloseRange());
 }
-if (!isset($GLOBALS["CACHE_LOCATION"])) {
-    $GLOBALS["CACHE_LOCATION"]=DataLastKnownLocation();
+if (!\Synth\Bootstrap::has('CACHE_LOCATION')) {
+    \Synth\Bootstrap::set('CACHE_LOCATION', DataLastKnownLocation());
 }
 
-if (!isset($GLOBALS["CACHE_PARTY"])) {
-    $GLOBALS["CACHE_PARTY"]=DataGetCurrentPartyConf();
+if (!\Synth\Bootstrap::has('CACHE_PARTY')) {
+    \Synth\Bootstrap::set('CACHE_PARTY', DataGetCurrentPartyConf());
 }
 
 if (in_array($gameRequest[0],["inputtext_s"]) && synthDecodeAudienceSnapshotField($gameRequest[4] ?? "") === "") {    // Stealth-targeted follower: scope to target NPC only
-    $GLOBALS["CACHE_PEOPLE"]=\Synth\Bootstrap::config("SYNTH_NAME");
+    \Synth\Bootstrap::set('CACHE_PEOPLE', \Synth\Bootstrap::config("SYNTH_NAME"));
 }
 Logger::phaseEnd("pre_llm_cache_resolution", [
     "type" => $gameRequest[0] ?? "",
@@ -2263,7 +2264,7 @@ $hasAuthoritativeRequestAudience = (
     $requestAudienceSnapshot !== ""
 );
 $resolvedRechatPeople = "";
-if (($gameRequest[0] ?? "") === "rechat" && isset($GLOBALS["RECHAT_RESOLVED_TARGET"])) {
+if (($gameRequest[0] ?? "") === "rechat" && \Synth\Bootstrap::has('RECHAT_RESOLVED_TARGET')) {
     $resolvedRechatPeople = (string)(\Synth\Bootstrap::config("RECHAT_RESOLVED_TARGET")["people_pipe"] ?? "");
 }
 $authoritativePeople = $hasAuthoritativeRequestAudience ? $requestAudienceSnapshot : $resolvedRechatPeople;
@@ -2282,7 +2283,7 @@ if (function_exists('isWhisperExecutionMode') &&
 }
 
 if ($authoritativePeople !== "") {
-    $GLOBALS["CACHE_PEOPLE"] = $authoritativePeople;
+    \Synth\Bootstrap::set('CACHE_PEOPLE', $authoritativePeople);
     Logger::info("Scoped CACHE_PEOPLE for {$gameRequest[0]}: " . \Synth\Bootstrap::config("CACHE_PEOPLE"));
 } else {
     $scopedPeople = buildScopedPeopleForEvent(
@@ -2292,21 +2293,21 @@ if ($authoritativePeople !== "") {
         \Synth\Bootstrap::config("CACHE_PEOPLE") ?? ""
     );
     if (!empty($scopedPeople)) {
-        $GLOBALS["CACHE_PEOPLE"] = $scopedPeople;
+        \Synth\Bootstrap::set('CACHE_PEOPLE', $scopedPeople);
         Logger::info("Scoped CACHE_PEOPLE for {$gameRequest[0]}: " . \Synth\Bootstrap::config("CACHE_PEOPLE"));
     }
 
-    if (!empty($GLOBALS["SYNTH_NAME"])) {
+    if (!empty(\Synth\Bootstrap::config('SYNTH_NAME'))) {
         $shouldAppendListener = shouldAutoAppendListenerToPeople(
             $gameRequest[0] ?? "",
             $gameRequest[3] ?? "",
             \Synth\Bootstrap::config("SYNTH_NAME")
         );
-        $currentPeople = isset($GLOBALS["CACHE_PEOPLE"]) ? (string)\Synth\Bootstrap::config("CACHE_PEOPLE") : "";
+        $currentPeople = \Synth\Bootstrap::has('CACHE_PEOPLE') ? (string)\Synth\Bootstrap::config("CACHE_PEOPLE") : "";
         $peopleTokens = array_values(array_filter(array_map('trim', explode('|', $currentPeople))));
         if ($shouldAppendListener && !in_array(\Synth\Bootstrap::config("SYNTH_NAME"), $peopleTokens, true)) {
             $peopleTokens[] = \Synth\Bootstrap::config("SYNTH_NAME");
-            $GLOBALS["CACHE_PEOPLE"] = "|" . implode("|", $peopleTokens) . "|";
+            \Synth\Bootstrap::set('CACHE_PEOPLE', "|" . implode("|", $peopleTokens) . "|");
             Logger::info("Added listener to CACHE_PEOPLE: " . \Synth\Bootstrap::config("SYNTH_NAME"));
         } elseif (!$shouldAppendListener) {
             Logger::info("Skipped listener auto-append for scoped input event: " . \Synth\Bootstrap::config("SYNTH_NAME"));
@@ -2352,7 +2353,7 @@ if ($gameRequest[0] != "diary") {
     if ($shouldLog) {
         if ($authoritativePeople !== "") {
             $eventPeople = $authoritativePeople;
-            $GLOBALS["CACHE_PEOPLE"] = $authoritativePeople;
+            \Synth\Bootstrap::set('CACHE_PEOPLE', $authoritativePeople);
         } else {
             $eventPeople = buildScopedPeopleForEvent(
                 $gameRequest[0] ?? "",
@@ -2361,7 +2362,7 @@ if ($gameRequest[0] != "diary") {
                 \Synth\Bootstrap::config("CACHE_PEOPLE") ?? ""
             );
             if (!empty($eventPeople)) {
-                $GLOBALS["CACHE_PEOPLE"] = $eventPeople;
+                \Synth\Bootstrap::set('CACHE_PEOPLE', $eventPeople);
             }
         }
 
@@ -2409,7 +2410,7 @@ if ($gameRequest[0] != "diary") {
 }
 
 // Check if this event has been disabled before either direct or model responses.
-if (!empty($GLOBALS['PROMPTS'][$gameRequest[0]]['extra']['dontuse'])) terminate();
+if (!empty(\Synth\Bootstrap::config('PROMPTS')[$gameRequest[0]]['extra']['dontuse'])) terminate();
 
 if (!$synthAutoChat && synth_gift_menu_try_handoff($db, \Synth\Bootstrap::requestEvent()['json'] ?? [])) exit;
 
@@ -2428,7 +2429,7 @@ $combatIdentification=synth_combat_identification_reply($db,\Synth\Bootstrap::re
 if ($combatIdentification!==null) {
     synth_protocol_assert_request_active();
     require $path.'processor/player_tts.php';
-    $GLOBALS['SCRIPTLINE_LISTENER']=$combatIdentification['listener']['display_name'] ?? \Synth\Bootstrap::config('PLAYER_NAME');
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $combatIdentification['listener']['display_name'] ?? \Synth\Bootstrap::config('PLAYER_NAME'));
     returnLines([$combatIdentification['text']],true,false);
     synth_protocol_assert_request_active();
     synth_protocol_ensure_response_started();
@@ -2467,16 +2468,16 @@ if (!empty($rpgCommentEventType)) {
 
 // Narrator stop (from config)
 
-if (isset($GLOBALS["NARRATOR_TALKS"])&&(\Synth\Bootstrap::config("NARRATOR_TALKS")==false)) {
+if (\Synth\Bootstrap::has('NARRATOR_TALKS')&&(\Synth\Bootstrap::config("NARRATOR_TALKS")==false)) {
     if (synth_protocol_response_is_narrator())
         terminate();
 }
 
 // Use diary-specific context history if this is a diary request and CONTEXT_HISTORY_DIARY is set
-if (($gameRequest[0] == "diary" || $gameRequest[0] == "diary_followers") && isset($GLOBALS["CONTEXT_HISTORY_DIARY"]) && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
+if (($gameRequest[0] == "diary" || $gameRequest[0] == "diary_followers") && \Synth\Bootstrap::has('CONTEXT_HISTORY_DIARY') && \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY") > 0) {
     $lastNDataForContext = \Synth\Bootstrap::config("CONTEXT_HISTORY_DIARY");
 } else {
-    $lastNDataForContext = (isset($GLOBALS["CONTEXT_HISTORY"])) ? (\Synth\Bootstrap::config("CONTEXT_HISTORY")) : "25";
+    $lastNDataForContext = (\Synth\Bootstrap::has('CONTEXT_HISTORY')) ? (\Synth\Bootstrap::config("CONTEXT_HISTORY")) : "25";
 }
 
 if (\Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")==1) {
@@ -2484,7 +2485,7 @@ if (\Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")==1) {
 }
 
 // Historic context (last dialogues, events,...)
-//if ((!$GLOBALS["IS_NPC"])||($GLOBALS["SYNTH_NAME"]=="The Narrator"))
+//if ((!\Synth\Bootstrap::config("IS_NPC"))||(\Synth\Bootstrap::config("SYNTH_NAME")=="The Narrator"))
 Logger::phaseStart("context_history_fetch", [
     "npc" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
     "limit" => $lastNDataForContext,
@@ -2492,9 +2493,9 @@ Logger::phaseStart("context_history_fetch", [
 if (synth_protocol_response_is_narrator())
     $contextDataHistoric = DataLastDataExpandedFor("", $lastNDataForContext * -1,$sqlfilter);
 else if (!\Synth\Bootstrap::config("IS_NPC"))
-    $contextDataHistoric = DataLastDataExpandedFor("{$GLOBALS["SYNTH_NAME"]}", $lastNDataForContext * -1,$sqlfilter);
+    $contextDataHistoric = DataLastDataExpandedFor(((string)\Synth\Bootstrap::config('SYNTH_NAME')), $lastNDataForContext * -1,$sqlfilter);
 else if (\Synth\Bootstrap::config("IS_NPC")) {
-    $contextDataHistoric = DataLastDataExpandedFor("{$GLOBALS["SYNTH_NAME"]}", $lastNDataForContext * -1,$sqlfilter);
+    $contextDataHistoric = DataLastDataExpandedFor(((string)\Synth\Bootstrap::config('SYNTH_NAME')), $lastNDataForContext * -1,$sqlfilter);
 
 }
 
@@ -2529,12 +2530,12 @@ if ($gameRequest[0] != "diary") {
         "npc" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
     ]);
     $task=DataGetCurrentTask('speaker');
-    $GLOBALS["COMMAND_PROMPT"].=$task;
+    \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . ($task));
     Logger::phaseEnd("current_task_fetch", [
         "npc" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
         "chars" => strlen((string)$task),
     ], "info");
-    Logger::info("Task injected for {$GLOBALS["SYNTH_NAME"]}");
+    Logger::info(("Task injected for " . \Synth\Bootstrap::config('SYNTH_NAME')));
 }
 
 // Offer memory in CONTEXT
@@ -2558,8 +2559,8 @@ if (in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext","ch
     if (!empty($memoryInjection)) {
 
         //$memoryInjectionCtx[]= array('role' => 'user', 'content' => $gameRequest[3]);
-        $memoryInjectionCtx[]= array('role' => 'user', 'content' => "#MEMORY: {$GLOBALS["SYNTH_NAME"]} remembers this: [$memoryInjection]");
-        //$GLOBALS["COMMAND_PROMPT"].="'{$gameRequest[3]}'\n{$GLOBALS["SYNTH_NAME"]}:$memoryInjection\n";
+        $memoryInjectionCtx[]= array('role' => 'user', 'content' => ("#MEMORY: " . \Synth\Bootstrap::config('SYNTH_NAME') . " remembers this: [$memoryInjection]"));
+        //\Synth\Bootstrap::config("COMMAND_PROMPT").="'{$gameRequest[3]}'\n{\Synth\Bootstrap::config("SYNTH_NAME")}:$memoryInjection\n";
 
     } else {
         $memoryInjectionCtx=[];
@@ -2576,39 +2577,39 @@ error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime
 require_once __DIR__.'/lib/synth_rechat_routes.php';
 require_once __DIR__.'/lib/synth_control.php';
 $rechatRootAudience = synth_rechat_root_audience($db, \Synth\Bootstrap::requestEvent()['json'] ?? []);
-if (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "WHISPER") {
-    if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
-        $GLOBALS["COMMAND_PROMPT"] = "";
+if (\Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "WHISPER") {
+    if (!\Synth\Bootstrap::has('COMMAND_PROMPT') || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
+        \Synth\Bootstrap::set('COMMAND_PROMPT', "");
     }
-    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Whisper mode is active. {$GLOBALS["PLAYER_NAME"]} is whispering to you. Reply by whispering back in a quiet, discreet, close-range tone and keep the delivery private.]";
-} elseif ((isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "CLOSE")
+    \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . (("\n\n[Whisper mode is active. " . \Synth\Bootstrap::config('PLAYER_NAME') . " is whispering to you. Reply by whispering back in a quiet, discreet, close-range tone and keep the delivery private.]")));
+} elseif ((\Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "CLOSE")
     || $rechatRootAudience === 'close') {
     // Owned continuations execute as STANDARD; their Close semantics come from the proven chain root.
-    if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
-        $GLOBALS["COMMAND_PROMPT"] = "";
+    if (!\Synth\Bootstrap::has('COMMAND_PROMPT') || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
+        \Synth\Bootstrap::set('COMMAND_PROMPT', "");
     }
-    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Close mode is active. {$GLOBALS["PLAYER_NAME"]} is talking at close range in a small group; only the people nearby can hear. Reply only as yourself at a quiet conversational volume and do not speak for anyone else.]";
-} elseif (isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "SHOUT") {
-    if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
-        $GLOBALS["COMMAND_PROMPT"] = "";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . (("\n\n[Close mode is active. " . \Synth\Bootstrap::config('PLAYER_NAME') . " is talking at close range in a small group; only the people nearby can hear. Reply only as yourself at a quiet conversational volume and do not speak for anyone else.]")));
+} elseif (\Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') && strtoupper((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE")) === "SHOUT") {
+    if (!\Synth\Bootstrap::has('COMMAND_PROMPT') || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
+        \Synth\Bootstrap::set('COMMAND_PROMPT', "");
     }
-    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[Shout mode is active. {$GLOBALS["PLAYER_NAME"]} is speaking loudly across the area. Reply loudly enough to be heard and treat the exchange as public, audible dialogue.]";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . (("\n\n[Shout mode is active. " . \Synth\Bootstrap::config('PLAYER_NAME') . " is speaking loudly across the area. Reply loudly enough to be heard and treat the exchange as public, audible dialogue.]")));
 }
 // Explicit public audience: the responder is only the transport, never the sole addressee.
 if (synth_control_everyone_input(\Synth\Bootstrap::requestEvent()['json'] ?? []) || $rechatRootAudience === 'everyone') {
-    if (!isset($GLOBALS["COMMAND_PROMPT"]) || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
-        $GLOBALS["COMMAND_PROMPT"] = "";
+    if (!\Synth\Bootstrap::has('COMMAND_PROMPT') || !is_string(\Synth\Bootstrap::config("COMMAND_PROMPT"))) {
+        \Synth\Bootstrap::set('COMMAND_PROMPT', "");
     }
-    $GLOBALS["COMMAND_PROMPT"] .= "\n\n[{$GLOBALS["PLAYER_NAME"]} addressed everyone nearby, not you alone. Reply only as yourself, as one voice in the group, and do not speak for anyone else.]";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . (("\n\n[" . \Synth\Bootstrap::config('PLAYER_NAME') . " addressed everyone nearby, not you alone. Reply only as yourself, as one voice in the group, and do not speak for anyone else.]")));
 }
 
 
 // array('role' => $currentSpeaker, 'content' => implode("\n", $buffer));
 
 // Action-enforcement prompt is hard-disabled globally.
-$GLOBALS["ENFORCE_ACTIONS_PROMPT"] = false;
-$GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
-$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";
+\Synth\Bootstrap::set('ENFORCE_ACTIONS_PROMPT', false);
+\Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+\Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 
 
 // Rechat case
@@ -2618,30 +2619,30 @@ if (in_array($gameRequest[0],["rechat","narration"]) ) {
     $rechatAllowsActions = filter_var(\Synth\Bootstrap::config("RECHAT_ALLOW_ACTIONS") ?? false, FILTER_VALIDATE_BOOLEAN);
     if ($rechatAllowsActions) {
         $FUNCTIONS_ARE_ENABLED=true;
-        $GLOBALS["FUNCTIONS_ARE_ENABLED"]=true;
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
 
-        $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=false;
-        $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="";
+        \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+        \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 
         // Plugin action prompts can break rechat actor addressing: "Respond to #target# as #synth_name#".
-        $GLOBALS['action_prompts']=[];
-        $GLOBALS["ENABLED_FUNCTIONS"] = function_exists('synthFilterCanonicalActionCodeList')
+        \Synth\Bootstrap::set('action_prompts', []);
+        \Synth\Bootstrap::set('ENABLED_FUNCTIONS', function_exists('synthFilterCanonicalActionCodeList')
             ? synthFilterCanonicalActionCodeList(\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? [])
-            : (\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? []);
+            : (\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? []));
 
         $rechatEnabledFunctionSet = array_fill_keys(\Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? [], true);
         $rechatActionAllowed = function ($functionCode) use ($rechatEnabledFunctionSet) {
             return synth_rechat_action_code_allowed($functionCode) && isset($rechatEnabledFunctionSet[$functionCode]);
         };
 
-        $GLOBALS["ENABLED_FUNCTIONS"] = array_values(array_unique(array_filter(
+        \Synth\Bootstrap::set('ENABLED_FUNCTIONS', array_values(array_unique(array_filter(
             \Synth\Bootstrap::config("ENABLED_FUNCTIONS") ?? [],
             function ($functionCode) use ($rechatActionAllowed) {
                 return $rechatActionAllowed($functionCode);
             }
-        )));
+        ))));
 
-        $GLOBALS["FUNCTIONS"] = array_values(array_filter(
+        \Synth\Bootstrap::set('FUNCTIONS', array_values(array_filter(
             \Synth\Bootstrap::config("FUNCTIONS") ?? [],
             function ($functionEntry) use ($rechatActionAllowed) {
                 if (!is_array($functionEntry) || empty($functionEntry["name"])) {
@@ -2652,7 +2653,7 @@ if (in_array($gameRequest[0],["rechat","narration"]) ) {
                     : $functionEntry["name"];
                 return $functionCode !== false && $rechatActionAllowed($functionCode);
             }
-        ));
+        )));
 
         Logger::info("[RECHAT_ACTIONS] Restricted rechat action catalog to: " . implode(",", \Synth\Bootstrap::config("ENABLED_FUNCTIONS")));
 
@@ -2662,31 +2663,31 @@ if (in_array($gameRequest[0],["rechat","narration"]) ) {
 // Instruction reinforcement
 if (in_array($gameRequest[0],["instruction"]) ) {
 
-    $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=false;
-    $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="";
+    \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+    \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 
 }
 
 // Enforce actions
-$GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=false;
-$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="";
+\Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+\Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 
 // Rolemaster stuff
 if (synthResolveNpcRolemasterState(\Synth\Bootstrap::config("SYNTH_NAME") ?? '', [
     'npc_data' => $currentNpcData ?? null,
 ])) {
-    $GLOBALS["is_rolemastered"]=true;
-    $GLOBALS["NPC_ROLEMASTERED"]=true;
-    error_log("{$GLOBALS["SYNTH_NAME"]} is_rolemastered");
-    $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]=false;
-    $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]="";
+    \Synth\Bootstrap::set('is_rolemastered', true);
+    \Synth\Bootstrap::set('NPC_ROLEMASTERED', true);
+    error_log((\Synth\Bootstrap::config('SYNTH_NAME') . " is_rolemastered"));
+    \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+    \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 }
 
 error_log("TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $startTime));
 
-if (!empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
-    $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
-    $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";
+if (!empty(\Synth\Bootstrap::config('DIRECT_NARRATOR_DIALOGUE'))) {
+    \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+    \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
 }
 
 
@@ -2763,14 +2764,14 @@ if ($compactHistoryEnabled) {
         (string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? "")
     );
 }
-$GLOBALS["SYNTH_CONTEXT"] = $compactHistoryEnabled
+\Synth\Bootstrap::set('SYNTH_CONTEXT', $compactHistoryEnabled
     ? $compactHistoryBlock
     : implode("\n", array_values(array_filter(array_map(
         static function ($entry) {
             return is_array($entry) ? trim((string)($entry["content"] ?? "")) : "";
         },
         $contextDataHistoric
-    ))));
+    )))));
 if ($compactHistoryEnabled) {
     $contextDataHistoric = [];
 }
@@ -2819,15 +2820,15 @@ try {
     $isNarrator = synth_protocol_response_is_narrator(strval(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
 
     if ($playerBio !== "" && ($bioKnownByAll || $isNarrator)) {
-        $playerBioSection = "\n\n<player_character>\n# Player Character: {$GLOBALS["PLAYER_NAME"]}\n{$playerBio}\n</player_character>";
+        $playerBioSection = ("\n\n<player_character>\n# Player Character: " . \Synth\Bootstrap::config('PLAYER_NAME') . "\n{$playerBio}\n</player_character>");
     }
 } catch (Exception $e) {
     Logger::debug("Could not load player bio for prompt: " . $e->getMessage());
 }
 
 
-if (isset($GLOBALS["PROFILE_PROMPT"])) {
-    $dynamicBiography.="\n<group>\n#Part of a group\n{$GLOBALS["PROFILE_PROMPT"]}\n</group>";
+if (\Synth\Bootstrap::has('PROFILE_PROMPT')) {
+    $dynamicBiography.=("\n<group>\n#Part of a group\n" . \Synth\Bootstrap::config('PROFILE_PROMPT') . "\n</group>");
 }
 
 
@@ -2856,9 +2857,9 @@ if (synth_npc_native_request()) {
 // Narration-like requests should stay descriptive instead of drifting into
 // ordinary conversation turns.
 if ($gameRequest[0] === "vision") {
-    $GLOBALS["COMMAND_PROMPT"] = "Respond with a current-scene explanation only. Focus on what is visibly present in the provided scene context. Use the Talk action.";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', "Respond with a current-scene explanation only. Focus on what is visibly present in the provided scene context. Use the Talk action.");
 } else if ($gameRequest[0] === "narration" || $gameRequest[0] === "narrator_welcome") {
-    $GLOBALS["COMMAND_PROMPT"] = "Respond with atmospheric narration only. Use the Talk action.";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', "Respond with atmospheric narration only. Use the Talk action.");
 }
 
 // Ensure actions and nearby sections are added to PROMPT_HEAD before building system prompt
@@ -2887,7 +2888,7 @@ if (
 
 // Build nearby sections string
 $nearbySections = "";
-if (isset($GLOBALS["PROMPT_NEARBY_SECTIONS"]) && !empty($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
+if (\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS') && !empty(\Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS'))) {
     $nearbySections = \Synth\Bootstrap::config("PROMPT_NEARBY_SECTIONS");
 }
 $turnActorStates = is_array(\Synth\Bootstrap::config('SYNTH_TURN_ACTOR_STATES') ?? null)
@@ -2973,13 +2974,13 @@ if ($combatSection !== "") {
 
 // Build actions list string
 $actionsList = "";
-if (isset($GLOBALS["PROMPT_ACTIONS_LIST"]) && !empty($GLOBALS["PROMPT_ACTIONS_LIST"])) {
+if (\Synth\Bootstrap::has('PROMPT_ACTIONS_LIST') && !empty(\Synth\Bootstrap::config('PROMPT_ACTIONS_LIST'))) {
     $actionsList = \Synth\Bootstrap::config("PROMPT_ACTIONS_LIST");
 }
 
 // Inject paralinguistic tags prompt if enabled (works for any TTS provider)
 $paralinguisticTagsPrompt = "";
-if (isset($GLOBALS["TTSFUNCTION"]) && !empty($GLOBALS["TTSFUNCTION"])) {
+if (\Synth\Bootstrap::has('TTSFUNCTION') && !empty(\Synth\Bootstrap::config('TTSFUNCTION'))) {
     // Map TTSFUNCTION to TTS array key
     $ttsMap = [
         'xtts-fastapi' => 'XTTSFASTAPI',
@@ -2995,9 +2996,9 @@ if (isset($GLOBALS["TTSFUNCTION"]) && !empty($GLOBALS["TTSFUNCTION"])) {
 
     $ttsKey = $ttsMap[\Synth\Bootstrap::config("TTSFUNCTION")] ?? strtoupper(\Synth\Bootstrap::config("TTSFUNCTION"));
 
-    if (isset($GLOBALS["TTS"][$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) &&
+    if (isset(\Synth\Bootstrap::config('TTS')[$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) &&
         (bool)\Synth\Bootstrap::config("TTS")[$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) {
-        if (isset($GLOBALS["TTS"][$ttsKey]["PARALINGUISTIC_TAGS_PROMPT"]) &&
+        if (isset(\Synth\Bootstrap::config('TTS')[$ttsKey]["PARALINGUISTIC_TAGS_PROMPT"]) &&
             !empty(trim(\Synth\Bootstrap::config("TTS")[$ttsKey]["PARALINGUISTIC_TAGS_PROMPT"]))) {
             $paralinguisticTagsPrompt = "\n\n<paralinguistic_tags>\n" .
                 trim(\Synth\Bootstrap::config("TTS")[$ttsKey]["PARALINGUISTIC_TAGS_PROMPT"]) .
@@ -3030,7 +3031,7 @@ $promptBottomInjections = function_exists('synthRenderPromptInjections')
     : "";
 
 $knowledgeSection = "";
-if (!empty($GLOBALS["WORLDKNOWLEDGE_HINT"])) {
+if (!empty(\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT'))) {
     $knowledgeSection = "\n\n<fallout_context>\n<knowledge>\n" . \Synth\Bootstrap::config("WORLDKNOWLEDGE_HINT") . "\n</knowledge>\n</fallout_context>";
 }
 
@@ -3079,12 +3080,12 @@ Logger::phaseEnd("prompt_dynamic_context_build", [
     "actions_chars" => strlen((string)$actionsList),
 ], "info");
 
-if (!empty($GLOBALS["WORLDKNOWLEDGE_HINT"])) {
+if (!empty(\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT'))) {
     //avoid reinjecting command prompt that we have already appended
-    $GLOBALS["COMMAND_PROMPT"] = "";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', "");
 } else {
     //avoid reinjecting command prompt that we have already appended
-    $GLOBALS["COMMAND_PROMPT"] = "";
+    \Synth\Bootstrap::set('COMMAND_PROMPT', "");
 }
 
 /**********************
@@ -3109,18 +3110,18 @@ if ($gameRequest[0] == "funcret") {
     $contextData = array_merge($head, ($contextDataFull), $prompt);
 }  else {
     // Ensure CURRENT_CONNECTOR is set
-    if (!isset($GLOBALS["CURRENT_CONNECTOR"]) || empty($GLOBALS["CURRENT_CONNECTOR"])) {
-        if (isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["driver"])) {
-            $GLOBALS["CURRENT_CONNECTOR"] = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA")["driver"];
+    if (!\Synth\Bootstrap::has('CURRENT_CONNECTOR') || empty(\Synth\Bootstrap::config('CURRENT_CONNECTOR'))) {
+        if (isset(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA')["driver"])) {
+            \Synth\Bootstrap::set('CURRENT_CONNECTOR', \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA")["driver"]);
         } else {
             Logger::error("CURRENT_CONNECTOR not set and SYNTH_CORE_CURRENT_CONNECTOR_DATA not available!");
-            $GLOBALS["CURRENT_CONNECTOR"] = "unknown";
+            \Synth\Bootstrap::set('CURRENT_CONNECTOR', "unknown");
         }
     }
 
     {
         $explicitDirectNarratorInput = false;
-        if ($currentPlayerInput === [] && !empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"]) && $gameRequest[0] === "narrator_inputtext" && !empty($gameRequest[3])) {
+        if ($currentPlayerInput === [] && !empty(\Synth\Bootstrap::config('DIRECT_NARRATOR_DIALOGUE')) && $gameRequest[0] === "narrator_inputtext" && !empty($gameRequest[3])) {
             $explicitDirectNarratorInput = true;
             if (!empty($contextDataFull)) {
                 $lastContextEntry = end($contextDataFull);
@@ -3143,7 +3144,7 @@ if ($gameRequest[0] == "funcret") {
             }
 
         } else {
-            $connectorName = isset($GLOBALS["CURRENT_CONNECTOR"]) ? \Synth\Bootstrap::config("CURRENT_CONNECTOR") : "unknown";
+            $connectorName = \Synth\Bootstrap::has('CURRENT_CONNECTOR') ? \Synth\Bootstrap::config("CURRENT_CONNECTOR") : "unknown";
             Logger::error("CRITICAL? :: Empty request, prompt empty. Type: {$gameRequest[0]} Connector: {$connectorName}");
             $prompt=[];
         }
@@ -3207,7 +3208,7 @@ if (($gameRequest[0] ?? '') !== 'diary') {
 //returnLines(["Mmm..let me think"]);
 
 // Global switch. Needed id we need to stop processing because sme function requires it. Example, funcret conditions.
-if (isset($GLOBALS["AVOID_LLM_CALL"])&&(\Synth\Bootstrap::config("AVOID_LLM_CALL"))) {
+if (\Synth\Bootstrap::has('AVOID_LLM_CALL')&&(\Synth\Bootstrap::config("AVOID_LLM_CALL"))) {
     Logger::info("Terminated by AVOID_LLM_CALL");
     terminate();
 }
@@ -3247,7 +3248,7 @@ Logger::phaseEnd("llm", [
 
 if (!$outputWasValid) {
     Logger::warn("LLM returned invalid output.");
-    if (isset($GLOBALS["LLM_RETRY_FNCT"])) {
+    if (\Synth\Bootstrap::has('LLM_RETRY_FNCT')) {
         \Synth\Bootstrap::config("LLM_RETRY_FNCT")();
     }
 }
@@ -3332,18 +3333,18 @@ if (sizeof($talkedSoFar) == 0) {
             $lastPlayerLine=$db->fetchAll("SELECT data from core_context_event where type in ('inputtext','inputtext_s') order by gamets desc limit 1 offset 0");
             if (php_sapi_name()!="cli" || getenv('PHPUNIT_TEST'))	{
                 if (in_array($gameRequest[0],["inputtext","inputtext_s"]))
-                    // logMemory($GLOBALS["SYNTH_NAME"], $GLOBALS["PLAYER_NAME"], "{$lastPlayerLine[0]["data"]} \n\r {$GLOBALS["SYNTH_NAME"]}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2],$gameRequest[1]);
+                    // logMemory(\Synth\Bootstrap::config("SYNTH_NAME"), \Synth\Bootstrap::config("PLAYER_NAME"), "{$lastPlayerLine[0]["data"]} \n\r {\Synth\Bootstrap::config("SYNTH_NAME")}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2],$gameRequest[1]);
                     ;
                 else {
                     // Speech table will take care
-                    //logMemory($GLOBALS["SYNTH_NAME"], $GLOBALS["PLAYER_NAME"], "{$GLOBALS["SYNTH_NAME"]}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2]);
+                    //logMemory(\Synth\Bootstrap::config("SYNTH_NAME"), \Synth\Bootstrap::config("PLAYER_NAME"), "{\Synth\Bootstrap::config("SYNTH_NAME")}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2]);
                     ;
                 }
             }
 
             // Update speech table with LLM-generated text for AUTOCHAT mode
             // Native Auto Chat already stored its exact owned row; never the broad name/gamets speech rewrite.
-            if (!$synthAutoChat && isset($GLOBALS["SYNTH_EXECUTION_MODE"]) && \Synth\Bootstrap::config("SYNTH_EXECUTION_MODE") === "AUTOCHAT"
+            if (!$synthAutoChat && \Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') && \Synth\Bootstrap::config("SYNTH_EXECUTION_MODE") === "AUTOCHAT"
                 && in_array($gameRequest[0], ["inputtext", "inputtext_s"])
                 && sizeof($talkedSoFar) > 0) {
 
@@ -3389,7 +3390,7 @@ $synthResponseEmittedBeforePostrequest = false;
 if (synth_json_response_enabled()) {
     Logger::phaseStart("plugin_response_emit", [
         "lines" => count(\Synth\Bootstrap::config("SYNTH_JSON_RESPONSE_LINES") ?? []),
-        "streaming" => !empty($GLOBALS["SYNTH_RESPONSE_STREAMING"]),
+        "streaming" => !empty(\Synth\Bootstrap::config('SYNTH_RESPONSE_STREAMING')),
     ]);
     synth_emit_buffered_json_response();
     @flush();
@@ -3401,7 +3402,7 @@ if (synth_json_response_enabled()) {
     if (function_exists("fastcgi_finish_request")) {
         Logger::debug("[plugin-response] Closing client response before deferred post-response work via fastcgi_finish_request");
         @fastcgi_finish_request();
-    } else if (!empty($GLOBALS["SYNTH_DEFERRED_TTS"])) {
+    } else if (!empty(\Synth\Bootstrap::config('SYNTH_DEFERRED_TTS'))) {
         Logger::warn("[plugin-response] fastcgi_finish_request unavailable; deferred TTS will still run before the HTTP connection fully closes");
     }
 

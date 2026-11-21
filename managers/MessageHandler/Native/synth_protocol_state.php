@@ -1833,6 +1833,14 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         }
 
         synth_protocol_commit_transaction($db);
+        // A cancelled turn or a halt revokes the queued speech results of the jobs it cancelled (no-op with the queue off).
+        if (in_array($event['type'], ['halt', 'cancel'], true) && \Synth\Managers\MessageHandler\MessageHandler::enabled()) {
+            try {
+                \Synth\Managers\MessageHandler\MessageHandler::current()->cancelCancelledWork($sessionId);
+            } catch (\Throwable) {
+                error_log('[SYNTH MESSAGE] Unable to cancel queued messages');
+            }
+        }
         // Extension event once the context is committed (no-op without enabled extensions; never throws).
         if ($event['type'] === 'context') {
             require_once dirname(__DIR__, 3).'/managers/ExtensionManager/ExtensionManager.php';

@@ -51,7 +51,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
     // Cache check
-    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
+    if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
         if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav")) {
             return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
         }
@@ -63,7 +63,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
     // Determine which voice to use
     $voice = \Synth\Bootstrap::config("TTS")["XVASYNTH"]["model"]; // Default NPC voice
-    if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE') && !empty(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE'))) {
         $voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE"); // Player voice
     }
 
@@ -78,13 +78,13 @@ namespace Synth\Drivers\Tts\Drivers {
     }
 
     $lang = \Synth\Bootstrap::config("TTS")["XVASYNTH"]["base_lang"];
-    if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE'))
         $lang = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
     // Always initialize the model for each call
     $initData = array(
         "outputs" => "",
-        "model" =>   "resources/app/models/{$GLOBALS["TTS"]["XVASYNTH"]["game"]}/{$voice}",
+        "model" =>   ("resources/app/models/" . \Synth\Bootstrap::config('TTS')["XVASYNTH"]["game"] . "/{$voice}"),
         "modelType" =>  \Synth\Bootstrap::config("TTS")["XVASYNTH"]["modelType"],
         "version" => \Synth\Bootstrap::config("TTS")["XVASYNTH"]["version"],
         "base_lang" => $lang,
@@ -100,11 +100,11 @@ namespace Synth\Drivers\Tts\Drivers {
         ],
     ]);
 
-    $GLOBALS["DEBUG_DATA"]["XVASYNTH"]["prerequest"]=json_encode($initData);
+    \Synth\Bootstrap::setPath('DEBUG_DATA', ["XVASYNTH", "prerequest"], json_encode($initData));
 
     // Initialize with the correct voice for this call
     $response = synth_speech_fetch("$apiEndpoint/loadModel", $initContext, $http_response_header);
-    $GLOBALS["DEBUG_DATA"]["XVASYNTH"]["preresponse"]=$response;
+    \Synth\Bootstrap::setPath('DEBUG_DATA', ["XVASYNTH", "preresponse"], $response);
     if ($response===false) return false;
 
     $private=xvasynth_private_output();
@@ -125,7 +125,7 @@ namespace Synth\Drivers\Tts\Drivers {
             "pluginsContext" => "{}",
             "vocoder" => \Synth\Bootstrap::config("TTS")["XVASYNTH"]["vocoder"],
             "waveglowPath" => \Synth\Bootstrap::config("TTS")["XVASYNTH"]["waveglowPath"],
-            "model" => "resources/app/models/{$GLOBALS["TTS"]["XVASYNTH"]["game"]}/{$voice}"
+            "model" => ("resources/app/models/" . \Synth\Bootstrap::config('TTS')["XVASYNTH"]["game"] . "/{$voice}")
         );
 
         $context = stream_context_create([
@@ -137,16 +137,16 @@ namespace Synth\Drivers\Tts\Drivers {
             ],
         ]);
 
-        $GLOBALS["DEBUG_DATA"]["XVASYNTH"]["request"]=json_encode($jsonData);
+        \Synth\Bootstrap::setPath('DEBUG_DATA', ["XVASYNTH", "request"], json_encode($jsonData));
 
         // Send the POST request with the specified headers
         $response = synth_speech_fetch("$apiEndpoint/synthesize", $context, $http_response_header);
 
-        $GLOBALS["DEBUG_DATA"]["XVASYNTH"]["response"]=$response;
+        \Synth\Bootstrap::setPath('DEBUG_DATA', ["XVASYNTH", "response"], $response);
 
         // Add FFMPEG filter handling from xtts
         if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-            $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"] = "adelay=150|150";
+            \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
             $FFMPEG_FILTER = '-af "' . implode(",", \Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")) . '"';
         } else {
             $FFMPEG_FILTER = '-filter:a "adelay=150|150"';
@@ -164,7 +164,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
             // Add audio processing like in xtts
             $startTimeTrans = microtime(true);
-            $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+            $filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
                 ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
             if (!synth_transcode_speech_cache($audio,$fname,$filter)) return false;
             $endTimeTrans = microtime(true) - $startTimeTrans;
@@ -176,11 +176,11 @@ namespace Synth\Drivers\Tts\Drivers {
                 " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"default\",$stringforhash)"
             );
 
-            $GLOBALS["DEBUG_DATA"][] = (microtime(true) - $starTime) . " secs in xvasynth call";
+            \Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime) . " secs in xvasynth call");
             return "soundcache/" . $fileName . ".wav";
         } else {
             $textString .= print_r($http_response_header, true);
-            $GLOBALS["DEBUG_DATA"]["XVASYNTH"]["error"] = "$textString";
+            \Synth\Bootstrap::setPath('DEBUG_DATA', ["XVASYNTH", "error"], "$textString");
             file_put_contents(
                 SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . $fileName . ".err",
                 trim($textString)

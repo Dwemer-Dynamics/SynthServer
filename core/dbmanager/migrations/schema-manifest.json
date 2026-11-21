@@ -39,11 +39,22 @@
         "Version20261120110000": {
             "class": "Synth\\Migrations\\Version20261120110000",
             "files": {
-                "Version20261120110000.php": "bfa59538361181b473188b38118a298165e340c2f027a5420ce55047b85017b4",
-                "Version20261120110000.structure.txt": "504efd968765b6adb4abcdc2cc6e0708ca6bd3678eb860397fb19fcca515da00"
+                "Version20261120110000.php": "b892c21a6567ec38c167534fd8c0e6d5fcf9271d4dad4129e0755bb04ec7983b",
+                "Version20261120110000.structure.txt": "e1e1b36fa47cfa17228b323ec3277a35e81f140b90b991e86057352392f7f4a2"
             },
             "structure": {
                 "file": "Version20261120110000.structure.txt",
+                "entries": 24
+            }
+        },
+        "Version20261120120000": {
+            "class": "Synth\\Migrations\\Version20261120120000",
+            "files": {
+                "Version20261120120000.php": "29cda01f5858aeb8ecdfc34273031f1454619534d5b6d9255d48194977cee780",
+                "Version20261120120000.structure.txt": "a767176cb92a11834674add40216f8b0dd69586867fe4a7c7cfe661d175af47c"
+            },
+            "structure": {
+                "file": "Version20261120120000.structure.txt",
                 "entries": 18
             }
         }

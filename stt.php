@@ -69,7 +69,7 @@ function synthSttDecodeMetadata(): array
 $startTime = microtime(true);
 Logger::bootstrapRequestId("stt");
 Logger::trace("Audit run ID: " . \Synth\Bootstrap::config("AUDIT_RUNID"). " (STT) started: ".$startTime);
-$GLOBALS["AUDIT_RUNID_REQUEST"]="STT";
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', "STT");
 $sttMetadata = synthSttDecodeMetadata();
 Logger::phaseStart("stt", [
     "connector" => \Synth\Bootstrap::config("STTFUNCTION") ?? "",

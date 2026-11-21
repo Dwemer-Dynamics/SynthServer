@@ -39,8 +39,8 @@ namespace Synth\Drivers\Tts\Drivers {
 		// Resolve API key: prefer API Badge 'OpenAI', fallback to TTS schema key
 		$apiKey = '';
 		try {
-			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-			if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
+			if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+			if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) \Synth\Bootstrap::set('db', new sql());
 			require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
 			$row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('openai');
 			if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
@@ -48,7 +48,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		if ($apiKey === '') $apiKey = \Synth\Bootstrap::config("TTS")["openai"]["API_KEY"];
 
 		// Cache
-		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+		if (!\Synth\Bootstrap::has('AVOID_TTS_CACHE'))
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
@@ -64,7 +64,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 	// Determine voice to use
 	$voice = \Synth\Bootstrap::config("TTS")["openai"]["voice"];
-	if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+	if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE') && !empty(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE'))) {
 		$voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 	}
 
@@ -82,7 +82,7 @@ namespace Synth\Drivers\Tts\Drivers {
 				$data["instructions"] = "Emotion: $mood\n";
 			}
 
-			if (isset($GLOBALS["TTS"]["openai"]["instructions"]) && \Synth\Bootstrap::config("TTS")["openai"]["instructions"]) {
+			if (isset(\Synth\Bootstrap::config('TTS')["openai"]["instructions"]) && \Synth\Bootstrap::config("TTS")["openai"]["instructions"]) {
 				$data["instructions"] .= \Synth\Bootstrap::config("TTS")["openai"]["instructions"];
 			}
 		}
@@ -120,7 +120,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			//
 
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\r\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in openai tts call and $endTimeTrans microseconds in ffmpeg transcoding";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in openai tts call and $endTimeTrans microseconds in ffmpeg transcoding");
 			return "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
 		} else {

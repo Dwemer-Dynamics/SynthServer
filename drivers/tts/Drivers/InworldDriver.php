@@ -146,7 +146,7 @@ function isInNonVerbalVocalizationList($s_markup) {
 }
 
 function setInworldLastError(string $message): void {
-    $GLOBALS["INWORLD_LAST_ERROR_MESSAGE"] = trim($message);
+    \Synth\Bootstrap::set('INWORLD_LAST_ERROR_MESSAGE', trim($message));
 }
 
 function getInworldLastError(): string {
@@ -154,7 +154,7 @@ function getInworldLastError(): string {
 }
 
 function clearInworldLastError(): void {
-    unset($GLOBALS["INWORLD_LAST_ERROR_MESSAGE"]);
+    \Synth\Bootstrap::forget('INWORLD_LAST_ERROR_MESSAGE');
 }
 
 function findInworldVoiceSamplePath(string $voiceName): string {
@@ -165,11 +165,11 @@ function findInworldVoiceSamplePath(string $voiceName): string {
 }
 
 function ensureInworldDb() {
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+        require_once(SYNTH_TTS_SCRIPT_DIR . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
     }
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-        $GLOBALS["db"] = new sql();
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+        \Synth\Bootstrap::set('db', new sql());
     }
     return \Synth\Bootstrap::db() ?? null;
 }
@@ -183,7 +183,7 @@ function normalizeInworldWorkspaceName($workspace): string {
 }
 
 function resolveInworldConnectorRow(): ?array {
-    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return null;
+    if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) return null;
     $db = ensureInworldDb();
     if (!$db) {
         return null;
@@ -489,7 +489,7 @@ function listExistingInworldWorkspaceVoices(?array $config = null): array {
     }
 
     $cacheKey = getInworldRemoteVoicesCacheKey($config);
-    if (isset($GLOBALS['INWORLD_REMOTE_VOICES_CACHE'][$cacheKey]) && is_array(\Synth\Bootstrap::config('INWORLD_REMOTE_VOICES_CACHE')[$cacheKey])) {
+    if (isset(\Synth\Bootstrap::config('INWORLD_REMOTE_VOICES_CACHE')[$cacheKey]) && is_array(\Synth\Bootstrap::config('INWORLD_REMOTE_VOICES_CACHE')[$cacheKey])) {
         return \Synth\Bootstrap::config('INWORLD_REMOTE_VOICES_CACHE')[$cacheKey];
     }
 
@@ -554,7 +554,7 @@ function listExistingInworldWorkspaceVoices(?array $config = null): array {
         $pageToken = trim(strval($result['nextPageToken'] ?? ''));
     } while ($pageToken !== '');
 
-    $GLOBALS['INWORLD_REMOTE_VOICES_CACHE'][$cacheKey] = $voices;
+    \Synth\Bootstrap::setAt('INWORLD_REMOTE_VOICES_CACHE', $cacheKey, $voices);
     return $voices;
 }
 
@@ -619,7 +619,7 @@ function getOrCreateInworldVoice($voiceName) {
     clearInworldLastError();
     $config = getInworldActiveConfig();
 
-    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return synth_get_planned_cloud_voice('inworld', strval($voiceName), $config);
+    if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) return synth_get_planned_cloud_voice('inworld', strval($voiceName), $config);
 
     $cachedVoiceId = getCachedInworldVoiceId($voiceName, $config);
     if ($cachedVoiceId !== '') {
@@ -706,7 +706,7 @@ function cloneVoiceToInworld($voiceName, $voiceSamplePath, ?array $config = null
     $language = \Synth\Bootstrap::config("TTS")["INWORLD"]["language"] ?? 'en-US';
     
     // Override language if set globally
-    if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"])) {
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE')) {
         $language = mapLanguageToInworld(\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE"));
     } else {
         $language = mapLanguageToInworld($language);
@@ -829,7 +829,7 @@ function deleteInworldRemoteVoice($voiceId, ?array $config = null): bool {
     $statusLine = $http_response_header[0] ?? '';
     $httpCode = preg_match('/\s(\d{3})\s/', $statusLine, $matches) ? intval($matches[1]) : 0;
     if ($httpCode >= 200 && $httpCode < 300) {
-        unset($GLOBALS['INWORLD_REMOTE_VOICES_CACHE']);
+        \Synth\Bootstrap::forget('INWORLD_REMOTE_VOICES_CACHE');
         return true;
     }
     setInworldLastError("Inworld delete API returned HTTP {$httpCode}.");
@@ -918,7 +918,7 @@ function generateInworldTTS($text, $voiceId, $mood = 'normal') {
     $language = \Synth\Bootstrap::config("TTS")["INWORLD"]["language"] ?? 'en-US';
     
     // Override language if set globally
-    if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"])) {
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE')) {
         $language = mapLanguageToInworld(\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE"));
     } else {
         $language = mapLanguageToInworld($language);
@@ -933,11 +933,11 @@ function generateInworldTTS($text, $voiceId, $mood = 'normal') {
     );
     
     // Store audio format for FFmpeg processing
-    $GLOBALS['INWORLD_AUDIO_FORMAT'] = array(
+    \Synth\Bootstrap::set('INWORLD_AUDIO_FORMAT', array(
         'format' => 's16le',      // signed 16-bit little-endian
         'sample_rate' => 22050,   // 22050 Hz
         'channels' => 1           // mono
-    );
+    ));
     
     // Prepare request data
     $data = array(
@@ -991,7 +991,7 @@ function generateInworldTTS($text, $voiceId, $mood = 'normal') {
     Logger::debug("Inworld TTS response received: " . number_format(strlen($response)) . " bytes");
     $decoded=synth_inworld_decode_audio_chunks($response);
     if ($decoded===false) return false;
-    $GLOBALS['INWORLD_AUDIO_FORMAT']=$decoded['format'];
+    \Synth\Bootstrap::set('INWORLD_AUDIO_FORMAT', $decoded['format']);
     return $decoded['audio'];
 }
 
@@ -1164,10 +1164,10 @@ function mapLanguageToInworld($langCode) {
  * @return string The voice name
  */
 function getInworldVoiceName() {
-    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return trim(strval(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? ''));
+    if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) return trim(strval(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE') ?? ''));
     require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/utils.php");
     
-    $voice = isset($GLOBALS["TTS"]["FORCED_VOICE_DEV"]) 
+    $voice = isset(\Synth\Bootstrap::config('TTS')["FORCED_VOICE_DEV"]) 
         ? \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"] 
         : (\Synth\Bootstrap::config("TTS")["INWORLD"]["voiceid"] ?? '');
     
@@ -1179,9 +1179,9 @@ function getInworldVoiceName() {
         if (!empty($codename)) {
             // Try to get voiceid from NPC profile first
             try {
-                if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-                    require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-                    $GLOBALS["db"] = new sql();
+                if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+                    require_once(SYNTH_TTS_SCRIPT_DIR . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+                    \Synth\Bootstrap::set('db', new sql());
                 }
                 $npcRow = \Synth\Bootstrap::db()->fetchOne(
                     "SELECT voiceid FROM core_npc WHERE lower(npc_name) = lower('" . \Synth\Bootstrap::db()->escape(\Synth\Bootstrap::config("SYNTH_NAME") ?? '') . "') LIMIT 1"
@@ -1201,7 +1201,7 @@ function getInworldVoiceName() {
         }
     }
     
-    if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE')) {
         $voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
     }
     
@@ -1231,7 +1231,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
     // Check cache first
-    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
+    if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
         $cacheFile = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . 
                     "soundcache/" . md5(trim($stringforhash)) . ".wav";
         if (synth_speech_cache_valid($cacheFile)) {
@@ -1263,7 +1263,7 @@ namespace Synth\Drivers\Tts\Drivers {
     if (strpos($inworldVoiceId, '__') === false) {
         Logger::error("Invalid Inworld voice ID format for {$voiceName}: {$inworldVoiceId}");
         // A queued remote-only selection must not delete or rebind the caller's current alias.
-        if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])
+        if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')
             && (\Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'][$voiceName] ?? null) === null) return false;
         // Clear invalid cache and retry
         try {
@@ -1289,10 +1289,10 @@ namespace Synth\Drivers\Tts\Drivers {
     );
     
     // emotions:
-    $b_emotions = isset($GLOBALS["LAST_LLM_RESPONSE"]) && (\Synth\Bootstrap::config('use_emotions_expression') ?? false);
+    $b_emotions = \Synth\Bootstrap::has('LAST_LLM_RESPONSE') && (\Synth\Bootstrap::config('use_emotions_expression') ?? false);
     if (isEmotionCapable() && $b_emotions) {
         $s_mood = strtolower(extractFirstEmoteMood(\Synth\Bootstrap::config("LAST_LLM_RESPONSE")["mood"] ?? ""));
-        if (isset($GLOBALS["FORCE_MOOD"]) && (strlen(\Synth\Bootstrap::config("FORCE_MOOD")) > 0)) {
+        if (\Synth\Bootstrap::has('FORCE_MOOD') && (strlen(\Synth\Bootstrap::config("FORCE_MOOD")) > 0)) {
             $s_mood = strtolower(extractFirstEmoteMood(\Synth\Bootstrap::config("FORCE_MOOD")));
         }
         
@@ -1363,7 +1363,7 @@ namespace Synth\Drivers\Tts\Drivers {
     
     if ($response === false) {
         Logger::error("Failed to generate TTS from Inworld for voice {$voiceName} (ID: {$inworldVoiceId})");
-        if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])
+        if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')
             && (\Synth\Bootstrap::config('SYNTH_ACTIVE_TTS_PLAN')['samples'][$voiceName] ?? null) === null) return false;
         // If TTS generation fails, the voice ID might be invalid - clear cache and retry once
         try {
@@ -1396,7 +1396,7 @@ namespace Synth\Drivers\Tts\Drivers {
     // Apply FFMPEG filters if configured
     // Keep it simple - just add adelay like Cartesia does
     if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS") ?? null)) {
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"] = "adelay=150|150";
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
         $FFMPEG_FILTER = '-af "' . implode(",", \Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")) . '"';
     } else {
         $FFMPEG_FILTER = '-filter:a "adelay=150|150"';
@@ -1406,7 +1406,7 @@ namespace Synth\Drivers\Tts\Drivers {
     $fname = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . 
             "soundcache/" . md5(trim($stringforhash)) . ".wav";
     $audioFormat = \Synth\Bootstrap::config('INWORLD_AUDIO_FORMAT') ?? array('format' => 's16le', 'sample_rate' => 22050, 'channels' => 1);
-    $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+    $filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
         ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
     $startTimeTrans = microtime(true);
     if (!synth_transcode_speech_cache($response,$fname,$filter,pcmInput:$audioFormat)) return false;
@@ -1425,7 +1425,7 @@ namespace Synth\Drivers\Tts\Drivers {
         "size of wav ($size)\n\rfunction tts(\$textString,\$mood,\$stringforhash)"
     );
     
-    $GLOBALS["DEBUG_DATA"][] = (microtime(true) - $startTime) . " secs in Inworld TTS call";
+    \Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $startTime) . " secs in Inworld TTS call");
     
     return "soundcache/" . md5(trim($stringforhash)) . ".wav";
         }

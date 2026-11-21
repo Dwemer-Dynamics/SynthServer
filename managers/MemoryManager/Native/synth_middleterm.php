@@ -306,7 +306,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         if (!$connector) throw new RuntimeException('Middle-term connector unavailable.');
         $prompts=[];
         foreach (['middleterm_narrative_summarizer','middleterm_narrative_request'] as $key) {
-            $row=$db->fetchOne('SELECT custom_prompt,default_prompt FROM core_prompt WHERE prompt_key='.$db->escapeLiteral($key));
+            $row=\Synth\Core\DbManager\Dao\PromptDao::current($db)->texts($key);
             $prompts[]=str_replace('{SYNTH_NAME}',$name,strval(($row['custom_prompt'] ?? '') ?: ($row['default_prompt'] ?? '')));
         }
         if (trim($prompts[0])==='' || trim($prompts[1])==='') throw new RuntimeException('Middle-term prompts unavailable.');

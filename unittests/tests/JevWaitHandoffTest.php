@@ -209,7 +209,7 @@ final class JevWaitHandoffTest extends DatabaseTestCase
         $decision=strpos($source,'synth_jev_prepare_actions($db,');
         $handoff=strpos($source,'synth_wait_try_jev_handoff($db,');
         $refresh=strpos($source,'synthRefreshJsonResponseState();',$decision);
-        $disabled=strpos($source,"if (!empty(\$GLOBALS['PROMPTS'][\$gameRequest[0]]['extra']['dontuse'])) terminate();");
+        $disabled=strpos($source,"if (!empty(\Synth\Bootstrap::config('PROMPTS')[\$gameRequest[0]]['extra']['dontuse'])) terminate();");
         $this->assertNotFalse($input);$this->assertNotFalse($decision);$this->assertNotFalse($handoff);$this->assertNotFalse($refresh);$this->assertNotFalse($disabled);
         $this->assertLessThan($decision,$input);$this->assertLessThan($handoff,$decision);$this->assertLessThan($refresh,$handoff);
         $this->assertLessThan($decision,$disabled);

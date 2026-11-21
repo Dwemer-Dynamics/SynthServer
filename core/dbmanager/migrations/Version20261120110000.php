@@ -7,16 +7,18 @@ namespace Synth\Migrations;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
-// The extension host's two shared tables (chevo's core_extension_store and core_extension_migrations):
-// core_extension_store is the key/value store every extension gets through its context, and core_extension_migration
-// records the SQL files of an extension's own ext_<id>_* tables that were applied, with their SHA-256, so a changed
-// file is detected instead of re-run. The extension tables themselves are created by those files, not here.
-// Uses addSql() only, like every migration here, and every statement is idempotent.
+// The durable outbound message queue (docs/CHEVO-PARITY.md, MessageHandler). One row is one result the client fetches by id:
+// created `pending` when the work is admitted (a speech job), `completed` with its final JSON payload when the work finishes,
+// `delivered` by the one fetch that returns it, or `cancelled` / `expired`. The lifecycle is the CHIM 4 server's
+// core_message_queue, with a session and generation in place of its request scope: SYNTH scopes stale work by the runtime
+// session and generation, and an utterance (dedup_key) is admitted once per request. Statuses only move forward:
+// pending -> completed -> delivered, and pending or completed -> cancelled or expired (core/dbmanager/dao/MessageQueueDao).
+// Fresh installs and upgrades both run this migration, so every statement is idempotent. Uses addSql() only.
 final class Version20261120110000 extends AbstractMigration
 {
     public function getDescription(): string
     {
-        return 'Add core_extension_store and core_extension_migration for extension data and their per-extension migrations';
+        return 'Add core_message_queue, the durable outbound message queue';
     }
 
     public function isTransactional(): bool
@@ -24,32 +26,34 @@ final class Version20261120110000 extends AbstractMigration
         return true;
     }
 
-    /** The statements of up(). */
+    /** @return list<string> */
     public static function statements(): array
     {
         return [
-            <<<'SQL'
-            CREATE TABLE IF NOT EXISTS public.core_extension_store (
-                extension_id text NOT NULL,
-                store_key text NOT NULL,
-                value jsonb NOT NULL,
-                updated_at timestamptz NOT NULL DEFAULT now(),
-                CONSTRAINT core_extension_store_pkey PRIMARY KEY (extension_id, store_key),
-                CONSTRAINT core_extension_store_id_check CHECK (extension_id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' AND length(extension_id) <= 64),
-                CONSTRAINT core_extension_store_key_check CHECK (length(store_key) BETWEEN 1 AND 200)
-            )
-            SQL,
-            <<<'SQL'
-            CREATE TABLE IF NOT EXISTS public.core_extension_migration (
-                extension_id text NOT NULL,
-                name text NOT NULL,
-                sha256 char(64) NOT NULL,
-                applied_at timestamptz NOT NULL DEFAULT now(),
-                CONSTRAINT core_extension_migration_pkey PRIMARY KEY (extension_id, name),
-                CONSTRAINT core_extension_migration_id_check CHECK (extension_id ~ '^[a-z][a-z0-9]*(-[a-z0-9]+)*$' AND length(extension_id) <= 64),
-                CONSTRAINT core_extension_migration_sha_check CHECK (sha256 ~ '^[0-9a-f]{64}$')
-            )
-            SQL,
+            'CREATE TABLE IF NOT EXISTS public.core_message_queue ('
+            . 'id bigserial NOT NULL,'
+            . ' message_type text NOT NULL,'
+            . ' session_id text NOT NULL,'
+            . ' request_id text NOT NULL,'
+            . ' generation bigint NOT NULL,'
+            . ' dedup_key text NOT NULL,'
+            . ' payload jsonb NULL,'
+            . " status text NOT NULL DEFAULT 'pending',"
+            . ' created_at timestamp with time zone NOT NULL DEFAULT now(),'
+            . ' completed_at timestamp with time zone NULL,'
+            . ' delivered_at timestamp with time zone NULL,'
+            . ' cancelled_at timestamp with time zone NULL,'
+            . ' expires_at timestamp with time zone NOT NULL,'
+            . ' notified_at timestamp with time zone NULL,'
+            . ' notify_attempts integer NOT NULL DEFAULT 0,'
+            . ' last_error text NULL,'
+            . ' CONSTRAINT core_message_queue_pkey PRIMARY KEY (id),'
+            . ' CONSTRAINT core_message_queue_generation_check CHECK (generation > 0),'
+            . ' CONSTRAINT core_message_queue_status_check CHECK (status = ANY (ARRAY[\'pending\', \'completed\', \'delivered\', \'cancelled\', \'expired\']))'
+            . ')',
+            'CREATE UNIQUE INDEX IF NOT EXISTS core_message_queue_dedup ON public.core_message_queue (session_id, request_id, dedup_key)',
+            'CREATE INDEX IF NOT EXISTS core_message_queue_status ON public.core_message_queue (status, created_at, id)',
+            'CREATE INDEX IF NOT EXISTS core_message_queue_session ON public.core_message_queue (session_id, generation)',
         ];
     }
 
@@ -60,7 +64,7 @@ final class Version20261120110000 extends AbstractMigration
         }
     }
 
-    // As for the other migrations here, revertTo() removes only the ledger record; the tables stay.
+    // Like the earlier migrations, the owner's revertTo() removes only the ledger record; the table stays.
     public function down(Schema $schema): void
     {
     }
