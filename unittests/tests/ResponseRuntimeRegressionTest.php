@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
+require_once(__DIR__ . "/DaoTestDoubles.php");
 require_once(__DIR__ . "/../../lib/logger.php");
 
 @define("MAXIMUM_SENTENCE_SIZE", 125);
@@ -108,6 +109,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     return $publish();
                 }
             };
+            DaoTestDoubles::ownerFrom($db);
             \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
                 public function __construct(private object $fake) {}
                 public function publishReady(string $mediaId, string $contentType, int $size, string $sha256, array $correlation): bool { $this->fake->writes++; return true; }
@@ -137,6 +139,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             $this->assertSame($before,file_get_contents($status));
         } finally {
             \Synth\Core\DbManager\Dao\MediaObjectDao::inject(null);
+            DaoTestDoubles::reset();
             foreach($keys as $name) unset($GLOBALS[$name]);
             foreach($saved as $name=>$value) $GLOBALS[$name]=$value;
             foreach ([$cache,$status,$object,$object.'.json'] as $file) if(is_file($file)) unlink($file);
@@ -211,6 +214,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     return $publish();
                 }
             };
+            DaoTestDoubles::ownerFrom($GLOBALS['db']);
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']['json']=['protocol_version'=>2,'session_id'=>'direct-fixture',
                 'request_id'=>'direct-request','generation'=>1,'capabilities'=>[]];
@@ -223,6 +227,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             }
             $this->assertSame([],glob($root.'/data/tmp/npc_tts_jobs/.speech-output-*'));
         } finally {
+            DaoTestDoubles::reset();
             foreach($keys as $key) unset($GLOBALS[$key]);
             foreach($saved as $key=>$value) $GLOBALS[$key]=$value;
             if(is_file($target)) unlink($target);
@@ -475,6 +480,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 }
                 public function fetchAll(string $query, $log=false): array { $this->queries[]=$query; return []; }
             };
+            DaoTestDoubles::ownerFrom($db);
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['CORE_CONNECTOR_PLAYER']=2;$GLOBALS['HTTP_TIMEOUT']=15;unset($GLOBALS['SYNTH_AUTOCHAT']);
             $bound=['inputtext',0,0,json_encode(['schema'=>'synth.input.v1','npc'=>'Piper','text'=>$event['payload']['text'],'game'=>'fo4'])];
@@ -581,6 +587,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             }
             $this->assertSame($event,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
         } finally {
+            DaoTestDoubles::reset();
             foreach ($keys as $key) {
                 if (array_key_exists($key,$saved)) $GLOBALS[$key]=$saved[$key]; else unset($GLOBALS[$key]);
             }
