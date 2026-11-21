@@ -92,38 +92,12 @@ final class ConversationManager
     // or completed-undelivered request of the conversation in this session generation is cancelled exactly as a
     // single-request cancel: completed player input stays as historical learning, everything else is revoked. A
     // running provider or speech stream then fails its next liveness check, so nothing is delivered late. The reason
-    // is recorded in the stored cancel event itself. Returns the cancelled request ids.
+    // is recorded in the stored cancel event itself. Returns the cancelled request ids. $session is the caller's quoted
+    // literal of the event's session id; the DAO binds the raw id, so it is no longer read.
     public static function cancel($db, array $event, string $session, int $generation): array
     {
-        $conversation = $db->escapeLiteral($event['payload']['conversation_id']);
-        $own = $db->escapeLiteral($event['request_id']);
-        $members = "SELECT request_id FROM public.core_protocol_event WHERE session_id={$session}
-            AND generation={$generation} AND request_id<>{$own}
-            AND event_type IN ('input_text','input_audio','trigger')
-            AND canonical_event->'capabilities' ? '".self::CAPABILITY."'
-            AND canonical_event#>>'{payload,conversation_id}'={$conversation}";
-        $cancelled = $db->fetchAll("UPDATE public.core_request_execution SET
-                state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
-                response_body=NULL,error_code='request_cancelled',
-                completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
-            WHERE session_id={$session} AND generation={$generation} AND state IN ('claimed','streaming','complete')
-                AND request_id IN ({$members}) RETURNING request_id,turn_id");
-        $cancelled = is_array($cancelled) ? $cancelled : [];
-        $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-            WHERE session_id={$session} AND generation={$generation} AND state IN ('pending','running')
-                AND request_id IN ({$members})");
-        $ids = array_column($cancelled, 'request_id');
-        if ($ids !== []) {
-            // Clear the active turn only when both its id and its context sequence belong to a cancelled request, as
-            // a single-request cancel does, so a later turn that reuses a turn id is never cleared.
-            $list = implode(',', array_map(static fn($id) => $db->escapeLiteral($id), $ids));
-            $db->execQuery("UPDATE public.core_runtime_session SET active_turn_id=NULL, updated_at=NOW()
-                WHERE session_id={$session} AND active_generation={$generation}
-                    AND (active_turn_id, active_turn_sequence) IN (
-                        SELECT turn_id, (canonical_event->>'context_sequence')::bigint FROM public.core_protocol_event
-                        WHERE session_id={$session} AND generation={$generation} AND request_id IN ({$list}))");
-        }
-        return $ids;
+        return \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->cancelConversation($event['session_id'], $generation,
+            $event['request_id'], $event['payload']['conversation_id'], self::CAPABILITY);
     }
 
     // A fixed, bounded preference for dialogue rows of the request's own conversation: SQL for a boolean over the
@@ -135,11 +109,6 @@ final class ConversationManager
     {
         $id = self::idOf($event);
         if ($id === null) return null;
-        $session = $db->escapeLiteral($event['session_id']);
-        return "(type NOT IN ('chat','inputtext','inputtext_s','backgroundchat') OR EXISTS (SELECT 1 FROM public.core_history_event conv_h
-            JOIN public.core_protocol_event conv_e ON conv_e.session_id=conv_h.session_id AND conv_e.request_id=conv_h.request_id
-                AND conv_e.generation=conv_h.generation
-            WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}
-                AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$db->escapeLiteral($id).'))';
+        return \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->conversationRankSql($event['session_id'], $id);
     }
 }

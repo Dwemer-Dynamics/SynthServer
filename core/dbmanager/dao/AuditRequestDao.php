@@ -24,4 +24,33 @@ final class AuditRequestDao
     {
         return array_values($this->fresh()->getRepository(AbstractAuditRequest::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /**
+     * Successful and total requests in a period: 24h, 72h, 7d or lifetime (home dashboard).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function dashboardOutcomeCounts(string $period): ?array
+    {
+        $conditions = [
+            '24h' => "created_at >= NOW() - INTERVAL '24 HOURS'",
+            '72h' => "created_at >= NOW() - INTERVAL '72 HOURS'",
+            '7d' => "created_at >= NOW() - INTERVAL '7 DAYS'",
+            'lifetime' => 'TRUE',
+        ];
+        if (!isset($conditions[$period])) {
+            throw new \InvalidArgumentException('Unknown audit period.');
+        }
+        $row = $this->connection()->fetchAssociative("SELECT COUNT(*) FILTER (WHERE result='Ok') AS success, COUNT(*) AS total FROM core_audit_request WHERE {$conditions[$period]}");
+
+        return $row === false ? null : $row;
+    }
+
+    /** Result, url and connector of the newest audited request, or null. @return array<string, mixed>|null */
+    public function latest(): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT result, url, connector FROM core_audit_request ORDER BY id DESC LIMIT 1');
+
+        return $row === false ? null : $row;
+    }
 }

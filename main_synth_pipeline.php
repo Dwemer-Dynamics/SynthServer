@@ -3229,7 +3229,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . "ext" . DIRECTORY_SEPARATOR
 if (sizeof($talkedSoFar) == 0) {
     if (sizeof($alreadysent) > 0) { // AI only issued commands
 
-        \Synth\Core\DbManager\Dao\LogDao::current($db)->record(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
         if (($gameRequest[0] ?? "") === "cheatmode") {
             $cheatAck = "Done.";
             $ackEmitted=false;
@@ -3253,13 +3253,13 @@ if (sizeof($talkedSoFar) == 0) {
     } else { // Fail request? or maybe an invalid command was issued
 
         //returnLines(array($randomSentence));
-        \Synth\Core\DbManager\Dao\LogDao::current($db)->record(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
 
     }
 } else {
 
     if (sizeof($alreadysent) > 0) { // AI only issued commands
-        \Synth\Core\DbManager\Dao\LogDao::current($db)->record(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
     }
 
     if (!$ERROR_TRIGGERED) {

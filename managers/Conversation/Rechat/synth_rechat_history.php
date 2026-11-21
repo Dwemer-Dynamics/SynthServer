@@ -7,15 +7,9 @@ require_once __DIR__.'/synth_rechat_prepare.php';
 // line is excluded. An earlier heard sibling cannot replace it.
 function synth_rechat_history_response($connection, array $owner, string $request, int $chainId): array
 {
-    $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
-        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
-        JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$3
-        JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.playthrough_id=c.playthrough_id
-        WHERE e.session_id=$1 AND e.request_id=$2 AND e.state='complete' AND e.generation=$4 AND p.generation=e.generation
-            AND e.turn_id=$5 AND p.turn_id=e.turn_id AND e.event_type=p.event_type AND e.request_sha256=p.event_sha256
-            AND s.runtime_variant=$6 AND octet_length(e.response_body)<=2097152",
-        [$owner['session_id'],$request,$owner['context_sequence'],$owner['generation'],$owner['turn_id'],$owner['runtime_variant']]);
-    if (!$result || !($row=pg_fetch_assoc($result))) throw new LogicException('rechat_history_response_unavailable');
+    $row=\Synth\Core\DbManager\Dao\RequestExecutionDao::current()->completedResponse([$owner['session_id'],$request,$owner['context_sequence'],
+        $owner['generation'],$owner['turn_id'],$owner['runtime_variant']]);
+    if (!$row) throw new LogicException('rechat_history_response_unavailable');
     $event=json_decode($row['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
     if (($event['request_id'] ?? null)!==$request || ($event['type'] ?? null)!==$row['event_type']
         || !synth_protocol_owns_dialogue_turn($event)
@@ -39,25 +33,17 @@ function synth_rechat_history_response($connection, array $owner, string $reques
     $playerKey=synth_rechat_actor_key($context['player'] ?? []);
     $selection=null;
     if (synth_protocol_owns_rechat($event)) {
-        $result=@pg_query_params($connection,"SELECT s.role,s.identity FROM public.core_rechat_selection s
-            JOIN public.core_rechat_continuation d USING(session_id,request_id)
-            WHERE s.session_id=$1 AND s.request_id=$2 AND d.chain_id=$3 AND d.status='reserved'
-                AND s.prepared_at IS NOT NULL AND s.role IN ('npc','narrator')",
-            [$owner['session_id'],$request,$chainId]);
-        if (!$result || !($selection=pg_fetch_assoc($result))) throw new LogicException('rechat_history_selection_unavailable');
+        $selection=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->preparedIdentity($owner['session_id'],$request,$chainId);
+        if (!$selection) throw new LogicException('rechat_history_selection_unavailable');
         $selection['identity']=$selection['identity']===null ? null : json_decode($selection['identity'],true,flags:JSON_THROW_ON_ERROR);
     }
-    $result=@pg_query_params($connection,'SELECT * FROM public.core_dialogue_route
-        WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
-        [$owner['session_id'],$request,$owner['generation'],$owner['context_sequence']]);
-    if (!$result) throw new RuntimeException('rechat_history_routes_unavailable');
+    $found=\Synth\Core\DbManager\Dao\DialogueRouteDao::current()->forRequest($owner['session_id'],$request,$owner['generation'],$owner['context_sequence']);
+    if ($found===null) throw new RuntimeException('rechat_history_routes_unavailable');
     $routes=[];
-    foreach (pg_fetch_all($result) as $route) $routes[$route['line_id']]=$route;
-    $result=@pg_query_params($connection,'SELECT line_id,state FROM public.core_dialogue_utterance
-        WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
-        [$owner['session_id'],$request,$owner['generation'],$owner['context_sequence']]);
-    if (!$result) throw new RuntimeException('rechat_history_utterances_unavailable');
-    $delivery=array_column(pg_fetch_all($result),'state','line_id');
+    foreach ($found as $route) $routes[$route['line_id']]=$route;
+    $states=\Synth\Core\DbManager\Dao\DialogueUtteranceDao::current()->lineStates($owner['session_id'],$request,$owner['generation'],$owner['context_sequence']);
+    if ($states===null) throw new RuntimeException('rechat_history_utterances_unavailable');
+    $delivery=array_column($states,'state','line_id');
     $messages=[]; $lastNpc=null; $playerLines=[];
     foreach ($lines as $entry) {
         $line=$entry['line'];
@@ -114,19 +100,13 @@ function synth_rechat_history($db, array $event): array
         $selection=synth_rechat_prepared_selection($db,$event);
         if ($selection['role']==='terminal') throw new LogicException('rechat_history_terminal');
         $chainId=intval($selection['chain_id']);
-        $result=@pg_query_params($connection,'SELECT root_request_id FROM public.core_rechat_chain WHERE id=$1 AND session_id=$2',
-            [$chainId,$event['session_id']]);
-        if (!$result || !($chain=pg_fetch_assoc($result))) throw new LogicException('rechat_history_chain_unavailable');
+        $chain=\Synth\Core\DbManager\Dao\RechatChainDao::current()->rootRequest($chainId,$event['session_id']);
+        if (!$chain) throw new LogicException('rechat_history_chain_unavailable');
         $node=$event; $visited=[$event['request_id']=>true]; $groups=[]; $bytes=0; $reachedRoot=false; $parentEvent=null;
         for ($depth=0;$depth<64 && $bytes<8*1024*1024;++$depth) {
             $edge=null; $actionParent=null;
             if (synth_protocol_owns_rechat($node)) {
-                $result=@pg_query_params($connection,"SELECT d.* FROM public.core_rechat_continuation d
-                    JOIN public.core_rechat_selection s USING(session_id,request_id)
-                    WHERE d.session_id=$1 AND d.request_id=$2 AND d.chain_id=$3 AND d.status='reserved'
-                        AND s.prepared_at IS NOT NULL AND s.role IN ('npc','narrator')",
-                    [$event['session_id'],$node['request_id'],$chainId]);
-                if (!$result || !($edge=pg_fetch_assoc($result))
+                if (!($edge=\Synth\Core\DbManager\Dao\RechatContinuationDao::current()->preparedEdge($event['session_id'],$node['request_id'],$chainId))
                     || $edge['parent_request_id']!==($node['payload']['reply_to_request_id'] ?? null)
                     || $edge['parent_line_id']!==($node['payload']['reply_to_line_id'] ?? null)) throw new LogicException('rechat_history_edge_unavailable');
                 $parent=$edge['parent_request_id'];
@@ -157,10 +137,8 @@ function synth_rechat_history($db, array $event): array
             if ($reader===null || in_array($reader,$group['hearers'],true)) $messages=array_merge($messages,$group['messages']);
         }
         if ($reachedRoot && in_array($node['type'],['input_text','input_audio'],true)) {
-            $result=@pg_query_params($connection,'SELECT input_text,execution_mode FROM public.core_dialogue_origin_policy WHERE session_id=$1 AND request_id=$2',
-                [$event['session_id'],$node['request_id']]);
-            if (!$result) throw new RuntimeException('rechat_history_input_unavailable');
-            $origin=pg_fetch_assoc($result);
+            $origin=\Synth\Core\DbManager\Dao\DialogueOriginPolicyDao::current()->inputPolicy($event['session_id'],$node['request_id']);
+            if ($origin===null) throw new RuntimeException('rechat_history_input_unavailable');
             require_once __DIR__.'/synth_autochat.php';
             // The frozen policy and the canonical root must agree on Auto Chat; a mismatch is never resolved either way.
             if (($origin && $origin['execution_mode']==='AUTOCHAT')!==synth_autochat_selected($node)) {

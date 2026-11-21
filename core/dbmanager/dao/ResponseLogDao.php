@@ -6,8 +6,8 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
-use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractResponseLog;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_response_log. */
 final class ResponseLogDao
@@ -24,6 +24,38 @@ final class ResponseLogDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractResponseLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
+    }
+
+    /** How many rows are older than the cutoff (a unix time compared with localts), or null when the count fails. */
+    public function countOlderThan(int $cutoff): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM public.core_response_log WHERE localts < ?', [$cutoff]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
+
+    /** How many rows there are, or null when the count fails. */
+    public function countRows(): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM public.core_response_log');
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
+
+    /** Deletes the rows older than the cutoff; false when the statement fails. */
+    public function deleteOlderThan(int $cutoff): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_response_log WHERE localts < ?', [$cutoff]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
     }
 
     /** Marks every sent dialogue response as unsent again (after a wipe or a rollback, so it can be replayed). */

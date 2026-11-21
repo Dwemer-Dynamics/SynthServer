@@ -6,8 +6,8 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
-use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractSpeech;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_speech. */
 final class SpeechDao
@@ -24,6 +24,25 @@ final class SpeechDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractSpeech::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
+    }
+
+    /** The speaker of the newest core_speech row, or null when there is none. */
+    public function latestSpeaker(): ?string
+    {
+        $speaker = $this->connection()->fetchOne('SELECT speaker FROM public.core_speech ORDER BY rowid DESC LIMIT 1');
+
+        return $speaker === false ? null : (string) $speaker;
+    }
+
+    /** The highest gamets of a line spoken by, to or in company of this actor, or null when there is none. */
+    public function lastGametsFor(string $actor): ?string
+    {
+        $last = $this->connection()->fetchOne(
+            'SELECT max(gamets) FROM core_speech WHERE speaker = :actor OR listener = :actor OR companions LIKE :company',
+            ['actor' => $actor, 'company' => '%|'.$actor.'|%']
+        );
+
+        return $last === false || $last === null ? null : (string) $last;
     }
 
     private const COLUMNS = ['ts', 'gamets', 'listener', 'speaker', 'speech', 'location', 'companions', 'sess', 'audios', 'utterance_id', 'topic', 'localts'];

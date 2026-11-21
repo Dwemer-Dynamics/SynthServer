@@ -36,13 +36,7 @@ require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
 $TITLE = "SYNTH Diaries";
 $isEmbed = (isset($_GET['embed']) && $_GET['embed'] == '1');
 
-// Connect to the database
-$conn = pg_connect(synthPgConnectionString($dbSettings));
-
-if (!$conn) {
- echo "<div class='message'>Failed to connect to database: " . pg_last_error() . "</div>";
- exit;
-}
+$memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current();
 
 // Handle diary entry updates via POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,15 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  }
 
  // Delete the diary entry
- $query = "DELETE FROM public.core_memory WHERE source_type = 'diary' AND rowid = $1";
- $result = pg_query_params($conn, $query, [$rowid]);
-
- if ($result) {
+ try {
+ $memoryDao->deleteDiaryEntry($rowid);
  http_response_code(200);
  echo json_encode(['success' => true]);
- } else {
+ } catch (\Throwable $error) {
  http_response_code(500);
- echo json_encode(['error' => 'Failed to delete entry: ' . pg_last_error($conn)]);
+ echo json_encode(['error' => 'Failed to delete entry: ' . $error->getMessage()]);
  }
  exit;
  }
@@ -73,16 +65,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  // Check for delete all action
  if (isset($_POST['action']) && $_POST['action'] === 'delete_all') {
  // Delete all diary entries
- $query = "DELETE FROM public.core_memory WHERE source_type = 'diary'";
- $result = pg_query($conn, $query);
-
- if ($result) {
- $deletedCount = pg_affected_rows($result);
+ try {
+ $deletedCount = $memoryDao->deleteAllDiaryEntries();
  http_response_code(200);
  echo json_encode(['success' => true, 'message' => "Successfully deleted {$deletedCount} diary entries"]);
- } else {
+ } catch (\Throwable $error) {
  http_response_code(500);
- echo json_encode(['error' => 'Failed to delete all entries: ' . pg_last_error($conn)]);
+ echo json_encode(['error' => 'Failed to delete all entries: ' . $error->getMessage()]);
  }
  exit;
  }
@@ -100,26 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
  }
 
  // Update the diary entry
- $query = "
- UPDATE public.core_memory
- SET
- topic = $1,
- summary = $2
- WHERE source_type = 'diary' AND rowid = $3
- ";
-
- $result = pg_query_params($conn, $query, [
- $topic,
- $content,
- $rowid
- ]);
-
- if ($result) {
+ try {
+ $memoryDao->updateDiaryEntry($rowid, $topic, $content);
  http_response_code(200);
  echo json_encode(['success' => true]);
- } else {
+ } catch (\Throwable $error) {
  http_response_code(500);
- echo json_encode(['error' => 'Failed to update entry: ' . pg_last_error($conn)]);
+ echo json_encode(['error' => 'Failed to update entry: ' . $error->getMessage()]);
  }
  exit;
 }
@@ -133,70 +109,37 @@ function sanitize_int($value, $default) {
 /**
  * Function to get list of people with their diary entry counts
  *
- * @param resource $conn Database connection
  * @param string $schema Database schema
  * @return array Array of people with their entry counts
  */
-function getPeopleList($conn, $schema) {
- $query = "
- WITH split_people AS (
- SELECT
- d.rowid,
- trim(unnest(string_to_array(trim(d.companions, '|'), '|'))) as person
- FROM public.core_memory d
- WHERE d.source_type = 'diary' AND d.companions IS NOT NULL AND d.companions != ''
- AND d.topic NOT IN ('Sent Letter', 'Journal Note')
- )
- SELECT
- person,
- COUNT(DISTINCT rowid) as entry_count
- FROM split_people
- WHERE person != ''
- GROUP BY person
- ORDER BY entry_count DESC, person ASC
- ";
-
- $result = pg_query($conn, $query);
- $peopleList = [];
-
- if ($result) {
- while ($row = pg_fetch_assoc($result)) {
- $peopleList[] = $row;
+function getPeopleList($schema) {
+ try {
+ return \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryPeopleCounts();
+ } catch (\Throwable $error) {
+ return [];
  }
- }
-
- return $peopleList;
 }
 
 /**
  * Function to get diary entries by person
  *
- * @param resource $conn Database connection
  * @param string $schema Database schema
  * @param string $person Person name to filter by
  * @return array Array of diary entries
  */
-function getEntriesByPerson($conn, $schema, $person) {
+function getEntriesByPerson($schema, $person) {
  // Debug log
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Searching for person: " . $person);
 
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND companions LIKE $1
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY localts DESC
- ";
-
- $result = pg_query_params($conn, $query, ['%' . $person . '%']);
-
- if (!$result) {
- \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'diarylog', "Query error: " . pg_last_error($conn));
+ try {
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesForPerson($person);
+ } catch (\Throwable $error) {
+ \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'diarylog', "Query error: " . $error->getMessage());
  return [];
  }
 
  $entries = [];
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($rows as $row) {
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Found entry with people: " . $row['people']);
  $entries[] = $row;
  }
@@ -264,7 +207,7 @@ function process_diary_row($row, $for_csv = false) {
 }
 
 // Function to handle CSV export
-function handle_csv_export($conn, $schema) {
+function handle_csv_export($schema) {
  // Define Fallout month mapping
  $falloutMonths = [
  1 => 'January',
@@ -297,27 +240,14 @@ function handle_csv_export($conn, $schema) {
  $isFalloutView = isset($_GET['fallout']) && $_GET['fallout'] === 'true';
  $isRegularCalendar = isset($_GET['date']);
 
+ try {
  if ($isPersonFilter) {
  // People filter mode - get entries for specific person
  $person = urldecode($_GET['person']);
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND companions LIKE '%' || $1 || '%'
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY localts DESC
- ";
- $result = pg_query_params($conn, $query, [$person]);
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesForPerson($person);
  } elseif ($isFalloutView && isset($_GET['month']) && isset($_GET['year']) && isset($_GET['day'])) {
  // Fallout calendar mode
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND gamets > 0
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY gamets ASC
- ";
- $result = pg_query($conn, $query);
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesWithGameTime();
  } elseif ($isRegularCalendar) {
  // Regular calendar mode
  $selectedDate = $_GET['date'];
@@ -327,35 +257,27 @@ function handle_csv_export($conn, $schema) {
  $dtSelectedEnd->modify('+1 day')->modify('-1 second');
  $endOfDay = $dtSelectedEnd->getTimestamp();
 
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND localts >= $1 AND localts <= $2
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY localts ASC
- ";
- $result = pg_query_params($conn, $query, [$startOfDay, $endOfDay]);
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesBetween($startOfDay, $endOfDay);
  } else {
  // No valid view selected
  header("HTTP/1.1 400 Bad Request");
  echo "Please select a date, person, or Fallout date to view entries.";
  exit;
  }
+ } catch (\Throwable $error) {
+ header("HTTP/1.1 500 Internal Server Error");
+ echo "Error fetching data: " . $error->getMessage();
+ exit;
+ }
  } else {
  // Export all entries
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY localts ASC
- ";
- $result = pg_query($conn, $query);
- }
-
- if (!$result) {
+ try {
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesAll();
+ } catch (\Throwable $error) {
  header("HTTP/1.1 500 Internal Server Error");
- echo "Error fetching data: " . pg_last_error($conn);
+ echo "Error fetching data: " . $error->getMessage();
  exit;
+ }
  }
 
  // Set headers to prompt file download
@@ -392,7 +314,7 @@ function handle_csv_export($conn, $schema) {
  $previousLocation = null;
 
  // Fetch and process each row, then write to the CSV
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($rows as $row) {
  $processed_row = process_diary_row($row, true); // true indicates CSV context
  if ($processed_row !== null) {
  // For Fallout mode, filter entries to match the selected date
@@ -460,7 +382,7 @@ function handle_csv_export($conn, $schema) {
 }
 
 // Handle CSV export if requested - do this before any output buffering
-handle_csv_export($conn, $schema);
+handle_csv_export($schema);
 
 // Start output buffering after CSV handling
 ob_start();
@@ -571,57 +493,20 @@ if ($useFalloutTime) {
 
 // Get all diary entries for the current month to highlight calendar days
 $allEventDates = array();
-if ($useFalloutTime) {
- $sql = "SELECT DISTINCT
- EXTRACT(DAY FROM gamets) as day,
- EXTRACT(MONTH FROM gamets) as month,
- EXTRACT(YEAR FROM gamets) as year
- FROM public.core_memory
- WHERE source_type = 'diary' AND EXTRACT(MONTH FROM gamets) = $month
- AND EXTRACT(YEAR FROM gamets) = $year
- AND topic NOT IN ('Sent Letter', 'Journal Note')";
-} else {
- $sql = "SELECT DISTINCT
- TO_CHAR(localts AT TIME ZONE 'UTC', 'YYYY-MM-DD') as date
- FROM public.core_memory
- WHERE source_type = 'diary' AND EXTRACT(MONTH FROM localts AT TIME ZONE 'UTC') = $month
- AND EXTRACT(YEAR FROM localts AT TIME ZONE 'UTC') = $year
- AND topic NOT IN ('Sent Letter', 'Journal Note')";
+
+$allDatesRows = null;
+$allDatesError = '';
+try {
+ $allDatesRows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryCalendarEntries($useFalloutTime);
+} catch (\Throwable $error) {
+ $allDatesError = $error->getMessage();
 }
 
-// Prepare the SQL query with explicit casting to double precision
-$allDatesQuery = "
- SELECT DISTINCT
- rowid,
- gamets,
- localts,
- topic,
- content,
- tags,
- people,
- location,
- to_char(to_timestamp(CAST(localts AS bigint)), 'YYYY-MM-DD') as date,
- CASE
- WHEN " . ($useFalloutTime ? 'true' : 'false') . " THEN
- gamets
- ELSE
- localts
- END as sort_field
- FROM public.core_memory
- WHERE source_type = 'diary' AND gamets > 0
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY sort_field ASC
-";
-
-\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - SQL Query: {$allDatesQuery}");
-
-$allDatesResult = pg_query($conn, $allDatesQuery);
-
-if ($allDatesResult) {
+if ($allDatesRows !== null) {
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Processing events for month: {$falloutMonths[$month]}");
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'diarylog', "Debug - Looking for events in year: {$year}");
 
- while ($dateRow = pg_fetch_assoc($allDatesResult)) {
+ foreach ($allDatesRows as $dateRow) {
  if (!$useFalloutTime) {
  // Regular calendar mode - use localts
  if (isset($dateRow['localts']) && $dateRow['localts'] > 0) {
@@ -672,7 +557,7 @@ if ($allDatesResult) {
  }
  }
 } else {
- echo "<div class='message'>Error fetching event dates: " . pg_last_error($conn) . "</div>";
+ echo "<div class='message'>Error fetching event dates: " . $allDatesError . "</div>";
 }
 
 /**
@@ -864,32 +749,15 @@ if ($shouldFetchEvents) {
  $endOfDay = $dtSelectedEnd->getTimestamp();
  }
 
- // Modify the SQL query to fetch records for the selected day with explicit casting
- $query = "
- SELECT rowid, topic, summary AS content, tags, companions AS people, location, localts, gamets
- FROM public.core_memory
- WHERE source_type = 'diary' AND (
- CASE
- WHEN " . ($useFalloutTime ? 'true' : 'false') . " THEN
- -- For Fallout mode, we'll filter in PHP instead of SQL
- gamets > 0
- ELSE
- -- For Gregorian mode, use localts
- localts >= " . (isset($startOfDay) ? $startOfDay : 0) . " AND localts <= " . (isset($endOfDay) ? $endOfDay : 0) . "
- END
- )
- AND topic NOT IN ('Sent Letter', 'Journal Note')
- ORDER BY localts ASC
- ";
-
- $result = pg_query($conn, $query);
-
- if (!$result) {
- echo "<div class='message'>Query error: " . pg_last_error($conn) . "</div>";
+ // Fetch records for the selected day
+ try {
+ $rows = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryEntriesForDay($useFalloutTime, isset($startOfDay) ? $startOfDay : 0, isset($endOfDay) ? $endOfDay : 0);
+ } catch (\Throwable $error) {
+ echo "<div class='message'>Query error: " . $error->getMessage() . "</div>";
  exit;
  }
 } else {
- $result = false;
+ $rows = false;
 }
 ?><main class="container"><div class="page-header"><h1>Diary Log</h1></div><?php
  function renderHeader() {
@@ -963,7 +831,7 @@ if ($shouldFetchEvents) {
  // Render Combined CSV Download Buttons at the Top
  renderHeader();
  ?><!-- Add the toggle buttons before the calendar navigation --><?php renderCalendarModeButtons($useFalloutTime); ?><!-- Add People List Section --><?php if (isset($_GET['filter']) && $_GET['filter'] === 'people'): ?><div class="people-list active"><input type="text" class="people-search" placeholder="Search people..." onkeyup="filterPeople(this.value)"><?php
- $peopleList = getPeopleList($conn, $schema);
+ $peopleList = getPeopleList($schema);
  if (!empty($peopleList)) {
  foreach ($peopleList as $person) {
  $encodedPerson = urlencode($person['person']);
@@ -1061,7 +929,7 @@ if ($shouldFetchEvents) {
  //error_log("Filtering by person: " . urldecode($_GET['person']));
 
  // Get entries for the selected person
- $entries = getEntriesByPerson($conn, $schema, urldecode($_GET['person']));
+ $entries = getEntriesByPerson($schema, urldecode($_GET['person']));
  //error_log("Retrieved entries: " . print_r($entries, true));
 
  if (!empty($entries)) {
@@ -1103,9 +971,7 @@ if ($shouldFetchEvents) {
  //error_log("No entries found for person");
  echo "<tr><td colspan='5' style='text-align: center; padding: 20px;'>No diary entries found for this person.</td></tr>";
  }
- } elseif ($shouldFetchEvents && $result) {
- // Reset the result pointer to the beginning for table rendering
- pg_result_seek($result, 0);
+ } elseif ($shouldFetchEvents && $rows !== false) {
 
  // Initialize variables
  $hasEvents = false;
@@ -1114,7 +980,7 @@ if ($shouldFetchEvents) {
  ob_start();
 
  // Fetch and display each row in the table
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($rows as $row) {
  $processed_row = process_diary_row($row, false);
  if ($processed_row === null) {
  continue;
@@ -1175,8 +1041,6 @@ if ($shouldFetchEvents) {
  echo "<tr><td colspan='5' style='text-align: center; padding: 20px;'>Select a date to view diary entries.</td></tr>";
  }
  ?></table><?php
- // **Close Database Connection**
- pg_close($conn);
  ?><!-- Edit Modal --><div id="editModal" class="modal-backdrop"><div class="modal-container"><h2>Edit Entry</h2><form id="editForm" onsubmit="return saveEntry(event)"><div class="modal-body"><input type="hidden" id="editRowId" name="rowid"><input type="hidden" id="editTopic" name="topic"><label for="editContent">Content:</label><small>Edit the content of the diary entry below.</small><textarea id="editContent" name="content"></textarea></div><div class="modal-footer"><div class="button-group"><button type="submit" class="btn-save">Save Changes</button><button type="button" onclick="closeEditModal()" class="btn-cancel">Cancel</button></div></div></form></div></div><!-- Entry View Modal --><div id="entryModal" class="modal-backdrop"><div class="modal-container"><div id="entryModalContent" class="entry-content"></div><div class="diary-audio-controls"><button type="button" id="entryModalAudioButton" class="diary-audio-button" onclick="toggleDiaryAudio(this, Number(this.dataset.diaryAudioEntry))">&#9654; Play Audio</button><span id="diaryAudioStatus" class="diary-audio-status" aria-live="polite"></span></div></div></div><script>
  const diaryAudioEndpoint = <?php echo json_encode($webRoot . '/ui/api/synth_diary_audio.php'); ?>;
  const diaryAudio = new Audio();

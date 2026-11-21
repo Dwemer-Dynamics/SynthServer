@@ -6,8 +6,8 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
-use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractQuest;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_quest. */
 final class QuestDao
@@ -24,6 +24,12 @@ final class QuestDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractQuest::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
+    }
+
+    /** Quests with the selected one first, newest first, at most $limit (home dashboard). @return list<array<string, mixed>> */
+    public function dashboardActive(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative("SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT ".max(1, $limit));
     }
 
     private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts'];

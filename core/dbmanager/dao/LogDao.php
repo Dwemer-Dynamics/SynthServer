@@ -6,7 +6,6 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
-use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractLog;
 
 /** Finds rows of core_log. */
@@ -26,15 +25,15 @@ final class LogDao
         return array_values($this->fresh()->getRepository(AbstractLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
 
-    /** Appends one debug log row of a request (what was sent, what came back, and the request line). False when the statement fails. */
-    public function record(int $localts, string $prompt, string $response, string $url): bool
+    /** Appends one core_log row (localts, prompt, response, url); false when the statement fails. */
+    public function insert(int $localts, string $prompt, string $response, string $url): bool
     {
         try {
             $this->connection()->executeStatement(
                 'INSERT INTO public.core_log (localts, prompt, response, url) VALUES (?, ?, ?, ?)',
                 [$localts, $prompt, $response, $url]
             );
-        } catch (DbalException $error) {
+        } catch (\Doctrine\DBAL\Exception $error) {
             return false;
         }
 
