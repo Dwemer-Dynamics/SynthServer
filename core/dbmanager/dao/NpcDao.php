@@ -77,6 +77,12 @@ final class NpcDao
         throw new \RuntimeException('The scoped character could not be created.');
     }
 
+    /** Named NPC rows with the columns the memory-bank tools read, by name. @return list<array<string, mixed>> */
+    public function namedProfiles(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC');
+    }
+
     /** Number of characters (home dashboard). */
     public function dashboardCount(): int
     {

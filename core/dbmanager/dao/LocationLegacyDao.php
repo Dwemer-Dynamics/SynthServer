@@ -25,6 +25,28 @@ final class LocationLegacyDao
         return array_values($this->fresh()->getRepository(AbstractLocationLegacy::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
 
+    /**
+     * The legacy location whose name or worldspace best matches a travel destination (exact name, then exact worldspace, then
+     * trigram similarity), as name, formid, worldspace, sim and exact_rank; null when there is none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function bestMatch(string $destination): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT name, formid, worldspace,
+                GREATEST(CASE WHEN lower(COALESCE(name, '')) = lower(:d) THEN 1.0 ELSE similarity(COALESCE(name, ''), :d) END,
+                    similarity(COALESCE(worldspace, ''), :d)) AS sim,
+                CASE WHEN lower(COALESCE(name, '')) = lower(:d) THEN 3
+                    WHEN lower(COALESCE(worldspace, '')) = lower(:d) THEN 2 ELSE 0 END AS exact_rank
+             FROM public.core_location_legacy WHERE COALESCE(name, '') <> ''
+             ORDER BY exact_rank DESC, sim DESC, name ASC LIMIT 1",
+            ['d' => $destination]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Number of locations (home dashboard). */
     public function dashboardCount(): int
     {

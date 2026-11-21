@@ -25,6 +25,14 @@ final class SpeechDao
         return array_values($this->fresh()->getRepository(AbstractSpeech::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
 
+    /** The speaker of the newest core_speech row, or null when there is none. */
+    public function latestSpeaker(): ?string
+    {
+        $speaker = $this->connection()->fetchOne('SELECT speaker FROM public.core_speech ORDER BY rowid DESC LIMIT 1');
+
+        return $speaker === false ? null : (string) $speaker;
+    }
+
     /** The highest gamets of a line spoken by, to or in company of this actor, or null when there is none. */
     public function lastGametsFor(string $actor): ?string
     {
