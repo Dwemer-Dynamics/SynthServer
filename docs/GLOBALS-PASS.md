@@ -367,3 +367,19 @@ Directory: lib/legacy_core_functions.php (new, Composer files entry). `tools/req
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1678 | 1678 |
 | global uses | 64 | 64 |
+## require_once: status and what is left
+
+State after R1-R6 and the legacy-function move (#198): about 1,678 `require_once` (CHEVO-PARITY count method). The class files that Composer now autoloads (`core/dbmanager/Legacy/` classmap, `Synth\Lib\Logger`) no longer need requires; `lib/legacy_core_functions.php` is the only `files` entry.
+
+Justified explicit requires (load-time side effects or entry loaders; do not autoload):
+
+| File | Requires | Why it stays |
+| --- | --- | --- |
+| `lib/runtime_bootstrap.php` | 109 | Entry loader: installs the runtime session. |
+| `lib/autoload.php` | 96 | The one place the autoloader is loaded. |
+| `lib/logger.php` | 76 | Global `Logger` shim; installs the process error and shutdown handlers when included. |
+| `lib/management_request_guard.php` | 33 | Request gate that exits on a refused request when included. |
+| `lib/chat_helper_functions.php`, `lib/data_functions.php`, `ui/profile_loader.php` | 40, 35, 36 | Statements run at load time (settings defaults, guarded declarations in `if` blocks). |
+| `lib/*.php` module hooks (`synth_protocol_state.php`, `synth_command_payload.php`, `utils_game_timestamp.php`, `provider_stream.php`, ...) | about 300 together | One-line shims that require the real `managers/` or `drivers/` code. Loading them eagerly through Composer `files` would pull whole modules into every request, so they stay lazy. |
+
+Not done yet, in priority order: convert the function groups behind the hooks and the three load-time-side-effect files (`chat_helper_functions`, `data_functions`, `profile_loader`) into autoloaded classes with thin wrapper functions, one group per PR. The wrappers still need a loaded file, so they belong in a small side-effect-free `files` entry (like `lib/legacy_core_functions.php`) while the bodies move into classes. Each group needs its own review because their callers use the functions without the file being proven loaded; `git grep` the callers first (the method used in #198).
