@@ -67,6 +67,24 @@ final class PromptDao
         return $rows;
     }
 
+    /** Every prompt as ['prompt_key','default_prompt','custom_prompt','description','created_at','updated_at'], ordered by key. @return list<array<string, mixed>> */
+    public function listAll(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT prompt_key, default_prompt, custom_prompt, description, created_at, updated_at FROM public.core_prompt ORDER BY prompt_key ASC');
+    }
+
+    /** The prompts that carry a non-empty custom text, ordered by key, as ['prompt_key','custom_prompt']. @return list<array<string, mixed>> */
+    public function customRows(): array
+    {
+        return $this->connection()->fetchAllAssociative("SELECT prompt_key, custom_prompt FROM public.core_prompt WHERE custom_prompt IS NOT NULL AND custom_prompt != '' ORDER BY prompt_key ASC");
+    }
+
+    /** True when a prompt row exists for the key. */
+    public function exists(string $promptKey): bool
+    {
+        return $this->connection()->fetchOne('SELECT prompt_key FROM public.core_prompt WHERE prompt_key = ?', [$promptKey]) !== false;
+    }
+
     /** Sets (or, for null, clears) the custom text of an existing prompt and stamps updated_at; true when the statement ran. */
     public function setCustom(string $promptKey, ?string $customPrompt): bool
     {

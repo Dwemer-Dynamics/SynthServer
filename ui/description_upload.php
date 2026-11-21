@@ -16,13 +16,7 @@ error_reporting(E_ALL);
 $dbSettings = synthDbConnectionSettings('synth');
 $dbname = $dbSettings['dbname'];
 $schema = $dbSettings['schema'];
-$connectTimeout = synthDbSetting('SYNTH_DB_CONNECT_TIMEOUT', '90');
-$connString = synthPgConnectionString($dbSettings) . ' connect_timeout=' . synthPgConnectionValue($connectTimeout);
-$conn = pg_connect($connString);
-
-if (!$conn) {
- die("Failed to connect to database: " . pg_last_error());
-}
+$customItemDao = \Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::current(\Synth\Bootstrap::db());
 
 //
 //
@@ -32,8 +26,11 @@ if (!$conn) {
 
 // EXPORT CUSTOM DESCRIPTIONS
 if (isset($_GET['action']) && $_GET['action'] == 'export_custom_items') {
- $export_query = "SELECT plugin, baseid, name, description FROM public.core_item_description_custom ORDER BY plugin ASC, baseid ASC";
- $export_result = pg_query($conn, $export_query);
+ try {
+ $export_result = $customItemDao->exportRows();
+ } catch (\Throwable $exportError) {
+ $export_result = false;
+ }
 
  if ($export_result) {
  $filename = 'custom_descriptions_export_' . date('Y-m-d_H-i-s') . '.csv';
@@ -44,7 +41,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_custom_items') {
  $output = fopen('php://output', 'w');
  fputcsv($output, array('plugin', 'baseid', 'name', 'description'));
 
- while ($row = pg_fetch_assoc($export_result)) {
+ foreach ($export_result as $row) {
  fputcsv($output, array(
  $row['plugin'],
  $row['baseid'],
@@ -117,23 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
  $baseid = substr($baseid, 0, 128);
  }
 
- $query = "
- INSERT INTO public.core_item_description_custom
- (plugin, baseid, name, description)
- VALUES ($1, $2, $3, $4)
- ON CONFLICT (plugin, baseid)
- DO UPDATE SET
- name = EXCLUDED.name,
- description = EXCLUDED.description
- ";
-
- $params = [$plugin, $baseid, $name, $description];
- $result = pg_query_params($conn, $query, $params);
-
- if ($result) {
+ try {
+ $customItemDao->upsert($plugin, $baseid, $name, $description);
  $message .= "<p>Item data inserted/updated successfully!</p>";
- } else {
- $message .= "<p>Error inserting/updating item data: " . pg_last_error($conn) . "</p>";
+ } catch (\Throwable $upsertError) {
+ $message .= "<p>Error inserting/updating item data: " . $upsertError->getMessage() . "</p>";
  }
  } else {
  $message .= "<p>Please fill in the required field: Base ID.</p>";
@@ -178,30 +163,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
  $baseid = substr($baseid, 0, 128);
  }
 
- $query = "
- INSERT INTO public.core_item_description_custom (
- plugin,
- baseid,
- name,
- description
- )
- VALUES ($1, $2, $3, $4)
- ON CONFLICT (plugin, baseid)
- DO UPDATE SET
- name = EXCLUDED.name,
- description = EXCLUDED.description
- ";
- $result = pg_query_params($conn, $query, [
- $plugin,
- $baseid,
- $name,
- $description
- ]);
+ try {
+ $customItemDao->upsert($plugin, $baseid, $name, $description);
+ $result = true;
+ } catch (\Throwable $upsertError) {
+ $result = false;
+ $rowError = $upsertError->getMessage();
+ }
 
  if ($result) {
  $rowCount++;
  } else {
- $message .= "<p>Error processing row with baseid '$baseid': " . pg_last_error($conn) . "</p>";
+ $message .= "<p>Error processing row with baseid '$baseid': " . $rowError . "</p>";
  }
  } else {
  $message .= "<p>Skipping empty or invalid row (baseid missing).</p>";
@@ -231,13 +204,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 //
 //
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['truncate_items'])) {
- $truncate_query = "TRUNCATE TABLE public.core_item_description_custom";
- $result = pg_query($conn, $truncate_query);
-
- if ($result) {
+ try {
+ $customItemDao->truncate();
  $message .= "<p>All custom item entries have been deleted successfully.</p>";
- } else {
- $message .= "<p>Error truncating table: " . pg_last_error($conn) . "</p>";
+ } catch (\Throwable $truncateError) {
+ $message .= "<p>Error truncating table: " . $truncateError->getMessage() . "</p>";
  }
 }
 
@@ -259,23 +230,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  $baseid = substr($baseid, 0, 128);
  }
 
- $query = "
- INSERT INTO public.core_item_description_custom
- (plugin, baseid, name, description)
- VALUES ($1, $2, $3, $4)
- ON CONFLICT (plugin, baseid)
- DO UPDATE SET
- name = EXCLUDED.name,
- description = EXCLUDED.description
- ";
-
- $params = [$plugin, $baseid, $name, $description];
- $result = pg_query_params($conn, $query, $params);
-
- if ($result) {
+ try {
+ $customItemDao->upsert($plugin, $baseid, $name, $description);
  $message .= "<p>Item entry updated successfully!</p>";
- } else {
- $message .= "<p>Error updating item entry: " . pg_last_error($conn) . "</p>";
+ } catch (\Throwable $upsertError) {
+ $message .= "<p>Error updating item entry: " . $upsertError->getMessage() . "</p>";
  }
  }
 }
@@ -663,48 +622,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  $letter = isset($_GET['letter']) ? strtoupper($_GET['letter']) : '';
  $searchTerm = isset($_GET['search']) ? strtolower(trim($_GET['search'])) : '';
 
- // Build query based on filters
- if (!empty($letter) && ctype_alpha($letter) && strlen($letter) === 1) {
- if (!empty($searchTerm)) {
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_descriptions
- WHERE LOWER(name) LIKE LOWER($1)
- AND (LOWER(plugin) LIKE LOWER($2) OR LOWER(baseid) LIKE LOWER($2) OR LOWER(name) LIKE LOWER($2))
- ORDER BY name ASC
- ";
- $params_combined = [$letter . '%', '%' . $searchTerm . '%'];
- } else {
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_descriptions
- WHERE LOWER(name) LIKE LOWER($1)
- ORDER BY name ASC
- ";
- $params_combined = [$letter . '%'];
+ $filterLetter = (!empty($letter) && ctype_alpha($letter) && strlen($letter) === 1) ? $letter : '';
+ $filterSearch = !empty($searchTerm) ? $searchTerm : '';
+ try {
+ $result_combined = \Synth\Core\DbManager\Dao\ItemDescriptionDao::current(\Synth\Bootstrap::db())->searchCombined($filterLetter, $filterSearch);
+ $combinedError = '';
+ } catch (\Throwable $combinedFailure) {
+ $result_combined = false;
+ $combinedError = $combinedFailure->getMessage();
  }
- } else {
- if (!empty($searchTerm)) {
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_descriptions
- WHERE LOWER(plugin) LIKE LOWER($1) OR LOWER(baseid) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1)
- ORDER BY name ASC
- ";
- $params_combined = ['%' . $searchTerm . '%'];
- } else {
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_descriptions
- ORDER BY name ASC
- ";
- $params_combined = [];
- }
- }
-
- $result_combined = !empty($params_combined)
- ? pg_query_params($conn, $query_combined, $params_combined)
- : pg_query($conn, $query_combined);
  ?><h2 id="entries"> Descriptions Database</h2><div class="action-container"><button onclick="openNewEntryModal()" class="action-button add-new">Add New Entry</button><div class="search-container"><input type="text" id="searchBox" placeholder="Search descriptions..." style="flex-grow: 1; padding: 8px; border-radius: 4px; border: 1px solid #555555; background-color: #4a4a4a; color: #f8f9fa;"><button onclick="applySearch()" class="action-button edit">Search</button></div></div><!-- Alphabetic filter --><div class="filter-section"><strong>Filter by Name:</strong><div class="filter-buttons"><a href="?#entries" class="alphabet-button">All</a><?php
  foreach (range('A', 'Z') as $char) {
  echo '<a href="?letter=' . $char . '#entries" class="alphabet-button">' . $char . '</a>';
@@ -722,7 +648,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  echo '</tr>';
 
  $rowCountCombined = 0;
- while ($row = pg_fetch_assoc($result_combined)) {
+ foreach ($result_combined as $row) {
  echo '<tr>';
  echo ' <td>' . htmlspecialchars($row['baseid'] ?? '') . '</td>';
  echo ' <td>' . htmlspecialchars($row['plugin'] ?? '') . '</td>';
@@ -751,7 +677,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  echo '<p>No descriptions found.</p>';
  }
  } else {
- echo '<p>Error fetching combined descriptions: ' . pg_last_error($conn) . '</p>';
+ echo '<p>Error fetching combined descriptions: ' . $combinedError . '</p>';
  }
  ?></div></main><div id="editModal" class="modal-backdrop"><div class="modal-container"><div class="modal-header"><h2 class="modal-title">Edit Description</h2></div><div class="modal-body"><form action="<?php echo $formAction; ?>" method="post"><input type="hidden" name="action" value="update_single"><label for="edit_plugin">Plugin:</label><small>Plugin cannot be changed after creation. Create a new entry if you need to move it.</small><input type="text" name="plugin" id="edit_plugin" readonly style="background-color: #2a2a2a; cursor: not-allowed;"><label for="edit_baseid">Base ID:</label><small>Base IDs cannot be changed after creation. If you need to change an ID, create a new entry.</small><input type="text" name="baseid" id="edit_baseid" readonly style="background-color: #2a2a2a; cursor: not-allowed;" required><label for="edit_name">Name:</label><small>Display name for the entry (optional).</small><input type="text" name="name" id="edit_name"><label for="edit_description">Description:</label><small>Short escription to be injected into AI context.</small><textarea name="description" id="edit_description" rows="6"></textarea><div class="modal-footer"><button type="submit" class="btn-save">Save Changes</button><button type="button" onclick="closeEditModal()" class="btn-cancel">Cancel</button></div></form></div></div></div><div id="newEntryModal" class="modal-backdrop"><div class="modal-container"><div class="modal-header"><h2 class="modal-title">Add New Description</h2></div><div class="modal-body"><form action="" method="post"><label for="new_plugin">Plugin:</label><small>Use the source plugin filename, for example <code>Fallout.esm</code>. Leave blank only for wildcard keys.</small><input type="text" name="plugin" id="new_plugin"><label for="new_baseid">Base ID (required):</label><small>Use the local FormID, for example <code>0000ABCD</code>, or a wildcard key like <code>XX000ABC</code>.</small><input type="text" name="baseid" id="new_baseid" required><label for="new_name">Name:</label><small>Display name for the entry (optional).</small><input type="text" name="name" id="new_name"><label for="new_description">Description:</label><small>Short description to be injected into AI context.</small><textarea name="description" id="new_description" rows="6"></textarea><div class="modal-footer"><button type="submit" name="submit_individual" class="btn-save">Add Entry</button><button type="button" onclick="closeNewEntryModal()" class="btn-cancel">Cancel</button></div></form></div></div></div><script>
 function openEditModal(data) {
