@@ -62,9 +62,8 @@ final class WorldKnowledgeManager
                 if (strval($row['source_kind'] ?? '') !== 'factory' || strval($row['catalog_version'] ?? '') === '') continue;
                 $trace['catalog_id'] = strval($row['catalog_id'] ?? '');
                 $trace['catalog_version'] = strval($row['catalog_version']);
-                $result = $this->db->execQuery('SELECT checksum_sha256 FROM public.core_worldknowledge_catalog
-                    WHERE catalog_id=$1 AND catalog_version=$2 LIMIT 1', [$trace['catalog_id'], $trace['catalog_version']]);
-                $trace['catalog_checksum'] = strval(($result ? pg_fetch_assoc($result) : false)['checksum_sha256'] ?? '');
+                $trace['catalog_checksum'] = strval(\Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao::current($this->db)
+                    ->checksum($trace['catalog_id'], $trace['catalog_version']));
                 break;
             }
 

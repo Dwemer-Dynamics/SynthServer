@@ -93,23 +93,11 @@ function synthWorldKnowledgeFetchEffectiveCatalog(object $db): array
         return [];
     }
     try {
-        $rows = $db->fetchAll(
-            "SELECT entry_id, topic, aliases, canonical_topic, topic_desc, knowledge_class, topic_desc_basic,
-                    knowledge_class_basic, tags, category, source_kind, catalog_id, catalog_version, is_active
-               FROM synth.worldknowledge_effective
-              ORDER BY canonical_topic"
-        );
+        $rows = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->effectiveCatalog();
     } catch (SYNTHProtocolCancelled $cancelled) {
         throw $cancelled;
     } catch (Throwable) {
-        $rows = $db->fetchAll(
-            "SELECT topic, ''::text AS aliases, lower(btrim(split_part(topic, ',', 1))) AS canonical_topic,
-                    topic_desc, knowledge_class, topic_desc_basic, knowledge_class_basic,
-                    tags, category, 'custom'::text AS source_kind, NULL::text AS catalog_id,
-                    NULL::text AS catalog_version, TRUE AS is_active
-               FROM public.core_worldknowledge_article
-              ORDER BY lower(btrim(split_part(topic, ',', 1)))"
-        );
+        $rows = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->fallbackCatalog();
     }
     $rows = is_array($rows) ? array_values($rows) : [];
     $topics = [];
@@ -185,10 +173,7 @@ function synthWorldKnowledgeKnowledgeTags(?array $context = null): array
     // gain controlled defaults without changing their user-authored database row.
     if ($npcCodename !== '' && $db && method_exists($db, 'fetchOne') && method_exists($db, 'escape')) {
         try {
-            $template = $db->fetchOne(
-                "SELECT worldknowledge_tags FROM synth.combined_bio_templates"
-                . " WHERE lower(npc_name)=lower('" . $db->escape($npcCodename) . "') LIMIT 1"
-            );
+            $template = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->worldknowledgeTagsByName($npcCodename);
             foreach (explode(',', strval($template['worldknowledge_tags'] ?? '')) as $value) {
                 $tags[] = $value;
             }
@@ -451,38 +436,34 @@ function synthWorldKnowledgeRecordAudit(object $db, array $trace): void
         return;
     }
     try {
-        $json = static fn(mixed $value): string => $db->escapeLiteral(json_encode(
+        $json = static fn(mixed $value): string => json_encode(
             $value,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        )) . '::jsonb';
-        $sql = 'INSERT INTO public.core_worldknowledge_audit ('
-            . 'algorithm_version,status,request_type,npc_name,input_text,normalized_input,catalog_id,catalog_version,'
-            . 'grounded_matches,rejected_candidates,tag_decisions,context_tags,fallback,forced_signals,access_decisions,selected_articles,'
-            . 'settings,catalog_checksum,prompt_hash,retrieval_elapsed_ms,elapsed_ms'
-            . ') VALUES (' . implode(',', [
-                $db->escapeLiteral(strval($trace['algorithm_version'] ?? SynthWorldKnowledgeRetriever::VERSION)),
-                $db->escapeLiteral(strval($trace['status'] ?? 'no_match')),
-                $db->escapeLiteral(strval($trace['request_type'] ?? '')),
-                $db->escapeLiteral(strval($trace['npc_name'] ?? '')),
-                $db->escapeLiteral(strval($trace['input_text'] ?? '')),
-                $db->escapeLiteral(strval($trace['normalized_input'] ?? '')),
-                ($trace['catalog_id'] ?? '') === '' ? 'NULL' : $db->escapeLiteral(strval($trace['catalog_id'])),
-                ($trace['catalog_version'] ?? '') === '' ? 'NULL' : $db->escapeLiteral(strval($trace['catalog_version'])),
-                $json($trace['grounded_matches'] ?? []),
-                $json($trace['rejected_candidates'] ?? []),
-                $json($trace['tag_decisions'] ?? []),
-                $json($trace['context_tags'] ?? []),
-                $json($trace['fallback'] ?? []),
-                $json($trace['forced_signals'] ?? []),
-                $json($trace['access_decisions'] ?? []),
-                $json($trace['selected_articles'] ?? []),
-                $json($trace['settings'] ?? []),
-                ($trace['catalog_checksum'] ?? '') === '' ? 'NULL' : $db->escapeLiteral(strval($trace['catalog_checksum'])),
-                ($trace['prompt_hash'] ?? '') === '' ? 'NULL' : $db->escapeLiteral(strval($trace['prompt_hash'])),
-                strval(round(floatval($trace['retrieval_elapsed_ms'] ?? 0), 3)),
-                strval(round(floatval($trace['elapsed_ms'] ?? 0), 3)),
-            ]) . ')';
-        $db->execQuery($sql);
+        );
+        $text = static fn(string $key): ?string => ($trace[$key] ?? '') === '' ? null : strval($trace[$key]);
+        \Synth\Core\DbManager\Dao\WorldknowledgeAuditDao::current($db)->record([
+            'algorithm_version' => strval($trace['algorithm_version'] ?? SynthWorldKnowledgeRetriever::VERSION),
+            'status' => strval($trace['status'] ?? 'no_match'),
+            'request_type' => strval($trace['request_type'] ?? ''),
+            'npc_name' => strval($trace['npc_name'] ?? ''),
+            'input_text' => strval($trace['input_text'] ?? ''),
+            'normalized_input' => strval($trace['normalized_input'] ?? ''),
+            'catalog_id' => $text('catalog_id'),
+            'catalog_version' => $text('catalog_version'),
+            'grounded_matches' => $json($trace['grounded_matches'] ?? []),
+            'rejected_candidates' => $json($trace['rejected_candidates'] ?? []),
+            'tag_decisions' => $json($trace['tag_decisions'] ?? []),
+            'context_tags' => $json($trace['context_tags'] ?? []),
+            'fallback' => $json($trace['fallback'] ?? []),
+            'forced_signals' => $json($trace['forced_signals'] ?? []),
+            'access_decisions' => $json($trace['access_decisions'] ?? []),
+            'selected_articles' => $json($trace['selected_articles'] ?? []),
+            'settings' => $json($trace['settings'] ?? []),
+            'catalog_checksum' => $text('catalog_checksum'),
+            'prompt_hash' => $text('prompt_hash'),
+            'retrieval_elapsed_ms' => strval(round(floatval($trace['retrieval_elapsed_ms'] ?? 0), 3)),
+            'elapsed_ms' => strval(round(floatval($trace['elapsed_ms'] ?? 0), 3)),
+        ]);
     } catch (Throwable $exception) {
         if (class_exists('Logger')) {
             Logger::warn('[WORLDKNOWLEDGE] Unable to record structured audit: ' . $exception->getMessage());

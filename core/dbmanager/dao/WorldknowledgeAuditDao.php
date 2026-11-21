@@ -7,9 +7,11 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractWorldknowledgeAudit;
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_worldknowledge_audit. */
-final class WorldknowledgeAuditDao
+class WorldknowledgeAuditDao
 {
     use UsesEntityManager;
 
@@ -64,5 +66,31 @@ final class WorldknowledgeAuditDao
         }
 
         return [$clauses === [] ? '' : 'WHERE '.implode(' AND ', $clauses), $params];
+    }
+
+    /**
+     * Appends one retrieval audit row. The JSON columns arrive already encoded. False when the statement fails.
+     *
+     * @param array<string, mixed> $values keyed by column name
+     */
+    public function record(array $values): bool
+    {
+        $columns = ['algorithm_version', 'status', 'request_type', 'npc_name', 'input_text', 'normalized_input', 'catalog_id',
+            'catalog_version', 'grounded_matches', 'rejected_candidates', 'tag_decisions', 'context_tags', 'fallback',
+            'forced_signals', 'access_decisions', 'selected_articles', 'settings', 'catalog_checksum', 'prompt_hash',
+            'retrieval_elapsed_ms', 'elapsed_ms'];
+        $json = ['grounded_matches', 'rejected_candidates', 'tag_decisions', 'context_tags', 'fallback', 'forced_signals',
+            'access_decisions', 'selected_articles', 'settings'];
+        $placeholders = array_map(static fn(string $column): string => in_array($column, $json, true) ? 'CAST(? AS jsonb)' : '?', $columns);
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_worldknowledge_audit ('.implode(',', $columns).') VALUES ('.implode(',', $placeholders).')',
+                array_map(static fn(string $column): mixed => $values[$column] ?? null, $columns)
+            );
+
+            return true;
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
     }
 }
