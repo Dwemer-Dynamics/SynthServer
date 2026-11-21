@@ -103,10 +103,7 @@ try {
         || $media['size'] !== $request['media']['size']) {
         throw new SynthVisualRequestException(409, 'media_reference_mismatch', 'Media reference does not match the published object.');
     }
-    $mediaRow = $db->fetchOne(
-        'SELECT content_type, byte_length, sha256, state FROM public.core_media_object WHERE media_id='
-        . $db->escapeLiteral($media['media_id']) . ' LIMIT 1'
-    );
+    $mediaRow = \Synth\Core\DbManager\Dao\MediaObjectDao::current($db)->delivery(strval($media['media_id']));
     if (!$mediaRow || strval($mediaRow['state'] ?? '') !== 'ready'
         || strval($mediaRow['content_type'] ?? '') !== $media['content_type']
         || intval($mediaRow['byte_length'] ?? -1) !== $media['size']

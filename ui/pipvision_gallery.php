@@ -34,8 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(403);throw new LogicException('Reload the gallery before confirming this change.');
         }
         if ($action === 'save') {
-            $record=\Synth\Bootstrap::db()->fetchOne('SELECT metadata FROM public.core_visual_context WHERE id='.$id);
-            $metadata=json_decode(strval($record['metadata'] ?? '{}'),true);
+            $metadata=json_decode(strval(\Synth\Core\DbManager\Dao\VisualContextDao::current()->metadataJson($id) ?? '{}'),true);
             $values=[
                 'locked' => !empty($_POST['locked']),
                 'active' => !empty($_POST['active']),
@@ -46,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $message = 'PipVision context updated.';
         } elseif ($action === 'delete') {
-            $record = \Synth\Bootstrap::db()->fetchOne('SELECT image_path FROM public.core_visual_context WHERE id=' . $id);
+            $record = ['image_path' => \Synth\Core\DbManager\Dao\VisualContextDao::current()->imagePath($id)];
             if (!synthVisualContextDelete($id)) {
                 throw new RuntimeException('PipVision record deletion failed');
             }

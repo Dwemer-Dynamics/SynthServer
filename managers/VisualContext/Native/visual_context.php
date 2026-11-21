@@ -50,12 +50,12 @@ if (!function_exists('synthVisualContextStore')) {
             $subjectKey = $subjectType . ':' . strtolower($subjectName !== '' ? $subjectName : ($location . ':' . $worldspace));
         }
 
-        $nullableInt = static function ($value): string {
-            return is_numeric($value) && intval($value) > 0 ? strval(intval($value)) : 'NULL';
+        $nullableInt = static function ($value): ?int {
+            return is_numeric($value) && intval($value) > 0 ? intval($value) : null;
         };
-        $nullableText = static function ($value, int $maxLength) use ($db): string {
+        $nullableText = static function ($value, int $maxLength): ?string {
             $text = synthVisualContextText($value, $maxLength);
-            return $text === '' ? 'NULL' : $db->escapeLiteral($text);
+            return $text === '' ? null : $text;
         };
         $responsePayload = is_array($record['response_payload'] ?? null) ? $record['response_payload'] : [];
         $responseJson = json_encode($responsePayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -63,50 +63,40 @@ if (!function_exists('synthVisualContextStore')) {
             $responseJson = '{}';
         }
 
-        $row = $db->fetchOne("INSERT INTO public.core_visual_context (
-                capture_id, session_id, request_id, turn_id, generation, runtime_variant,
-                interaction_mode, actor_identity_id, media_id, request_sha256, response_payload,
-                subject_type, subject_key, subject_name, plugin, baseid, refid,
-                cell_id, worldspace_id, location_name, worldspace_name, image_path,
-                image_sha256, description, perspective, provider, model, metadata,
-                locked, active, user_edited
-            ) VALUES (" . implode(', ', [
-                $db->escapeLiteral(synthVisualContextText($record['capture_id'] ?? '', 160)),
-                $nullableText($record['session_id'] ?? '', 128),
-                $db->escapeLiteral(synthVisualContextText($record['request_id'] ?? '', 128)),
-                $db->escapeLiteral(synthVisualContextText($record['turn_id'] ?? '', 128)),
-                $nullableInt($record['generation'] ?? null),
-                $db->escapeLiteral(in_array($record['runtime_variant'] ?? '', ['flat', 'vr'], true)
-                    ? $record['runtime_variant'] : 'flat'),
-                $db->escapeLiteral(in_array($record['interaction_mode'] ?? '', ['store_only', 'describe', 'npc_portrait'], true)
-                    ? $record['interaction_mode'] : 'store_only'),
-                $nullableInt($record['actor_identity_id'] ?? null),
-                $nullableText($record['media_id'] ?? '', 128),
-                $nullableText($record['request_sha256'] ?? '', 64),
-                $db->escapeLiteral($responseJson) . '::jsonb',
-                $db->escapeLiteral($subjectType),
-                $db->escapeLiteral($subjectKey),
-                $db->escapeLiteral($subjectName),
-                $db->escapeLiteral(synthVisualContextText($record['plugin'] ?? '', 255)),
-                $db->escapeLiteral(synthVisualContextText($record['baseid'] ?? '', 32)),
-                $db->escapeLiteral(synthVisualContextText($record['refid'] ?? '', 32)),
-                $db->escapeLiteral(synthVisualContextText($record['cell_id'] ?? '', 32)),
-                $db->escapeLiteral(synthVisualContextText($record['worldspace_id'] ?? '', 32)),
-                $db->escapeLiteral($location),
-                $db->escapeLiteral($worldspace),
-                $db->escapeLiteral(synthVisualContextText($record['image_path'] ?? '', 1000)),
-                $db->escapeLiteral(synthVisualContextText($record['image_sha256'] ?? '', 64)),
-                $db->escapeLiteral(synthVisualContextText($record['description'] ?? '', 12000)),
-                $db->escapeLiteral(synthVisualContextText($record['perspective'] ?? 'first_person', 50)),
-                $db->escapeLiteral(synthVisualContextText($record['provider'] ?? '', 100)),
-                $db->escapeLiteral(synthVisualContextText($record['model'] ?? '', 255)),
-                $db->escapeLiteral($metadataJson) . '::jsonb',
-                !empty($record['locked']) ? 'TRUE' : 'FALSE',
-                array_key_exists('active', $record) && empty($record['active']) ? 'FALSE' : 'TRUE',
-                !empty($record['user_edited']) ? 'TRUE' : 'FALSE',
-            ]) . ') ON CONFLICT (capture_id) DO NOTHING RETURNING id');
-
-        return intval($row['id'] ?? 0);
+        return \Synth\Core\DbManager\Dao\VisualContextDao::current($db)->insert([
+            'capture_id' => synthVisualContextText($record['capture_id'] ?? '', 160),
+            'session_id' => $nullableText($record['session_id'] ?? '', 128),
+            'request_id' => synthVisualContextText($record['request_id'] ?? '', 128),
+            'turn_id' => synthVisualContextText($record['turn_id'] ?? '', 128),
+            'generation' => $nullableInt($record['generation'] ?? null),
+            'runtime_variant' => in_array($record['runtime_variant'] ?? '', ['flat', 'vr'], true) ? $record['runtime_variant'] : 'flat',
+            'interaction_mode' => in_array($record['interaction_mode'] ?? '', ['store_only', 'describe', 'npc_portrait'], true)
+                ? $record['interaction_mode'] : 'store_only',
+            'actor_identity_id' => $nullableInt($record['actor_identity_id'] ?? null),
+            'media_id' => $nullableText($record['media_id'] ?? '', 128),
+            'request_sha256' => $nullableText($record['request_sha256'] ?? '', 64),
+            'response_payload' => $responseJson,
+            'subject_type' => $subjectType,
+            'subject_key' => $subjectKey,
+            'subject_name' => $subjectName,
+            'plugin' => synthVisualContextText($record['plugin'] ?? '', 255),
+            'baseid' => synthVisualContextText($record['baseid'] ?? '', 32),
+            'refid' => synthVisualContextText($record['refid'] ?? '', 32),
+            'cell_id' => synthVisualContextText($record['cell_id'] ?? '', 32),
+            'worldspace_id' => synthVisualContextText($record['worldspace_id'] ?? '', 32),
+            'location_name' => $location,
+            'worldspace_name' => $worldspace,
+            'image_path' => synthVisualContextText($record['image_path'] ?? '', 1000),
+            'image_sha256' => synthVisualContextText($record['image_sha256'] ?? '', 64),
+            'description' => synthVisualContextText($record['description'] ?? '', 12000),
+            'perspective' => synthVisualContextText($record['perspective'] ?? 'first_person', 50),
+            'provider' => synthVisualContextText($record['provider'] ?? '', 100),
+            'model' => synthVisualContextText($record['model'] ?? '', 255),
+            'metadata' => $metadataJson,
+            'locked' => !empty($record['locked']),
+            'active' => !(array_key_exists('active', $record) && empty($record['active'])),
+            'user_edited' => !empty($record['user_edited']),
+        ]);
     }
 }
 
@@ -117,10 +107,7 @@ if (!function_exists('synthVisualContextFindCapture')) {
         if ($captureId === '' || !isset($GLOBALS['db'])) {
             return null;
         }
-        $row = \Synth\Bootstrap::db()->fetchOne(
-            'SELECT * FROM public.core_visual_context WHERE capture_id='
-            . \Synth\Bootstrap::db()->escapeLiteral($captureId) . ' LIMIT 1'
-        );
+        $row = \Synth\Core\DbManager\Dao\VisualContextDao::current()->findByCapture($captureId);
         return is_array($row) && $row !== [] ? $row : null;
     }
 }
@@ -131,8 +118,7 @@ if (!function_exists('synthVisualContextComplete')) {
         if ($id < 1 || !isset($GLOBALS['db'])) {
             return false;
         }
-        $db = \Synth\Bootstrap::db();
-        $assignments = [];
+        $texts = [];
         foreach ([
             'description' => 12000,
             'provider' => 100,
@@ -141,23 +127,16 @@ if (!function_exists('synthVisualContextComplete')) {
             'media_id' => 128,
         ] as $key => $maxLength) {
             if (array_key_exists($key, $values)) {
-                $text = synthVisualContextText($values[$key], $maxLength);
-                $assignments[] = $key . '=' . ($text === '' && $key === 'media_id'
-                    ? 'NULL' : $db->escapeLiteral($text));
+                $texts[$key] = synthVisualContextText($values[$key], $maxLength);
             }
         }
+        $payloadJson = null;
         if (array_key_exists('response_payload', $values)) {
             $payload = is_array($values['response_payload']) ? $values['response_payload'] : [];
             $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $assignments[] = 'response_payload=' . $db->escapeLiteral($encoded === false ? '{}' : $encoded) . '::jsonb';
+            $payloadJson = $encoded === false ? '{}' : $encoded;
         }
-        if ($assignments === []) {
-            return false;
-        }
-        $assignments[] = 'updated_at=CURRENT_TIMESTAMP';
-        return $db->execQuery(
-            'UPDATE public.core_visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
-        ) !== false;
+        return \Synth\Core\DbManager\Dao\VisualContextDao::current()->complete($id, $texts, $payloadJson);
     }
 }
 
@@ -331,10 +310,7 @@ if (!function_exists('synthVisualContextList')) {
     {
         $limit = max(1, min($limit, 1000));
         try {
-            $rows = \Synth\Bootstrap::db()->fetchAll(
-                "SELECT * FROM public.core_visual_context ORDER BY locked DESC, captured_at DESC LIMIT {$limit}"
-            );
-            return is_array($rows) ? $rows : [];
+            return \Synth\Core\DbManager\Dao\VisualContextDao::current()->listRecent($limit);
         } catch (Throwable $e) {
             return [];
         }
@@ -347,38 +323,26 @@ if (!function_exists('synthVisualContextUpdate')) {
         if ($id < 1) {
             return false;
         }
-        $assignments = [];
+        $visual = \Synth\Core\DbManager\Dao\VisualContextDao::current();
+        $description = null;
         if (array_key_exists('description', $values)) {
             // Native descriptions are immutable observations; edits require an actor/save-scoped journal revision.
-            $record=\Synth\Bootstrap::db()->fetchOne('SELECT metadata FROM public.core_visual_context WHERE id='.$id);
-            $metadata=json_decode(strval($record['metadata'] ?? '{}'),true);
+            $metadata=json_decode(strval($visual->metadataJson($id) ?? '{}'),true);
             if (($metadata['schema'] ?? '')==='synth.visual_context.capture.v2') {
                 throw new LogicException('Use native visual corrections to edit this description.');
             }
-            $assignments[] = 'description=' . \Synth\Bootstrap::db()->escapeLiteral(
-                synthVisualContextText($values['description'], 12000)
-            );
-            $assignments[] = 'user_edited=TRUE';
+            $description = synthVisualContextText($values['description'], 12000);
         }
-        foreach (['locked', 'active'] as $key) {
-            if (array_key_exists($key, $values)) {
-                $assignments[] = $key . '=' . (!empty($values[$key]) ? 'TRUE' : 'FALSE');
-            }
-        }
-        if (!$assignments) {
-            return false;
-        }
-        $assignments[] = 'updated_at=CURRENT_TIMESTAMP';
-        return \Synth\Bootstrap::db()->execQuery(
-            'UPDATE public.core_visual_context SET ' . implode(', ', $assignments) . ' WHERE id=' . $id
-        ) !== false;
+        return $visual->edit($id, $description,
+            array_key_exists('locked', $values) ? !empty($values['locked']) : null,
+            array_key_exists('active', $values) ? !empty($values['active']) : null);
     }
 }
 
 if (!function_exists('synthVisualContextDelete')) {
     function synthVisualContextDelete(int $id): bool
     {
-        return $id > 0 && \Synth\Bootstrap::db()->delete('public.core_visual_context', 'id=' . $id) !== false;
+        return $id > 0 && \Synth\Core\DbManager\Dao\VisualContextDao::current()->delete($id);
     }
 }
 
@@ -416,28 +380,11 @@ if (!function_exists('synthBuildVisualContextPrompt')) {
 
         $ttlMinutes = max(1, min(synthGetGeneralSettingInt('VISUAL_CONTEXT_SCENE_TTL_MINUTES', 10), 1440));
         $maxChars = max(200, min(synthGetGeneralSettingInt('VISUAL_CONTEXT_PROMPT_MAX_CHARS', 1800), 12000));
-        $locationLiteral = $db->escapeLiteral($location);
-        $worldspaceLiteral = $db->escapeLiteral($worldspace);
-        $cellLiteral = $db->escapeLiteral($cellId);
 
         try {
             $rows = ($event['protocol_version'] ?? 1)===2
                 ? synthVisualContextSavedHistory($db,$event,$worldPayload,$ttlMinutes)
-                : $db->fetchAll("SELECT subject_name, description, locked, user_edited, captured_at
-                FROM public.core_visual_context
-                WHERE active=TRUE
-                  AND BTRIM(description)<>''
-                  AND (
-                        ({$cellLiteral}<>'' AND LOWER(cell_id)={$cellLiteral})
-                        OR (
-                            ({$cellLiteral}='' OR BTRIM(cell_id)='')
-                            AND ({$locationLiteral}='' OR LOWER(location_name)=LOWER({$locationLiteral}))
-                            AND ({$worldspaceLiteral}='' OR LOWER(worldspace_name)=LOWER({$worldspaceLiteral}))
-                        )
-                  )
-                  AND (locked=TRUE OR captured_at>=CURRENT_TIMESTAMP - INTERVAL '{$ttlMinutes} minutes')
-                ORDER BY locked DESC, user_edited DESC, captured_at DESC
-                LIMIT 3");
+                : \Synth\Core\DbManager\Dao\VisualContextDao::current($db)->forPrompt($cellId, $location, $worldspace, $ttlMinutes);
         } catch (Throwable $e) {
             return '';
         }
