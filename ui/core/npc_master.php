@@ -24,7 +24,7 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "eventlog_helper.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_actor_identity_labels.php");
 require_once($enginePath . "ext" . DIRECTORY_SEPARATOR . "relationship_system" . DIRECTORY_SEPARATOR . "npc_save_handler.php");
 
-$GLOBALS["ENGINE_PATH"]=$enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once("{$enginePath}/lib/core/npc_master.class.php");
 
@@ -289,7 +289,7 @@ h1.api-title {
  padding: 12px;
 }
 </style><main><?php
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 $npc = new NpcMaster();
 
 $lastInfoRow=\Synth\Bootstrap::db()->fetchOne("select max(gamets) as gamets from core_context_event where type='infosave'");
@@ -307,7 +307,7 @@ if (!function_exists('race_icon_web_path')) {
  $portraitRel = trim((string)$portraitRel);
  if ($portraitRel !== '') {
  $portraitRel = ltrim(str_replace(['\\'], '/', $portraitRel), '/');
- $picturesRootFs = rtrim("{$GLOBALS["ENGINE_PATH"]}/data/pictures/", '/\\') . DIRECTORY_SEPARATOR;
+ $picturesRootFs = rtrim((\Synth\Bootstrap::enginePath() . "/data/pictures/"), '/\\') . DIRECTORY_SEPARATOR;
  $picturesRootUrl = rtrim($webRoot . '/data/pictures/', '/');
  $fs = realpath($picturesRootFs . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $portraitRel));
  $picturesRootFs=realpath($picturesRootFs);
@@ -318,7 +318,7 @@ if (!function_exists('race_icon_web_path')) {
  }
  // 1) Prefer per-NPC portrait from data/pictures/profile
  $refid = strtoupper($refid);
- $profileDirFs = rtrim("{$GLOBALS["ENGINE_PATH"]}/data/pictures/profile/", '/\\') . DIRECTORY_SEPARATOR;
+ $profileDirFs = rtrim((\Synth\Bootstrap::enginePath() . "/data/pictures/profile/"), '/\\') . DIRECTORY_SEPARATOR;
  $profileDirUrl = rtrim($webRoot . '/data/pictures/profile/', '/');
  $exts = ['png','jpg','jpeg','webp','gif'];
  $candidates = [];
@@ -477,7 +477,7 @@ if (!function_exists('synthUiSaveAutoLockProfileSettingFromPost')) {
    throw new RuntimeException('Failed to save Auto Lock Profiles setting.');
   }
 
-  $GLOBALS['AUTO_LOCK_PROFILE'] = $enabled;
+  \Synth\Bootstrap::set('AUTO_LOCK_PROFILE', $enabled);
  }
 }
 

@@ -16,8 +16,8 @@ error_reporting(0);
 ini_set("display_errors", 0);
 
 $enginePath = dirname(__FILE__) . DIRECTORY_SEPARATOR . "../../" . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_ROOT"] = rtrim($enginePath, "\\/");
-$GLOBALS["ENGINE_PATH"] = rtrim($enginePath, "\\/");
+\Synth\Bootstrap::set('ENGINE_ROOT', rtrim($enginePath, "\\/"));
+\Synth\Bootstrap::set('ENGINE_PATH', rtrim($enginePath, "\\/"));
 
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";
 synthRuntimeBootstrap($enginePath, [
@@ -58,7 +58,7 @@ try {
 
     $player = new Player();
     $playerName = trim((string)$player->get('player_name'));
-    if ($playerName === '' && isset($GLOBALS["PLAYER_NAME"])) {
+    if ($playerName === '' && \Synth\Bootstrap::has('PLAYER_NAME')) {
         $playerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
     if ($playerName === '') {
@@ -150,7 +150,7 @@ try {
     $connector = new LLMConnector();
     $candidateConnectorIds = [];
     foreach (["CORE_CONNECTOR_PLAYER", "CORE_CONNECTOR_PROFILES"] as $key) {
-        $id = isset($GLOBALS[$key]) ? intval($GLOBALS[$key]) : 0;
+        $id = \Synth\Bootstrap::has($key) ? intval(\Synth\Bootstrap::config($key)) : 0;
         if ($id > 0 && !in_array($id, $candidateConnectorIds, true)) {
             $candidateConnectorIds[] = $id;
         }
@@ -173,8 +173,8 @@ try {
         exit;
     }
 
-    $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData["driver"];
-    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData["driver"]);
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
     $connector->setOldGlobals($currentConnectorData);
     $connectionHandler = $connector->getConnector($currentConnectorData);
 

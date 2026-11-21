@@ -30,7 +30,7 @@ function h($value): string
 
 function sttPageUrl(array $params = []): string
 {
- global $isEmbed;
+ $isEmbed = &\Synth\Bootstrap::ref('isEmbed');
  $base = 'stt_connectors.php';
  if ($isEmbed && !isset($params['embed'])) {
  $params['embed'] = '1';

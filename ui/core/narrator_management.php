@@ -343,7 +343,7 @@ $questCommentCooldown = $narrator->getInt('quest_comment_cooldown', 3);
 $hideFromContext = $narrator->getBool('hide_from_context', false);
 $inlineNarrationMode = strtolower(trim((string)($narrator->get('inline_narration_mode') ?? '')));
 if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
- if (isset($GLOBALS['INLINE_NARRATION_MODE']) && in_array(strtolower(trim((string)\Synth\Bootstrap::config('INLINE_NARRATION_MODE'))), ['disabled', 'narrator', 'npc', 'text_only'], true)) {
+ if (\Synth\Bootstrap::has('INLINE_NARRATION_MODE') && in_array(strtolower(trim((string)\Synth\Bootstrap::config('INLINE_NARRATION_MODE'))), ['disabled', 'narrator', 'npc', 'text_only'], true)) {
  $inlineNarrationMode = strtolower(trim((string)\Synth\Bootstrap::config('INLINE_NARRATION_MODE')));
  } else {
  $inlineNarrationMode = 'disabled';
@@ -351,16 +351,16 @@ if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only']
 }
 $removePlayerAutochatAsterisks = $narrator->getBool(
  'remove_player_autochat_asterisks',
- isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true
+ \Synth\Bootstrap::has('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true
 );
 $preserveAsterisksInContext = $narrator->getBool('preserve_asterisks_in_context', false);
 $removeAsterisksFromPlayerInput = $narrator->getBool(
  'remove_asterisks_from_player_input',
- isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true
+ \Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true
 );
 $removeAsterisksFromNpcOutput = $narrator->getBool(
  'remove_asterisks_from_npc_output',
- isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true
+ \Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true
 );
 $diaryEnabled = $narrator->getBool('diary_enabled', false);
 $autoDiaryEnabled = $narrator->getBool('auto_diary_enabled', false);

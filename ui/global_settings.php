@@ -319,7 +319,7 @@ function current_value(string $flatName, array $rowMap = [])
   $default = $definition['default'] ?? '';
  }
  if (empty($rowMap)) {
-  global $generalSettingRowMap;
+  $generalSettingRowMap = &\Synth\Bootstrap::ref('generalSettingRowMap');
   if (isset($generalSettingRowMap) && is_array($generalSettingRowMap)) {
   $rowMap = $generalSettingRowMap;
   }

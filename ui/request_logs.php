@@ -267,7 +267,7 @@ if ($webRoot === "/") {
 $webRoot = rtrim($webRoot, "/");
 
 $db = new sql();
-$GLOBALS["db"] = $db;
+\Synth\Bootstrap::set('db', $db);
 
 $isEmbedded = isset($_GET["embed"]) && strval($_GET["embed"]) === "1";
 $limit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 50;

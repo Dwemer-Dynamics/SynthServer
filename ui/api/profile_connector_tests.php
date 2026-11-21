@@ -3,7 +3,7 @@
 ob_start();
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
@@ -20,8 +20,8 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPA
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "api_badge.class.php");
 
-if (!isset($GLOBALS["db"])) {
-    $GLOBALS["db"] = new sql();
+if (!\Synth\Bootstrap::has('db')) {
+    \Synth\Bootstrap::set('db', new sql());
 }
 
 function profileConnectorTestsRespond(array $payload, int $statusCode = 200): void
@@ -358,7 +358,7 @@ function profileConnectorTestsGlobalValue(string $fieldName, $default = '')
         return synthGetGeneralSetting($fieldName, $serializedDefault);
     }
 
-    return $GLOBALS[$fieldName] ?? $schemaDefault;
+    return \Synth\Bootstrap::config($fieldName) ?? $schemaDefault;
 }
 
 function profileConnectorTestsBuildGlobalPlan(): array
@@ -485,13 +485,13 @@ function profileConnectorTestsTestLlm(int $connectorId): array
     require_once(\Synth\Bootstrap::enginePath() . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 
     $run = profileConnectorTestsRunWithCapturedErrors(function () use ($llm, $connector, $driver) {
-        $GLOBALS["SYNTH_NAME"] = 'SYNTH Profile Test';
-        $GLOBALS["PLAYER_NAME"] = \Synth\Bootstrap::config("PLAYER_NAME") ?? 'Sole Survivor';
-        $GLOBALS["DEBUG_DATA"] = [];
-        $GLOBALS["FUNCTIONS_ARE_ENABLED"] = false;
-        $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
-        $GLOBALS["COMMAND_PROMPT"] = '';
-        $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = '';
+        \Synth\Bootstrap::set('SYNTH_NAME', 'SYNTH Profile Test');
+        \Synth\Bootstrap::set('PLAYER_NAME', \Synth\Bootstrap::config("PLAYER_NAME") ?? 'Sole Survivor');
+        \Synth\Bootstrap::set('DEBUG_DATA', []);
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
+        \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+        \Synth\Bootstrap::set('COMMAND_PROMPT', '');
+        \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', '');
 
         $llm->setOldGlobals($connector);
         require_once(\Synth\Bootstrap::enginePath() . "connector" . DIRECTORY_SEPARATOR . $driver . ".php");
@@ -611,19 +611,19 @@ function profileConnectorTestsTestTts(int $connectorId): array
 
         try {
             $tts->setOldGlobals($connector);
-            $GLOBALS["SYNTH_NAME"] = 'The Narrator';
-            $GLOBALS["AVOID_TTS_CACHE"] = true;
-            $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-            $GLOBALS["SYNTH_ANIMATIONS"] = false;
-            $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-            $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-            $GLOBALS["DEBUG_DATA"] = [];
-            $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-            $GLOBALS["FEATURES"]["MISC"] = \Synth\Bootstrap::config("FEATURES")["MISC"] ?? [];
-            $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
-            $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
-            $GLOBALS["PATCH_OVERRIDE_VOICE"] = 'TheNarrator';
-            unset($GLOBALS["PATCH_OVERRIDE_VOICE_ID"], $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]);
+            \Synth\Bootstrap::set('SYNTH_NAME', 'The Narrator');
+            \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+            \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+            \Synth\Bootstrap::set('SYNTH_ANIMATIONS', false);
+            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+            \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+            \Synth\Bootstrap::set('DEBUG_DATA', []);
+            \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+            \Synth\Bootstrap::setAt('FEATURES', "MISC", \Synth\Bootstrap::config("FEATURES")["MISC"] ?? []);
+            \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
+            \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', 'TheNarrator');
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE_ID'); \Synth\Bootstrap::forget('PATCH_OVERRIDE_TTS_LANGUAGE');
 
             returnLines(['SYNTH profile connector test.'], false);
 
@@ -631,17 +631,17 @@ function profileConnectorTestsTestTts(int $connectorId): array
             return profileConnectorTestsString($generated);
         } finally {
             if ($originalTtsFunction === null) {
-                unset($GLOBALS["TTSFUNCTION"]);
+                \Synth\Bootstrap::forget('TTSFUNCTION');
             } else {
-                $GLOBALS["TTSFUNCTION"] = $originalTtsFunction;
+                \Synth\Bootstrap::set('TTSFUNCTION', $originalTtsFunction);
             }
             if ($originalName === null) {
-                unset($GLOBALS["SYNTH_NAME"]);
+                \Synth\Bootstrap::forget('SYNTH_NAME');
             } else {
-                $GLOBALS["SYNTH_NAME"] = $originalName;
+                \Synth\Bootstrap::set('SYNTH_NAME', $originalName);
             }
-            $GLOBALS["TRACK"] = $originalTrack;
-            unset($GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"], $GLOBALS["PATCH_OVERRIDE_VOICE"], $GLOBALS["SCRIPTLINE_ANIMATION_SENT"]);
+            \Synth\Bootstrap::set('TRACK', $originalTrack);
+            \Synth\Bootstrap::forget('PATCH_DONT_STORE_SPEECH_ON_DB'); \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE'); \Synth\Bootstrap::forget('SCRIPTLINE_ANIMATION_SENT');
         }
     });
 
