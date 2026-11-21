@@ -53,11 +53,11 @@ function DataLastDataFor($actor, $lastNelements = -10)
     foreach ($results as $row) {
 
         if ($lastData != md5($row["data"])) {
-            if ((strpos($row["data"], "{$GLOBALS["SYNTH_NAME"]}:") !== false) || ((strpos($row["data"], "{$GLOBALS["PLAYER_NAME"]}:") !== false))) {
+            if ((strpos($row["data"], (\Synth\Bootstrap::config('SYNTH_NAME') . ":")) !== false) || ((strpos($row["data"], (\Synth\Bootstrap::config('PLAYER_NAME') . ":")) !== false))) {
                 $pattern = "/\(Context location:[^)]+?\)/"; // Remove only the exact context location pattern
                 $replacement = "";
                 $row["data"] = preg_replace($pattern, $replacement, $row["data"]); // // assistant vs user war
-                if ((strpos($row["data"], "{$GLOBALS["SYNTH_NAME"]}:") !== false)) {
+                if ((strpos($row["data"], (\Synth\Bootstrap::config('SYNTH_NAME') . ":")) !== false)) {
                     $role = "assistant";
                 } else {
                     $role = "user";
@@ -211,16 +211,16 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
             if ($actorName==\Synth\Bootstrap::config("SYNTH_NAME"))
                 continue;
 
-            /* if (!(strpos($GLOBALS["SYNTH_NAME"],"actor")===false)) { // debug
-                Logger::warn("DataLastInfoFor: unexpected value for SYNTH_NAME={$GLOBALS["SYNTH_NAME"]} | actor={$actor} actorname={$actorName} ");
+            /* if (!(strpos(\Synth\Bootstrap::config("SYNTH_NAME"),"actor")===false)) { // debug
+                Logger::warn("DataLastInfoFor: unexpected value for SYNTH_NAME={\Synth\Bootstrap::config("SYNTH_NAME")} | actor={$actor} actorname={$actorName} ");
             } */
 
             if ((strpos($actor,"(")===false) && (\Synth\Bootstrap::config("SYNTH_NAME")!="The Narrator") && (strpos(\Synth\Bootstrap::config("SYNTH_NAME"),"actor")===false)) {
                 $interactions=DirectConversationsWith($actor);
                 if ($interactions==0) {
-                    $ittext="{$actor} ({$GLOBALS["SYNTH_NAME"]} never talked to {$actorName} before, {$GLOBALS["SYNTH_NAME"]} should speak to this person as to a stranger or traveler...)";
+                    $ittext=("{$actor} (" . \Synth\Bootstrap::config('SYNTH_NAME') . " never talked to {$actorName} before, " . \Synth\Bootstrap::config('SYNTH_NAME') . " should speak to this person as to a stranger or traveler...)");
                 } else if ($interactions<5) {
-                    $ittext="{$actor} ({$GLOBALS["SYNTH_NAME"]} has talked to {$actorName} a couple of times before)";
+                    $ittext=("{$actor} (" . \Synth\Bootstrap::config('SYNTH_NAME') . " has talked to {$actorName} a couple of times before)");
                 } else {
                     $ittext="{$actor}";
                 }
@@ -244,7 +244,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
                     $playerBio = ResolvePlayerBackstory($player);
                     $bioKnownByAll = filter_var((string)($player->get('bio_known_by_all') ?? ''), FILTER_VALIDATE_BOOLEAN);
-                    $isNarrator = isset($GLOBALS["SYNTH_NAME"]) && strcasecmp((string)\Synth\Bootstrap::config("SYNTH_NAME"), "The Narrator") === 0;
+                    $isNarrator = \Synth\Bootstrap::has('SYNTH_NAME') && strcasecmp((string)\Synth\Bootstrap::config("SYNTH_NAME"), "The Narrator") === 0;
                     if ($nearbyActorsIncludeBasicSummary && $playerBio !== "" && ($bioKnownByAll || $isNarrator)) {
                         $profileString = synthAppendNearbyActorSentence($profileString, "Backstory: " . $playerBio);
                     }
@@ -274,14 +274,14 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                     }
 
                     // Power Awareness: Add relative power assessment for player
-                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
+                    if ($nearbyActorsIncludePower && \Synth\Bootstrap::has('POWER_AWARENESS_ENABLED') && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
                         require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "power_awareness.php");
 
                         // Get player's level
                         $playerLevel = getPlayerLevel();
 
                         // Get assessing actor's level (the NPC looking at the player)
-                        if (!empty($GLOBALS["SYNTH_NAME"])) {
+                        if (!empty(\Synth\Bootstrap::config('SYNTH_NAME'))) {
                             $assessorLevel = getNpcLevel(\Synth\Bootstrap::config("SYNTH_NAME"));
 
                             if ($assessorLevel !== null && $playerLevel !== null) {
@@ -346,14 +346,14 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                     }
 
                     // Power Awareness: Add relative power assessment
-                    if ($nearbyActorsIncludePower && isset($GLOBALS["POWER_AWARENESS_ENABLED"]) && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
+                    if ($nearbyActorsIncludePower && \Synth\Bootstrap::has('POWER_AWARENESS_ENABLED') && \Synth\Bootstrap::config("POWER_AWARENESS_ENABLED")) {
                         require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "power_awareness.php");
 
                         // Get current NPC's level
                         $npcLevel = isset($metaData["stats"]["level"]) ? intval($metaData["stats"]["level"]) : null;
 
                         // Get assessing actor's level (the NPC looking at this person)
-                        if (!empty($GLOBALS["SYNTH_NAME"])) {
+                        if (!empty(\Synth\Bootstrap::config('SYNTH_NAME'))) {
                             $assessorLevel = getNpcLevel(\Synth\Bootstrap::config("SYNTH_NAME"));
 
                             if ($assessorLevel !== null && $npcLevel !== null) {
@@ -462,13 +462,13 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
 
     }
 
-    $followers[]="{$GLOBALS["PLAYER_NAME"]}";
+    $followers[]=((string)\Synth\Bootstrap::config('PLAYER_NAME'));
     $followersV2[]=\Synth\Bootstrap::config("PLAYER_NAME");
 
-    if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-        $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+    if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+        \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
     }
-    $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<nearby_actors>\n# NEARBY ACTORS/NPC IN THE SCENE \n## $actorsInRange\n</nearby_actors>";
+    \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<nearby_actors>\n# NEARBY ACTORS/NPC IN THE SCENE \n## $actorsInRange\n</nearby_actors>"));
 
     // Add faction descriptions section if any factions were found
     if (!empty($factionDescriptions)) {
@@ -476,7 +476,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         foreach ($factionDescriptions as $name => $desc) {
             $factionDescText .= "## {$name}: {$desc}\n";
         }
-        $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<group_descriptions>\n# GROUP/FACTION DESCRIPTIONS\n{$factionDescText}</group_descriptions>";
+        \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<group_descriptions>\n# GROUP/FACTION DESCRIPTIONS\n{$factionDescText}</group_descriptions>"));
     }
 
     // Add nearby items to context if available
@@ -491,7 +491,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         $playerName = \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player";
         $playerLookingTag = " ({$playerName} is looking at this)";
         $playerHoldingTag = " ({$playerName} is holding this)";
-        $shorterNearbyItemList = !empty($GLOBALS["SHORTER_NEARBY_ITEM_LIST"]);
+        $shorterNearbyItemList = !empty(\Synth\Bootstrap::config('SHORTER_NEARBY_ITEM_LIST'));
 
         foreach ($itemsList as $item) {
             $trimmedItem = trim($item);
@@ -530,7 +530,7 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                 }
 
                 // If filter is enabled and item has no description, skip it
-                if (isset($GLOBALS["GROUND_ITEMS_DESCRIPTIONS_ONLY"]) && \Synth\Bootstrap::config("GROUND_ITEMS_DESCRIPTIONS_ONLY") && !$hasDescription) {
+                if (\Synth\Bootstrap::has('GROUND_ITEMS_DESCRIPTIONS_ONLY') && \Synth\Bootstrap::config("GROUND_ITEMS_DESCRIPTIONS_ONLY") && !$hasDescription) {
                     continue;
                 }
 
@@ -633,15 +633,15 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                 ? "# NEARBY ITEMS\nFormat: RefID:ItemName (quantity); use the RefID for PickupItem"
                 : "# NEARBY ITEMS\nFormat: RefID:ItemName; use the RefID for PickupItem";
             $contextContent = "<nearby_items>\n{$nearbyItemsHeader}\n\n{$itemsText}{$descriptionText}\n</nearby_items>";
-            if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-                $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+            if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+                \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
             }
-            $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n" . $contextContent;
+            \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n" . $contextContent));
         }
     }
 
     /*
-    if (!isset($GLOBALS["IS_NPC"]) || !$GLOBALS["IS_NPC"])
+    if (!isset(\Synth\Bootstrap::config("IS_NPC")) || !\Synth\Bootstrap::config("IS_NPC"))
         $lastDialog[] = array('role' => 'user', 'content' => "# PARTY STATUS\n## ". (implode("\n## ",$followers)));
     else
         $lastDialog[] = array('role' => 'user', 'content' => "# YOU'RE NOT PART OF THE GROUP FORMED BY\n## ". (implode("\n## ",$followers)));
@@ -663,20 +663,20 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
     }
 
 	if ($followersString!=\Synth\Bootstrap::config("PLAYER_NAME") && !empty($followersString)) {
-	    if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-	        $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+	    if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+	        \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
 	    }
-	    $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<adventuring_party>
+	    \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<adventuring_party>
         # ADVENTURING PARTY
 	     $followersString are together as an **adventuring party**, acting as close companions.
 	     - The others **can know each other**, but they are **not part** of {$followersString}'s group.
 	     - Generally speaking, any mention of **plans, missions, or objectives** refers **only to the adventuring party**, never to the other NPCs.
-	     </adventuring_party>";
+	     </adventuring_party>"));
 	}
     $arr_poi = DataPosibleLocationsToGo();
     if (isset($arr_poi) && is_array($arr_poi) && (count($arr_poi) > 0)) {
         // Filter blacklisted locations
-        if (isset($GLOBALS["LOCATION_BLACKLIST"]) && !empty($GLOBALS["LOCATION_BLACKLIST"])) {
+        if (\Synth\Bootstrap::has('LOCATION_BLACKLIST') && !empty(\Synth\Bootstrap::config('LOCATION_BLACKLIST'))) {
             $blacklistedLocations = array_map('trim', explode(',', strtolower(\Synth\Bootstrap::config("LOCATION_BLACKLIST"))));
             $arr_poi = array_filter($arr_poi, function($poi) use ($blacklistedLocations) {
                 $poiLower = strtolower($poi);
@@ -690,10 +690,10 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         }
 
         if (count($arr_poi) > 0) {
-            if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-                $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+            if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+                \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
             }
-            $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<points_of_interest>\n# POIs - Points of Interest nearby \n## ". (implode("\n## ",$arr_poi))."\n</points_of_interest>";
+            \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<points_of_interest>\n# POIs - Points of Interest nearby \n## ". (implode("\n## ",$arr_poi))."\n</points_of_interest>"));
         }
     }
 
@@ -707,29 +707,29 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
         $notes=[];
         foreach ($rolemasterNotes as $note)
             $notes[]= $note["data"];
-        if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-            $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+        if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+            \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
         }
-        $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<scene_notes>\n# SCENE NOTES \n## ".implode(".",$notes)."</scene_notes>";
+        \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<scene_notes>\n# SCENE NOTES \n## ".implode(".",$notes)."</scene_notes>"));
     }
 
     // Compact CHIM-style nearby actor list from the latest structured game snapshot.
-    $nearbyActorsList = !empty($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"]) &&
+    $nearbyActorsList = !empty(\Synth\Bootstrap::config('SYNTH_ROLEMASTER_BORED_ACTORS')) &&
         is_array(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))
         ? array_values(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))
         : synthNearbyActorNamesFromPayload(false, false);
     if (!empty($nearbyActorsList)) {
-        if (!isset($GLOBALS["PROMPT_NEARBY_SECTIONS"])) {
-            $GLOBALS["PROMPT_NEARBY_SECTIONS"] = "";
+        if (!\Synth\Bootstrap::has('PROMPT_NEARBY_SECTIONS')) {
+            \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', "");
         }
-        $GLOBALS["PROMPT_NEARBY_SECTIONS"] .= "\n<actors_nearby>\n" . implode(", ", $nearbyActorsList) . "\n</actors_nearby>";
+        \Synth\Bootstrap::set('PROMPT_NEARBY_SECTIONS', \Synth\Bootstrap::config('PROMPT_NEARBY_SECTIONS') . ("\n<actors_nearby>\n" . implode(", ", $nearbyActorsList) . "\n</actors_nearby>"));
     }
 
 
     $lastDialog=[];
     // This function originally returned an array, now it's directly filling PROMPT_NEARBY_SECTIONS.
     // MUST return an array, even if empty; Review where is called to ensure it's handled properly
-    // Proposal: $lastDialog[]=array('role' => 'user', 'content' => $GLOBALS["PROMPT_NEARBY_SECTIONS"]);
+    // Proposal: $lastDialog[]=array('role' => 'user', 'content' => \Synth\Bootstrap::config("PROMPT_NEARBY_SECTIONS"));
     return $lastDialog;
 
 }
@@ -752,16 +752,16 @@ function DataLocationsAround($current_location = "") {
 
 function DataPosibleLocationsToGo()
 {
-    if (isset($GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"])) {
+    if (\Synth\Bootstrap::has('CACHE_POSIBLE_LOCATIONS_TO_GO')) {
         return \Synth\Bootstrap::config("CACHE_POSIBLE_LOCATIONS_TO_GO");
     }
 
     $retData = synthPointsOfInterestFromStructuredPayload();
 
     // Location blacklist // $LOCATION_BLACKLIST
-    if (isset($GLOBALS["LOCATION_BLACKLIST"]) && (strlen(\Synth\Bootstrap::config("LOCATION_BLACKLIST"))>0)) {
+    if (\Synth\Bootstrap::has('LOCATION_BLACKLIST') && (strlen(\Synth\Bootstrap::config("LOCATION_BLACKLIST"))>0)) {
         $LOCATION_BLACKLIST_ARRAY = explode(",", \Synth\Bootstrap::config("LOCATION_BLACKLIST"));
-        //$LOCATION_BLACKLIST_ARRAY = empty($GLOBALS["LOCATION_BLACKLIST"]) ? [] : explode(",", $GLOBALS["LOCATION_BLACKLIST"]);
+        //$LOCATION_BLACKLIST_ARRAY = empty(\Synth\Bootstrap::config("LOCATION_BLACKLIST")) ? [] : explode(",", \Synth\Bootstrap::config("LOCATION_BLACKLIST"));
         if (count($LOCATION_BLACKLIST_ARRAY) > 0) {
             foreach ($retData as $k => $v) {
                 foreach ($LOCATION_BLACKLIST_ARRAY as $blacklistedLocation) {
@@ -780,7 +780,7 @@ function DataPosibleLocationsToGo()
             $retData[$k].=" (exit)";
         }
     }
-    $GLOBALS["CACHE_POSIBLE_LOCATIONS_TO_GO"] = array_values($retData);
+    \Synth\Bootstrap::set('CACHE_POSIBLE_LOCATIONS_TO_GO', array_values($retData));
     return \Synth\Bootstrap::config("CACHE_POSIBLE_LOCATIONS_TO_GO");
 }
 
@@ -844,19 +844,19 @@ function synthPointsOfInterestFromStructuredPayload()
 
 function DataPosibleMoveToTargets()
 {
-    if (isset($GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"])) {
+    if (\Synth\Bootstrap::has('CACHE_POSIBLE_MOVETO_TARGETS')) {
         return \Synth\Bootstrap::config("CACHE_POSIBLE_MOVETO_TARGETS");
     }
 
     $retData = synthNearbyActorNamesFromPayload(true, false);
 
-    $GLOBALS["CACHE_POSIBLE_MOVETO_TARGETS"] = array_values($retData);
+    \Synth\Bootstrap::set('CACHE_POSIBLE_MOVETO_TARGETS', array_values($retData));
     return \Synth\Bootstrap::config("CACHE_POSIBLE_MOVETO_TARGETS");
 }
 
 function DataPosibleInspectTargets($pack=true)
 {
-    if (isset($GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_POSIBLE_INSPECT_TARGETS')[(int)$pack])) {
         return \Synth\Bootstrap::config("CACHE_POSIBLE_INSPECT_TARGETS")[(int)$pack];
     }
 
@@ -890,7 +890,7 @@ function DataPosibleInspectTargets($pack=true)
 
     }
 
-    $GLOBALS["CACHE_POSIBLE_INSPECT_TARGETS"][(int)$pack] = array_values($retData);
+    \Synth\Bootstrap::setAt('CACHE_POSIBLE_INSPECT_TARGETS', (int)$pack, array_values($retData));
     return \Synth\Bootstrap::config("CACHE_POSIBLE_INSPECT_TARGETS")[(int)$pack];
 }
 
@@ -1129,7 +1129,7 @@ function synthBuildPlayerSurvivalConditionBlock(?array $survival = null): string
 function synthPlayerSurvivalProfileEnricher(string $actorName, string $actorType, array $context = []): string
 {
     if (strcasecmp(trim($actorType), 'player') !== 0
-        || !empty($GLOBALS['SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY'])
+        || !empty(\Synth\Bootstrap::config('SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY'))
         || !synthPromptContextSectionEnabled('enabled_appearance_subsections', 'current_condition')) {
         return '';
     }

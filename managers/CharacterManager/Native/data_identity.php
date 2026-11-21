@@ -6,7 +6,7 @@
 function ChangeSYNTHName($new_name="") {
     if ($new_name > "") {
         SaveOriginalSYNTHName();
-        $GLOBALS["SYNTH_NAME"] = $new_name;
+        \Synth\Bootstrap::set('SYNTH_NAME', $new_name);
     }
 }
 
@@ -15,8 +15,8 @@ function SaveOriginalSYNTHName() {
     if (!$b_already_saved) {
         $synth = (\Synth\Bootstrap::config("SYNTH_NAME") ?? "");
                 if ((strlen($synth) > 0) && ($synth !== "The Narrator") && ($synth !== "Player") && ($synth !== "LLMFallback") && (stripos($synth, "Narrator") === false) && (stripos($synth, "actor") === false) && (stripos($synth, "everyone") === false) && (stripos($synth, "*") === false) && (stripos($synth, "none") === false) ) {
-            $GLOBALS["ORIGINAL_SYNTH_NAME"] = $synth;
-            $GLOBALS["ORIGINAL_SYNTH_NAME_SAVED"] = true;
+            \Synth\Bootstrap::set('ORIGINAL_SYNTH_NAME', $synth);
+            \Synth\Bootstrap::set('ORIGINAL_SYNTH_NAME_SAVED', true);
         }
     }
 }
@@ -33,7 +33,7 @@ function GetOriginalSYNTHName() {
 
 function get_connector_id($s_driver='', $s_model='', $s_url='') {
     $i_res = -1;
-    if (isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
+    if (\Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA')) {
         $i_res = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA")["id"] ?? -1;
     }
     if ($i_res < 0) {

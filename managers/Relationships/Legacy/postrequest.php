@@ -130,13 +130,13 @@ if (!function_exists('_relSplitPeopleList')) {
 $npcName = null;
 $npcNameSource = 'none';
 
-if (isset($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["npc_name"])) {
+if (isset(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA')["npc_name"])) {
     $npcName = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA")["npc_name"];
     $npcNameSource = 'SYNTH_CORE_CURRENT_NPC_DATA';
 } elseif (isset($currentNpcData["npc_name"])) {
     $npcName = $currentNpcData["npc_name"];
     $npcNameSource = 'currentNpcData';
-} elseif (!empty($GLOBALS["SYNTH_NAME"])) {
+} elseif (!empty(\Synth\Bootstrap::config('SYNTH_NAME'))) {
     $npcName = \Synth\Bootstrap::config("SYNTH_NAME");
     $npcNameSource = 'SYNTH_NAME';
 }
@@ -159,10 +159,10 @@ if ($npcName === "The Narrator") {
 $listenerName = null;
 $listenerSource = 'none';
 
-if (!empty($GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"])) {
+if (!empty(\Synth\Bootstrap::config('SCRIPTLINE_LISTENER_ATOMIC'))) {
     $listenerName = \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC");
     $listenerSource = 'SCRIPTLINE_LISTENER_ATOMIC';
-} elseif (!empty($GLOBALS["SCRIPTLINE_LISTENER"])) {
+} elseif (!empty(\Synth\Bootstrap::config('SCRIPTLINE_LISTENER'))) {
     // SCRIPTLINE_LISTENER may have multiple listeners comma-separated, take first
     $listeners = explode(',', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
     $listenerName = trim($listeners[0]);
@@ -186,11 +186,11 @@ Logger::info("[REL] Processing relationship evaluation for NPC: {$npcName}");
 
 // Get NPC ID
 $npcId = null;
-if (!empty($GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"]["id"])) {
+if (!empty(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_NPC_DATA')["id"])) {
     $npcId = intval(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_NPC_DATA")["id"]);
 } elseif (isset($currentNpcData["id"]) && intval($currentNpcData["id"]) > 0) {
     $npcId = intval($currentNpcData["id"]);
-} elseif (!empty($GLOBALS["SYNTH_ID"])) {
+} elseif (!empty(\Synth\Bootstrap::config('SYNTH_ID'))) {
     $npcId = intval(\Synth\Bootstrap::config("SYNTH_ID"));
 } else {
     // Look up by name
@@ -215,12 +215,12 @@ if ($useRelLLM && $npcId) {
     $context = [];
 
     // Get recent dialogue
-    if (!empty($GLOBALS["talkedSoFar"])) {
+    if (!empty(\Synth\Bootstrap::config('talkedSoFar'))) {
         $context['dialogue'] = \Synth\Bootstrap::config("talkedSoFar");
     }
 
     // Get recent events from buffer
-    if (!empty($GLOBALS["BUFFER"])) {
+    if (!empty(\Synth\Bootstrap::config('BUFFER'))) {
         $context['events'] = [];
         foreach (\Synth\Bootstrap::config("BUFFER") as $item) {
             if (isset($item['content'])) {
@@ -252,7 +252,7 @@ if ($useRelLLM && $npcId) {
     }
 
     // Nearby NPCs (loaded AI agents) - for filtering relationship context
-    if (!empty($GLOBALS["CACHE_PEOPLE"])) {
+    if (!empty(\Synth\Bootstrap::config('CACHE_PEOPLE'))) {
         $context['nearby_npcs'] = _relSplitPeopleList(\Synth\Bootstrap::config("CACHE_PEOPLE"));
     }
 
@@ -260,7 +260,7 @@ if ($useRelLLM && $npcId) {
     $context['listener_name'] = $isNpcToNpcConversation ? $listenerName : 'Player';
 
     // Get the NPC's response
-    $npcResponse = !empty($GLOBALS["talkedSoFar"]) ? implode(" ", \Synth\Bootstrap::config("talkedSoFar")) : "";
+    $npcResponse = !empty(\Synth\Bootstrap::config('talkedSoFar')) ? implode(" ", \Synth\Bootstrap::config("talkedSoFar")) : "";
 
     // Clean up: If NPC response starts with player's text (echo bug), remove it
     // This happens when the main LLM accidentally echoes the player's input
@@ -308,7 +308,7 @@ if ($useRelLLM && $npcId) {
     ]);
 }
 
-if (!$useRelLLM && !empty($GLOBALS["talkedSoFar"])) {
+if (!$useRelLLM && !empty(\Synth\Bootstrap::config('talkedSoFar'))) {
     synthRelationshipProcessInlineCompletedResponse(
         \Synth\Bootstrap::config("talkedSoFar"),
         (string)$npcName

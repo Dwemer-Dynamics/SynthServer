@@ -215,8 +215,8 @@ function extractDialogueTarget($string) {
 
             // Remove the directed-dialogue tag from the original string
             $cleanedString = preg_replace('/\((?:talking|whispering|shouting|speaking privately)\s+to\s+[^\)]+\)/i', '', $string);
-            if (strpos($cleanedString,"{$GLOBALS["SYNTH_NAME"]}:")===0) {
-                $cleanedString=str_replace("{$GLOBALS["SYNTH_NAME"]}:","",$cleanedString);
+            if (strpos($cleanedString,(\Synth\Bootstrap::config('SYNTH_NAME') . ":"))===0) {
+                $cleanedString=str_replace((\Synth\Bootstrap::config('SYNTH_NAME') . ":"),"",$cleanedString);
             }
 
             return ['target' => $target, 'cleanedString' => trim($cleanedString)];
@@ -321,18 +321,18 @@ function DataGetCurrentPartyConf() {
 
 function DataBeingsInRange()
 {
-    if (isset($GLOBALS["CACHE_BEINGS_IN_RANGE"])) {
+    if (\Synth\Bootstrap::has('CACHE_BEINGS_IN_RANGE')) {
         return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE");
     }
 
     $names = synthNearbyActorNamesFromPayload(false, true);
-    $GLOBALS["CACHE_BEINGS_IN_RANGE"] = empty($names) ? "" : "|" . implode("|", $names) . "|";
+    \Synth\Bootstrap::set('CACHE_BEINGS_IN_RANGE', empty($names) ? "" : "|" . implode("|", $names) . "|");
     return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE");
 }
 
 function DataBeingsInRangeExcluding($excludeNPC="", $excludePlayer=true)
 {
-    if (isset($GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_BEINGS_IN_RANGE_EXCLUDING')[$excludeNPC][(int)$excludePlayer])) {
         return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
     }
 
@@ -348,17 +348,17 @@ function DataBeingsInRangeExcluding($excludeNPC="", $excludePlayer=true)
         }
     }
     if (empty($beingsArrayNew)) {
-        $GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "";
+        \Synth\Bootstrap::setPath('CACHE_BEINGS_IN_RANGE_EXCLUDING', [$excludeNPC, (int)$excludePlayer], "");
         return "";
     }
     $beingsFormatted=implode("|",$beingsArrayNew);
-    $GLOBALS["CACHE_BEINGS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "|".$beingsFormatted."|";
+    \Synth\Bootstrap::setPath('CACHE_BEINGS_IN_RANGE_EXCLUDING', [$excludeNPC, (int)$excludePlayer], "|".$beingsFormatted."|");
     return \Synth\Bootstrap::config("CACHE_BEINGS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
 }
 
 function DataBeingsOrDeathsInRangeExcluding($excludeNPC="", $excludePlayer=true)
 {
-    if (isset($GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING')[$excludeNPC][(int)$excludePlayer])) {
         return \Synth\Bootstrap::config("CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
     }
 
@@ -374,11 +374,11 @@ function DataBeingsOrDeathsInRangeExcluding($excludeNPC="", $excludePlayer=true)
         }
     }
     if (empty($beingsArrayNew)) {
-        $GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "";
+        \Synth\Bootstrap::setPath('CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING', [$excludeNPC, (int)$excludePlayer], "");
         return "";
     }
     $beingsFormatted=implode("|",$beingsArrayNew);
-    $GLOBALS["CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING"][$excludeNPC][(int)$excludePlayer] = "|".$beingsFormatted."|";
+    \Synth\Bootstrap::setPath('CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING', [$excludeNPC, (int)$excludePlayer], "|".$beingsFormatted."|");
     return \Synth\Bootstrap::config("CACHE_BEINGS_OR_DEATHS_IN_RANGE_EXCLUDING")[$excludeNPC][(int)$excludePlayer];
 }
 
@@ -518,7 +518,7 @@ function synthNearbyActorNamesFromPayload($excludeFarAway = false, $includePlaye
 
 function DataBeingsInCloseRange($excludeFarAway=false)
 {
-    if (!empty($GLOBALS["SYNTH_ROLEMASTER_BORED_ACTORS"]) &&
+    if (!empty(\Synth\Bootstrap::config('SYNTH_ROLEMASTER_BORED_ACTORS')) &&
         is_array(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))) {
         return "|" . implode("|", array_values(\Synth\Bootstrap::config("SYNTH_ROLEMASTER_BORED_ACTORS"))) . "|";
     }

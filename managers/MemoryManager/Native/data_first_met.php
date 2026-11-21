@@ -34,7 +34,7 @@ function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
         $fallout_date=$realFirst[0]["fallout_date"]; // game timestamp converted to fallout date YYYY-MM-DD HH:MM:SS
 
         logMemory(\Synth\Bootstrap::config("PLAYER_NAME"), $followerName,
-        "(Important note: {$GLOBALS["PLAYER_NAME"]} met {$followerName} for the first time on {$fallout_date}. This is an important event, so use tag #FirstTimeMet.)",
+        ("(Important note: " . \Synth\Bootstrap::config('PLAYER_NAME') . " met {$followerName} for the first time on {$fallout_date}. This is an important event, so use tag #FirstTimeMet.)"),
         $momentum, $gamets,'first_met',$ts);
     }
 

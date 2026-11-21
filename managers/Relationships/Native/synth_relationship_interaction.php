@@ -36,7 +36,7 @@ function synth_relationship_interaction_participants(array $context, array $entr
 function synth_relationship_interaction_context($db, int $responseId, int $entryIndex): ?array
 {
     if ($responseId<1 || $entryIndex<0 || $entryIndex>255) throw new InvalidArgumentException('Invalid relationship interaction key');
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
+    if (empty(\Synth\Bootstrap::claimedRequest())) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$responseId,$entryIndex) {
         $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true)
             .'SELECT response_payload FROM relationship_response_evidence WHERE history_event_id=$1',[$responseId]);

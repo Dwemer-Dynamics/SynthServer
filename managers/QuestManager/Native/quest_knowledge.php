@@ -374,7 +374,7 @@ function synthQuestKnowledgeView($db, array $event, array $context, ?array $read
     ?SYNTHClaimedRequest $claimed = null): array
 {
     $unavailable=synthQuestKnowledgeUnavailable($narrator);
-    if (($claimed===null ? empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) : $claimed->event!==$event)
+    if (($claimed===null ? empty(\Synth\Bootstrap::claimedRequest()) : $claimed->event!==$event)
         || ($event['protocol_version'] ?? null)!==2
         || !is_object($db) || !method_exists($db,$claimed===null ? 'withNativeRequestLock' : 'withClaimedRequestLock')
         || !synthQuestKnowledgePositiveId($event['generation'] ?? null)

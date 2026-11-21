@@ -12,15 +12,15 @@ require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'db_connection_s
  */
 
 function timeline_break_is_enabled() {
-	if (!isset($GLOBALS["TIMELINE_BREAK_AUTOSNAPSHOT"])) {
-		$GLOBALS["TIMELINE_BREAK_AUTOSNAPSHOT"] = true;
+	if (!\Synth\Bootstrap::has('TIMELINE_BREAK_AUTOSNAPSHOT')) {
+		\Synth\Bootstrap::set('TIMELINE_BREAK_AUTOSNAPSHOT', true);
 	}
 	return !!\Synth\Bootstrap::config("TIMELINE_BREAK_AUTOSNAPSHOT");
 }
 
 function timeline_break_min_days() {
-	if (!isset($GLOBALS["TIMELINE_BREAK_MIN_DAYS"])) {
-		$GLOBALS["TIMELINE_BREAK_MIN_DAYS"] = 3;
+	if (!\Synth\Bootstrap::has('TIMELINE_BREAK_MIN_DAYS')) {
+		\Synth\Bootstrap::set('TIMELINE_BREAK_MIN_DAYS', 3);
 	}
 	return intval(\Synth\Bootstrap::config("TIMELINE_BREAK_MIN_DAYS"));
 }

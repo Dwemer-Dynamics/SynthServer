@@ -124,12 +124,12 @@ function storeMemoryWorldKnowledge($embeddings, $text, $id)
 
 function countMemories()
 {
-	if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
+	if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
 		return 0;
 	}
 
     if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return 0;
+        if (empty(\Synth\Bootstrap::claimedRequest())) return 0;
         require_once __DIR__.'/synth_memory.php';
         $db=\Synth\Bootstrap::db();
         return $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
@@ -146,7 +146,7 @@ function countMemories()
 function deleteElement($id, $onlyEmbedding = false)
 {
     if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) return false;
-	if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
+	if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
 		return false;
 	}
 
@@ -185,7 +185,7 @@ function queryMemory($embeddings, $category='past dialogues', $limitNpc="")
 		$npcFilter = trim((string)(\Synth\Bootstrap::config("SYNTH_NAME") ?? ""));
 	}
 
-	if (!isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) || !\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
+	if (!isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) || !\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
 		return ["content" => []];
 	}
 
@@ -197,7 +197,7 @@ function queryMemory($embeddings, $category='past dialogues', $limitNpc="")
 	}
 
 	$results = null;
-	if (!empty($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])) {
+	if (!empty(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])) {
 		$results = DataSearchMemoryByVector($rawText, $npcFilter, false, 0);
 	}
 

@@ -91,7 +91,7 @@ register_shutdown_function(function() use ($pidFile) {
 
 // Bootstrap the SYNTH environment
 @file_put_contents($logFile, date('[Y-m-d H:i:s]') . " TRACE: Before bootstrap\n", FILE_APPEND);
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 try {
     @file_put_contents($logFile, date('[Y-m-d H:i:s]') . " TRACE: Loading runtime bootstrap\n", FILE_APPEND);
@@ -107,8 +107,8 @@ try {
     require_once $enginePath . 'lib/logger.php';
 
     // Set up minimal globals that LLM connector needs
-    $GLOBALS['SYNTH_NAME'] = 'Worker';
-    $GLOBALS['PLAYER_NAME'] = 'Player';
+    \Synth\Bootstrap::set('SYNTH_NAME', 'Worker');
+    \Synth\Bootstrap::set('PLAYER_NAME', 'Player');
 
     Logger::info("[REL-WORKER] Starting relationship worker" . ($daemon ? " in daemon mode" : ""));
 } catch (Throwable $e) {

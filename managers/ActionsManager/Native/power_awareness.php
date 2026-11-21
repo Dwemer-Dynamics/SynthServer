@@ -43,7 +43,7 @@ function calculatePowerComparison(int $npcLevel, int $targetLevel): string {
  */
 function getNpcLevel(string $npcName): ?int {
     try {
-        if (!isset($GLOBALS["db"])) {
+        if (!\Synth\Bootstrap::has('db')) {
             return null;
         }
         

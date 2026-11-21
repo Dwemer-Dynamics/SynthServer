@@ -8,7 +8,7 @@ function synthNarratorActionRequestIsActive(): bool
 {
     $role=synth_protocol_owned_response_role();
     if ($role!==null) return $role==='narrator';
-    if (!empty($GLOBALS['DIRECT_NARRATOR_DIALOGUE'])) {
+    if (!empty(\Synth\Bootstrap::config('DIRECT_NARRATOR_DIALOGUE'))) {
         return true;
     }
 
@@ -88,7 +88,7 @@ function synthNarratorClampAmount($value, int $default, int $maximum): int
 function synthNarratorResolveItem(string $requestedName): ?array
 {
     $requestedName = trim($requestedName);
-    if ($requestedName === '' || !isset($GLOBALS['db'])) {
+    if ($requestedName === '' || !\Synth\Bootstrap::has('db')) {
         return null;
     }
 
@@ -301,7 +301,7 @@ function synthExecuteNarratorDirectorCommand(array $parameters): bool
         return false;
     }
 
-    if (isset($GLOBALS['db'], $GLOBALS['gameRequest']) && is_object(\Synth\Bootstrap::db())) {
+    if (\Synth\Bootstrap::has('db') && \Synth\Bootstrap::has('gameRequest') && is_object(\Synth\Bootstrap::db())) {
         \Synth\Bootstrap::db()->insert('core_action_issued', [
             'action' => 'DirectorCommand',
             'fullcall' => synthEncodeActionLine('The Narrator', 'DirectorCommand', $parameters),

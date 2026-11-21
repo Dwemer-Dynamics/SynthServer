@@ -51,17 +51,17 @@ final class CompanionOrders
         if ($key === null || !is_string($line['line_id'] ?? null) || !is_string($line['request_id'] ?? null)) return;
         $notes = \Synth\Bootstrap::config('SYNTH_ORDER_REPLY_LINES') ?? [];
         $notes[] = ['request_id' => $line['request_id'], 'line_id' => $line['line_id'], 'actor' => $key];
-        $GLOBALS['SYNTH_ORDER_REPLY_LINES'] = array_slice($notes, -64);
+        \Synth\Bootstrap::set('SYNTH_ORDER_REPLY_LINES', array_slice($notes, -64));
     }
 
     // The first reply line of this actor in this request; one order per request, so a second order is refused.
     public static function claimReplyLine(string $requestId, array $actor): ?string
     {
         $key = synth_wait_actor_key($actor);
-        if ($key === null || !empty($GLOBALS['SYNTH_ORDER_ISSUED'][$requestId])) return null;
+        if ($key === null || !empty(\Synth\Bootstrap::config('SYNTH_ORDER_ISSUED')[$requestId])) return null;
         foreach (\Synth\Bootstrap::config('SYNTH_ORDER_REPLY_LINES') ?? [] as $note) {
             if ($note['request_id'] === $requestId && $note['actor'] === $key) {
-                $GLOBALS['SYNTH_ORDER_ISSUED'][$requestId] = true;
+                \Synth\Bootstrap::setAt('SYNTH_ORDER_ISSUED', $requestId, true);
                 return $note['line_id'];
             }
         }

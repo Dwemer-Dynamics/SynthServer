@@ -4,7 +4,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_protocol_state.php';
 
 function synth_npc_native_request(): bool
 {
-    return !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+    return !empty(\Synth\Bootstrap::claimedRequest())
         && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? null)===2;
 }
 
@@ -13,7 +13,7 @@ function synth_npc_request_actor_id($db, string $name, ?array $boundContext=null
 {
     if (!synth_npc_native_request()) return null;
     synth_protocol_assert_request_active();
-    if (isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) {
+    if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) {
         $bindings=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS');
         $binding=$name==='' && count($bindings)===1 ? reset($bindings) : ($bindings[$name] ?? null);
         if (is_array($binding) && intval($binding['actor_identity_id'] ?? 0)>0) {

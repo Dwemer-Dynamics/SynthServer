@@ -67,9 +67,9 @@ function synth_wait_action_missing_release_fallback(array $rows, array $definiti
     if (array_key_exists('ReleaseWait',$rows)) return;
     $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (!synth_wait_action_supported($event,'ReleaseWait')) return;
-    $GLOBALS['ENABLED_FUNCTIONS'][]='ReleaseWait';
-    $GLOBALS['FUNCTIONS'][]=$definition;
-    $GLOBALS['BASE_FUNCTIONS']['ReleaseWait']=$definition;
+    \Synth\Bootstrap::append('ENABLED_FUNCTIONS', 'ReleaseWait');
+    \Synth\Bootstrap::append('FUNCTIONS', $definition);
+    \Synth\Bootstrap::setAt('BASE_FUNCTIONS', 'ReleaseWait', $definition);
 }
 
 
@@ -241,7 +241,7 @@ function synth_wait_jev_capture_fresh($db,array $event): bool
 function synth_wait_try_jev_handoff($db,array $event,?string $transcript=null): bool
 {
     $policy=synth_jev_action_policy();
-    if(empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || $policy===null
+    if(empty(\Synth\Bootstrap::claimedRequest()) || $policy===null
         || !in_array($policy['code']??null,['WaitHere','ReleaseWait'],true))return false;
     $context=synth_protocol_current_context($db,$event);
     $plan=is_array($context)?synth_wait_jev_handoff_plan($event,$transcript,$policy,$context):null;
@@ -250,7 +250,7 @@ function synth_wait_try_jev_handoff($db,array $event,?string $transcript=null): 
     if(!in_array($plan['code'],\Synth\Bootstrap::config('ENABLED_FUNCTIONS')??[],true)
         || !synthActionCodeIsNegotiated($plan['code']))return false;
     synth_protocol_assert_request_active();
-    $GLOBALS['SYNTH_JEV_WAIT_HANDOFF']=synth_jev_action_owner($event);
+    \Synth\Bootstrap::set('SYNTH_JEV_WAIT_HANDOFF', synth_jev_action_owner($event));
     $trace=['selected_code'=>$plan['code'],'action_code'=>$plan['code'],
         'confidence'=>$plan['confidence'],'route'=>'jev_handoff','status'=>'pending','reason'=>'handoff'];
     if(is_numeric(\Synth\Bootstrap::config('SYNTH_TURN_START_TIME')??null))

@@ -110,7 +110,7 @@ function synthQuestAccessObservedQuestKeys(array $payload): array
 function synthQuestAccessReaderView($db,array $event): array
 {
     $unavailable=['schema'=>'synth.quest.access.v1','perspective'=>'npc','observation'=>'unavailable','roles'=>[]];
-    if (($event['protocol_version'] ?? null)!==2 || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+    if (($event['protocol_version'] ?? null)!==2 || empty(\Synth\Bootstrap::claimedRequest())
         || !is_object($db) || !method_exists($db,'withNativeRequestLock')) return $unavailable;
     $context=synth_protocol_current_context($db,$event);
     $narrator=synth_protocol_quest_response_is_narrator($db,$event);

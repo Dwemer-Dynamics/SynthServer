@@ -539,7 +539,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
     $nRecordsLimit = 32 + (2 * abs($lastNelements)); // reduce the default 1000 recs loaded from db to a number proportional to context_history
 
-    if (isset($GLOBALS["gameRequest"][2])) {
+    if (isset(\Synth\Bootstrap::gameRequest()[2])) {
         $currentGameTs=intval(\Synth\Bootstrap::gameRequest()[2]);
     } else {
         $currentGameTs=intval(DataLastKnownGameTS());
@@ -556,7 +556,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
         $actorEscaped=$db->escape($actor);
     else
         $actorEscaped='';
-    //$playerEscaped=$db->escape($GLOBALS["PLAYER_NAME"]);
+    //$playerEscaped=$db->escape(\Synth\Bootstrap::config("PLAYER_NAME"));
 
     $visibleChatStateSql = synthBuildChatDeliveryStateSql('delivery_state');
 
@@ -621,7 +621,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
     }
 
     // Filter blacklisted event types
-    if (isset($GLOBALS["EVENT_TYPE_FILTER"]) && !empty($GLOBALS["EVENT_TYPE_FILTER"])) {
+    if (\Synth\Bootstrap::has('EVENT_TYPE_FILTER') && !empty(\Synth\Bootstrap::config('EVENT_TYPE_FILTER'))) {
         $blacklistedEventTypes = array_map('trim', explode(',', strtolower(\Synth\Bootstrap::config("EVENT_TYPE_FILTER"))));
         $results = array_filter($results, function($row) use ($blacklistedEventTypes) {
             $eventType = strtolower($row["type"] ?? '');
@@ -740,7 +740,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
                     : ($nativeSpeechKind!=='npc' && str_starts_with($rowData, 'The Narrator:') && $row['type'] === 'chat' ? 'narratorchat' : 'npc'));
             if ($nativeSpeechKind==='narrator') $speaker='narratorchat';
 
-        } else if (($row["type"]=="logaction") && (strpos($rowData, "{$GLOBALS["SYNTH_NAME"]}") !== false))  {
+        } else if (($row["type"]=="logaction") && (strpos($rowData, ((string)\Synth\Bootstrap::config('SYNTH_NAME'))) !== false))  {
             $speaker = "assistant";
 
         } else if ($row["type"]=="vision") {
@@ -749,10 +749,10 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
         } else if ($row["subtype"]=="MEMORY") {
             $speaker = "memory";
 
-        } else if ((strpos($rowData, "{$GLOBALS["SYNTH_NAME"]}:") !== false) && (strpos($rowData, "The Narrator:") === false)) {
+        } else if ((strpos($rowData, (\Synth\Bootstrap::config('SYNTH_NAME') . ":")) !== false) && (strpos($rowData, "The Narrator:") === false)) {
             $speaker = "assistant";
 
-        } else if ((strpos($rowData, "{$GLOBALS["PLAYER_NAME"]}:") === 0)) {
+        } else if ((strpos($rowData, (\Synth\Bootstrap::config('PLAYER_NAME') . ":")) === 0)) {
             $speaker = "player";
 
         } else if ((strpos($rowData, "The Narrator:") === 0) && $row["type"]=="chat") {
@@ -789,7 +789,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
 
         } else if ($row["subtype"]=="ITEM") {
             if ($focusOnChat) {
-                if (strpos($rowData,"{$GLOBALS["SYNTH_NAME"]}")===false) // This NPC's item transactions conserved
+                if (strpos($rowData,((string)\Synth\Bootstrap::config('SYNTH_NAME')))===false) // This NPC's item transactions conserved
                     continue;
             }
             $speaker = "narratorci";
@@ -868,7 +868,7 @@ function buildHistoricContext($actor, $lastNelements = -10,$sqlfilter="") {
             unset($previousRow);
         }
 
-        //if (($GLOBALS["FEATURES"]["MISC"]["ADD_TIME_MARKS"])&&(true) && $row["type"] != "info_timeforward") {
+        //if ((\Synth\Bootstrap::config("FEATURES")["MISC"]["ADD_TIME_MARKS"])&&(true) && $row["type"] != "info_timeforward") {
         if ($row["type"] != "info_timeforward") {
 
 
@@ -911,7 +911,7 @@ New setting: $currentLocation
         $lastSpeaker = $speaker;
 
         // Insert timestamp subdividers if PROMPT_TIMESTAMP is enabled
-        if (!empty($GLOBALS["PROMPT_TIMESTAMP"]) && $row["type"] != "info_timeforward") {
+        if (!empty(\Synth\Bootstrap::config('PROMPT_TIMESTAMP')) && $row["type"] != "info_timeforward") {
             $hoursAgo = ($currentGameTs - $row["gamets"]) * 0.0000024;
             $currentTimeCategory = getTimeCategory($hoursAgo);
 
@@ -975,7 +975,7 @@ New setting: $currentLocation
     }
 
     // Filter ambient combat deaths if configured.
-    if (!empty($GLOBALS["HIDE_AMBIENT_COMBAT"])) {
+    if (!empty(\Synth\Bootstrap::config('HIDE_AMBIENT_COMBAT'))) {
         $protectedCombatNames = array_filter(array_map('trim', [
             (string)(\Synth\Bootstrap::config("PLAYER_NAME") ?? ''),
             (string)$actor,
@@ -1060,17 +1060,17 @@ function compactHistoricContext($lastDialogFull,$actor,$compactContextInfo=false
                 foreach ($bufferSYNTH as $m=>$singleline) {
                     $compactedBuffer .=" ";
                     if ($m>0) {
-                        //$regexpNpcName = strtr($GLOBALS["SYNTH_NAME"],["-"=>'\-', "["=>"\[", "]"=>"\]"]);
+                        //$regexpNpcName = strtr(\Synth\Bootstrap::config("SYNTH_NAME"),["-"=>'\-', "["=>"\[", "]"=>"\]"]);
                         // Capture spoken text after a leading "Name:" (supports names with brackets and dashes)
                         // and optionally strip a trailing parenthetical note like "(talking to X)".
                         preg_match('/^\s*[^:]+:\s*(.*?)\s*(?:\([^)]*\))?\s*$/s', $singleline, $matches);
                         $extracted=$matches[1] ?? $singleline;
                         $compactedBuffer .= trim(removeTalkingToOccurrences($extracted));
-                        $compactedBuffer=str_replace("{$GLOBALS["SYNTH_NAME"]};","",$compactedBuffer);
+                        $compactedBuffer=str_replace((\Synth\Bootstrap::config('SYNTH_NAME') . ";"),"",$compactedBuffer);
 
                     } else {
                         $compactedBuffer .= trim(removeTalkingToOccurrences($singleline));
-                        $compactedBuffer=str_replace("{$GLOBALS["SYNTH_NAME"]}:","",$compactedBuffer);
+                        $compactedBuffer=str_replace((\Synth\Bootstrap::config('SYNTH_NAME') . ":"),"",$compactedBuffer);
                     }
 
 
@@ -1094,16 +1094,16 @@ function compactHistoricContext($lastDialogFull,$actor,$compactContextInfo=false
         foreach ($bufferSYNTH as $m=>$singleline) {
             $compactedBuffer .=" ";
             if ($m>0) {
-                //$regexpNpcName = strtr($GLOBALS["SYNTH_NAME"],["-"=>'\-', "["=>"\[", "]"=>"\]"]);
+                //$regexpNpcName = strtr(\Synth\Bootstrap::config("SYNTH_NAME"),["-"=>'\-', "["=>"\[", "]"=>"\]"]);
                 // Same robust extraction for subsequent lines in the buffer
                 preg_match('/^\s*[^:]+:\s*(.*?)\s*(?:\([^)]*\))?\s*$/s', $singleline, $matches);
                 $extracted=$matches[1] ?? $singleline;
                 $compactedBuffer .= trim(removeTalkingToOccurrences($extracted));
-                $compactedBuffer=str_replace("{$GLOBALS["SYNTH_NAME"]};","",$compactedBuffer);
+                $compactedBuffer=str_replace((\Synth\Bootstrap::config('SYNTH_NAME') . ";"),"",$compactedBuffer);
 
             } else {
                 $compactedBuffer .= trim(removeTalkingToOccurrences($singleline));
-                $compactedBuffer=str_replace("{$GLOBALS["SYNTH_NAME"]};","",$compactedBuffer);
+                $compactedBuffer=str_replace((\Synth\Bootstrap::config('SYNTH_NAME') . ";"),"",$compactedBuffer);
             }
 
 
@@ -1157,7 +1157,7 @@ function compactHistoricContext($lastDialogFull,$actor,$compactContextInfo=false
                     } else
                         $buffer = [];
                 } else {
-                    $buffer[] = strtr($line["content"],["The Narrator:"=>"","{$GLOBALS["SYNTH_NAME"]}:"=>""]);
+                    $buffer[] = strtr($line["content"],["The Narrator:"=>"",(\Synth\Bootstrap::config('SYNTH_NAME') . ":")=>""]);
                     $bufferGamets = min($bufferGamets, $lineGamets);
                 }
 
@@ -1270,15 +1270,15 @@ function replaceRoles($lastDialogFull,$actor,$lastNelements) {
     error_log("[SYNTH] Using effective context limit of : $lastNelements");
     $orderedData = array_slice($lastDialogFull, $lastNelements);
     // Keep the earliest source event for merged blocks; an unknown timestamp disables STM.
-    $GLOBALS['CONTEXT_WINDOW_FLOOR'] = PHP_INT_MAX;
+    \Synth\Bootstrap::set('CONTEXT_WINDOW_FLOOR', PHP_INT_MAX);
     foreach ($orderedData as &$entry) {
-        $GLOBALS['CONTEXT_WINDOW_FLOOR'] = min(\Synth\Bootstrap::config('CONTEXT_WINDOW_FLOOR'), intval($entry['_g'] ?? 0));
+        \Synth\Bootstrap::set('CONTEXT_WINDOW_FLOOR', min(\Synth\Bootstrap::config('CONTEXT_WINDOW_FLOOR'), intval($entry['_g'] ?? 0)));
         unset($entry['_g'], $entry['gamets']);
     }
     unset($entry);
 
     file_put_contents(dirname(__DIR__, 3).'/lib'."/../log/context_for_$actor.txt",print_r($orderedData,true));
-    $GLOBALS["CONTEXT_BUILDING_DATA"]=$orderedData;
+    \Synth\Bootstrap::set('CONTEXT_BUILDING_DATA', $orderedData);
 
     return \Synth\Bootstrap::config("CONTEXT_BUILDING_DATA");
 
@@ -1335,7 +1335,7 @@ function DataLastDataExpandedFor($actor, $lastNelements = -10,$sqlfilter="")
     if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         require_once dirname(__DIR__, 3).'/lib'.'/chat_helper_functions.php';
         $ctx3=filterHistoricContextForNarratorVisibility($ctx3,$actor!=='' ? $actor : (\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
-        $GLOBALS['CONTEXT_BUILDING_DATA']=$ctx3;
+        \Synth\Bootstrap::set('CONTEXT_BUILDING_DATA', $ctx3);
     }
     return $ctx3;
 

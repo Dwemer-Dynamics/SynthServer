@@ -31,7 +31,7 @@ require_once \Synth\Bootstrap::enginePath() . "lib/logger.php";
  *   - listener_name: For NPC-to-NPC conversations
  */
 function _relQueueEvaluation($evalData) {
-    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         Logger::warn("[REL-ASYNC] Cannot queue: no database connection");
         return false;
     }
@@ -104,7 +104,7 @@ function _relQueueEvaluation($evalData) {
  * @return array Results of processing
  */
 function _relProcessQueue($limit = 5) {
-    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return ['processed' => 0, 'error' => 'no database'];
     }
 
@@ -291,7 +291,7 @@ function _relGetQueueStatus() {
  * @param string $npcName The NPC name
  */
 function _relQueueNpcInit($npcId, $npcName) {
-    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return false;
     }
 
@@ -330,7 +330,7 @@ function _relQueueNpcInit($npcId, $npcName) {
  * @param int $limit Max number to process per request
  */
 function _relProcessInitQueue($limit = 5) {
-    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return ['processed' => 0];
     }
 

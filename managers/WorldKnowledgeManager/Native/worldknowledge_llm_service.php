@@ -10,14 +10,14 @@ function LLMTopic($text, $language = 'ja') {
     $startTime = microtime(true);
 
     // Check if we have a valid WorldKnowledge connector configured
-    if (!isset($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]) || empty($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"])) {
+    if (!\Synth\Bootstrap::has('CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM') || empty(\Synth\Bootstrap::config('CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM'))) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured");
         return false;
     }
 
     // Check cache first
     $cacheKey = md5("topic_extraction_" . $text);
-    if (isset($GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey])) {
+    if (isset(\Synth\Bootstrap::config('MINIME_TOPIC_CACHE')[$cacheKey])) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Using cached topic for: " . substr($text, 0, 50));
         return \Synth\Bootstrap::config("MINIME_TOPIC_CACHE")[$cacheKey];
     }
@@ -121,7 +121,7 @@ PROMPT;
         ]);
 
         // Cache the result
-        $GLOBALS["MINIME_TOPIC_CACHE"][$cacheKey] = $result;
+        \Synth\Bootstrap::setAt('MINIME_TOPIC_CACHE', $cacheKey, $result);
 
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Extracted topic: '$topic' in {$elapsedTime}s from: " . substr($text, 0, 50));
 
@@ -138,7 +138,7 @@ PROMPT;
  * Uses the WorldKnowledge-specific connector with minimal overhead
  */
 function callLLMFast($contextData, $customParms = []) {
-    if (!isset($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"]) || empty($GLOBALS["CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM"])) {
+    if (!\Synth\Bootstrap::has('CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM') || empty(\Synth\Bootstrap::config('CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM'))) {
         \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "CORE_CONNECTOR_WORLDKNOWLEDGE_CUSTOM not configured in callLLMFast");
         return false;
     }

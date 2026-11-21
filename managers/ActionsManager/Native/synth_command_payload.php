@@ -169,7 +169,7 @@ function synthDecodeCommandAction(string $command, array $args = []): array
 
 function synthQueueCommandResponse(string $speaker, string $commandName, array $args = [], string $text = ''): void
 {
-    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
+    if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
         return;
     }
 

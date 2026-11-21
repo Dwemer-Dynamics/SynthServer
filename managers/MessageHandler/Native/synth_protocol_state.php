@@ -127,14 +127,14 @@ function synth_protocol_retains_gift_owner(array $event): bool
 // Recheck durable ownership at side-effect boundaries, including deferred work after reply completion.
 function synth_protocol_assert_request_active(): void
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return;
+    if (empty(\Synth\Bootstrap::claimedRequest())) return;
     $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     $db = \Synth\Bootstrap::db();
     synth_protocol_assert_owner_active($db, $event, synth_protocol_retains_gift_owner($event));
     $session = synth_protocol_session_id($event);
     $request = strval($event['request_id']);
     $generation = intval($event['generation']);
-    if (isset($GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE'])) {
+    if (\Synth\Bootstrap::has('SYNTH_MIDDLETERM_JOB_LEASE')) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_middleterm_jobs.php';
         synth_middleterm_assert_lease($db);
     }
@@ -327,7 +327,7 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
     }
     if ($narratorJournals) {
         if ($actor!=='' || $relationshipReaderIdentityId!==null || $playerPerspective
-            || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')!=='The Narrator'
+            || empty(\Synth\Bootstrap::claimedRequest()) || (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')!=='The Narrator'
             || filter_var(\Synth\Bootstrap::config('NARRATOR_ONLY_DIARY_ACCESS') ?? false,FILTER_VALIDATE_BOOLEAN)) {
             throw new InvalidArgumentException('Narrator journal reader required');
         }
@@ -874,10 +874,10 @@ function synth_protocol_bind_quest_prompt(array $event, array $payload, bool $pl
         $journal=synth_protocol_prompt_quests(['active_quests'=>array_slice($reaction['quests'] ?? [],0,3),
             'active_quests_observation'=>'partial']);
     } else $journal=['active_quests'=>[],'active_quests_observation'=>'unavailable'];
-    $GLOBALS['SYNTH_TURN_QUEST_PROMPT']=[
+    \Synth\Bootstrap::set('SYNTH_TURN_QUEST_PROMPT', [
         'request_sha256'=>hash('sha256',synth_protocol_canonical_json($event)),
         'scope'=>$scope,'journal'=>$journal,
-    ];
+    ]);
     return $journal;
 }
 
@@ -1318,7 +1318,7 @@ function synth_protocol_persist_activation($db, array $event, string $sessionId)
 
 function synth_protocol_persist_action_result($db, array $event, string $sessionId): void
 {
-    unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
+    \Synth\Bootstrap::forget('SYNTH_WAIT_ADMITTED_OUTCOME');
     $result = $event['payload']['result'];
     $actionId = $db->escapeLiteral($result['action_id']);
     $idempotencyKey = $db->escapeLiteral($result['idempotency_key']);
@@ -1474,7 +1474,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
     ) === false) throw new RuntimeException('Unable to complete action intent.');
     if($waitOutcome!==null){
         synth_wait_record_consequence($db,$event,$waitOutcome);
-        $GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']=$waitOutcome;
+        \Synth\Bootstrap::set('SYNTH_WAIT_ADMITTED_OUTCOME', $waitOutcome);
     }
 }
 
@@ -1593,8 +1593,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             else {
                 $upserted = $db->fetchOne($upsert);
                 if (!is_array($upserted)) throw new RuntimeException('Unable to reset the session audience.');
-                $GLOBALS['SYNTH_AUDIENCE_INIT_ACK'] = ['intent' => strval($upserted['audience_intent']),
-                    'reset_epoch' => intval($upserted['audience_reset_epoch'])];
+                \Synth\Bootstrap::set('SYNTH_AUDIENCE_INIT_ACK', ['intent' => strval($upserted['audience_intent']),
+                    'reset_epoch' => intval($upserted['audience_reset_epoch'])]);
             }
             if ($event['type'] === 'init' && is_array($event['payload']['plugins'] ?? null)) {
                 require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'game_plugins.php');
@@ -1827,7 +1827,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         }
         if($event['type']==='action_result' && is_array(\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME')??null))
             synth_wait_trace_committed_result($event,\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME'));
-        unset($GLOBALS['SYNTH_WAIT_ADMITTED_OUTCOME']);
+        \Synth\Bootstrap::forget('SYNTH_WAIT_ADMITTED_OUTCOME');
         if (!$explicitOwner) return ['status' => 'accepted'];
         return ['status' => 'accepted',
             'owner' => Closure::bind(static fn() => new SYNTHClaimedRequest($event), null, SYNTHClaimedRequest::class)()];
@@ -1853,13 +1853,13 @@ function synth_protocol_record_action_intent($db, array $action): void
     }
     require_once dirname(__DIR__, 3).'/lib'.'/synth_attack_actions.php';
     $attack=(($event['protocol_version'] ?? 1)===2) && (($action['name'] ?? '')==='attack' || ($action['capability'] ?? '')==='action.attack' || ($action['server_code'] ?? '')==='Attack');
-    if ($attack && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('attack_emission_claim_required');
+    if ($attack && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('attack_emission_claim_required');
     require_once dirname(__DIR__, 3).'/lib'.'/synth_wait_actions.php';
     $wait=synth_wait_action_is_intent($action) && (($event['protocol_version'] ?? 1)===2
         || ($action['name'] ?? '')==='release_wait' || ($action['server_code'] ?? '')==='ReleaseWait');
-    if ($wait && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('wait_emission_claim_required');
+    if ($wait && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('wait_emission_claim_required');
     $order=\Synth\Managers\ActionsManager\CompanionOrders::isIntent($action);
-    if ($order && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('order_emission_claim_required');
+    if ($order && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('order_emission_claim_required');
     if ((($action['capability'] ?? '')==='action.read_quests'
             || in_array($action['server_code'] ?? $action['name'] ?? '',['ReadQuests','read_quests'],true))
         && !synth_protocol_player_journal_action_allowed()) throw new DomainException('private_quest_journal_not_shared');
@@ -1871,13 +1871,13 @@ function synth_protocol_record_action_intent($db, array $action): void
         || ($action['server_code'] ?? '')==='GiveCapsTo' || ($action['capability'] ?? '')==='action.give_caps_to');
     $giftMenu=(($event['protocol_version'] ?? 1)===2) && (($action['name'] ?? '')==='open_inventory'
         || ($action['server_code'] ?? '')==='OpenInventory' || ($action['capability'] ?? '')==='action.open_inventory');
-    if ($giftMenu && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('gift_menu_emission_claim_required');
+    if ($giftMenu && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('gift_menu_emission_claim_required');
     $playerItem = in_array($action['name'] ?? '', ['take_item_from_player'],true)
         || ($action['server_code'] ?? '')==='TakeItemFromPlayer' || ($action['capability'] ?? '')==='action.take_item_from_player';
-    if ($playerItem && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('player_item_emission_claim_required');
+    if ($playerItem && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('player_item_emission_claim_required');
     $trade = ($event['protocol_version'] ?? 1)===2 && (($action['name'] ?? '')==='barter'
         || ($action['server_code'] ?? '')==='Barter' || ($action['capability'] ?? '')==='action.barter');
-    if ($trade && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('trade_emission_claim_required');
+    if ($trade && empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('trade_emission_claim_required');
     $transfer = $trade || $giftMenu || $playerItem || $caps || ($action['name'] ?? '')==='give_item_to' || ($action['server_code'] ?? '')==='GiveItemTo'
         || ($action['capability'] ?? '')==='action.give_item_to';
     if ($transfer) {
@@ -1888,10 +1888,10 @@ function synth_protocol_record_action_intent($db, array $action): void
         if (!$giftMenu && !$trade && !synth_protocol_valid_transfer_intent($action)) throw new DomainException('invalid_transfer_intent');
         if ($caps && synth_protocol_owns_rechat($event)) throw new DomainException('caps_rechat_mutation_not_allowed');
     }
-    if (synth_protocol_owns_rechat($event) && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+    if (synth_protocol_owns_rechat($event) && empty(\Synth\Bootstrap::claimedRequest())) {
         throw new LogicException('rechat_emission_claim_required');
     }
-    $guarded = !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
+    $guarded = !empty(\Synth\Bootstrap::claimedRequest());
     $native = $guarded && ($event['protocol_version'] ?? 1) === 2;
     $persist = static function ($connection = null, ?array $owner = null) use ($db, $action, $event, $native, $transfer, $caps, $taking, $playerItem, $giftMenu, $wait, $attack, $order, $trade): void {
         synth_protocol_assert_request_active();
@@ -2290,7 +2290,7 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         'idempotency_key' => strval($result['idempotency_key']),
         ...($transferArguments === null ? [] : ['arguments'=>$transferArguments]),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    $GLOBALS['gameRequest'] = &$gameRequest;
+    \Synth\Bootstrap::bind('gameRequest', $gameRequest);
 }
 
 function synth_protocol_complete_request($db, string $state, string $contentType, string $body, string $errorCode = ''): void
@@ -2301,7 +2301,7 @@ function synth_protocol_complete_request($db, string $state, string $contentType
     }
     synth_protocol_record_outcome($db, $event['json'] ?? $event, $state, $contentType, $body, $errorCode);
     if ($state==='complete' && ($event['json']['protocol_version'] ?? 1)===2
-        && !empty($GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']['accepted'])) {
+        && !empty(\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE')['accepted'])) {
         require_once dirname(__DIR__, 3).'/lib'.'/relationship_response.php';
         synth_relationship_store_response($db,$event['json'],$body);
     }
@@ -2794,11 +2794,11 @@ function synth_protocol_quest_prompt_context($db, array $event, array $context, 
     require_once dirname(__DIR__, 3).'/lib'.'/quest_knowledge.php';
     $view=synthQuestKnowledgeView($db,$event,$context,$reader,$narrator);
     // Older automatic prompt readers cannot reuse a raw reaction projection.
-    $GLOBALS['SYNTH_TURN_QUEST_PROMPT']=[
+    \Synth\Bootstrap::set('SYNTH_TURN_QUEST_PROMPT', [
         'request_sha256'=>hash('sha256',synth_protocol_canonical_json($event)),
         'scope'=>$narrator ? 'journal' : 'none',
         'journal'=>['active_quests'=>[],'active_quests_observation'=>'unavailable'],
-    ];
+    ]);
     return ['active_quests'=>$narrator ? $view['journal'] : [],
         'active_quests_observation'=>$narrator ? $view['observation'] : 'unavailable',
         'quest_knowledge'=>$view];
@@ -2825,7 +2825,7 @@ function synth_protocol_prompt_snapshot($db): ?array
 // Transcription is derived input; the immutable wire event remains the canonical owner of every reader.
 function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gameRequest, ?string $transcript = null): string
 {
-    unset($GLOBALS['SYNTH_TURN_QUEST_PROMPT']);
+    \Synth\Bootstrap::forget('SYNTH_TURN_QUEST_PROMPT');
     if (!in_array($wireEvent['type'] ?? '', ['input_text', 'input_audio', 'action_result'], true)) {
         return '';
     }
@@ -2854,11 +2854,11 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
     if ($targetName === '' || $playerName === '') {
         throw new RuntimeException('display_identity_required');
     }
-    $GLOBALS['SYNTH_INPUT_TARGET'] = $targetName;
-    $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] = $narrator || $eventOnly ? [] : $target;
-    $GLOBALS['SYNTH_PLAYER_IDENTITY'] = $player;
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET', $targetName);
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET_IDENTITY', $narrator || $eventOnly ? [] : $target);
+    \Synth\Bootstrap::set('SYNTH_PLAYER_IDENTITY', $player);
     $text = trim(($wireEvent['type'] ?? '') === 'input_audio' ? $transcript : strval($wireEvent['payload']['text'] ?? ''));
-    $GLOBALS['SYNTH_PLAYER_ITEM_INPUT']=['owner_sha256'=>hash('sha256',synth_protocol_canonical_json($wireEvent)),'text'=>$text];
+    \Synth\Bootstrap::set('SYNTH_PLAYER_ITEM_INPUT', ['owner_sha256'=>hash('sha256',synth_protocol_canonical_json($wireEvent)),'text'=>$text]);
     $people = [];
     foreach (($context['payload']['audience'] ?? []) as $audienceActor) {
         $name = trim(strval(is_array($audienceActor) ? ($audienceActor['display_name'] ?? '') : ''));
@@ -2883,19 +2883,19 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
     if ($actorStates !== []) {
         $structured['actor_states'] = synth_protocol_without_combat_targets($actorStates);
     }
-    $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+    \Synth\Bootstrap::set('SYNTH_TURN_ACTOR_STATES', $actorStates);
     $questContext=synth_protocol_quest_prompt_context($db,$wireEvent,$context,
         $narrator || $eventOnly ? null : $target,$narrator);
     $structured=array_replace($structured,$questContext);
     $structured['audience_observation']=synth_protocol_audience_observation($context['payload']);
-    $GLOBALS['SYNTH_TURN_ACTIVE_QUESTS']=$questContext['active_quests'];
+    \Synth\Bootstrap::set('SYNTH_TURN_ACTIVE_QUESTS', $questContext['active_quests']);
     $structured=array_replace($structured,synth_protocol_prompt_environment($context['payload']));
-    $GLOBALS['SYNTH_TURN_NEARBY_ITEMS'] = $structured['nearby_items'];
-    $GLOBALS['SYNTH_TURN_POINTS_OF_INTEREST'] = $structured['points_of_interest'];
+    \Synth\Bootstrap::set('SYNTH_TURN_NEARBY_ITEMS', $structured['nearby_items']);
+    \Synth\Bootstrap::set('SYNTH_TURN_POINTS_OF_INTEREST', $structured['points_of_interest']);
     $world = is_array($context['payload']['world'] ?? null) ? $context['payload']['world'] : [];
     if ($world !== []) {
         $structured['world'] = $world;
-        $GLOBALS['SYNTH_TURN_WORLD_STATE'] = $world;
+        \Synth\Bootstrap::set('SYNTH_TURN_WORLD_STATE', $world);
     }
     if ($audienceSnapshot !== '') {
         $structured['audience_snapshot'] = $audienceSnapshot;
@@ -2909,15 +2909,15 @@ function synth_protocol_bind_dialogue_context($db, array $wireEvent, array &$gam
         JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     $gameRequest[0] = 'inputtext';
     $gameRequest[3] = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    $GLOBALS['gameRequest'] = &$gameRequest;
+    \Synth\Bootstrap::bind('gameRequest', $gameRequest);
     return $text;
 }
 
 // Bind a closed client trigger using the context selected by its protocol version.
 function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$gameRequest, ?string &$stopReason = null): bool
 {
-    unset($GLOBALS['SYNTH_TURN_QUEST_PROMPT']);
-    unset($GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']);
+    \Synth\Bootstrap::forget('SYNTH_TURN_QUEST_PROMPT');
+    \Synth\Bootstrap::forget('SYNTH_AMBIENT_NPC_EXCHANGE');
     $stopReason=null;
     if (($wireEvent['type'] ?? '') !== 'trigger') {
         return true;
@@ -2926,7 +2926,7 @@ function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$game
         require_once dirname(__DIR__, 3).'/lib'.'/synth_ambient_npc.php';
         $ambient=synth_ambient_npc_prepare($db,$wireEvent);
         if ($ambient===null) {$stopReason='ineligible';return false;}
-        $GLOBALS['SYNTH_AMBIENT_NPC_EXCHANGE']=$ambient;
+        \Synth\Bootstrap::set('SYNTH_AMBIENT_NPC_EXCHANGE', $ambient);
     }
     $ownedPreparation=null;
     if (synth_protocol_owns_rechat($wireEvent)) {
@@ -3036,31 +3036,31 @@ function synth_protocol_bind_trigger_context($db, array $wireEvent, array &$game
     if ($actorStates !== []) {
         $structured['actor_states'] = synth_protocol_without_combat_targets($actorStates);
     }
-    $GLOBALS['SYNTH_TURN_ACTOR_STATES'] = $actorStates;
+    \Synth\Bootstrap::set('SYNTH_TURN_ACTOR_STATES', $actorStates);
     $questContext=synth_protocol_quest_prompt_context($db,$wireEvent,$context,$target,$selectedNarrator);
     $structured=array_replace($structured,$questContext);
     $structured['audience_observation']=synth_protocol_audience_observation($context['payload']);
-    $GLOBALS['SYNTH_TURN_ACTIVE_QUESTS']=$questContext['active_quests'];
+    \Synth\Bootstrap::set('SYNTH_TURN_ACTIVE_QUESTS', $questContext['active_quests']);
     $structured=array_replace($structured,synth_protocol_prompt_environment($context['payload']));
-    $GLOBALS['SYNTH_TURN_NEARBY_ITEMS'] = $structured['nearby_items'];
-    $GLOBALS['SYNTH_TURN_POINTS_OF_INTEREST'] = $structured['points_of_interest'];
+    \Synth\Bootstrap::set('SYNTH_TURN_NEARBY_ITEMS', $structured['nearby_items']);
+    \Synth\Bootstrap::set('SYNTH_TURN_POINTS_OF_INTEREST', $structured['points_of_interest']);
     $world = is_array($context['payload']['world'] ?? null) ? $context['payload']['world'] : [];
     if ($world !== []) {
         $structured['world'] = $world;
-        $GLOBALS['SYNTH_TURN_WORLD_STATE'] = $world;
+        \Synth\Bootstrap::set('SYNTH_TURN_WORLD_STATE', $world);
     }
     if ($ownedPreparation!==null || $audienceSnapshot !== '') {
         $structured['audience_snapshot'] = $audienceSnapshot;
         $gameRequest[4] = $audienceSnapshot;
     }
-    $GLOBALS['SYNTH_INPUT_TARGET'] = $actorName;
-    $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY'] = $target;
-    $GLOBALS['SYNTH_PLAYER_IDENTITY'] = $player;
-    $GLOBALS['SYNTH_EXTERNAL_REQUEST'] = $structured;
-    $GLOBALS['SYNTH_RESPONSE_SPEAKER_FORMID'] = strval($target['form_id'] ?? '');
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET', $actorName);
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET_IDENTITY', $target);
+    \Synth\Bootstrap::set('SYNTH_PLAYER_IDENTITY', $player);
+    \Synth\Bootstrap::set('SYNTH_EXTERNAL_REQUEST', $structured);
+    \Synth\Bootstrap::set('SYNTH_RESPONSE_SPEAKER_FORMID', strval($target['form_id'] ?? ''));
     $gameRequest[0] = $internalType;
     $gameRequest[3] = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    $GLOBALS['gameRequest'] = &$gameRequest;
+    \Synth\Bootstrap::bind('gameRequest', $gameRequest);
     return true;
 }
 
@@ -3080,7 +3080,7 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
         $gameRequest[0]='updateprofiles_batch_async';
         $gameRequest[3]=json_encode(['schema'=>'synth.profile_update_batch.v2','npcs'=>array_keys($bindings),
             'native_owner'=>$wireEvent,'native_bindings'=>$bindings],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-        $GLOBALS['gameRequest']=&$gameRequest;
+        \Synth\Bootstrap::bind('gameRequest', $gameRequest);
         return true;
     }
     $runtime = $db->fetchOne(
@@ -3117,6 +3117,6 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
         'turn_id' => strval($wireEvent['turn_id'] ?? ''),
         'generation' => intval($wireEvent['generation'] ?? 0),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    $GLOBALS['gameRequest'] = &$gameRequest;
+    \Synth\Bootstrap::bind('gameRequest', $gameRequest);
     return true;
 }

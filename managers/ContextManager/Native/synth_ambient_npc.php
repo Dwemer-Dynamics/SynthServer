@@ -190,10 +190,10 @@ function synth_ambient_npc_load_profile($db, array $event): array
         $connectorManager->setOldGlobals($connector);$profileManager->setOldGlobals($profile);
         $promptCharacter=$character;$promptCharacter['npc_name']=$pair['speaker']['display_name'];
         $npcMaster->setOldGlobalsFromCurrentNpcData($promptCharacter,false);
-        $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA']=$character;$GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA']=$profile;
-        $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$connector;$GLOBALS['active_profile']=$pair['profile_token'];
-        $GLOBALS['SYNTH_NAME']=$pair['speaker']['display_name'];
-        foreach ($inputKeys as $key) {if (array_key_exists($key,$inputSettings)) $GLOBALS[$key]=$inputSettings[$key];else unset($GLOBALS[$key]);}
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $character);\Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $profile);
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $connector);\Synth\Bootstrap::set('active_profile', $pair['profile_token']);
+        \Synth\Bootstrap::set('SYNTH_NAME', $pair['speaker']['display_name']);
+        foreach ($inputKeys as $key) {if (array_key_exists($key,$inputSettings)) \Synth\Bootstrap::set($key, $inputSettings[$key]);else \Synth\Bootstrap::forget($key);}
         return ['pair'=>$pair,'character'=>$character,'profile'=>$profile,'connector'=>$connector];
     },2000);
 }
