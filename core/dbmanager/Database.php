@@ -44,6 +44,7 @@ use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\LlmRequestLogDao;
 use Synth\Core\DbManager\Dao\LocationDao;
 use Synth\Core\DbManager\Dao\LocationStateDao;
+use Synth\Core\DbManager\Dao\MessageQueueDao;
 use Synth\Core\DbManager\Dao\MediaObjectDao;
 use Synth\Core\DbManager\Dao\MemoryBatchControlDao;
 use Synth\Core\DbManager\Dao\MemoryBatchControlEventDao;
@@ -143,6 +144,7 @@ final class Database
         NpcBiographyTemplateActorDao::class,
         NpcBiographyTemplateCustomDao::class,
         NpcProfileRuleDao::class,
+        MessageQueueDao::class,
         HistoryEventDao::class,
         ProtocolEventDao::class,
         RechatChainDao::class,
