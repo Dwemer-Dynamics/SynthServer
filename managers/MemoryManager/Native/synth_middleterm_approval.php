@@ -64,8 +64,7 @@ function synth_middleterm_approval_cte(string $prefix='WITH',bool $savedScope=fa
 // Keep the existing NPC-over-profile opt-out authoritative for both confirmation and later worker admission.
 function synth_middleterm_regeneration_enabled($db,int $actorId): bool
 {
-    $npc=$db->fetchOne('SELECT n.extended_data,p.metadata FROM public.core_npc n
-        LEFT JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id='.$actorId);
+    $npc=\Synth\Core\DbManager\Dao\NpcDao::current($db)->extendedDataWithProfileMetadata($actorId);
     if (!$npc) return false;
     $extended=json_decode($npc['extended_data']??'{}',true,512,JSON_THROW_ON_ERROR);
     $metadata=json_decode($npc['metadata']??'{}',true,512,JSON_THROW_ON_ERROR);
@@ -77,28 +76,18 @@ function synth_middleterm_approve_regeneration($db,array $input): array
 {
     $input=synth_middleterm_approval_input($input);
     return $db->withManagementTransaction(static function($connection) use($db,$input) {
-        if (!@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtext($1))',[$input['session_id']])
-            || !@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-middleterm:'||$1,0))",[$input['actor_identity_id']])) {
+        if (!\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->lockSession($input['session_id'])
+            || !\Synth\Core\DbManager\Dao\MiddletermInputDao::current($db)->lockActor($input['actor_identity_id'])) {
             throw new RuntimeException('Unable to lock regeneration approval.');
         }
-        $existing=@pg_query_params($connection,synth_middleterm_approval_cte()." SELECT q.history_event_id,
-            q.approval_payload->'scope'=$4::jsonb AS same_scope FROM regeneration_receipts q
-            WHERE q.session_id=$1 AND q.generation=$2 AND q.actor_identity_id=$3 AND q.approval_token=$5",
-            [$input['session_id'],$input['generation'],$input['actor_identity_id'],json_encode($input,JSON_THROW_ON_ERROR),$input['approval_token']]);
-        if (!$existing) throw new RuntimeException('Unable to check approval replay.');
-        if ($row=pg_fetch_assoc($existing)) {
+        $row=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->findReplay(synth_middleterm_approval_cte(),$input['session_id'],
+            $input['generation'],$input['actor_identity_id'],json_encode($input,JSON_THROW_ON_ERROR),$input['approval_token']),'Unable to check approval replay.');
+        if ($row) {
             if ($row['same_scope']!=='t') throw new LogicException('Confirmation token was already used for a different saved scope.');
             return ['approval_id'=>$row['history_event_id'],'availability'=>'recorded','replayed'=>true];
         }
-        $result=@pg_query_params($connection,"SELECT c.*,r.runtime_variant FROM public.core_runtime_context c
-            JOIN public.core_runtime_session r USING(session_id)
-            JOIN public.core_actor_identity a ON a.id=$4 AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
-            WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
-                AND r.state='active' AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id
-                AND c.history_event_id IS NOT NULL AND c.player_identity_id IS NOT NULL AND a.id<>c.player_identity_id",
-            [$input['session_id'],$input['generation'],$input['context_sequence'],$input['actor_identity_id']]);
-        if (!$result) throw new RuntimeException('Unable to read regeneration approval scope.');
-        $scope=pg_fetch_assoc($result);
+        $scope=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->approvalScope($input['session_id'],$input['generation'],
+            $input['context_sequence'],$input['actor_identity_id']),'Unable to read regeneration approval scope.');
         if (!$scope) throw new OutOfBoundsException('Regeneration approval scope or actor is unavailable.');
         if (!synth_middleterm_regeneration_enabled($db,intval($input['actor_identity_id']))) {
             throw new LogicException('Narrative generation is disabled for this actor.');
@@ -112,23 +101,11 @@ function synth_middleterm_approve_regeneration($db,array $input): array
         }
         $payload=json_encode(['schema'=>'synth.middleterm.regeneration.v1','scope'=>$input,'plan'=>$plan],JSON_THROW_ON_ERROR);
         if (strlen($payload)>1000000) throw new LengthException('Regeneration approval exceeds its storage bound.');
-        $result=@pg_query_params($connection,"WITH value AS (SELECT $1::jsonb AS payload), publication AS (
-            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-                synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-            VALUES('middleterm_regeneration','Confirmed native narrative regeneration',$2,0,$3,$3,'','','','derived',$4,$5,$6,NULL) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,NULL,$2,rowid,to_jsonb(publication)
-                ||jsonb_build_object('middleterm_regeneration',value.payload,'middleterm_regeneration_sha256',
-                    encode(sha256(convert_to(value.payload::text,'UTF8')),'hex')) FROM publication CROSS JOIN value RETURNING id
-        ) INSERT INTO public.core_middleterm_regeneration_approval(history_event_id,session_id,generation,context_sequence,
-            actor_identity_id,playthrough_id,narrative_id,approval_token,approval_payload,approval_sha256)
-            SELECT history.id,$4,$5,$6,$7,$2,$8,$9,value.payload,encode(sha256(convert_to(value.payload::text,'UTF8')),'hex')
-            FROM history CROSS JOIN value RETURNING history_event_id",
-            [$payload,$scope['playthrough_id'],time(),$scope['session_id'],$scope['generation'],$scope['snapshot_sequence'],
-                $input['actor_identity_id'],$input['narrative_id'],$input['approval_token']]);
-        if (!$result || !($saved=pg_fetch_assoc($result))) throw new RuntimeException('Unable to record regeneration approval.');
-        return ['approval_id'=>$saved['history_event_id'],'availability'=>'awaiting_new_snapshot','replayed'=>false];
+        $saved=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->record($payload,$scope['playthrough_id'],time(),
+            $scope['session_id'],$scope['generation'],$scope['snapshot_sequence'],$input['actor_identity_id'],$input['narrative_id'],$input['approval_token']),
+            'Unable to record regeneration approval.');
+        if ($saved===null) throw new RuntimeException('Unable to record regeneration approval.');
+        return ['approval_id'=>$saved,'availability'=>'awaiting_new_snapshot','replayed'=>false];
     });
 }
 
@@ -136,18 +113,8 @@ function synth_middleterm_approve_regeneration($db,array $input): array
 function synth_middleterm_approved_regeneration_plan($db,array $event,int $actorId,int $approvalId): array
 {
     if ($actorId<1 || $approvalId<1) throw new InvalidArgumentException('Approved regeneration requires exact actor and approval IDs.');
-    $result=$db->fetchOne(synth_middleterm_approval_cte()." SELECT q.*,c.history_event_id AS cutoff,
-        EXISTS(SELECT 1 FROM public.core_middleterm_regeneration_approval newer
-            WHERE newer.session_id=q.session_id AND newer.generation=q.generation AND newer.actor_identity_id=q.actor_identity_id
-                AND newer.narrative_id=q.narrative_id AND newer.history_event_id>q.history_event_id) AS superseded
-        FROM regeneration_receipts q JOIN public.core_runtime_context c ON c.session_id=q.session_id
-            AND c.generation=q.generation AND c.playthrough_id=q.playthrough_id
-        JOIN public.core_runtime_session r ON r.session_id=c.session_id AND r.active_generation=c.generation AND r.state='active'
-            AND r.playthrough_id=c.playthrough_id
-            AND r.runtime_variant=".$db->escapeLiteral($event['runtime_variant'])."
-        WHERE q.history_event_id=$approvalId AND q.actor_identity_id=$actorId
-            AND q.session_id=".$db->escapeLiteral($event['session_id']).' AND q.generation='.intval($event['generation'])
-            .' AND c.snapshot_sequence='.intval($event['context_sequence']));
+    $result=\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->approvedReceipt(synth_middleterm_approval_cte(),$approvalId,$actorId,
+        strval($event['runtime_variant']),strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']));
     if (!$result) throw new OutOfBoundsException('Approval does not belong to this active saved scope.');
     if ($result['superseded']==='t') return ['status'=>'superseded','approval_id'=>strval($approvalId)];
     if (intval($result['cutoff'])<$approvalId || intval($result['context_sequence'])>=intval($event['context_sequence'])) {
@@ -155,10 +122,9 @@ function synth_middleterm_approved_regeneration_plan($db,array $event,int $actor
     }
     if (!synth_middleterm_regeneration_enabled($db,$actorId)) return ['status'=>'disabled','approval_id'=>strval($approvalId)];
     $plan=synth_middleterm_regeneration_plan($db,$event,$actorId,intval($result['narrative_id']));
-    $same=$db->fetchOne('SELECT '. $db->escapeLiteral($result['approval_payload'])."::jsonb->'plan'="
-        .$db->escapeLiteral(json_encode($plan,JSON_THROW_ON_ERROR)).'::jsonb AS matches');
-    if (!$same) throw new RuntimeException('Unable to compare approved regeneration evidence.');
-    if ($same['matches']!=='t') return ['status'=>'plan_changed','approval_id'=>strval($approvalId),'plan_status'=>$plan['status']];
+    $same=\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->planMatches(strval($result['approval_payload']),json_encode($plan,JSON_THROW_ON_ERROR));
+    if ($same===null) throw new RuntimeException('Unable to compare approved regeneration evidence.');
+    if (!$same) return ['status'=>'plan_changed','approval_id'=>strval($approvalId),'plan_status'=>$plan['status']];
     return ['status'=>'ready','approval_id'=>strval($approvalId),'plan'=>$plan];
 }
 
@@ -166,12 +132,7 @@ function synth_middleterm_approved_regeneration_plan($db,array $event,int $actor
 function synth_middleterm_regeneration_budget($db,int $approvalId): array
 {
     if ($approvalId<1) throw new InvalidArgumentException('Regeneration budget requires an approval.');
-    $row=$db->fetchOne("SELECT COALESCE(SUM(j.attempts),0) AS attempts,MIN(j.deadline_at) AS deadline_at,
-        COALESCE(bool_or(j.state='failed'),false) AS failed,
-        COALESCE(MIN(j.deadline_at)<=clock_timestamp(),false) AS expired,
-        EXISTS(SELECT 1 FROM public.core_middleterm_replacement WHERE approval_id=$approvalId) AS published
-        FROM public.core_middleterm_input i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id AND j.job_type='middleterm'
-        WHERE i.regeneration_approval_id=$approvalId");
+    $row=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->middletermBudget($approvalId);
     if (!$row) throw new RuntimeException('Unable to read regeneration attempt budget.');
     return ['state'=>$row['published']==='t'?'succeeded':($row['failed']==='t'?'failed':($row['expired']==='t'?'expired':
         (intval($row['attempts'])>=3?'exhausted':'ready'))),'attempts'=>intval($row['attempts']),'deadline_at'=>$row['deadline_at']];
@@ -180,35 +141,8 @@ function synth_middleterm_regeneration_budget($db,int $approvalId): array
 // Report execution separately from saved visibility; never expose source text from an unacknowledged publication.
 function synth_middleterm_regeneration_status($db,array $event,int $actorId,int $narrativeId,int $cutoff,array $plan): array
 {
-    $row=$db->fetchOne(synth_middleterm_approval_cte()." SELECT raw.history_event_id AS approval_id,
-        valid.history_event_id IS NOT NULL AS valid,valid.context_sequence,valid.approval_token,
-        valid.approval_payload#>>'{plan,plan_sha256}' AS plan_sha256,
-        replacement.history_event_id AS publication_id,
-        replacement.target_history_event_id=raw.narrative_id AND replacement.session_id=raw.session_id
-            AND replacement.generation=raw.generation AND job.state='ready'
-            AND EXISTS(SELECT 1 FROM public.core_middleterm_result result JOIN public.core_middleterm_input input ON input.id=result.input_id
-                JOIN public.core_history_event history ON history.id=result.history_event_id AND history.session_id=input.session_id
-                    AND history.generation=input.generation AND history.request_id=input.request_id AND history.context_sequence=input.context_sequence
-                    AND history.playthrough_id=input.playthrough_id
-                WHERE result.history_event_id=replacement.history_event_id AND input.id=job.middleterm_input_id
-                    AND input.regeneration_approval_id=raw.history_event_id AND input.actor_identity_id=raw.actor_identity_id
-                    AND input.session_id=raw.session_id AND input.generation=raw.generation AND input.playthrough_id=raw.playthrough_id
-                    AND history.event_payload->>'middleterm_narrative'=result.narrative
-                    AND history.event_payload->>'middleterm_result_sha256'=result.result_sha256
-                    AND result.result_sha256=encode(sha256(convert_to(result.narrative,'UTF8')),'hex')) AS publication_recorded,
-        job.state AS job_state,job.attempts AS job_attempts,job.lease_until>clock_timestamp() AS lease_live,
-        job.deadline_at>clock_timestamp() AS deadline_live,
-        session.active_turn_id=job.turn_id AND session.active_turn_sequence::text=job.payload->>'context_sequence'
-            AND execution.state='complete' AS owner_live
-        FROM public.core_middleterm_regeneration_approval raw LEFT JOIN regeneration_receipts valid ON valid.history_event_id=raw.history_event_id
-        LEFT JOIN public.core_middleterm_replacement replacement ON replacement.approval_id=raw.history_event_id
-        LEFT JOIN LATERAL (SELECT j.* FROM public.core_middleterm_input i JOIN public.core_worker_job j ON j.middleterm_input_id=i.id
-            WHERE i.regeneration_approval_id=raw.history_event_id AND j.job_type='middleterm' ORDER BY j.id DESC LIMIT 1) job ON true
-        LEFT JOIN public.core_runtime_session session ON session.session_id=job.session_id AND session.active_generation=job.generation AND session.state='active'
-        LEFT JOIN public.core_request_execution execution ON execution.session_id=job.session_id AND execution.request_id=job.request_id
-            AND execution.generation=job.generation AND execution.turn_id=job.turn_id
-        WHERE raw.session_id=".$db->escapeLiteral($event['session_id']).' AND raw.generation='.intval($event['generation'])
-            ." AND raw.actor_identity_id=$actorId AND raw.narrative_id=$narrativeId ORDER BY raw.history_event_id DESC LIMIT 1");
+    $row=\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->statusRow(synth_middleterm_approval_cte(),strval($event['session_id']),
+        intval($event['generation']),$actorId,$narrativeId);
     if (!$row) return ['state'=>'none','approval_id'=>null,'attempts'=>0];
     $status=['state'=>'unavailable','approval_id'=>$row['approval_id'],'attempts'=>0];
     if ($row['valid']!=='t') return $status;
@@ -220,8 +154,7 @@ function synth_middleterm_regeneration_status($db,array $event,int $actorId,int 
         // A receipt before the selected frontier is not a claim that this snapshot already contains its replacement.
         $status['state']=intval($row['publication_id'])>$cutoff?'published_awaiting_snapshot':'succeeded';
         if ($status['state']==='succeeded') {
-            $visible=$db->fetchOne(synth_middleterm_history_cte($db,$event,'',$actorId)
-                .' SELECT history_event_id FROM middleterm_owned WHERE history_event_id='.intval($row['publication_id']));
+            $visible=\Synth\Core\DbManager\Dao\MiddletermResultDao::current($db)->ownedVisible(synth_middleterm_history_cte($db,$event,'',$actorId),intval($row['publication_id']));
             if (!$visible) $status['state']='unavailable';
         }
         return $status;
