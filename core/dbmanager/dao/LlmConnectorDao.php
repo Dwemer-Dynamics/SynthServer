@@ -103,4 +103,12 @@ final class LlmConnectorDao
     {
         return array_values($this->fresh()->getRepository(AbstractLlmConnector::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** The driver and max_tokens of one connector; null when it does not exist. @return array<string, mixed>|null */
+    public function driverAndMaxTokens(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id=?', [$id]);
+
+        return $row === false ? null : $row;
+    }
 }

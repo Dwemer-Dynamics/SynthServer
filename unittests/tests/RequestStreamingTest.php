@@ -886,7 +886,10 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString("r.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex')",$source);
         $worker=file_get_contents(dirname(__DIR__,2).'/workers/Memory/Native/synth_diary_jobs.php');
         $this->assertStringContainsString("hash('sha256',\$value['content'])",$worker);
-        $this->assertStringContainsString('CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END',$worker);
+        // The embedding attachment statement lives in the DAO the worker calls.
+        $this->assertStringContainsString('attachCheckpointEmbedding',$worker);
+        $dao=file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/DiaryResultDao.php');
+        $this->assertStringContainsString('CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END',$dao);
     }
 
     public function testNativeMemorySummaryRejectsInvalidFrozenRevision(): void

@@ -76,4 +76,12 @@ final class NpcDao
         }
         throw new \RuntimeException('The scoped character could not be created.');
     }
+
+    /** One NPC row locked FOR UPDATE until the caller's open transaction ends; null when it does not exist. @return array<string, mixed>|null */
+    public function lockRowById(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE id=? FOR UPDATE', [$id]);
+
+        return $row === false ? null : $row;
+    }
 }
