@@ -15,14 +15,14 @@ synthRuntimeBootstrapIfNeeded($localPath, [
 
 function stt($file)
 {
-    global $localPath;
+    $localPath = &\Synth\Bootstrap::ref('localPath');
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'Azure'
     $apiKey = trim(\Synth\Bootstrap::config("STT")["AZURE"]["API_KEY"] ?? '');
     if ($apiKey === '') {
         try {
-            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
-            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
+            if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) require_once($localPath . ("lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+            if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) \Synth\Bootstrap::set('db', new sql());
             require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
             $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('azure');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = $row['api_key'];

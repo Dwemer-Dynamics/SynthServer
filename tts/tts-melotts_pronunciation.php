@@ -6,8 +6,8 @@ This could be removed if meloTTS is retrained.
 If this file is missing from tts folder, meloTTS will revert to original behavior.
 */
 
-$GLOBALS['MELOTTS_PRONUNCIATION_ADJUST'] = true; // set false to hear original pronunciation
-$GLOBALS['MELOTTS_PRONUNCIATION_DEBUG'] = false; // for tests in tts-test.php, true to display changed text
+\Synth\Bootstrap::set('MELOTTS_PRONUNCIATION_ADJUST', true); // set false to hear original pronunciation
+\Synth\Bootstrap::set('MELOTTS_PRONUNCIATION_DEBUG', false); // for tests in tts-test.php, true to display changed text
 
 $s_pronunciation_test=""; // add here your changes for test
 
@@ -144,11 +144,11 @@ function adjust_pronunciation($s_text="", $language="EN") {
 }
 
 function pronunciation_adjust_enabled() {
-	return isset($GLOBALS['MELOTTS_PRONUNCIATION_ADJUST']) ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_ADJUST') : true; //disable only when explicit false
+	return \Synth\Bootstrap::has('MELOTTS_PRONUNCIATION_ADJUST') ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_ADJUST') : true; //disable only when explicit false
 }
 
 function pronunciation_debug_enabled() {
-	return isset($GLOBALS['MELOTTS_PRONUNCIATION_DEBUG']) ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_DEBUG') : false;
+	return \Synth\Bootstrap::has('MELOTTS_PRONUNCIATION_DEBUG') ? \Synth\Bootstrap::config('MELOTTS_PRONUNCIATION_DEBUG') : false;
 }
 
 ?>

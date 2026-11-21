@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/autoload.php';
+
 if (!function_exists('synthDbSetting')) {
     function synthDbSetting(string $key, string $default): string
     {
@@ -8,8 +10,8 @@ if (!function_exists('synthDbSetting')) {
             return trim(strval($envValue));
         }
 
-        if (isset($GLOBALS[$key]) && trim(strval($GLOBALS[$key])) !== '') {
-            return trim(strval($GLOBALS[$key]));
+        if (\Synth\Bootstrap::has($key) && trim(strval(\Synth\Bootstrap::config($key))) !== '') {
+            return trim(strval(\Synth\Bootstrap::config($key)));
         }
 
         return $default;

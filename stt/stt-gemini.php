@@ -18,8 +18,8 @@ define('PLAYER_TONE_CACHE', dirname(__FILE__) . '/../soundcache/_player_tone.jso
 
 function stt($filePath)
 {
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db())
-        $GLOBALS["db"] = new sql();
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db())
+        \Synth\Bootstrap::set('db', new sql());
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'gemini' or 'google'
     $apiKey = trim(\Synth\Bootstrap::config('STT')['GEMINI']['API_KEY'] ?? '');

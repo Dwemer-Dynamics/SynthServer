@@ -5,8 +5,8 @@ ini_set('display_errors', 1);
 
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR;
 
-$GLOBALS["ENGINE_ROOT"] = $enginePath;
-$GLOBALS["ENGINE_PATH"] = \Synth\Bootstrap::engineRoot(); // Todo, make this uniform
+\Synth\Bootstrap::set('ENGINE_ROOT', $enginePath);
+\Synth\Bootstrap::set('ENGINE_PATH', \Synth\Bootstrap::engineRoot()); // Todo, make this uniform
 
 require_once $enginePath . "lib/runtime_bootstrap.php";
 synthRuntimeBootstrap($enginePath, [
@@ -42,8 +42,8 @@ function synthResolveSummaryConnectorRuntime(): ?array
     }
 
     $connector->setOldGlobals($currentConnectorData);
-    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-    $GLOBALS["CURRENT_CONNECTOR"] = $currentConnectorData["driver"];
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData["driver"]);
 
     return [$connector, $currentConnectorData];
 }
@@ -522,8 +522,8 @@ Note: Memories are stored in memory_summary table, which holds info from events/
             $profile->setOldGlobals($currentProfileData);
             $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData);
         } else {
-            $GLOBALS["MINIME_T5"]   = true;
-            $GLOBALS["SYNTH_NAME"] = "%";
+            \Synth\Bootstrap::set('MINIME_T5', true);
+            \Synth\Bootstrap::set('SYNTH_NAME', "%");
         }
 
         if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
@@ -757,7 +757,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                 if ($row["classifier"] == "diary") {
                     $TEST_TEXT = $row["packed_message"];
                 } else {
-                    $GLOBALS["COMMAND_PROMPT"] = "";
+                    \Synth\Bootstrap::set('COMMAND_PROMPT', "");
                     $gameRequest               = ["summary"];
                     $CLFORMAT                  = "#Summary: {summary of events and dialogues}\n\n#Tags: {list of relevant twitter-like hashtags, include location names, enemies names, other NPC names}";
                     // Database Prompt (Memory Compaction)
@@ -819,7 +819,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     $prompt[] = ['role' => 'user',
                         'content'           => "Read #CHAT HISTORY# and write a extensive memory record about events and conversations. Use this format:\n$CLFORMAT"];
 
-                    $GLOBALS["FORCE_MAX_TOKENS"] = \Synth\Bootstrap::config("CONNECTOR")[\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["MAX_TOKENS_MEMORY"];
+                    \Synth\Bootstrap::set('FORCE_MAX_TOKENS', \Synth\Bootstrap::config("CONNECTOR")[\Synth\Bootstrap::config("CURRENT_CONNECTOR")]["MAX_TOKENS_MEMORY"]);
 
                     $buffer = $connectionHandler->fast_request($prompt, [], "summary");
 
@@ -894,7 +894,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     $db->execQuery("update core_memory SET native_vec = setweight(to_tsvector(coalesce(tags, '')),'A')||setweight(to_tsvector(coalesce(summary, '')),'B') where rowid={$row["rowid"]}");
                 }
 
-                // Original embedding call within loop (conditionally for $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])
+                // Original embedding call within loop (conditionally for \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])
                 // This was outside the 'noembed' check but was also within the $toUpdate loop which processed one item.
                 // Given the outer "Run a sync later" and the `&& false` on explicit embedding, this part might be redundant or only for `native_vec`.
                 // The `native_vec` is already updated above. Explicit `storeMemory` for full embedding is best left to the `sync` command.

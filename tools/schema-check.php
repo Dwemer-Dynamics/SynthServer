@@ -55,7 +55,7 @@ try {
     // Environment wins over conf.php, as in the runtime. conf.php is read in an isolated scope and never written.
     foreach (synthRuntimeReadConfiguration($root) as $name => $value) {
         if (str_starts_with($name, 'SYNTH_DB_') && is_scalar($value)) {
-            $GLOBALS[$name] = (string) $value;
+            \Synth\Bootstrap::set($name, (string) $value);
         }
     }
     $settings = synthDbConnectionSettings('synth');

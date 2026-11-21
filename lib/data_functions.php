@@ -133,7 +133,7 @@ if (!function_exists('synthResolveDiaryConnectorName')) {
                     if ($originalValue !== $candidate) {
                         Logger::warn("DIARY: Resolved configured diary provider to '{$candidate}'");
                     }
-                    $GLOBALS["CONNECTORS_DIARY"] = $candidate;
+                    \Synth\Bootstrap::set('CONNECTORS_DIARY', $candidate);
                 }
                 return $candidate;
             }
