@@ -6,7 +6,7 @@ namespace Synth\Managers\ExtensionManager;
 
 // Small JSON key/value file owned by one extension: data/extensions/<id>.json. It is not the database and does not
 // follow save loads. Values are anything JSON can hold; the file is capped so a bug cannot fill the disk.
-final class ExtensionStore
+final class ExtensionStore implements ExtensionStoreInterface
 {
     public const MAX_BYTES = 1048576;
 
@@ -27,6 +27,11 @@ final class ExtensionStore
         $all = $this->read();
         unset($all[$key]);
         $this->write($all);
+    }
+
+    public function keys(string $prefix = ''): array
+    {
+        return array_values(array_filter(array_map('strval', array_keys($this->read())), static fn(string $key): bool => str_starts_with($key, $prefix)));
     }
 
     private function read(): array

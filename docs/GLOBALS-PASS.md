@@ -220,3 +220,16 @@ Files under: processor
 | --- | --- | --- |
 | global uses (all non-test PHP) | 1560 | 1380 |
 | `require_once` | 1838 | 1838 |
+
+### W9-ui-api
+
+All uses in `ui/` and `api/` except two literal placeholders in `ui/function_editor.php` (`'{$GLOBALS["PLAYER_NAME"]}'`, `'{$GLOBALS["SYNTH_NAME"]}'` as text to replace). New helper `Bootstrap::exists($name)` replaces `array_key_exists($name, $GLOBALS)` (the API v2 dispatch save/restore). 12 `global $x;` statements became `ref()` bindings; the converter now also processes files that only contain `global` statements (it used to skip files without `$GLOBALS`).
+
+Stacked on W8-processor (#180).
+
+Files under: ui api
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 1380 | 1071 |
+| `require_once` | 1838 | 1838 |

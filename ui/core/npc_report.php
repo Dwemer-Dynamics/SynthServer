@@ -15,7 +15,7 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
 
-$GLOBALS["ENGINE_PATH"]=$enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once $enginePath . "lib/core/npc_master.class.php";
 require_once $enginePath . "lib/core/api_badge.class.php";

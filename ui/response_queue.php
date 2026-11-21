@@ -93,7 +93,7 @@ $webRoot = $uiPos !== false ? substr($scriptPath, 0, $uiPos) : '';
 $webRoot = $webRoot === '/' ? '' : rtrim($webRoot, '/');
 $limit = isset($_GET["limit"]) ? max(10, min(500, intval($_GET["limit"]))) : 100;
 $db = new sql();
-$GLOBALS["db"] = $db;
+\Synth\Bootstrap::set('db', $db);
 
 $summary = synthResponseQueueFetchOne(
     $db,

@@ -404,7 +404,7 @@ $falloutMonthToNumber = array_flip($falloutMonths);
 
 // Function to get days in a Fallout month
 function get_fallout_days_in_month($month) {
- global $falloutMonthLengths;
+ $falloutMonthLengths = &\Synth\Bootstrap::ref('falloutMonthLengths');
  return $falloutMonthLengths[$month] ?? 30;
 }
 
@@ -635,7 +635,7 @@ $gregorianDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 $falloutDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function renderCalendarHTML($calendar, $useFalloutTime) {
- global $gregorianDays, $falloutDays;
+ $gregorianDays = &\Synth\Bootstrap::ref('gregorianDays'); $falloutDays = &\Synth\Bootstrap::ref('falloutDays');
 
  $daysOfWeek = $useFalloutTime ? $falloutDays : $gregorianDays;
  $html = "<table class='calendar'>";

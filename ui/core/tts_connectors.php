@@ -38,7 +38,7 @@ function h($value): string
 
 function ttsPageUrl(array $params = []): string
 {
- global $isEmbed;
+ $isEmbed = &\Synth\Bootstrap::ref('isEmbed');
  $base = 'tts_connectors.php';
  if ($isEmbed && !isset($params['embed'])) {
  $params['embed'] = '1';

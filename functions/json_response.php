@@ -48,6 +48,13 @@ require_once __DIR__ . '/../lib/classes/Logger.php';
                     call_user_func($hook);
                 }
             }
+            // Extension filter (API 1.1 dialogue.response.schema): may add fields to the answer format, never change one.
+            require_once dirname(__DIR__).'/managers/ExtensionManager/ExtensionManager.php';
+            $schemaFields = is_array(\Synth\Bootstrap::config("responseTemplate")) ? \Synth\Bootstrap::config("responseTemplate") : [];
+            $schemaResult = \Synth\Managers\ExtensionManager\ExtensionManager::filterHook(\Synth\Managers\ExtensionManager\Hooks::DIALOGUE_RESPONSE_SCHEMA, ['fields' => $schemaFields]);
+            foreach (array_diff_key($schemaResult['fields'], $schemaFields) as $schemaName => $schemaDescription) {
+                \Synth\Bootstrap::setAt('responseTemplate', $schemaName, $schemaDescription);
+            }
         }
     }
 
