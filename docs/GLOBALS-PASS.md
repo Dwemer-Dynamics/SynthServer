@@ -329,5 +329,5 @@ Directory: drivers. `tools/require-prune.php` deleted 13 class-file `require_onc
 
 | | before | after |
 | --- | --- | --- |
-| `require_once` (all non-test PHP) | 1768 | 0 |
+| `require_once` (all non-test PHP) | 1768 | 1755 |
 | global uses | 64 | 64 |
