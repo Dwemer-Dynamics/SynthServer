@@ -53,11 +53,6 @@ function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback
 }
 
 // New profile system
-require_once $enginePath . "lib/core/api_badge.class.php";
-require_once $enginePath . "lib/core/llm_connector.class.php";
-require_once $enginePath . "lib/core/tts_connector.class.php";
-require_once $enginePath . "lib/core/npc_master.class.php";
-require_once $enginePath . "lib/core/core_profiles.class.php";
 
 SaveOriginalSYNTHName();
 \Synth\Bootstrap::set('SYNTH_NAME', "(actor)");
@@ -121,7 +116,6 @@ if (! \Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA')) {
     $playerBio = '';
     $playerSpeechStyle = '';
     try {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
         $player = new Player();
         $playerAppearance = trim((string)($player->get('appearance') ?? ''));
         $playerBio = ResolvePlayerBackstory($player);
