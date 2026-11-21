@@ -328,17 +328,17 @@ class STTConnector
 
         $driver = $this->normalizeDriver($currentConnectorData['driver'] ?? '');
         if ($driver === '') {
-            $GLOBALS["STTFUNCTION"] = 'none';
+            \Synth\Bootstrap::set('STTFUNCTION', 'none');
             return;
         }
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
-        $GLOBALS["STTFUNCTION"] = $driver;
-        if (!isset($GLOBALS["STT"]) || !is_array(\Synth\Bootstrap::config("STT"))) {
-            $GLOBALS["STT"] = [];
+        \Synth\Bootstrap::set('STTFUNCTION', $driver);
+        if (!\Synth\Bootstrap::has('STT') || !is_array(\Synth\Bootstrap::config("STT"))) {
+            \Synth\Bootstrap::set('STT', []);
         }
         if ($providerKey !== '') {
-            $GLOBALS["STT"][$providerKey] = [];
+            \Synth\Bootstrap::setAt('STT', $providerKey, []);
         }
 
         $metadata = $this->decodeMetadata($currentConnectorData['metadata'] ?? '{}');
@@ -358,7 +358,7 @@ class STTConnector
                 if ($value === '' || $value === null) {
                     continue;
                 }
-                $GLOBALS["STT"][$providerKey][$key] = $value;
+                \Synth\Bootstrap::setPath('STT', [$providerKey, $key], $value);
             }
         }
     }
@@ -377,7 +377,7 @@ class STTConnector
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
         $metadata = [];
-        if ($providerKey !== '' && isset($GLOBALS["STT"][$providerKey]) && is_array(\Synth\Bootstrap::config("STT")[$providerKey])) {
+        if ($providerKey !== '' && isset(\Synth\Bootstrap::config('STT')[$providerKey]) && is_array(\Synth\Bootstrap::config("STT")[$providerKey])) {
             $metadata = \Synth\Bootstrap::config("STT")[$providerKey];
         }
 

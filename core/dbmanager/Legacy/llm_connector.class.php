@@ -258,7 +258,7 @@ class LLMConnector
         return $this->create($original);
     }
 
-    // Explicit OpenAI-compatible config for the native typed turn; never touches $GLOBALS["CONNECTOR"].
+    // Explicit OpenAI-compatible config for the native typed turn; never touches \Synth\Bootstrap::config("CONNECTOR").
     public function dialogueProviderConfig(array $row): array
     {
         $row = $this->normalizeConnectorRecord($row);
@@ -297,38 +297,38 @@ class LLMConnector
                 );
             } elseif (!$quickstartManaged && self::$quickstartTransportDefaults !== null) {
                 foreach (['disable_streaming', 'lmstudio_compat'] as $key) {
-                    unset($GLOBALS["CONNECTOR"]["openaijson"][$key]);
+                    \Synth\Bootstrap::unsetPath('CONNECTOR', ["openaijson", $key]);
                     if (array_key_exists($key, self::$quickstartTransportDefaults)) {
-                        $GLOBALS["CONNECTOR"]["openaijson"][$key] = self::$quickstartTransportDefaults[$key];
+                        \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", $key], self::$quickstartTransportDefaults[$key]);
                     }
                 }
                 self::$quickstartTransportDefaults = null;
             }
-            unset($GLOBALS["CONNECTOR"]["openaijson"]["quickstart_managed"], $GLOBALS["CONNECTOR"]["openaijson"]["quickstart_timeout"]);
+            \Synth\Bootstrap::unsetPath('CONNECTOR', ["openaijson", "quickstart_managed"]); \Synth\Bootstrap::unsetPath('CONNECTOR', ["openaijson", "quickstart_timeout"]);
 
             $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
-            $GLOBALS["CONNECTOR"]["openaijson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
-            $GLOBALS["CONNECTOR"]["openaijson"]["model"] = $currentConnectorData["model"] ?? 'google/gemini-2.5-flash';
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "url"], $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "model"], $currentConnectorData["model"] ?? 'google/gemini-2.5-flash');
 
-            $GLOBALS["CONNECTOR"]["openaijson"]["reasoning_model"] = $currentConnectorData["reasoning_model"] ?? false;
-            $GLOBALS["CONNECTOR"]["openaijson"]["max_tokens"] = $currentConnectorData["max_tokens"] ?? '1024';
-            $GLOBALS["CONNECTOR"]["openaijson"]["temperature"] = $currentConnectorData["temperature"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["presence_penalty"] = $currentConnectorData["presence_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["frequency_penalty"] = $currentConnectorData["frequency_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["repetition_penalty"] = $currentConnectorData["repetition_penalty"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["top_p"] = $currentConnectorData["top_p"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["top_k"] = $currentConnectorData["top_k"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["min_p"] = $currentConnectorData["min_p"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["top_a"] = $currentConnectorData["top_a"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openaijson"]["ENFORCE_JSON"] = $currentConnectorData["enforce_json"] ?? true;
-            $GLOBALS["CONNECTOR"]["openaijson"]["PREFILL_JSON"] = $currentConnectorData["prefill_json"] ?? false;
-            $GLOBALS["CONNECTOR"]["openaijson"]["API_KEY"] = $apiKey;
-            $GLOBALS["CONNECTOR"]["openaijson"]["json_schema"] = $currentConnectorData["json_schema"] ?? false;
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "reasoning_model"], $currentConnectorData["reasoning_model"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "max_tokens"], $currentConnectorData["max_tokens"] ?? '1024');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "temperature"], $currentConnectorData["temperature"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "presence_penalty"], $currentConnectorData["presence_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "frequency_penalty"], $currentConnectorData["frequency_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "repetition_penalty"], $currentConnectorData["repetition_penalty"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "top_p"], $currentConnectorData["top_p"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "top_k"], $currentConnectorData["top_k"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "min_p"], $currentConnectorData["min_p"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "top_a"], $currentConnectorData["top_a"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "ENFORCE_JSON"], $currentConnectorData["enforce_json"] ?? true);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "PREFILL_JSON"], $currentConnectorData["prefill_json"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "API_KEY"], $apiKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", "json_schema"], $currentConnectorData["json_schema"] ?? false);
 
             // Apply this connector's metadata after restoring transport defaults.
             foreach ($metadata as $key => $value) {
-                $GLOBALS["CONNECTOR"]["openaijson"][$key] = $value;
+                \Synth\Bootstrap::setPath('CONNECTOR', ["openaijson", $key], $value);
             }
 
         } else if ($currentConnectorData["driver"] == "koboldcppjson") {
@@ -341,35 +341,35 @@ class LLMConnector
             if (isset($currentConnectorData['repetition_penalty'])) $settings['rep_pen'] = $currentConnectorData['repetition_penalty'];
             $settings['API_KEY'] = $this->getApiKeyForBadge($currentConnectorData['api_key_id'] ?? null, $currentConnectorData);
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
-            $GLOBALS['CONNECTOR']['koboldcppjson'] = array_replace($settings, is_array($metadata) ? $metadata : []);
+            \Synth\Bootstrap::setAt('CONNECTOR', 'koboldcppjson', array_replace($settings, is_array($metadata) ? $metadata : []));
 
         } else if ($currentConnectorData["driver"] == "openrouterjson") {
 
             $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["model"] = $currentConnectorData["model"] ?? 'z-ai/glm-4.7';
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["PROVIDER"] = $currentConnectorData["provider"] ?? '';
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["reasoning_model"] = $currentConnectorData["reasoning_model"] ?? false;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["max_tokens"] = $currentConnectorData["max_tokens"] ?? '1024';
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["temperature"] = $currentConnectorData["temperature"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["presence_penalty"] = $currentConnectorData["presence_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["frequency_penalty"] = $currentConnectorData["frequency_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["repetition_penalty"] = $currentConnectorData["repetition_penalty"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["top_p"] = $currentConnectorData["top_p"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["top_k"] = $currentConnectorData["top_k"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["min_p"] = $currentConnectorData["min_p"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["top_a"] = $currentConnectorData["top_a"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["ENFORCE_JSON"] = $currentConnectorData["enforce_json"] ?? true;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["PREFILL_JSON"] = $currentConnectorData["prefill_json"] ?? false;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["API_KEY"] = $apiKey;
-            $GLOBALS["CONNECTOR"]["openrouterjson"]["json_schema"] = $currentConnectorData["json_schema"] ?? false;
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "url"], $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "model"], $currentConnectorData["model"] ?? 'z-ai/glm-4.7');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "PROVIDER"], $currentConnectorData["provider"] ?? '');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "reasoning_model"], $currentConnectorData["reasoning_model"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "max_tokens"], $currentConnectorData["max_tokens"] ?? '1024');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "temperature"], $currentConnectorData["temperature"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "presence_penalty"], $currentConnectorData["presence_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "frequency_penalty"], $currentConnectorData["frequency_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "repetition_penalty"], $currentConnectorData["repetition_penalty"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "top_p"], $currentConnectorData["top_p"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "top_k"], $currentConnectorData["top_k"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "min_p"], $currentConnectorData["min_p"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "top_a"], $currentConnectorData["top_a"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "ENFORCE_JSON"], $currentConnectorData["enforce_json"] ?? true);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "PREFILL_JSON"], $currentConnectorData["prefill_json"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "API_KEY"], $apiKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", "json_schema"], $currentConnectorData["json_schema"] ?? false);
 
             // Decode metadata and extended_data if available
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
-                    $GLOBALS["CONNECTOR"]["openrouterjson"][$key] = $value;
+                    \Synth\Bootstrap::setPath('CONNECTOR', ["openrouterjson", $key], $value);
                 }
             }
 
@@ -377,29 +377,29 @@ class LLMConnector
 
             $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR openaijson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["url"] = $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions';
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["model"] = $currentConnectorData["model"] ?? 'google/gemini-2.5-flash';
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["PROVIDER"] = $currentConnectorData["provider"] ?? '';
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["reasoning_model"] = $currentConnectorData["reasoning_model"] ?? false;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["max_tokens"] = $currentConnectorData["max_tokens"] ?? '1024';
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["temperature"] = $currentConnectorData["temperature"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["presence_penalty"] = $currentConnectorData["presence_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["frequency_penalty"] = $currentConnectorData["frequency_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["repetition_penalty"] = $currentConnectorData["repetition_penalty"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["top_p"] = $currentConnectorData["top_p"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["top_k"] = $currentConnectorData["top_k"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["min_p"] = $currentConnectorData["min_p"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["top_a"] = $currentConnectorData["top_a"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["ENFORCE_JSON"] = $currentConnectorData["enforce_json"] ?? true;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["PREFILL_JSON"] = $currentConnectorData["prefill_json"] ?? false;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["API_KEY"] = $apiKey;
-            $GLOBALS["CONNECTOR"]["google_openaijson"]["json_schema"] = $currentConnectorData["json_schema"] ?? false;
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "url"], $currentConnectorData["url"] ?? 'https://openrouter.ai/api/v1/chat/completions');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "model"], $currentConnectorData["model"] ?? 'google/gemini-2.5-flash');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "PROVIDER"], $currentConnectorData["provider"] ?? '');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "reasoning_model"], $currentConnectorData["reasoning_model"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "max_tokens"], $currentConnectorData["max_tokens"] ?? '1024');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "temperature"], $currentConnectorData["temperature"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "presence_penalty"], $currentConnectorData["presence_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "frequency_penalty"], $currentConnectorData["frequency_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "repetition_penalty"], $currentConnectorData["repetition_penalty"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "top_p"], $currentConnectorData["top_p"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "top_k"], $currentConnectorData["top_k"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "min_p"], $currentConnectorData["min_p"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "top_a"], $currentConnectorData["top_a"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "ENFORCE_JSON"], $currentConnectorData["enforce_json"] ?? true);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "PREFILL_JSON"], $currentConnectorData["prefill_json"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "API_KEY"], $apiKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", "json_schema"], $currentConnectorData["json_schema"] ?? false);
 
             // Decode metadata and extended_data if available
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
-                    $GLOBALS["CONNECTOR"]["google_openaijson"][$key] = $value;
+                    \Synth\Bootstrap::setPath('CONNECTOR', ["google_openaijson", $key], $value);
                 }
             }
 
@@ -407,28 +407,28 @@ class LLMConnector
 
             $apiKey = $this->getApiKeyForBadge($currentConnectorData["api_key_id"] ?? null, $currentConnectorData);
             // error_log("[CORE SYSTEM] Using new profile system CONNECTOR groqjson {$currentConnectorData["id"]} {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
-            $GLOBALS["CONNECTOR"]["groqjson"]["url"] = $currentConnectorData["url"] ?? 'https://api.groq.com/openai/v1/chat/completions';
-            $GLOBALS["CONNECTOR"]["groqjson"]["model"] = $currentConnectorData["model"] ?? 'llama-3.3-70b-versatile';
-            $GLOBALS["CONNECTOR"]["groqjson"]["reasoning_model"] = $currentConnectorData["reasoning_model"] ?? false;
-            $GLOBALS["CONNECTOR"]["groqjson"]["max_tokens"] = $currentConnectorData["max_tokens"] ?? '1024';
-            $GLOBALS["CONNECTOR"]["groqjson"]["temperature"] = $currentConnectorData["temperature"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["presence_penalty"] = $currentConnectorData["presence_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["frequency_penalty"] = $currentConnectorData["frequency_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["repetition_penalty"] = $currentConnectorData["repetition_penalty"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["top_p"] = $currentConnectorData["top_p"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["top_k"] = $currentConnectorData["top_k"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["min_p"] = $currentConnectorData["min_p"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["top_a"] = $currentConnectorData["top_a"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["groqjson"]["ENFORCE_JSON"] = $currentConnectorData["enforce_json"] ?? true;
-            $GLOBALS["CONNECTOR"]["groqjson"]["PREFILL_JSON"] = $currentConnectorData["prefill_json"] ?? false;
-            $GLOBALS["CONNECTOR"]["groqjson"]["API_KEY"] = $apiKey;
-            $GLOBALS["CONNECTOR"]["groqjson"]["json_schema"] = false; // Force disabled for Groq - not supported on most models
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "url"], $currentConnectorData["url"] ?? 'https://api.groq.com/openai/v1/chat/completions');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "model"], $currentConnectorData["model"] ?? 'llama-3.3-70b-versatile');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "reasoning_model"], $currentConnectorData["reasoning_model"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "max_tokens"], $currentConnectorData["max_tokens"] ?? '1024');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "temperature"], $currentConnectorData["temperature"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "presence_penalty"], $currentConnectorData["presence_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "frequency_penalty"], $currentConnectorData["frequency_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "repetition_penalty"], $currentConnectorData["repetition_penalty"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "top_p"], $currentConnectorData["top_p"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "top_k"], $currentConnectorData["top_k"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "min_p"], $currentConnectorData["min_p"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "top_a"], $currentConnectorData["top_a"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "ENFORCE_JSON"], $currentConnectorData["enforce_json"] ?? true);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "PREFILL_JSON"], $currentConnectorData["prefill_json"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "API_KEY"], $apiKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", "json_schema"], false); // Force disabled for Groq - not supported on most models
 
             // Decode metadata and extended_data if available
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
-                    $GLOBALS["CONNECTOR"]["groqjson"][$key] = $value;
+                    \Synth\Bootstrap::setPath('CONNECTOR', ["groqjson", $key], $value);
                 }
             }
 
@@ -442,28 +442,28 @@ class LLMConnector
                 }
             }
 
-            $GLOBALS["CONNECTOR"]["player2json"]["url"] = $currentConnectorData["url"] ?? 'http://127.0.0.1:4315/v1/chat/completions';
-            $GLOBALS["CONNECTOR"]["player2json"]["model"] = $currentConnectorData["model"] ?? '';
-            $GLOBALS["CONNECTOR"]["player2json"]["reasoning_model"] = $currentConnectorData["reasoning_model"] ?? false;
-            $GLOBALS["CONNECTOR"]["player2json"]["max_tokens"] = $currentConnectorData["max_tokens"] ?? '1024';
-            $GLOBALS["CONNECTOR"]["player2json"]["temperature"] = $currentConnectorData["temperature"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["presence_penalty"] = $currentConnectorData["presence_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["frequency_penalty"] = $currentConnectorData["frequency_penalty"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["repetition_penalty"] = $currentConnectorData["repetition_penalty"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["top_p"] = $currentConnectorData["top_p"] ?? 1.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["top_k"] = $currentConnectorData["top_k"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["min_p"] = $currentConnectorData["min_p"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["top_a"] = $currentConnectorData["top_a"] ?? 0.0;
-            $GLOBALS["CONNECTOR"]["player2json"]["ENFORCE_JSON"] = $currentConnectorData["enforce_json"] ?? true;
-            $GLOBALS["CONNECTOR"]["player2json"]["PREFILL_JSON"] = $currentConnectorData["prefill_json"] ?? false;
-            $GLOBALS["CONNECTOR"]["player2json"]["API_KEY"] = $gameKey;
-            $GLOBALS["CONNECTOR"]["player2json"]["player2_game_key"] = $gameKey;
-            $GLOBALS["CONNECTOR"]["player2json"]["json_schema"] = $currentConnectorData["json_schema"] ?? false;
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "url"], $currentConnectorData["url"] ?? 'http://127.0.0.1:4315/v1/chat/completions');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "model"], $currentConnectorData["model"] ?? '');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "reasoning_model"], $currentConnectorData["reasoning_model"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "max_tokens"], $currentConnectorData["max_tokens"] ?? '1024');
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "temperature"], $currentConnectorData["temperature"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "presence_penalty"], $currentConnectorData["presence_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "frequency_penalty"], $currentConnectorData["frequency_penalty"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "repetition_penalty"], $currentConnectorData["repetition_penalty"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "top_p"], $currentConnectorData["top_p"] ?? 1.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "top_k"], $currentConnectorData["top_k"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "min_p"], $currentConnectorData["min_p"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "top_a"], $currentConnectorData["top_a"] ?? 0.0);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "ENFORCE_JSON"], $currentConnectorData["enforce_json"] ?? true);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "PREFILL_JSON"], $currentConnectorData["prefill_json"] ?? false);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "API_KEY"], $gameKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "player2_game_key"], $gameKey);
+            \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", "json_schema"], $currentConnectorData["json_schema"] ?? false);
 
             $metadata = json_decode($currentConnectorData['metadata'] ?? '{}', true);
             if (is_array($metadata)) {
                 foreach ($metadata as $key => $value) {
-                    $GLOBALS["CONNECTOR"]["player2json"][$key] = $value;
+                    \Synth\Bootstrap::setPath('CONNECTOR', ["player2json", $key], $value);
                 }
             }
 
@@ -482,8 +482,8 @@ class LLMConnector
         require_once(dirname(__DIR__, 3) . '/drivers/llm/LlmWrapper.php');
         $connector = \Synth\Drivers\Llm\LlmWrapper::legacyConnector(strval($currentConnectorData["driver"]), \Synth\Bootstrap::enginePath() ?? null, $currentConnectorData);
 
-        $GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"] = false;
-        $GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"] = "";
+        \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);
+        \Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', "");
         error_log("[CORE SYSTEM] Action enforcement prompt hard-disabled for connector ID {$currentConnectorData["id"]} ({$currentConnectorData["driver"]}/{$currentConnectorData["model"]})");
         return $connector;
 

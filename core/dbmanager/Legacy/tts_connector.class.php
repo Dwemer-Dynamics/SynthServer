@@ -521,7 +521,7 @@ class TTSConnector
         }
 
         $providerKey = $this->getProviderKeyFromDriver($driver);
-        if ($providerKey !== '' && isset($GLOBALS["TTS"][$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey])) {
+        if ($providerKey !== '' && isset(\Synth\Bootstrap::config('TTS')[$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey])) {
             $resolved = $this->resolveUrlFromMetadata(\Synth\Bootstrap::config("TTS")[$providerKey]);
             if ($resolved !== '') {
                 return $resolved;
@@ -662,21 +662,21 @@ class TTSConnector
         }
 
         $settings = $this->runtimeSettings($currentTTSData);
-        $GLOBALS["SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID"] = $settings['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'];
-        $GLOBALS["TTSFUNCTION"] = $settings['TTSFUNCTION'];
-        $GLOBALS["TTS_FUNCTION"] = $settings['TTS_FUNCTION'];
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID', $settings['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID']);
+        \Synth\Bootstrap::set('TTSFUNCTION', $settings['TTSFUNCTION']);
+        \Synth\Bootstrap::set('TTS_FUNCTION', $settings['TTS_FUNCTION']);
         if ($settings['provider_key'] === '') {
             return;
         }
         $providerKey = $settings['provider_key'];
 
-        if (!isset($GLOBALS["TTS"]) || !is_array(\Synth\Bootstrap::config("TTS"))) {
-            $GLOBALS["TTS"] = [];
+        if (!\Synth\Bootstrap::has('TTS') || !is_array(\Synth\Bootstrap::config("TTS"))) {
+            \Synth\Bootstrap::set('TTS', []);
         }
-        $GLOBALS["TTS"][$providerKey] = $settings['TTS'][$providerKey];
+        \Synth\Bootstrap::setAt('TTS', $providerKey, $settings['TTS'][$providerKey]);
 
-        if (!empty($GLOBALS["TTS"][$providerKey]['language']) && !empty($GLOBALS["LANG_LLM_XTTS"])) {
-            $GLOBALS["LLM_LANG"] = preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval(\Synth\Bootstrap::config("TTS")[$providerKey]['language']))));
+        if (!empty(\Synth\Bootstrap::config('TTS')[$providerKey]['language']) && !empty(\Synth\Bootstrap::config('LANG_LLM_XTTS'))) {
+            \Synth\Bootstrap::set('LLM_LANG', preg_replace('/[^a-z\-]/i', '', strtolower(trim(strval(\Synth\Bootstrap::config("TTS")[$providerKey]['language'])))));
         }
     }
 
