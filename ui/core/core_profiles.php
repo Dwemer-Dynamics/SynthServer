@@ -1277,8 +1277,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_import_rule"])
 if ($profileAction && isset($_POST["create_blank"])) {
     try {
         $defaultMeta = json_encode(CoreProfile::defaultMetadata(), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-        $row = \Synth\Bootstrap::db()->fetchOne("INSERT INTO core_profiles (label, metadata) VALUES ('New Profile', '".pg_escape_string($defaultMeta)."') RETURNING id");
-        $newId = is_array($row) ? ($row['id'] ?? '') : '';
+        $newId = (string)\Synth\Core\DbManager\Dao\ProfileDao::current(\Synth\Bootstrap::db())->insertBlank('New Profile', $defaultMeta);
         $redir = 'core_profiles.php' . ($newId !== '' ? ('?edit=' . urlencode($newId)) : '');
         header("Location: $redir");
         exit;

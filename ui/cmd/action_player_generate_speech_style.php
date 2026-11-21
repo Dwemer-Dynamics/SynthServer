@@ -62,13 +62,7 @@ try {
         $playerName = "Player";
     }
 
-    $rows = $db->fetchAll(
-        "SELECT data, type, gamets, ts
-         FROM core_context_event
-         WHERE type IN ('inputtext','inputtext_s')
-         ORDER BY gamets DESC, ts DESC
-         LIMIT 200"
-    );
+    $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPlayerInputs(200);
 
     if (!is_array($rows) || empty($rows)) {
         echo json_encode([

@@ -56,19 +56,11 @@ function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileDat
             if ($narrator) {
                 // The current canonical snapshot owns Narrator history; profile IDs and roleplay names cannot redirect it.
                 if (!synth_protocol_current_context($db,$event)) return '';
-                $actorId=intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
-                    .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0);
+                $actorId=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->playerIdentityId(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']));
             }
             $entry=synth_diary_visible($db,$event,$actorId,$narrator);
         } else {
-            $escapedName = $db->escape($safeNpcName);
-            $entry = $db->fetchOne(
-                "SELECT topic, summary AS content
-                 FROM public.core_memory
-                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower('{$escapedName}')
-                 ORDER BY gamets DESC, localts DESC, rowid DESC
-                 LIMIT 1"
-            );
+            $entry = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->latestDiaryEntry($safeNpcName);
         }
     } catch (Throwable $e) {
         Logger::warn("[LATEST_DIARY_CONTEXT] Unable to load diary context for {$safeNpcName}: " . $e->getMessage());

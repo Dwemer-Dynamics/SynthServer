@@ -901,7 +901,7 @@ final class RequestStreamingTest extends TestCase
     public function testNativeMemoryJobsKeepEvidenceAndInputLocks(): void
     {
         $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/MemoryBatchDao.php'));
         $this->assertStringContainsString('synth_memory_lock_job_input($connection,$db,$event,$jobId)',$source);
     }
 
@@ -1055,7 +1055,7 @@ final class RequestStreamingTest extends TestCase
             catch (InvalidArgumentException $error) { $this->assertStringStartsWith('Invalid memory vector',$error->getMessage()); }
         }
         $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory_recall.php');
-        foreach (['synth_memory_visible_batch_cte','pg_query_params','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
+        foreach (['synth_memory_visible_batch_cte','recallCandidates','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
         $this->assertStringNotContainsString('FROM public.core_memory',$source);
@@ -1119,8 +1119,8 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame('Memory providers require an idle database connection',$error->getMessage());
         }
         $this->assertFalse($called);
-        $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
-        foreach (['attempts<3',"INTERVAL '2 minutes'",'clock_timestamp()','lease_token=$5',"last_error='provider_failed'"] as $guard) {
+        $source = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/WorkerJobDao.php');
+        foreach (['attempts<3',"INTERVAL '2 minutes'",'clock_timestamp()','lease_token=?',"last_error='provider_failed'"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
     }
@@ -1144,11 +1144,12 @@ final class RequestStreamingTest extends TestCase
         $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
         $this->assertStringContainsString('withNativeRequestLock',$source);
         $this->assertStringContainsString('synth_memory_visible_batch_cte($db, $event)',$source);
-        $this->assertStringContainsString('pg_query_params',$source);
-        $this->assertStringNotContainsString('FROM memory_v',$source);
-        $this->assertStringContainsString('memory_next_group',$source);
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
-        $this->assertStringContainsString("hashtextextended('synth-memory:'",$source);
+        $this->assertStringContainsString('uncoveredMemoryEvents',$source);
+        $dao = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/MemoryBatchDao.php');
+        $this->assertStringNotContainsString('FROM memory_v',$dao);
+        $this->assertStringContainsString('memory_next_group',$dao);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$dao);
+        $this->assertStringContainsString("hashtextextended('synth-memory:'",$dao);
         $this->assertStringContainsString('}, 2000);',$source);
     }
 
@@ -1160,12 +1161,13 @@ final class RequestStreamingTest extends TestCase
         foreach ([$names,$keywords] as $reader) {
             $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent', $reader);
             $this->assertStringContainsString("synthBuildChatDeliveryStateSql('delivery_state')", $reader);
-            $this->assertStringContainsString('ORDER BY gamets DESC,ts DESC,rowid DESC', $reader);
+            $this->assertStringContainsString('ORDER BY gamets DESC,ts DESC,rowid DESC', file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/HistoryEventDao.php'));
             $this->assertStringContainsString('max(1, min(150, intval($m)))', $reader);
         }
-        $this->assertStringContainsString('speaker_identity_id IN (reader_identity_id,reader_player_id)', $keywords);
+        $history = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/HistoryEventDao.php');
+        $this->assertStringContainsString('speaker_identity_id IN (reader_identity_id,reader_player_id)', $history);
         $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent, $npcname)', $keywords);
-        $this->assertStringContainsString("\$types === '' ? []", $names);
+        $this->assertStringContainsString('if ($types === []) return [];', $history);
     }
 
     public function testNativeHistoryUsesBoundedImmutableAncestryAndLegacyDeliveryCannotMutateIt(): void
@@ -1277,11 +1279,19 @@ final class RequestStreamingTest extends TestCase
             'turn_id'=>'turn:halt','generation'=>2,'runtime_variant'=>'flat','context_sequence'=>0,
             'client_version'=>'test','runtime_version'=>'1.11.240','type'=>'halt',
             'capabilities'=>['runtime.retirement'],'payload'=>new stdClass()];
-        $this->assertSame('accepted',synth_protocol_claim_request($db,$event)['status']);
-        $sql = implode("\n",$db->writes);
-        $this->assertStringContainsString('INSERT INTO public.core_runtime_session',$sql);
-        $this->assertStringContainsString("SET state='halted'",$sql);
-        $this->assertStringContainsString("WHERE session_id='session:retired'",$sql);
+        $calls = [];
+        DaoTestDoubles::claimRecorder($calls);
+        try {
+            $this->assertSame('accepted',synth_protocol_claim_request($db,$event)['status']);
+        } finally { DaoTestDoubles::resetClaim(); }
+        $byName = [];
+        foreach ($calls as [$name, $args]) $byName[$name][] = $args;
+        // The retirement registers the halted generation (an init-style upsert) and then halts the session.
+        $this->assertSame('session:retired', $byName['upsertInit'][0][0]);
+        $this->assertSame('unbound:flat', $byName['upsertInit'][0][1]);
+        $this->assertSame(2, $byName['upsertInit'][0][5]);
+        $this->assertSame([['session:retired']], $byName['halt']);
+        $this->assertSame(['session:retired', 2], array_slice($byName['cancelForHalt'][0], 0, 2));
         $this->assertSame('COMMIT',end($db->writes));
     }
 
@@ -1324,33 +1334,32 @@ final class RequestStreamingTest extends TestCase
             if ($negotiated) $caps[] = 'dialogue.turn_cancel';
             $db = new class($caps,$anchorEvent) {
                 public array $queries = [];
-                public function __construct(private array $caps,private array $anchorEvent) {}
                 public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
                 public function execQuery(string $sql): bool { $this->queries[]=$sql; return true; }
-                public function fetchOne(string $sql): ?array {
-                    $this->queries[]=$sql;
-                    if (str_contains($sql, 'pg_advisory_xact_lock')) return ['locked'=>true];
-                    if (str_contains($sql, 'FROM public.core_runtime_session r')) return [
-                        'active_generation'=>2,'state'=>'active','playthrough_id'=>'save:one',
-                        'runtime_variant'=>'flat','protocol_version'=>2,'capabilities'=>$this->caps];
-                    if (str_contains($sql, 'SELECT turn_id, canonical_event')) return [
-                        'turn_id'=>'turn:old','canonical_event'=>json_encode($this->anchorEvent,JSON_THROW_ON_ERROR)];
-                    return null;
-                }
             };
+            $calls = [];
+            DaoTestDoubles::claimRecorder($calls, [
+                'lockForClaim' => ['active_generation'=>2,'state'=>'active','playthrough_id'=>'save:one',
+                    'runtime_variant'=>'flat','protocol_version'=>2,'capabilities'=>$caps],
+                'findAnchor' => ['turn_id'=>'turn:old','canonical_event'=>json_encode($anchorEvent,JSON_THROW_ON_ERROR)]]);
             $event = ['protocol_version'=>2,'session_id'=>'session:one','request_id'=>'req:cancel',
                 'turn_id'=>'turn:cancel','generation'=>2,'runtime_variant'=>'flat','context_sequence'=>0,
                 'type'=>'cancel','capabilities'=>$caps,'payload'=>['cancel_request_id'=>'req:context']];
-            $this->assertSame('accepted', synth_protocol_claim_request($db,$event)['status']);
-            $sql = implode("\n",$db->queries);
-            $this->assertStringContainsString("session_id='session:one' AND request_id='req:context'",$sql);
+            try {
+                $this->assertSame('accepted', synth_protocol_claim_request($db,$event)['status']);
+            } finally { DaoTestDoubles::resetClaim(); }
+            $byName = [];
+            foreach ($calls as [$name, $args]) $byName[$name][] = $args;
+            // One call on the request row and one on its jobs.
+            $this->assertSame([['session:one', 2, 'req:context'], ['session:one', 2, 'req:context']], $byName['cancelRequest'] ?? []);
             if ($anchored) {
-                $this->assertStringContainsString("active_turn_id='turn:old' AND active_turn_sequence=7",$sql);
-                $this->assertStringContainsString("canonical_event->>'context_sequence'='7'",$sql);
-                $this->assertStringContainsString("COALESCE(payload->'protocol_event'->>'context_sequence',payload->>'context_sequence')='7'",$sql);
+                $this->assertSame([['session:one', 2, 'turn:old', 7]], $byName['clearTurn'] ?? []);
+                // Request and job cancellation are both scoped to the anchored turn and context sequence 7.
+                $this->assertSame(['session:one', 2, 'req:context', 'turn:old', 7], $byName['cancelTurn'][0] ?? null);
+                $this->assertSame(['session:one', 2, 'turn:old', 7], $byName['cancelTurn'][1] ?? null);
             } else {
-                $this->assertStringNotContainsString('active_turn_id=NULL',$sql);
-                if (!$negotiated) $this->assertStringNotContainsString('SELECT turn_id, canonical_event',$sql);
+                $this->assertArrayNotHasKey('clearTurn', $byName);
+                if (!$negotiated) $this->assertArrayNotHasKey('findAnchor', $byName);
             }
         }
     }

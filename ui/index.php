@@ -145,26 +145,17 @@ $indexAction = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' ? strval($_POST['in
 if ($indexAction !== '') {
  $deleteCount = intval($_POST['delete_last'] ?? 0);
  if ($indexAction === 'reset_events') {
-  $db->delete("core_context_event", "true");
+  \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->deleteAll();
   $redirect = "index.php?table=eventlog";
  } elseif ($indexAction === 'delete_last' && in_array($deleteCount, [20, 50, 100], true)) {
   // Count comes from the allowlist above.
-  $db->query("
- DELETE FROM core_context_event
- WHERE rowid IN (
- SELECT rowid
- FROM core_context_event
- WHERE type NOT IN ('prechat','rechat','request','nearby_actors')
- ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
- LIMIT $deleteCount
- )
- ");
+  \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->deleteLatestExcluding(['prechat','rechat','request','nearby_actors'], $deleteCount);
   $redirect = "index.php?table=eventlog";
  } elseif ($indexAction === 'delete_memory' && intval($_POST['rowid'] ?? 0) > 0) {
-  $db->delete('core_memory', "rowid = " . intval($_POST['rowid']));
+  \Synth\Core\DbManager\Dao\MemoryDao::current($db)->deleteRow(intval($_POST['rowid']));
   $redirect = "index.php?table=memory_summary&deleted=1";
  } elseif ($indexAction === 'clean_log') {
-  $db->delete("core_log", "true");
+  \Synth\Core\DbManager\Dao\LogDao::current($db)->deleteAll();
   $redirect = "index.php?table=log";
  } else {
   while (@ob_end_clean());
@@ -184,7 +175,7 @@ if (isset($_GET["export"]) && ($_GET["export"] == "log")) {
  header("Content-Type: text/csv");
  header("Content-Disposition: attachment; filename=log.csv");
 
- $data = $db->fetchAll("select response,url,prompt,rowid from core_log order by rowid desc");
+ $data = \Synth\Core\DbManager\Dao\LogDao::current($db)->exportColumns();
  $n = 0;
  foreach ($data as $row) {
  if ($n == 0) {
@@ -209,7 +200,7 @@ if (isset($_GET["export"]) && ($_GET["export"] == "diary")) {
  header("Content-Type: text/csv");
  header("Content-Disposition: attachment; filename=diarylog.txt");
 
- $data = $db->fetchAll("select topic,summary AS content from core_memory where source_type='diary' order by rowid desc");
+ $data = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->diaryExport();
  $n = 1;
  foreach ($data as $row) {
  if ($n == 0) {
@@ -233,30 +224,12 @@ if (isset($_POST["command"])) {
  trim(strval($_POST["command"] ?? "")),
  trim(strval($_POST["parameter"] ?? "")) !== "" ? [trim(strval($_POST["parameter"]))] : []
  );
- $db->insert(
- 'core_response_log',
- array(
- 'localts' => time(),
- 'sent' => 0,
- 'text' => $commandPayload,
- 'actor' => ((string)\Synth\Bootstrap::config('SYNTH_NAME')),
- 'action' => 'command'
- )
- );
+ \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->enqueueOperatorAction(time(), (string)\Synth\Bootstrap::config('SYNTH_NAME'), strval($commandPayload), 'command');
  header("Location: index.php?table=response");
 }
 
 if (isset($_POST["animation"])) {
- $db->insert(
- 'core_response_log',
- array(
- 'localts' => time(),
- 'sent' => 0,
- 'text' => trim($_POST["animation"]),
- 'actor' => ((string)\Synth\Bootstrap::config('SYNTH_NAME')),
- 'action' => 'animation'
- )
- );
+ \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->enqueueOperatorAction(time(), (string)\Synth\Bootstrap::config('SYNTH_NAME'), trim($_POST["animation"]), 'animation');
  header("Location: index.php?table=response");
 }
 
@@ -271,7 +244,7 @@ if (isset($_POST["animation"])) {
  if (file_exists("index_custom.php")) include_once("index_custom.php"); // custom actions extension
 
  if (isset($_GET["table"]) && ($_GET["table"] == "responselog")) {
- $results = $db->fetchAll("select A.*,ROWID FROM core_response_log a order by ROWID asc");
+ $results = \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->allOldestFirst();
  echo "<h1 class='my-2'>Response Queue</h1>";
  print_array_as_table($results);
  }
@@ -289,13 +262,7 @@ if (isset($_POST["animation"])) {
  $page = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;
  $offset = ($page - 1) * $limit;
 
- $results = $db->fetchAll(
- "SELECT type, data, gamets, localts, ts, ROWID
- FROM core_context_event a
- WHERE type NOT IN ('prechat','rechat','request','user_input','infosave','init','playerinfo','world_context','nearby_actors','nearby_items','points_of_interest')
- ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC
- LIMIT $limit OFFSET $offset"
- );
+ $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->pageExcluding(['prechat','rechat','request','user_input','infosave','init','playerinfo','world_context','nearby_actors','nearby_items','points_of_interest'], intval($limit), intval($offset));
 
  $columnHeaders = [
  'type' => 'Event',
@@ -348,9 +315,7 @@ if (isset($_POST["animation"])) {
  $nextPage = $page + 1;
 
  // Get total count for pagination
- $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE type NOT IN ('prechat','rechat','request','user_input','infosave','init','world_context','nearby_actors','nearby_items','points_of_interest')";
- $countResult = $db->fetchAll($countQuery);
- $totalRecords = $countResult[0]['total'];
+ $totalRecords = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->countExcluding(['prechat','rechat','request','user_input','infosave','init','world_context','nearby_actors','nearby_items','points_of_interest']);
  $totalPages = ceil($totalRecords / $limit);
 
  echo "<div class='pagination-buttons' style='margin: 10px 0;'>";
@@ -455,7 +420,7 @@ if (isset($_POST["animation"])) {
  }
 
  if (isset($_GET["table"]) && ($_GET["table"] == "cache")) {
- $results = $db->fetchAll("select A.*,ROWID FROM core_context_event a order by ts desc");
+ $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->allNewestTsFirst();
  echo "<h1 class='my-2'>Event Log</h1>";
  print_array_as_table($results);
  }
@@ -564,12 +529,7 @@ if (isset($_POST["animation"])) {
  });
  </script>';
 
- $results = $db->fetchAll(
- "SELECT A.*, ROWID
- FROM core_log a
- ORDER BY localts DESC, rowid DESC
- LIMIT $limit OFFSET $offset"
- );
+ $results = \Synth\Core\DbManager\Dao\LogDao::current($db)->newestFirst(intval($limit), intval($offset));
 
  $columnHeaders = [
  'localts' => 'Time (UTC)',
@@ -659,7 +619,7 @@ if (isset($_POST["animation"])) {
  }
 
  if (isset($_GET["table"]) && ($_GET["table"] == "quests")) {
- $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from core_quest");
+ $results = \Synth\Core\DbManager\Dao\QuestDao::current($db)->listAll();
 
  // Define column headers mapping
  $columnHeaders = [
@@ -691,7 +651,7 @@ if (isset($_POST["animation"])) {
  // Include game timestamp utilities if not already included
  require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 
- $results = $db->fetchAll("select A.topic, A.summary AS content, A.tags, A.companions AS people, A.location, A.localts, A.gamets, A.ts, A.sess, A.rowid FROM core_memory A where A.source_type='diary' order by gamets desc,rowid desc limit 150 offset 0");
+ $results = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->recentDiary(150);
 
  // Define column headers mapping
  $columnHeaders = [
@@ -778,7 +738,7 @@ if (isset($_POST["animation"])) {
  }
  </style>";
 
- $results = $db->fetchAll("select A.*, ROWID as rowid FROM core_memory_log A order by gamets desc,rowid desc limit 150 offset 0");
+ $results = \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->newest(150);
 
  // Define column headers mapping
  $columnHeaders = [
@@ -829,13 +789,7 @@ if (isset($_POST["animation"])) {
  $companions = $_POST['companions'];
 
  // Update the database
- $db->update(
- 'core_memory',
- "summary = '" . $db->escape($summary) . "',
- tags = '" . $db->escape($tags) . "',
- companions = '" . $db->escape($companions) . "'",
- "rowid = " . $rowid
- );
+ \Synth\Core\DbManager\Dao\MemoryDao::current($db)->updateEditable($rowid, strval($summary), strval($tags), strval($companions));
 
  // Redirect to refresh the page
  header("Location: ?table=memory_summary&updated=1");
@@ -853,11 +807,7 @@ if (isset($_POST["animation"])) {
  }
 
  // 3. Fetch data from database
- $results = $db->fetchAll("SELECT gamets_truncated, n, summary, companions, tags, classifier, uid, ROWID as rowid, packed_message, native_vec
- FROM core_memory
- WHERE source_type='summary'
- ORDER BY gamets_truncated DESC, rowid DESC
- LIMIT 150");
+ $results = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->recentSummariesWithUid(150);
 
  // 4. Process each row for display
  $processedResults = [];

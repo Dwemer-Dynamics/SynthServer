@@ -93,20 +93,10 @@ function synth_rechat_load_candidates($connection, $db, array $event): array
         $key=synth_rechat_actor_key($state['actor'] ?? []);
         if ($key!==null) $states[$key]=$state;
     }
-    $result=@pg_query_params($connection,"SELECT a.id AS actor_identity_id,n.id AS npc_id,n.profile_id,
-            to_jsonb(n) AS npc,captured.actor AS identity,p.metadata AS profile_metadata
-        FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY captured(actor,ordinal)
-        JOIN public.core_actor_identity a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
-            AND lower(a.origin_plugin)=lower(captured.actor->>'origin_plugin')
-            AND a.playthrough_id=captured.actor->>'playthrough_id'
-        JOIN public.core_runtime_session s ON s.session_id=$2 AND s.playthrough_id=a.playthrough_id
-        JOIN public.core_npc n ON n.actor_identity_id=a.id
-        JOIN public.core_profiles p ON p.id=n.profile_id
-        ORDER BY captured.ordinal FOR SHARE OF n,p",
-        [json_encode(array_values($actors),JSON_THROW_ON_ERROR),$event['session_id']]);
-    if (!$result) throw new RuntimeException('rechat_selection_candidates_query_failed');
+    $found=\Synth\Core\DbManager\Dao\NpcDao::current()->rechatCandidates(json_encode(array_values($actors),JSON_THROW_ON_ERROR),$event['session_id']);
+    if ($found===null) throw new RuntimeException('rechat_selection_candidates_query_failed');
     $candidates=[];
-    foreach (pg_fetch_all($result) as $candidate) {
+    foreach ($found as $candidate) {
         $candidate['identity']=json_decode($candidate['identity'],true,flags:JSON_THROW_ON_ERROR);
         $candidate['npc']=json_decode($candidate['npc'],true,flags:JSON_THROW_ON_ERROR);
         $candidate['profile_metadata']=json_decode($candidate['profile_metadata'] ?? '{}',true,flags:JSON_THROW_ON_ERROR);
@@ -152,34 +142,24 @@ function synth_rechat_select_responder($db, array $event): array
         try {
             $proof=synth_rechat_completed_parent($db,$event);
             if ($proof===null) throw new LogicException('rechat_selection_parent_unavailable');
-            $result=@pg_query_params($connection,"SELECT d.*,c.mode,c.policy,c.terminal_reason AS chain_terminal FROM public.core_rechat_continuation d
-                JOIN public.core_rechat_chain c ON c.id=d.chain_id AND c.session_id=d.session_id
-                WHERE d.session_id=$1 AND d.request_id=$2 AND c.generation=$3 AND c.context_sequence=$4
-                    AND c.turn_id=$5 AND c.runtime_variant=$6",
-                [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$event['turn_id'],$event['runtime_variant']]);
-            if (!$result) throw new RuntimeException('rechat_selection_reservation_query_failed');
-            $reservation=pg_fetch_assoc($result);
+            $reservation=\Synth\Core\DbManager\Dao\RechatContinuationDao::current()->reservation($event['session_id'],$event['request_id'],$event['generation'],
+                $event['context_sequence'],$event['turn_id'],$event['runtime_variant']);
+            if ($reservation===null) throw new RuntimeException('rechat_selection_reservation_query_failed');
             if (!$reservation || $reservation['parent_request_id']!==$event['payload']['reply_to_request_id']
                 || $reservation['parent_line_id']!==$event['payload']['reply_to_line_id']
                 || !hash_equals($reservation['parent_response_sha256'],$proof['response_sha256'])) {
                 throw new LogicException('rechat_selection_reservation_unavailable');
             }
-            $result=@pg_query_params($connection,'SELECT * FROM public.core_rechat_selection WHERE session_id=$1 AND request_id=$2',
-                [$event['session_id'],$event['request_id']]);
-            if (!$result) throw new RuntimeException('rechat_selection_replay_query_failed');
-            $selected=pg_fetch_assoc($result);
+            $selected=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->forRequest($event['session_id'],$event['request_id']);
+            if ($selected===null) throw new RuntimeException('rechat_selection_replay_query_failed');
             if (!$selected) {
                 $terminal=$reservation['terminal_reason']; $actorId=null; $npcId=null; $profileId=null; $identity=null;
                 if (in_array($reservation['chain_terminal'],['private','no_candidate','ineligible'],true)) $terminal=$reservation['chain_terminal'];
                 $role='terminal';
                 if ($reservation['status']==='reserved' && $terminal===null) {
                     $candidates=synth_rechat_load_candidates($connection,$db,$event);
-                    $result=@pg_query_params($connection,"SELECT s.role,s.identity,d.round_number
-                        FROM public.core_rechat_selection s JOIN public.core_rechat_continuation d USING(session_id,request_id)
-                        WHERE d.chain_id=$1 AND d.round_number<$2 ORDER BY d.round_number",
-                        [$reservation['chain_id'],$reservation['round_number']]);
-                    if (!$result) throw new RuntimeException('rechat_selection_history_query_failed');
-                    $history=pg_fetch_all($result);
+                    $history=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->chainHistory($reservation['chain_id'],$reservation['round_number']);
+                    if ($history===null) throw new RuntimeException('rechat_selection_history_query_failed');
                     foreach ($history as &$entry) $entry['identity']=$entry['identity']===null ? null : json_decode($entry['identity'],true,flags:JSON_THROW_ON_ERROR);
                     unset($entry);
                     $plan=synth_rechat_candidate_plan($candidates,$proof,$reservation['mode'],$history);
@@ -203,15 +183,11 @@ function synth_rechat_select_responder($db, array $event): array
                         }
                     }
                 }
-                $result=@pg_query_params($connection,"INSERT INTO public.core_rechat_selection
-                    (session_id,request_id,role,actor_identity_id,npc_id,profile_id,identity,terminal_reason)
-                    VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING *",
-                    [$event['session_id'],$event['request_id'],$role,$actorId,$npcId,$profileId,
+                $selected=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->insert([$event['session_id'],$event['request_id'],$role,$actorId,$npcId,$profileId,
                      $identity===null ? null : json_encode($identity,JSON_THROW_ON_ERROR),$terminal]);
-                if (!$result) throw new RuntimeException('rechat_selection_insert_failed');
-                $selected=pg_fetch_assoc($result);
-                if ($terminal!==null && !@pg_query_params($connection,'UPDATE public.core_rechat_chain SET terminal_reason=$2 WHERE id=$1',
-                    [$reservation['chain_id'],$terminal])) throw new RuntimeException('rechat_selection_terminal_failed');
+                if (!$selected) throw new RuntimeException('rechat_selection_insert_failed');
+                if ($terminal!==null && !\Synth\Core\DbManager\Dao\RechatChainDao::current()->setTerminal($reservation['chain_id'],$terminal))
+                    throw new RuntimeException('rechat_selection_terminal_failed');
             }
             $selected['identity']=$selected['identity']===null ? null : json_decode($selected['identity'],true,flags:JSON_THROW_ON_ERROR);
             if (!@pg_query($connection,'RELEASE SAVEPOINT synth_rechat_selection')) throw new RuntimeException('rechat_selection_release_failed');

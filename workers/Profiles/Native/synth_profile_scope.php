@@ -19,11 +19,7 @@ function synth_profile_refresh_bindings($db, array $event, bool $stableKeys=fals
         if (!isset($visible[$key]) || $visible[$key]['display_name']!==$identity['display_name']) {
             throw new RuntimeException('profile_refresh_actor_not_in_snapshot');
         }
-        $rows=$db->fetchAll('SELECT n.id,n.actor_identity_id,n.npc_name FROM public.core_npc n
-            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
-            WHERE a.game=\'fo4\' AND upper(a.full_form_id)=upper('.$db->escapeLiteral($identity['form_id']).')
-                AND lower(a.origin_plugin)=lower('.$db->escapeLiteral($identity['origin_plugin']).')
-                AND a.playthrough_id='.$db->escapeLiteral($identity['playthrough_id']).' ORDER BY n.id LIMIT 2');
+        $rows=\Synth\Core\DbManager\Dao\NpcDao::current($db)->linkedToActor($identity['form_id'],$identity['origin_plugin'],$identity['playthrough_id']);
         if (count($rows)>1) throw new RuntimeException('profile_refresh_ambiguous_link');
         if (!$rows) continue;
         $row=$rows[0];$name=strval($visible[$key]['display_name']);
@@ -42,14 +38,7 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
     if (!is_array($owner) || ($owner['protocol_version'] ?? null)!==2 || ($owner['type'] ?? '')!=='profile_refresh') {
         throw new RuntimeException('Native profile queue has no valid owner.');
     }
-    $session=$db->escapeLiteral($owner['session_id']);$request=$db->escapeLiteral($owner['request_id']);
-    $origin=$db->fetchOne("SELECT p.canonical_event,p.event_sha256 FROM public.core_protocol_event p
-        JOIN public.core_request_execution e ON e.session_id=p.session_id AND e.request_id=p.request_id
-            AND e.generation=p.generation AND e.turn_id=p.turn_id AND e.event_type=p.event_type
-            AND e.request_sha256=p.event_sha256 AND e.state='complete'
-        JOIN public.core_runtime_session r ON r.session_id=e.session_id AND r.active_generation=e.generation
-            AND r.state='active' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
-        WHERE p.session_id=$session AND p.request_id=$request AND p.event_type='profile_refresh'");
+    $origin=\Synth\Core\DbManager\Dao\ProtocolEventDao::current($db)->completedOrigin(strval($owner['session_id']),strval($owner['request_id']),'profile_refresh');
     $canonical=synth_protocol_canonical_json($owner);
     if (!$origin || !hash_equals($origin['event_sha256'],hash('sha256',$canonical))
         || synth_protocol_canonical_json(synth_protocol_decode_json($origin['canonical_event']))!==$canonical) {
@@ -97,8 +86,7 @@ function synth_profile_assert_write_target($db, string $name): void
     $expected=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name] ?? null;
     if (!$expected) throw new RuntimeException('Native profile target is outside the queued batch.');
     if ($name==='The Narrator' && ($expected['narrator'] ?? false)===true) return;
-    $row=$db->fetchOne('SELECT id,actor_identity_id,npc_name FROM public.core_npc WHERE id='.intval($expected['npc_id'])
-        .($db->isTransactionIdle() ? '' : ' FOR UPDATE'));
+    $row=\Synth\Core\DbManager\Dao\NpcDao::current($db)->linkRow(intval($expected['npc_id']),!$db->isTransactionIdle());
     if (!$row || intval($row['actor_identity_id'])!==$expected['actor_identity_id']) {
         throw new RuntimeException('Native profile target link changed.');
     }

@@ -37,38 +37,10 @@ function synth_rechat_scene_context_locked($connection, array $event, bool $ownF
         || $event['payload']['scene_context_sequence']<=($event['context_sequence'] ?? 0))
         throw new LogicException('rechat_scene_reference_invalid');
     $canonical=synth_protocol_canonical_json($event);
-    $result=@pg_query_params($connection,"SELECT fresh.context_payload,previous.context_payload AS previous_context,
-            p.canonical_event AS parent_event,root.context_payload AS root_context
-        FROM public.core_runtime_context fresh
-        JOIN public.core_runtime_session s ON s.session_id=fresh.session_id
-            AND s.active_generation=fresh.generation AND s.playthrough_id=fresh.playthrough_id AND s.state='active'
-        JOIN public.core_request_execution child ON child.session_id=s.session_id
-            AND child.request_id=$5 AND child.generation=fresh.generation AND child.turn_id=$4
-        JOIN public.core_protocol_event cp ON cp.session_id=child.session_id AND cp.request_id=child.request_id
-            AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type
-            AND cp.event_sha256=child.request_sha256 AND cp.canonical_event=$6::jsonb AND cp.event_sha256=$9
-        JOIN public.core_protocol_event p ON p.session_id=s.session_id AND p.request_id=$7
-            AND p.generation=child.generation AND p.turn_id=child.turn_id
-            AND p.canonical_event->>'context_sequence'=$8::text
-        JOIN public.core_request_execution parent ON parent.session_id=p.session_id AND parent.request_id=p.request_id
-            AND parent.generation=p.generation AND parent.turn_id=p.turn_id AND parent.event_type=p.event_type
-            AND parent.request_sha256=p.event_sha256 AND parent.state='complete'
-        JOIN public.core_runtime_context previous ON previous.session_id=fresh.session_id
-            AND previous.generation=fresh.generation AND previous.playthrough_id=fresh.playthrough_id
-            AND previous.player_identity_id=fresh.player_identity_id
-            AND previous.snapshot_sequence=COALESCE((p.canonical_event#>>'{payload,scene_context_sequence}')::bigint,$8::bigint)
-        JOIN public.core_runtime_context root ON root.session_id=fresh.session_id AND root.generation=fresh.generation
-            AND root.playthrough_id=fresh.playthrough_id AND root.snapshot_sequence=$8::bigint
-        WHERE fresh.session_id=$1 AND fresh.generation=$2 AND fresh.snapshot_sequence=$3
-            AND fresh.snapshot_sequence>previous.snapshot_sequence AND s.runtime_variant=$10
-            AND (child.state IN ('claimed','streaming','complete') OR ($11::boolean AND child.state='failed'
-                AND COALESCE(child.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
-            AND fresh.received_at BETWEEN child.claimed_at-interval '10 seconds' AND child.claimed_at",
-        [$event['session_id'],$event['generation'],$event['payload']['scene_context_sequence'],$event['turn_id'],
+    $row=\Synth\Core\DbManager\Dao\RuntimeContextDao::current()->sceneContext([$event['session_id'],$event['generation'],$event['payload']['scene_context_sequence'],$event['turn_id'],
          $event['request_id'],$canonical,$event['payload']['reply_to_request_id'],$event['context_sequence'],
          hash('sha256',$canonical),$event['runtime_variant'],$ownFailed ? 't' : 'f']);
-    if (!$result) throw new RuntimeException('rechat_scene_query_failed');
-    $row=pg_fetch_assoc($result);
+    if ($row===null) throw new RuntimeException('rechat_scene_query_failed');
     if (!$row) throw new LogicException('rechat_scene_unavailable');
     $payload=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
     $previous=json_decode($row['previous_context'],true,flags:JSON_THROW_ON_ERROR);
@@ -80,15 +52,9 @@ function synth_rechat_scene_context_locked($connection, array $event, bool $ownF
         $sequence=$origin['payload']['scene_context_sequence'] ?? $event['context_sequence'];
         if (!is_int($sequence) || $sequence>=$event['payload']['scene_context_sequence'])
             throw new LogicException('rechat_scene_unavailable');
-        $result=@pg_query_params($connection,"SELECT previous.context_payload
-            FROM public.core_runtime_context previous JOIN public.core_runtime_context fresh
-                ON fresh.session_id=previous.session_id AND fresh.generation=previous.generation
-                AND fresh.playthrough_id=previous.playthrough_id AND fresh.player_identity_id=previous.player_identity_id
-            WHERE previous.session_id=$1 AND previous.generation=$2 AND previous.snapshot_sequence=$3
-                AND fresh.snapshot_sequence=$4",
-            [$event['session_id'],$event['generation'],$sequence,$event['payload']['scene_context_sequence']]);
-        if (!$result) throw new RuntimeException('rechat_scene_query_failed');
-        $row=pg_fetch_assoc($result);
+        $row=\Synth\Core\DbManager\Dao\RuntimeContextDao::current()->previousSnapshotContext($event['session_id'],$event['generation'],$sequence,
+            $event['payload']['scene_context_sequence']);
+        if ($row===null) throw new RuntimeException('rechat_scene_query_failed');
         if (!$row) throw new LogicException('rechat_scene_unavailable');
         $previous=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
     }
@@ -173,16 +139,8 @@ function synth_rechat_root_policy_locked($connection, array $event, array $paren
         if ($chain===null) throw new LogicException('rechat_parent_reservation_missing');
         $root=$chain['root_request_id'];
     }
-    $result=@pg_query_params($connection,"SELECT d.execution_mode,p.canonical_event#>>'{payload,audience_intent}' AS audience_intent
-        FROM public.core_dialogue_origin_policy d
-        JOIN public.core_protocol_event p USING(session_id,request_id)
-        JOIN public.core_request_execution e USING(session_id,request_id)
-        WHERE d.session_id=$1 AND d.request_id=$2 AND p.generation=$3 AND p.turn_id=$4
-            AND p.canonical_event->>'context_sequence'=$5::text AND e.generation=p.generation AND e.turn_id=p.turn_id
-            AND e.event_type=p.event_type AND e.request_sha256=p.event_sha256",
-        [$event['session_id'],$root,$event['generation'],$event['turn_id'],$event['context_sequence']]);
-    if (!$result) throw new RuntimeException('rechat_root_mode_query_failed');
-    $row=pg_fetch_assoc($result);
+    $row=\Synth\Core\DbManager\Dao\DialogueOriginPolicyDao::current()->rootMode($event['session_id'],$root,$event['generation'],$event['turn_id'],$event['context_sequence']);
+    if ($row===null) throw new RuntimeException('rechat_root_mode_query_failed');
     // Admission already requires the root's saved policy; its absence cannot fall back to a wider mode.
     if (!$row) throw new LogicException('rechat_root_policy_unavailable');
     return $row;
@@ -378,20 +336,9 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
     $record=static function($connection,array $owner) use($db,$event,$line,$wire,$metadata) {
         if ($owner!==$event) throw new LogicException('Dialogue route owner changed');
         $canonical=synth_protocol_canonical_json($event);
-        $result=@pg_query_params($connection,"SELECT c.context_payload
-            FROM public.core_request_execution e
-            JOIN public.core_protocol_event p USING(session_id,request_id)
-            JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
-                AND c.snapshot_sequence=$3
-            JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.playthrough_id=c.playthrough_id
-            WHERE e.session_id=$1 AND e.request_id=$2 AND e.state IN ('claimed','streaming')
-                AND p.canonical_event=$4::jsonb AND p.event_sha256=$5 AND e.request_sha256=p.event_sha256
-                AND e.generation=$6 AND p.generation=e.generation AND e.turn_id=$7 AND p.turn_id=e.turn_id
-                AND p.event_type=e.event_type AND s.runtime_variant=$8",
-            [$event['session_id'],$event['request_id'],$event['context_sequence'],$canonical,hash('sha256',$canonical),
+        $row=\Synth\Core\DbManager\Dao\RequestExecutionDao::current()->runningContext([$event['session_id'],$event['request_id'],$event['context_sequence'],$canonical,hash('sha256',$canonical),
              $event['generation'],$event['turn_id'],$event['runtime_variant']]);
-        if (!$result) throw new RuntimeException('Unable to verify dialogue route owner');
-        $row=pg_fetch_assoc($result);
+        if ($row===null) throw new RuntimeException('Unable to verify dialogue route owner');
         if (!$row) throw new LogicException('Dialogue route canonical owner unavailable');
         $context=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
         $scene=synth_rechat_response_scene_locked($connection,$event);
@@ -429,28 +376,16 @@ function synth_rechat_record_emitted_route($db, array $event, string $wire, arra
         $wire=synth_rechat_listener_wire($event,$line,$route,$wire);
         $utterance=synth_rechat_route_utterance($line,$metadata);
         if ($utterance!==null) {
-            $existing=@pg_query_params($connection,'SELECT line_id FROM public.core_dialogue_route
-                WHERE session_id=$1 AND request_id=$2 AND utterance_id=$3',[$event['session_id'],$event['request_id'],$utterance]);
-            if (!$existing) throw new RuntimeException('Unable to verify dialogue utterance uniqueness');
-            $existing=pg_fetch_assoc($existing);
+            $existing=\Synth\Core\DbManager\Dao\DialogueRouteDao::current()->forUtterance($event['session_id'],$event['request_id'],$utterance);
+            if ($existing===null) throw new RuntimeException('Unable to verify dialogue utterance uniqueness');
             if ($existing && $existing['line_id']!==$line['line_id']) throw new LogicException('dialogue_route_utterance_reused');
         }
         $persist=static function(string $wire) use($connection,$event,$line,$speaker,$route,$utterance): void {
-            $result=@pg_query_params($connection,"INSERT INTO public.core_dialogue_route
-                (session_id,request_id,line_id,line_sha256,generation,context_sequence,speaker,listener_state,listener,utterance_id)
-                VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::jsonb,$10)
-                ON CONFLICT(session_id,request_id,line_id) DO UPDATE SET line_sha256=EXCLUDED.line_sha256
-                WHERE core_dialogue_route.line_sha256=EXCLUDED.line_sha256
-                    AND core_dialogue_route.generation=EXCLUDED.generation AND core_dialogue_route.context_sequence=EXCLUDED.context_sequence
-                    AND core_dialogue_route.speaker=EXCLUDED.speaker AND core_dialogue_route.listener_state=EXCLUDED.listener_state
-                    AND core_dialogue_route.listener IS NOT DISTINCT FROM EXCLUDED.listener
-                    AND core_dialogue_route.utterance_id IS NOT DISTINCT FROM EXCLUDED.utterance_id
-                RETURNING line_id",
-                [$event['session_id'],$event['request_id'],$line['line_id'],hash('sha256',$wire),$event['generation'],
+            $result=\Synth\Core\DbManager\Dao\DialogueRouteDao::current()->persist([$event['session_id'],$event['request_id'],$line['line_id'],hash('sha256',$wire),$event['generation'],
                  $event['context_sequence'],json_encode($speaker,JSON_THROW_ON_ERROR),$route['availability'],
                  $route['listener']===null ? null : json_encode($route['listener'],JSON_THROW_ON_ERROR),$utterance]);
-            if (!$result) throw new RuntimeException('Unable to persist dialogue route');
-            if (!pg_fetch_assoc($result)) throw new LogicException('Conflicting dialogue route replay');
+            if ($result===null) throw new RuntimeException('Unable to persist dialogue route');
+            if (!$result) throw new LogicException('Conflicting dialogue route replay');
         };
         // Ordinary delivery receipts: an NPC line of an admitted ordinary origin carries receipt_required only when
         // the marked final wire, its route and its generated utterance commit together in this transaction. Any
@@ -537,27 +472,9 @@ function synth_rechat_completed_parent_evidence($connection, array $event, bool 
     foreach ([$parent,$lineId] as $id) if (!is_string($id) || !preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/D',$id)) return null;
     if ($parent===$event['request_id']) return null;
     $canonical=synth_protocol_canonical_json($event);
-    $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
-        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
-        JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=$3
-        JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
-        JOIN public.core_request_execution child ON child.session_id=e.session_id AND child.request_id=$8
-        JOIN public.core_protocol_event cp ON cp.session_id=child.session_id AND cp.request_id=child.request_id
-        WHERE e.session_id=$1 AND e.request_id=$2 AND e.state='complete'
-            AND e.generation=$4 AND e.turn_id=$5 AND p.generation=e.generation AND p.turn_id=e.turn_id
-            AND octet_length(e.response_body)<=2097152
-            AND p.event_sha256=e.request_sha256 AND p.event_type=e.event_type
-            AND p.canonical_event->>'protocol_version'='2' AND p.canonical_event->>'context_sequence'=$3::text
-            AND p.canonical_event->>'runtime_variant'=$6 AND s.runtime_variant=$6
-            AND (child.state IN ('claimed','streaming','complete') OR ($10::boolean AND child.state='failed'
-                AND COALESCE(child.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
-            AND child.generation=$4 AND child.turn_id=$5
-            AND cp.canonical_event=$7::jsonb AND cp.event_sha256=$9 AND child.request_sha256=cp.event_sha256
-            AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type",
-        [$event['session_id'],$parent,strval($event['context_sequence']),$event['generation'],$event['turn_id'],
+    $row=\Synth\Core\DbManager\Dao\RequestExecutionDao::current()->completedParentEvidence([$event['session_id'],$parent,strval($event['context_sequence']),$event['generation'],$event['turn_id'],
          $event['runtime_variant'],$canonical,$event['request_id'],hash('sha256',$canonical),$ownFailed ? 't' : 'f']);
-    if (!$result) throw new RuntimeException('Unable to verify completed rechat parent');
-    $row=pg_fetch_assoc($result);
+    if ($row===null) throw new RuntimeException('Unable to verify completed rechat parent');
     if (!$row) return null;
     $origin=json_decode($row['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
     if (!hash_equals($row['event_sha256'],hash('sha256',synth_protocol_canonical_json($origin)))
@@ -574,12 +491,10 @@ function synth_rechat_completed_parent_evidence($connection, array $event, bool 
     $lines=synth_rechat_completed_lines($body,$origin);
     if ($lines===null) return null;
     $context=json_decode($row['context_payload'],true,flags:JSON_THROW_ON_ERROR);
-    $result=@pg_query_params($connection,'SELECT * FROM public.core_dialogue_route
-        WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4',
-        [$event['session_id'],$parent,$event['generation'],$event['context_sequence']]);
-    if (!$result) throw new RuntimeException('Unable to read rechat parent routes');
+    $found=\Synth\Core\DbManager\Dao\DialogueRouteDao::current()->forRequest($event['session_id'],$parent,$event['generation'],$event['context_sequence']);
+    if ($found===null) throw new RuntimeException('Unable to read rechat parent routes');
     $routes=[];
-    foreach (pg_fetch_all($result) as $route) $routes[$route['line_id']]=$route;
+    foreach ($found as $route) $routes[$route['line_id']]=$route;
     $lastNpc=null; $selected=null;
     foreach ($lines as $entry) {
         $line=$entry['line']; $id=$line['line_id'];

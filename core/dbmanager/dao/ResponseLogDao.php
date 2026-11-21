@@ -25,6 +25,77 @@ final class ResponseLogDao
         return array_values($this->fresh()->getRepository(AbstractResponseLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
 
+    /** How many rows are older than the cutoff (a unix time compared with localts), or null when the count fails. */
+    public function countOlderThan(int $cutoff): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM public.core_response_log WHERE localts < ?', [$cutoff]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
+
+    /** How many rows there are, or null when the count fails. */
+    public function countRows(): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM public.core_response_log');
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
+
+    /** Deletes the rows older than the cutoff; false when the statement fails. */
+    public function deleteOlderThan(int $cutoff): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_response_log WHERE localts < ?', [$cutoff]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Queue totals: total, pending (sent = 0), delivered (sent <> 0) and the latest localts.
+     *
+     * @return array<string,mixed>
+     */
+    public function queueSummary(): array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT COUNT(*) AS total, SUM(CASE WHEN sent = 0 THEN 1 ELSE 0 END) AS pending,'
+            .' SUM(CASE WHEN sent <> 0 THEN 1 ELSE 0 END) AS delivered, MAX(localts) AS latest_localts FROM public.core_response_log'
+        );
+
+        return is_array($row) ? $row : [];
+    }
+
+    /** The newest rows for the queue page. @return list<array<string,mixed>> */
+    public function newest(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT rowid, localts, sent, actor, action, tag, text FROM public.core_response_log ORDER BY rowid DESC LIMIT ?',
+            [$limit]
+        );
+    }
+
+    /** Every row with all columns, oldest first (the legacy event-log tab). @return list<array<string,mixed>> */
+    public function allOldestFirst(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT a.*, rowid FROM public.core_response_log a ORDER BY rowid ASC');
+    }
+
+    /** Queues an operator action (a command or an animation) for the game to pick up. */
+    public function enqueueOperatorAction(int $localts, string $actor, string $text, string $action): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_response_log (localts, sent, text, actor, action) VALUES (?, 0, ?, ?, ?)',
+            [$localts, $text, $actor, $action]
+        );
+    }
+
     /**
      * Marks every unsent response as sent, up to the local time when one is given, and returns the rows it marked in row order
      * (one atomic statement, so concurrent requests never take the same line twice). A failed statement reads as no rows.

@@ -22,20 +22,20 @@ function h(mixed $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, "UTF-8");
 }
 
-function safeFetchAll(sql $db, string $query): array
+function safeFetchAll(callable $fetch): array
 {
     try {
-        return $db->fetchAll($query);
+        return $fetch();
     } catch (Throwable $exception) {
         Logger::warn("request_logs fetchAll failed: " . $exception->getMessage());
         return [];
     }
 }
 
-function safeFetchOne(sql $db, string $query): array
+function safeFetchOne(callable $fetch): array
 {
     try {
-        $row = $db->fetchOne($query);
+        $row = $fetch();
         return is_array($row) ? $row : [];
     } catch (Throwable $exception) {
         Logger::warn("request_logs fetchOne failed: " . $exception->getMessage());
@@ -43,10 +43,11 @@ function safeFetchOne(sql $db, string $query): array
     }
 }
 
-function safeExec(sql $db, string $query): bool
+function safeExec(callable $run): bool
 {
     try {
-        return (bool)$db->execQuery($query);
+        $run();
+        return true;
     } catch (Throwable $exception) {
         Logger::warn("request_logs exec failed: " . $exception->getMessage());
         return false;
@@ -107,17 +108,11 @@ function pickFirstAvailableColumn(array $availableColumns, array $candidates): ?
 
 function getAuditRequestColumns(sql $db): array
 {
-    $rows = safeFetchAll(
-        $db,
-        "SELECT column_name
-         FROM information_schema.columns
-         WHERE table_schema = 'public' AND table_name = 'core_audit_request'"
-    );
-    $columnKey = "column_name";
+    $names = safeFetchAll(static fn() => \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->columnNames());
 
     $columns = [];
-    foreach ($rows as $row) {
-        $name = strtolower(trim((string)($row[$columnKey] ?? "")));
+    foreach ($names as $rawName) {
+        $name = strtolower(trim((string)$rawName));
         if ($name !== "") {
             $columns[$name] = true;
         }
@@ -277,7 +272,7 @@ $page = max(1, $page);
 $offset = ($page - 1) * $limit;
 
 if ($cleanLogRequested) {
-    safeExec($db, "DELETE FROM core_audit_request");
+    safeExec(static fn() => \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->deleteAll());
     header("Location: " . requestLogsUrl(1, $limit, $isEmbedded), true, 303);
     exit;
 }
@@ -305,7 +300,7 @@ $selectExpressions = [];
 foreach ($columnCandidates as $alias => $candidates) {
     $sourceColumn = pickFirstAvailableColumn($availableColumns, $candidates);
     if ($sourceColumn !== null) {
-        $selectExpressions[] = $sourceColumn . (($sourceColumn === $alias) ? "" : (" AS " . $alias));
+        $selectExpressions[$alias] = $sourceColumn;
     }
 }
 
@@ -325,17 +320,10 @@ if (isset($availableColumns["id"])) {
 if (count($selectExpressions) === 0) {
     $rows = [];
 } else {
-    $orderBy = count($orderParts) > 0 ? implode(", ", $orderParts) : "1 DESC";
-    $rows = safeFetchAll(
-        $db,
-        "SELECT " . implode(", ", $selectExpressions) . "
-         FROM core_audit_request
-         ORDER BY {$orderBy}
-         LIMIT {$limit} OFFSET {$offset}"
-    );
+    $rows = safeFetchAll(static fn() => \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->page($selectExpressions, $orderParts, $limit, $offset));
 }
 
-$totalRow = safeFetchOne($db, "SELECT COUNT(*) AS total FROM core_audit_request");
+$totalRow = safeFetchOne(static fn() => ["total" => \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->countAll()]);
 $totalRecords = intval($totalRow["total"] ?? 0);
 $totalPages = max(1, (int)ceil($totalRecords / $limit));
 
