@@ -291,7 +291,7 @@ if (!function_exists('synthRuntimeImportConfigVariables')) {
             if (!preg_match('/^[A-Z0-9_]+$/', $name)) {
                 continue;
             }
-            $GLOBALS[$name] = $value;
+            \Synth\Bootstrap::set($name, $value);
         }
     }
 }
@@ -322,15 +322,15 @@ if (!function_exists('synthRuntimeConnectDatabase')) {
         $settings = array_filter($config, static fn(string $name): bool => str_starts_with($name, 'SYNTH_DB_'),
             ARRAY_FILTER_USE_KEY);
         foreach ($settings as $name => $value) {
-            $GLOBALS[$name] = $value;
+            \Synth\Bootstrap::set($name, $value);
         }
         if ($connectTimeoutCap !== null) {
             $configured = intval($settings['SYNTH_DB_CONNECT_TIMEOUT'] ?? 90);
             $settings['SYNTH_DB_CONNECT_TIMEOUT'] = strval($configured > 0 ? min($configured, $connectTimeoutCap) : $connectTimeoutCap);
         }
-        $GLOBALS["DBDRIVER"] = 'postgresql';
+        \Synth\Bootstrap::set('DBDRIVER', 'postgresql');
         require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "postgresql.class.php");
-        $GLOBALS["db"] = new sql($settings);
+        \Synth\Bootstrap::set('db', new sql($settings));
         return \Synth\Bootstrap::db();
     }
 }
@@ -462,12 +462,12 @@ if (!function_exists('synthRuntimeBootstrapIfNeeded')) {
     {
         $enginePath = rtrim($enginePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-        if (empty($GLOBALS["DBDRIVER"]) || !isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
+        if (empty(\Synth\Bootstrap::config('DBDRIVER')) || !\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
             synthRuntimeBootstrap($enginePath, $options);
             return;
         }
 
-        $GLOBALS["ENGINE_PATH"] = $enginePath;
+        \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
         Logger::bootstrapRequestId("rt");
         if ($options['rotate_logs'] ?? !synthRuntimeIsReadOnlyWebRequest()) {
             Logger::rotateKnownLogs($enginePath);
@@ -481,11 +481,11 @@ if (!function_exists('synthRuntimeSetActiveProfile')) {
     {
         $profile = trim(strval($profile ?? ''));
         if ($profile === '') {
-            unset($GLOBALS["active_profile"]);
+            \Synth\Bootstrap::forget('active_profile');
             return null;
         }
 
-        $GLOBALS["active_profile"] = $profile;
+        \Synth\Bootstrap::set('active_profile', $profile);
         return $profile;
     }
 }

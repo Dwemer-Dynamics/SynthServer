@@ -8,8 +8,8 @@ if (!function_exists('synthDbSetting')) {
             return trim(strval($envValue));
         }
 
-        if (isset($GLOBALS[$key]) && trim(strval($GLOBALS[$key])) !== '') {
-            return trim(strval($GLOBALS[$key]));
+        if (\Synth\Bootstrap::has($key) && trim(strval(\Synth\Bootstrap::config($key))) !== '') {
+            return trim(strval(\Synth\Bootstrap::config($key)));
         }
 
         return $default;

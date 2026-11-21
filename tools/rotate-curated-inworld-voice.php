@@ -18,16 +18,16 @@ try {
     require_once $root . '/lib/autoload.php';
     require $root . '/conf/conf.php';
     require_once $root . '/lib/postgresql.class.php';
-    $GLOBALS['db'] = new sql();
+    \Synth\Bootstrap::set('db', new sql());
     require_once $root . '/tts/tts-inworld.php';
     $row = \Synth\Bootstrap::db()->fetchOne("SELECT t.metadata,t.api_key_id,t.local_api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
     if (!$row) throw new RuntimeException('Inworld connector not found');
     require_once $root . '/lib/core/api_badge.class.php';
     $row['api_key'] = ApiBadge::keyForConnector($row, 'Inworld');
     if ($row['api_key'] === '') throw new RuntimeException('The Inworld connector has no saved key in the shared key store');
-    $GLOBALS['SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'] = $connector;
-    $GLOBALS['TTS']['INWORLD'] = json_decode($row['metadata'], true, flags: JSON_THROW_ON_ERROR);
-    $GLOBALS['TTS']['INWORLD']['API_KEY'] = $row['api_key'];
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID', $connector);
+    \Synth\Bootstrap::setAt('TTS', 'INWORLD', json_decode($row['metadata'], true, flags: JSON_THROW_ON_ERROR));
+    \Synth\Bootstrap::setPath('TTS', ['INWORLD', 'API_KEY'], $row['api_key']);
     $config = getInworldActiveConfig();
     $new = synth_voice_clone_snapshot($root . '/data/voices/' . $voice . '.wav', $root);
     $old = synth_voice_clone_snapshot($oldPath, $root);
@@ -36,7 +36,7 @@ try {
     }
     $plan = ['inputs'=>['TTSFUNCTION'=>'inworld', 'TTS'=>\Synth\Bootstrap::config('TTS'),
         'SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID'=>$connector], 'samples'=>[$voice=>$old]];
-    $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] = $plan;
+    \Synth\Bootstrap::set('SYNTH_ACTIVE_TTS_PLAN', $plan);
     $oldId = getCachedInworldVoiceId($voice, $config);
     $metadata = getInworldVoiceMetadata($voice, $config);
     if ($oldId === '' || empty($metadata['managed']) || ($metadata['voice_id'] ?? '') !== $oldId
@@ -70,12 +70,12 @@ try {
         if (!hash_equals($new['sha256'], hash_file('sha256', $root . '/data/voices/' . $voice . '.wav'))) {
             throw new RuntimeException('Approved sample changed; rerun inspection');
         }
-        $GLOBALS['SYNTH_ACTIVE_TTS_PLAN']['samples'][$voice] = $new;
+        \Synth\Bootstrap::setPath('SYNTH_ACTIVE_TTS_PLAN', ['samples', $voice], $new);
         $newId = synth_get_planned_cloud_voice('inworld', $voice, $config);
         if (!$newId || $newId === $oldId) throw new RuntimeException('Replacement clone failed; old remote retained');
         $audio = generateInworldTTS('Voice verification complete. Ready when you are.', $newId);
         if (!is_string($audio) || strlen($audio) < 1000) throw new RuntimeException('Replacement audio failed; old remote retained');
-        $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] = $plan;
+        \Synth\Bootstrap::set('SYNTH_ACTIVE_TTS_PLAN', $plan);
         if (!deleteManagedInworldVoice($voice)) throw new RuntimeException('Replacement ready but old voice deletion failed: ' . getInworldLastError());
         if (getCachedInworldVoiceId($voice, $config) !== '' || getInworldVoiceMetadata($voice, $config) !== []) {
             throw new RuntimeException('Remote deleted but local cache cleanup needs attention');

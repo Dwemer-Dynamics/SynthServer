@@ -12,8 +12,8 @@ synthRuntimeBootstrapIfNeeded($localPath, [
 
 function stt($filePath)
 {
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-        $GLOBALS["db"] = new sql();
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+        \Synth\Bootstrap::set('db', new sql());
     }
 
     $cfg = \Synth\Bootstrap::config("STT")["INWORLD"] ?? [];

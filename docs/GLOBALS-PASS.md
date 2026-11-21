@@ -233,3 +233,18 @@ Files under: ui api
 | --- | --- | --- |
 | global uses (all non-test PHP) | 1380 | 1071 |
 | `require_once` | 1838 | 1838 |
+
+### W10-lib-and-small-dirs
+
+All uses in `lib/`, `stt/`, `tts/`, `debug/`, `tools/` and `conf/`, including the importers that create most runtime names: `lib/runtime_bootstrap.php` (`synthRuntimeImportConfigVariables` and its option importer), `lib/settings.php` (flat and nested settings writers, `$cursor =& Bootstrap::ref($rootKey)`), `lib/db_connection_settings.php`, `conf/conf_loader.php` and `tools/schema-check.php`. They now write through `Bootstrap::set($name, $value)`, so once the other writers have moved, `Bootstrap` can switch its storage for every name in one place.
+
+Exceptions: `tools/globals-comments.php` and `tools/globals-convert.php` mention the tokens in their own comments (they are the converter).
+
+Stacked on W9-ui-api (#181).
+
+Files under: lib stt tts debug tools conf
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | about 1071 | 936 |
+| `require_once` | 1838 | 1838 |

@@ -7,20 +7,20 @@ function conf_loader_load() {
 
 	foreach ($confSchema as $name=>$definition) {
 		if (isset($definition["type"])) {
-			$definition["currentValue"] = isset($GLOBALS[$name]) ? $GLOBALS[$name] : ($definition["default"] ?? '');
+			$definition["currentValue"] = \Synth\Bootstrap::has($name) ? \Synth\Bootstrap::config($name) : ($definition["default"] ?? '');
 			$confMap[$name]=$definition;
 		}
 		else {
 			if (is_array($definition)) {
 				foreach ($definition as $name2=>$definition2) {
 					if (isset($definition2["type"])) {
-						$definition2["currentValue"] = isset($GLOBALS[$name][$name2]) ? $GLOBALS[$name][$name2] : ($definition2["default"] ?? '');
+						$definition2["currentValue"] = isset(\Synth\Bootstrap::config($name)[$name2]) ? \Synth\Bootstrap::config($name)[$name2] : ($definition2["default"] ?? '');
 						$confMap["$name $name2"]=$definition2;
 					}
 					else if (is_array($definition2)) {
 						foreach ($definition2 as $name3=>$definition3) {
 							if (isset($definition3["type"])) {
-								$definition3["currentValue"] = isset($GLOBALS[$name][$name2][$name3]) ? $GLOBALS[$name][$name2][$name3] : ($definition3["default"] ?? '');
+								$definition3["currentValue"] = isset(\Synth\Bootstrap::config($name)[$name2][$name3]) ? \Synth\Bootstrap::config($name)[$name2][$name3] : ($definition3["default"] ?? '');
 								$confMap["$name $name2 $name3"]=$definition3;
 							}
 						

@@ -16,8 +16,8 @@ require_once($localPath . "lib/chat_helper_functions.php");
 function stt($filePath)
 {
 
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db())
-        $GLOBALS["db"] = new sql();
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db())
+        \Synth\Bootstrap::set('db', new sql());
 
     // Resolve API key: prefer STT conf, fallback to API Badge 'Deepgram'
     $apiKey = trim(\Synth\Bootstrap::config('STT')['DEEPGRAM']['API_KEY'] ?? '');

@@ -42,16 +42,16 @@ function logEvent($dataArray,$forcePeople='')
 {
     $db = \Synth\Bootstrap::db();
 
-    if (!isset($GLOBALS["CACHE_PEOPLE_LIMITED"])) {
-        $GLOBALS["CACHE_PEOPLE_LIMITED"]=DataBeingsInCloseRange(true); // DataBeingsInRange() won't work as depends on user input
+    if (!\Synth\Bootstrap::has('CACHE_PEOPLE_LIMITED')) {
+        \Synth\Bootstrap::set('CACHE_PEOPLE_LIMITED', DataBeingsInCloseRange(true)); // DataBeingsInRange() won't work as depends on user input
     }
 
-    if (!isset($GLOBALS["CACHE_LOCATION"])) {
-        $GLOBALS["CACHE_LOCATION"]=DataLastKnownLocation();
+    if (!\Synth\Bootstrap::has('CACHE_LOCATION')) {
+        \Synth\Bootstrap::set('CACHE_LOCATION', DataLastKnownLocation());
     }
 
-    if (!isset($GLOBALS["CACHE_PARTY"])) {
-        $GLOBALS["CACHE_PARTY"]=DataGetCurrentPartyConf();
+    if (!\Synth\Bootstrap::has('CACHE_PARTY')) {
+        \Synth\Bootstrap::set('CACHE_PARTY', DataGetCurrentPartyConf());
     }
 
     if (!isset($dataArray)) { // function called without parameter values
@@ -201,9 +201,9 @@ function arrayToBulletedList($items, $bulletChar = " *") {
  * Scans the given text for the following placeholders and replaces them using
  * the current runtime values:
  *  - "{LOCATION}"       => DataLastKnownLocationHuman()
- *  - "{PLAYER_NAME}"    => $GLOBALS['PLAYER_NAME']
- *  - "{SYNTH_NAME}"    => $GLOBALS['SYNTH_NAME']
- *  - "{TEMPLATE_DIALOG}"=> $GLOBALS['TEMPLATE_DIALOG']
+ *  - "{PLAYER_NAME}"    => \Synth\Bootstrap::config('PLAYER_NAME')
+ *  - "{SYNTH_NAME}"    => \Synth\Bootstrap::config('SYNTH_NAME')
+ *  - "{TEMPLATE_DIALOG}"=> \Synth\Bootstrap::config('TEMPLATE_DIALOG')
  *
  * The replacement is performed by strtr and returns the resulting string.
  * Non-string inputs will be converted to string before replacement.

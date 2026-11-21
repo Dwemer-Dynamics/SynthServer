@@ -216,7 +216,7 @@ if (!function_exists('synthReadLegacyGlobalValue')) {
     function synthReadLegacyGlobalValue(string $flatId, $default = null)
     {
         if (strpos($flatId, '@') === false) {
-            return array_key_exists($flatId, $GLOBALS) ? $GLOBALS[$flatId] : $default;
+            return \Synth\Bootstrap::exists($flatId) ? \Synth\Bootstrap::config($flatId) : $default;
         }
 
         $parts = explode('@', $flatId);
@@ -1073,7 +1073,7 @@ if (!function_exists('synthGeneralSettingsToRuntimeGlobals')) {
             $normalizedValue = synthSettingsNormalizeScalar($rawValue, $definition);
 
             if (strpos($flatId, '@') === false) {
-                $GLOBALS[$flatId] = $normalizedValue;
+                \Synth\Bootstrap::set($flatId, $normalizedValue);
                 continue;
             }
 
@@ -1096,15 +1096,15 @@ if (!function_exists('synthAssignNestedGlobalValueToGlobals')) {
         }
 
         if (empty($parts)) {
-            $GLOBALS[$rootKey] = $value;
+            \Synth\Bootstrap::set($rootKey, $value);
             return;
         }
 
-        if (!isset($GLOBALS[$rootKey]) || !is_array($GLOBALS[$rootKey])) {
-            $GLOBALS[$rootKey] = [];
+        if (!\Synth\Bootstrap::has($rootKey) || !is_array(\Synth\Bootstrap::config($rootKey))) {
+            \Synth\Bootstrap::set($rootKey, []);
         }
 
-        $cursor =& $GLOBALS[$rootKey];
+        $cursor =& \Synth\Bootstrap::ref($rootKey);
         $lastIndex = count($parts) - 1;
         foreach ($parts as $index => $part) {
             $part = strval($part);
@@ -1155,7 +1155,7 @@ if (!function_exists('synthApplyOverrideValueToGlobals')) {
             return;
         }
 
-        $GLOBALS[$rawKey] = $value;
+        \Synth\Bootstrap::set($rawKey, $value);
     }
 }
 
@@ -1349,7 +1349,7 @@ if (!function_exists('synthEnsureTtsConnectorGlobals')) {
 
         $currentDriver = $connector->normalizeDriverValue(\Synth\Bootstrap::config("TTSFUNCTION") ?? '');
         $providerKey = $connector->getProviderKeyFromDriver($normalizedDriver);
-        $hasProviderGlobals = ($providerKey !== '' && !empty($GLOBALS["TTS"][$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey]));
+        $hasProviderGlobals = ($providerKey !== '' && !empty(\Synth\Bootstrap::config('TTS')[$providerKey]) && is_array(\Synth\Bootstrap::config("TTS")[$providerKey]));
         if ($currentDriver === $normalizedDriver && $hasProviderGlobals) {
             return;
         }
@@ -1369,7 +1369,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
             $player = new Player();
             $playerNameFromTable = $player->get('player_name');
             if ($playerNameFromTable !== null && $playerNameFromTable !== '') {
-                $GLOBALS["PLAYER_NAME"] = $playerNameFromTable;
+                \Synth\Bootstrap::set('PLAYER_NAME', $playerNameFromTable);
                 return;
             }
         } catch (\Throwable $e) {
@@ -1387,7 +1387,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
         }
 
         if ($playerNameFromDb && !empty($playerNameFromDb['value'])) {
-            $GLOBALS["PLAYER_NAME"] = $playerNameFromDb['value'];
+            \Synth\Bootstrap::set('PLAYER_NAME', $playerNameFromDb['value']);
         }
     }
 }
@@ -1582,7 +1582,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         $key = strtolower($candidate);
         if (array_key_exists($key, $cache)) return $cache[$key];
 
-        if (!isset($GLOBALS["db"]) || !is_object(\Synth\Bootstrap::db())) {
+        if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
             $cache[$key] = false;
             return false;
         }
@@ -1608,7 +1608,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         try {
             $player = new Player();
             $player->set('player_name', $candidate);
-            $GLOBALS["PLAYER_NAME"] = $candidate;
+            \Synth\Bootstrap::set('PLAYER_NAME', $candidate);
             Logger::info("[SYNTH] Auto-synced player_name: '{$current}' -> '{$candidate}'");
             $cache[$key] = true;
             return true;

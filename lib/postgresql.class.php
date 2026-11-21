@@ -146,7 +146,7 @@ class sql
     public function __destruct()
     {
         // The connection is shared by every sql wrapper in this PHP process. Closing it from one
-        // wrapper's destructor can invalidate a newer wrapper assigned to $GLOBALS['db'].
+        // wrapper's destructor can invalidate a newer wrapper assigned to \Synth\Bootstrap::config('db').
         // Explicit close() remains available to tests and controlled shutdown paths.
     }
 
@@ -214,7 +214,7 @@ class sql
     {
         $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
         if (!in_array($table, ['core_context_event', 'public.core_context_event'], true)
-            || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+            || empty(\Synth\Bootstrap::claimedRequest())
             || !is_array($event) || ($event['protocol_version'] ?? 1) !== 2
             || intval($event['context_sequence'] ?? 0) < 1) {
             return $this->insertRow($table, $data);
@@ -404,7 +404,7 @@ class sql
             && ($event['context_sequence'] ?? null) === 0
             && is_int($event['payload']['snapshot_sequence'] ?? null)
             && $event['payload']['snapshot_sequence'] >= 1 && $event['payload']['snapshot_sequence'] <= 9007199254740991;
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)
+        if (empty(\Synth\Bootstrap::claimedRequest()) || !is_array($event)
             || ($event['protocol_version'] ?? 1) !== 2 || ($contextPublication && !$publication)
             || (!$publication && intval($event['context_sequence'] ?? 0) < 1)) {
             throw new LogicException('A claimed native context is required');
@@ -528,10 +528,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -573,10 +573,10 @@ class sql
         $result = @pg_query_params(self::$link, $query, array_values($data));
 
         $elapsedTime = microtime(true) - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2 && $elapsedTime > $this->queryTimeThreshold) {
             Logger::warn("SQL: Insert query execution time exceeded threshold {$elapsedTime} seconds. {$query} " . $this->extract_caller());
@@ -604,10 +604,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -629,10 +629,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -660,10 +660,10 @@ class sql
 
             $endTime = microtime(true);
             $elapsedTime = $endTime - $startTime;
-            if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-                $GLOBALS["DB_EXECUTION_TIME"] = 0;
+            if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+                \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
             }
-            $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
             if ($this->debug_level > 2) {
                 if ($elapsedTime > $this->queryTimeThreshold) {
@@ -683,10 +683,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -706,10 +706,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -761,10 +761,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -787,10 +787,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -830,10 +830,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -903,10 +903,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -969,10 +969,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -1065,10 +1065,10 @@ class sql
 
             $endTime = microtime(true);
             $elapsedTime = $endTime - $startTime;
-            if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-                $GLOBALS["DB_EXECUTION_TIME"] = 0;
+            if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+                \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
             }
-            $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
             if ($this->debug_level > 2) {
                 if ($elapsedTime > $this->queryTimeThreshold) {
@@ -1083,10 +1083,10 @@ class sql
 
             $endTime = microtime(true);
             $elapsedTime = $endTime - $startTime;
-            if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-                $GLOBALS["DB_EXECUTION_TIME"] = 0;
+            if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+                \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
             }
-            $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
             Logger::error("SQL: upsertRowTrx failed {$query} " . $e->getMessage() . $this->extract_caller() );
             return false;
@@ -1125,10 +1125,10 @@ class sql
 
         $endTime = microtime(true);
         $elapsedTime = $endTime - $startTime;
-        if (!isset($GLOBALS["DB_EXECUTION_TIME"])) {
-            $GLOBALS["DB_EXECUTION_TIME"] = 0;
+        if (!\Synth\Bootstrap::has('DB_EXECUTION_TIME')) {
+            \Synth\Bootstrap::set('DB_EXECUTION_TIME', 0);
         }
-        $GLOBALS["DB_EXECUTION_TIME"] += $elapsedTime;
+        \Synth\Bootstrap::set('DB_EXECUTION_TIME', \Synth\Bootstrap::config('DB_EXECUTION_TIME') + ($elapsedTime));
 
         if ($this->debug_level > 2) {
             if ($elapsedTime > $this->queryTimeThreshold) {
@@ -1145,7 +1145,7 @@ class sql
 
     /*
      * Class Method Summary:
-     * Note. Singleton object is available on $GLOBALS["db].
+     * Note. Singleton object is available through \Synth\Bootstrap::db().
      * __construct(): Establishes a database connection using pg_connect.
      * __destruct(): Closes the database connection when the object is destroyed.
      * close(): Closes the database connection.
