@@ -4,10 +4,13 @@
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
 use Synth\Core\DbManager\Dao\ActorActivationDao;
+use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
+use Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao;
+use Synth\Managers\ConfigManager\ConfigManager;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\NpcDao;
 
@@ -94,6 +97,22 @@ final class DaoTestDoubles
         });
     }
 
+    /** DiaryResultDao::latestVisible() answered by $fake->fetchOne() with the legacy visible-diary query text. */
+    public static function diaryLatestFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\DiaryResultDao {
+            public function __construct(private object $fake) {}
+
+            public function latestVisible(string $diaryCte, bool $automaticOnly): ?array
+            {
+                $row = $this->fake->fetchOne($diaryCte.' SELECT history_event_id,result_payload,published_at,'.($automaticOnly ? '0' : 'content_revision').' AS content_revision FROM '
+                    .($automaticOnly ? 'diary_chain' : 'native_diaries').($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '').' ORDER BY history_event_id DESC LIMIT 1');
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
     /**
      * Records the claim-transaction DAO calls of synth_protocol_claim_request instead of running them: every write appends
      * [method, arguments] to $calls. $script scripts the reads: 'lockForClaim' (the session row, or null), 'findAnchor' and
@@ -170,47 +189,60 @@ final class DaoTestDoubles
         }
     }
 
-
     /**
-     * The middleterm dispatch statements of WorkerJobDao (retire, next due job, owner discovery) answered by $fake with their
-     * legacy SQL text: execQuery() for the retiring UPDATE and the discovery CTE, fetchOne() for the due-job read.
+     * The world-knowledge processor's three reads answered by the test's own fake: the newest chat text ($fake->fetchOne with
+     * the legacy chat query), a catalog checksum and the 'conf' setting current_worldknowledge_topic.
      */
-    public static function middletermDispatchFrom(object $fake): void
+    public static function worldknowledgeFrom(object $fake): void
     {
-        WorkerJobDao::inject(new class($fake) extends WorkerJobDao {
+        ContextEventDao::inject(new class($fake) extends ContextEventDao {
             public function __construct(private object $fake) {}
 
-            public function retireMiddletermJobs(): bool
+            public function latestChatData(): ?string
             {
-                return $this->fake->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
-        THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
-        WHERE job_type='middleterm' AND state IN ('pending','running')") !== false;
+                $row = $this->fake->fetchOne("SELECT data FROM core_context_event WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
+
+                return is_array($row) && isset($row['data']) ? (string) $row['data'] : null;
             }
+        });
+        WorldknowledgeCatalogDao::inject(new class($fake) extends WorldknowledgeCatalogDao {
+            public function __construct(private object $fake) {}
 
-            public function nextDueMiddleterm(): ?int
+            public function checksum(string $catalogId, string $catalogVersion): ?string
             {
-                $row = $this->fake->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
-        ORDER BY available_at,id LIMIT 1");
+                $row = $this->fake->fetchOne('SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id='
+                    .$this->fake->escapeLiteral($catalogId).' AND catalog_version='.$this->fake->escapeLiteral($catalogVersion).' LIMIT 1');
 
-                return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+                return is_array($row) && isset($row['checksum_sha256']) ? (string) $row['checksum_sha256'] : null;
             }
+        });
+        ConfigManager::inject(new class($fake) extends ConfigManager {
+            public function __construct(private object $fake) {}
 
-            public function discoverMiddletermOwner(): ?array
+            public function get(string $scope, string $key, ?string $default = null): ?string
             {
-                $result = $this->fake->execQuery("WITH candidate AS (SELECT r.session_id FROM public.core_runtime_session r) SELECT c.* FROM candidate c");
+                $row = $this->fake->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = '{$scope}' AND config_key='{$key}' LIMIT 1");
 
-                return $result instanceof \PgSql\Result ? (pg_fetch_assoc($result) ?: null) : null;
+                return is_array($row) && isset($row['value']) ? (string) $row['value'] : $default;
             }
         });
     }
 
+    public static function resetWorldknowledge(): void
+    {
+        ContextEventDao::inject(null);
+        WorldknowledgeCatalogDao::inject(null);
+        ConfigManager::inject(null);
+    }
+
     public static function reset(): void
     {
-        WorkerJobDao::inject(null);
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null);
         RequestExecutionDao::inject(null);
         HistoryEventDao::inject(null);
         NpcDao::inject(null);
         \Synth\Core\DbManager\Dao\MemoryDao::inject(null);
+        WorkerJobDao::inject(null);
     }
 
     /**
@@ -359,5 +391,60 @@ final class DaoTestDoubles
                  LIMIT 1");
 
                 return is_array($row) ? $row : null;
+            }
+
+    /**
+     * The middleterm dispatch statements of WorkerJobDao (retire, next due job, owner discovery) answered by $fake with their
+     * legacy SQL text: execQuery() for the retiring UPDATE and the discovery CTE, fetchOne() for the due-job read.
+     */
+    public static function middletermDispatchFrom(object $fake): void
+    {
+        WorkerJobDao::inject(new class($fake) extends WorkerJobDao {
+            public function __construct(private object $fake) {}
+
+            public function retireMiddletermJobs(): bool
+            {
+                return $this->fake->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
+        THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
+        WHERE job_type='middleterm' AND state IN ('pending','running')") !== false;
+            }
+
+            public function nextDueMiddleterm(): ?int
+            {
+                $row = $this->fake->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
+        ORDER BY available_at,id LIMIT 1");
+
+                return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+            }
+
+            public function discoverMiddletermOwner(): ?array
+            {
+                $result = $this->fake->execQuery("WITH candidate AS (SELECT r.session_id FROM public.core_runtime_session r) SELECT c.* FROM candidate c");
+
+                return $result instanceof \PgSql\Result ? (pg_fetch_assoc($result) ?: null) : null;
+            }
+        });
+    }
+
+            public function retireMiddletermJobs(): bool
+            {
+                return $this->fake->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
+        THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
+        WHERE job_type='middleterm' AND state IN ('pending','running')") !== false;
+            }
+
+            public function nextDueMiddleterm(): ?int
+            {
+                $row = $this->fake->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
+        ORDER BY available_at,id LIMIT 1");
+
+                return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+            }
+
+            public function discoverMiddletermOwner(): ?array
+            {
+                $result = $this->fake->execQuery("WITH candidate AS (SELECT r.session_id FROM public.core_runtime_session r) SELECT c.* FROM candidate c");
+
+                return $result instanceof \PgSql\Result ? (pg_fetch_assoc($result) ?: null) : null;
             }
 }

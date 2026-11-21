@@ -400,7 +400,7 @@ function handleWorldLocationsUpdate(array $data): array
 
     $replace = filter_var($data['replace'] ?? false, FILTER_VALIDATE_BOOLEAN);
     if ($replace) {
-        $db->execQuery("TRUNCATE TABLE public.core_location_legacy");
+        \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->truncate();
     }
 
     $saved = 0;
@@ -418,32 +418,13 @@ function handleWorldLocationsUpdate(array $data): array
         $worldspace = cleanBridgeString($location['worldspace'] ?? $location['region'] ?? '');
         $tags = cleanWorldDataListField($location['tags'] ?? '');
         $refs = cleanWorldDataListField($location['refs'] ?? '');
-        $isInterior = filter_var($location['is_interior'] ?? false, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
-        $cleared = filter_var($location['cleared'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'TRUE' : 'FALSE';
-        $coordsSql = worldDataPointSql($location);
+        $isInterior = filter_var($location['is_interior'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        $cleared = filter_var($location['cleared'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        [$pointX, $pointY] = worldDataPointCoordinates($location);
 
-        $nameSql = synth_db_escape($db, $name);
-        $worldspaceSql = synth_db_escape($db, $worldspace);
-        $tagsSql = synth_db_escape($db, $tags);
-        $refsSql = synth_db_escape($db, $refs);
-
-        $exists = $db->fetchOne("SELECT 1 FROM public.core_location_legacy WHERE formid={$formid} LIMIT 1");
-        if ($exists) {
-            $db->execQuery(
-                "UPDATE public.core_location_legacy SET " .
-                "name='{$nameSql}', worldspace='{$worldspaceSql}', tags='{$tagsSql}', " .
-                "is_interior={$isInterior}, coords={$coordsSql}, " .
-                "refs='{$refsSql}', cleared={$cleared}, updated_at=now() " .
-                "WHERE formid={$formid}"
-            );
-        } else {
-            $db->execQuery(
-                "INSERT INTO public.core_location_legacy " .
-                "(name, formid, worldspace, tags, is_interior, coords, refs, cleared, updated_at) VALUES " .
-                "('{$nameSql}', {$formid}, '{$worldspaceSql}', '{$tagsSql}', " .
-                "{$isInterior}, {$coordsSql}, '{$refsSql}', {$cleared}, now())"
-            );
-        }
+        \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->saveByFormid(
+            $name, (string)$formid, $worldspace, $tags, $isInterior, $pointX, $pointY, $refs, $cleared
+        );
         ++$saved;
     }
 
@@ -467,7 +448,7 @@ function handleWorldFactionsUpdate(array $data): array
 
     $replace = filter_var($data['replace'] ?? false, FILTER_VALIDATE_BOOLEAN);
     if ($replace) {
-        $db->execQuery("TRUNCATE TABLE public.core_faction");
+        \Synth\Core\DbManager\Dao\FactionDao::current($db)->truncate();
     }
 
     $saved = 0;
@@ -483,15 +464,7 @@ function handleWorldFactionsUpdate(array $data): array
         }
 
         $vendorCont = synthNormalizeHexIdentifier($faction['vendor_cont'] ?? '', 8);
-        $nameSql = synth_db_escape($db, $name);
-        $formidSql = synth_db_escape($db, $formid);
-        $vendorContSql = synth_db_escape($db, $vendorCont);
-
-        $db->execQuery(
-            "INSERT INTO public.core_faction (name, formid, vendor_cont) VALUES " .
-            "('{$nameSql}', '{$formidSql}', '{$vendorContSql}') " .
-            "ON CONFLICT (formid) DO UPDATE SET name=EXCLUDED.name, vendor_cont=EXCLUDED.vendor_cont"
-        );
+        \Synth\Core\DbManager\Dao\FactionDao::current($db)->upsert($name, $formid, $vendorCont);
         ++$saved;
     }
 
@@ -533,17 +506,11 @@ function handleDialogueDeliveryUpdate(array $data): void
         "text_preview" => Logger::summarizePayload($text, 120),
     ]));
 
-    $stateEscaped = synth_db_escape($db, $state);
-    // Legacy telemetry has no native request owner and cannot acknowledge native utterances.
-    $nonAbortedSql = "synth_session_id IS NULL AND COALESCE(delivery_state, 'emitted')<>'aborted'";
+    // Legacy telemetry has no native request owner and cannot acknowledge native utterances: the DAO only touches rows with no native session.
+    $contextEvents = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
 
     if ($utteranceId !== '') {
-        $utteranceEscaped = synth_db_escape($db, $utteranceId);
-        $db->update(
-            'public.core_context_event',
-            "delivery_state='{$stateEscaped}'",
-            "type='chat' AND utterance_id='{$utteranceEscaped}' AND {$nonAbortedSql}"
-        );
+        $contextEvents->setLiveChatDeliveryStateForUtterance($utteranceId, $state);
         Logger::debug("[gamedata.php] dialogue_delivery {$state} for utterance {$utteranceId}");
         return;
     }
@@ -553,16 +520,7 @@ function handleDialogueDeliveryUpdate(array $data): void
         return;
     }
 
-    $where = "type='chat' AND {$nonAbortedSql}";
-    $textEscaped = synth_db_escape($db, $text);
-    $where .= " AND data='{$textEscaped}'";
-    if ($speaker !== '') {
-        $speakerEscaped = synth_db_escape($db, $speaker);
-        $where .= " AND people ILIKE '%{$speakerEscaped}%'";
-    }
-
-    $row = $db->fetchOne("SELECT rowid FROM public.core_context_event WHERE {$where} ORDER BY rowid DESC LIMIT 1");
-    $rowId = intval($row['rowid'] ?? 0);
+    $rowId = intval($contextEvents->latestLiveChatRowId($text, $speaker));
     if ($rowId <= 0) {
         $playerName = trim((string)(\Synth\Bootstrap::config('PLAYER_NAME') ?? ''));
         if ($playerName !== '' && strcasecmp($speaker, $playerName) === 0) {
@@ -573,7 +531,7 @@ function handleDialogueDeliveryUpdate(array $data): void
         return;
     }
 
-    $db->update('public.core_context_event', "delivery_state='{$stateEscaped}'", "rowid={$rowId} AND {$nonAbortedSql}");
+    $contextEvents->setLiveChatDeliveryState($rowId, $state);
     Logger::debug("[gamedata.php] dialogue_delivery {$state} for row {$rowId}");
 }
 
@@ -605,15 +563,7 @@ function synthResolveNearestExteriorLocationName(string $location, string $world
     }
 
     try {
-        $escapedWorldspace = $db->escape($worldspace);
-        $rows = $db->fetchAll(
-            "SELECT name, coords
-               FROM core_location_legacy
-              WHERE COALESCE(is_interior, 0)=0
-                AND coords IS NOT NULL
-                AND (worldspace IS NULL OR worldspace='' OR worldspace='{$escapedWorldspace}')
-              LIMIT 2000"
-        );
+        $rows = \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->exteriorMarkers($worldspace, 2000);
     } catch (\Throwable $e) {
         Logger::warn("[gamedata.php] Could not resolve nearest location: " . $e->getMessage());
         return $location;
@@ -675,10 +625,7 @@ function handleWorldContextUpdate(array $data): void
         $ts = time();
     }
     $recentCutoff = time() - 120;
-    $db->execQuery(
-        "UPDATE core_context_event SET gamets={$gamets} " .
-        "WHERE sess='synth' AND gamets<=5 AND localts>={$recentCutoff}"
-    );
+    \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->adoptRecentSynthGamets($gamets, $recentCutoff);
 
     $context = "(Context location: {$location}, State: {$state}";
     if ($worldspace !== '' && strcasecmp($worldspace, $location) !== 0) {
@@ -764,9 +711,9 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
     if ($gamets <= 0) {
         return ['deferred' => true, 'reason' => 'missing_gamets'];
     }
-    $previousRow = $db->fetchOne("SELECT party FROM core_context_event WHERE type='nearby_actors' ORDER BY rowid DESC LIMIT 1");
-    $previousSnapshot = is_array($previousRow)
-        ? (json_decode((string)($previousRow['party'] ?? ''), true) ?: [])
+    $previousParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyByRowid('nearby_actors');
+    $previousSnapshot = $previousParty !== null
+        ? (json_decode($previousParty, true) ?: [])
         : [];
     $actors = $data['actors'] ?? [];
     if (!is_array($actors)) {
@@ -803,9 +750,9 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
     }
 
     $worldContext = [];
-    $worldContextRow = $db->fetchOne("SELECT party FROM core_context_event WHERE type='world_context' ORDER BY gamets DESC, rowid DESC LIMIT 1");
-    if (is_array($worldContextRow)) {
-        $decodedWorldContext = json_decode((string)($worldContextRow['party'] ?? ''), true);
+    $worldContextParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyByGamets('world_context');
+    if ($worldContextParty !== null) {
+        $decodedWorldContext = json_decode($worldContextParty, true);
         if (is_array($decodedWorldContext)) {
             $worldContext = $decodedWorldContext;
         }
@@ -832,11 +779,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
 
         $baseid = trim((string)$profileFields['baseid']);
         if ($baseid !== '') {
-            $db->execQuery("
-                UPDATE public.core_npc
-                SET base = COALESCE(NULLIF(base, ''), '" . $db->escape($baseid) . "')
-                WHERE npc_name = '" . $db->escape($name) . "' AND actor_identity_id IS NULL
-            ");
+            \Synth\Core\DbManager\Dao\NpcDao::current($db)->fillBaseWhereEmpty($name, $baseid);
         }
 
         if (is_numeric($actor['x'] ?? null) && is_numeric($actor['y'] ?? null)) {
@@ -854,16 +797,7 @@ function handleNearbyActorsUpdate(array $data, NpcMaster $npcMaster): array
             ];
             $encodedPosition = json_encode($lastPosition, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             if ($encodedPosition !== false) {
-                $db->execQuery("
-                    UPDATE public.core_npc
-                    SET metadata = jsonb_set(
-                        COALESCE(metadata, '{}'::jsonb),
-                        '{last_coords}',
-                        '" . $db->escape($encodedPosition) . "'::jsonb,
-                        true
-                    )
-                    WHERE npc_name = '" . $db->escape($name) . "' AND actor_identity_id IS NULL
-                ");
+                \Synth\Core\DbManager\Dao\NpcDao::current($db)->setLastCoordsWhereUnbound($name, $encodedPosition);
             }
         }
     };
@@ -1246,7 +1180,7 @@ function handleActiveQuestsUpdate(array $data): void
         $ts = time();
     }
     // Legacy telemetry owns only its projection, never a native playthrough's journal.
-    $db->delete('core_quest', "sess='synth_active_quest'");
+    \Synth\Core\DbManager\Dao\QuestDao::current($db)->deleteBySession('synth_active_quest');
 
     $inserted = 0;
     foreach ($quests as $quest) {
@@ -1301,7 +1235,7 @@ function handleActiveQuestsUpdate(array $data): void
         $objectivesJson = json_encode($objectives, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $questJson = json_encode($quest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        $db->insert('core_quest', [
+        \Synth\Core\DbManager\Dao\QuestDao::current($db)->record([
             'ts' => (string)$ts,
             'gamets' => $gamets,
             'name' => $name,
@@ -1514,7 +1448,8 @@ function cleanWorldDataListField($value): string
     return cleanBridgeString($value);
 }
 
-function worldDataPointSql(array $location): string
+/** The x and y of a location payload as floats, or [null, null] when it carries no numeric coordinates. @return array{0: ?float, 1: ?float} */
+function worldDataPointCoordinates(array $location): array
 {
     $x = $location['x'] ?? null;
     $y = $location['y'] ?? null;
@@ -1524,10 +1459,10 @@ function worldDataPointSql(array $location): string
     }
 
     if (!is_numeric($x) || !is_numeric($y)) {
-        return 'NULL';
+        return [null, null];
     }
 
-    return 'point(' . (float)$x . ',' . (float)$y . ')';
+    return [(float)$x, (float)$y];
 }
 
 function cleanBridgePayloadValue($value)
@@ -1991,7 +1926,7 @@ function handleMarketStockUpdate(array $data): void {
     }
 
     $db = \Synth\Bootstrap::db();
-    $factionFormId = $db->escape(strtoupper($data['faction']));
+    $factionFormId = strtoupper($data['faction']);
 
     // Build normalised stock array from the incoming list
     $stock = [];
@@ -2018,13 +1953,7 @@ function handleMarketStockUpdate(array $data): void {
         }
     }
 
-    $stockJson = $db->escape(json_encode($stock));
-
-    $sql = "UPDATE public.core_faction
-               SET stock = '{$stockJson}'::jsonb,caps=$caps,player_rank=$rank
-             WHERE formid = '{$factionFormId}'";
-
-    $result = $db->execQuery($sql);
+    $result = \Synth\Core\DbManager\Dao\FactionDao::current($db)->updateStock($factionFormId, json_encode($stock), $caps, $rank);
 
     if ($result) {
         

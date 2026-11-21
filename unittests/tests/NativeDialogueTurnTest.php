@@ -174,6 +174,12 @@ final class NativeDialogueTurnTest extends TestCase
     }
 
     // Dialogue services over injected repository, driver and output fakes (no database or provider).
+    public function tearDown(): void
+    {
+        DaoTestDoubles::reset();
+        parent::tearDown();
+    }
+
     private function dialogue(?array $context, ?array $row, array $others=[], array $chunks=[], bool|string $speech=true,
         array|Throwable|null $saved=null, ?object $db=null, ?SYNTHClaimedRequest $owner=null, ?string $metadata=null): array
     {
@@ -602,6 +608,7 @@ final class NativeDialogueTurnTest extends TestCase
                         ? ['history_event_id'=>7,'result_payload'=>json_encode($this->result),'content_revision'=>0] : [];
                 }
             };
+            DaoTestDoubles::diaryLatestFrom($db);
             [$manager,$output,$utterances,$llm]=$this->dialogue($this->talkContext(),$row,[],['Fine.'],true,null,$db,
                 $owner ?? $this->owner($event),$metadata);
             if ($name==='cancelled') {
