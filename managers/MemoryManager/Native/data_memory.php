@@ -94,10 +94,9 @@ function isIndividualMemoryEnabledForNpc($npcName)
 
     $enabled = false;
     try {
-        $escaped = \Synth\Bootstrap::db()->escape($npcName);
-        $row = \Synth\Bootstrap::db()->fetchOne("SELECT extended_data FROM core_npc WHERE npc_name='$escaped' LIMIT 1");
-        if (is_array($row) && !empty($row["extended_data"])) {
-            $extendedData = json_decode($row["extended_data"], true);
+        $extendedJson = \Synth\Core\DbManager\Dao\NpcDao::current(\Synth\Bootstrap::db())->legacyExtendedDataByName($npcName);
+        if (!empty($extendedJson)) {
+            $extendedData = json_decode($extendedJson, true);
             if (
                 is_array($extendedData)
                 && array_key_exists('individual_memory_enabled', $extendedData)
@@ -143,14 +142,8 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
                 'companions',
                 'classifier'
             );
-            $row = \Synth\Bootstrap::db()->fetchOne(
-                "SELECT summary, gamets_truncated FROM public.core_memory"
-                . " WHERE source_type='summary' AND classifier='dialogue'"
-                . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
-                . " AND gamets_truncated < " . intval($contextWindowFloor)
-                . " AND {$scopeConditionSql} AND {$companionConditionSql}"
-                . " ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1"
-            );
+            $row = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->newestDialogueSummaryBefore(
+                $scopeConditionSql, $companionConditionSql, intval($contextWindowFloor));
         }
     } catch (SYNTHProtocolCancelled $exception) {
         throw $exception;
@@ -172,13 +165,10 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
 function dataGetMemoryScopeConditionSql($npcName)
 {
     if (isIndividualMemoryEnabledForNpc($npcName)) {
-        $npcEsc = \Synth\Bootstrap::db()->escape($npcName);
+        $memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db());
         try {
-            $scopedMemory = \Synth\Bootstrap::db()->fetchOne(
-                "SELECT 1 FROM core_memory WHERE source_type='summary' AND scope='$npcEsc' AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1"
-            );
-            if (is_array($scopedMemory) && count($scopedMemory) > 0) {
-                return "scope='$npcEsc'";
+            if ($memoryDao->hasScopedSummary($npcName)) {
+                return "scope=" . $memoryDao->quoteLiteral($npcName);
             }
         } catch (Throwable $e) {
             Logger::warn("dataGetMemoryScopeConditionSql failed for {$npcName}: " . $e->getMessage());
@@ -205,13 +195,14 @@ function dataGetMemoryCompanionConditionSql(
             return 'TRUE';
         }
 
-        $narratorName = \Synth\Bootstrap::db()->escape('The Narrator');
+        $memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db());
+        $narratorName = 'The Narrator';
         return "(COALESCE($classifierColumn, '') NOT IN ('diary','auto_diary','backgroundlife_diary')"
-            . " OR $column LIKE '%|$narratorName|%' OR $column='$narratorName')";
+            . " OR $column LIKE " . $memoryDao->quoteLiteral('%|' . $narratorName . '|%') . " OR $column=" . $memoryDao->quoteLiteral($narratorName) . ")";
     }
 
-    $npcEsc = \Synth\Bootstrap::db()->escape($npcName);
-    return "($column LIKE '%|$npcEsc|%' OR $column='$npcEsc')";
+    $memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db());
+    return "($column LIKE " . $memoryDao->quoteLiteral('%|' . $npcName . '|%') . " OR $column=" . $memoryDao->quoteLiteral($npcName) . ")";
 }
 
 // Removes request-routing labels before text and vector memory matching.
@@ -335,18 +326,7 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
     $scopeConditionSql = dataGetMemoryScopeConditionSql($npcfilter);
     $companionConditionSql = dataGetMemoryCompanionConditionSql($npcfilter, 'A.companions', 'A.classifier');
 
-    $memory=\Synth\Bootstrap::db()->fetchAll("
-        SELECT summary,gamets_truncated,
-        ts_rank(native_vec, to_tsquery('$kwStringAny')) AS rank_any,
-        ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all
-        FROM core_memory A
-        where source_type='summary' AND native_vec @@to_tsquery('$kwStringAny')
-        and not (native_vec @@to_tsquery('#Reminiscence'))
-        and $scopeConditionSql
-        and $companionConditionSql
-
-        ORDER BY rank_all DESC, rank_any DESC;
-        ",true);
+    $memory=\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->summariesByKeywords($scopeConditionSql, $companionConditionSql, strval($kwStringAny), strval($kwStringAll));
 
         if (!isset($memory[0]))
             $memory[0]=["rank_any"=>null,"rank_all"=>null,"summary"=>null];
@@ -556,37 +536,8 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
         $vector=json_decode($response,true);
 
         if (is_array($vector) && isset($vector["embedding"])) {
-            $vectorString="'[".implode(",",$vector["embedding"])."]'";
-            $rankAnySql = $kwStringAny !== ''
-                ? "ts_rank(native_vec, to_tsquery('" . \Synth\Bootstrap::db()->escape($kwStringAny) . "'))"
-                : "0::real";
-            $rankAllSql = $kwStringAll !== ''
-                ? "ts_rank(native_vec, to_tsquery('" . \Synth\Bootstrap::db()->escape($kwStringAll) . "'))"
-                : "0::real";
-            $rankCombinedSql = "($rankAnySql + $rankAllSql)";
-
-            $finalQuery="
-                SELECT rowid,gamets_truncated,
-                        embedding <-> $vectorString as distance,
-                         $rankAnySql AS rank_any_fts_raw,
-                         $rankAllSql AS rank_all_fts_raw,
-                         $rankCombinedSql AS rank_fts,
-                         (embedding <-> $vectorString) - $rankCombinedSql AS mixed_distance,
-                         summary
-                    FROM public.core_memory
-                    WHERE source_type='summary' AND embedding IS NOT NULL
-                    and $scopeConditionSql
-                    and $companionConditionSql
-                    and (gamets_truncated<$timeThreshold or $timeThreshold=0)
-
-                    ORDER BY
-                        mixed_distance ASC,
-                        distance ASC,
-                        gamets_truncated DESC,
-                        rowid DESC
-                    LIMIT 50 OFFSET 0
-                ";
-            $memory=\Synth\Bootstrap::db()->fetchAll($finalQuery);
+            $memory=\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->hybridSummaryCandidates(
+                $scopeConditionSql, $companionConditionSql, "[".implode(",",$vector["embedding"])."]", $kwStringAny, $kwStringAll, $timeThreshold);
             //error_log($finalQuery);
             $singleMemory = synthSelectBestHybridMemoryCandidate($memory);
 
@@ -686,27 +637,9 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
 
 
     if (is_array($vector1) && isset($vector1["embedding"])) {
-        $vectorString1="'[".implode(",",$vector1["embedding"])."]'";
-        $vectorString2="'[".implode(",",$vector2["embedding"])."]'";
-        $vectorString3="'[".implode(",",$vector3["embedding"])."]'";
-        $vectorString4="'[".implode(",",$vector4["embedding"])."]'";
-
-        $memory=\Synth\Bootstrap::db()->fetchAll("
-            SELECT  topic_desc,
-                                topic,
-                                knowledge_class,
-                                knowledge_class_basic,
-                                topic_desc_basic,
-                    vector384 <-> $vectorString1 as distance1,
-                    vector384 <-> $vectorString2 as distance2,
-                    vector384 <-> $vectorString3 as distance3,
-                    vector384 <-> $vectorString4 as distance4,
-                    ((vector384 <-> $vectorString1) + (vector384 <-> $vectorString2)/4 + (vector384 <-> $vectorString3)/2 + (vector384 <-> $vectorString4)/2 )/2 as distance
-                FROM public.core_worldknowledge_article
-                WHERE vector384 IS NOT NULL
-                ORDER BY ((vector384 <-> $vectorString1) + (vector384 <-> $vectorString2)/4 + (vector384 <-> $vectorString3)/2 + (vector384 <-> $vectorString4)/2 )/4 ASC
-                LIMIT 5 OFFSET 0
-            ");
+        $memory=\Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current(\Synth\Bootstrap::db())->nearestToVectors([
+            "[".implode(",",$vector1["embedding"])."]","[".implode(",",$vector2["embedding"])."]",
+            "[".implode(",",$vector3["embedding"])."]","[".implode(",",$vector4["embedding"])."]"]);
 
 
 

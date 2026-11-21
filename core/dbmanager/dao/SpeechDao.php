@@ -91,6 +91,17 @@ final class SpeechDao
         return $this->connection()->fetchAllAssociative("SELECT speaker,location,companions,speech from core_speech order by gamets desc limit {$limit} offset 0");
     }
 
+    /** The earliest line with this companion present (gamets, fallout_date, ts, localts), or null. @return array<string, mixed>|null */
+    public function firstLineWithCompanion(string $name): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM core_speech where companions ilike '%'||?||'%' order by rowid asc limit 1 offset 0",
+            [$name]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractSpeech> */
     public function findAll(int $limit = 1000): array
     {

@@ -58,6 +58,12 @@ final class MemoryLogDao
         return $this->connection()->fetchAllAssociative("SELECT message from core_memory_log order by gamets desc limit {$limit} offset 0");
     }
 
+    /** True when a first-met record already mentions this name ("met <name>"). */
+    public function hasFirstMetMentioning(string $name): bool
+    {
+        return $this->connection()->fetchOne("select 1 as t from core_memory_log where event='first_met' and message like '%met '||?||'%'", [$name]) !== false;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractMemoryLog> */
     public function findAll(int $limit = 1000): array
     {

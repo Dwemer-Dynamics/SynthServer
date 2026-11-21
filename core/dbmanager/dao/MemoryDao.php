@@ -42,6 +42,135 @@ class MemoryDao
         return $row === false ? null : $row;
     }
 
+    // Legacy (pre-native) memory reads. The scope and companion conditions are SQL fragments built by data_memory.php from values quoted
+    // with quoteLiteral(); every other value is bound.
+
+    /** $value as a quoted SQL literal for a fragment built by the caller. */
+    public function quoteLiteral(string $value): string
+    {
+        return $this->connection()->quote($value);
+    }
+
+    /** True when a non-empty summary exists for this scope. */
+    public function hasScopedSummary(string $scope): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM core_memory WHERE source_type='summary' AND scope=? AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1",
+            [$scope]
+        ) !== false;
+    }
+
+    /** The newest dialogue summary before $floor for one scope and companion condition (summary, gamets_truncated), or null. @return array<string, mixed>|null */
+    public function newestDialogueSummaryBefore(string $scopeSql, string $companionSql, int $floor): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT summary, gamets_truncated FROM public.core_memory"
+            . " WHERE source_type='summary' AND classifier='dialogue'"
+            . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
+            . " AND gamets_truncated < " . $floor
+            . " AND {$scopeSql} AND {$companionSql}"
+            . " ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1"
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Summaries matching a tsquery (any and all terms), best rank first. @return list<array<string, mixed>> */
+    public function summariesByKeywords(string $scopeSql, string $companionSql, string $anyTerms, string $allTerms): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT summary,gamets_truncated,
+        ts_rank(native_vec, to_tsquery(:any)) AS rank_any,
+        ts_rank(native_vec, to_tsquery(:all)) AS rank_all
+        FROM core_memory A
+        where source_type='summary' AND native_vec @@to_tsquery(:any)
+        and not (native_vec @@to_tsquery('#Reminiscence'))
+        and {$scopeSql}
+        and {$companionSql}
+
+        ORDER BY rank_all DESC, rank_any DESC",
+            ['any' => $anyTerms, 'all' => $allTerms]
+        );
+    }
+
+    /**
+     * The 50 closest summaries to an embedding, mixing vector distance with text rank. $anyTerms and $allTerms are tsquery texts
+     * ('' means no text rank); $timeThreshold 0 means no time limit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function hybridSummaryCandidates(string $scopeSql, string $companionSql, string $vectorText, string $anyTerms, string $allTerms, int|float $timeThreshold): array
+    {
+        $rankAny = $anyTerms !== '' ? 'ts_rank(native_vec, to_tsquery(:any))' : '0::real';
+        $rankAll = $allTerms !== '' ? 'ts_rank(native_vec, to_tsquery(:all))' : '0::real';
+        $rankCombined = "($rankAny + $rankAll)";
+        $params = ['vector' => $vectorText, 'threshold' => $timeThreshold];
+        if ($anyTerms !== '') $params['any'] = $anyTerms;
+        if ($allTerms !== '') $params['all'] = $allTerms;
+
+        return $this->connection()->fetchAllAssociative(
+            "SELECT rowid,gamets_truncated,
+                        embedding <-> CAST(:vector AS public.vector) as distance,
+                         $rankAny AS rank_any_fts_raw,
+                         $rankAll AS rank_all_fts_raw,
+                         $rankCombined AS rank_fts,
+                         (embedding <-> CAST(:vector AS public.vector)) - $rankCombined AS mixed_distance,
+                         summary
+                    FROM public.core_memory
+                    WHERE source_type='summary' AND embedding IS NOT NULL
+                    and {$scopeSql}
+                    and {$companionSql}
+                    and (gamets_truncated<:threshold or :threshold=0)
+
+                    ORDER BY
+                        mixed_distance ASC,
+                        distance ASC,
+                        gamets_truncated DESC,
+                        rowid DESC
+                    LIMIT 50 OFFSET 0",
+            $params
+        );
+    }
+
+    /** The summaries of one companion after a game time (content, gamets_truncated), newest first, at most 100. @return list<array<string, mixed>> */
+    public function companionSummariesAfter(string $scopeSql, string $companion, int|string $afterGamets): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT summary as content,gamets_truncated FROM core_memory where source_type='summary' AND summary is not null and {$scopeSql} and companions like '%|'||?||'|%' and gamets_truncated>? order by gamets_truncated desc LIMIT 100",
+            [$companion, $afterGamets]
+        );
+    }
+
+    /** The newest game time of any summary, or 0. */
+    public function maxSummaryGamets(): int
+    {
+        return (int) $this->connection()->fetchOne("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null");
+    }
+
+    /** How many history events lie strictly between two game times. */
+    public function countEventsBetween(int $afterGamets, int $beforeGamets): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) AS n FROM memory_v WHERE gamets > ? AND gamets < ?', [$afterGamets, $beforeGamets]);
+    }
+
+    /** Stores an embedding (a '[1,2,...]' vector text) on one memory row. */
+    public function setEmbeddingVector(int|string $rowid, string $vectorText): void
+    {
+        $this->connection()->executeStatement('update core_memory set embedding=CAST(? AS public.vector) where rowid=?', [$vectorText, $rowid]);
+    }
+
+    /** Clears the embedding of one memory row. */
+    public function clearEmbeddingVector(int $rowid): void
+    {
+        $this->connection()->executeStatement('UPDATE public.core_memory SET embedding = NULL WHERE rowid = ?', [$rowid]);
+    }
+
+    /** Deletes one summary memory row. */
+    public function deleteSummaryRow(int $rowid): void
+    {
+        $this->connection()->executeStatement("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = ?", [$rowid]);
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractMemory> */
     public function findAll(int $limit = 1000): array
     {

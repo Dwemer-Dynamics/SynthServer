@@ -36,12 +36,8 @@ if (isset($extended_data["middle_term_memory"])&&sizeof($extended_data["middle_t
 }
 
 
-$dbNpcName=\Synth\Bootstrap::db()->escape($selectedNpc);
 $scopeConditionSql = dataGetMemoryScopeConditionSql($selectedNpc);
-
-$query="SELECT summary as content,gamets_truncated FROM core_memory where source_type='summary' AND summary is not null and $scopeConditionSql and companions like '%|$dbNpcName|%' and gamets_truncated>$gametsfrom order by gamets_truncated desc LIMIT 100";
-// error_log($query);
-$contextDataFull=\Synth\Bootstrap::db()->fetchAll($query);
+$contextDataFull=\Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->companionSummariesAfter($scopeConditionSql, $selectedNpc, $gametsfrom);
 // $task=DataGetCurrentTask();
 $limit=10;
 
