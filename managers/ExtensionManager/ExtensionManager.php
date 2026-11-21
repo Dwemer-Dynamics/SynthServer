@@ -407,8 +407,13 @@ final class ExtensionManager
         if (!class_exists($entry) || !is_subclass_of($entry, ExtensionInterface::class)) throw new \RuntimeException('entry_class_invalid');
         $legacyFile = $this->root.'/data/extensions/'.$id.'.json';
         // The store connects on first use: the database store when a session exists, else the old file store.
-        $store = static function () use ($id, $legacyFile): ExtensionStoreInterface {
-            try { return new DatabaseExtensionStore($id, \Synth\Core\DbManager\Dao\ExtensionDataDao::current(), $legacyFile); }
+        // Only the real server root uses the shared database; a manager over another root (tests, tools) keeps its files.
+        $realRoot = realpath($this->root) === realpath(dirname(__DIR__, 2));
+        $store = static function () use ($id, $legacyFile, $realRoot): ExtensionStoreInterface {
+            try {
+                if (!$realRoot) return new ExtensionStore($legacyFile);
+                return new DatabaseExtensionStore($id, \Synth\Core\DbManager\Dao\ExtensionDataDao::current(), $legacyFile);
+            }
             catch (\Throwable) { return new ExtensionStore($legacyFile); }
         };
         $context = new ExtensionContext($id, $manifest['settings'] ?? [], $values, $store, $manifest['permissions'] ?? []);
