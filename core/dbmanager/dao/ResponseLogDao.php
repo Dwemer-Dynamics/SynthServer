@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractResponseLog;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_response_log. */
 final class ResponseLogDao
@@ -94,6 +95,18 @@ final class ResponseLogDao
             'INSERT INTO public.core_response_log (localts, sent, text, actor, action) VALUES (?, 0, ?, ?, ?)',
             [$localts, $text, $actor, $action]
         );
+    }
+
+    /** Marks every sent dialogue response as unsent again (after a wipe or a rollback, so it can be replayed). */
+    public function markDialogueResponsesUnsent(): bool
+    {
+        try {
+            $this->connection()->executeStatement("UPDATE public.core_response_log SET sent = 0 WHERE sent = 1 AND action = 'synth_dialogue_response'");
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

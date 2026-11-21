@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractSpeech;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_speech. */
 final class SpeechDao
@@ -113,6 +114,70 @@ final class SpeechDao
         );
 
         return $last === false || $last === null ? null : (string) $last;
+    }
+
+    private const COLUMNS = ['ts', 'gamets', 'listener', 'speaker', 'speech', 'location', 'companions', 'sess', 'audios', 'utterance_id', 'topic', 'localts'];
+
+    /**
+     * Appends one spoken line (column => value over the known columns; others are refused). False when the statement fails or
+     * nothing valid was given.
+     *
+     * @param array<string, mixed> $row
+     */
+    public function record(array $row): bool
+    {
+        $row = array_intersect_key($row, array_flip(self::COLUMNS));
+        if ($row === []) {
+            return false;
+        }
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_speech ('.implode(', ', array_keys($row)).') VALUES ('.implode(', ', array_fill(0, count($row), '?')).')',
+                array_values($row)
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes every spoken line (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_speech');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** The speaker of the newest spoken line, or null when there is none. */
+    public function lastSpeaker(): ?string
+    {
+        $speaker = $this->connection()->fetchOne('SELECT speaker FROM public.core_speech ORDER BY rowid DESC LIMIT 1');
+
+        return $speaker === false || $speaker === null ? null : (string) $speaker;
+    }
+
+    /**
+     * Replaces the text of the pending player lines (speaker matching $speakerPattern, within 100 gamets of $gamets) with
+     * $speech (the Auto Chat rewrite). False when the statement fails.
+     */
+    public function rewritePendingPlayerSpeech(string $speakerPattern, string $speech, int $gamets): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_speech SET speech = ? WHERE speaker ILIKE ? AND gamets >= ? - 100 AND gamets <= ? + 100 AND sess = 'pending'",
+                [$speech, $speakerPattern, $gamets, $gamets]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

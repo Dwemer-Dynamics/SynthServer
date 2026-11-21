@@ -136,6 +136,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
             $GLOBALS['db']=$db;
+            DaoTestDoubles::worldknowledgeFrom($db);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot,knowall,commonwealth';
             $GLOBALS['WORLDKNOWLEDGE_INFINIUM']=true;
@@ -169,6 +170,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 self::assertSame(0,$db->globalLatestReads);
             }
         } finally {
+            DaoTestDoubles::resetWorldknowledge();
             foreach ($saved as $key=>[$exists,$value]) { if ($exists) $GLOBALS[$key]=$value; else unset($GLOBALS[$key]); }
         }
     }

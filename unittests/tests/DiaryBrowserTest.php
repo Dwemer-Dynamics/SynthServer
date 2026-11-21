@@ -10,6 +10,7 @@ final class DiaryBrowserTest extends DatabaseTestCase
     public function setUp(): void
     {
         parent::setUp();
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null); // an earlier test may have booted the shared DAO on its own session
         $this->connection=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);
         self::assertNotFalse($this->connection);
     }

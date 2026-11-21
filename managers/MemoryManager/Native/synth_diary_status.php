@@ -41,42 +41,17 @@ function synth_diary_request_status($db): string
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event,true);
         if (!synth_protocol_current_context($db,$event)) throw new LogicException('Diary context unavailable.');
-        $result=@pg_query_params($connection,'SELECT response_body FROM public.core_request_execution WHERE session_id=$1 AND request_id=$2',
-            [$event['session_id'],$event['request_id']]);
-        if (!$result || !($row=pg_fetch_assoc($result))) throw new RuntimeException('Diary admission unavailable.');
+        $row=synth_diary_dao(static fn()=>\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->responseBody(
+            strval($event['session_id']),strval($event['request_id'])),'Diary admission unavailable.');
+        if (!$row) throw new RuntimeException('Diary admission unavailable.');
         $lines=explode("\n",trim(synth_protocol_decode_bytea($row['response_body'])));
         $ack=count($lines)===3 ? json_decode($lines[1],true,flags:JSON_THROW_ON_ERROR) : null;
         // Admission already records these counts atomically. Do not infer disabled actors from missing jobs.
         if (!is_array($ack)) throw new LogicException('Diary admission receipt invalid.');
         $queued=synth_diary_admission_queued($ack,$event);
-        $result=@pg_query_params($connection,"SELECT j.state,j.deadline_at<=clock_timestamp() AS expired,
-                j.attempts>=3 AND (j.state='pending' OR j.lease_until<=clock_timestamp()) AS exhausted,
-                j.lease_until>clock_timestamp() AS live_lease,i.id,i.actor_identity_id,i.diary_role,i.input_payload,i.input_sha256,
-                i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid_input,
-                r.history_event_id,r.result_payload,
-                r.result_sha256=encode(sha256(convert_to(r.result_payload::text,'UTF8')),'hex') AS valid_result,
-                h.session_id=i.session_id AND h.request_id=i.request_id AND h.generation=i.generation
-                    AND h.context_sequence=i.context_sequence AND h.playthrough_id=c.playthrough_id
-                    AND h.event_payload->>'type'='diary_result' AND h.event_payload->>'delivery_state'='derived'
-                    AND h.event_payload->'diary_result'=r.result_payload
-                    AND h.event_payload->>'diary_result_sha256'=r.result_sha256
-                    AND h.event_payload->>'diary_input_sha256'=i.input_sha256 AS valid_history
-            FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
-                AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
-                AND j.actor_identity_id=i.actor_identity_id AND j.turn_id=$4 AND j.job_type='diary'
-                AND j.payload->>'schema'='synth.diary.job.v1' AND j.payload->>'context_sequence'=i.context_sequence::text
-            JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
-                AND c.snapshot_sequence=i.context_sequence
-            LEFT JOIN public.core_diary_result r ON r.input_id=i.id
-            LEFT JOIN public.core_history_event h ON h.id=r.history_event_id
-            WHERE i.session_id=$1 AND i.request_id=$2 AND i.generation=$3 AND i.context_sequence=$5 AND i.diary_role IN ('npc','narrator','player')
-                AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
-                AND i.input_payload->>'diary_role'=i.diary_role AND i.input_payload->'context'=c.context_payload
-                AND i.input_payload->'prior_revision'=COALESCE(to_jsonb(i.prior_history_event_id),'null'::jsonb)
-                AND i.input_payload->'profile_revision'=COALESCE(to_jsonb(i.profile_revision_id),'null'::jsonb)",
-            [$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],$event['context_sequence']]);
-        if (!$result) throw new RuntimeException('Unable to read diary jobs.');
-        $jobs=pg_fetch_all($result) ?: [];
+        $jobs=synth_diary_dao(static fn()=>\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->diaryStatusRows(
+            strval($event['session_id']),strval($event['request_id']),intval($event['generation']),strval($event['turn_id']),intval($event['context_sequence'])),
+            'Unable to read diary jobs.');
         if (count($jobs)!==$queued) throw new LogicException('Diary job ownership incomplete.');
         $states=[];
         foreach ($jobs as $job) {
@@ -99,13 +74,8 @@ function synth_diary_request_status($db): string
                     throw new LogicException('Diary saved evidence changed.');
                 }
                 $inputId=intval($job['id']);
-                $sources=$db->fetchOne(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned)." SELECT count(*) AS n,
-                    (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=$inputId) AS total
-                    FROM public.core_diary_input_source s JOIN native_history v ON v.history_event_id=s.history_event_id
-                    JOIN public.core_history_event h ON h.id=s.history_event_id JOIN public.core_diary_input i ON i.id=s.input_id
-                    WHERE s.input_id=$inputId AND s.source_sha256=encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex')
-                        AND EXISTS(SELECT 1 FROM jsonb_array_elements(i.input_payload->'history') evidence
-                            WHERE evidence->>'history_event_id'=s.history_event_id::text AND evidence->>'source_sha256'=s.source_sha256)");
+                $sources=\Synth\Core\DbManager\Dao\DiaryInputSourceDao::current($db)->visibleSourceCounts(
+                    synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned),$inputId);
                 if (intval($sources['n'])!==count($input['history']) || intval($sources['total'])!==count($input['history'])) {
                     throw new LogicException('Diary source evidence unavailable.');
                 }

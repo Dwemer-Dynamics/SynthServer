@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractMemory;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_memory. */
 class MemoryDao
@@ -407,6 +408,27 @@ class MemoryDao
                 array_values($row)
             );
         } catch (\Throwable $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Uids of the summary memories whose truncated gamets is after $gametsTruncated. @return list<string> */
+    public function summaryUidsAfter(int $gametsTruncated): array
+    {
+        return array_map('strval', $this->connection()->fetchFirstColumn(
+            "SELECT uid FROM public.core_memory WHERE source_type = 'summary' AND gamets_truncated > ?",
+            [$gametsTruncated]
+        ));
+    }
+
+    /** Removes every memory (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_memory');
+        } catch (DbalException $error) {
             return false;
         }
 
