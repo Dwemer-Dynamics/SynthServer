@@ -10,7 +10,7 @@ declare(strict_types=1);
 use Synth\Managers\TtsStudio\VoicePreviewException;
 use Synth\Managers\TtsStudio\VoicePreviewManager;
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 ob_start();
 
 /**

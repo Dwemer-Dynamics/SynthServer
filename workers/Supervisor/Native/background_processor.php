@@ -8,7 +8,7 @@
  * - Start daemon via service/start.sh when needed.
  */
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 function synthBackgroundProcessorPort(): int
 {
     // CHIM owns 12345 and Stobe owns 12346. Keep SYNTH isolated so

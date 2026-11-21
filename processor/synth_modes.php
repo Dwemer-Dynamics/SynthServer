@@ -43,7 +43,7 @@
 //      (Whatever is typed/said is injected into event log as an roleplay instruction expecting response)
 //      Just store player speech on eventlog and follow the standard flow.
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 if (!isset($db)) $db = new sql();
 
 function synthRunServiceManager(array $args, ?array &$output = null, ?int &$returnCode = null): void
