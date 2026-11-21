@@ -24,4 +24,14 @@ final class ContextEventDao
     {
         return array_values($this->fresh()->getRepository(AbstractContextEvent::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** How many context events there are, or null when the count fails. */
+    public function countRows(): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM public.core_context_event');
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
 }

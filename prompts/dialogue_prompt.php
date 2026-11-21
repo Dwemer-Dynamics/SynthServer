@@ -125,8 +125,7 @@ if (!function_exists('synthGetRechatPreviousSpeakerName')) {
             try {
                 $db = \Synth\Bootstrap::db();
                 if (isset($db)) {
-                    $row = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
-                    $speaker = trim((string)($row["speaker"] ?? ""));
+                    $speaker = trim((string)(\Synth\Core\DbManager\Dao\SpeechDao::current($db)->latestSpeaker() ?? ""));
                 }
             } catch (\Throwable $e) {
                 $speaker = "";

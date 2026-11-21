@@ -380,27 +380,20 @@ if (!function_exists('synthGetSelectOptionsForOverrideSetting')) {
             return [];
         }
 
-        $definitions = [
-            'GLOBAL_STT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_stt_connector ORDER BY id ASC",
-            ],
-            'GLOBAL_ITT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_itt_connector ORDER BY id ASC",
-            ],
+        $connectorDaos = [
+            'GLOBAL_STT_CONNECTOR_ID' => \Synth\Core\DbManager\Dao\SttConnectorDao::class,
+            'GLOBAL_ITT_CONNECTOR_ID' => \Synth\Core\DbManager\Dao\IttConnectorDao::class,
         ];
-
         if (strpos($flatId, 'CORE_CONNECTOR_') === 0 || $flatId === 'RELLLM_CONNECTOR') {
-            $definitions[$flatId] = [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(model, ''), CAST(id AS text)) AS option_label FROM public.core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label, ''), model)) ASC",
-            ];
+            $connectorDaos[$flatId] = \Synth\Core\DbManager\Dao\LlmConnectorDao::class;
         }
 
-        if (!isset($definitions[$flatId])) {
+        if (!isset($connectorDaos[$flatId])) {
             return [];
         }
 
         try {
-            $rows = $db->fetchAll($definitions[$flatId]['query']);
+            $rows = $connectorDaos[$flatId]::current($db)->settingOptions();
         } catch (\Throwable $e) {
             return [];
         }
@@ -1381,7 +1374,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
         }
 
         try {
-            $playerNameFromDb = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='PLAYER_NAME'");
+            $playerNameFromDb = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'PLAYER_NAME')];
         } catch (\Throwable $e) {
             $playerNameFromDb = [];
         }

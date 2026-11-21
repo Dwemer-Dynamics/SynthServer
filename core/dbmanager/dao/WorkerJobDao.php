@@ -90,4 +90,17 @@ final class WorkerJobDao
     {
         return array_values($this->fresh()->getRepository(AbstractWorkerJob::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
+
+    /** How many finished (ready, failed, cancelled or stale) jobs of one type were last updated more than $days days ago; null when the count fails. */
+    public function countFinishedOlderThan(string $jobType, int $days): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne(
+                "SELECT COUNT(*) FROM public.core_worker_job WHERE job_type = ? AND state IN ('ready','failed','cancelled','stale') AND updated_at < now() - make_interval(days => ?)",
+                [$jobType, $days]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+    }
 }
