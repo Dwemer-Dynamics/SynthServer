@@ -251,8 +251,7 @@ function synthQuickstartApplyTtsSelection(TTSConnector $connector, $selectedDriv
     \Synth\Bootstrap::db()->query("UPDATE core_profiles SET tts_connector_id = {$selectedId} WHERE tts_connector_id IS NULL OR default_narrator = '1' OR default_npc = '1'");
 
     if (!class_exists('Player')) {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
 
     try {
         $player = new Player();
@@ -448,11 +447,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
         $result = false;
         try {
             require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "settings.php");
-            require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-            require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "stt_connector.class.php");
-            require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-
-            // PLAYER_NAME is detected from the game and saved to core_player automatically.
+            
+// PLAYER_NAME is detected from the game and saved to core_player automatically.
 
             $ttsConnector = new TTSConnector();
             $selectedTtsDriver = synthQuickstartNormalizeTtsDriver($ttsConnector, $_POST['TTSFUNCTION'] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? 'none'));
@@ -566,8 +562,6 @@ $configFilepath = realpath($configFilepath) . DIRECTORY_SEPARATOR;
 
 require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "llm_randomizer.php");
 require_once($rootPath . "conf" . DIRECTORY_SEPARATOR . 'conf_loader.php');
-require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "stt_connector.class.php");
 $db = \Synth\Bootstrap::db();
 
 // Load current configurations

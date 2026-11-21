@@ -17,11 +17,6 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.p
 
 \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
-require_once $enginePath . "lib/core/npc_master.class.php";
-require_once $enginePath . "lib/core/api_badge.class.php";
-require_once $enginePath . "lib/core/core_profiles.class.php";
-require_once $enginePath . "lib/core/llm_connector.class.php";
-require_once $enginePath . "lib/core/tts_connector.class.php";
 
 // Minimal Markdown -> HTML renderer for bold and bullets
 function render_simple_markdown($text){

@@ -13,7 +13,6 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "model_dynmodel.php");
 require_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf_loader.php");
 @include_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 @include_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_studio_provider_detection.php");
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "tts_pronunciation.php");

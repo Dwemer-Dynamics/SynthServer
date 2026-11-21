@@ -18,7 +18,6 @@ synthRuntimeBootstrap($enginePath, [
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php";
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php";
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php";
-require_once $enginePath . "lib/core/npc_master.class.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "ai_profile_generation_helper.php";
 
 $db = \Synth\Bootstrap::db();

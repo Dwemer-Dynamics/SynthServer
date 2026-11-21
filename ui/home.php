@@ -388,7 +388,6 @@ if ($hasGamePlugins) {
 
 $playerName = \Synth\Bootstrap::has('PLAYER_NAME') && trim((string)\Synth\Bootstrap::config('PLAYER_NAME')) !== '' ? (string)\Synth\Bootstrap::config('PLAYER_NAME') : 'Player';
 try {
-    require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
     $playerHelper = new Player();
     $storedPlayerName = $playerHelper->get('player_name');
     if ($storedPlayerName !== null && trim((string)$storedPlayerName) !== '') {

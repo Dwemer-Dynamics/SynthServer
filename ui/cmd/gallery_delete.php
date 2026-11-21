@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {

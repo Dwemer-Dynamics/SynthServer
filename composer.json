@@ -38,8 +38,12 @@
             "Synth\\Drivers\\Tts\\": "drivers/tts/",
             "Synth\\Drivers\\Stt\\": "drivers/stt/",
             "Synth\\Drivers\\Itt\\": "drivers/itt/",
-            "Synth\\Workers\\": "workers/"
-        }
+            "Synth\\Workers\\": "workers/",
+            "Synth\\Lib\\": "lib/classes/"
+        },
+        "classmap": [
+            "core/dbmanager/Legacy/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

@@ -33,7 +33,6 @@ require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."chat_helper_functions.php
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."data_functions.php");
 require_once($enginePath . "lib" .DIRECTORY_SEPARATOR."logger.php");
 
-require_once "{$enginePath}/lib/core/api_badge.class.php";
 
 // Web root detection to match site-wide includes (consistent with worldknowledge_upload)
 $scriptPath = $_SERVER['SCRIPT_NAME'];

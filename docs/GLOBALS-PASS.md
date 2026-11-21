@@ -281,3 +281,35 @@ Files under: core/dbmanager
 | --- | --- | --- |
 | global uses (all non-test PHP) | 269 | 64 |
 | `require_once` | 1864 | 1864 |
+
+## Globals exception list (final)
+
+The justified remainder of the globals pass (64 uses with the CHEVO-PARITY count method):
+
+- `bootstrap.php` (47): `Synth\Bootstrap` is the store; its own `$GLOBALS` access is the implementation.
+- `lib/classes/Logger.php` (2): the logger is required standalone before any autoloader and must not depend on `Bootstrap`.
+- `tools/globals-convert.php`, `tools/globals-comments.php`: the converter mentions the tokens in its comments.
+- Literal replacement keys `'{$GLOBALS["SYNTH_NAME"]}'` / `PLAYER_NAME` (text to substitute, not accesses) in `functions/functions.php`, `ui/function_editor.php`, `workers/Profiles/Native/dynamic_update_util.php`, `processor/request.php` and `managers/MemoryManager/Native/synth_diary_state.php`.
+- Not counted by the method: whole-array uses of `$GLOBALS` (no subscript), for example `array_intersect_key($GLOBALS, ...)`.
+
+## require_once pass (R-series)
+
+Method: files that declare only classes or guarded functions and have no load-time side effects move to the Composer autoloader, and the `require_once` lines that loaded them are deleted by `tools/require-prune.php` (token based; it only touches whole statements and lists the rest). The deploy already runs `composer install --no-dev` (optimized autoloader), and the test sandbox runs `composer dump-autoload`, so `composer.json` autoload changes take effect without extra steps.
+
+| Autoloaded by | Files |
+| --- | --- |
+| `classmap` `core/dbmanager/Legacy/` | `ApiBadge`, `CoreProfile`, `ImportRules`, `ITTConnector`, `LLMConnector`, `Narrator`, `NpcMaster`, `Player`, `STTConnector`, `TTSConnector` (global-namespace legacy classes). The `lib/core/*.class.php` hooks stay as one-line shims; requiring them still works, it is just no longer needed. |
+| PSR-4 `Synth\Lib\` => `lib/classes/` | `Synth\Lib\Logger` |
+
+`lib/logger.php` (the global `Logger` shim) is not autoloaded: it installs the error handlers when it is included, so it stays an explicit `require_once`. `lib/runtime_bootstrap.php` and `lib/autoload.php` are entry-point loaders and stay.
+
+In entry scripts that loaded `lib/classes/Logger.php` first, that line becomes `lib/autoload.php` so the autoloader is available from the first line; where the file already loads the autoloader the line is deleted.
+
+### R1-ui
+
+Directory: `ui/`. Deleted 74 legacy-class `require_once` lines, replaced 13 `Logger.php` lines by `autoload.php`.
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1864 | 1790 |
+| global uses | 64 | 64 |
