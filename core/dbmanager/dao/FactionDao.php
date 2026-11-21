@@ -8,9 +8,10 @@ namespace Synth\Core\DbManager\Dao;
 
 use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractFaction;
+use Doctrine\DBAL\Driver\Exception as DriverException;
 
 /** Finds rows of core_faction. */
-final class FactionDao
+class FactionDao
 {
     use UsesEntityManager;
 
@@ -67,5 +68,22 @@ final class FactionDao
         }
 
         return true;
+    }
+
+    /**
+     * Faction names for the given (already upper-cased) form ids. Throws when the table is unreadable, as older
+     * installs can reach this before the faction migration.
+     *
+     * @param list<string> $formIds
+     * @return list<string>
+     */
+    public function namesByFormIds(array $formIds): array
+    {
+        $in = implode(',', array_fill(0, count($formIds), '?'));
+
+        return array_map('strval', $this->connection()->fetchFirstColumn(
+            'SELECT name FROM public.core_faction WHERE upper(formid) IN ('.$in.')',
+            array_values($formIds)
+        ));
     }
 }

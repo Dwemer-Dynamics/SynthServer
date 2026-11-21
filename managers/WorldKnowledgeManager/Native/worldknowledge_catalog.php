@@ -269,21 +269,9 @@ function synthWorldKnowledgeRemoveLegacyFactorySeed(object $db, string $rootPath
                 continue;
             }
             $canonical = synthWorldKnowledgeCanonicalTopic(strval($row['topic'] ?? ''));
-            $predicate = ' WHERE source_kind=\'custom\' AND is_active'
-                . ' AND canonical_topic=' . $db->escapeLiteral($canonical)
-                . ' AND topic=' . $db->escapeLiteral(trim(strval($row['topic'] ?? '')))
-                . ' AND coalesce(aliases,\'\')=' . $db->escapeLiteral(trim(strval($row['aliases'] ?? '')))
-                . ' AND coalesce(topic_desc,\'\')=' . $db->escapeLiteral(trim(strval($row['topic_desc'] ?? '')))
-                . ' AND coalesce(knowledge_class,\'\')=' . $db->escapeLiteral(trim(strval($row['knowledge_class'] ?? '')))
-                . ' AND coalesce(topic_desc_basic,\'\')=' . $db->escapeLiteral(trim(strval($row['topic_desc_basic'] ?? '')))
-                . ' AND coalesce(knowledge_class_basic,\'\')=' . $db->escapeLiteral(trim(strval($row['knowledge_class_basic'] ?? '')))
-                . ' AND coalesce(tags,\'\')=' . $db->escapeLiteral(trim(strval($row['tags'] ?? '')))
-                . ' AND coalesce(category,\'\')=' . $db->escapeLiteral(trim(strval($row['category'] ?? '')));
-            $sql = 'DELETE FROM public.core_worldknowledge_article' . $predicate;
-            $before = $db->fetchOne(
-                'SELECT entry_id FROM public.core_worldknowledge_article' . $predicate . ' LIMIT 1'
-            );
-            if (is_array($before) && $before !== [] && $db->execQuery($sql)) {
+            $seed = array_map(static fn($value): string => trim(strval($value)), $row);
+            $dao = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db);
+            if ($dao->customSeedRowExists($canonical, $seed) && $dao->deleteCustomSeedRow($canonical, $seed)) {
                 $removed++;
             }
         }
@@ -348,25 +336,15 @@ function synthWorldKnowledgeLoadNpcAccessTags(string $rootPath): array
 /** Seed controlled factory NPC knowledge tags without replacing user-authored template values. */
 function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): int
 {
-    $valuesSql = [];
-    foreach (synthWorldKnowledgeLoadNpcAccessTags($rootPath) as $row) {
-        $valuesSql[] = '(' . $db->escapeLiteral($row['npc_name']) . ','
-            . $db->escapeLiteral($row['tags']) . ','
-            . ($row['prior_seed_sha256'] === '' ? 'NULL' : $db->escapeLiteral($row['prior_seed_sha256'])) . ')';
-    }
-    if ($valuesSql === []) {
+    $seedRows = synthWorldKnowledgeLoadNpcAccessTags($rootPath);
+    if ($seedRows === []) {
         return 0;
     }
-    $seedSql = 'WITH seed(npc_name,tags,prior_seed_sha256) AS (VALUES ' . implode(',', $valuesSql) . ')';
-    $existingRows = $db->fetchAll(
-        $seedSql . ' SELECT template.npc_name, template.worldknowledge_tags, seed.tags AS seed_tags,'
-        . ' seed.prior_seed_sha256'
-        . ' FROM public.core_npc_biography_template AS template JOIN seed ON template.npc_name=seed.npc_name'
-    );
+    $existingRows = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->worldknowledgeTagsForSeed($seedRows);
     if (!is_array($existingRows)) {
         throw new RuntimeException('Unable to inspect existing Fallout NPC World Knowledge tags');
     }
-    $updatesSql = [];
+    $updates = [];
     foreach ($existingRows as $existingRow) {
         $currentRaw = trim(strval($existingRow['worldknowledge_tags'] ?? ''));
         $seedTags = array_values(array_filter(explode(',', strval($existingRow['seed_tags'] ?? ''))));
@@ -405,35 +383,22 @@ function synthWorldKnowledgeInstallNpcAccessTags(object $db, string $rootPath): 
         if ($currentRaw !== '' && !$matchesPriorSeed && !$matchesRecognizedSeed) {
             continue;
         }
-        $updatesSql[] = '(' . $db->escapeLiteral(strval($existingRow['npc_name'] ?? '')) . ','
-            . $db->escapeLiteral(implode(',', $seedTags)) . ')';
+        $updates[] = [strval($existingRow['npc_name'] ?? ''), implode(',', $seedTags)];
     }
-    if ($updatesSql === []) {
+    if ($updates === []) {
         return 0;
     }
-    $result = $db->fetchOne(
-        'WITH seed(npc_name,tags) AS (VALUES ' . implode(',', $updatesSql) . '), updated AS ('
-        . 'UPDATE public.core_npc_biography_template AS template SET worldknowledge_tags=seed.tags FROM seed'
-        . ' WHERE template.npc_name=seed.npc_name RETURNING 1) SELECT count(*) AS updated FROM updated'
-    );
-    if (!is_array($result) || !array_key_exists('updated', $result)) {
+    $updated = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->updateWorldknowledgeTags($updates);
+    if ($updated === null) {
         throw new RuntimeException('Unable to install Fallout NPC World Knowledge tags');
     }
-    return intval($result['updated'] ?? 0);
+    return $updated;
 }
 
 /** Prevent an incomplete factory catalog from becoming the runtime projection. */
 function synthWorldKnowledgeAssertCatalogComplete(object $db, string $catalogId, string $catalogVersion): int
 {
-    $catalog = $db->fetchOne(
-        'SELECT catalog.row_count AS expected_rows, count(article.entry_id) AS installed_rows'
-        . ' FROM public.core_worldknowledge_catalog AS catalog'
-        . ' LEFT JOIN public.core_worldknowledge_article AS article ON article.source_kind=\'factory\''
-        . ' AND article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version'
-        . ' WHERE catalog.catalog_id=' . $db->escapeLiteral($catalogId)
-        . ' AND catalog.catalog_version=' . $db->escapeLiteral($catalogVersion)
-        . ' GROUP BY catalog.row_count'
-    );
+    $catalog = \Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao::current($db)->completeness($catalogId, $catalogVersion);
     if (!is_array($catalog) || $catalog === []) {
         throw new RuntimeException("World Knowledge catalog {$catalogId}/{$catalogVersion} is not installed");
     }
@@ -481,59 +446,22 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath, 
             }
         }
         $legacySeedRemoved = synthWorldKnowledgeRemoveLegacyFactorySeed($db, $rootPath);
-        if (!$db->execQuery("DELETE FROM public.core_worldknowledge_article WHERE source_kind='factory'")) {
+        $articles = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db);
+        $catalogs = \Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao::current($db);
+        if (!$articles->deleteFactoryRows()) {
             throw new RuntimeException('Unable to replace World Knowledge factory rows');
         }
-        if (!$db->execQuery(
-            "UPDATE public.core_worldknowledge_article SET catalog_id=NULL, catalog_version=NULL WHERE source_kind<>'factory'"
-            . ' AND (catalog_id IS NOT NULL OR catalog_version IS NOT NULL)'
-        )) {
+        if (!$articles->detachCustomRowsFromCatalog()) {
             throw new RuntimeException('Unable to detach custom World Knowledge rows from factory metadata');
         }
-        if (!$db->execQuery('DELETE FROM public.core_worldknowledge_catalog')) {
+        if (!$catalogs->deleteAll()) {
             throw new RuntimeException('Unable to replace World Knowledge catalog metadata');
         }
-        $catalogSql = 'INSERT INTO public.core_worldknowledge_catalog '
-            . '(catalog_id,catalog_version,display_name,checksum_sha256,row_count,manifest,is_active,activated_at) VALUES ('
-            . implode(',', [
-                $db->escapeLiteral($catalogId),
-                $db->escapeLiteral($catalogVersion),
-                $db->escapeLiteral($displayName),
-                $db->escapeLiteral($checksum),
-                strval(count($catalog['rows'])),
-                $db->escapeLiteral($manifestJson) . '::jsonb',
-                'TRUE',
-                'CURRENT_TIMESTAMP',
-            ])
-            . ')';
-        if (!$db->execQuery($catalogSql)) {
+        if (!$catalogs->insertActive($catalogId, $catalogVersion, $displayName, $checksum, count($catalog['rows']), $manifestJson)) {
             throw new RuntimeException('Unable to record World Knowledge catalog manifest');
         }
         foreach ($catalog['rows'] as $row) {
-            $values = [
-                $db->escapeLiteral($row['topic']),
-                $db->escapeLiteral($row['canonical_topic']),
-                $db->escapeLiteral($row['aliases']),
-                synthWorldKnowledgeSqlNullable($db, $row['topic_desc']),
-                synthWorldKnowledgeSqlNullable($db, $row['knowledge_class']),
-                $db->escapeLiteral($row['topic_desc_basic']),
-                synthWorldKnowledgeSqlNullable($db, $row['knowledge_class_basic']),
-                $db->escapeLiteral($row['tags']),
-                $db->escapeLiteral($row['category']),
-                $db->escapeLiteral('factory'),
-                $db->escapeLiteral($catalogId),
-                $db->escapeLiteral($catalogVersion),
-                $db->escapeLiteral($row['content_hash']),
-            ];
-            $insertSql = 'INSERT INTO public.core_worldknowledge_article ('
-                . 'topic,canonical_topic,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,'
-                . 'tags,category,source_kind,catalog_id,catalog_version,content_hash,native_vector'
-                . ') VALUES (' . implode(',', $values) . ','
-                . "setweight(to_tsvector('simple',coalesce(" . $db->escapeLiteral($row['topic']) . ",'')),'A')"
-                . "||setweight(to_tsvector('simple',coalesce(" . $db->escapeLiteral($row['aliases']) . ",'')),'A')"
-                . "||setweight(to_tsvector('simple',coalesce(" . synthWorldKnowledgeSqlNullable($db, $row['topic_desc']) . ",'')),'B')"
-                . "||setweight(to_tsvector('simple',coalesce(" . $db->escapeLiteral($row['topic_desc_basic']) . ",'')),'C'))";
-            if (!$db->execQuery($insertSql)) {
+            if (!$articles->insertFactoryRow($row, $catalogId, $catalogVersion)) {
                 throw new RuntimeException("Unable to install World Knowledge article {$row['canonical_topic']}");
             }
         }
@@ -561,10 +489,4 @@ function synthWorldKnowledgeInstallFactoryCatalog(object $db, string $rootPath, 
         'legacy_seed_rows_removed' => $legacySeedRemoved ?? 0,
         'npc_template_tags_installed' => $npcTemplateTagsInstalled ?? 0,
     ];
-}
-
-function synthWorldKnowledgeSqlNullable(object $db, mixed $value): string
-{
-    $value = trim(strval($value));
-    return $value === '' ? 'NULL' : $db->escapeLiteral($value);
 }

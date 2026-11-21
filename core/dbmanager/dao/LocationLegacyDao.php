@@ -8,9 +8,10 @@ namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractLocationLegacy;
 use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Driver\Exception as DriverException;
 
 /** Finds rows of core_location_legacy. */
-final class LocationLegacyDao
+class LocationLegacyDao
 {
     use UsesEntityManager;
 
@@ -189,5 +190,24 @@ final class LocationLegacyDao
         } catch (\Doctrine\DBAL\Exception) {
             return [];
         }
+    }
+
+    /**
+     * Up to 20 legacy locations whose normalized name equals $key, as name and worldspace (empty when the table has no
+     * worldspace column). Throws when the table is unreadable.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function byNormalizedName(string $key, bool $hasWorldspace): array
+    {
+        $worldspaceSelect = $hasWorldspace ? 'worldspace' : "'' AS worldspace";
+
+        return $this->connection()->fetchAllAssociative(
+            "SELECT name, {$worldspaceSelect}
+                   FROM public.core_location_legacy
+                  WHERE btrim(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', ' ', 'g')) = ?
+                  LIMIT 20",
+            [$key]
+        );
     }
 }
