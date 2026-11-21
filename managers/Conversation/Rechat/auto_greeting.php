@@ -182,7 +182,7 @@ function synthBuildAutoGreetingDirective(array $snapshot, array $previousSnapsho
         $profileMetadata = [];
         $profileId = (int)($npc['profile_id'] ?? 0);
         if ($profileId > 0) {
-            $profile = $db->fetchOne("SELECT metadata FROM core_profiles WHERE id={$profileId} LIMIT 1");
+            $profile = \Synth\Core\DbManager\Dao\ProfileDao::current($db)->metadataRow($profileId);
             if (is_array($profile)) {
                 $profileMetadata = json_decode((string)($profile['metadata'] ?? '{}'), true) ?: [];
             }

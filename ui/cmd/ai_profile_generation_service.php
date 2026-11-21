@@ -275,11 +275,10 @@ function aiProfileGenerate(array $options): array
     \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', "");
     \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "");
 
-    $res = $db->fetchAll("select max(gamets) as last_gamets from core_context_event");
-    $res2 = $db->fetchAll("select max(ts) as ts from core_context_event where gamets='{$res[0]["last_gamets"]}'");
-    $last_gamets = $res[0]["last_gamets"] + 1;
+    $latestPosition = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPosition();
+    $last_gamets = $latestPosition["last_gamets"] + 1;
     $gameRequest = ["inputtext", "0", $last_gamets, $name];
-    $last_ts = $res2[0]["ts"] ?? time();
+    $last_ts = $latestPosition["ts"] ?? time();
     \Synth\Bootstrap::set('gameRequest', $gameRequest);
 
     $dynamicBiography = buildDynamicBiography($GLOBALS);
@@ -320,7 +319,7 @@ function aiProfileGenerate(array $options): array
     if (empty($buffer)) {
         $lastError = '';
         try {
-            $auditResult = $db->fetchOne("SELECT result, url, connector FROM core_audit_request ORDER BY id DESC LIMIT 1");
+            $auditResult = \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->latest();
             if ($auditResult && strpos($auditResult['result'], 'ERROR') === 0) {
                 $lastError = $auditResult['result'];
             }

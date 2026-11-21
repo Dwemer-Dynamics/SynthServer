@@ -57,30 +57,6 @@ function worldknowledgeAuditStatusTone(string $status): string
     return 'idle';
 }
 
-/**
- * Compose the row filters. Matched-only and the status filter are ANDed, so
- * selecting a status the matched-only set excludes correctly yields no rows.
- * The status value is restricted to the allowlist above and then quoted by the
- * driver, because this connection exposes no bound-parameter fetch helper.
- */
-function worldknowledgeAuditBuildWhereClause(bool $matchedOnly, string $status = '', mixed $db = null): string
-{
-    $clauses = [];
-    if ($matchedOnly) {
-        $clauses[] = "status IN ('grounded', 'fallback_succeeded')";
-    }
-    if ($status !== '' && in_array($status, WORLDKNOWLEDGE_AUDIT_STATUSES, true)) {
-        $literal = ($db !== null && method_exists($db, 'escapeLiteral'))
-            ? $db->escapeLiteral($status)
-            : "'" . $status . "'";
-        $clauses[] = 'status = ' . $literal;
-    }
-    if ($clauses === []) {
-        return '';
-    }
-    return 'WHERE ' . implode(' AND ', $clauses);
-}
-
 function worldknowledgeAuditCountRows(bool $matchedOnly = false, string $status = ''): int
 {
     $db = \Synth\Bootstrap::db() ?? null;
@@ -89,9 +65,8 @@ function worldknowledgeAuditCountRows(bool $matchedOnly = false, string $status 
     }
 
     try {
-        $whereSql = worldknowledgeAuditBuildWhereClause($matchedOnly, $status, $db);
-        $row = $db->fetchOne('SELECT COUNT(*) AS total FROM public.core_worldknowledge_audit ' . $whereSql);
-        return intval($row['total'] ?? 0);
+        $status = in_array($status, WORLDKNOWLEDGE_AUDIT_STATUSES, true) ? $status : '';
+        return \Synth\Core\DbManager\Dao\WorldknowledgeAuditDao::current($db)->countFiltered($matchedOnly, $status);
     } catch (Throwable $exception) {
         Logger::warn("worldknowledge_audit count failed: " . $exception->getMessage());
         return 0;
@@ -110,19 +85,8 @@ function worldknowledgeAuditFetchRows(int $limit = 50, int $offset = 0, bool $ma
     $safeLimit = max(10, min(100, $limit));
     $safeOffset = max(0, $offset);
     try {
-        $whereSql = worldknowledgeAuditBuildWhereClause($matchedOnly, $status, $db);
-        return $db->fetchAll(
-            'SELECT audit_id, created_at, algorithm_version, status, request_type, npc_name,
-                    input_text, normalized_input, catalog_id, catalog_version, catalog_checksum,
-                    grounded_matches, rejected_candidates, tag_decisions, context_tags, fallback,
-                    forced_signals, access_decisions, selected_articles, settings, prompt_hash,
-                    retrieval_elapsed_ms, elapsed_ms
-             FROM public.core_worldknowledge_audit
-             ' . $whereSql . '
-             ORDER BY created_at DESC
-             LIMIT ' . intval($safeLimit) . '
-             OFFSET ' . intval($safeOffset)
-        );
+        $status = in_array($status, WORLDKNOWLEDGE_AUDIT_STATUSES, true) ? $status : '';
+        return \Synth\Core\DbManager\Dao\WorldknowledgeAuditDao::current($db)->pageFiltered($safeLimit, $safeOffset, $matchedOnly, $status);
     } catch (Throwable $exception) {
         Logger::warn("worldknowledge_audit fetch failed: " . $exception->getMessage());
         $failed = true;

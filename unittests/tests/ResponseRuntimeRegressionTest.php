@@ -482,6 +482,10 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 public function fetchAll(string $query, $log=false): array { $this->queries[]=$query; return []; }
             };
             DaoTestDoubles::ownerFrom($db);
+            \Synth\Managers\ConfigManager\ConfigManager::inject(new class extends \Synth\Managers\ConfigManager\ConfigManager {
+                public function __construct() {}
+                public function getMany(string $scope,array $keys): array { return []; }
+            });
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['CORE_CONNECTOR_PLAYER']=2;$GLOBALS['HTTP_TIMEOUT']=15;unset($GLOBALS['SYNTH_AUTOCHAT']);
             $bound=['inputtext',0,0,json_encode(['schema'=>'synth.input.v1','npc'=>'Piper','text'=>$event['payload']['text'],'game'=>'fo4'])];
@@ -589,6 +593,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             $this->assertSame($event,$GLOBALS['SYNTH_REQUEST_EVENT']['json']);
         } finally {
             DaoTestDoubles::reset();
+            \Synth\Managers\ConfigManager\ConfigManager::reset();
             foreach ($keys as $key) {
                 if (array_key_exists($key,$saved)) $GLOBALS[$key]=$saved[$key]; else unset($GLOBALS[$key]);
             }

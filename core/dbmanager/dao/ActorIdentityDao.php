@@ -19,6 +19,18 @@ class ActorIdentityDao
         return $this->fresh()->find(AbstractActorIdentity::class, $id);
     }
 
+    /** The id of the Fallout 4 actor identity with this form id (any case), origin plugin (any case) and playthrough, or null. */
+    public function findFo4IdentityId(string $formId, string $originPlugin, string $playthroughId): ?string
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT id FROM public.core_actor_identity WHERE game='fo4'
+            AND upper(full_form_id)=upper(?) AND lower(origin_plugin)=lower(?) AND playthrough_id=?",
+            [$formId, $originPlugin, $playthroughId]
+        );
+
+        return $id === false ? null : (string) $id;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractActorIdentity> */
     public function findAll(int $limit = 1000): array
     {

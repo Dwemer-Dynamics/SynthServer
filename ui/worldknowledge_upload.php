@@ -131,36 +131,27 @@ function worldknowledge_render_access_rule($rawRule, $variant = 'advanced') {
     return '<span class="rule-classes">' . implode('', $chips) . '</span>';
 }
 
-// Connect to the database
-$conn = pg_connect(synthPgConnectionString($dbSettings));
-if (!$conn) {
-    echo "<div class='message'>Failed to connect to database: " . pg_last_error() . "</div>";
-    exit;
-}
+$wkArticleDao = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current(\Synth\Bootstrap::db());
 
-function worldknowledge_filter_alias_input($conn, string $schema, string $topic, string $aliases): array {
-    $rows = [];
-    $result = pg_query($conn, "SELECT topic, coalesce(aliases, '') AS aliases FROM {$schema}.worldknowledge_effective");
-    if ($result) {
-        while ($row = pg_fetch_assoc($result)) {
-            $rows[] = $row;
-        }
+function worldknowledge_filter_alias_input(string $topic, string $aliases): array {
+    global $wkArticleDao;
+    try {
+        $rows = $wkArticleDao->effectiveAliasRows();
+    } catch (\Throwable $error) {
+        $rows = [];
     }
     return synthWorldKnowledgeFilterAliases($topic, $aliases, $rows);
 }
 
 /** Resolve stored edit ownership instead of trusting a browser-supplied source kind. */
-function worldknowledge_effective_origin($conn, string $schema, string $topic): array {
+function worldknowledge_effective_origin(string $topic): array {
+    global $wkArticleDao;
     $canonical = synthWorldKnowledgeCanonicalTopic($topic);
-    $result = pg_query_params(
-        $conn,
-        "SELECT topic, canonical_topic, source_kind
-           FROM {$schema}.worldknowledge_effective
-          WHERE canonical_topic = $1
-          LIMIT 1",
-        [$canonical]
-    );
-    $row = $result ? pg_fetch_assoc($result) : false;
+    try {
+        $row = $wkArticleDao->effectiveOrigin($canonical);
+    } catch (\Throwable $error) {
+        $row = null;
+    }
     if (!$row) {
         return ['topic' => '', 'canonical_topic' => '', 'source_kind' => ''];
     }
@@ -175,15 +166,10 @@ function worldknowledge_effective_origin($conn, string $schema, string $topic): 
 // The shipped catalog is the only factory dataset, so the page reads the one
 // active row for display and offers no version picker.
 $activeCatalog = null;
-$catalogResult = @pg_query(
-    $conn,
-    "SELECT catalog_id, catalog_version, display_name, checksum_sha256, row_count, activated_at
-       FROM public.core_worldknowledge_catalog
-      WHERE is_active
-      LIMIT 1"
-);
-if ($catalogResult) {
-    $activeCatalog = pg_fetch_assoc($catalogResult) ?: null;
+try {
+    $activeCatalog = \Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao::current(\Synth\Bootstrap::db())->active();
+} catch (\Throwable $error) {
+    $activeCatalog = null;
 }
 
 /********************************************************************
@@ -197,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
     // again at its own output boundary.
     $topic                = worldknowledge_normalize_topic_key($_POST['topic'] ?? '');
     $aliasesInput         = trim((string)($_POST['aliases'] ?? ''));
-    $filteredAliases      = worldknowledge_filter_alias_input($conn, $schema, $topic, $aliasesInput);
+    $filteredAliases      = worldknowledge_filter_alias_input($topic, $aliasesInput);
     $aliases              = $filteredAliases['aliases'];
     foreach ($filteredAliases['rejected'] as $rejectedAlias) {
         $message .= '<p>Alias skipped: ' . htmlspecialchars($rejectedAlias['alias'])
@@ -215,67 +201,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
     if ($classConflict !== '') {
         $message .= '<p>' . htmlspecialchars($classConflict) . '</p>';
     } elseif (!empty($topic) && worldknowledge_has_description($topic_desc, $topic_desc_basic)) {
-        $query = "
-            INSERT INTO public.core_worldknowledge_article (
-                topic,
-                aliases,
-                topic_desc,
-                knowledge_class,
-                topic_desc_basic,
-                knowledge_class_basic,
-                tags,
-                category,
-                canonical_topic,
-                source_kind,
-                is_active
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'custom', TRUE)
-            ON CONFLICT (canonical_topic) WHERE source_kind='custom' AND is_active
-            DO UPDATE SET
-                topic                = EXCLUDED.topic,
-                aliases              = EXCLUDED.aliases,
-                topic_desc           = EXCLUDED.topic_desc,
-                knowledge_class      = EXCLUDED.knowledge_class,
-                topic_desc_basic     = EXCLUDED.topic_desc_basic,
-                knowledge_class_basic= EXCLUDED.knowledge_class_basic,
-                tags                 = EXCLUDED.tags,
-                category             = EXCLUDED.category,
-                updated_at           = CURRENT_TIMESTAMP
-        ";
-        $result = pg_query_params($conn, $query, [
-            $topic,
-            $aliases,
-            $topic_desc,
-            $knowledge_class,
-            $topic_desc_basic,
-            $knowledge_class_basic,
-            $tags,
-            $category,
-            $canonicalTopic
-        ]);
-
-        if ($result) {
+        try {
+            $wkArticleDao->upsertCustom([
+                'topic' => $topic,
+                'aliases' => $aliases,
+                'topic_desc' => $topic_desc,
+                'knowledge_class' => $knowledge_class,
+                'topic_desc_basic' => $topic_desc_basic,
+                'knowledge_class_basic' => $knowledge_class_basic,
+                'tags' => $tags,
+                'category' => $category,
+                'canonical_topic' => $canonicalTopic,
+            ]);
             $message .= "<p>Data inserted/updated successfully!</p>";
 
             // Update native_vector
-            $update_query = "
-                UPDATE public.core_worldknowledge_article
-                SET native_vector =
-                      setweight(to_tsvector(coalesce(topic, '')), 'A')
-                    || setweight(to_tsvector(coalesce(aliases, '')), 'A')
-                    || setweight(to_tsvector(coalesce(topic_desc, '')), 'B')
-                    || setweight(to_tsvector(coalesce(topic_desc_basic, '')), 'C')
-                WHERE canonical_topic = $1 AND source_kind = 'custom'
-            ";
-            $update_result = pg_query_params($conn, $update_query, [$canonicalTopic]);
-
-            if ($update_result) {
+            try {
+                $wkArticleDao->refreshCustomVector($canonicalTopic);
                 $message .= "<p>Vectors updated successfully.</p>";
-            } else {
-                $message .= "<p>Error updating vectors: " . pg_last_error($conn) . "</p>";
+            } catch (\Throwable $vectorError) {
+                $message .= "<p>Error updating vectors: " . $vectorError->getMessage() . "</p>";
             }
-        } else {
-            $message .= "<p>An error occurred while inserting/updating data: " . pg_last_error($conn) . "</p>";
+        } catch (\Throwable $saveError) {
+            $message .= "<p>An error occurred while inserting/updating data: " . $saveError->getMessage() . "</p>";
         }
     } else {
         $message .= '<p>Please provide a topic and at least one description.</p>';
@@ -345,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 
                     $topic                = worldknowledge_normalize_topic_key(worldknowledge_csv_value($data, $headerMap, 'topic', 0));
                     $aliasesInput         = worldknowledge_csv_value($data, $headerMap, 'aliases', 1);
-                    $filteredAliases      = worldknowledge_filter_alias_input($conn, $schema, $topic, $aliasesInput);
+                    $filteredAliases      = worldknowledge_filter_alias_input($topic, $aliasesInput);
                     $aliases              = $filteredAliases['aliases'];
                     $topic_desc           = trim(worldknowledge_csv_value($data, $headerMap, 'topic_desc', 2));
                     $knowledge_class      = synthWorldKnowledgeNormalizeAccessRule(worldknowledge_csv_value($data, $headerMap, 'knowledge_class', 3));
@@ -361,60 +309,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
                             . htmlspecialchars($classConflict) . "</p>";
                         $conflictCount++;
                     } elseif (!empty($topic) && worldknowledge_has_description($topic_desc, $topic_desc_basic)) {
-                        $query = "
-                            INSERT INTO public.core_worldknowledge_article (
-                                topic,
-                                aliases,
-                                topic_desc,
-                                knowledge_class,
-                                topic_desc_basic,
-                                knowledge_class_basic,
-                                tags,
-                                category,
-                                canonical_topic,
-                                source_kind,
-                                is_active
-                            )
-                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'custom', TRUE)
-                            ON CONFLICT (canonical_topic) WHERE source_kind='custom' AND is_active
-                            DO UPDATE SET
-                                topic                = EXCLUDED.topic,
-                                aliases              = EXCLUDED.aliases,
-                                topic_desc           = EXCLUDED.topic_desc,
-                                knowledge_class      = EXCLUDED.knowledge_class,
-                                topic_desc_basic     = EXCLUDED.topic_desc_basic,
-                                knowledge_class_basic= EXCLUDED.knowledge_class_basic,
-                                tags                 = EXCLUDED.tags,
-                                category             = EXCLUDED.category,
-                                updated_at           = CURRENT_TIMESTAMP
-                        ";
-                        $result = pg_query_params($conn, $query, [
-                            $topic,
-                            $aliases,
-                            $topic_desc,
-                            $knowledge_class,
-                            $topic_desc_basic,
-                            $knowledge_class_basic,
-                            $tags,
-                            $category,
-                            $canonicalTopic
-                        ]);
-
-                        if ($result) {
+                        try {
+                            $wkArticleDao->upsertCustom([
+                                'topic' => $topic,
+                                'aliases' => $aliases,
+                                'topic_desc' => $topic_desc,
+                                'knowledge_class' => $knowledge_class,
+                                'topic_desc_basic' => $topic_desc_basic,
+                                'knowledge_class_basic' => $knowledge_class_basic,
+                                'tags' => $tags,
+                                'category' => $category,
+                                'canonical_topic' => $canonicalTopic,
+                            ]);
                             $rowCount++;
                             // Update the native_vector for this single row
-                            $update_query = "
-                                UPDATE public.core_worldknowledge_article
-                                SET native_vector =
-                                      setweight(to_tsvector(coalesce(topic, '')), 'A')
-                                    || setweight(to_tsvector(coalesce(aliases, '')), 'A')
-                                    || setweight(to_tsvector(coalesce(topic_desc, '')), 'B')
-                                    || setweight(to_tsvector(coalesce(topic_desc_basic, '')), 'C')
-                                WHERE canonical_topic = $1 AND source_kind = 'custom'
-                            ";
-                            pg_query_params($conn, $update_query, [$canonicalTopic]);
-                        } else {
-                            $message .= "<p>Error processing row with topic '$topic': " . pg_last_error($conn) . "</p>";
+                            try {
+                                $wkArticleDao->refreshCustomVector($canonicalTopic);
+                            } catch (\Throwable $vectorError) {
+                            }
+                        } catch (\Throwable $saveError) {
+                            $message .= "<p>Error processing row with topic '$topic': " . $saveError->getMessage() . "</p>";
                         }
                     } else {
                         $skippedCount++;
@@ -473,13 +387,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
         'topic', 'aliases', 'topic_desc', 'knowledge_class', 'topic_desc_basic',
         'knowledge_class_basic', 'tags', 'category',
     ];
-    $exportResult = @pg_query(
-        $conn,
-        "SELECT " . implode(', ', $exportColumns) . "
-           FROM public.core_worldknowledge_article
-          WHERE source_kind = 'custom' AND is_active
-          ORDER BY canonical_topic"
-    );
+    try {
+        $exportResult = $wkArticleDao->exportCustom();
+        $exportError = '';
+    } catch (\Throwable $exportFailure) {
+        $exportResult = false;
+        $exportError = $exportFailure->getMessage();
+    }
 
     if ($exportResult) {
         header('Content-Description: File Transfer');
@@ -491,7 +405,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
         if (ob_get_length()) ob_end_clean();
         $output = fopen('php://output', 'w');
         fputcsv($output, $exportColumns);
-        while ($exportRow = pg_fetch_assoc($exportResult)) {
+        foreach ($exportResult as $exportRow) {
             $line = [];
             foreach ($exportColumns as $column) {
                 $line[] = (string)($exportRow[$column] ?? '');
@@ -502,20 +416,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
         exit;
     }
 
-    $message .= '<p>Could not export custom entries: ' . htmlspecialchars(pg_last_error($conn)) . '</p>';
+    $message .= '<p>Could not export custom entries: ' . htmlspecialchars($exportError) . '</p>';
 }
 
 /********************************************************************
  *  4) DELETE ALL
  ********************************************************************/
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_all') {
-    $truncateQuery = "DELETE FROM public.core_worldknowledge_article WHERE source_kind = 'custom'";
-    $truncateResult = pg_query($conn, $truncateQuery);
-
-    if ($truncateResult) {
+    try {
+        $wkArticleDao->deleteAllCustom();
         $message .= "<p style='color: #ff6464; font-weight: bold;'>All custom World Knowledge entries have been deleted. The factory catalog was preserved.</p>";
-    } else {
-        $message .= "<p>Error deleting entries: " . pg_last_error($conn) . "</p>";
+    } catch (\Throwable $deleteError) {
+        $message .= "<p>Error deleting entries: " . $deleteError->getMessage() . "</p>";
     }
 }
 
@@ -526,16 +438,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $topic = $_POST['topic'] ?? '';
 
     if (!empty($topic)) {
-        $query = "DELETE FROM public.core_worldknowledge_article WHERE topic = $1 AND source_kind = 'custom'";
-        $result = pg_query_params($conn, $query, [$topic]);
-
-        if ($result) {
+        try {
+            $wkArticleDao->deleteCustomByTopic($topic);
             $message .= "<p>Entry '$topic' has been deleted successfully.</p>";
 
             header('Location: ' . worldknowledge_entries_url());
             exit;
-        } else {
-            $message .= "<p>Error deleting entry: " . pg_last_error($conn) . "</p>";
+        } catch (\Throwable $deleteError) {
+            $message .= "<p>Error deleting entry: " . $deleteError->getMessage() . "</p>";
         }
     } else {
         $message .= "<p>No topic specified for deletion.</p>";
@@ -550,7 +460,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     // never decode literal entities or encode text before storing it.
     $topic_original       = $_POST['topic_original'] ?? '';
     // The stored row decides what this save may do, never the form.
-    $origin              = worldknowledge_effective_origin($conn, $schema, $topic_original);
+    $origin              = worldknowledge_effective_origin($topic_original);
     $origin_is_factory   = $origin['source_kind'] === 'factory';
     $topic_new           = worldknowledge_normalize_topic_key($_POST['topic_new'] ?? '');
     if ($origin_is_factory) {
@@ -560,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $topic_new = $origin['topic'];
     }
     $aliases_input       = (string)($_POST['aliases_new'] ?? '');
-    $filtered_aliases    = worldknowledge_filter_alias_input($conn, $schema, $topic_new, $aliases_input);
+    $filtered_aliases    = worldknowledge_filter_alias_input($topic_new, $aliases_input);
     $aliases_new         = $filtered_aliases['aliases'];
     foreach ($filtered_aliases['rejected'] as $rejectedAlias) {
         $message .= '<p>Alias skipped: ' . htmlspecialchars($rejectedAlias['alias'])
@@ -582,59 +492,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } elseif ($class_conflict !== '') {
         $message .= '<p>' . htmlspecialchars($class_conflict) . '</p>';
     } elseif (!empty($topic_new) && worldknowledge_has_description($topic_desc_new, $topic_desc_basic_new)) {
-        $params = [
-            $topic_new,
-            $aliases_new,
-            $topic_desc_new,
-            $knowledge_class_new,
-            $topic_desc_basic_new,
-            $knowledge_class_basic_new,
-            $tags_new,
-            $category_new,
-            $canonical_topic_new,
+        $fields = [
+            'topic' => $topic_new,
+            'aliases' => $aliases_new,
+            'topic_desc' => $topic_desc_new,
+            'knowledge_class' => $knowledge_class_new,
+            'topic_desc_basic' => $topic_desc_basic_new,
+            'knowledge_class_basic' => $knowledge_class_basic_new,
+            'tags' => $tags_new,
+            'category' => $category_new,
+            'canonical_topic' => $canonical_topic_new,
         ];
 
-        if ($origin_is_factory) {
-            // Factory content remains source-controlled. The custom row becomes
-            // effective until the user deletes it and reveals the factory row.
-            $save_sql = "
-                INSERT INTO public.core_worldknowledge_article (
-                    topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
-                    knowledge_class_basic, tags, category, canonical_topic, source_kind, is_active
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'custom', TRUE)
-                ON CONFLICT (canonical_topic) WHERE source_kind='custom' AND is_active
-                DO UPDATE SET
-                    topic=EXCLUDED.topic, aliases=EXCLUDED.aliases, topic_desc=EXCLUDED.topic_desc,
-                    knowledge_class=EXCLUDED.knowledge_class, topic_desc_basic=EXCLUDED.topic_desc_basic,
-                    knowledge_class_basic=EXCLUDED.knowledge_class_basic, tags=EXCLUDED.tags,
-                    category=EXCLUDED.category, updated_at=CURRENT_TIMESTAMP
-            ";
-        } else {
-            $save_sql = "
-                UPDATE public.core_worldknowledge_article
-                SET topic=$1, aliases=$2, topic_desc=$3, knowledge_class=$4,
-                    topic_desc_basic=$5, knowledge_class_basic=$6, tags=$7,
-                    category=$8, canonical_topic=$9, updated_at=CURRENT_TIMESTAMP
-                WHERE canonical_topic=$10 AND source_kind='custom'
-            ";
-            $params[] = $origin['canonical_topic'];
+        // Factory content remains source-controlled. Editing it writes a custom row that becomes
+        // effective until the user deletes it and reveals the factory row.
+        $saved = false;
+        $save_error = '';
+        try {
+            if ($origin_is_factory) {
+                $wkArticleDao->upsertCustom($fields);
+                $saved = true;
+            } else {
+                $saved = $wkArticleDao->updateCustom($origin['canonical_topic'], $fields) === 1;
+            }
+        } catch (\Throwable $saveFailure) {
+            $saved = false;
+            $save_error = trim($saveFailure->getMessage());
         }
 
-        $save_result = pg_query_params($conn, $save_sql, $params);
-        $saved = $save_result !== false && ($origin_is_factory || pg_affected_rows($save_result) === 1);
-
         if ($saved) {
-            $vector_sql = "
-                UPDATE public.core_worldknowledge_article
-                SET native_vector=
-                      setweight(to_tsvector(coalesce(topic, '')), 'A')
-                    || setweight(to_tsvector(coalesce(aliases, '')), 'A')
-                    || setweight(to_tsvector(coalesce(topic_desc, '')), 'B')
-                    || setweight(to_tsvector(coalesce(topic_desc_basic, '')), 'C')
-                WHERE canonical_topic=$1 AND source_kind='custom'
-            ";
-            pg_query_params($conn, $vector_sql, [$canonical_topic_new]);
+            try {
+                $wkArticleDao->refreshCustomVector($canonical_topic_new);
+            } catch (\Throwable $vectorError) {
+            }
 
             $notice = $origin_is_factory
                 ? 'Saved a custom article. It now replaces the factory article, which was left unchanged.'
@@ -649,7 +539,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             exit;
         }
 
-        $save_error = trim((string)pg_last_error($conn));
         if ($save_error === '') {
             $save_error = 'The article changed before it could be saved. Refresh the catalog and try again.';
         }
@@ -1493,13 +1382,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
              *  5) DISPLAY THE WORLDKNOWLEDGE ENTRIES
              ********************************************************************/
             // Fetch categories
-            $catQuery = "SELECT DISTINCT category FROM $schema.worldknowledge_effective WHERE category IS NOT NULL AND category <> '' ORDER BY category";
-            $catResult = pg_query($conn, $catQuery);
-            $categories = [];
-            if ($catResult) {
-                while ($row = pg_fetch_assoc($catResult)) {
-                    $categories[] = $row['category'];
-                }
+            try {
+                $categories = $wkArticleDao->effectiveCategories();
+            } catch (\Throwable $categoryError) {
+                $categories = [];
             }
 
             // Grab filters
@@ -1574,30 +1460,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <?php
             // Show the same winning articles NPCs receive: custom overrides
             // replace factory rows instead of appearing beside them.
-            $where = [];
-            $params = [];
-            if ($selectedCategory !== '') {
-                $params[] = $selectedCategory;
-                $where[] = 'category = $' . count($params);
+            try {
+                $result = $wkArticleDao->searchEffective($selectedCategory, $letter, $searchTerm, $order === 'DESC');
+                $listError = '';
+            } catch (\Throwable $listFailure) {
+                $result = false;
+                $listError = $listFailure->getMessage();
             }
-            if ($letter !== '') {
-                $params[] = $letter . '%';
-                $where[] = 'topic ILIKE $' . count($params);
-            }
-            if ($searchTerm !== '') {
-                $params[] = '%' . $searchTerm . '%';
-                $searchParameter = '$' . count($params);
-                $where[] = '(topic ILIKE ' . $searchParameter
-                    . " OR coalesce(aliases, '') ILIKE " . $searchParameter
-                    . " OR coalesce(tags, '') ILIKE " . $searchParameter . ')';
-            }
-            $query = "SELECT topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
-                             knowledge_class_basic, tags, category, source_kind
-                        FROM {$schema}.worldknowledge_effective"
-                . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
-                . " ORDER BY topic {$order}";
-
-            $result = pg_query_params($conn, $query, $params);
 
             echo '<a id="entries"></a>';
             echo '<div class="table-container">';
@@ -1615,7 +1484,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
             if ($result) {
                 $rowCount = 0;
-                while ($row = pg_fetch_assoc($result)) {
+                foreach ($result as $row) {
                     $aliases              = (string)($row['aliases'] ?? '');
                     $sourceKind           = (string)($row['source_kind'] ?? '');
                     $topic                = htmlspecialchars($row['topic']                ?? '');
@@ -1705,7 +1574,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 echo '</tbody>';
                 echo '</table>';
                 echo '</div>';
-                echo '<p>Error fetching WorldKnowledge entries: ' . htmlspecialchars(pg_last_error($conn)) . '</p>';
+                echo '<p>Error fetching WorldKnowledge entries: ' . htmlspecialchars($listError) . '</p>';
             }
             ?>
         </div>

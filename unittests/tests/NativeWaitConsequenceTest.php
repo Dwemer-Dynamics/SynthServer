@@ -11,6 +11,7 @@ final class WaitConsequenceFixtureDatabase
     private ?array $lockOwner=null;
     public function __construct(public $connection) {}
     public function escape(string $value): string {return pg_escape_string($this->connection,$value);}
+    public function getCatalogueSqlConnection() {return $this->connection;}
     public function isTransactionIdle(): bool {return pg_transaction_status($this->connection)===PGSQL_TRANSACTION_IDLE;}
     public function escapeLiteral(string $value): string {return pg_escape_literal($this->connection,$value);}
     public function execQuery(string $sql,array $params=[])
@@ -75,7 +76,8 @@ final class NativeWaitConsequenceTest extends DatabaseTestCase {
     private array $player,$actor,$other,$payload,$event,$saved=[];
     private int $serial=0;
     public function setUp(): void {
-        parent::setUp();foreach(['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_NAME','PLAYER_NAME','gameRequest','CLEAN_CONTEXT_FOCUS_CHAT','PROMPT_TIMESTAMP','EVENT_TYPE_FILTER','FEATURES'] as $key)$this->saved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key]??null];
+        parent::setUp();foreach(["MemoryBatchDao","MemorySummaryDao","WorkerJobDao","HistoryEventDao","RuntimeContextDao","ActorIdentityDao"] as $dao){$class="Synth\Core\DbManager\Dao\\".$dao;$class::inject(null);} // an earlier test may have booted shared DAOs on its own session
+        foreach(['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_NAME','PLAYER_NAME','gameRequest','CLEAN_CONTEXT_FOCUS_CHAT','PROMPT_TIMESTAMP','EVENT_TYPE_FILTER','FEATURES'] as $key)$this->saved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key]??null];
         $connection=pg_connect('host=localhost dbname=testdb user=dwemer password=dwemer',PGSQL_CONNECT_FORCE_NEW);$this->assertNotFalse($connection);$this->fixtureDb=new WaitConsequenceFixtureDatabase($connection);$this->fixtureDb->execQuery('SET search_path TO synth,synth_meta,public');$GLOBALS['db']=$this->fixtureDb;$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
         $this->player=$this->identity('0x00000014','Nora');$this->actor=$this->identity('0x00000015','Settler');$this->other=$this->identity('0x00000016','Settler');
         $this->payload=['playthrough_id'=>'wait-recall-save','player'=>$this->player,'target'=>$this->actor,'audience'=>[$this->actor,$this->other],
