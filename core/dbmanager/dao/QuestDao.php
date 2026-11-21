@@ -10,7 +10,7 @@ use Synth\Core\Entities\Base\AbstractQuest;
 use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_quest. */
-final class QuestDao
+class QuestDao
 {
     private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts', 'mod'];
     use UsesEntityManager;
