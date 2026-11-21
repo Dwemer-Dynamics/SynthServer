@@ -35,11 +35,8 @@ if (!function_exists('synthLoadManagedPromptTemplate')) {
 
         $promptText = null;
         try {
-            if (isset($db) && is_object($db) && method_exists($db, 'fetchOne')) {
-                $escapedPromptKey = method_exists($db, 'escape')
-                    ? $db->escape((string)$promptKey)
-                    : str_replace("'", "''", (string)$promptKey);
-                $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM public.core_prompt WHERE prompt_key = '{$escapedPromptKey}' LIMIT 1");
+            if (isset($db) && is_object($db)) {
+                $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts((string)$promptKey);
                 if ($promptData) {
                     $promptText = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
                 }

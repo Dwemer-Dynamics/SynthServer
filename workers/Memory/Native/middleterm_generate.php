@@ -97,7 +97,7 @@ Read the context history, paying attention to character names and notable events
 // Query prompts table: use custom_prompt if set, otherwise default_prompt, otherwise hardcoded fallback
 $promptContent = null;
 try {
-    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_summarizer'");
+    $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('middleterm_narrative_summarizer');
     if ($promptData) {
         // Use custom_prompt if set, otherwise use default_prompt
         $promptContent = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -126,7 +126,7 @@ $head[] = [
 // Load request prompt from database with fallback to hardcoded default
 $requestPrompt = null;
 try {
-    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'middleterm_narrative_request'");
+    $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('middleterm_narrative_request');
     if ($promptData) {
         // Use custom_prompt if set, otherwise use default_prompt
         $requestPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];

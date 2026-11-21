@@ -286,7 +286,7 @@ class OpenAiJsonDriver
     }
 
     protected function init_connector($customParms) {
-        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"]) : "";
+        $this->_url = (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["url"])) ? trim(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"]) : "";
         $this->_is_lm_studio = false;
         $this->_is_streaming = true;
         $this->_stopProc = false;
@@ -470,7 +470,7 @@ class OpenAiJsonDriver
         if (strlen($cleanContent) > 0) {
             $buffer .= $cleanContent;
             $this->_buffer .= $cleanContent;
-            $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_buffer;
+            \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_buffer);
             $this->_numOutputTokens += 1;
         }
 
@@ -483,7 +483,7 @@ class OpenAiJsonDriver
         $this->_saw_reasoning_content=false;
         $this->_stopProc=false;
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
+        $MAX_TOKENS=intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
 
 
 
@@ -493,7 +493,7 @@ class OpenAiJsonDriver
                                                                                                 Tyler, 2023/11/09
         ****/
 
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && \Synth\Bootstrap::has('MEMORY_STATEMENT') ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline)) {
 
@@ -513,14 +513,14 @@ class OpenAiJsonDriver
         }
 
 
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
-            $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+        if (\Synth\Bootstrap::has('PATCH_PROMPT_ENFORCE_ACTIONS') && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
+            $prefix=((string)\Synth\Bootstrap::config('COMMAND_PROMPT_ENFORCE_ACTIONS'));
         } else {
             $prefix="";
         }
 
         $b_speech_style = (
-            (isset($GLOBALS["SYNTH_SPEECHSTYLE"]) && (!empty($GLOBALS["SYNTH_SPEECHSTYLE"]))) ||
+            (\Synth\Bootstrap::has('SYNTH_SPEECHSTYLE') && (!empty(\Synth\Bootstrap::config('SYNTH_SPEECHSTYLE')))) ||
             (stripos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false)
         );
         if ($b_speech_style) {
@@ -533,7 +533,7 @@ class OpenAiJsonDriver
             'content' => "{$prefix} $speechReinforcement \nUse only this JSON object to give your answer and do not send any other characters outside of this JSON structure: \n".json_encode(\Synth\Bootstrap::config("responseTemplate"),JSON_PRETTY_PRINT) // groq.com and others ask for pretty printed JSON
         ];
 
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+        if (\Synth\Bootstrap::has('FUNCTIONS_ARE_ENABLED') && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
             $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
 
@@ -566,7 +566,7 @@ class OpenAiJsonDriver
                         "role"=>"assistant",
                         "content"=>synth_provider_dialogue_history(strval(\Synth\Bootstrap::config("SYNTH_NAME")), strval($lastTargetBuffer), $assistantRoleBuffer)
                         // no json version:
-                        //"content" => "{$GLOBALS["SYNTH_NAME"]}: ".trim($assistantRoleBuffer)
+                        //"content" => "{\Synth\Bootstrap::config("SYNTH_NAME")}: ".trim($assistantRoleBuffer)
                     ];
                     $lastTargetBuffer="";
                     $assistantRoleBuffer="";
@@ -591,8 +591,8 @@ class OpenAiJsonDriver
                     $assistantAppearedInhistory=true;
                     $dialogueTarget=extractDialogueTarget($element["content"]) ?? []; // moved here to be available in tool_calls
                     if (isset($element["tool_calls"])) {
-                        $pb["system"].="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]}";
-                        $lastAction="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#";
+                        $pb["system"].=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]}");
+                        $lastAction=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#");
                         $lastActionName=$element["tool_calls"][0]["function"]["name"];
                         $localFuncCodeName=getFunctionCodeName($element["tool_calls"][0]["function"]["name"]);
                         $localArguments=json_decode($element["tool_calls"][0]["function"]["arguments"],true);
@@ -601,7 +601,7 @@ class OpenAiJsonDriver
                         }
                         $actionTargetValue = synthExtractActionArgumentTargetValue($localArguments);
                         $actionDialogueTarget = extractDialogueTarget($element["content"] ?? '') ?? [];
-                        if (isset($GLOBALS["F_RETURNMESSAGES"][$localFuncCodeName])) {
+                        if (isset(\Synth\Bootstrap::config('F_RETURNMESSAGES')[$localFuncCodeName])) {
                             $lastAction=synthFormatReturnMessageTemplate($localFuncCodeName, $localArguments);
                         }
                         $contextDataCopy[]=[
@@ -647,20 +647,20 @@ class OpenAiJsonDriver
                             $pb["system"].=$element["content"]."\n";
 
 
-                            $GLOBALS["PATCH_STORE_FUNC_RES_ACTION"] = $localFuncCodeName;
+                            \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES_ACTION', $localFuncCodeName);
                              if (!isset($element['_synth_action_status']) && stripos($element["content"],"error")===0) {
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]="{$GLOBALS["SYNTH_NAME"]} issued ACTION, but {$element["content"]}";
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', (\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION, but {$element["content"]}"));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}")
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES')))
 
                                 ];
                             } else {
 
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]=synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null);
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}"),
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES'))),
 
                                 ];
                             }
@@ -689,8 +689,8 @@ class OpenAiJsonDriver
             }
         }
 
-        if ((isset($GLOBALS["CONNECTOR"][$this->name]["PREFILL_JSON"])) && (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["PREFILL_JSON"])) {
-            $GLOBALS["PATCH"]["PREAPPEND"]=synth_provider_json_prefill(strval(\Synth\Bootstrap::config("SYNTH_NAME")));
+        if ((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["PREFILL_JSON"])) && (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["PREFILL_JSON"])) {
+            \Synth\Bootstrap::setAt('PATCH', "PREAPPEND", synth_provider_json_prefill(strval(\Synth\Bootstrap::config("SYNTH_NAME"))));
             $contextDataCopy[]=["role"=>"assistant","content"=>\Synth\Bootstrap::config("PATCH")["PREAPPEND"]];
         }
 
@@ -724,7 +724,7 @@ class OpenAiJsonDriver
             $MAX_TOKENS=intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
@@ -885,9 +885,9 @@ class OpenAiJsonDriver
 
         } // --- endif provider
 
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
+        if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
             $data["response_format"]=\Synth\Bootstrap::config("structuredOutputTemplate");
-        } else if (isset($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
+        } else if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["ENFORCE_JSON"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'OpenAiJsonDriver', "Enforcing JSON output for {$this->name} connector");
             ;//It's enabled by default
         } else
@@ -912,7 +912,7 @@ class OpenAiJsonDriver
             unset($data['max_completion_tokens']);
         }
 
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         file_put_contents(dirname(__DIR__, 3) . "/log/context_sent_to_llm.log",date(DATE_ATOM)."\n=\n".var_export($data,true)."\n=\n", FILE_APPEND);
 
@@ -983,8 +983,8 @@ class OpenAiJsonDriver
                 $this->primary_handler=false;
                 return null;
             } else  {
-                /*if ($GLOBALS["db"]) {
-                    $GLOBALS["db"]->insert(
+                /*if (\Synth\Bootstrap::config("db")) {
+                    \Synth\Bootstrap::config("db")->insert(
                     'core_audit_request',
                     array(
                         'request' => json_encode($data),
@@ -1072,12 +1072,12 @@ class OpenAiJsonDriver
 
     public function process()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         // Seed the parser before appending the first provider chunk; never overwrite that chunk.
-        if (isset($GLOBALS["PATCH"]["PREAPPEND"])) {
+        if (isset(\Synth\Bootstrap::config('PATCH')["PREAPPEND"])) {
             $this->_buffer = \Synth\Bootstrap::config("PATCH")["PREAPPEND"];
-            unset($GLOBALS["PATCH"]["PREAPPEND"]);
+            \Synth\Bootstrap::unsetPath('PATCH', ["PREAPPEND"]);
         }
 
         static $numOutputTokens=0;
@@ -1182,26 +1182,26 @@ class OpenAiJsonDriver
                         $mangledBuffer = str_replace($this->_extractedbuffer, "", $finalData["message"]);
                         $this->_extractedbuffer=$finalData["message"];
                         if (isset($finalData["listener"])) {
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["listener"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["listener"]);
                         }
                         if (isset($finalData["target"]) && !empty($finalData["target"]) && isset($finalData["action"]) && $finalData["action"]=="Talk") {
                             // Cover the case where action is talk, and LLM hast pointed a target
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["target"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["target"]);
                         }
 
                         if (isset($finalData["lang"])) {
                             // Sanitize language code - remove extra chars from LLM parsing artifacts
-                            $GLOBALS["LLM_LANG"]=preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"])));
+                            \Synth\Bootstrap::set('LLM_LANG', preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"]))));
                         }
 
                         if (isset($finalData["mood"])) {
                             $finalData["mood"] = extractFirstEmoteMood($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_ANIMATION"]=GetAnimationHex($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_EXPRESSION"]=GetExpression($finalData["mood"]);
+                            \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', GetAnimationHex($finalData["mood"]));
+                            \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', GetExpression($finalData["mood"]));
                         }
 
                         // Store the entire response for TTS systems that need additional data like emotions
-                        $GLOBALS["LAST_LLM_RESPONSE"] = $finalData;
+                        \Synth\Bootstrap::set('LAST_LLM_RESPONSE', $finalData);
 
                     }
                 }
@@ -1276,7 +1276,7 @@ class OpenAiJsonDriver
     // Method to close the data processing operation
     public function processActions()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         if ($this->_functionName) {
             require_once(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "synth_command_payload.php");
@@ -1297,7 +1297,7 @@ class OpenAiJsonDriver
             } else
                 return null;
         } else {
-            $GLOBALS["DEBUG_DATA"]["RAW"]=$this->_buffer;
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "RAW", $this->_buffer);
             $parsedResponse=__jpd_decode_lazy($this->_buffer);   // USE JPD_LAZY?
             if (is_array($parsedResponse)) {
                 if (!empty($parsedResponse["action"])) {
@@ -1339,7 +1339,7 @@ class OpenAiJsonDriver
         else
             $callName=$this->name."/".$callName;
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 512));
+        $MAX_TOKENS=intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 512));
 
         $temperature = \Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"] ?? null;
         // Explicit numeric zero is preserved; legacy unset, blank and false values still use the default.
@@ -1385,7 +1385,7 @@ class OpenAiJsonDriver
             $MAX_TOKENS=intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
@@ -1495,7 +1495,7 @@ class OpenAiJsonDriver
 
 
 
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["stop"])&&sizeof(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"])>0) {
+        if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["stop"])&&sizeof(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"])>0) {
             $data["stop"]=\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"];
         }
 
@@ -1517,7 +1517,7 @@ class OpenAiJsonDriver
             unset($data['max_completion_tokens']);
         }
 
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         $headers = array(
             'Content-Type: application/json',

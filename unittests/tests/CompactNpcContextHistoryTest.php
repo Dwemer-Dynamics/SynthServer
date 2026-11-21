@@ -53,7 +53,7 @@ final class CompactNpcContextHistoryTest extends TestCase
         $append = '$contextData = synth_append_equipment_observer_context(';
         $this->assertSame(1, substr_count($source, $append));
         $this->assertLessThan(strpos($source, $append), strpos($source, '$head = synthAppendCompactHistoryToPrompt'));
-        $this->assertStringContainsString('if ($currentPlayerInput === [] && !empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])', $source);
+        $this->assertStringContainsString("if (\$currentPlayerInput === [] && !empty(\Synth\Bootstrap::config('DIRECT_NARRATOR_DIALOGUE'))", $source);
     }
 
     public function testNativeRoleEvidenceSurvivesFormattingUntilVisibilityFiltering(): void

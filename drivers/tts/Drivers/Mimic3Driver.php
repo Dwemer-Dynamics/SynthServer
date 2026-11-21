@@ -19,7 +19,7 @@ require_once($localPath . "lib".DIRECTORY_SEPARATOR."runtime_bootstrap.php");
 
 // Delay standalone runtime setup until invocation; loading all adapters must be side-effect free.
 function mimic3_prepare_runtime(): void {
-    if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return;
+    if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) return;
     synthRuntimeBootstrapIfNeeded(dirname(SYNTH_TTS_SCRIPT_DIR), [
         'load_general_settings' => true, 'load_stt_connector' => false, 'load_itt_connector' => false,
     ]);
