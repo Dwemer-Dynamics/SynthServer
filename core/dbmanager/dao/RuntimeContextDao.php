@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractRuntimeContext;
 
 /** Finds rows of core_runtime_context. */
-final class RuntimeContextDao
+class RuntimeContextDao
 {
     use UsesEntityManager;
     use FailSoftQueries;
@@ -39,6 +39,25 @@ final class RuntimeContextDao
             'SELECT player_identity_id FROM public.core_runtime_context WHERE session_id=? AND generation=? AND snapshot_sequence=?',
             [$sessionId, $generation, $snapshotSequence]
         );
+    }
+
+    /**
+     * The saved context a loaded save names (payload, playthrough, session, generation, snapshot sequence and history event id),
+     * only when its session ran in this runtime variant; null when there is none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function loadedContext(string $sessionId, string $playthroughId, int $generation, int $sequence, string $runtimeVariant): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
+               FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
+              WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?
+                AND c.playthrough_id = ? AND r.runtime_variant = ?",
+            [$sessionId, $generation, $sequence, $playthroughId, $runtimeVariant]
+        );
+
+        return $row === false ? null : $row;
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
