@@ -8,16 +8,12 @@ final class WorldKnowledgeVocabularyTest extends TestCase
     private array $saved=[];
     protected function setUp(): void
     {
+        DaoTestDoubles::worldContextFromGlobalDb();
         foreach (['SYNTH_CORE_CURRENT_NPC_DATA'] as $key) {
             $this->saved[$key]=['exists'=>array_key_exists($key,$GLOBALS),'value'=>$GLOBALS[$key] ?? null];
             unset($GLOBALS[$key]);
         }
     }
-    protected function setUp(): void
-    {
-        DaoTestDoubles::worldContextFromGlobalDb();
-    }
-
     protected function tearDown(): void
     {
         DaoTestDoubles::reset();
