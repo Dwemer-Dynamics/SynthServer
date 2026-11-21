@@ -3,6 +3,7 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
@@ -10,7 +11,6 @@ use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
 use Synth\Core\DbManager\Dao\NpcDao;
-use Synth\Core\DbManager\Dao\ContextEventDao;
 
 final class DaoTestDoubles
 {
