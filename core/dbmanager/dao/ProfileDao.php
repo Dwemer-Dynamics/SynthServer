@@ -146,4 +146,43 @@ final class ProfileDao
     {
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /**
+     * The ids of the default NPC and default narrator profiles, with those rows locked FOR UPDATE until the caller's open
+     * transaction ends.
+     *
+     * @return list<int>
+     */
+    public function lockDefaultIds(): array
+    {
+        $rows = $this->connection()->fetchFirstColumn("SELECT id FROM public.core_profiles WHERE default_npc = '1' OR default_narrator = '1' FOR UPDATE");
+
+        return array_map('intval', $rows);
+    }
+
+    /**
+     * Points the named connector columns of the given profiles at one connector. Only the known connector columns are accepted.
+     * Returns false when the statement fails or a column is not a connector column.
+     *
+     * @param list<int> $profileIds
+     * @param list<string> $fields
+     */
+    public function routeConnectors(array $profileIds, array $fields, int $connectorId): bool
+    {
+        $allowed = ['llm_primary_id', 'llm_secondary_id', 'llm_tertiary_id', 'llm_quaternary_id', 'llm_formatter_id', 'diary_connector_id'];
+        if ($profileIds === [] || $fields === [] || array_diff($fields, $allowed) !== []) {
+            return false;
+        }
+        $assignments = implode(', ', array_map(static fn(string $field): string => $field.' = ?', $fields));
+        try {
+            $this->connection()->executeStatement(
+                'UPDATE public.core_profiles SET '.$assignments.' WHERE id IN ('.implode(', ', array_fill(0, count($profileIds), '?')).')',
+                array_merge(array_fill(0, count($fields), $connectorId), array_map('intval', $profileIds))
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
 }
