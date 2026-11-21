@@ -2,7 +2,7 @@
 
 namespace Synth\Drivers\Tts;
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 require_once dirname(__DIR__, 2) . '/lib/media_store.php';
 require_once dirname(__DIR__, 2) . '/lib/synth_protocol_state.php';
 

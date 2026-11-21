@@ -36,8 +36,6 @@ final class NarratorSpeechDriver implements TtsSynthesisInterface
     private function resolve(array $profile, string $name, string $voice): ?array
     {
         return ($this->legacy)(function () use ($profile, $name, $voice): ?array {
-            require_once dirname(__DIR__, 2).'/lib/core/tts_connector.class.php';
-            require_once dirname(__DIR__, 2).'/lib/core/npc_master.class.php';
             $tts = new \TTSConnector();
             $connectorId = intval($profile['tts_connector_id'] ?? 0);
             $connector = $connectorId > 0 ? $tts->getById($connectorId) : null;
