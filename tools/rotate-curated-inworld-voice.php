@@ -22,7 +22,6 @@ try {
     require_once $root . '/tts/tts-inworld.php';
     $row = \Synth\Bootstrap::db()->fetchOne("SELECT t.metadata,t.api_key_id,t.local_api_key_id FROM core_tts_connector t WHERE t.id={$connector} AND t.driver='inworld'");
     if (!$row) throw new RuntimeException('Inworld connector not found');
-    require_once $root . '/lib/core/api_badge.class.php';
     $row['api_key'] = ApiBadge::keyForConnector($row, 'Inworld');
     if ($row['api_key'] === '') throw new RuntimeException('The Inworld connector has no saved key in the shared key store');
     \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_TTS_CONNECTOR_ID', $connector);

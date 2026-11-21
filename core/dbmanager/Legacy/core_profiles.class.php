@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib/autoload.php';
 class CoreProfile
 {
     private $table     = "core_profiles";

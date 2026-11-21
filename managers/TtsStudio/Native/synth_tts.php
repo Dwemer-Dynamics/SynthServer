@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 require_once dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "runtime_bootstrap.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "voice_clone_resolver.php";
 require_once dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "logger.php";

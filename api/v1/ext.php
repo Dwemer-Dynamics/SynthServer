@@ -10,7 +10,7 @@ declare(strict_types=1);
 //   - The JSON body is bounded by api/index.php (64 KiB) and must be an object; the query string is passed as strings.
 //   - Answers carry the handler's body, or a generic refusal; exception text never reaches the client.
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 require_once dirname(__DIR__, 2) . '/managers/ExtensionManager/ExtensionManager.php';
 require_once dirname(__DIR__, 2) . '/lib/management_request_guard.php';
 

@@ -1404,7 +1404,7 @@ final class RequestStreamingTest extends TestCase
             'capabilities' => ['dialogue.turn_ownership'], 'type' => 'input_text'];
         try {
             $GLOBALS['db'] = $db;
-            DaoTestDoubles::ownerFrom($db);
+            DaoTestDoubles::outcomeFrom($db);
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $event + ['json' => $event];
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
             $this->assertTrue(synth_protocol_owns_dialogue_turn($event));
