@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractProtocolEvent;
 
 /** Finds rows of core_protocol_event. */
-final class ProtocolEventDao
+class ProtocolEventDao
 {
     use UsesEntityManager;
 

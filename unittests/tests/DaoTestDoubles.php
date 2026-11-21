@@ -3,7 +3,11 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\ActorActivationDao;
+use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
+use Synth\Core\DbManager\Dao\RuntimeSessionDao;
+use Synth\Core\DbManager\Dao\WorkerJobDao;
 
 final class DaoTestDoubles
 {
@@ -25,6 +29,69 @@ final class DaoTestDoubles
                 return is_array($row) && $row !== [] ? $row : null;
             }
         });
+    }
+
+    /**
+     * Records the claim-transaction DAO calls of synth_protocol_claim_request instead of running them: every write appends
+     * [method, arguments] to $calls. $script scripts the reads: 'lockForClaim' (the session row, or null), 'findAnchor' and
+     * 'existing' (the request row, or null).
+     *
+     * @param array<int, array{0: string, 1: array<int, mixed>}> $calls
+     * @param array<string, mixed> $script
+     */
+    public static function claimRecorder(array &$calls, array $script = []): void
+    {
+        $log = new class($calls) {
+            public function __construct(public array &$calls) {}
+            public function __invoke(string $name, array $args): bool { $this->calls[] = [$name, $args]; return true; }
+        };
+        RuntimeSessionDao::inject(new class($log, $script) extends RuntimeSessionDao {
+            public function __construct(private object $log, private array $script) {}
+            public function lockForClaim(string $sessionId): ?array { ($this->log)(__FUNCTION__, func_get_args()); return $this->script['lockForClaim'] ?? null; }
+            public function supportsAudienceReset(): bool { return false; }
+            public function upsertInit(string $sessionId, string $playthroughId, string $runtimeVariant, string $clientVersion, string $runtimeVersion, int $generation, string $capabilitiesJson, bool $resetAudience): ?array { ($this->log)(__FUNCTION__, func_get_args()); return []; }
+            public function adoptTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function clearTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function halt(string $sessionId): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+        });
+        RequestExecutionDao::inject(new class($log, $script) extends RequestExecutionDao {
+            public function __construct(private object $log, private array $script) {}
+            public function lockSession(string $sessionId): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function lockForClaim(string $sessionId, string $requestId): ?array { ($this->log)(__FUNCTION__, func_get_args()); return $this->script['existing'] ?? null; }
+            public function insertClaim(string $sessionId, string $requestId, string $turnId, int $generation, string $requestSha256, string $eventType): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelOlderGenerations(string $sessionId, int $generation): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelSupersededTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelForHalt(string $sessionId, int $generation, string $haltRequestId): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function hasCancelledContext(string $sessionId, int $generation, int $sequence): bool { ($this->log)(__FUNCTION__, func_get_args()); return false; }
+            public function cancelTurn(string $sessionId, int $generation, string $cancelRequestId, string $cancelTurnId, int $cancelSequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelRequest(string $sessionId, int $generation, string $cancelRequestId): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+        });
+        WorkerJobDao::inject(new class($log) extends WorkerJobDao {
+            public function __construct(private object $log) {}
+            public function cancelOlderGenerations(string $sessionId, int $generation): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelSupersededTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelForHalt(string $sessionId, int $generation): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function cancelRequest(string $sessionId, int $generation, string $requestId): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+        });
+        ProtocolEventDao::inject(new class($log, $script) extends ProtocolEventDao {
+            public function __construct(private object $log, private array $script) {}
+            public function insertClaim(string $sessionId, string $requestId, string $turnId, int $generation, string $eventType, string $canonicalJson, string $eventSha256): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function findAnchor(string $sessionId, int $generation, string $requestId): ?array { ($this->log)(__FUNCTION__, func_get_args()); return $this->script['findAnchor'] ?? null; }
+        });
+        ActorActivationDao::inject(new class($log) extends ActorActivationDao {
+            public function __construct(private object $log) {}
+            public function staleUpToGeneration(string $sessionId, int $generation): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+        });
+    }
+
+    public static function resetClaim(): void
+    {
+        RuntimeSessionDao::inject(null);
+        WorkerJobDao::inject(null);
+        ProtocolEventDao::inject(null);
+        ActorActivationDao::inject(null);
+        RequestExecutionDao::inject(null);
     }
 
     public static function reset(): void

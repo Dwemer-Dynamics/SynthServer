@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractRuntimeSession;
 
 /** Finds rows of core_runtime_session. */
-final class RuntimeSessionDao
+class RuntimeSessionDao
 {
     use UsesEntityManager;
 
