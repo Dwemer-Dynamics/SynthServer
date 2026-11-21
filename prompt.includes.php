@@ -12,10 +12,10 @@ for ($promptIncludeIndex = 0; $promptIncludeIndex <= 4; $promptIncludeIndex++) {
         $gameRequest[$promptIncludeIndex] = "";
     }
 }
-$GLOBALS["gameRequest"] = $gameRequest;
-$GLOBALS["SYNTH_NAME"] = \Synth\Bootstrap::config("SYNTH_NAME") ?? "The Narrator";
-$GLOBALS["PLAYER_NAME"] = \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player";
-$GLOBALS["TEMPLATE_DIALOG"] = \Synth\Bootstrap::config("TEMPLATE_DIALOG") ?? "";
+\Synth\Bootstrap::set('gameRequest', $gameRequest);
+\Synth\Bootstrap::set('SYNTH_NAME', \Synth\Bootstrap::config("SYNTH_NAME") ?? "The Narrator");
+\Synth\Bootstrap::set('PLAYER_NAME', \Synth\Bootstrap::config("PLAYER_NAME") ?? "Player");
+\Synth\Bootstrap::set('TEMPLATE_DIALOG', \Synth\Bootstrap::config("TEMPLATE_DIALOG") ?? "");
 $currentNpcData = (isset($currentNpcData) && is_array($currentNpcData)) ? $currentNpcData : [];
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
@@ -29,7 +29,7 @@ require(__DIR__ . DIRECTORY_SEPARATOR . "prompts/prompts.php");
 
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 
-$PROMPT_HEAD = !empty($GLOBALS["PROMPT_HEAD"]) ? \Synth\Bootstrap::config("PROMPT_HEAD") : "Let\'s roleplay in the Universe of Fallout. I\'m {$GLOBALS["PLAYER_NAME"]} ";
+$PROMPT_HEAD = !empty(\Synth\Bootstrap::config('PROMPT_HEAD')) ? \Synth\Bootstrap::config("PROMPT_HEAD") : ("Let\'s roleplay in the Universe of Fallout. I\'m " . \Synth\Bootstrap::config('PLAYER_NAME') . " ");
 
 /* 
  * Info gathering to mangle function definitions. This will enforce some parameters to be fixed-
@@ -61,11 +61,11 @@ require_once(__DIR__.DIRECTORY_SEPARATOR . "functions" . DIRECTORY_SEPARATOR . "
 
 if (isset($PROMPTS[$gameRequest[0]]) && isset($PROMPTS[$gameRequest[0]]["extra"])) {
 	if (isset($PROMPTS[$gameRequest[0]]["extra"]["mood"]))
-		$GLOBALS["FORCE_MOOD"] = $PROMPTS[$gameRequest[0]]["extra"]["mood"];
+		\Synth\Bootstrap::set('FORCE_MOOD', $PROMPTS[$gameRequest[0]]["extra"]["mood"]);
 	if (isset($PROMPTS[$gameRequest[0]]["extra"]["force_tokens_max"]))
-		$GLOBALS["FORCE_MAX_TOKENS"] = $PROMPTS[$gameRequest[0]]["extra"]["force_tokens_max"];
+		\Synth\Bootstrap::set('FORCE_MAX_TOKENS', $PROMPTS[$gameRequest[0]]["extra"]["force_tokens_max"]);
 	if (isset($PROMPTS[$gameRequest[0]]["extra"]["transformer"]))
-		$GLOBALS["TRANSFORMER_FUNCTION"] = $PROMPTS[$gameRequest[0]]["extra"]["transformer"];
+		\Synth\Bootstrap::set('TRANSFORMER_FUNCTION', $PROMPTS[$gameRequest[0]]["extra"]["transformer"]);
 	if (isset($PROMPTS[$gameRequest[0]]["extra"]["dontuse"]))
 		if (($PROMPTS[$gameRequest[0]]["extra"]["dontuse"]))
 			return "";

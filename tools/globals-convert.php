@@ -198,7 +198,7 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
             if ($s === ')' || $s === ']' || $s === '}') $depth++;
             elseif ($s === '(' || $s === '[' || $s === '{') {
                 if ($depth === 0) {
-                    if ($s === '(') { $p = sig($t, $q, -1); if ($p >= 0 && $t[$p]->is([T_STRING, T_LIST, T_ARRAY]) && in_array(strtolower($t[$p]->text), BYREF, true)) $byref = true; }
+                    if ($s === '(') { $p = sig($t, $q, -1); if ($p >= 0 && ($t[$p]->is([T_STRING, T_LIST, T_ARRAY]) && in_array(strtolower($t[$p]->text), BYREF, true) || $t[$p]->is([T_UNSET, T_ISSET]))) $byref = true; }
                     break;
                 }
                 $depth--;
