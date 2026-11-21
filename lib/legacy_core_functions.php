@@ -82,7 +82,8 @@ if (!function_exists('synthGetPromptCharacterName')) {
         $canonicalName = trim((string)(\Synth\Bootstrap::config('SYNTH_NAME') ?? ''));
         $role=synth_protocol_owned_response_role();
         if ($role==='narrator') return synthGetNarratorRoleplayName();
-        if ($role==='npc') {
+        // Without a database handle (connector-only callers) there is no exact responder to resolve: fall through to the name.
+        if ($role==='npc' && \Synth\Bootstrap::db() !== null) {
             $event=\Synth\Bootstrap::requestEvent()['json'];
             $db=\Synth\Bootstrap::db();
             // Ordinary dialogue needs its exact snapshot; only prepared rechat resolves without one here.

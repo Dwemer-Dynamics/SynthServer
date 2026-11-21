@@ -36,9 +36,7 @@ final class EquipmentObserverConnectorTest extends TestCase
         unset($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
         $event = ['protocol_version' => 2, 'type' => 'input_text', 'payload' => [],
             'capabilities' => ['dialogue.text', 'action.inspect_actor', 'action.check_inventory']];
-        // The prompt-name helper now always exists (Composer files autoload); a v2 request would make it resolve the
-        // responder from the database, which this connector-only fixture does not have, so the request event stays legacy.
-        $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => ['protocol_version' => 1] + $event];
+        $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => $event];
         $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $event['capabilities'];
         $utterance = 'Fixture Player: What gun am I holding now? (Talking to Fixture NPC)';
         $GLOBALS['gameRequest'] = ['inputtext', 1, 1, $utterance];
