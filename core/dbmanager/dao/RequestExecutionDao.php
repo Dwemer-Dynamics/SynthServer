@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractRequestExecution;
 
 /** Finds rows of core_request_execution. */
-final class RequestExecutionDao
+class RequestExecutionDao
 {
     use UsesEntityManager;
 

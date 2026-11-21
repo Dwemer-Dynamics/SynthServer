@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/DaoTestDoubles.php';
 require_once dirname(__DIR__, 2) . '/lib/request.php';
 require_once dirname(__DIR__, 2) . '/lib/response.php';
 require_once dirname(__DIR__, 2) . '/api/v2/dispatch.php';
@@ -755,14 +756,14 @@ final class NativeDialogueTurnTest extends TestCase
 
     private function concluded(array $event, callable $setup, callable $turn): array
     {
-        $db=$this->outcomeDb($event); $setup($db);
+        $db=$this->outcomeDb($event); $setup($db); DaoTestDoubles::ownerFrom($db);
         $output=new Synth\Api\V2\ProtocolOutput($db,$event); $output->claimed($this->owner($event));
         $sent='';
         ob_start(function (string $chunk) use (&$sent,$db): string {
             if ($chunk!=='' && $db->open) $db->sentInTransaction++;
             $sent.=$chunk; return '';
         });
-        try { $turn($output); } finally { ob_end_flush(); }
+        try { $turn($output); } finally { ob_end_flush(); DaoTestDoubles::reset(); }
         $this->assertSame(0,$db->sentInTransaction,'terminal bytes sent inside the outcome transaction');
         return [$sent,$db->row];
     }

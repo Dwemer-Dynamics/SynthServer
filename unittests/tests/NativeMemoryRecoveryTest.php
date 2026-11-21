@@ -9,6 +9,7 @@ final class NativeMemoryRecoveryFixtureDatabase
 {
     private ?array $lockOwner=null;
     public function __construct(private $connection) {}
+    public function getCatalogueSqlConnection(): \PgSql\Connection {return $this->connection;}
     public function escapeLiteral(string $value): string {return pg_escape_literal($this->connection,$value);}
     public function execQuery(string $sql)
     {

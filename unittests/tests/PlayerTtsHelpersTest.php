@@ -37,6 +37,7 @@ $GLOBALS['db']=new class {
             'active_turn_sequence'=>$this->case==='sequence'?10:9];
     }
 };
+require_once $root.'/unittests/tests/DaoTestDoubles.php';DaoTestDoubles::ownerFrom($GLOBALS['db']);
 $result=[];
 foreach (['text','audio','cancelled','generation','turn','sequence','skip','cache_only','legacy','narrator','unclaimed','no_capability'] as $case) {
     $GLOBALS['db']->case=$case;$GLOBALS['db']->voiceQueries=0;$GLOBALS['db']->ownerQueries=0;$GLOBALS['db']->workQueries=0;
@@ -129,6 +130,7 @@ $GLOBALS['db']=new class {
             'active_generation'=>7,'active_turn_id'=>'turn:auto','active_turn_sequence'=>9];
     }
 };
+require_once $root.'/unittests/tests/DaoTestDoubles.php';DaoTestDoubles::ownerFrom($GLOBALS['db']);
 $target=['form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'pt-auto','display_name'=>'Piper'];
 $result=[];
 foreach (['accepted','repeated','unaccepted','cancelled','ordinary','buffer_failure'] as $case) {
