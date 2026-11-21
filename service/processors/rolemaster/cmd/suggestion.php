@@ -64,7 +64,7 @@ if (!\Synth\Bootstrap::has('CURRENT_CONNECTOR') || (!file_exists($enginePath."co
 
         $directorSuggestionPrompt = null;
         try {
-            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'directorSuggestionSystem'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('directorSuggestionSystem');
             if ($promptData) {
                 $directorSuggestionPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }

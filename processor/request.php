@@ -109,7 +109,7 @@ if ($gameRequest[0] == "funcret") { // Take out the functions part
 	// Load quest comment prompt from database with fallback
 	$questPromptText = null;
 	try {
-		$questPromptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'quest_comment_prompt'");
+		$questPromptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('quest_comment_prompt');
 		if ($questPromptData) {
 			$questPromptText = (!empty($questPromptData['custom_prompt']))
 				? $questPromptData['custom_prompt']

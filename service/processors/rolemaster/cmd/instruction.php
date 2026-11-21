@@ -126,7 +126,7 @@ if (!\Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA') ) {
 // Load director examples prompt from database with fallback
 $commonprompt = null;
 try {
-    $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_examples_prompt'");
+    $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('director_examples_prompt');
     if ($promptData) {
         $commonprompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
     }
@@ -182,7 +182,7 @@ user request: actor \"a\" leaves the place
         // Load director system prompt from database with fallback
         $directorSystemPrompt = null;
         try {
-            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_system_prompt'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('director_system_prompt');
             if ($promptData) {
                 $directorSystemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
@@ -200,7 +200,7 @@ user request: actor \"a\" leaves the place
         // Load director instruction rules from database with fallback
         $directorInstructionRules = null;
         try {
-            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'director_instruction_rules'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts('director_instruction_rules');
             if ($promptData) {
                 $directorInstructionRules = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }

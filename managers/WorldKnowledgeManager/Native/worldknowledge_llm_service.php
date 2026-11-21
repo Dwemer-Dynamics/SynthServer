@@ -39,7 +39,7 @@ function LLMTopic($text, $language = 'ja') {
 
         try {
             $db = \Synth\Bootstrap::db();
-            $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'custom_worldknowledge'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('custom_worldknowledge');
             if ($promptData) {
                 $systemPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'WORLDKNOWLEDGE LLM', "Loaded prompt from database (custom: " . (!empty($promptData['custom_prompt']) ? 'yes' : 'no') . ")");
