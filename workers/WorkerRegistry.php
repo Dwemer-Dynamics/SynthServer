@@ -66,7 +66,24 @@ final class WorkerRegistry
      */
     public static function names(): array
     {
-        return array_keys(self::WORKERS);
+        return [...array_keys(self::WORKERS), ...self::extensionWorkers()];
+    }
+
+    /**
+     * The workers enabled extensions declare, as "<id>:<name>" (read from their manifests; no extension is loaded).
+     * They run in the general lane. An extension that cannot be read adds none.
+     *
+     * @return list<string>
+     */
+    public static function extensionWorkers(?string $root = null): array
+    {
+        try {
+            require_once dirname(__DIR__) . '/managers/ExtensionManager/ExtensionManager.php';
+
+            return \Synth\Managers\ExtensionManager\ExtensionManager::forRoot($root ?? dirname(__DIR__))->workerNames();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**
@@ -76,7 +93,9 @@ final class WorkerRegistry
      */
     public static function lane(string $lane): ?array
     {
-        return self::LANES[$lane] ?? null;
+        $workers = self::LANES[$lane] ?? null;
+
+        return $workers !== null && $lane === 'general' ? [...$workers, ...self::extensionWorkers()] : $workers;
     }
 
     /**
@@ -87,6 +106,11 @@ final class WorkerRegistry
      */
     public static function create(string $name, array $options = []): WorkerInterface
     {
+        if (str_contains($name, ':')) {
+            require_once dirname(__DIR__) . '/managers/ExtensionManager/ExtensionManager.php';
+
+            return \Synth\Managers\ExtensionManager\ExtensionManager::forRoot(dirname(__DIR__))->createWorker($name);
+        }
         if (!isset(self::WORKERS[$name])) {
             throw new InvalidArgumentException(
                 "Unknown worker '{$name}'. Known workers: " . implode(', ', self::names()) . '.'

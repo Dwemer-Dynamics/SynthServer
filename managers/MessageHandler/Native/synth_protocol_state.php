@@ -1848,6 +1848,12 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 ['session_id' => $sessionId, 'snapshot_sequence' => intval($event['payload']['snapshot_sequence'] ?? 0),
                  'world' => is_array($event['payload']['world'] ?? null) ? $event['payload']['world'] : []]);
         }
+        // Extension event (API 1.1 save.loaded): the game announced a loaded save (the init event).
+        if ($event['type'] === 'init') {
+            require_once dirname(__DIR__, 3).'/managers/ExtensionManager/ExtensionManager.php';
+            \Synth\Managers\ExtensionManager\ExtensionManager::publish(\Synth\Managers\ExtensionManager\Hooks::SAVE_LOADED,
+                ['session_id' => $sessionId, 'generation' => intval($event['json']['generation'] ?? 0)]);
+        }
         if($event['type']==='action_result' && is_array(\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME')??null))
             synth_wait_trace_committed_result($event,\Synth\Bootstrap::config('SYNTH_WAIT_ADMITTED_OUTCOME'));
         \Synth\Bootstrap::forget('SYNTH_WAIT_ADMITTED_OUTCOME');

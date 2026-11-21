@@ -366,7 +366,11 @@ function parseDialogueListenerNames($listenerName)
         }
     }
 
-    return array_values(array_unique($normalized));
+    $names = array_values(array_unique($normalized));
+    // Extension filter (API 1.1 dialogue.listener.resolved): may change the list of names; never throws.
+    require_once dirname(__DIR__, 3).'/managers/ExtensionManager/ExtensionManager.php';
+    return \Synth\Managers\ExtensionManager\ExtensionManager::filterHook(\Synth\Managers\ExtensionManager\Hooks::DIALOGUE_LISTENER_RESOLVED,
+        ['listener' => $listenerName, 'listeners' => $names])['listeners'];
 }
 
 function synthGetRechatMode()

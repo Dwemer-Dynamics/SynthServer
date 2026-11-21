@@ -39,6 +39,9 @@ class SaveState
         $summary = ['playthrough_id' => $playthrough, 'session_id' => strval($event['session_id'] ?? ''),
             'generation' => intval($event['generation'] ?? 0)];
         \Logger::info('[save] created playthrough='.$playthrough.' session='.$summary['session_id'].' generation='.$summary['generation']);
+        // Extension event (API 1.1 save.created): inline, never throws.
+        require_once dirname(__DIR__, 2).'/managers/ExtensionManager/ExtensionManager.php';
+        \Synth\Managers\ExtensionManager\ExtensionManager::publish(\Synth\Managers\ExtensionManager\Hooks::SAVE_CREATED, $summary);
         return $summary;
     }
 
