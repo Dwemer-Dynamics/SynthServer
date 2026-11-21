@@ -1,7 +1,7 @@
 <?php
 
 /* SYNTH Voice Sample Extractor. Audio stays in the user's runtime, not the package. */
-require_once __DIR__ . '/lib/classes/Logger.php';
+require_once __DIR__ . '/lib/autoload.php';
 ob_start();
 ini_set('display_errors', '0');
 $path = __DIR__ . DIRECTORY_SEPARATOR;

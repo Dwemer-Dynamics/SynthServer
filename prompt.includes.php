@@ -4,7 +4,7 @@
 
 
 // IF GLOBAL INPUTCHAT (NO TARGET)
-require_once __DIR__ . '/lib/classes/Logger.php';
+require_once __DIR__ . '/lib/autoload.php';
 $promptIncludesStartTime = (isset($startTime) && is_numeric($startTime)) ? $startTime : microtime(true);
 $gameRequest = (isset($gameRequest) && is_array($gameRequest)) ? $gameRequest : [];
 for ($promptIncludeIndex = 0; $promptIncludeIndex <= 4; $promptIncludeIndex++) {
@@ -19,7 +19,6 @@ for ($promptIncludeIndex = 0; $promptIncludeIndex <= 4; $promptIncludeIndex++) {
 $currentNpcData = (isset($currentNpcData) && is_array($currentNpcData)) ? $currentNpcData : [];
 
 require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
-require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
 
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'prompt.includes', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $promptIncludesStartTime));
 

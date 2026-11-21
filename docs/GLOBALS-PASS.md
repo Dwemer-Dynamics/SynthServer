@@ -313,3 +313,12 @@ Directory: `ui/`. Deleted 74 legacy-class `require_once` lines, replaced 13 `Log
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1864 | 1790 |
 | global uses | 64 | 64 |
+
+### R2-root-scripts
+
+Root scripts (`main_synth_pipeline.php`, `gamedata.php`, `itt.php`, `player_rewrite.php`, `prompt.includes.php`, `vsx.php`): deleted 27 class-file `require_once` lines, replaced 4 `Logger.php` lines by `autoload.php`. Stacked on R1-ui (#188).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1790 | 1768 |
+| global uses | 64 | 64 |

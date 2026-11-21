@@ -68,11 +68,6 @@ require_once($path . "lib/save_rollback.php");
 require_once($path . "processor/captured_dialogue.php");
 
 // New profile system
-require_once($path . "lib/core/api_badge.class.php");
-require_once($path . "lib/core/llm_connector.class.php");
-require_once($path . "lib/core/tts_connector.class.php");
-require_once($path . "lib/core/npc_master.class.php");
-require_once($path . "lib/core/core_profiles.class.php");
 require_once($path . "lib/semaphore_manager.class.php");
 
 // Normalize the structured JSON request into the internal $gameRequest tuple.
@@ -769,7 +764,6 @@ if (in_array($inputRequestType, ["inputtext", "inputtext_s", "cheatmode", "visio
 
 // Bored
 if (($gameRequest[0] ?? '') === 'bored' && empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE'))) {
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narratorSettings = new Narrator();
     if ($narratorSettings->getBool('bored_enabled', false)) {
         $boredChance = max(1, min(100, $narratorSettings->getInt('bored_chance', 25)));
@@ -832,7 +826,6 @@ $OVERRIDES["MINIME_T5"] = \Synth\Bootstrap::has('MINIME_T5') ? \Synth\Bootstrap:
 
     // If this is The Narrator, use Narrator class instead of NpcMaster
     if ($isNarratorProfile) {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
         $narrator = new Narrator();
         $narratorData = $narrator->getNarratorData();
 
@@ -1090,7 +1083,6 @@ $OVERRIDES["MINIME_T5"] = \Synth\Bootstrap::has('MINIME_T5') ? \Synth\Bootstrap:
     ], true);
 
     if ($isNarratorRequestWithoutProfile) {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
         $narrator = new Narrator();
         $narratorData = $narrator->getNarratorData();
 
@@ -1653,7 +1645,6 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
                 Logger::info("[RANDOM_NARRATION] Triggered (chance: $randomChance <= $narrationChance)");
 
             // Switch to The Narrator profile temporarily
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
             $narrator = new Narrator();
             $narratorData = $narrator->getNarratorData();
 
@@ -1816,7 +1807,6 @@ if ($gameRequest[0] === "funcret") {
 // Handle narrator_welcome events after the request processor converts init to narrator_welcome.
 if ($gameRequest[0] == "narrator_welcome") {
     // Load narrator profile with full connector configuration
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narrator = new Narrator();
     $narratorData = $narrator->getNarratorData();
 
@@ -1904,7 +1894,6 @@ if ($gameRequest[0] == "narrator_welcome") {
 // Handle narrator_quest_comment events after the request processor converts quest to narrator_quest_comment.
 if ($gameRequest[0] == "narrator_quest_comment") {
     // Load narrator profile with full connector configuration
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narrator = new Narrator();
     $narratorData = $narrator->getNarratorData();
 
@@ -2035,9 +2024,8 @@ $isNarratorScopedRequest = in_array($gameRequest[0], [
 
 if ($ownedResponseRole!==null) $isNarratorScopedRequest=$ownedResponseRole==='narrator';
 if ($isNarratorScopedRequest && !synth_protocol_response_is_narrator()) {
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
-
-    $narrator = new Narrator();
+    
+$narrator = new Narrator();
     $narratorData = $narrator->getNarratorData();
 
     if ($narratorData && isset($narratorData["profile_id"])) {
@@ -2813,7 +2801,6 @@ $visualContextPrompt = synthBuildVisualContextPrompt(
 
 $playerBioSection = "";
 try {
-    require_once(__DIR__.DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."core".DIRECTORY_SEPARATOR."player.class.php");
     $playerObj = new Player();
     $playerBio = ResolvePlayerBackstory($playerObj);
     $bioKnownByAll = filter_var((string)($playerObj->get('bio_known_by_all') ?? ''), FILTER_VALIDATE_BOOLEAN);

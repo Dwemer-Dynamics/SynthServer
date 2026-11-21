@@ -65,7 +65,6 @@ try {
     require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'logger.php';
     require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'visual_context.php';
     require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'synth_protocol_state.php';
-    require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'npc_master.class.php';
     if ($isDescribe) {
         require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'itt_service.php';
     }

@@ -19,8 +19,6 @@ synthRuntimeBootstrap(__DIR__, [
     'run_db_updates' => false,
 ]);
 \Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
-require_once(__DIR__ . "/lib/core/npc_master.class.php");
-require_once(__DIR__ . "/lib/core/player.class.php");
 require_once(__DIR__ . "/lib/core/activity_status.php");
 require_once(__DIR__ . "/lib/core/game_plugins.php");
 require_once(__DIR__ . "/lib/synth_runtime.php");
@@ -287,7 +285,6 @@ function handleEquipmentUpdate(array $data, NpcMaster $npcMaster): void {
     // If this is a player, save directly to core_player table (player doesn't need NPC record)
     if ($actorType === 'player') {
         try {
-            require_once(__DIR__ . "/lib/core/player.class.php");
             $player = new Player();
 
             $equipmentData = buildEquipmentMetadataValue($equipment);
@@ -1767,7 +1764,6 @@ function handleInventoryUpdate(array $data, NpcMaster $npcMaster): void {
     // If this is a player, save directly to core_player table (player doesn't need NPC record)
     if ($actorType === 'player') {
         try {
-            require_once(__DIR__ . "/lib/core/player.class.php");
             $player = new Player();
 
             $inventoryData = buildInventoryMetadataValue($items);
@@ -1825,7 +1821,6 @@ function handleSkillsUpdate(array $data, NpcMaster $npcMaster): void {
     // If this is a player, save directly to core_player table (player doesn't need NPC record)
     if ($actorType === 'player') {
         try {
-            require_once(__DIR__ . "/lib/core/player.class.php");
             $player = new Player();
 
             $skillsData = buildSkillsMetadataValue($skills);
@@ -1878,7 +1873,6 @@ function handleStatsUpdate(array $data, NpcMaster $npcMaster): void {
     // If this is a player, save directly to core_player table (player doesn't need NPC record)
     if ($actorType === 'player') {
         try {
-            require_once(__DIR__ . "/lib/core/player.class.php");
             $player = new Player();
 
             $statsData = buildStatsMetadataValue($stats);
