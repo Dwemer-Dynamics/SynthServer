@@ -17,10 +17,10 @@ function synthResponseQueueH($value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, "UTF-8");
 }
 
-function synthResponseQueueFetchAll(sql $db, string $query): array
+function synthResponseQueueFetchAll(callable $fetch): array
 {
     try {
-        $rows = $db->fetchAll($query);
+        $rows = $fetch();
         return is_array($rows) ? $rows : [];
     } catch (Throwable $exception) {
         Logger::warn("response_queue fetchAll failed: " . $exception->getMessage());
@@ -28,10 +28,10 @@ function synthResponseQueueFetchAll(sql $db, string $query): array
     }
 }
 
-function synthResponseQueueFetchOne(sql $db, string $query): array
+function synthResponseQueueFetchOne(callable $fetch): array
 {
     try {
-        $row = $db->fetchOne($query);
+        $row = $fetch();
         return is_array($row) ? $row : [];
     } catch (Throwable $exception) {
         Logger::warn("response_queue fetchOne failed: " . $exception->getMessage());
@@ -95,23 +95,9 @@ $limit = isset($_GET["limit"]) ? max(10, min(500, intval($_GET["limit"]))) : 100
 $db = new sql();
 \Synth\Bootstrap::set('db', $db);
 
-$summary = synthResponseQueueFetchOne(
-    $db,
-    "SELECT
-        COUNT(*) AS total,
-        SUM(CASE WHEN sent = 0 THEN 1 ELSE 0 END) AS pending,
-        SUM(CASE WHEN sent <> 0 THEN 1 ELSE 0 END) AS delivered,
-        MAX(localts) AS latest_localts
-     FROM core_response_log"
-);
+$summary = synthResponseQueueFetchOne(static fn() => \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->queueSummary());
 
-$rows = synthResponseQueueFetchAll(
-    $db,
-    "SELECT rowid, localts, sent, actor, action, tag, text
-     FROM core_response_log
-     ORDER BY rowid DESC
-     LIMIT " . intval($limit)
-);
+$rows = synthResponseQueueFetchAll(static fn() => \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->newest(intval($limit)));
 
 $pending = intval($summary["pending"] ?? 0);
 $delivered = intval($summary["delivered"] ?? 0);

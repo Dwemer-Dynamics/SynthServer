@@ -56,4 +56,43 @@ final class ResponseLogDao
 
         return true;
     }
+
+    /**
+     * Queue totals: total, pending (sent = 0), delivered (sent <> 0) and the latest localts.
+     *
+     * @return array<string,mixed>
+     */
+    public function queueSummary(): array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT COUNT(*) AS total, SUM(CASE WHEN sent = 0 THEN 1 ELSE 0 END) AS pending,'
+            .' SUM(CASE WHEN sent <> 0 THEN 1 ELSE 0 END) AS delivered, MAX(localts) AS latest_localts FROM public.core_response_log'
+        );
+
+        return is_array($row) ? $row : [];
+    }
+
+    /** The newest rows for the queue page. @return list<array<string,mixed>> */
+    public function newest(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT rowid, localts, sent, actor, action, tag, text FROM public.core_response_log ORDER BY rowid DESC LIMIT ?',
+            [$limit]
+        );
+    }
+
+    /** Every row with all columns, oldest first (the legacy event-log tab). @return list<array<string,mixed>> */
+    public function allOldestFirst(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT a.*, rowid FROM public.core_response_log a ORDER BY rowid ASC');
+    }
+
+    /** Queues an operator action (a command or an animation) for the game to pick up. */
+    public function enqueueOperatorAction(int $localts, string $actor, string $text, string $action): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_response_log (localts, sent, text, actor, action) VALUES (?, 0, ?, ?, ?)',
+            [$localts, $text, $actor, $action]
+        );
+    }
 }
