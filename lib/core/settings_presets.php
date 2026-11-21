@@ -137,10 +137,8 @@ function synthSettingsPresetEnsureStorage(): void
     }
     $row = $db->fetchOne("SELECT to_regclass('public.core_config_preset') AS relation");
     if (empty($row['relation'])) {
-        $schema = file_get_contents(__DIR__ . '/database_schema/global_settings_presets.sql');
-        if ($schema === false || $db->execQuery($schema) === false) {
-            throw new RuntimeException('Could not prepare preset storage.');
-        }
+        // The baseline migration owns this table; a missing relation means the migrations have not run.
+        throw new RuntimeException('Could not prepare preset storage.');
     }
 }
 

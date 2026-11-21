@@ -106,7 +106,6 @@ try {
         'connector/openrouterjson.php',
         'functions/functions.php',
         'lib/core/core_profiles.class.php',
-        'lib/core/database_schema/core_profiles.sql',
         'processor/request.php',
         'prompts/prompts.php',
         'service/manager.php',

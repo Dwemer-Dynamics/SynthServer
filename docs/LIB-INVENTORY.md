@@ -62,28 +62,6 @@ Kinds: **keep**, **hook (done)** (already a thin hook over a moved file), **mana
 | `lib/core/activity_status.php` | 4 | hook (done) | `managers/ServerStatus/Native/activity_status.php` | done (L7) |
 | `lib/core/api_badge.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/api_badge.class.php` | done (L3) |
 | `lib/core/core_profiles.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/core_profiles.class.php` | done (L3) |
-| `lib/core/database_schema/bio_template_actor_map.sql` | 55 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_action.sql` | 94 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_api_badge.sql` | 115 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_itt_connector.sql` | 23 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_llm_connector.sql` | 135 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_narrator.sql` | 58 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_npc_master.sql` | 150 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_npc_master_history.sql` | 111 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_player.sql` | 60 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_profiles.sql` | 204 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_stt_connector.sql` | 111 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_tts_connector.sql` | 114 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/core_tts_pronunciation.sql` | 26 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/general_settings.sql` | 40 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/global_settings_presets.sql` | 10 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/playthrough_metadata.sql` | 31 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/relationship_async_queues.sql` | 23 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/synth_private_narrator.sql` | 116 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/synth_protocol.sql` | 982 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/synth_social_tasks.sql` | 32 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/visual_context.sql` | 106 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
-| `lib/core/database_schema/worldknowledge_parity_v1.sql` | 226 | schema (owned elsewhere) | core/dbmanager/migrations (schema session); stays, no tables added here | schema session |
 | `lib/core/game_plugins.php` | 4 | hook (done) | `managers/ExtensionManager/Native/game_plugins.php` | done (L7) |
 | `lib/core/import_rules.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/import_rules.class.php` | done (L3) |
 | `lib/core/itt_connector.class.php` | 4 | hook (done) | `core/dbmanager/Legacy/itt_connector.class.php` | done (L3) |

@@ -60,25 +60,13 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
         ];
     }
 
-    private function restoreLegacySchema(): void
-    {
-        // A pre-upgrade installation could contain only maps with a base.
-        // Final packaged reference seeds exist only in the disposable test DB.
-        self::assertNotFalse($this->db()->execQuery('DELETE FROM public.core_npc_biography_template_actor WHERE base_plugin IS NULL OR base_local_formid IS NULL'));
-        self::assertNotFalse($this->db()->execQuery('ALTER TABLE public.core_npc_biography_template_actor
-            DROP CONSTRAINT IF EXISTS bio_template_actor_map_base_pair_check,
-            DROP CONSTRAINT IF EXISTS bio_template_actor_map_identity_present_check,
-            ALTER COLUMN base_plugin SET NOT NULL,
-            ALTER COLUMN base_local_formid SET NOT NULL'));
-    }
-
     public function testReferenceOnlyActorDoesNotBindOtherFeralActorsOrTheirNames(): void
     {
         // This character uses a shared feral base. Only its placed reference may
         // select the named history, even when another actor has the same name.
         $row=$this->row('fo4_fixture_andersen');$root=$this->fixtureRoot([$row]);
         try {
-            $this->restoreLegacySchema();$before=$this->snapshot();
+            $before=$this->snapshot();
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
             self::assertSame(1,synthInstallFalloutContentPack($this->db(),$root)['npc_templates']);
             $maps=$this->db()->fetchAll("SELECT base_plugin,base_local_formid,reference_plugin,reference_local_formid FROM public.core_npc_biography_template_actor WHERE template_name='fo4_fixture_andersen'");
@@ -158,7 +146,7 @@ final class FalloutReferenceContentPackTest extends DatabaseTestCase
         $root=$this->fixtureRoot([$this->row('fo4_fixture_reference_first'),
             $this->row('fo4_fixture_reference_second','00F00502')]);
         try {
-            $this->restoreLegacySchema();$before=$this->snapshot();
+            $before=$this->snapshot();
             $db=new FalloutReferenceContentPackTestAdapter($this->db(),2);
             try { synthInstallFalloutContentPack($db,$root);self::fail('Second reference map must fail'); }
             catch (RuntimeException $error) { self::assertStringContainsString('stable mapping',$error->getMessage()); }
