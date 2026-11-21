@@ -331,3 +331,12 @@ Directory: drivers. `tools/require-prune.php` deleted 13 class-file `require_onc
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1768 | 1755 |
 | global uses | 64 | 64 |
+
+### R4-workers
+
+Directory: workers. `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 2 `Logger.php` lines by `autoload.php`. Stacked on R3 (#191).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1755 | 1730 |
+| global uses | 64 | 64 |
