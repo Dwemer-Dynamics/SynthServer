@@ -322,3 +322,39 @@ Root scripts (`main_synth_pipeline.php`, `gamedata.php`, `itt.php`, `player_rewr
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1790 | 1768 |
 | global uses | 64 | 64 |
+
+### R3-drivers
+
+Directory: drivers. `tools/require-prune.php` deleted 13 class-file `require_once` lines and replaced 6 `Logger.php` lines by `autoload.php`. Stacked on R2 (#190).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1768 | 1755 |
+| global uses | 64 | 64 |
+
+### R4-workers
+
+Directory: workers. `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 2 `Logger.php` lines by `autoload.php`. Stacked on R3 (#191).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1755 | 1730 |
+| global uses | 64 | 64 |
+
+### R5-processor-service-prompts-functions-core
+
+Directory: processor, service, prompts, functions, core (small, grouped in one PR: 12+7+0+0+6 deleted). `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 10 `Logger.php` lines by `autoload.php`. Stacked on R4 (#192).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1730 | 1705 |
+| global uses | 64 | 64 |
+
+### R6-managers-lib-and-rest
+
+Directory: managers, lib, api, stt, debug, tools, bin (the `lib/core/*.class.php` shims are left untouched; `llm_connector`, `narrator` and `npc_master` requires are kept in this PR because those files also define functions callers use without the class). `tools/require-prune.php` deleted 32 class-file `require_once` lines and replaced 20 `Logger.php` lines by `autoload.php`. Stacked on R5 (#194).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1705 | 1678 |
+| global uses | 64 | 64 |

@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 require_once __DIR__ . '/voice_sample.php';
 require_once dirname(__DIR__, 3).'/lib' . '/provider_stream.php';
 
