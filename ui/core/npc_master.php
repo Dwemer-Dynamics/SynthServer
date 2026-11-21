@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 $enginePath = __DIR__ . DIRECTORY_SEPARATOR . "../../";
 
 // NPC delete: confirmed same-origin POSTs with the dashboard form token; former GET links are refused before bootstrap.
@@ -25,8 +25,6 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_actor_identity_l
 require_once($enginePath . "ext" . DIRECTORY_SEPARATOR . "relationship_system" . DIRECTORY_SEPARATOR . "npc_save_handler.php");
 
 \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
-
-require_once("{$enginePath}/lib/core/npc_master.class.php");
 
 
 //function renderSelect($obj, $fieldName, $labelText, $selectedValue = "")

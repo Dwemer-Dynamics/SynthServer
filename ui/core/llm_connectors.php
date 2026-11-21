@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 require_once dirname(__DIR__, 2) . '/managers/ConfigManager/ConfigManager.php';
 $enginePath = __DIR__ . "/../../";
 
@@ -18,7 +18,6 @@ require_once($enginePath . "lib/model_dynmodel.php");
 require_once($enginePath . "lib/chat_helper_functions.php");
 require_once($enginePath . "lib/data_functions.php");
 require_once($enginePath . "lib/logger.php");
-require_once("{$enginePath}/lib/core/llm_connector.class.php");
 
 // Helper function to convert nested arrays to YAML format
 function array_to_yaml($arr, $indent = 0) {

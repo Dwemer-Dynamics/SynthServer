@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../lib/autoload.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {
@@ -26,12 +26,8 @@ if ($method === 'POST') {
 
  $db = \Synth\Bootstrap::db();
 
- require_once $enginePath . "lib/core/npc_master.class.php";
- require_once $enginePath . "lib/core/api_badge.class.php";
- require_once $enginePath . "lib/core/core_profiles.class.php";
- require_once $enginePath . "lib/core/llm_connector.class.php";
-
- error_reporting(E_ALL);
+ 
+error_reporting(E_ALL);
 
  $apiBadge = new ApiBadge();
  $apiKeyData = $apiBadge->getByLabel("openrouter");

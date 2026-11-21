@@ -20,8 +20,6 @@ require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "synth_tts.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "model_dynmodel.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
 require_once($enginePath . "prompt.includes.php");
 
 function synthPlayerTtsPreviewRespond(array $payload, int $statusCode = 200): void

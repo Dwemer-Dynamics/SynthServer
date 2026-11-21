@@ -16,9 +16,6 @@ synthRuntimeBootstrap($enginePath, [
 
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php";
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "dynamic_update_util.php";
-require_once $enginePath . "lib/core/npc_master.class.php";
-require_once $enginePath . "lib/core/core_profiles.class.php";
-require_once $enginePath . "lib/core/llm_connector.class.php";
 require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "lazy_xml.php";
 require_once __DIR__ . DIRECTORY_SEPARATOR . "ai_profile_generation_service.php";
 

@@ -4,8 +4,6 @@ $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 
 require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
 require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'logger.php');
-require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'api_badge.class.php');
-require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'itt_connector.class.php');
 
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,
