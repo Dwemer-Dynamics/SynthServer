@@ -9,7 +9,10 @@ namespace Synth\Managers\ExtensionManager;
 final class ManifestValidator
 {
     private const REQUIRED = ['id', 'name', 'version', 'api', 'entry', 'autoload'];
-    private const OPTIONAL = ['description', 'authors', 'license', 'homepage', 'hooks', 'settings'];
+    private const OPTIONAL = ['description', 'authors', 'license', 'homepage', 'hooks', 'settings', 'provides', 'permissions'];
+    public const PERMISSIONS = ['http.routes', 'storage.tables'];
+    public const ROUTE_PATTERN = '/^(GET|POST|PUT|PATCH|DELETE) ([a-z0-9_-]+|\{[a-z][a-z0-9_]*\})(\/([a-z0-9_-]+|\{[a-z][a-z0-9_]*\}))*$/D';
+    public const WORKER_PATTERN = '/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/D';
     private const SETTING_TYPES = ['string', 'integer', 'boolean', 'enum'];
     private const SETTING_KEYS = ['type', 'default', 'label', 'description', 'options'];
     public const NAMESPACE_ROOT = 'Synth\\Extensions\\';
@@ -59,6 +62,39 @@ final class ManifestValidator
             }
         }
         if (array_key_exists('settings', $manifest)) $errors = [...$errors, ...self::settingsErrors($manifest['settings'])];
+        return [...$errors, ...self::capabilityErrors($manifest)];
+    }
+
+    // permissions, provides.routes and provides.workers: what the extension adds beyond hooks, declared up front.
+    private static function capabilityErrors(array $manifest): array
+    {
+        $errors = [];
+        $permissions = $manifest['permissions'] ?? [];
+        if (!is_array($permissions) || !array_is_list($permissions)) return ['permissions must be a list'];
+        foreach ($permissions as $permission) {
+            if (!is_string($permission) || !in_array($permission, self::PERMISSIONS, true)) {
+                $errors[] = 'unknown permission: '.(is_string($permission) ? $permission : gettype($permission));
+            }
+        }
+        $provides = $manifest['provides'] ?? [];
+        if (!is_array($provides) || ($provides !== [] && array_is_list($provides))) return [...$errors, 'provides must be an object'];
+        foreach (array_diff(array_keys($provides), ['routes', 'workers']) as $key) $errors[] = "provides: unknown field {$key}";
+        $routes = $provides['routes'] ?? [];
+        if (!is_array($routes) || !array_is_list($routes) || count($routes) > 20) $errors[] = 'provides.routes must be a list of at most 20 "METHOD path" entries';
+        else {
+            foreach ($routes as $route) {
+                if (!is_string($route) || preg_match(self::ROUTE_PATTERN, $route) !== 1) $errors[] = 'provides.routes: bad entry '.(is_string($route) ? $route : gettype($route));
+            }
+            if ($routes !== [] && !in_array('http.routes', $permissions, true)) $errors[] = 'provides.routes needs the http.routes permission';
+        }
+        $workers = $provides['workers'] ?? [];
+        if (!is_array($workers) || !array_is_list($workers) || count($workers) > 5 || count(array_unique(array_map('strval', $workers))) !== count($workers)) {
+            $errors[] = 'provides.workers must be a list of at most 5 distinct names';
+        } else {
+            foreach ($workers as $worker) {
+                if (!is_string($worker) || strlen($worker) > 40 || preg_match(self::WORKER_PATTERN, $worker) !== 1) $errors[] = 'provides.workers: bad name';
+            }
+        }
         return $errors;
     }
 
