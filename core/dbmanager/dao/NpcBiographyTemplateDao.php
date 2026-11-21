@@ -1,14 +1,14 @@
 <?php
 
-// Reads core_npc_biography_template. Writes stay with the statements that own them, so this DAO only reads and holds no lock.
+// Reads core_npc_biography_template (and the combined_bio_templates view for the admin list). Writes stay with the statements that own them, so this DAO only reads and holds no lock.
 
 declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Synth\Core\Entities\Base\AbstractNpcBiographyTemplate;
 use Doctrine\DBAL\Driver\Exception as DriverException;
 use Doctrine\DBAL\Exception as DbalException;
-use Synth\Core\Entities\Base\AbstractNpcBiographyTemplate;
 
 /** Finds rows of core_npc_biography_template. */
 class NpcBiographyTemplateDao
@@ -25,6 +25,35 @@ class NpcBiographyTemplateDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractNpcBiographyTemplate::class)->findBy([], ['npcName' => 'ASC'], max(1, $limit)));
+    }
+
+    /**
+     * Rows of the combined_bio_templates view for the admin list, by npc_name. $letter (name starts with) and $search (name contains)
+     * are both optional. Throws on a database error. @return list<array<string, mixed>>
+     */
+    public function searchCombined(string $letter = '', string $search = ''): array
+    {
+        $clauses = [];
+        $params = [];
+        if ($letter !== '') {
+            $clauses[] = 'LOWER(npc_name) LIKE LOWER(?)';
+            $params[] = $letter.'%';
+        }
+        if ($search !== '') {
+            $clauses[] = 'LOWER(npc_name) LIKE LOWER(?)';
+            $params[] = '%'.$search.'%';
+        }
+
+        return $this->connection()->fetchAllAssociative(
+            'SELECT * FROM synth.combined_bio_templates'.($clauses === [] ? '' : ' WHERE '.implode(' AND ', $clauses)).' ORDER BY npc_name ASC',
+            $params
+        );
+    }
+
+    /** Number of installed Fallout 4 character templates, creatures excluded (home dashboard). */
+    public function dashboardFo4CharacterCount(): int
+    {
+        return (int) $this->connection()->fetchOne("SELECT COUNT(*) FROM public.core_npc_biography_template WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1");
     }
 
     /** The World Knowledge tags of the combined (standard plus custom) template of one NPC name; null when absent or unreadable. @return array<string, mixed>|null */

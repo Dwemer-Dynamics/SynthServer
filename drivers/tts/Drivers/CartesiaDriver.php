@@ -55,8 +55,7 @@ function resolveCartesiaConnectorRow(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
 
     $ttsConnector = new TTSConnector();
     $candidateIds = [
@@ -82,9 +81,7 @@ function resolveCartesiaConnectorRow(): ?array {
     }
 
     $profileUsageMap = [];
-    $usageRows = $db->fetchAll(
-        "SELECT tts_connector_id, COUNT(*) AS c FROM core_profiles WHERE tts_connector_id IS NOT NULL GROUP BY tts_connector_id"
-    );
+    $usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current($db)->ttsConnectorUsage();
     foreach ($usageRows as $usageRow) {
         $profileUsageMap[intval($usageRow['tts_connector_id'] ?? 0)] = intval($usageRow['c'] ?? 0);
     }
@@ -128,8 +125,7 @@ function hydrateCartesiaConnectorGlobals(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
     $ttsConnector = new TTSConnector();
     $ttsConnector->setOldGlobals($row);
     return $row;
@@ -163,7 +159,6 @@ function getCartesiaActiveConfig(): array {
     $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
     if ($apiKey === '' && is_array($row) && ensureCartesiaDb()) {
         // The key the connector names, else the global Cartesia key.
-        require_once SYNTH_TTS_SCRIPT_DIR . '/../lib/core/api_badge.class.php';
         $apiKey = trim(ApiBadge::keyForConnector($row, 'Cartesia'));
     }
 

@@ -6,13 +6,14 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Synth\Core\Entities\Base\AbstractNpc;
 use Doctrine\DBAL\Driver\Exception as DriverException;
 use Doctrine\DBAL\Exception as DbalException;
-use Synth\Core\Entities\Base\AbstractNpc;
 
 /** Finds rows of core_npc. */
 class NpcDao
 {
+    use FailSoftQueries;
     use UsesEntityManager;
 
     /** One row by its primary key, or null. */
@@ -77,6 +78,99 @@ class NpcDao
             }
         }
         throw new \RuntimeException('The scoped character could not be created.');
+    }
+
+    /** Named NPC rows with the columns the memory-bank tools read, by name. @return list<array<string, mixed>> */
+    public function namedProfiles(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC');
+    }
+
+    /** Number of characters (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_npc');
+    }
+
+    /** Gender and race of the character with this reference id, or null. @return array<string, mixed>|null */
+    public function genderAndRaceByRefid(string $refid): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT gender, race FROM core_npc WHERE refid = ?', [$refid]);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The rechat responder candidates among the captured actors of a scene, in capture order, with their NPC row and profile
+     * metadata. The NPC and profile rows are locked FOR SHARE, as the legacy read did. Null when the read fails.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public function rechatCandidates(string $capturedActorsJson, string $sessionId): ?array
+    {
+        return $this->rowsOrNull("SELECT a.id AS actor_identity_id,n.id AS npc_id,n.profile_id,
+            to_jsonb(n) AS npc,captured.actor AS identity,p.metadata AS profile_metadata
+        FROM jsonb_array_elements(:p1::jsonb) WITH ORDINALITY captured(actor,ordinal)
+        JOIN public.core_actor_identity a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
+            AND lower(a.origin_plugin)=lower(captured.actor->>'origin_plugin')
+            AND a.playthrough_id=captured.actor->>'playthrough_id'
+        JOIN public.core_runtime_session s ON s.session_id=:p2 AND s.playthrough_id=a.playthrough_id
+        JOIN public.core_npc n ON n.actor_identity_id=a.id
+        JOIN public.core_profiles p ON p.id=n.profile_id
+        ORDER BY captured.ordinal FOR SHARE OF n,p", [$capturedActorsJson, $sessionId]);
+    }
+
+    /**
+     * Id, actor identity and name of one character; with $lock the row is locked FOR UPDATE until the caller's open
+     * transaction ends. Null when the character does not exist.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function linkRow(int $id, bool $lock = false): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT id, actor_identity_id, npc_name FROM public.core_npc WHERE id = ?'.($lock ? ' FOR UPDATE' : ''), [$id]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** The whole row of one character, or null. @return array<string, mixed>|null */
+    public function row(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE id = ?', [$id]);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Up to two characters linked to the Fallout 4 actor identity with this form id (case-insensitive), origin plugin
+     * (case-insensitive) and playthrough, ordered by id; two rows mean the link is ambiguous.
+     *
+     * @return list<array<string, mixed>> id, actor_identity_id and npc_name
+     */
+    public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT n.id, n.actor_identity_id, n.npc_name FROM public.core_npc n
+             JOIN public.core_actor_identity a ON a.id = n.actor_identity_id
+             WHERE a.game = 'fo4' AND upper(a.full_form_id) = upper(?) AND lower(a.origin_plugin) = lower(?) AND a.playthrough_id = ?
+             ORDER BY n.id LIMIT 2",
+            [$formId, $originPlugin, $playthroughId]
+        );
+    }
+
+    /**
+     * Takes the session-level advisory lock that serializes relationship updates for one NPC (namespace 1001). It is held on the
+     * shared session until unlockRelationshipUpdates() or the session ends; it does not start a transaction.
+     */
+    public function lockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_lock(:p1)', ['p1' => 1001000000 + $npcId]);
+    }
+
+    /** Releases the lock taken by lockRelationshipUpdates() for this NPC. */
+    public function unlockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_unlock(:p1)', ['p1' => 1001000000 + $npcId]);
     }
 
     /**

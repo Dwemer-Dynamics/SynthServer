@@ -322,3 +322,64 @@ Root scripts (`main_synth_pipeline.php`, `gamedata.php`, `itt.php`, `player_rewr
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1790 | 1768 |
 | global uses | 64 | 64 |
+
+### R3-drivers
+
+Directory: drivers. `tools/require-prune.php` deleted 13 class-file `require_once` lines and replaced 6 `Logger.php` lines by `autoload.php`. Stacked on R2 (#190).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1768 | 1755 |
+| global uses | 64 | 64 |
+
+### R4-workers
+
+Directory: workers. `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 2 `Logger.php` lines by `autoload.php`. Stacked on R3 (#191).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1755 | 1730 |
+| global uses | 64 | 64 |
+
+### R5-processor-service-prompts-functions-core
+
+Directory: processor, service, prompts, functions, core (small, grouped in one PR: 12+7+0+0+6 deleted). `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 10 `Logger.php` lines by `autoload.php`. Stacked on R4 (#192).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1730 | 1705 |
+| global uses | 64 | 64 |
+
+### R6-managers-lib-and-rest
+
+Directory: managers, lib, api, stt, debug, tools, bin (the `lib/core/*.class.php` shims are left untouched; `llm_connector`, `narrator` and `npc_master` requires are kept in this PR because those files also define functions callers use without the class). `tools/require-prune.php` deleted 32 class-file `require_once` lines and replaced 20 `Logger.php` lines by `autoload.php`. Stacked on R5 (#194).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1705 | 1678 |
+| global uses | 64 | 64 |
+
+### R7-legacy-core-functions
+
+Directory: lib/legacy_core_functions.php (new, Composer files entry). `tools/require-prune.php` deleted 0 class-file `require_once` lines and replaced 0 `Logger.php` lines by `autoload.php`. Moves 17 guarded functions out of the llm_connector, narrator and npc_master class files; stacked on R6 (#195).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1678 | 1678 |
+| global uses | 64 | 64 |
+## require_once: status and what is left
+
+State after R1-R6 and the legacy-function move (#198): about 1,678 `require_once` (CHEVO-PARITY count method). The class files that Composer now autoloads (`core/dbmanager/Legacy/` classmap, `Synth\Lib\Logger`) no longer need requires; `lib/legacy_core_functions.php` is the only `files` entry.
+
+Justified explicit requires (load-time side effects or entry loaders; do not autoload):
+
+| File | Requires | Why it stays |
+| --- | --- | --- |
+| `lib/runtime_bootstrap.php` | 109 | Entry loader: installs the runtime session. |
+| `lib/autoload.php` | 96 | The one place the autoloader is loaded. |
+| `lib/logger.php` | 76 | Global `Logger` shim; installs the process error and shutdown handlers when included. |
+| `lib/management_request_guard.php` | 33 | Request gate that exits on a refused request when included. |
+| `lib/chat_helper_functions.php`, `lib/data_functions.php`, `ui/profile_loader.php` | 40, 35, 36 | Statements run at load time (settings defaults, guarded declarations in `if` blocks). |
+| `lib/*.php` module hooks (`synth_protocol_state.php`, `synth_command_payload.php`, `utils_game_timestamp.php`, `provider_stream.php`, ...) | about 300 together | One-line shims that require the real `managers/` or `drivers/` code. Loading them eagerly through Composer `files` would pull whole modules into every request, so they stay lazy. |
+
+Not done yet, in priority order: convert the function groups behind the hooks and the three load-time-side-effect files (`chat_helper_functions`, `data_functions`, `profile_loader`) into autoloaded classes with thin wrapper functions, one group per PR. The wrappers still need a loaded file, so they belong in a small side-effect-free `files` entry (like `lib/legacy_core_functions.php`) while the bodies move into classes. Each group needs its own review because their callers use the functions without the file being proven loaded; `git grep` the callers first (the method used in #198).

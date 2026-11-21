@@ -1,5 +1,5 @@
 <?php
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 require_once __DIR__.'/synth_profile_jobs.php';
 require_once dirname(__DIR__, 3).'/lib'.'/synth_diary_scope.php';
 // Function to process diary entries for all nearby NPCs (triggered by C++ with 400 unit range)
@@ -51,11 +51,9 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
         ];
 
         if ($npcName === "The Narrator") {
-            require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
             $narrator = new Narrator();
             $profileData = $narrator->getNarratorData();
         } else {
-            require_once(dirname(__DIR__, 3).'/lib' . "/core/npc_master.class.php");
             $npcMaster = new NpcMaster();
             $profileData = $npcMaster->getByName($npcName);
         }
@@ -174,9 +172,7 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
             $topic = DataLastKnowDate();
             $location = DataLastKnownLocation();
             $momentum=time();
-            $db->insert(
-                'core_memory',
-                array(
+            \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                     'source_type' => 'diary',
                     'ts' => $gameRequest[1],
                     'gamets' => $gameRequest[2],
@@ -315,8 +311,7 @@ function getConfiguredPlayerDiaryName(Player $player): string
 function isPlayerDiaryEnabled(): bool
 {
     if (!class_exists('Player')) {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
 
     try {
         $player = new Player();
@@ -330,8 +325,7 @@ function isPlayerDiaryEnabled(): bool
 function isPlayerAutoDiaryEnabled(): bool
 {
     if (!class_exists('Player')) {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
 
     try {
         $player = new Player();
@@ -345,8 +339,7 @@ function isPlayerAutoDiaryEnabled(): bool
 function isPlayerAutoDiaryWaitEnabled(): bool
 {
     if (!class_exists('Player')) {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
 
     try {
         $player = new Player();
@@ -366,11 +359,9 @@ function generatePlayerDiary($gameRequest, $eventType)
     }
 
     if (!class_exists('Player')) {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
     if (!class_exists('LLMConnector')) {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "llm_connector.class.php");
-    }
+        }
 
     $player = new Player();
     $playerName = getConfiguredPlayerDiaryName($player);
@@ -555,9 +546,7 @@ function generatePlayerDiary($gameRequest, $eventType)
         $location = DataLastKnownLocation();
         $momentum = time();
 
-        $db->insert(
-            'core_memory',
-            array(
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                 'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -619,8 +608,7 @@ function processAutoDiary($gameRequest, $eventType) {
     if ($shouldProcessPlayerDiary) {
         try {
             if (!class_exists('Player')) {
-                require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-            }
+                }
 
             $player = new Player();
             $playerName = getConfiguredPlayerDiaryName($player);
@@ -953,11 +941,8 @@ function processSingleDynamicProfile($npcName, $gameRequest, bool $prepareOnly =
  * @return bool Success status
  */
 function processNarratorDynamicProfile($db, bool $prepareOnly = false) {
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/core_profiles.class.php");
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/llm_connector.class.php");
     
-    if (!function_exists('DataSpeechJournal') || !function_exists('buildDynamicProfileDisplay')) {
+if (!function_exists('DataSpeechJournal') || !function_exists('buildDynamicProfileDisplay')) {
         require_once(dirname(__DIR__, 3).'/lib' . "/../lib/data_functions.php");
     }
     
@@ -1029,7 +1014,6 @@ function processNarratorDynamicProfile($db, bool $prepareOnly = false) {
  * @return bool Success status
  */
 function saveNarratorDynamicProfileUpdates($updatedFields) {
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
     if (\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) return synth_profile_record_result(\Synth\Bootstrap::db(),'The Narrator',$updatedFields);
     synth_profile_assert_write_target(\Synth\Bootstrap::db(),'The Narrator');
     
@@ -1076,7 +1060,6 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
     // Special handling for The Narrator
     if ($followerName === "The Narrator") {
         // Load narrator data
-        require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
         $narrator = new Narrator();
         
         // Load settings into GLOBALS first
@@ -1270,9 +1253,7 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
         $topic = DataLastKnowDate();
         $location = DataLastKnownLocation();
         $momentum=time();
-        $db->insert(
-            'core_memory',
-            array(
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                 'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -1386,13 +1367,11 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
     $promptNpcName = $npcName;
 
     if ($isNarrator) {
-        require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
         $narrator = new Narrator();
         $npcData = $narrator->getNarratorData();
         \Synth\Bootstrap::set('NARRATOR_ROLEPLAY_NAME', $narrator->getRoleplayName());
         $promptNpcName = $narrator->getRoleplayName();
     } else {
-        require_once(dirname(__DIR__, 3).'/lib' . "/core/npc_master.class.php");
         $npcMaster = new NpcMaster();
         $npcData = $npcMaster->getByName($npcName);
     }
@@ -1681,10 +1660,9 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
                 } catch (Throwable $error) {
                     if (synth_profile_origin_rejected($error)) {
                         $owner=$queueData['native_owner'];
-                        $state=$db->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id='
-                            .$db->escapeLiteral(strval($owner['session_id'] ?? '')).' AND request_id='.$db->escapeLiteral(strval($owner['request_id'] ?? '')));
+                        $state=\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->stateOf(strval($owner['session_id'] ?? ''),strval($owner['request_id'] ?? ''));
                         // A just-admitted refresh can be queued before its response completes; keep waiting for it.
-                        if ($state && !in_array($state['state'],['claimed','streaming'],true)) {
+                        if ($state!==null && !in_array($state,['claimed','streaming'],true)) {
                             \Synth\Managers\ConfigManager\ConfigManager::shared()->rename('conf', $queueId, 'dynamic_profiles_failed_'.hash('sha256',$queueId));
                         }
                     }

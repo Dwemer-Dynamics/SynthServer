@@ -380,27 +380,20 @@ if (!function_exists('synthGetSelectOptionsForOverrideSetting')) {
             return [];
         }
 
-        $definitions = [
-            'GLOBAL_STT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_stt_connector ORDER BY id ASC",
-            ],
-            'GLOBAL_ITT_CONNECTOR_ID' => [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_itt_connector ORDER BY id ASC",
-            ],
+        $connectorDaos = [
+            'GLOBAL_STT_CONNECTOR_ID' => \Synth\Core\DbManager\Dao\SttConnectorDao::class,
+            'GLOBAL_ITT_CONNECTOR_ID' => \Synth\Core\DbManager\Dao\IttConnectorDao::class,
         ];
-
         if (strpos($flatId, 'CORE_CONNECTOR_') === 0 || $flatId === 'RELLLM_CONNECTOR') {
-            $definitions[$flatId] = [
-                'query' => "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(model, ''), CAST(id AS text)) AS option_label FROM public.core_llm_connector ORDER BY LOWER(COALESCE(NULLIF(label, ''), model)) ASC",
-            ];
+            $connectorDaos[$flatId] = \Synth\Core\DbManager\Dao\LlmConnectorDao::class;
         }
 
-        if (!isset($definitions[$flatId])) {
+        if (!isset($connectorDaos[$flatId])) {
             return [];
         }
 
         try {
-            $rows = $db->fetchAll($definitions[$flatId]['query']);
+            $rows = $connectorDaos[$flatId]::current($db)->settingOptions();
         } catch (\Throwable $e) {
             return [];
         }
@@ -1204,8 +1197,7 @@ if (!function_exists('synthLoadActiveSttConnectorIntoGlobals')) {
         }
 
         if (!class_exists('STTConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "stt_connector.class.php");
-        }
+            }
 
         $connector = new STTConnector();
         try {
@@ -1228,8 +1220,7 @@ if (!function_exists('synthLoadActiveIttConnectorIntoGlobals')) {
         }
 
         if (!class_exists('ITTConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'itt_connector.class.php');
-        }
+            }
 
         try {
             $row = (new ITTConnector())->getById($connectorId);
@@ -1246,8 +1237,7 @@ if (!function_exists('synthResolvePreferredTtsConnectorRow')) {
     function synthResolvePreferredTtsConnectorRow(string $driver = ''): ?array
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $connector = new TTSConnector();
         $normalizedDriver = $driver !== '' ? $connector->normalizeDriverValue($driver) : '';
@@ -1321,8 +1311,7 @@ if (!function_exists('synthLoadPreferredTtsConnectorIntoGlobals')) {
     function synthLoadPreferredTtsConnectorIntoGlobals(string $driver = ''): void
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $row = synthResolvePreferredTtsConnectorRow($driver);
         if (!$row) {
@@ -1338,8 +1327,7 @@ if (!function_exists('synthEnsureTtsConnectorGlobals')) {
     function synthEnsureTtsConnectorGlobals(string $driver): void
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $connector = new TTSConnector();
         $normalizedDriver = $connector->normalizeDriverValue($driver);
@@ -1362,8 +1350,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
     function synthLoadPlayerNameIntoGlobals(): void
     {
         if (!class_exists('Player')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-        }
+            }
 
         try {
             $player = new Player();
@@ -1381,7 +1368,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
         }
 
         try {
-            $playerNameFromDb = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='PLAYER_NAME'");
+            $playerNameFromDb = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'PLAYER_NAME')];
         } catch (\Throwable $e) {
             $playerNameFromDb = [];
         }
@@ -1602,8 +1589,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         }
 
         if (!class_exists('Player')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-        }
+            }
 
         try {
             $player = new Player();

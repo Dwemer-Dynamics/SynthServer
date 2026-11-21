@@ -24,4 +24,13 @@ final class RelationshipResultPriorDao
     {
         return array_values($this->fresh()->getRepository(AbstractRelationshipResultPrior::class)->findBy([], ['resultHistoryEventId' => 'ASC', 'priorHistoryEventId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Freezes that this result was computed from this saved relationship revision. */
+    public function add(int $resultHistoryEventId, int|string $priorHistoryEventId): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_relationship_result_prior VALUES(:p1,:p2)',
+            ['p1' => $resultHistoryEventId, 'p2' => $priorHistoryEventId]
+        );
+    }
 }

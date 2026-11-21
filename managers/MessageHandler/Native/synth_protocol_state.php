@@ -1499,13 +1499,14 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
     $sessionId = synth_protocol_session_id($event);
     $canonical = synth_protocol_canonical_json($event);
     $hash = hash('sha256', $canonical);
-    $session = $db->escapeLiteral($sessionId);
-    $requestId = $db->escapeLiteral($event['request_id']);
-    $turnId = $db->escapeLiteral($event['turn_id']);
-    $eventType = $db->escapeLiteral($event['type']);
-    $hashSql = $db->escapeLiteral($hash);
-    $canonicalSql = $db->escapeLiteral($canonical);
+    $session = $sessionId;
+    $requestId = strval($event['request_id']);
+    $turnId = strval($event['turn_id']);
+    $eventType = strval($event['type']);
     $generation = intval($event['generation']);
+    $executions = \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db);
+    $runtimeSessions = \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db);
+    $workerJobs = \Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
     // Mode writes, audience preferences and Everyone input order on the global audience gate before the session
     // lock. Its raw connection is captured before BEGIN; nothing may reconnect inside the transaction.
     require_once dirname(__DIR__, 3).'/lib'.'/synth_control.php';
@@ -1520,13 +1521,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             require_once dirname(__DIR__, 3).'/lib'.'/synth_audience_control.php';
             synth_audience_lock_gate($audienceConnection, $audienceGate);
         }
-        $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))");
-        $existing = $db->fetchOne(
-            "SELECT request_sha256, state, response_content_type, response_body, error_code, claimed_at
-               FROM public.core_request_execution
-              WHERE session_id={$session} AND request_id={$requestId}
-              FOR UPDATE"
-        );
+        $executions->lockSession($session);
+        $existing = $executions->lockForClaim($session, $requestId);
         if ($existing) {
             if (!hash_equals(strval($existing['request_sha256']), $hash)) {
                 $db->execQuery('ROLLBACK');
@@ -1547,15 +1543,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             return ['status' => 'pending'];
         }
 
-        $sessionRow = $db->fetchOne(
-            "SELECT r.active_generation, r.state, r.playthrough_id, r.capabilities, r.runtime_variant,
-                    r.active_turn_id, r.active_turn_sequence,
-                    COALESCE((SELECT e.canonical_event->>'protocol_version'
-                                FROM public.core_protocol_event e
-                               WHERE e.session_id=r.session_id AND e.generation=r.active_generation
-                                 AND e.event_type='init' LIMIT 1), '1') AS protocol_version
-               FROM public.core_runtime_session r WHERE r.session_id={$session} FOR UPDATE"
-        );
+        $sessionRow = $runtimeSessions->lockForClaim($session);
         // A retirement can overtake init processing after the client loses its HTTP acknowledgement.
         // Persist the halted session in this same transaction so a late same-generation init loses.
         if ($event['type'] === 'init' || ($event['type'] === 'halt' && !$sessionRow
@@ -1565,34 +1553,16 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 $db->execQuery('ROLLBACK');
                 synth_protocol_fail('stale_generation', 409, [['field' => 'generation', 'issue' => 'must_advance']]);
             }
-            $playthrough = $db->escapeLiteral(strval($sessionRow['playthrough_id'] ?? ('unbound:' . $event['runtime_variant'])));
-            $variant = $db->escapeLiteral($event['runtime_variant']);
-            $clientVersion = $db->escapeLiteral($event['client_version']);
-            $runtimeVersion = $db->escapeLiteral($event['runtime_version']);
-            $capabilities = $db->escapeLiteral(json_encode($event['capabilities'], JSON_UNESCAPED_SLASHES));
+            $playthrough = strval($sessionRow['playthrough_id'] ?? ('unbound:' . $event['runtime_variant']));
+            $capabilities = json_encode($event['capabilities'], JSON_UNESCAPED_SLASHES);
             // A new generation of a negotiated session returns to Normal and advances the audience epoch, so no
             // earlier acknowledgement survives it. Without the migration Everyone is not acknowledged (fail closed).
             $audienceReset = $event['type'] === 'init' && synth_control_everyone_supported($event)
-                && $db->fetchOne("SELECT 1 AS ready FROM pg_attribute WHERE attrelid='public.core_runtime_session'::regclass
-                    AND attname='audience_reset_epoch' AND NOT attisdropped");
-            $audienceSql = $audienceReset ? ", audience_intent='normal',
-                     audience_reset_epoch=public.core_runtime_session.audience_reset_epoch+1" : '';
-            $audienceReturning = $audienceReset ? ' RETURNING audience_intent, audience_reset_epoch' : '';
-            $upsert =
-                "INSERT INTO public.core_runtime_session
-                    (session_id, playthrough_id, game, runtime_variant, client_version, runtime_version,
-                     active_generation, capabilities, state)
-                 VALUES ({$session}, {$playthrough}, 'fo4', {$variant}, {$clientVersion}, {$runtimeVersion},
-                         {$generation}, {$capabilities}::jsonb, 'active')
-                 ON CONFLICT (session_id) DO UPDATE SET
-                     game='fo4', runtime_variant=EXCLUDED.runtime_variant,
-                     client_version=EXCLUDED.client_version, runtime_version=EXCLUDED.runtime_version,
-                     active_generation=EXCLUDED.active_generation, capabilities=EXCLUDED.capabilities,
-                     state='active', active_turn_id=NULL, active_turn_sequence=0, updated_at=NOW(){$audienceSql}{$audienceReturning}";
-            if (!$audienceReset) $db->execQuery($upsert);
-            else {
-                $upserted = $db->fetchOne($upsert);
-                if (!is_array($upserted)) throw new RuntimeException('Unable to reset the session audience.');
+                && $runtimeSessions->supportsAudienceReset();
+            $upserted = $runtimeSessions->upsertInit($session, $playthrough, strval($event['runtime_variant']), strval($event['client_version']),
+                strval($event['runtime_version']), $generation, strval($capabilities), $audienceReset);
+            if ($audienceReset) {
+                if (!is_array($upserted) || $upserted === []) throw new RuntimeException('Unable to reset the session audience.');
                 \Synth\Bootstrap::set('SYNTH_AUDIENCE_INIT_ACK', ['intent' => strval($upserted['audience_intent']),
                     'reset_epoch' => intval($upserted['audience_reset_epoch'])]);
             }
@@ -1603,12 +1573,8 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     throw new RuntimeException('Unable to persist the complete loaded plugin manifest.');
                 }
             }
-            $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
-                    response_body=NULL, error_code='stale_generation', completed_at=NOW()
-                WHERE session_id={$session} AND generation<{$generation}
-                  AND state IN ('claimed','streaming')");
-            $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-                WHERE session_id={$session} AND generation<{$generation} AND state IN ('pending','running')");
+            $executions->cancelOlderGenerations($session, $generation);
+            $workerJobs->cancelOlderGenerations($session, $generation);
         } else {
             if (!$sessionRow || strval($sessionRow['state']) !== 'active') {
                 $db->execQuery('ROLLBACK');
@@ -1661,11 +1627,7 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
             if (synth_protocol_owns_dialogue_turn($event)) {
                 if (in_array('dialogue.turn_cancel', $event['capabilities'], true)) {
                     $sequence = intval($event['context_sequence']);
-                    $cancelledAnchor = $db->fetchOne("SELECT 1 AS cancelled FROM public.core_protocol_event p
-                        JOIN public.core_request_execution e USING (session_id, request_id)
-                        WHERE p.session_id={$session} AND p.generation={$generation} AND p.event_type='context'
-                          AND p.canonical_event->'payload'->>'snapshot_sequence'='{$sequence}'
-                          AND e.state='cancelled' LIMIT 1");
+                    $cancelledAnchor = $executions->hasCancelledContext($session, $generation, $sequence);
                     if ($cancelledAnchor) throw new DomainException('turn_cancelled');
                 }
                 $continuation = $event['type'] === 'action_result'
@@ -1677,50 +1639,16 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                     if ($continuation || $sequence <= intval($sessionRow['active_turn_sequence'] ?? 0)) {
                         throw new DomainException('superseded_turn');
                     }
-                    $db->execQuery("UPDATE public.core_runtime_session
-                        SET active_turn_id={$turnId}, active_turn_sequence={$sequence}, updated_at=NOW()
-                        WHERE session_id={$session} AND active_generation={$generation}");
+                    $runtimeSessions->adoptTurn($session, $generation, $turnId, $sequence);
                     // A new context supersedes the old owner even when its turn ID is reused.
-                    $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
-                            response_body=NULL, error_code='superseded_turn', completed_at=NOW()
-                        WHERE session_id={$session} AND generation={$generation}
-                          AND (turn_id<>{$turnId} OR EXISTS (
-                            SELECT 1 FROM public.core_protocol_event owner
-                            WHERE owner.session_id={$session} AND owner.generation={$generation}
-                              AND owner.request_id=core_request_execution.request_id
-                              AND owner.event_sha256=core_request_execution.request_sha256
-                              AND owner.canonical_event->>'context_sequence' IS DISTINCT FROM '{$sequence}'))
-                          AND (event_type IN ('input_text','input_audio','trigger','action_result','narrator_turn')
-                            OR (event_type='social_task_progress' AND request_id IN (
-                                SELECT p.request_id FROM public.core_protocol_event p
-                                WHERE p.session_id={$session} AND p.generation={$generation}
-                                    AND p.event_type='social_task_progress'
-                                    AND p.canonical_event->'payload'->>'phase'='arrived'
-                                    AND p.event_sha256=core_request_execution.request_sha256)))
-                          AND state IN ('claimed','streaming')");
-                    $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-                        WHERE session_id={$session} AND generation={$generation}
-                          AND (turn_id<>{$turnId} OR COALESCE(payload->'protocol_event'->>'context_sequence',
-                            payload->>'context_sequence') IS DISTINCT FROM '{$sequence}')
-                          AND (job_type<>'diary' OR payload->>'schema' IS DISTINCT FROM 'synth.diary.job.v1')
-                          AND (job_type<>'relationship' OR relationship_evaluation_id IS NULL
-                            OR payload->>'schema' IS DISTINCT FROM 'synth.relationship.gift-job.v1')
-                          AND state IN ('pending','running')");
+                    $executions->cancelSupersededTurn($session, $generation, $turnId, $sequence);
+                    $workerJobs->cancelSupersededTurn($session, $generation, $turnId, $sequence);
                 }
             }
         }
 
-        $db->execQuery(
-            "INSERT INTO public.core_request_execution
-                (session_id, request_id, turn_id, generation, request_sha256, event_type, state)
-             VALUES ({$session}, {$requestId}, {$turnId}, {$generation}, {$hashSql}, {$eventType}, 'claimed')"
-        );
-        $db->execQuery(
-            "INSERT INTO public.core_protocol_event
-                (session_id, request_id, turn_id, generation, event_type, canonical_event, event_sha256)
-             VALUES ({$session}, {$requestId}, {$turnId}, {$generation}, {$eventType},
-                     {$canonicalSql}::jsonb, {$hashSql})"
-        );
+        $executions->insertClaim($session, $requestId, $turnId, $generation, $hash, $eventType);
+        \Synth\Core\DbManager\Dao\ProtocolEventDao::current($db)->insertClaim($session, $requestId, $turnId, $generation, $eventType, $canonical, $hash);
 
         if ($event['type'] === 'control') {
             synth_control_apply($db, $event, $audienceConnection);
@@ -1731,32 +1659,19 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
         } elseif ($event['type'] === 'action_result') {
             synth_protocol_persist_action_result($db, $event, $sessionId);
         } elseif ($event['type'] === 'halt') {
-            $db->execQuery(
-                "UPDATE public.core_runtime_session SET state='halted', updated_at=NOW() WHERE session_id={$session}"
-            );
-            $db->execQuery(
-                "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-                  WHERE session_id={$session} AND generation <= {$generation} AND state IN ('pending', 'running')"
-            );
-            $db->execQuery("UPDATE public.core_request_execution SET state='cancelled',
-                    response_body=NULL, error_code='runtime_halted', completed_at=NOW()
-                WHERE session_id={$session} AND generation <= {$generation} AND request_id<>{$requestId}
-                  AND state IN ('claimed','streaming')");
-            $db->execQuery(
-                "UPDATE public.core_actor_activation SET state='stale', last_seen_at=NOW()
-                  WHERE session_id={$session} AND generation <= {$generation} AND state='active'"
-            );
+            $runtimeSessions->halt($session);
+            $workerJobs->cancelForHalt($session, $generation);
+            $executions->cancelForHalt($session, $generation, $requestId);
+            \Synth\Core\DbManager\Dao\ActorActivationDao::current($db)->staleUpToGeneration($session, $generation);
         } elseif ($event['type'] === 'cancel' && ($event['payload']['scope'] ?? '') === 'conversation') {
-            \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $session, $generation);
+            \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $db->escapeLiteral($session), $generation);
         } elseif ($event['type'] === 'cancel') {
-            $cancelRequest = $db->escapeLiteral($event['payload']['cancel_request_id']);
+            $cancelRequest = strval($event['payload']['cancel_request_id']);
             // A context anchors admission; an owned reply anchors the same conversation after descendants start.
             $anchor = ($event['protocol_version'] ?? 1) === 2
                 && in_array('dialogue.turn_cancel', $event['capabilities'], true)
                 && in_array('dialogue.turn_ownership', $event['capabilities'], true)
-                ? $db->fetchOne("SELECT turn_id, canonical_event
-                    FROM public.core_protocol_event WHERE session_id={$session} AND generation={$generation}
-                      AND request_id={$cancelRequest}") : null;
+                ? \Synth\Core\DbManager\Dao\ProtocolEventDao::current($db)->findAnchor($session, $generation, $cancelRequest) : null;
             if ($anchor) {
                 $anchoredEvent=json_decode($anchor['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
                 $isContext=($anchoredEvent['type'] ?? '')==='context';
@@ -1769,38 +1684,15 @@ function synth_protocol_claim_request($db, array $event, bool $explicitOwner = f
                 } else $anchor['sequence']=$sequence;
             }
             if ($anchor) {
-                $cancelTurn = $db->escapeLiteral($anchor['turn_id']);
+                $cancelTurn = strval($anchor['turn_id']);
                 $cancelSequence = intval($anchor['sequence']);
                 // Retain completed player input as historical learning; revoke its delivery and late work.
-                $db->execQuery("UPDATE public.core_request_execution SET
-                        state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
-                        response_body=NULL,error_code='turn_cancelled',
-                        completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
-                    WHERE session_id={$session} AND generation={$generation}
-                      AND state IN ('claimed','streaming','complete')
-                      AND (request_id={$cancelRequest} OR request_id IN (
-                        SELECT request_id FROM public.core_protocol_event WHERE session_id={$session}
-                          AND generation={$generation} AND turn_id={$cancelTurn}
-                          AND canonical_event->>'context_sequence'='{$cancelSequence}'))");
-                $db->execQuery("UPDATE public.core_runtime_session SET active_turn_id=NULL, updated_at=NOW()
-                    WHERE session_id={$session} AND active_generation={$generation}
-                      AND active_turn_id={$cancelTurn} AND active_turn_sequence={$cancelSequence}");
-                $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-                    WHERE session_id={$session} AND generation={$generation} AND turn_id={$cancelTurn}
-                      AND COALESCE(payload->'protocol_event'->>'context_sequence',payload->>'context_sequence')='{$cancelSequence}'
-                      AND state IN ('pending','running')");
+                $executions->cancelTurn($session, $generation, $cancelRequest, $cancelTurn, $cancelSequence);
+                $runtimeSessions->clearTurn($session, $generation, $cancelTurn, $cancelSequence);
+                $workerJobs->cancelTurn($session, $generation, $cancelTurn, $cancelSequence);
             }
-            $db->execQuery(
-                "UPDATE public.core_request_execution SET
-                        state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
-                        response_body=NULL,error_code='request_cancelled',
-                        completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
-                  WHERE session_id={$session} AND request_id={$cancelRequest}
-                    AND generation={$generation} AND state IN ('claimed', 'streaming', 'complete')"
-            );
-            $db->execQuery("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
-                WHERE session_id={$session} AND generation={$generation} AND request_id={$cancelRequest}
-                  AND state IN ('pending','running')");
+            $executions->cancelRequest($session, $generation, $cancelRequest);
+            $workerJobs->cancelRequest($session, $generation, $cancelRequest);
         }
 
         synth_protocol_commit_transaction($db);
@@ -2310,19 +2202,7 @@ function synth_protocol_complete_request($db, string $state, string $contentType
 // The first terminal outcome of a live claim is the replayable response; later writes never replace it.
 function synth_protocol_record_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): void
 {
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $requestId = $db->escapeLiteral($event['request_id']);
-    $stateSql = $db->escapeLiteral($state);
-    $contentTypeSql = $db->escapeLiteral($contentType);
-    $bodySql = $db->escapeLiteral('\\x' . bin2hex($body));
-    $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
-    $db->execQuery(
-        "UPDATE public.core_request_execution
-            SET state={$stateSql}, response_content_type={$contentTypeSql},
-                response_body={$bodySql}::bytea, error_code={$errorSql}, completed_at=NOW()
-          WHERE session_id={$session} AND request_id={$requestId}
-            AND state IN ('claimed','streaming')"
-    );
+    \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->recordOutcome(synth_protocol_session_id($event), strval($event['request_id']), $state, $contentType, $body, $errorCode);
 }
 
 // Commits a live claim's terminal outcome under the session advisory lock shared with claim, cancel and
@@ -2331,38 +2211,31 @@ function synth_protocol_record_outcome($db, array $event, string $state, string 
 // cancelled with no replay body, as every other cancellation path does. Any persistence failure throws.
 function synth_protocol_commit_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): array
 {
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $requestId = $db->escapeLiteral($event['request_id']);
+    $session = synth_protocol_session_id($event);
+    $requestId = strval($event['request_id']);
     $generation = intval($event['generation']);
+    $executions = \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db);
     if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin protocol outcome.');
     try {
-        if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))")) {
+        if (!$executions->lockSessionForOutcome($session)) {
             throw new RuntimeException('Unable to lock protocol outcome owner.');
         }
-        $row = $db->fetchOne("SELECT state, error_code FROM public.core_request_execution
-            WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation} FOR UPDATE");
+        $row = $executions->lockOutcomeRow($session, $requestId, $generation);
         if (!is_array($row)) throw new RuntimeException('Protocol outcome owner unavailable.');
         if (!in_array($row['state'], ['claimed', 'streaming'], true)) {
             synth_protocol_commit_transaction($db);
             return ['won' => false, 'state' => strval($row['state']), 'error_code' => strval($row['error_code'] ?? '')];
         }
-        $bodySql = $db->escapeLiteral('\\x' . bin2hex($body)) . '::bytea';
+        $bodyHex = bin2hex($body);
         $won = true;
         if ($state !== 'cancelled') {
             try { synth_protocol_assert_owner_active($db, $event); }
             catch (SYNTHProtocolCancelled) {
-                [$won, $state, $bodySql, $errorCode] = [false, 'cancelled', 'NULL', 'request_cancelled'];
+                [$won, $state, $bodyHex, $errorCode] = [false, 'cancelled', null, 'request_cancelled'];
             }
         }
-        $stateSql = $db->escapeLiteral($state);
-        $contentTypeSql = $db->escapeLiteral($contentType);
-        $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
-        $updated = $db->fetchOne("UPDATE public.core_request_execution
-            SET state={$stateSql}, response_content_type={$contentTypeSql},
-                response_body={$bodySql}, error_code={$errorSql}, completed_at=NOW()
-          WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation}
-            AND state IN ('claimed','streaming') RETURNING state");
-        if (($updated['state'] ?? null) !== $state) throw new RuntimeException('Unable to record protocol outcome.');
+        $stored = $executions->finishOutcome($session, $requestId, $generation, $state, $contentType, $bodyHex, $errorCode);
+        if ($stored !== $state) throw new RuntimeException('Unable to record protocol outcome.');
         synth_protocol_commit_transaction($db);
         return ['won' => $won, 'state' => $state, 'error_code' => $errorCode];
     } catch (Throwable $error) {

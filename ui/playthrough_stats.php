@@ -21,24 +21,26 @@ $schema = $dbSettings['schema'];
 $username = $dbSettings['username'];
 $password = $dbSettings['password'];
 
-$adminConn = @pg_connect(synthPgConnectionString($dbSettings));
-if (!$adminConn) {
+require_once $enginePath . 'bootstrap.php';
+try {
+    // Explicit configuration: a connection failure throws instead of exiting with plaintext.
+    $db = \Synth\Bootstrap::boot(rtrim($enginePath, DIRECTORY_SEPARATOR))->db;
+} catch (Throwable $e) {
     echo json_encode([ 'ok'=>false ]);
     exit;
 }
+$catalog = \Synth\Core\DbManager\Dao\SchemaCatalogDao::current($db);
 
 $eventlog = 0; $worldknowledge = 0; $last = 0; $fallout = '';
 // Use fast estimates for counts where possible
-$q1 = @pg_query_params($adminConn, "SELECT COALESCE(n_live_tup,0)::bigint AS est FROM pg_stat_all_tables WHERE schemaname='public' AND relname='core_context_event'", []);
-if ($q1 && ($r = @pg_fetch_assoc($q1))) { $eventlog = (int)$r['est']; }
-$rex = @pg_query_params($adminConn, "SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name='worldknowledge' LIMIT 1", [$schema]);
-$hasO = ($rex && @pg_fetch_assoc($rex)) ? true : false;
+// Each read fails on its own, as the separate queries did: the value stays 0.
+try { $eventlog = (int)($catalog->estimatedRows('public', 'core_context_event') ?? 0); } catch (Throwable $e) { }
+$hasO = false;
+try { $hasO = $catalog->tableExists('worldknowledge', [$schema]); } catch (Throwable $e) { }
 if ($hasO) {
-    $q2 = @pg_query_params($adminConn, "SELECT COALESCE(n_live_tup,0)::bigint AS est FROM pg_stat_all_tables WHERE schemaname=$1 AND relname='worldknowledge'", [$schema]);
-    if ($q2 && ($r2 = @pg_fetch_assoc($q2))) { $worldknowledge = (int)$r2['est']; }
+    try { $worldknowledge = (int)($catalog->estimatedRows($schema, 'worldknowledge') ?? 0); } catch (Throwable $e) { }
 }
-$q3 = @pg_query($adminConn, "SELECT MAX(gamets) AS mx FROM public.core_context_event");
-if ($q3 && ($r3 = @pg_fetch_assoc($q3)) && !is_null($r3['mx'])) { $last = (int)$r3['mx']; }
+try { $last = (int)(\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->maxGamets() ?? 0); } catch (Throwable $e) { }
 if ($last > 0) { $fallout = convert_gamets2fallout_long_date($last); }
 
 echo json_encode([

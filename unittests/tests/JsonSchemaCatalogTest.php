@@ -992,9 +992,12 @@ final class JsonSchemaCatalogTest extends TestCase
             $this->assertFalse(generateFollowerDiary('The Narrator',[],'manual_narrator'));
             $this->assertSame(0,$db->reads,'Native diary must stop before legacy lookup or provider work.');
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>1]];
+            require_once __DIR__.'/DaoTestDoubles.php';
+            DaoTestDoubles::latestDiaryFrom($db);
             $this->assertStringContainsString('Legacy &lt;entry&gt;',synthBuildLatestDiaryContextBlock('Piper',$profile));
             $this->assertSame(1,$db->reads,'Explicit legacy diary lookup must remain available.');
         } finally {
+            if (class_exists('DaoTestDoubles',false)) DaoTestDoubles::reset();
             foreach ($keys as $key) { if (array_key_exists($key,$previous)) $GLOBALS[$key]=$previous[$key];else unset($GLOBALS[$key]); }
         }
     }
@@ -1062,6 +1065,8 @@ final class JsonSchemaCatalogTest extends TestCase
         };
         $event=['protocol_version'=>2,'session_id'=>'profile:test','generation'=>1,'context_sequence'=>1,
             'payload'=>['actors'=>[$identity],'include_narrator'=>false]];
+        require_once __DIR__.'/DaoTestDoubles.php';
+        DaoTestDoubles::linkedActorsFrom($db);
         $this->assertSame(19,synth_profile_refresh_bindings($db,$event)['Piper']['npc_id']);
         $this->assertSame(1,$db->lookups);
         foreach (['form_id'=>'0x00000016','playthrough_id'=>'other:test','display_name'=>'Renamed'] as $key=>$value) {
@@ -1070,6 +1075,7 @@ final class JsonSchemaCatalogTest extends TestCase
             catch(RuntimeException $error) { $this->assertSame('profile_refresh_actor_not_in_snapshot',$error->getMessage()); }
         }
         $this->assertSame(1,$db->lookups,'Unobserved actors must fail before profile lookup or identity creation.');
+        DaoTestDoubles::reset();
     }
 
     public function testVisualHistoryCannotBeWrittenOutsideCompletionTransaction(): void

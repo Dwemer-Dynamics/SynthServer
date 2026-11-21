@@ -189,8 +189,7 @@ function resolveInworldConnectorRow(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
 
     $ttsConnector = new TTSConnector();
     $candidateIds = [
@@ -216,9 +215,7 @@ function resolveInworldConnectorRow(): ?array {
     }
 
     $profileUsageMap = [];
-    $usageRows = $db->fetchAll(
-        "SELECT tts_connector_id, COUNT(*) AS c FROM core_profiles WHERE tts_connector_id IS NOT NULL GROUP BY tts_connector_id"
-    );
+    $usageRows = \Synth\Core\DbManager\Dao\ProfileDao::current($db)->ttsConnectorUsage();
     foreach ($usageRows as $usageRow) {
         $profileUsageMap[intval($usageRow['tts_connector_id'] ?? 0)] = intval($usageRow['c'] ?? 0);
     }
@@ -262,8 +259,7 @@ function hydrateInworldConnectorGlobals(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
     $ttsConnector = new TTSConnector();
     $ttsConnector->setOldGlobals($row);
     return $row;
@@ -301,8 +297,7 @@ function getInworldActiveConfig(): array {
     if (is_array($row)) {
         if ($workspace === '') {
             if (!class_exists('TTSConnector')) {
-                require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-            }
+                }
             $ttsConnector = new TTSConnector();
             $metadata = $ttsConnector->decodeMetadata($row['metadata'] ?? '{}');
             $workspace = normalizeInworldWorkspaceName($metadata['workspace'] ?? '');
@@ -311,7 +306,6 @@ function getInworldActiveConfig(): array {
             $db = ensureInworldDb();
             if ($db && is_array($row)) {
                 // The key the connector names, else the global Inworld key.
-                require_once SYNTH_TTS_SCRIPT_DIR . '/../lib/core/api_badge.class.php';
                 $apiCredential = trim(ApiBadge::keyForConnector($row, 'Inworld'));
             }
         }

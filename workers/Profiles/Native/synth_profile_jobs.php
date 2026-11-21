@@ -37,9 +37,7 @@ function synth_profile_enqueue_batch($db, string $queueId, array $queue): void
                 synth_profile_assert_write_target($db,$name);
                 $binding=$queue['native_bindings'][$name];
                 $narrator=$name==='The Narrator';
-                $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='
-                    .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation'])
-                    .' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
+                $actor=$narrator ? \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->playerIdentityId(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']))
                     : $queue['native_bindings'][$name]['actor_identity_id'];
                 if ($actor<1) throw new LogicException('Native profile job has no actor.');
                 // Each durable job has one actor: its frozen label can safely address the legacy prompt facade.
@@ -47,14 +45,10 @@ function synth_profile_enqueue_batch($db, string $queueId, array $queue): void
                 $payload=['schema'=>'synth.profile.job.v1','context_sequence'=>$event['context_sequence'],
                     'profile_role'=>$narrator ? 'narrator' : 'npc','native_owner'=>$event,'npcs'=>[$label],
                     'native_bindings'=>[$label=>$binding],'gameRequest'=>$queue['gameRequest']];
-                $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
-                    (job_type,session_id,request_id,turn_id,generation,actor_identity_id,payload,deadline_at)
-                    VALUES('profile',$1,$2,$3,$4,$5,$6::jsonb,clock_timestamp()+INTERVAL '30 minutes')
-                    ON CONFLICT DO NOTHING",[$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
-                        $actor,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]);
-                if (!$result) throw new RuntimeException('Unable to persist native profile job.');
+                \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->insertProfileJob(strval($event['session_id']),strval($event['request_id']),strval($event['turn_id']),intval($event['generation']),
+                    $actor,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
             }
-            if (!@pg_query_params($connection,"DELETE FROM public.core_config_setting WHERE scope = 'conf' AND config_key=$1",[$queueId])) throw new RuntimeException('Unable to finish profile queue transfer.');
+            if (!\Synth\Managers\ConfigManager\ConfigManager::shared()->delete('conf',$queueId)) throw new RuntimeException('Unable to finish profile queue transfer.');
         },2000);
     });
 }
@@ -90,7 +84,6 @@ function synth_profile_generate_field($db, array $input, string $field): string
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile provider requires an idle database connection.');
     synth_protocol_assert_request_active();
-    require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     $connector=new LLMConnector();$settings=$connector->getById($input['connector_id']);
     if (!$settings) throw new RuntimeException('Native profile connector unavailable.');
     \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);$connector->setOldGlobals($settings);
@@ -108,8 +101,7 @@ function synth_profile_generate_field($db, array $input, string $field): string
 function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callable $generate=null): bool
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile worker requires an idle database connection.');
-    $job=$db->fetchOne("SELECT * FROM public.core_worker_job WHERE id=".intval($jobId)
-        ." AND job_type='profile' AND payload->>'schema'='synth.profile.job.v1' AND state IN ('pending','running')");
+    $job=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->activeProfileJob($jobId);
     if (!$job) return false;
     $queue=json_decode($job['payload'],true,flags:JSON_THROW_ON_ERROR);$done=false;
     synth_profile_with_origin($db,$queue,static function() use($db,$job,$jobId,$queue,$prepare,$generate,&$done) {
@@ -119,94 +111,72 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
                 || $queue['context_sequence']!==$event['context_sequence']) throw new LogicException('Profile job owner mismatch.');
             if (count($queue['npcs'])!==1) throw new LogicException('Profile job requires exactly one actor.');
             $name=$queue['npcs'][0];$narrator=$name==='The Narrator';
-            $actor=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='
-                .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation'])
-                .' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
+            $actor=$narrator ? \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->playerIdentityId(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']))
                 : \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['actor_identity_id'];
             if (intval($job['actor_identity_id'])!==$actor || $queue['profile_role']!==($narrator ? 'narrator' : 'npc')) throw new LogicException('Profile job actor mismatch.');
-            if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtext($1))",['synth.profile.actor:'.$job['actor_identity_id']])) throw new RuntimeException('Unable to lock profile actor.');
-            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=$2,
-                lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
-                WHERE j.id=$1 AND j.attempts<3 AND j.deadline_at>clock_timestamp() AND j.available_at<=clock_timestamp()
-                    AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))
-                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job other WHERE other.id<>j.id AND other.job_type='profile'
-                        AND other.payload->>'schema'='synth.profile.job.v1' AND other.actor_identity_id=j.actor_identity_id
-                        AND other.state='running' AND other.lease_until>clock_timestamp() AND other.deadline_at>clock_timestamp())
-                RETURNING lease_token",[$jobId,bin2hex(random_bytes(16))]);
-            if (!$result) throw new RuntimeException('Unable to claim native profile job.');
-            return pg_fetch_assoc($result)['lease_token'] ?? null;
+            \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->lockProfileActor(intval($job['actor_identity_id']));
+            return \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->claimProfileAttempt($jobId,bin2hex(random_bytes(16)));
         },2000);
         if (!$token) return;
         \Synth\Bootstrap::set('SYNTH_PROFILE_JOB_LEASE', ['id'=>$jobId,'token'=>$token]);$name=$queue['npcs'][0];
         try {
             synth_profile_assert_write_target($db,$name);
             \Synth\Bootstrap::set('SYNTH_NAME', $name);\Synth\Bootstrap::set('gameRequest', $queue['gameRequest']);
-            $row=$db->fetchOne("SELECT input_payload,input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex') AS valid
-                FROM public.core_character_generation WHERE job_id=$jobId");
+            $row=\Synth\Core\DbManager\Dao\CharacterGenerationDao::current($db)->input($jobId);
             if ($row && !synthPostgresBoolean($row['valid'])) throw new LogicException('Frozen profile input hash mismatch.');
             $input=$row ? json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR)
                 : ($prepare ? $prepare($name,$queue['gameRequest']) : processSingleDynamicProfile($name,$queue['gameRequest'],true));
             if ($input===false) {
-                $db->withNativeRequestLock(static function($connection) use($jobId) {
-                    if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',last_error='profile_disabled',
-                        lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to finish disabled profile job.');
+                $db->withNativeRequestLock(static function($connection) use($db,$jobId) {
+                    \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->finishDisabledProfile($jobId);
                 },2000);
                 return;
             }
             synth_profile_validate_input($input,$queue['native_owner'],intval($job['actor_identity_id']),$queue['profile_role']);
-            if (!$row) $db->withNativeRequestLock(static function($connection) use($jobId,$input) {
+            if (!$row) $db->withNativeRequestLock(static function($connection) use($db,$jobId,$input) {
                 $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-                if (!@pg_query_params($connection,"INSERT INTO public.core_character_generation(job_id,input_payload,input_sha256)
-                    VALUES($1,$2::jsonb,encode(sha256(convert_to(($2::jsonb)::text,'UTF8')),'hex'))",[$jobId,$json])) throw new RuntimeException('Unable to freeze native profile job input.');
+                \Synth\Core\DbManager\Dao\CharacterGenerationDao::current($db)->freezeInput($jobId,$json);
             },2000);
             \Synth\Bootstrap::setAt('SYNTH_NATIVE_PROFILE_INPUTS', $name, $input);$updates=[];
             $db->withNativeRequestLock(static function($connection,array $event) use($db,$name,$input) {
                 synth_profile_assert_write_target($db,$name);
                 if ($name==='The Narrator') {
-                    require_once dirname(__DIR__, 3).'/lib'.'/core/narrator.class.php';
                     $base=(new Narrator())->getAll();
-                } else $base=$db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
+                } else $base=\Synth\Core\DbManager\Dao\NpcDao::current($db)->row(intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
                 if (synth_profile_fields($base)!==synth_profile_fields($input['baseline_fields'])
                     || (synth_profile_visible($db,$event,$input['actor_identity_id'],$name==='The Narrator')['revision'] ?? null)!==$input['prior_revision']) {
                     throw new LogicException('Frozen profile baseline no longer valid.');
                 }
             },2000);
             foreach ($input['fields'] as $field) {
-                $checkpoint=$db->fetchOne('SELECT result_text,result_sha256=encode(sha256(convert_to(result_text,\'UTF8\')),\'hex\') AS valid
-                    FROM public.core_character_generation_field WHERE job_id='.$jobId.' AND field='.$db->escapeLiteral($field));
+                $checkpoint=\Synth\Core\DbManager\Dao\CharacterGenerationFieldDao::current($db)->checkpoint($jobId,$field);
                 if ($checkpoint) {
                     if (!synthPostgresBoolean($checkpoint['valid'])) throw new LogicException('Profile field checkpoint hash mismatch.');
                     $updates[$field]=$checkpoint['result_text'];continue;
                 }
-                $db->withNativeRequestLock(static function($connection) use($jobId) {
-                    if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes') WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to renew profile attempt.');
+                $db->withNativeRequestLock(static function($connection) use($db,$jobId) {
+                    \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->renewProfileLease($jobId);
                 },2000);
                 $text=$generate ? $generate($input,$field) : synth_profile_generate_field($db,$input,$field);
                 if (!is_string($text) || trim($text)==='') throw new RuntimeException('Empty profile field output.');
                 $text=trim($text);synth_profile_fields([$field=>$text]);
                 $db->withNativeRequestLock(static function($connection) use($db,$name,$jobId,$field,$text) {
                     synth_profile_assert_write_target($db,$name);
-                    if (!@pg_query_params($connection,"INSERT INTO public.core_character_generation_field(job_id,field,result_text,result_sha256)
-                        VALUES($1,$2,$3,encode(sha256(convert_to($3,'UTF8')),'hex'))",[$jobId,$field,$text])) throw new RuntimeException('Unable to checkpoint profile field.');
+                    \Synth\Core\DbManager\Dao\CharacterGenerationFieldDao::current($db)->record($jobId,$field,$text);
                 },2000);
                 $updates[$field]=$text;
             }
             $db->withNativeRequestLock(static function($connection) use($db,$name,$updates,$jobId) {
                 if (!synth_profile_record_result($db,$name,$updates)) throw new RuntimeException('Unable to publish complete profile.');
-                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_token=NULL,lease_until=NULL,
-                    last_error=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to finish profile job.');
+                \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->finishProfile($jobId);
             },2000);
             $done=true;
         } catch (Throwable $error) {
             \Synth\Bootstrap::forget('SYNTH_PROFILE_JOB_LEASE');
             // A late attempt cannot change a replacement token. Persist only fixed, non-sensitive error codes.
-            $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
+            $db->withNativeRequestLock(static function($connection) use($db,$jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof InvalidArgumentException || $error instanceof LengthException;
-                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN $3::boolean OR attempts>=3
-                    OR deadline_at<=clock_timestamp() THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,
-                    available_at=clock_timestamp()+INTERVAL '10 seconds',last_error=$4,updated_at=clock_timestamp()
-                    WHERE id=$1 AND state='running' AND lease_token=$2",[$jobId,$token,$terminal ? 't' : 'f',
-                        $terminal ? 'input_or_result_invalid' : 'attempt_failed'])) throw new RuntimeException('Unable to record profile attempt failure.');
+                \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->recordProfileFailure($jobId,strval($token),$terminal,$terminal ? 'input_or_result_invalid' : 'attempt_failed');
             },2000);
             Logger::warn('Native profile attempt did not complete; durable state retained.');
         } finally { \Synth\Bootstrap::forget('SYNTH_PROFILE_JOB_LEASE'); }
@@ -218,22 +188,14 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
 function synth_profile_dispatch_jobs($db, ?callable $prepare=null, ?callable $generate=null): int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile dispatch requires an idle database connection.');
-    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
-        lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
-        WHERE j.job_type='profile' AND j.payload->>'schema'='synth.profile.job.v1' AND j.state IN ('pending','running')
-            AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
-                    WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
-                        AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'))")===false) throw new RuntimeException('Unable to retire old profile work.');
-    $jobs=$db->fetchAll("SELECT id FROM public.core_worker_job WHERE job_type='profile' AND payload->>'schema'='synth.profile.job.v1'
-        AND available_at<=clock_timestamp() AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) ORDER BY available_at,id LIMIT 5");
+    $workerJobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+    $workerJobs->retireProfileWork();
+    $jobs=$workerJobs->dueProfileJobIds(5);
     $done=0;
-    foreach ($jobs as $job) try { if (synth_profile_run_job($db,intval($job['id']),$prepare,$generate)) ++$done; }
+    foreach ($jobs as $jobId) try { if (synth_profile_run_job($db,$jobId,$prepare,$generate)) ++$done; }
     catch (Throwable $error) {
         if (synth_profile_origin_rejected($error) || $error instanceof LogicException) {
-            $db->execQuery("UPDATE public.core_worker_job SET state='stale',last_error='origin_unavailable',lease_token=NULL,lease_until=NULL,
-                updated_at=clock_timestamp() WHERE id=".intval($job['id'])." AND job_type='profile' AND payload->>'schema'='synth.profile.job.v1'
-                    AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
+            $workerJobs->markProfileStale($jobId);
         }
         Logger::warn('Native profile job unavailable; durable diagnostic retained.');
     }

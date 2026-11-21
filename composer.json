@@ -43,6 +43,9 @@
         },
         "classmap": [
             "core/dbmanager/Legacy/"
+        ],
+        "files": [
+            "lib/legacy_core_functions.php"
         ]
     },
     "autoload-dev": {

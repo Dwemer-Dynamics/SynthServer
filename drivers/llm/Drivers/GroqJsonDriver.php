@@ -6,7 +6,7 @@ use Logger;
 
 // Provider logic moved from connector/groqjson.php. The stateful open/process/close/fast_request API and behaviour are
 // unchanged; connector/groqjson.php remains as a thin hook so call sites and config keep working.
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 require_once dirname(__DIR__, 3) . '/lib/provider_stream.php';
 
 $enginePath = dirname(__DIR__, 3) . DIRECTORY_SEPARATOR;

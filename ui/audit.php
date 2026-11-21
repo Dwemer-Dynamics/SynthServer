@@ -12,16 +12,9 @@ if ($uiPos !== false) { $webRoot = substr($scriptPath, 0, $uiPos); } else { $web
 if ($webRoot == '/') $webRoot = '';
 $webRoot = rtrim($webRoot, '/');
 
-$dbSettings = synthDbConnectionSettings('synth');
-$host = $dbSettings['host'];
-$port = $dbSettings['port'];
-$dbname = $dbSettings['dbname'];
-$schema = $dbSettings['schema'];
-$username = $dbSettings['username'];
-$password = $dbSettings['password'];
-
-$adminConn = @pg_connect(synthPgConnectionString($dbSettings));
-if (!$adminConn) {
+try {
+ $auditDao = \Synth\Core\DbManager\Dao\AuditRequestDao::current();
+} catch (Throwable $exception) {
  echo json_encode([ 'ok'=>false ]);
  exit;
 }
@@ -41,49 +34,39 @@ if (preg_match('/^\d{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/D', $selected_week) !== 1) 
  if ($filter_type === 'week') { $filter_type = 'today'; }
 }
 
-$where_clause = '';
-
 if ($filter_type === 'date' && !empty($selected_date)) {
  // Filter by specific date
- $where_clause = "WHERE DATE(created_at) = '" . pg_escape_string($adminConn, $selected_date) . "'";
  $period_label = "Date: " . $selected_date;
 } elseif ($filter_type === 'week' && !empty($selected_week)) {
  // Filter by week (ISO week)
- $where_clause = "WHERE TO_CHAR(created_at, 'YYYY-\"W\"WW') = '" . pg_escape_string($adminConn, $selected_week) . "'";
- $period_label = "Week: " . $selected_week;
+  $period_label = "Week: " . $selected_week;
 } else {
  // Default: today
- $where_clause = "WHERE DATE(created_at) = CURRENT_DATE";
  $period_label = "Date: Today (" . date('Y-m-d') . ")";
  $filter_type = 'today';
 }
 
 // --- Query total cost grouped by request type ---
-$query = "
- SELECT
- split_part(connector, '/', 2) AS type_of_request,
- SUM((usage->>'cost')::numeric) AS total_cost
- FROM core_audit_request
- $where_clause
- GROUP BY split_part(connector, '/', 2)
- ORDER BY total_cost DESC
-";
-
-$result = pg_query($adminConn, $query);
-
 $labels = [];
 $values = [];
 $total_sum = 0;
 
-if ($result) {
- while ($row = pg_fetch_assoc($result)) {
+$filter_value = null;
+if ($filter_type === 'date') {
+ $filter_value = $selected_date;
+} elseif ($filter_type === 'week') {
+ $filter_value = $selected_week;
+}
+try {
+ $costRows = $auditDao->costByRequestType($filter_type, $filter_value);
+} catch (Throwable $exception) {
+ $costRows = [];
+}
+foreach ($costRows as $row) {
  $labels[] = $row['type_of_request'];
  $values[] = (float)$row['total_cost'];
  $total_sum += (float)$row['total_cost'];
- }
 }
-
-pg_close($adminConn);
 
 $TITLE = " Audit Log - Cost Distribution";
 $isEmbed = (isset($_GET['embed']) && $_GET['embed'] == '1');
