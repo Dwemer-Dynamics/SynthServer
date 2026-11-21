@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__.'/autoload.php';
+
 if (!function_exists('synthDbSetting')) {
     function synthDbSetting(string $key, string $default): string
     {
