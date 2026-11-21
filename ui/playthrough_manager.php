@@ -53,16 +53,24 @@ function formatFileSize($bytes) {
 $metaReady = false;
 $pageError = '';
 $profiles = [];
-$adminConn = @pg_connect(synthPgConnectionString($dbSettings));
-if (!$adminConn) {
+$adminDb = null;
+try {
+ $adminDb = (\Synth\Bootstrap::has('db') && is_object(\Synth\Bootstrap::db())) ? \Synth\Bootstrap::db() : \Synth\Bootstrap::boot(rtrim($enginePath, DIRECTORY_SEPARATOR))->db;
+} catch (Throwable $e) {
+ $adminDb = null;
+}
+if ($adminDb === null) {
  $pageError = 'Could not connect to the database. Check the server log.';
 } else {
- $metaReady = pts_metadata_schema_ready($adminConn);
+ $metaReady = pts_metadata_schema_ready($adminDb->getCatalogueSqlConnection());
  if (!$metaReady) {
   $pageError = 'Playthrough metadata is unavailable. Run the SYNTH database bootstrap.';
  } else {
-  $profilesRes = @pg_query($adminConn, "SELECT id, name, created_at, size_bytes, storage_type, schema_name, notes, is_active, player_name, game, eventlog_count, worldknowledge_count, last_gamets FROM public.core_playthrough_profile ORDER BY COALESCE(last_gamets,0) DESC, created_at DESC");
-  $profiles = $profilesRes ? (pg_fetch_all($profilesRes) ?: []) : [];
+  try {
+   $profiles = \Synth\Core\DbManager\Dao\PlaythroughProfileDao::current($adminDb)->managerRows();
+  } catch (Throwable $e) {
+   $profiles = [];
+  }
  }
 }
 foreach ($profiles as $i => $p) {

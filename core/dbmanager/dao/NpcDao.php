@@ -82,4 +82,18 @@ final class NpcDao
     {
         return $this->connection()->fetchAllAssociative('SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC');
     }
+
+    /** Number of characters (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_npc');
+    }
+
+    /** Gender and race of the character with this reference id, or null. @return array<string, mixed>|null */
+    public function genderAndRaceByRefid(string $refid): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT gender, race FROM core_npc WHERE refid = ?', [$refid]);
+
+        return $row === false ? null : $row;
+    }
 }

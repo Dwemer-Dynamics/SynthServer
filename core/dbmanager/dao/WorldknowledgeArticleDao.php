@@ -156,4 +156,14 @@ final class WorldknowledgeArticleDao
     {
         return $this->connection()->fetchAllAssociative('SELECT topic, topic_desc FROM core_worldknowledge_article WHERE vector384 IS NULL');
     }
+
+    /** Number of active factory articles in active catalogs (home dashboard). */
+    public function dashboardFactoryCount(): int
+    {
+        return (int) $this->connection()->fetchOne(
+            'SELECT COUNT(*) FROM public.core_worldknowledge_article AS article JOIN public.core_worldknowledge_catalog AS catalog'
+            .' ON article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version'
+            ." WHERE article.source_kind='factory' AND article.is_active AND catalog.is_active"
+        );
+    }
 }

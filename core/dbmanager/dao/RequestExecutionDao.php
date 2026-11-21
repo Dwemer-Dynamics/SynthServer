@@ -237,4 +237,16 @@ class RequestExecutionDao
     {
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Cancels the claimed or streaming narrator turns whose reply is still pending for a definition. Runs inside the caller's transaction. */
+    public function cancelNarratorTurnsAwaitingDefinition(string $definitionId): void
+    {
+        $this->connection()->executeStatement(
+            "UPDATE public.core_request_execution e SET state='cancelled',response_body=NULL,
+            error_code='request_cancelled',completed_at=NOW() WHERE e.event_type='narrator_turn' AND e.state IN ('claimed','streaming')
+            AND EXISTS(SELECT 1 FROM public.core_narrator_pending_output p WHERE p.session_id=e.session_id AND p.request_id=e.request_id
+                AND p.definition_id=? AND p.state IN ('pending','generated'))",
+            [$definitionId]
+        );
+    }
 }

@@ -270,11 +270,11 @@ function synthQuickstartGetLlmConnectorLabelById($db, int $id): string {
         return '';
     }
     try {
-        $row = $db->fetchOne("SELECT label FROM core_llm_connector WHERE id=" . intval($id) . " LIMIT 1");
+        $label = \Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->labelById($id);
     } catch (Throwable $_e) {
-        $row = [];
+        $label = null;
     }
-    return trim(strval($row['label'] ?? ''));
+    return trim(strval($label ?? ''));
 }
 
 function synthQuickstartGetGeneralLlmConnectorSummary($db): array {

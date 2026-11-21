@@ -24,4 +24,10 @@ final class QuestDao
     {
         return array_values($this->fresh()->getRepository(AbstractQuest::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** Quests with the selected one first, newest first, at most $limit (home dashboard). @return list<array<string, mixed>> */
+    public function dashboardActive(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative("SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT ".max(1, $limit));
+    }
 }

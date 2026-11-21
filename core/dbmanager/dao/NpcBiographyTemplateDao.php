@@ -47,4 +47,10 @@ final class NpcBiographyTemplateDao
             $params
         );
     }
+
+    /** Number of installed Fallout 4 character templates, creatures excluded (home dashboard). */
+    public function dashboardFo4CharacterCount(): int
+    {
+        return (int) $this->connection()->fetchOne("SELECT COUNT(*) FROM public.core_npc_biography_template WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1");
+    }
 }
