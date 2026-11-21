@@ -268,12 +268,12 @@ class ITTConnector
             $metadata['API_KEY'] = $apiKey;
         }
 
-        $GLOBALS['ITTFUNCTION'] = $driver;
-        $GLOBALS['ITT_CONNECTOR'] = $row;
-        if (!isset($GLOBALS['ITT']) || !is_array(\Synth\Bootstrap::config('ITT'))) {
-            $GLOBALS['ITT'] = [];
+        \Synth\Bootstrap::set('ITTFUNCTION', $driver);
+        \Synth\Bootstrap::set('ITT_CONNECTOR', $row);
+        if (!\Synth\Bootstrap::has('ITT') || !is_array(\Synth\Bootstrap::config('ITT'))) {
+            \Synth\Bootstrap::set('ITT', []);
         }
-        $GLOBALS['ITT'][$driver] = $metadata;
+        \Synth\Bootstrap::setAt('ITT', $driver, $metadata);
     }
 
     // The two typed key columns for the key the data names (a reference in api_key_id), or none.

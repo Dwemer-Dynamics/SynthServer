@@ -345,9 +345,9 @@ class CoreProfile
                 }
             }
         }
-        $GLOBALS["ENFORCE_ACTIONS_PROMPT"] = false;
+        \Synth\Bootstrap::set('ENFORCE_ACTIONS_PROMPT', false);
         if (isset($currentProfileData["prompt"])) {
-            $GLOBALS["PROFILE_PROMPT"] = $currentProfileData["prompt"];
+            \Synth\Bootstrap::set('PROFILE_PROMPT', $currentProfileData["prompt"]);
         }
 
     }

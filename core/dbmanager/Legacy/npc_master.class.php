@@ -30,7 +30,7 @@ if (!function_exists('synthRolemasterStateToBool')) {
 if (!function_exists('synthRolemasterStateResetCache')) {
     function synthRolemasterStateResetCache()
     {
-        unset($GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE']);
+        \Synth\Bootstrap::forget('SYNTH_ROLEMASTER_LOOKUP_CACHE');
     }
 }
 
@@ -57,8 +57,8 @@ if (!function_exists('synthResolveNpcRolemasterState')) {
         $loadLookup = !array_key_exists('load_lookup', $options) || !empty($options['load_lookup']);
 
         if (($metadata === null || $extended === null) && $loadLookup && $npcName !== '' && class_exists('NpcMaster')) {
-            if (!isset($GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE']) || !is_array(\Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE'))) {
-                $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'] = [];
+            if (!\Synth\Bootstrap::has('SYNTH_ROLEMASTER_LOOKUP_CACHE') || !is_array(\Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE'))) {
+                \Synth\Bootstrap::set('SYNTH_ROLEMASTER_LOOKUP_CACHE', []);
             }
 
             if (!array_key_exists($npcName, \Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE'))) {
@@ -76,7 +76,7 @@ if (!function_exists('synthResolveNpcRolemasterState')) {
                     $lookup['extended'] = $npcMaster->getExtendedData($lookupNpcData);
                 }
 
-                $GLOBALS['SYNTH_ROLEMASTER_LOOKUP_CACHE'][$npcName] = $lookup;
+                \Synth\Bootstrap::setAt('SYNTH_ROLEMASTER_LOOKUP_CACHE', $npcName, $lookup);
             }
 
             $lookup = \Synth\Bootstrap::config('SYNTH_ROLEMASTER_LOOKUP_CACHE')[$npcName];
@@ -213,18 +213,18 @@ if (!function_exists('synthRelationshipTimelineStamp')) {
     {
         try {
             $npcId = (int)$npcId;
-            if ($npcId <= 0 || !isset($GLOBALS['db'])) {
+            if ($npcId <= 0 || !\Synth\Bootstrap::has('db')) {
                 return false;
             }
             // Native relationship/profile revisions use their owned history writers, not the legacy timestamp lane.
             if (synth_npc_native_request()) return false;
-            if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
+            if (isset(\Synth\Bootstrap::requestEvent()['json']['protocol_version'])) {
                 $profile=\Synth\Bootstrap::db()->fetchOne('SELECT actor_identity_id FROM core_npc WHERE id='.$npcId);
                 if (!empty($profile['actor_identity_id'])) return false;
             }
 
             $gamets = 0;
-            if (isset($GLOBALS['gameRequest'][2]) && is_numeric(\Synth\Bootstrap::gameRequest()[2])) {
+            if (isset(\Synth\Bootstrap::gameRequest()[2]) && is_numeric(\Synth\Bootstrap::gameRequest()[2])) {
                 $gamets = (float)\Synth\Bootstrap::gameRequest()[2];
             } elseif (function_exists('DataLastKnownGameTS')) {
                 $gamets = (float)DataLastKnownGameTS();
@@ -304,7 +304,7 @@ class NpcMaster
 
     public static function profileExists($npcName)
     {
-        if (!isset($GLOBALS['db'])) $GLOBALS['db']=new sql();
+        if (!\Synth\Bootstrap::has('db')) \Synth\Bootstrap::set('db', new sql());
         return (bool)(new self())->getByName($npcName);
     }
 
@@ -424,7 +424,7 @@ class NpcMaster
             $actorId=synth_npc_request_actor_id($this->db,'');
             if ($actorId===null) return null;
             $scope="actor_identity_id={$actorId}";
-        } elseif (!isset($GLOBALS['SYNTH_REQUEST_EVENT'])) {
+        } elseif (!\Synth\Bootstrap::has('SYNTH_REQUEST_EVENT')) {
             // Explicit management tokens continue to address their existing rows.
             $scope='TRUE';
         }
@@ -471,7 +471,7 @@ class NpcMaster
                     throw new RuntimeException('Native NPC write owner mismatch.');
                 }
             } elseif (!empty($row['actor_identity_id'])
-                && isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
+                && isset(\Synth\Bootstrap::requestEvent()['json']['protocol_version'])) {
                 throw new RuntimeException('Legacy NPC writer cannot modify a native profile.');
             }
             return $write($row);
@@ -706,7 +706,7 @@ class NpcMaster
     // Truncate table (dangerous!)
     public function truncate($restart = false, $cascade = false)
     {
-        if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
+        if (isset(\Synth\Bootstrap::requestEvent()['json']['protocol_version'])) {
             throw new RuntimeException('Game requests cannot truncate NPC profiles.');
         }
         return $this->db->truncate($this->table, $restart, $cascade);
@@ -715,7 +715,7 @@ class NpcMaster
     // Upsert using ON CONFLICT
     public function upsert($data, $conflictTarget)
     {
-        if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])) {
+        if (isset(\Synth\Bootstrap::requestEvent()['json']['protocol_version'])) {
             throw new RuntimeException('Game requests require owned NPC profile upserts.');
         }
         return $this->db->upsertRowOnConflict($this->table, $data, $conflictTarget);
@@ -1079,63 +1079,63 @@ class NpcMaster
         require_once dirname(__DIR__, 3).'/lib/synth_profile_state.php';
         $currentNpcData=synth_profile_effective_data($this->db,$currentNpcData);
         if (isset($currentNpcData['npc_name'])) {
-            $GLOBALS['SYNTH_NAME'] = $currentNpcData['npc_name'];
+            \Synth\Bootstrap::set('SYNTH_NAME', $currentNpcData['npc_name']);
         }
 
         if (isset($currentNpcData['lock_profile'])) {
-            $GLOBALS['LOCK_PROFILE'] = $currentNpcData['lock_profile'] ? true : false;
+            \Synth\Bootstrap::set('LOCK_PROFILE', $currentNpcData['lock_profile'] ? true : false);
         }
 
         if (isset($currentNpcData['dynamic_profile'])) {
-            $GLOBALS['DYNAMIC_PROFILE'] = $currentNpcData['dynamic_profile'] ? true : false;
+            \Synth\Bootstrap::set('DYNAMIC_PROFILE', $currentNpcData['dynamic_profile'] ? true : false);
         }
 
         if (isset($currentNpcData['prompt_head']) && trim((string)$currentNpcData['prompt_head']) !== '') {
-            $GLOBALS['PROMPT_HEAD'] = $currentNpcData['prompt_head'];
+            \Synth\Bootstrap::set('PROMPT_HEAD', $currentNpcData['prompt_head']);
         }
 
         if (isset($currentNpcData['npc_static_bio'])) {
-            $GLOBALS['SYNTH_BACKGROUND'] = $currentNpcData['npc_static_bio'];
+            \Synth\Bootstrap::set('SYNTH_BACKGROUND', $currentNpcData['npc_static_bio']);
         }
 
         // Always replace the previous actor's knowledge context, including when
         // the new profile has no explicit tags, so knowall cannot leak between turns.
-        $GLOBALS['WORLDKNOWLEDGE'] = (string)($currentNpcData['worldknowledge_tags'] ?? '');
+        \Synth\Bootstrap::set('WORLDKNOWLEDGE', (string)($currentNpcData['worldknowledge_tags'] ?? ''));
 
         if (isset($currentNpcData['personality'])) {
-            $GLOBALS['SYNTH_PERSONALITY'] = $currentNpcData['personality'];
+            \Synth\Bootstrap::set('SYNTH_PERSONALITY', $currentNpcData['personality']);
         }
 
-        unset($GLOBALS['SYNTH_RELATIONSHIPS']);
+        \Synth\Bootstrap::forget('SYNTH_RELATIONSHIPS');
 
         if (isset($currentNpcData['occupation'])) {
-            $GLOBALS['SYNTH_OCCUPATION'] = $currentNpcData['occupation'];
+            \Synth\Bootstrap::set('SYNTH_OCCUPATION', $currentNpcData['occupation']);
         }
 
         if (isset($currentNpcData['appearance'])) {
-            $GLOBALS['SYNTH_APPEARANCE'] = $currentNpcData['appearance'];
+            \Synth\Bootstrap::set('SYNTH_APPEARANCE', $currentNpcData['appearance']);
         }
 
         if (isset($currentNpcData['skills'])) {
-            $GLOBALS['SYNTH_SKILLS'] = $currentNpcData['skills'];
+            \Synth\Bootstrap::set('SYNTH_SKILLS', $currentNpcData['skills']);
         }
 
         if (isset($currentNpcData['speechstyle'])) {
-            $GLOBALS['SYNTH_SPEECHSTYLE'] = $currentNpcData['speechstyle'];
+            \Synth\Bootstrap::set('SYNTH_SPEECHSTYLE', $currentNpcData['speechstyle']);
         }
 
         if (isset($currentNpcData['emote_moods']) && ! empty(trim($currentNpcData['emote_moods']))) {
-            $GLOBALS['EMOTEMOODS'] = $currentNpcData['emote_moods'];
+            \Synth\Bootstrap::set('EMOTEMOODS', $currentNpcData['emote_moods']);
         }
 
         if (isset($currentNpcData['goals'])) {
-            $GLOBALS['SYNTH_GOALS'] = $currentNpcData['goals'];
+            \Synth\Bootstrap::set('SYNTH_GOALS', $currentNpcData['goals']);
         }
 
         if (isset($currentNpcData['core'])) {
-            $GLOBALS['SYNTH_PERS'] = "Roleplay as {$GLOBALS['SYNTH_NAME']}.\n{$currentNpcData['core']}";
+            \Synth\Bootstrap::set('SYNTH_PERS', ("Roleplay as " . \Synth\Bootstrap::config('SYNTH_NAME') . ".\n{$currentNpcData['core']}"));
         } else {
-            $GLOBALS['SYNTH_PERS'] = "Roleplay as {$GLOBALS['SYNTH_NAME']}";
+            \Synth\Bootstrap::set('SYNTH_PERS', ("Roleplay as " . \Synth\Bootstrap::config('SYNTH_NAME')));
         }
 
         if ($resolveVoice) {
@@ -1160,34 +1160,34 @@ class NpcMaster
             $resolvedVoiceSample = $voiceResolution['resolved_voice_sample'] ?? '';
 
             if ($resolvedVoiceReference !== '') {
-                $GLOBALS['PATCH_OVERRIDE_VOICE'] = $resolvedVoiceReference;
+                \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $resolvedVoiceReference);
                 $this->applyNpcVoiceToTtsGlobals($resolvedVoiceReference, $resolvedVoice);
             } else {
-                unset($GLOBALS['PATCH_OVERRIDE_VOICE']);
+                \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
             }
 
             if ($originalVoice !== '') {
-                $GLOBALS['TTS_NPC_ORIGINAL_VOICE'] = $originalVoice;
+                \Synth\Bootstrap::set('TTS_NPC_ORIGINAL_VOICE', $originalVoice);
             } else {
-                unset($GLOBALS['TTS_NPC_ORIGINAL_VOICE']);
+                \Synth\Bootstrap::forget('TTS_NPC_ORIGINAL_VOICE');
             }
 
             if ($fallbackVoice !== '') {
-                $GLOBALS['TTS_NPC_FALLBACK_VOICE'] = $fallbackVoice;
+                \Synth\Bootstrap::set('TTS_NPC_FALLBACK_VOICE', $fallbackVoice);
             } else {
-                unset($GLOBALS['TTS_NPC_FALLBACK_VOICE']);
+                \Synth\Bootstrap::forget('TTS_NPC_FALLBACK_VOICE');
             }
 
             if ($resolvedVoice !== '') {
-                $GLOBALS['TTS_NPC_RESOLVED_VOICE'] = $resolvedVoice;
+                \Synth\Bootstrap::set('TTS_NPC_RESOLVED_VOICE', $resolvedVoice);
             } else {
-                unset($GLOBALS['TTS_NPC_RESOLVED_VOICE']);
+                \Synth\Bootstrap::forget('TTS_NPC_RESOLVED_VOICE');
             }
 
             if ($resolvedVoiceSample !== '') {
-                $GLOBALS['TTS_NPC_RESOLVED_VOICE_SAMPLE'] = $resolvedVoiceSample;
+                \Synth\Bootstrap::set('TTS_NPC_RESOLVED_VOICE_SAMPLE', $resolvedVoiceSample);
             } else {
-                unset($GLOBALS['TTS_NPC_RESOLVED_VOICE_SAMPLE']);
+                \Synth\Bootstrap::forget('TTS_NPC_RESOLVED_VOICE_SAMPLE');
             }
         }
 
@@ -1233,7 +1233,7 @@ class NpcMaster
             }
         }
 
-        $GLOBALS['ENFORCE_ACTIONS_PROMPT'] = false;
+        \Synth\Bootstrap::set('ENFORCE_ACTIONS_PROMPT', false);
 
     }
 
@@ -1293,7 +1293,7 @@ class NpcMaster
             $readOnlyWebRequest = PHP_SAPI !== 'cli'
                 && in_array(strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')), ['GET', 'HEAD'], true);
             if (!$readOnlyWebRequest
-                && !isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['protocol_version'])
+                && !isset(\Synth\Bootstrap::requestEvent()['json']['protocol_version'])
                 && $npcId > 0 && in_array($fieldName, ['extended_data', 'metadata'], true)) {
                 $encoded = $this->encodeJsonObjectForPersistence($recovered, $fieldName);
                 $repaired = $this->db->updateRow(
@@ -1914,7 +1914,7 @@ FROM restore
     private function applyNpcVoiceToTtsGlobals(string $voiceReference, string $voiceId = ''): void
     {
         foreach (self::ttsVoiceSettings($voiceReference, $voiceId) as $provider => $values) {
-            foreach ($values as $key => $value) $GLOBALS['TTS'][$provider][$key] = $value;
+            foreach ($values as $key => $value) \Synth\Bootstrap::setPath('TTS', [$provider, $key], $value);
         }
     }
 
