@@ -108,6 +108,7 @@ function synth_jev_action_connector(): ?array
 {
     $id = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_DECISION') ?? 0);
     if ($id <= 0) return null;
+    require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     $row = (new LLMConnector())->getById($id);
     if (!is_array($row) || ($row['driver'] ?? '') !== 'openrouterjson'
         || !is_string($row['model'] ?? null)

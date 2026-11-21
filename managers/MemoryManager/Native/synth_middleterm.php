@@ -301,6 +301,7 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             $sources=synth_middleterm_select_sources(pg_fetch_all($result) ?: [],$prior);
             if (!$sources) return null;
         }
+        require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
         $connector=(new LLMConnector())->getById(intval(\Synth\Bootstrap::config('CORE_CONNECTOR_MEDIUMTERM') ?? 0));
         if (!$connector) throw new RuntimeException('Middle-term connector unavailable.');
         $prompts=[];

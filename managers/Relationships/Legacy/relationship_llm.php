@@ -133,8 +133,9 @@ class RelationshipLLM {
      * to avoid corrupting the main chat connector's globals
      */
     private function initConnector() {
-        
-$llmConnector = new LLMConnector();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/llm_connector.class.php";
+
+        $llmConnector = new LLMConnector();
         $connectorId = \Synth\Bootstrap::config('RELLLM_CONNECTOR') ?? 0;
 
         if ($connectorId > 0) {
@@ -175,6 +176,7 @@ $llmConnector = new LLMConnector();
             return null;
         }
 
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/llm_connector.class.php";
         $llmConnector = new LLMConnector();
 
         // Save current connector globals (the main chat connector's settings)
@@ -230,8 +232,9 @@ $llmConnector = new LLMConnector();
      * Called when an NPC is first activated/met
      */
     public function analyzeNpc($npcId, $forceReanalyze = false) {
-        
-$npcMaster = new NpcMaster();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        $npcMaster = new NpcMaster();
         $npc = $npcMaster->getById($npcId);
 
         if (!$npc) {
@@ -452,8 +455,9 @@ PROMPT;
      * Save relationships to NPC's extended_data
      */
     private function saveRelationships($npcId, $relationships) {
-        
-// Advisory lock to prevent race conditions
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        // Advisory lock to prevent race conditions
         $this->acquireNpcLock($npcId);
 
         try {
@@ -564,8 +568,9 @@ PROMPT;
      * If A loves B (+80) and B hates C (-70), then A should be wary of C (-20 to -40)
      */
     public function inferTransitiveRelationships($npcId) {
-        
-$npcMaster = new NpcMaster();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        $npcMaster = new NpcMaster();
         $npc = $npcMaster->getById($npcId);
 
         if (!$npc) return ['ok' => false, 'error' => 'NPC not found'];
@@ -702,8 +707,9 @@ $npcMaster = new NpcMaster();
             return ['ok' => false, 'error' => 'LLM not available'];
         }
 
-        
-$npcMaster = new NpcMaster();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        $npcMaster = new NpcMaster();
         $npc = $npcMaster->getById($npcId);
 
         if (!$npc) {
@@ -917,8 +923,9 @@ PROMPT;
             return ['ok' => false, 'error' => 'LLM not available'];
         }
 
-        
-$npcMaster = new NpcMaster();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        $npcMaster = new NpcMaster();
         $speaker = $npcMaster->getById($speakerNpcId);
         $listener = $npcMaster->getById($listenerNpcId);
 
@@ -1193,8 +1200,9 @@ PROMPT;
      * Apply relationship changes
      */
     private function applyChanges($npcId, $changes, $currentRels) {
-        
-$npcMaster = new NpcMaster();
+        require_once \Synth\Bootstrap::enginePath() . "lib/core/npc_master.class.php";
+
+        $npcMaster = new NpcMaster();
         $npc = $npcMaster->getById($npcId);
         if (!$npc) return [];
 

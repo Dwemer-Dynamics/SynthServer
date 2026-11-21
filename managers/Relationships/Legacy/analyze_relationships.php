@@ -10,6 +10,8 @@ synthRuntimeBootstrap($enginePath, [
     'load_player_name' => true,
     'load_narrator' => false,
 ]);
+require_once $enginePath . 'lib/core/llm_connector.class.php';
+require_once $enginePath . 'lib/core/npc_master.class.php';
 require_once $enginePath . 'lib/logger.php';
 require_once $enginePath . 'lib/relationship_manager.php';
 require_once __DIR__.'/event_baseline.php';

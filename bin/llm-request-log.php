@@ -54,6 +54,7 @@ if (in_array($command, ['show', 'replay'], true)) {
 $root = dirname(__DIR__);
 require_once $root . '/lib/autoload.php';
 require_once $root . '/lib/runtime_bootstrap.php';
+require_once $root . '/lib/core/llm_connector.class.php';
 
 use Synth\Core\DbManager\Dao\LlmRequestLogDao;
 use Synth\Drivers\Llm\Logging\DatabaseLlmRequestRecorder;

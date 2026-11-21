@@ -200,6 +200,7 @@ final class HealthCheckManager
             'llm_endpoints_checked' => 0, 'llm_endpoints_reachable' => 0, 'llm_hosted_unchecked' => 0];
         try {
             if ($rows === null) {
+                require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
                 $rows = (new \LLMConnector())->endpointRows();
             }
             $targets = self::llmTargets($rows);

@@ -352,9 +352,9 @@ Directory: processor, service, prompts, functions, core (small, grouped in one P
 
 ### R6-managers-lib-and-rest
 
-Directory: managers, lib, api, stt, debug, tools, bin (the `lib/core/*.class.php` shims are left untouched: they stay as one-line hooks). `tools/require-prune.php` deleted 57 class-file `require_once` lines and replaced 20 `Logger.php` lines by `autoload.php`. Stacked on R5 (#194).
+Directory: managers, lib, api, stt, debug, tools, bin (the `lib/core/*.class.php` shims are left untouched; `llm_connector`, `narrator` and `npc_master` requires are kept in this PR because those files also define functions callers use without the class). `tools/require-prune.php` deleted 32 class-file `require_once` lines and replaced 20 `Logger.php` lines by `autoload.php`. Stacked on R5 (#194).
 
 | | before | after |
 | --- | --- | --- |
-| `require_once` (all non-test PHP) | 1705 | 1646 |
+| `require_once` (all non-test PHP) | 1705 | 1678 |
 | global uses | 64 | 64 |

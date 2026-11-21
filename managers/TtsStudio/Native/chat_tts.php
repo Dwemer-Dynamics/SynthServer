@@ -99,7 +99,8 @@ function ensureNpcTtsVoiceResolvedForCurrentSpeaker(): void
     }
 
     if (!class_exists('NpcMaster')) {
-        }
+        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "npc_master.class.php");
+    }
 
     Logger::phaseStart("npc_tts_voice_lazy_resolve", [
         "npc" => $currentName,
@@ -226,6 +227,7 @@ function applyVoiceIdToTtsGlobals(string $voiceid): void
  * Load The Narrator's voice settings into GLOBALS
  */
 function loadNarratorVoiceSettings() {
+    require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
     
 $narrator = new Narrator();
     $profileId = $narrator->getProfileId();
