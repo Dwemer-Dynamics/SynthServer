@@ -96,6 +96,79 @@ class RuntimeContextDao
         return $row === false ? null : $row;
     }
 
+    /**
+     * The newest snapshot of a session generation for a protocol v2 context: its sequence ('latest'), playthrough and the loaded
+     * save anchor of its payload (JSON text, or null); null when there is none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestSnapshot(string $sessionId, int $generation): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
+               FROM public.core_runtime_context WHERE session_id = ? AND generation = ?
+              ORDER BY snapshot_sequence DESC LIMIT 1",
+            [$sessionId, $generation]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** The newest snapshot sequence of a legacy (protocol v1) context in this playthrough, as ['latest' => ?string]. @return array<string, mixed>|null */
+    public function latestSequenceInPlaythrough(string $sessionId, int $generation, string $playthroughId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT MAX(snapshot_sequence) AS latest FROM public.core_runtime_context
+              WHERE session_id = ? AND generation = ? AND playthrough_id = ?',
+            [$sessionId, $generation, $playthroughId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Stores an acknowledged context snapshot. With $freezeHistoryFrontier its history_event_id is the newest history event id of
+     * this playthrough in the session generation (0 when none); otherwise NULL. False when the statement fails.
+     */
+    public function insertSnapshot(string $sessionId, int $generation, int $sequence, string $playthroughId, int $playerIdentityId, ?int $targetIdentityId, string $audienceJson, string $contextJson, bool $freezeHistoryFrontier): bool
+    {
+        $frontier = $freezeHistoryFrontier
+            ? '(SELECT COALESCE(MAX(id),0) FROM public.core_history_event WHERE session_id = ? AND generation = ? AND playthrough_id = ?)'
+            : 'NULL';
+        $parameters = [$sessionId, $generation, $sequence, $playthroughId, $playerIdentityId, $targetIdentityId, $audienceJson, $contextJson];
+        if ($freezeHistoryFrontier) {
+            array_push($parameters, $sessionId, $generation, $playthroughId);
+        }
+
+        return $this->tryStatement(
+            "INSERT INTO public.core_runtime_context
+                (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
+                 target_identity_id, audience_identity_ids, context_payload, history_event_id)
+             VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), {$frontier})",
+            $parameters
+        );
+    }
+
+    /**
+     * Finishes a snapshot's history frontier: the newest id among the observation events this request captured for it (never lower
+     * than the stored one). False when the statement fails.
+     */
+    public function finalizeHistoryFrontier(string $sessionId, int $generation, int $sequence, string $playthroughId, string $requestId): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_runtime_context c
+                SET history_event_id=GREATEST(c.history_event_id,COALESCE((
+                    SELECT MAX(h.id) FROM public.core_history_event h
+                     WHERE h.session_id=c.session_id AND h.generation=c.generation
+                       AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
+                       AND h.request_id = ?
+                       AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
+                ),0))
+                WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ? AND c.playthrough_id = ?",
+            [$requestId, $sessionId, $generation, $sequence, $playthroughId]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {
