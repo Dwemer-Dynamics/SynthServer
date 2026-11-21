@@ -6,13 +6,13 @@ ini_set('log_errors', '1');
 
 $root = dirname(__DIR__);
 $path = $root . DIRECTORY_SEPARATOR;
-$GLOBALS['ENGINE_PATH'] = $path;
-$GLOBALS['SYNTH_RESPONSE_FORMAT'] = 'json';
-$GLOBALS['SYNTH_RESPONSE_STREAMING'] = false;
-$GLOBALS['SYNTH_GAME_ID'] = 'fo4';
-$GLOBALS['SYNTH_WORLD_NAME'] = 'Commonwealth';
-$GLOBALS['TTS_FFMPEG_FILTERS'] = [];
-$GLOBALS['AUDIT_RUNID_REQUEST'] = 'external_npc_tts';
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', 'json');
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', 'fo4');
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', 'Commonwealth');
+\Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', 'external_npc_tts');
 
 require_once $path . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
 require_once $path . 'lib' . DIRECTORY_SEPARATOR . 'request.php';
@@ -38,7 +38,7 @@ if (($event['type'] ?? '') !== 'trigger' || ($event['json']['payload']['kind'] ?
 $wireEvent = $event['json'];
 $gameRequest = synth_event_to_game_request($event);
 try {
-    if (!synth_protocol_bind_trigger_context($GLOBALS['db'], $wireEvent, $gameRequest)) {
+    if (!synth_protocol_bind_trigger_context(\Synth\Bootstrap::db(), $wireEvent, $gameRequest)) {
         synth_reject_json_request(409, 'The requested actor is not eligible in the current context');
     }
 } catch (Throwable $error) {

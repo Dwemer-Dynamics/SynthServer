@@ -84,7 +84,7 @@ function synth_profile_visible($db, array $event, int $actorId, bool $narrator=f
 function synth_profile_effective_data($db, array $profile, bool $narrator=false): array
 {
     $event=\Synth\Bootstrap::requestEvent()['json'] ?? [];
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? 1)!==2) return $profile;
+    if (empty(\Synth\Bootstrap::claimedRequest()) || ($event['protocol_version'] ?? 1)!==2) return $profile;
     $actorId=intval($profile['actor_identity_id'] ?? 0);
     if ($narrator) {
         $context=synth_protocol_current_context($db,$event);
@@ -99,7 +99,7 @@ function synth_profile_effective_data($db, array $profile, bool $narrator=false)
 // Freeze the base/prior profile used by every field request in this one worker attempt.
 function synth_profile_capture_input($db, string $name, array $profile): array
 {
-    if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return $profile;
+    if (!\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) return $profile;
     synth_profile_assert_write_target($db,$name);
     $event=\Synth\Bootstrap::requestEvent()['json'];$narrator=$name==='The Narrator';
     $context=synth_protocol_current_context($db,$event);
@@ -115,10 +115,10 @@ function synth_profile_capture_input($db, string $name, array $profile): array
         if (!is_string($value) || strlen($value)>16384 || str_contains($value,"\0") || !preg_match('//u',$value)) throw new InvalidArgumentException('Invalid native profile context.');
         $text[$key]=$value;
     }
-    $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS'][$name]=['schema'=>'synth.profile.input.v1','owner'=>$event,
+    \Synth\Bootstrap::setAt('SYNTH_NATIVE_PROFILE_INPUTS', $name, ['schema'=>'synth.profile.input.v1','owner'=>$event,
         'actor_identity_id'=>$actorId,'profile_role'=>$narrator ? 'narrator' : 'npc','baseline_fields'=>synth_profile_fields($profile),
         'prior_revision'=>$state['revision'] ?? null,'profile'=>$text,'history'=>null,'prompts'=>[],
-        'connector_id'=>intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES') ?? 0)];
+        'connector_id'=>intval(\Synth\Bootstrap::config('CORE_CONNECTOR_PROFILES') ?? 0)]);
     return $effective;
 }
 

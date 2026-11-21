@@ -1,6 +1,6 @@
 <?php
 
-if (isset($GLOBALS["ONCE_PER_RUN"]) && \Synth\Bootstrap::config("ONCE_PER_RUN")==true) {
+if (\Synth\Bootstrap::has('ONCE_PER_RUN') && \Synth\Bootstrap::config("ONCE_PER_RUN")==true) {
     return;
 
 }
@@ -9,7 +9,7 @@ $startTime = microtime(true);
 $selectedNpc=\Synth\Bootstrap::config("SELECTED_NPC");
 
 $npcMaster = new NpcMaster();
-$currentNpcData=isset($GLOBALS['SELECTED_NPC_ID'])
+$currentNpcData=\Synth\Bootstrap::has('SELECTED_NPC_ID')
     ? $npcMaster->getById(intval(\Synth\Bootstrap::config('SELECTED_NPC_ID'))) : $npcMaster->getByName($selectedNpc);
 // This legacy generator has no saved native owner. Never redirect a selected row through a reused name.
 if (synth_npc_native_request() || !is_array($currentNpcData) || !$currentNpcData
@@ -83,7 +83,7 @@ Read the context history, paying attention to character names, and fill the foll
 - **Character Dynamics:**
 - **Current Topic** ";
 
-$request = "Main character in this logbook is {$GLOBALS["SYNTH_NAME"]}.
+$request = "Main character in this logbook is {\Synth\Bootstrap::config("SYNTH_NAME")}.
 Read the context history, paying attention to character names and notable events, and fill the following info.
 
 - **Notable Events in chronological order:**
@@ -179,7 +179,7 @@ if ($buffer) {
     $extended_data["middle_term_memory"][$lastgamets]=$buffer;
     $currentNpcData=$npcMaster->setExtendedData($currentNpcData,$extended_data);
     $npcMaster->updateByArray($currentNpcData);
-    $GLOBALS["ONCE_PER_RUN"]=true;
+    \Synth\Bootstrap::set('ONCE_PER_RUN', true);
 } else 
     Logger::error(__LINE__ . " Buffer was empty. not writing middleterm " . (microtime(true) - $startTime));
 

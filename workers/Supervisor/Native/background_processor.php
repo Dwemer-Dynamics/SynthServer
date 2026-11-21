@@ -25,7 +25,7 @@ function synthBackgroundProcessorStartScriptPath(): string
         return $configuredPath;
     }
 
-    if (isset($GLOBALS['ENGINE_ROOT']) && is_string(\Synth\Bootstrap::engineRoot()) && \Synth\Bootstrap::engineRoot() !== '') {
+    if (\Synth\Bootstrap::has('ENGINE_ROOT') && is_string(\Synth\Bootstrap::engineRoot()) && \Synth\Bootstrap::engineRoot() !== '') {
         $engineRoot = rtrim(\Synth\Bootstrap::engineRoot(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
     } elseif (defined('BASE_PATH')) {
         $engineRoot = rtrim((string)BASE_PATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;

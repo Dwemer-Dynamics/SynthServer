@@ -22,7 +22,7 @@ final class MemoryRunner
      */
     public static function dispatch(string $enginePath): int
     {
-        $GLOBALS['ENGINE_ROOT'] = $enginePath;
+        \Synth\Bootstrap::set('ENGINE_ROOT', $enginePath);
         require_once $enginePath . 'lib/runtime_bootstrap.php';
         require_once __DIR__ . '/Native/synth_memory_dispatch.php';
         try {
@@ -45,7 +45,7 @@ final class MemoryRunner
      */
     public static function runJob(string $enginePath, int $jobId): int
     {
-        $GLOBALS['ENGINE_ROOT'] = $enginePath;
+        \Synth\Bootstrap::set('ENGINE_ROOT', $enginePath);
         require_once $enginePath . 'lib/runtime_bootstrap.php';
         require_once __DIR__ . '/Native/synth_memory_worker.php';
         try {

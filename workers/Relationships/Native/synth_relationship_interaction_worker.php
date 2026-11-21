@@ -37,7 +37,7 @@ function synth_relationship_process_interaction($db, int $jobId, callable $gener
     if (!$db->isTransactionIdle()) throw new LogicException('Interaction providers require an idle database connection');
     $job=synth_relationship_claim_interaction($db,$jobId);if (!$job) return null;
     $previous=\Synth\Bootstrap::config('SYNTH_INTERACTION_JOB_LEASE') ?? null;
-    $GLOBALS['SYNTH_INTERACTION_JOB_LEASE']=['id'=>$jobId,'token'=>$job['lease_token']];
+    \Synth\Bootstrap::set('SYNTH_INTERACTION_JOB_LEASE', ['id'=>$jobId,'token'=>$job['lease_token']]);
     try {
         $text=$generate($job['input']);
         if (!is_string($text)) throw new InvalidArgumentException('Invalid interaction model result');
@@ -46,7 +46,7 @@ function synth_relationship_process_interaction($db, int $jobId, callable $gener
     } catch (Throwable $error) {
         synth_relationship_fail_interaction($db,$jobId,$job['lease_token']);throw $error;
     } finally {
-        if ($previous===null) unset($GLOBALS['SYNTH_INTERACTION_JOB_LEASE']);
-        else $GLOBALS['SYNTH_INTERACTION_JOB_LEASE']=$previous;
+        if ($previous===null) \Synth\Bootstrap::forget('SYNTH_INTERACTION_JOB_LEASE');
+        else \Synth\Bootstrap::set('SYNTH_INTERACTION_JOB_LEASE', $previous);
     }
 }
