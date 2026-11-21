@@ -3,6 +3,7 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\NpcDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 
 final class DaoTestDoubles
@@ -88,8 +89,22 @@ final class DaoTestDoubles
         });
     }
 
+    /** NpcDao::linkedToActor() answered by $fake->fetchAll() (one lookup per call), whatever the SQL text. */
+    public static function linkedActorsFrom(object $fake): void
+    {
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+            {
+                return $this->fake->fetchAll('linked actors '.$formId.'|'.$originPlugin.'|'.$playthroughId);
+            }
+        });
+    }
+
     public static function reset(): void
     {
         RequestExecutionDao::inject(null);
+        NpcDao::inject(null);
     }
 }

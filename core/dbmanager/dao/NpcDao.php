@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractNpc;
 
 /** Finds rows of core_npc. */
-final class NpcDao
+class NpcDao
 {
     use UsesEntityManager;
 
