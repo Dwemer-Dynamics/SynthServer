@@ -4,16 +4,10 @@ error_reporting(E_ALL);
 
 $rootPath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
-require_once($rootPath . "lib" . DIRECTORY_SEPARATOR . "db_connection_settings.php");
 
-$dbSettings = synthDbConnectionSettings('synth');
-$schema = $dbSettings['schema'];
 
 // Connect to the database
-$conn = pg_connect(synthPgConnectionString($dbSettings));
-if (!$conn) {
- die(json_encode(['success' => false, 'message' => 'Database connection failed']));
-}
+$promptDao = \Synth\Core\DbManager\Dao\PromptDao::current(\Synth\Bootstrap::db());
 
 // Initialize message variable
 $message = '';
@@ -22,13 +16,7 @@ $message = '';
  * EXPORT CUSTOM PROMPTS TO CSV
  ********************************************************************/
 if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
- $query = "
- SELECT prompt_key, custom_prompt
- FROM $schema.prompts
- WHERE custom_prompt IS NOT NULL AND custom_prompt != ''
- ORDER BY prompt_key ASC
- ";
- $result = pg_query($conn, $query);
+ $result = $promptDao->customRows();
 
  if ($result) {
  $filename = 'custom_prompts_' . date('Y-m-d_H-i-s') . '.csv';
@@ -44,7 +32,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom') {
  fputcsv($output, ['prompt_key', 'custom_prompt']);
 
  // Write data
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($result as $row) {
  fputcsv($output, [$row['prompt_key'], $row['custom_prompt']]);
  }
 
@@ -69,19 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
  $custom_prompt = null;
  }
 
- $query = "
- UPDATE $schema.prompts
- SET custom_prompt = $1,
- updated_at = CURRENT_TIMESTAMP
- WHERE prompt_key = $2
- ";
- $result = pg_query_params($conn, $query, [$custom_prompt, $prompt_key]);
+ $result = $promptDao->setCustom($prompt_key, $custom_prompt);
 
  if ($result) {
  $message = $custom_prompt === null ? "Custom prompt cleared" : "Custom prompt updated successfully";
  $success = true;
  } else {
- $message = "Error updating prompt: " . pg_last_error($conn);
+ $message = "Error updating prompt";
  $success = false;
  }
  } else {
@@ -99,16 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_SERVER['HTTP_X_REQUESTED_W
  $prompt_key = $_POST['prompt_key'] ?? '';
 
  if (!empty($prompt_key)) {
- $query = "
- UPDATE $schema.prompts
- SET custom_prompt = NULL,
- updated_at = CURRENT_TIMESTAMP
- WHERE prompt_key = $1
- ";
- $result = pg_query_params($conn, $query, [$prompt_key]);
+ $result = $promptDao->setCustom($prompt_key, null);
 
  $success = (bool)$result;
- $message = $success ? "Custom prompt cleared" : "Error clearing prompt: " . pg_last_error($conn);
+ $message = $success ? "Custom prompt cleared" : "Error clearing prompt";
  } else {
  $success = false;
  $message = "No prompt key specified";
@@ -165,18 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  }
 
  // Check if prompt key exists
- $checkQuery = "SELECT prompt_key FROM $schema.prompts WHERE prompt_key = $1";
- $checkResult = pg_query_params($conn, $checkQuery, [$prompt_key]);
-
- if ($checkResult && pg_num_rows($checkResult) > 0) {
+ if ($promptDao->exists($prompt_key)) {
  // Update custom prompt
- $updateQuery = "
- UPDATE $schema.prompts
- SET custom_prompt = $1,
- updated_at = CURRENT_TIMESTAMP
- WHERE prompt_key = $2
- ";
- $updateResult = pg_query_params($conn, $updateQuery, [$custom_prompt, $prompt_key]);
+ $updateResult = $promptDao->setCustom($prompt_key, $custom_prompt);
 
  if ($updateResult) {
  $importCount++;
@@ -227,18 +194,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  $custom_prompt = null;
  }
 
- $query = "
- UPDATE $schema.prompts
- SET custom_prompt = $1,
- updated_at = CURRENT_TIMESTAMP
- WHERE prompt_key = $2
- ";
- $result = pg_query_params($conn, $query, [$custom_prompt, $prompt_key]);
+ $result = $promptDao->setCustom($prompt_key, $custom_prompt);
 
  if ($result) {
  $message = $custom_prompt === null ? "Custom prompt cleared. Using default prompt for <strong>$prompt_key</strong>." : "Custom prompt updated successfully for <strong>$prompt_key</strong>.";
  } else {
- $message = "Error updating prompt: " . pg_last_error($conn);
+ $message = "Error updating prompt";
  }
  } else {
  $message = "No prompt key specified.";
@@ -252,18 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  $prompt_key = $_POST['prompt_key'] ?? '';
 
  if (!empty($prompt_key)) {
- $query = "
- UPDATE $schema.prompts
- SET custom_prompt = NULL,
- updated_at = CURRENT_TIMESTAMP
- WHERE prompt_key = $1
- ";
- $result = pg_query_params($conn, $query, [$prompt_key]);
+ $result = $promptDao->setCustom($prompt_key, null);
 
  if ($result) {
  $message = "Custom prompt cleared. Reverted to default prompt for <strong>$prompt_key</strong>.";
  } else {
- $message = "Error clearing prompt: " . pg_last_error($conn);
+ $message = "Error clearing prompt";
  }
  }
 }
@@ -897,16 +852,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  /********************************************************************
  * 3) DISPLAY ALL PROMPTS IN TABLE
  ********************************************************************/
- $query = "
- SELECT prompt_key, default_prompt, custom_prompt, description,
- created_at, updated_at
- FROM $schema.prompts
- ORDER BY prompt_key ASC
- ";
- $result = pg_query($conn, $query);
+ $promptRows = $promptDao->listAll();
 
- if ($result && pg_num_rows($result) > 0):
- ?><div class="table-container"><table class="prompts-table"><thead><tr><th>Prompt Key</th><th>Description</th><th>Status</th><th>Preview</th><th>Actions</th></tr></thead><tbody><?php while ($row = pg_fetch_assoc($result)):
+ if ($promptRows !== []):
+ ?><div class="table-container"><table class="prompts-table"><thead><tr><th>Prompt Key</th><th>Description</th><th>Status</th><th>Preview</th><th>Actions</th></tr></thead><tbody><?php foreach ($promptRows as $row):
  $prompt_key = htmlspecialchars($row['prompt_key']);
  $default_prompt = $row['default_prompt'];
  $custom_prompt = $row['custom_prompt'];
@@ -924,7 +873,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
  Edit
  </button><?php if ($is_custom): ?><button class="btn btn-clear" onclick="clearCustomPrompt('<?php echo $prompt_key; ?>')">
  Clear
- </button><?php endif; ?></td></tr><?php endwhile; ?></tbody></table></div><?php else: ?><div class="warning-box"><h3> No Prompts Found</h3><p>The prompts table appears to be empty. Please run the database migration to initialize the prompts system.</p></div><?php endif; ?></main><!-- Edit Modal --><div id="editModal" class="modal"><div class="modal-content"><div class="modal-header"><span class="close" onclick="closeEditModal()">&times;</span><h2> Edit Prompt: <span id="modalPromptKey"></span></h2></div><div class="modal-body"><div class="form-group"><label> Description & File Location</label><p id="modalDescription" style="color: #b0b0b0;"></p></div><div class="form-group"><label> Default Prompt (Read-Only)</label><div id="modalDefaultPrompt" class="readonly-content"></div></div><div class="form-group"><label> Custom Prompt (Optional - Leave empty to use default)</label><textarea id="modalCustomPrompt" class="form-control" placeholder="Enter your custom prompt here, or leave empty to use the default prompt..."></textarea></div></div><div class="modal-footer"><button class="btn btn-cancel" onclick="closeEditModal()">Cancel</button><button class="btn btn-save" onclick="savePrompt()"> Save Custom Prompt</button></div></div></div><script>
+ </button><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div><?php else: ?><div class="warning-box"><h3> No Prompts Found</h3><p>The prompts table appears to be empty. Please run the database migration to initialize the prompts system.</p></div><?php endif; ?></main><!-- Edit Modal --><div id="editModal" class="modal"><div class="modal-content"><div class="modal-header"><span class="close" onclick="closeEditModal()">&times;</span><h2> Edit Prompt: <span id="modalPromptKey"></span></h2></div><div class="modal-body"><div class="form-group"><label> Description & File Location</label><p id="modalDescription" style="color: #b0b0b0;"></p></div><div class="form-group"><label> Default Prompt (Read-Only)</label><div id="modalDefaultPrompt" class="readonly-content"></div></div><div class="form-group"><label> Custom Prompt (Optional - Leave empty to use default)</label><textarea id="modalCustomPrompt" class="form-control" placeholder="Enter your custom prompt here, or leave empty to use the default prompt..."></textarea></div></div><div class="modal-footer"><button class="btn btn-cancel" onclick="closeEditModal()">Cancel</button><button class="btn btn-save" onclick="savePrompt()"> Save Custom Prompt</button></div></div></div><script>
 // Define webRoot for JavaScript
 var webRoot = '<?php echo $webRoot; ?>';
 
@@ -933,11 +882,10 @@ var promptsData = {};
 
 <?php
 // Generate JavaScript data object
-$result = pg_query($conn, $query);
-if ($result) {
+{
  echo "promptsData = {\n";
  $first = true;
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($promptRows as $row) {
  if (!$first) echo ",\n";
  $first = false;
  echo " '" . $row['prompt_key'] . "': {\n";
