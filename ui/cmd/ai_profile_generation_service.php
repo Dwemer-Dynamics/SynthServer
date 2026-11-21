@@ -274,17 +274,17 @@ function aiProfileGenerate(array $options): array
     $connector->setOldGlobals($currentConnectorData);
     $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData);
 
-    $GLOBALS['SYNTH_NAME'] = $name;
-    $GLOBALS["SCRIPTLINE_EXPRESSION"] = "";
-    $GLOBALS["SCRIPTLINE_LISTENER"] = "";
-    $GLOBALS["SCRIPTLINE_ANIMATION"] = "";
+    \Synth\Bootstrap::set('SYNTH_NAME', $name);
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', "");
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', "");
+    \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "");
 
     $res = $db->fetchAll("select max(gamets) as last_gamets from core_context_event");
     $res2 = $db->fetchAll("select max(ts) as ts from core_context_event where gamets='{$res[0]["last_gamets"]}'");
     $last_gamets = $res[0]["last_gamets"] + 1;
     $gameRequest = ["inputtext", "0", $last_gamets, $name];
     $last_ts = $res2[0]["ts"] ?? time();
-    $GLOBALS['gameRequest'] = $gameRequest;
+    \Synth\Bootstrap::set('gameRequest', $gameRequest);
 
     $dynamicBiography = buildDynamicBiography($GLOBALS);
     $extendedData = $npcMaster->getExtendedData($currentNpcData);

@@ -235,7 +235,7 @@ foreach ($paths as $p) {
         $norm = str_replace('\\', '/', $f);
         if (substr($f, -4) !== '.php' || preg_match('#/(vendor)/#', $norm) || basename($f) === 'bootstrap.php' && !str_contains($norm, '/tests/')) continue;
         $code = file_get_contents($f);
-        if (!str_contains($code, 'GLOBALS')) continue;
+        if (!str_contains($code, 'GLOBALS') && !preg_match('/\bglobal\s+\$/', $code)) continue;
         $new = convertFile($code, $only, $stats, $manual, $norm);
         if ($new !== $code) {
             if (!$opts['dry']) file_put_contents($f, $new);

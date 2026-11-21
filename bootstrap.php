@@ -173,6 +173,12 @@ final class Bootstrap
         return $ref ??= $default;
     }
 
+    /** `array_key_exists($name, $GLOBALS)`: the name exists, even with a null value. */
+    public static function exists(string $name): bool
+    {
+        return array_key_exists($name, $GLOBALS);
+    }
+
     /** `isset($GLOBALS[$name])`: the value exists and is not null. */
     public static function has(string $name): bool
     {

@@ -11,7 +11,7 @@ synthRuntimeBootstrap($enginePath, [
 ]);
 
 
-if (!isset($GLOBALS["db"])) { $GLOBALS["db"] = new sql(); }
+if (!\Synth\Bootstrap::has('db')) { \Synth\Bootstrap::set('db', new sql()); }
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "llm_connector.class.php");
@@ -95,8 +95,8 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  $contextData = array_merge($head, $prompt);
 
  // Set connector globals expected by action parsing.
- $GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"] = false;
- $GLOBALS["TEMPLATE_DIALOG"] = "";
+ \Synth\Bootstrap::setPath('FEATURES', ["MEMORY_EMBEDDING", "ENABLED"], false);
+ \Synth\Bootstrap::set('TEMPLATE_DIALOG', "");
  $FUNCTIONS_ARE_ENABLED = true;
  $FUNCTION_PARM_MOVETO = [\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player'];
  $FUNCTION_PARM_INSPECT = [\Synth\Bootstrap::config("PLAYER_NAME") ?? 'Player', 'monster'];
@@ -181,7 +181,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  // Request sent to LLM (from connector DEBUG_DATA)
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Request Payload:</span></div>';
- if (!empty($GLOBALS['DEBUG_DATA']['full'])) {
+ if (!empty(\Synth\Bootstrap::config('DEBUG_DATA')['full'])) {
  $reqJson = json_encode(\Synth\Bootstrap::config('DEBUG_DATA')['full'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
  echo '<pre>'.htmlspecialchars($reqJson).'</pre>';
  } else {
@@ -192,7 +192,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  // Raw/Debug info (e.g., parsed RAW content)
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Debug (RAW/Actions):</span></div>';
- if (!empty($GLOBALS['DEBUG_DATA']['RAW'])) {
+ if (!empty(\Synth\Bootstrap::config('DEBUG_DATA')['RAW'])) {
  $rawShow = is_string(\Synth\Bootstrap::config('DEBUG_DATA')['RAW']) ? \Synth\Bootstrap::config('DEBUG_DATA')['RAW'] : json_encode(\Synth\Bootstrap::config('DEBUG_DATA')['RAW'], JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
  echo '<pre>'.htmlspecialchars($rawShow).'</pre>';
  } else {
@@ -201,7 +201,7 @@ include(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRE
  echo '</div>';
 
  // Any accumulated buffers/errors emitted by the connector.
- if (!empty($GLOBALS['ALREADY_SENT_BUFFER'])) {
+ if (!empty(\Synth\Bootstrap::config('ALREADY_SENT_BUFFER'))) {
  echo '<div class="panel">';
  echo '<div class="status"><span class="label">Internal Buffers:</span></div>';
  $bufDump = is_string(\Synth\Bootstrap::config('ALREADY_SENT_BUFFER')) ? \Synth\Bootstrap::config('ALREADY_SENT_BUFFER') : print_r(\Synth\Bootstrap::config('ALREADY_SENT_BUFFER'), true);

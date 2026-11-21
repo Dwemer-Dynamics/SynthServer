@@ -1,7 +1,7 @@
 <?php
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
@@ -28,7 +28,7 @@ if ($webRoot === '/') {
 $webRoot = rtrim($webRoot, '/');
 $isEmbed = isset($_GET['embed']) && strval($_GET['embed']) === '1';
 
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 $ttsConnector = new TTSConnector();
 
 require_once($enginePath . "prompt.includes.php");
@@ -69,32 +69,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connector) {
 
     try {
         $ttsConnector->setOldGlobals($connector);
-        $GLOBALS["SYNTH_NAME"] = "The Narrator";
-        $GLOBALS["AVOID_TTS_CACHE"] = true;
-        $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-        $GLOBALS["SYNTH_ANIMATIONS"] = false;
-        $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-        $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-        $GLOBALS["DEBUG_DATA"] = [];
-        $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-        if (!isset($GLOBALS["FEATURES"]["MISC"])) {
-            $GLOBALS["FEATURES"]["MISC"] = [];
+        \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+        \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+        \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+        \Synth\Bootstrap::set('SYNTH_ANIMATIONS', false);
+        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+        \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+        \Synth\Bootstrap::set('DEBUG_DATA', []);
+        \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+        if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"])) {
+            \Synth\Bootstrap::setAt('FEATURES', "MISC", []);
         }
-        if (!isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])) {
-            $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
+        if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])) {
+            \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
         }
-        $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
+        \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
 
         if ($voiceId !== '') {
-            $GLOBALS["PATCH_OVERRIDE_VOICE"] = $voiceId;
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voiceId);
         } else {
-            unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
         }
-        unset($GLOBALS["PATCH_OVERRIDE_VOICE_ID"]);
-        unset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]);
+        \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE_ID');
+        \Synth\Bootstrap::forget('PATCH_OVERRIDE_TTS_LANGUAGE');
 
         returnLines([$testString], false);
-        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename(strval(\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0])) : '';
+        $file = isset(\Synth\Bootstrap::config('TRACK')["FILES_GENERATED"][0]) ? basename(strval(\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0])) : '';
         if ($file !== '') {
             $audioUrl = $webRoot . '/soundcache/' . $file . '?ts=' . time();
         } else {
@@ -114,24 +114,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $connector) {
         $errorText = $e->getMessage();
     } finally {
         if ($hadVoiceOverride) {
-            $GLOBALS["PATCH_OVERRIDE_VOICE"] = $oldVoiceOverride;
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $oldVoiceOverride);
         } else {
-            unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
         }
         if ($hadVoiceIdGlobal) {
-            $GLOBALS["PATCH_OVERRIDE_VOICE_ID"] = $oldVoiceIdGlobal;
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE_ID', $oldVoiceIdGlobal);
         } else {
-            unset($GLOBALS["PATCH_OVERRIDE_VOICE_ID"]);
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE_ID');
         }
         if ($hadLanguageGlobal) {
-            $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"] = $oldLanguageGlobal;
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_TTS_LANGUAGE', $oldLanguageGlobal);
         } else {
-            unset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]);
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_TTS_LANGUAGE');
         }
-        $GLOBALS["TTSFUNCTION"] = $originalTtsFunction;
-        $GLOBALS["SYNTH_NAME"] = $originalName;
-        unset($GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"]);
-        unset($GLOBALS["SCRIPTLINE_ANIMATION_SENT"]);
+        \Synth\Bootstrap::set('TTSFUNCTION', $originalTtsFunction);
+        \Synth\Bootstrap::set('SYNTH_NAME', $originalName);
+        \Synth\Bootstrap::forget('PATCH_DONT_STORE_SPEECH_ON_DB');
+        \Synth\Bootstrap::forget('SCRIPTLINE_ANIMATION_SENT');
     }
 }
 

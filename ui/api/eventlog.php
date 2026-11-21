@@ -11,12 +11,12 @@ define('LIB_PATH', BASE_PATH . DIRECTORY_SEPARATOR . 'lib');
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."profile_loader.php");
 
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."logger.php");
-require_once(LIB_PATH .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."eventlog_helper.php");
 
 $db = \Synth\Bootstrap::db() ?? new sql();
-$GLOBALS['db'] = $db;
+\Synth\Bootstrap::set('db', $db);
 
 // Set JSON header
 header('Content-Type: application/json');

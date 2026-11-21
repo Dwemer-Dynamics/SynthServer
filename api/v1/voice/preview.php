@@ -71,7 +71,7 @@ if (!is_int($npcId) || $npcId < 1 || !is_string($text)) {
     synthVoicePreviewFail(400, 'invalid_input', 'npc_id must be a positive integer and text a string.');
 }
 
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 try {
     require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
     // A preview is not a game turn: no log rotation, no settings seeding.

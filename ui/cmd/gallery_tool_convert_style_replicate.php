@@ -24,7 +24,7 @@ if ($method === 'POST') {
  require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "data_functions.php";
  require_once $enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php";
 
- $GLOBALS["ENGINE_PATH"] = $enginePath;
+ \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
  $db = \Synth\Bootstrap::db();
 

@@ -133,7 +133,7 @@ $hide_navbar = ((isset($_GET["navbar"])) && ($_GET["navbar"] == "hidden"));
 if (isset($_GET['embed']) && $_GET['embed']) { $hide_navbar = true; }
 // Remove redundant profile loading code here and go straight to lib loading
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."logger.php");
-require_once(LIB_PATH .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."misc_ui_functions.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."chat_helper_functions.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."background_processor.php");
@@ -239,7 +239,7 @@ if (isset($_POST["command"])) {
  'localts' => time(),
  'sent' => 0,
  'text' => $commandPayload,
- 'actor' => "{$GLOBALS["SYNTH_NAME"]}",
+ 'actor' => ((string)\Synth\Bootstrap::config('SYNTH_NAME')),
  'action' => 'command'
  )
  );
@@ -253,7 +253,7 @@ if (isset($_POST["animation"])) {
  'localts' => time(),
  'sent' => 0,
  'text' => trim($_POST["animation"]),
- 'actor' => "{$GLOBALS["SYNTH_NAME"]}",
+ 'actor' => ((string)\Synth\Bootstrap::config('SYNTH_NAME')),
  'action' => 'animation'
  )
  );
