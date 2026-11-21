@@ -374,6 +374,22 @@ final class DaoTestDoubles
         });
     }
 
+    /** ActorIdentityDao::identityRow() answered by $fake->fetchOne() with the legacy identity query. */
+    public static function identityRowFrom(object $fake): void
+    {
+        ActorIdentityDao::inject(new class($fake) extends ActorIdentityDao {
+            public function __construct(private object $fake) {}
+
+            public function identityRow(int $id, ?string $game = null): ?array
+            {
+                $row = $this->fake->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE '
+                    .($game !== null ? "game='{$game}' AND " : '')."id={$id}");
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
     /** NpcDao's by-name and by-actor reads answered by $fake->fetchOne() with the legacy queries. */
     public static function npcFrom(object $fake): void
     {

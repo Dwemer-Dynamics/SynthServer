@@ -145,7 +145,7 @@ final class CharacterFormVoiceTest extends TestCase
         };
         try {
             $GLOBALS['db']=$db;
-            DaoTestDoubles::ownerFrom($db);DaoTestDoubles::identityFrom($db);
+            DaoTestDoubles::ownerFrom($db);DaoTestDoubles::identityRowFrom($db);
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>2,'game'=>'fo4',
                 'runtime_variant'=>'flat','session_id'=>'session-curie','request_id'=>'request-curie',
