@@ -110,6 +110,43 @@ class RuntimeSessionDao
         return $this->tryStatement("UPDATE public.core_runtime_session SET state = 'halted', updated_at = NOW() WHERE session_id = ?", [$sessionId]);
     }
 
+    /** The runtime variant, active generation and capabilities of this session while it is active in this playthrough; null otherwise. @return array<string, mixed>|null */
+    public function activeInPlaythrough(string $sessionId, string $playthroughId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT runtime_variant, active_generation, capabilities FROM public.core_runtime_session
+              WHERE session_id = ? AND playthrough_id = ? AND state='active'",
+            [$sessionId, $playthroughId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Locks the session row FOR UPDATE until the caller's open transaction ends; true when the row exists. */
+    public function lockRow(string $sessionId): bool
+    {
+        return $this->connection()->fetchOne('SELECT session_id FROM public.core_runtime_session WHERE session_id = ? FOR UPDATE', [$sessionId]) !== false;
+    }
+
+    /**
+     * The facts a visual request is validated against: playthrough, variant, active generation and turn, capabilities, state and the
+     * protocol version of the generation's init event ('1' without one); null when the session is unknown.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function visualValidationRow(string $sessionId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT playthrough_id, runtime_variant, active_generation, active_turn_id, active_turn_sequence, capabilities, state,
+                COALESCE((SELECT e.canonical_event->>'protocol_version' FROM public.core_protocol_event e
+                    WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.event_type='init' LIMIT 1), '1') AS protocol_version
+               FROM public.core_runtime_session r WHERE session_id = ? LIMIT 1",
+            [$sessionId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeSession> */
     public function findAll(int $limit = 1000): array
     {
