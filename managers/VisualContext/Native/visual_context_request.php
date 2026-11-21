@@ -279,8 +279,7 @@ function synth_visual_same_actor(array $left, array $right): bool
 // A reaction consumes one successful capture, never a best-match gallery row.
 function synth_visual_bound_capture($db, array $event): array
 {
-    $capture = $db->escapeLiteral(strval($event['payload']['capture_id'] ?? ''));
-    $row = $db->fetchOne("SELECT * FROM public.core_visual_context WHERE capture_id=$capture AND active=TRUE LIMIT 1");
+    $row = \Synth\Core\DbManager\Dao\VisualContextDao::current($db)->findByCapture(strval($event['payload']['capture_id'] ?? ''), true);
     $metadata = is_array($row['metadata'] ?? null) ? $row['metadata'] : json_decode(strval($row['metadata'] ?? ''), true);
     $response = is_array($row['response_payload'] ?? null) ? $row['response_payload'] : json_decode(strval($row['response_payload'] ?? ''), true);
     if (!$row || ($metadata['protocol_version'] ?? null) !== 2 || ($response['ok'] ?? null) !== true
