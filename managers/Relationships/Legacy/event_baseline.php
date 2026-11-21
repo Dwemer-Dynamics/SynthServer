@@ -56,18 +56,7 @@ if (!function_exists('synthRelBuildEventBaseline')) {
 
         $eventLimit = max(25, min(400, $eventLimit));
         $scanLimit = max(300, min(3500, $eventLimit * 8));
-        $escapedName = $db->escape($npcName);
-        $rows = $db->fetchAll(
-            "SELECT rowid, type, data, gamets, people, location
-             FROM core_context_event
-             WHERE type NOT IN ('prechat','setconf','status_msg','user_input','npc_snapshot','playerinfo')
-               AND (
-                    POSITION(LOWER('{$escapedName}') IN LOWER(COALESCE(people, ''))) > 0
-                    OR POSITION(LOWER('{$escapedName}') IN LOWER(COALESCE(data, ''))) > 0
-               )
-             ORDER BY rowid DESC
-             LIMIT " . intval($scanLimit)
-        );
+        $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentMentioning($npcName, intval($scanLimit));
 
         $lines = [];
         $counterparts = [];

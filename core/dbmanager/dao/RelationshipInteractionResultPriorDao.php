@@ -24,4 +24,14 @@ final class RelationshipInteractionResultPriorDao
     {
         return array_values($this->fresh()->getRepository(AbstractRelationshipInteractionResultPrior::class)->findBy([], ['resultHistoryEventId' => 'ASC', 'actorIdentityId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Freezes the saved revision this actor held when the interaction result was computed. */
+    public function add(int $resultHistoryEventId, int $actorId, int|string $priorHistoryEventId): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_relationship_interaction_result_prior
+                (result_history_event_id,actor_identity_id,prior_history_event_id) VALUES(:p1,:p2,:p3)',
+            ['p1' => $resultHistoryEventId, 'p2' => $actorId, 'p3' => $priorHistoryEventId]
+        );
+    }
 }

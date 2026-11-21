@@ -120,24 +120,9 @@ function synth_relationship_store_response($db, array $event, string $body): voi
         if (!$db->isTransactionIdle()) return;
         $db->withNativeRequestLock(static function($connection,array $owner) use($db,$capture,$event,$body) {
             if (array_intersect_key($owner,$capture['owner'])!==$capture['owner'] || $owner!==$event) return;
-            $result=@pg_query_params($connection,"SELECT c.target_identity_id,c.playthrough_id,p.canonical_event,p.event_sha256,
-                    COALESCE((c.context_payload->'world'->>'game_time_ticks')::bigint,0) AS gamets
-                FROM public.core_request_execution r JOIN public.core_runtime_context c ON c.session_id=r.session_id
-                    AND c.generation=r.generation AND c.snapshot_sequence=$3
-                JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
-                JOIN public.core_protocol_event p ON p.session_id=r.session_id AND p.request_id=r.request_id
-                    AND p.generation=r.generation AND p.turn_id=r.turn_id AND p.event_type=r.event_type
-                    AND p.event_sha256=r.request_sha256
-                JOIN public.core_actor_identity a ON a.id=c.target_identity_id AND a.playthrough_id=c.playthrough_id
-                    AND a.game='fo4' AND upper(a.full_form_id)=upper(c.context_payload->'target'->>'form_id')
-                    AND lower(a.origin_plugin)=lower(c.context_payload->'target'->>'origin_plugin')
-                WHERE r.session_id=$1 AND r.request_id=$2 AND r.state='complete'
-                    AND r.response_body=decode($4,'hex') AND c.history_event_id IS NOT NULL
-                    AND r.turn_id=$5 AND r.generation=$6 AND s.runtime_variant=$7 AND s.game='fo4'",
-                [$owner['session_id'],$owner['request_id'],$owner['context_sequence'],bin2hex($body),
-                 $owner['turn_id'],$owner['generation'],$owner['runtime_variant']]);
-            if (!$result) throw new RuntimeException('Unable to verify relationship response completion');
-            $context=pg_fetch_assoc($result); if (!$context) return;
+            $context=\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->completedResponseContext($owner['session_id'],$owner['request_id'],
+                $owner['context_sequence'],bin2hex($body),$owner['turn_id'],$owner['generation'],$owner['runtime_variant']);
+            if (!$context) return;
             $request=synth_protocol_decode_json($context['canonical_event']);
             $requestJson=synth_protocol_canonical_json($event);
             if (!is_array($request) || synth_protocol_canonical_json($request)!==$requestJson
@@ -145,13 +130,8 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             // Text and STT use the actual processed input insertion, which legitimately has no delivery state.
             $inputs=[];
             if (in_array($event['type'],['input_text','input_audio'],true)) {
-                $result=@pg_query_params($connection,"SELECT id,event_payload FROM public.core_history_event
-                    WHERE session_id=$1 AND generation=$2 AND request_id=$3 AND context_sequence=$4
-                        AND playthrough_id=$5 AND event_payload->>'type' IN ('inputtext','inputtext_s')
-                    ORDER BY id LIMIT 2",[$owner['session_id'],$owner['generation'],$owner['request_id'],
-                        $owner['context_sequence'],$context['playthrough_id']]);
-                if (!$result) throw new RuntimeException('Unable to freeze processed relationship input');
-                $rows=pg_fetch_all($result);
+                $rows=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->processedInputs($owner['session_id'],$owner['generation'],
+                    $owner['request_id'],$owner['context_sequence'],$context['playthrough_id']);
                 if (count($rows)!==1) return;
                 $input=json_decode($rows[0]['event_payload'],true,flags:JSON_THROW_ON_ERROR);
                 if (!in_array($input['delivery_state'] ?? null,[null,'received'],true)) return;
@@ -206,30 +186,11 @@ function synth_relationship_store_response($db, array $event, string $body): voi
             $payload=json_encode($responsePayload,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             if (strlen($payload)>131072) return;
             $hash=hash('sha256',$body);
-            $existing=@pg_query_params($connection,'SELECT history_event_id FROM public.core_relationship_response_input
-                WHERE session_id=$1 AND request_id=$2',[$owner['session_id'],$owner['request_id']]);
-            if (!$existing) throw new RuntimeException('Unable to check relationship response replay');
-            if (pg_fetch_assoc($existing)) return;
-            $result=@pg_query_params($connection,"WITH publication AS (
-                INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-                    synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-                VALUES('relationship_response','Accepted native model speech',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
-            ), history AS (
-                INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-                SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
-                    ||jsonb_build_object('response_sha256',$9::text,'response_payload_sha256',
-                        encode(sha256(convert_to(($10::jsonb)::text,'UTF8')),'hex'))
-                    FROM publication RETURNING id
-            ) INSERT INTO public.core_relationship_response_input
-                (history_event_id,session_id,request_id,actor_identity_id,response_sha256,response_payload)
-                SELECT id,$4,$7,$8,$9,$10::jsonb FROM history RETURNING history_event_id",
-                [$context['playthrough_id'],$context['gamets'],time(),$owner['session_id'],$owner['generation'],
-                 $owner['context_sequence'],$owner['request_id'],$responder['actor_identity_id'],$hash,$payload]);
-            if (!$result) throw new RuntimeException('Unable to freeze relationship response');
-            $responseId=intval(pg_fetch_assoc($result)['history_event_id']);
+            if (\Synth\Core\DbManager\Dao\RelationshipResponseInputDao::current($db)->existsForRequest($owner['session_id'],$owner['request_id'])) return;
+            $responseId=\Synth\Core\DbManager\Dao\RelationshipResponseInputDao::current($db)->publish($context['playthrough_id'],$context['gamets'],time(),
+                $owner['session_id'],$owner['generation'],$owner['context_sequence'],$owner['request_id'],$responder['actor_identity_id'],$hash,$payload);
             foreach ($inputs as $input) {
-                if (@pg_query_params($connection,'INSERT INTO public.core_relationship_response_source VALUES($1,$2)',
-                    [$responseId,$input['id']])===false) throw new RuntimeException('Unable to freeze relationship input dependency');
+                \Synth\Core\DbManager\Dao\RelationshipResponseSourceDao::current($db)->add($responseId,$input['id']);
             }
         },2000);
     } catch (SYNTHProtocolCancelled $error) {

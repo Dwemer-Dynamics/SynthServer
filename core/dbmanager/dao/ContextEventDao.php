@@ -12,6 +12,7 @@ use Synth\Core\Entities\Base\AbstractContextEvent;
 final class ContextEventDao
 {
     use UsesEntityManager;
+    use TextRows;
 
     /** One row by its primary key, or null. */
     public function find(int|string $rowid): ?AbstractContextEvent
@@ -371,5 +372,27 @@ final class ContextEventDao
         }
 
         return [$where, $params];
+    }
+
+    /**
+     * The newest context events (by rowid, descending) other than prompts, settings and inputs whose people or data mention
+     * this name without regard to case.
+     *
+     * @return list<array{rowid: string, type: string, data: string|null, gamets: string|null, people: string|null, location: string|null}>
+     */
+    public function recentMentioning(string $name, int $limit): array
+    {
+        return self::textRows($this->connection()->fetchAllAssociative(
+            "SELECT rowid, type, data, gamets, people, location
+             FROM core_context_event
+             WHERE type NOT IN ('prechat','setconf','status_msg','user_input','npc_snapshot','playerinfo')
+               AND (
+                    POSITION(LOWER(:p1) IN LOWER(COALESCE(people, ''))) > 0
+                    OR POSITION(LOWER(:p1) IN LOWER(COALESCE(data, ''))) > 0
+               )
+             ORDER BY rowid DESC
+             LIMIT :p2",
+            ['p1' => $name, 'p2' => $limit]
+        ));
     }
 }
