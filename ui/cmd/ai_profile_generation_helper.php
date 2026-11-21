@@ -45,11 +45,7 @@ function aiProfileBuildPreviewEvents(string $npcName, array $currentNpcData, $db
 {
     $eventLimit = max(10, min(200, $eventLimit));
 
-    $npcNameEsc = $db->escape($npcName);
-    $query = "SELECT max(gamets) as gamets from core_speech where
-        (speaker='$npcNameEsc' or listener='$npcNameEsc' or companions like '%|$npcNameEsc|%')";
-    $lastIt = $db->fetchOne($query);
-    $lastItNumber = intval($lastIt["gamets"] ?? 0);
+    $lastItNumber = intval(\Synth\Core\DbManager\Dao\SpeechDao::current($db)->lastGametsFor($npcName) ?? 0);
 
     $contextPoolSize = max(200, $eventLimit);
 $sqlfilter = " and gamets<$lastItNumber and type<>'prechat' and type<>'itemfound' and type<>'infoaction' and data not like '%inner thoughts%'";
@@ -90,10 +86,7 @@ $sqlfilter = " and gamets<$lastItNumber and type<>'prechat' and type<>'itemfound
         ];
     }
 
-    $diaryQuery = "SELECT summary AS content,gamets,topic FROM public.core_memory
-        where source_type='diary' and companions='$npcNameEsc' and gamets>$lastItNumber and (topic='Sent Letter' or topic='Journal Note')
-        order by gamets desc ,ts desc limit 5 offset 0";
-    $diaryEntries = $db->fetchAll($diaryQuery);
+    $diaryEntries = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->recentLettersAndNotes($npcName, $lastItNumber, 5);
 
     $structuredEvents = [];
     foreach (array_reverse($diaryEntries) as $index => $dentry) {

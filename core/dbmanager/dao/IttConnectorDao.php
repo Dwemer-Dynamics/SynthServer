@@ -26,4 +26,12 @@ final class IttConnectorDao
     {
         return array_values($this->fresh()->getRepository(AbstractIttConnector::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** Id and option_label (the label, else the driver, else the id) of every connector, for a settings select list. @return list<array<string, mixed>> */
+    public function settingOptions(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT id, COALESCE(NULLIF(label, ''), NULLIF(driver, ''), CAST(id AS text)) AS option_label FROM public.core_itt_connector ORDER BY id ASC"
+        );
+    }
 }

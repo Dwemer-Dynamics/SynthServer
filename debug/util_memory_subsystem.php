@@ -51,16 +51,8 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     $processed_counter=0;
     // Determine query based on whether we're syncing all or just missing vectors
     if ($onlyFix == false) {
-        if ($forceAll) {
-            $countQuery = "SELECT COUNT(*) AS n FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL";
-        } else {
-            $countQuery = "SELECT COUNT(*) AS count FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
-            $fetchQuery = "SELECT summary AS content, uid, classifier, rowid, companions FROM core_memory WHERE source_type='summary' AND summary IS NOT NULL AND (embedding IS NULL OR native_vec IS NULL)";
-        }
-
-        $results                = $db->fetchOne($countQuery);
-        $memories_to_sync_count = isset($results['n']) ? (int) $results['n'] : (isset($results['count']) ? (int) $results['count'] : 0);
+        $memoryDao              = \Synth\Core\DbManager\Dao\MemoryDao::current($db);
+        $memories_to_sync_count = $memoryDao->summarySyncCount((bool) $forceAll);
 
         if ($memories_to_sync_count == 0) {
             echo "No memories found requiring synchronization." . PHP_EOL;
@@ -69,7 +61,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
 
         echo "Found {$memories_to_sync_count} memories to sync. Starting process..." . PHP_EOL;
 
-        $results           = $db->fetchAll($fetchQuery);
+        $results           = $memoryDao->summarySyncRows((bool) $forceAll);
         $processed_counter = 0;
 
         foreach ($results as $row) {
@@ -98,9 +90,7 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
             }
 
             // Save extracted tags and update native_vec (FTS vector)
-            $db->update("core_memory", "tags='" . $db->escape($tagsCol) . "'", "rowid={$row["rowid"]}");
-            $db->execQuery("UPDATE core_memory SET scope='global' WHERE rowid={$row["rowid"]} AND scope IS NULL");
-            $db->execQuery("UPDATE core_memory SET native_vec = setweight(to_tsvector(coalesce(tags, '')), 'A') || setweight(to_tsvector(coalesce(summary, '')), 'B') WHERE rowid={$row["rowid"]}");
+            $memoryDao->saveTagsAndVector((int) $row["rowid"], $tagsCol);
 
             $processed_counter++;
             echo "Updated vector for memory ID {$row["rowid"]}. (Processed {$processed_counter} of {$memories_to_sync_count})" . PHP_EOL;
@@ -114,12 +104,13 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     echo "Completing companions field (method 1)..." . PHP_EOL;
     $pfi      = (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["AUTO_CREATE_SUMMARY_INTERVAL"] + 0) * 100000;
 
-    $db->execQuery("UPDATE core_memory SET companions=NULL WHERE btrim(COALESCE(companions, ''), '|, ') = ''");
+    $memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current($db);
+    $memoryDao->clearBlankCompanions();
 
-    $missingCompanions = $db->fetchAll("SELECT * FROM core_memory WHERE source_type='summary' AND (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions = $memoryDao->summariesMissingCompanions();
     $n=0;
     foreach ($missingCompanions as $row) {
-        $peopleRows = $db->fetchAll("SELECT people FROM core_context_event WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
+        $peopleRows = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->peopleBetween((int) ($row["gamets_truncated"] - $pfi), (int) ($row["gamets_truncated"] + $pfi));
         $npcs       = [];
         foreach ($peopleRows as $p) {
             if (! empty($p["people"])) {
@@ -145,8 +136,8 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
         }
 
         if (!empty($npcInMemory)) {
-            $peopleFmt = $db->escape("|" . implode("|", array_values(array_unique($npcInMemory))) . "|");
-            $db->query("UPDATE core_memory SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
+            $peopleFmt = "|" . implode("|", array_values(array_unique($npcInMemory))) . "|";
+            $memoryDao->setCompanions((int) $row["rowid"], $peopleFmt);
         }
         if ($n++ % 100 == 0) {
             echo "Completed $n/".sizeof($missingCompanions).PHP_EOL;
@@ -156,9 +147,9 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
     // --- Fix companions field (second method) ---
     echo "Completing companions field (method 2)..." . PHP_EOL;
     $n=0;
-    $missingCompanions2 = $db->fetchAll("SELECT * FROM core_memory WHERE source_type='summary' AND (companions IS NULL OR companions = '') and classifier<>'diary' ORDER BY gamets_truncated ASC");
+    $missingCompanions2 = $memoryDao->summariesMissingCompanions();
     foreach ($missingCompanions2 as $row) {
-        $peopleRow = $db->fetchOne("SELECT STRING_AGG(DISTINCT person, '|') AS people FROM synth.memory_v CROSS JOIN LATERAL unnest(array[speaker, listener]) AS participant(person) WHERE gamets > {$row["gamets_truncated"]} - $pfi AND gamets <= {$row["gamets_truncated"]} + $pfi");
+        $peopleRow = ["people" => $memoryDao->participantsInWindow((int) ($row["gamets_truncated"] - $pfi), (int) ($row["gamets_truncated"] + $pfi))];
         $npcs      = [];
         if (! empty($peopleRow["people"])) {
             foreach (explode("|", $peopleRow["people"]) as $npc) {
@@ -178,8 +169,8 @@ function resyncMemorySummaries($db, $forceAll = false, $onlyFix = false)
         }
 
         if (!empty($npcInMemory)) {
-            $peopleFmt = $db->escape("|" . implode("|", array_values(array_unique($npcInMemory))) . "|");
-            $db->query("UPDATE core_memory SET companions='$peopleFmt' WHERE rowid={$row["rowid"]}");
+            $peopleFmt = "|" . implode("|", array_values(array_unique($npcInMemory))) . "|";
+            $memoryDao->setCompanions((int) $row["rowid"], $peopleFmt);
         }
         if ($n++ % 100 == 0) {
             echo "Completed $n/".sizeof($missingCompanions2).PHP_EOL;
@@ -256,7 +247,8 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
         $pfi = 100000;
     }
 
-    $allNpcs = $db->fetchAll("SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC");
+    $memoryDao = \Synth\Core\DbManager\Dao\MemoryDao::current($db);
+    $allNpcs = \Synth\Core\DbManager\Dao\NpcDao::current($db)->namedProfiles();
     $enabledNpcs = [];
     foreach ($allNpcs as $npcRow) {
         if (($npcRow["npc_name"] ?? '') === "The Narrator") {
@@ -322,50 +314,11 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
             continue;
         }
 
-        $npcEsc = $db->escape($npcName);
-        $lastScoped = $db->fetchOne("SELECT COALESCE(MAX(gamets_truncated), 0) AS max_gamets FROM core_memory WHERE source_type='summary' AND scope='$npcEsc'");
-        $lastScopedGamets = intval($lastScoped["max_gamets"] ?? 0);
+        $lastScopedGamets = $memoryDao->lastScopedGamets($npcName);
 
         // Individual summaries are selected by NPC presence in source events/dialogue windows,
         // not by text mention checks in global packed summaries.
-        $pendingRows = $db->fetchAll("
-            SELECT ms.rowid, ms.uid, ms.gamets_truncated, ms.summary, ms.packed_message
-            FROM core_memory ms
-            WHERE source_type='summary' AND ms.summary IS NOT NULL
-              AND (ms.scope IS NULL OR ms.scope='global')
-              AND ms.gamets_truncated > $lastScopedGamets
-              AND (
-                    EXISTS (
-                        SELECT 1
-                        FROM core_context_event ev
-                        WHERE ev.gamets > ms.gamets_truncated - $pfi
-                          AND ev.gamets <= ms.gamets_truncated + $pfi
-                          AND (
-                                (CASE
-                                    WHEN COALESCE(ev.party, '[]') = '[]' THEN COALESCE(ev.people, '')
-                                    ELSE COALESCE(ev.people, ev.party)
-                                 END) ILIKE '%|$npcEsc|%'
-                                OR
-                                (CASE
-                                    WHEN COALESCE(ev.party, '[]') = '[]' THEN COALESCE(ev.people, '')
-                                    ELSE COALESCE(ev.people, ev.party)
-                                 END) ILIKE '%$npcEsc%'
-                              )
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM memory_v mv
-                        WHERE mv.gamets > ms.gamets_truncated - $pfi
-                          AND mv.gamets <= ms.gamets_truncated + $pfi
-                          AND (
-                                LOWER(COALESCE(mv.speaker, '')) = LOWER('$npcEsc')
-                                OR LOWER(COALESCE(mv.listener, '')) = LOWER('$npcEsc')
-                              )
-                    )
-                  )
-            ORDER BY ms.gamets_truncated ASC, ms.rowid ASC
-            LIMIT 500
-        ");
+        $pendingRows = $memoryDao->pendingIndividualSummaries($npcName, $lastScopedGamets, $pfi);
 
         if (sizeof($pendingRows) < $threshold) {
             continue;
@@ -415,8 +368,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
                 break;
             }
 
-            $previousMemoryReq = $db->fetchOne("SELECT summary FROM core_memory WHERE source_type='summary' AND scope='$npcEsc' AND summary IS NOT NULL ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1");
-            $previousMemory = trim((string)($previousMemoryReq["summary"] ?? ''));
+            $previousMemory = trim((string) $memoryDao->latestScopedSummary($npcName));
 
             $prompt = [];
             $prompt[] = ['role' => 'system', 'content' => $systemPrompt];
@@ -438,20 +390,7 @@ function syncIndividualMemorySummaries($db, $connectionHandler = null, $maxBatch
             $tagsCol = extractMemoryTagsColumn($summaryText);
             $uidToUse = $maxUid > 0 ? $maxUid : intval($batch[sizeof($batch) - 1]["rowid"] ?? 1);
 
-            $db->insert(
-                'core_memory',
-                array(
-                    'gamets_truncated' => $maxGamets,
-                    'n' => sizeof($batch),
-                    'packed_message' => $history,
-                    'summary' => $summaryText,
-                    'classifier' => 'individual',
-                    'uid' => $uidToUse,
-                    'companions' => "|{$npcName}|",
-                    'scope' => $npcName,
-                    'tags' => $tagsCol
-                )
-            );
+            $memoryDao->insertIndividualSummary((int) $maxGamets, sizeof($batch), $history, $summaryText, (int) $uidToUse, $npcName, (string) $tagsCol);
 
             $createdCount++;
             $batchCounter++;
@@ -641,7 +580,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"]) {
             echo "Using pgvector search" . PHP_EOL;
 
-            $currentWorldKnowledgeTopic_req = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic'");
+            $currentWorldKnowledgeTopic_req = ["value" => \Synth\Core\DbManager\Dao\ConfigSettingDao::using(\Synth\Core\Doctrine\EntityManagerFactory::forSharedSession($db))->value('conf', 'current_worldknowledge_topic')];
             $currentWorldKnowledgeTopic     = getArrayKey($currentWorldKnowledgeTopic_req, "value");
 
             // Get location and context keywords
@@ -669,7 +608,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
         echo "Starting fixing..." . PHP_EOL;
         $db = new sql();
-        $db->execQuery("update core_memory set companions=null where classifier='dialogue'");
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->clearDialogueCompanions();
 
         resyncMemorySummaries($db, false,true);
 
@@ -686,7 +625,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
             echo "Creating vectors for memories" . PHP_EOL;
 
             $db      = new sql();
-            $results = $db->fetchAll("select topic,topic_desc from core_worldknowledge_article where vector384 is null");
+            $results = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->withoutVector384();
             $counter = 0;
             foreach ($results as $row) {
 
@@ -713,10 +652,8 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Packing complete. Max gamets_truncated row ID from existing summaries: {$maxRow}" . PHP_EOL;
 
         echo "Checking for new entries to summarize and compact..." . PHP_EOL;
-        $count_query              = "select COUNT(*) as count from core_memory where source_type='summary' AND (gamets_truncated>{$maxRow} or summary is null)  ";
-        $count_result_res_compact = $db->query($count_query);
-        $count_result_arr         = $db->fetchArray($count_result_res_compact);
-        $entries_to_process_count = $count_result_arr ? (int) $count_result_arr['count'] : 0;
+        $memoryDao                = \Synth\Core\DbManager\Dao\MemoryDao::current($db);
+        $entries_to_process_count = $memoryDao->compactionCount((int) $maxRow);
 
         $processed_in_loop_counter = 0;
         $connectionHandler = null;
@@ -735,12 +672,11 @@ Note: Memories are stored in memory_summary table, which holds info from events/
 
                 error_log("Using connector {$currentConnectorData["driver"]}/{$currentConnectorData["model"]}");
 
-                $results_query = "select gamets_truncated,packed_message,uid,classifier,rowid,companions from core_memory where source_type='summary' AND (gamets_truncated>{$maxRow} or summary is null)  order by gamets_truncated asc ";
-                $results       = $db->query($results_query);
+                $results       = $memoryDao->compactionRows((int) $maxRow);
 
                 $toUpdate = [];
 
-                while ($row = $db->fetchArray($results)) {
+                foreach ($results as $row) {
 
                 if (isset($argv[3])) { // User-defined limit for number of entries to process
                     if ($processed_in_loop_counter >= ($argv[3] + 0)) {
@@ -749,7 +685,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     }
                 }
 
-                $prevMemory = $db->fetchOne("SELECT gamets_truncated, packed_message,  uid, classifier, rowid,companions,summary FROM core_memory WHERE source_type='summary' AND gamets_truncated < {$row["gamets_truncated"]} ORDER BY gamets_truncated DESC LIMIT 1");
+                $prevMemory = $memoryDao->previousSummaryBefore((int) $row["gamets_truncated"]) ?? [];
                 // Summarization logic begins
                 if ($row["classifier"] == "diary") {
                     $TEST_TEXT = $row["packed_message"];
@@ -887,8 +823,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
                     }
                 }
                 if ($current_summary_to_save) {
-                    $db->execQuery("update core_memory set summary='" . $db->escape($current_summary_to_save) . "',tags='" . $db->escape($tagsCol) . "',scope=COALESCE(scope,'global') where rowid={$row["rowid"]}");
-                    $db->execQuery("update core_memory SET native_vec = setweight(to_tsvector(coalesce(tags, '')),'A')||setweight(to_tsvector(coalesce(summary, '')),'B') where rowid={$row["rowid"]}");
+                    $memoryDao->saveCompactedSummary((int) $row["rowid"], (string) $current_summary_to_save, (string) $tagsCol);
                 }
 
                 // Original embedding call within loop (conditionally for \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["USE_TEXT2VEC"])
@@ -926,7 +861,7 @@ Note: Memories are stored in memory_summary table, which holds info from events/
         echo "Deleting memory_summary" . PHP_EOL;
 
         $db      = new sql();
-        $results = $db->query("delete from core_memory where source_type='summary'");
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->deleteSummaries();
 
         $maxRow = PackIntoSummary();
 

@@ -27,37 +27,10 @@ function synth_rechat_action_chain_origin($connection, array $event, array $orig
             throw new LogicException('rechat_action_ancestry_invalid');
         }
         $visited[$action]=true;
-        $result=@pg_query_params($connection,"SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,
-                i.request_id,i.capability,i.arguments,a.full_form_id,a.origin_plugin,a.playthrough_id,
-                target.full_form_id AS target_form_id,target.origin_plugin AS target_plugin,target.playthrough_id AS target_playthrough
-            FROM public.core_action_intent i
-            JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
-            JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$8
-                AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id AND receipt.event_type='action_result'
-                AND receipt.canonical_event=$9::jsonb AND receipt.event_sha256=$10
-                AND receipt.canonical_event->'payload'->'result'=t.result
-            JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id
-                AND accepted.request_id=receipt.request_id AND accepted.generation=receipt.generation
-                AND accepted.turn_id=receipt.turn_id AND accepted.event_type=receipt.event_type
-                AND accepted.request_sha256=receipt.event_sha256 AND (accepted.state IN ('claimed','streaming','complete')
-                    OR ($11::boolean AND accepted.state='failed'
-                        AND COALESCE(accepted.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
-            JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
-                AND e.generation=i.generation AND e.turn_id=i.turn_id
-            JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
-                AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
-                AND p.event_sha256=e.request_sha256
-            JOIN public.core_runtime_session s ON s.session_id=i.session_id
-            JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4' AND a.playthrough_id=s.playthrough_id
-            LEFT JOIN public.core_actor_identity target ON target.id=i.target_identity_id
-            WHERE i.action_id=$1 AND i.idempotency_key=$2 AND i.session_id=$3 AND i.generation=$4 AND i.turn_id=$5
-                AND i.state='complete' AND t.result=$6::jsonb AND t.status=t.result->>'status'
-                AND s.runtime_variant=$7 AND e.state='complete'",
-            [$action,$key,$event['session_id'],$event['generation'],$event['turn_id'],
+        $row=\Synth\Core\DbManager\Dao\ProtocolEventDao::current()->actionAncestry([$action,$key,$event['session_id'],$event['generation'],$event['turn_id'],
              json_encode($receipt,JSON_THROW_ON_ERROR),$event['runtime_variant'],$origin['request_id'],
              synth_protocol_canonical_json($origin),hash('sha256',synth_protocol_canonical_json($origin)),$own ? 't' : 'f']);
-        if (!$result) throw new RuntimeException('rechat_action_ancestry_query_failed');
-        $row=pg_fetch_assoc($result);
+        if ($row===null) throw new RuntimeException('rechat_action_ancestry_query_failed');
         if (!$row) throw new LogicException('rechat_action_ancestry_unavailable');
         $origin=json_decode($row['canonical_event'],true,flags:JSON_THROW_ON_ERROR);
         if (($origin['protocol_version'] ?? null)!==2 || ($origin['request_id'] ?? null)!==$row['request_id']
@@ -102,13 +75,8 @@ function synth_rechat_action_chain_origin($connection, array $event, array $orig
 // Resolve the same root/reservation link for initial preparation and subsequent admission.
 function synth_rechat_find_chain($connection, array $event, string $rootRequest): ?array
 {
-    $result=@pg_query_params($connection,"SELECT c.* FROM public.core_rechat_chain c
-        WHERE c.session_id=$1 AND (c.root_request_id=$2 OR EXISTS (
-            SELECT 1 FROM public.core_rechat_continuation d WHERE d.chain_id=c.id
-                AND d.session_id=c.session_id AND d.request_id=$2 AND d.status='reserved'))",
-        [$event['session_id'],$rootRequest]);
-    if (!$result) throw new RuntimeException('rechat_chain_query_failed');
-    $chains=pg_fetch_all($result);
+    $chains=\Synth\Core\DbManager\Dao\RechatChainDao::current()->forRoot($event['session_id'],$rootRequest);
+    if ($chains===null) throw new RuntimeException('rechat_chain_query_failed');
     if (count($chains)>1) throw new LogicException('rechat_chain_ambiguous');
     return $chains[0] ?? null;
 }
@@ -129,19 +97,13 @@ function synth_rechat_reserve_continuation($db, array $event, array $policy, ?st
             $parent=$event['payload']['reply_to_request_id'];
             // Receipt-owned parents gate reservation itself. Even a child with only legacy lines can write history.
             if (($proof['line']['payload']['receipt_required'] ?? null)===true) {
-                $heard=@pg_query_params($connection,"SELECT 1 FROM public.core_dialogue_utterance
-                    WHERE session_id=$1 AND request_id=$2 AND line_id=$3 AND generation=$4 AND context_sequence=$5
-                        AND turn_id=$6 AND state IN ('spoken','presented') AND receipt_at IS NOT NULL",
-                    [$event['session_id'],$parent,$proof['line']['line_id'],$event['generation'],$event['context_sequence'],$event['turn_id']]);
-                if (!$heard) throw new RuntimeException('rechat_parent_delivery_query_failed');
-                if (!pg_fetch_assoc($heard)) throw new LogicException('rechat_parent_not_heard');
+                $heard=\Synth\Core\DbManager\Dao\DialogueUtteranceDao::current()->heardLine($event['session_id'],$parent,$proof['line']['line_id'],
+                    $event['generation'],$event['context_sequence'],$event['turn_id']);
+                if ($heard===null) throw new RuntimeException('rechat_parent_delivery_query_failed');
+                if (!$heard) throw new LogicException('rechat_parent_not_heard');
             }
-            $result=@pg_query_params($connection,"SELECT d.*,c.mode,c.policy,c.budget,c.used_rounds
-                FROM public.core_rechat_continuation d JOIN public.core_rechat_chain c ON c.id=d.chain_id
-                WHERE d.session_id=$1 AND (d.request_id=$2 OR d.parent_request_id=$3)",
-                [$event['session_id'],$event['request_id'],$parent]);
-            if (!$result) throw new RuntimeException('rechat_replay_query_failed');
-            $rows=pg_fetch_all($result);
+            $rows=\Synth\Core\DbManager\Dao\RechatContinuationDao::current()->replayRows($event['session_id'],$event['request_id'],$parent);
+            if ($rows===null) throw new RuntimeException('rechat_replay_query_failed');
             if ($rows) {
                 if (count($rows)!==1 || $rows[0]['request_id']!==$event['request_id']
                     || $rows[0]['parent_request_id']!==$parent) throw new LogicException('rechat_parent_already_continued');
@@ -180,13 +142,9 @@ function synth_rechat_reserve_continuation($db, array $event, array $policy, ?st
                 $mode=$policy['mode']==='random' ? ['tight','conversational','group'][random_int(0,2)] : $policy['mode'];
                 $budget=($policy['private'] || $initialTerminal!==null) ? 0 : synth_rechat_roll_budget($policy['rounds'],$policy['probability']);
                 $terminal=$policy['private'] ? 'private' : ($initialTerminal ?? ($budget===0 ? 'budget_exhausted' : null));
-                $result=@pg_query_params($connection,"INSERT INTO public.core_rechat_chain
-                    (session_id,root_request_id,generation,context_sequence,turn_id,runtime_variant,mode,policy,budget,terminal_reason)
-                    VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10) RETURNING *",
-                    [$event['session_id'],$rootRequest,$event['generation'],$event['context_sequence'],$event['turn_id'],
+                $chain=\Synth\Core\DbManager\Dao\RechatChainDao::current()->insert([$event['session_id'],$rootRequest,$event['generation'],$event['context_sequence'],$event['turn_id'],
                      $event['runtime_variant'],$mode,json_encode($policy,JSON_THROW_ON_ERROR),$budget,$terminal]);
-                if (!$result) throw new RuntimeException('rechat_chain_insert_failed');
-                $chain=pg_fetch_assoc($result);
+                if (!$chain) throw new RuntimeException('rechat_chain_insert_failed');
             }
             foreach (['session_id','turn_id','runtime_variant'] as $field) {
                 if ($chain[$field]!==$event[$field]) throw new LogicException('rechat_chain_owner_mismatch');
@@ -198,17 +156,11 @@ function synth_rechat_reserve_continuation($db, array $event, array $policy, ?st
             $used=intval($chain['used_rounds']); $budget=intval($chain['budget']);
             if ($terminal===null && $used>=$budget) $terminal='budget_exhausted';
             $round=$terminal===null ? $used+1 : null;
-            $result=@pg_query_params($connection,"INSERT INTO public.core_rechat_continuation
-                (session_id,request_id,chain_id,parent_request_id,parent_line_id,parent_response_sha256,round_number,status,terminal_reason)
-                VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
-                [$event['session_id'],$event['request_id'],$chain['id'],$parent,$event['payload']['reply_to_line_id'],
+            $saved=\Synth\Core\DbManager\Dao\RechatContinuationDao::current()->insert([$event['session_id'],$event['request_id'],$chain['id'],$parent,$event['payload']['reply_to_line_id'],
                  $proof['response_sha256'],$round,$terminal===null ? 'reserved' : 'terminal',$terminal]);
-            if (!$result) throw new RuntimeException('rechat_reservation_insert_failed');
-            $saved=pg_fetch_assoc($result);
-            $result=@pg_query_params($connection,"UPDATE public.core_rechat_chain
-                SET used_rounds=$2,terminal_reason=$3 WHERE id=$1",
-                [$chain['id'],$round ?? $used,$terminal ?? ($round===$budget ? 'budget_exhausted' : null)]);
-            if (!$result) throw new RuntimeException('rechat_budget_update_failed');
+            if (!$saved) throw new RuntimeException('rechat_reservation_insert_failed');
+            if (!\Synth\Core\DbManager\Dao\RechatChainDao::current()->updateBudget($chain['id'],$round ?? $used,
+                $terminal ?? ($round===$budget ? 'budget_exhausted' : null))) throw new RuntimeException('rechat_budget_update_failed');
             if (!@pg_query($connection,'RELEASE SAVEPOINT synth_rechat_admission')) throw new RuntimeException('rechat_savepoint_release_failed');
             return $saved+['mode'=>$chain['mode'],'policy'=>json_decode($chain['policy'],true,flags:JSON_THROW_ON_ERROR),'budget'=>$chain['budget']];
         } catch (Throwable $error) {

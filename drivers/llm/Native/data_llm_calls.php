@@ -413,14 +413,11 @@ function call_llm_internal() {
 
         // No fallback or fallback also failed - send error message
         error_log("[FALLBACK DEBUG] Sending ERROR_OPENAI message to user");
-        $db->insert(
-            'core_log',
-            array(
-                'localts' => time(),
-                'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
-                'response' => ((print_r(error_get_last(), true))),
-                'url' => nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs "))
-            )
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(
+            time(),
+            nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
+            ((print_r(error_get_last(), true))),
+            nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs "))
         );
         returnLines([\Synth\Bootstrap::config("ERROR_OPENAI")]);
 
