@@ -244,7 +244,7 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
 
 if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about this)
     $now=time();
-    \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->deleteAll();
+    \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->wipe();
     \Synth\Core\DbManager\Dao\QuestDao::current($db)->deleteAll();
     \Synth\Core\DbManager\Dao\SpeechDao::current($db)->deleteAll();
 

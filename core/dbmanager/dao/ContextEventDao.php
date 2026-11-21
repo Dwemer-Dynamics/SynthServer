@@ -296,7 +296,7 @@ class ContextEventDao
     }
 
     /** Removes every event row (the wipe command). */
-    public function deleteAll(): bool
+    public function wipe(): bool
     {
         try {
             $this->connection()->executeStatement('DELETE FROM public.core_context_event');
