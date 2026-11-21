@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractContextEvent;
 
 /** Finds rows of core_context_event. */
-final class ContextEventDao
+class ContextEventDao
 {
     use UsesEntityManager;
 

@@ -3,6 +3,7 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 
 final class DaoTestDoubles
@@ -88,8 +89,29 @@ final class DaoTestDoubles
         });
     }
 
+    /** ContextEventDao::latestWorldContextRow() answered by the test's current $GLOBALS['db']->fetchAll() with the legacy query. */
+    public static function worldContextFromGlobalDb(): void
+    {
+        ContextEventDao::inject(new class extends ContextEventDao {
+            public function __construct() {}
+
+            public function latestWorldContextRow(): ?array
+            {
+                $rows = $GLOBALS['db']->fetchAll("SELECT party, data
+           FROM core_context_event
+          WHERE type='world_context'
+            AND COALESCE(party, '') <> ''
+          ORDER BY localts DESC, ts DESC, rowid DESC
+          LIMIT 1");
+
+                return is_array($rows) && $rows !== [] ? $rows[0] : null;
+            }
+        });
+    }
+
     public static function reset(): void
     {
         RequestExecutionDao::inject(null);
+        ContextEventDao::inject(null);
     }
 }

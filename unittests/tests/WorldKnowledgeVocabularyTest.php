@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/worldknowledge_vocabulary.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 final class WorldKnowledgeVocabularyTest extends TestCase
 {
@@ -12,8 +13,14 @@ final class WorldKnowledgeVocabularyTest extends TestCase
             unset($GLOBALS[$key]);
         }
     }
+    protected function setUp(): void
+    {
+        DaoTestDoubles::worldContextFromGlobalDb();
+    }
+
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->saved as $key=>$state) {
             if ($state['exists']) $GLOBALS[$key]=$state['value']; else unset($GLOBALS[$key]);
         }
