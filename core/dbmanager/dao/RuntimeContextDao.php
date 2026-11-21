@@ -75,4 +75,15 @@ final class RuntimeContextDao
             WHERE previous.session_id=:p1 AND previous.generation=:p2 AND previous.snapshot_sequence=:p3
                 AND fresh.snapshot_sequence=:p4", [$sessionId, $generation, $previousSequence, $freshSequence]);
     }
+
+    /** The player actor identity of one runtime context snapshot, or 0 when the snapshot has none. */
+    public function playerIdentityId(string $sessionId, int $generation, int $snapshotSequence): int
+    {
+        $id = $this->connection()->fetchOne(
+            'SELECT player_identity_id FROM public.core_runtime_context WHERE session_id = ? AND generation = ? AND snapshot_sequence = ?',
+            [$sessionId, $generation, $snapshotSequence]
+        );
+
+        return $id === false || $id === null ? 0 : (int) $id;
+    }
 }

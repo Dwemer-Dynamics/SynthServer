@@ -359,4 +359,12 @@ class RequestExecutionDao
             AND cp.canonical_event=:p7::jsonb AND cp.event_sha256=:p9 AND child.request_sha256=cp.event_sha256
             AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type", $parameters);
     }
+
+    /** The execution state of a request (of any generation), or null when it has no row. */
+    public function stateOf(string $sessionId, string $requestId): ?string
+    {
+        $state = $this->connection()->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id = ? AND request_id = ? LIMIT 1', [$sessionId, $requestId]);
+
+        return $state === false || $state === null ? null : (string) $state;
+    }
 }
