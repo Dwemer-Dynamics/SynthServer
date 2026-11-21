@@ -228,10 +228,8 @@ function applyVoiceIdToTtsGlobals(string $voiceid): void
  */
 function loadNarratorVoiceSettings() {
     require_once(dirname(__DIR__, 3).'/lib' . "/core/narrator.class.php");
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/core_profiles.class.php");
-    require_once(dirname(__DIR__, 3).'/lib' . "/core/tts_connector.class.php");
-
-    $narrator = new Narrator();
+    
+$narrator = new Narrator();
     $profileId = $narrator->getProfileId();
     if ($profileId) {
         $profileManager = new CoreProfile();

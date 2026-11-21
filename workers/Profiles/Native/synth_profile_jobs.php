@@ -84,7 +84,6 @@ function synth_profile_generate_field($db, array $input, string $field): string
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Profile provider requires an idle database connection.');
     synth_protocol_assert_request_active();
-    require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     $connector=new LLMConnector();$settings=$connector->getById($input['connector_id']);
     if (!$settings) throw new RuntimeException('Native profile connector unavailable.');
     \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);$connector->setOldGlobals($settings);
@@ -142,7 +141,6 @@ function synth_profile_run_job($db, int $jobId, ?callable $prepare=null, ?callab
             $db->withNativeRequestLock(static function($connection,array $event) use($db,$name,$input) {
                 synth_profile_assert_write_target($db,$name);
                 if ($name==='The Narrator') {
-                    require_once dirname(__DIR__, 3).'/lib'.'/core/narrator.class.php';
                     $base=(new Narrator())->getAll();
                 } else $base=\Synth\Core\DbManager\Dao\NpcDao::current($db)->row(intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
                 if (synth_profile_fields($base)!==synth_profile_fields($input['baseline_fields'])

@@ -1,9 +1,8 @@
 <?php 
 
 try {
-    require_once \Synth\Bootstrap::enginePath() . "/lib/core/narrator.class.php";
-
-    $narrator = new Narrator();
+    
+$narrator = new Narrator();
     
     // Ensure narrator has a profile_id set (default to profile 1 if not set)
     $profileId = $narrator->getProfileId();

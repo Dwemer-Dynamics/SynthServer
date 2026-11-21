@@ -47,7 +47,7 @@ final class ExtensionManager
         $this->root = rtrim($root, '/\\');
         $this->state = new ExtensionState($stateFile ?? $this->root.'/conf/extensions.json');
         $this->logger = $logger ?? static function (string $message): void {
-            require_once dirname(__DIR__, 2).'/lib/classes/Logger.php';
+            require_once dirname(__DIR__, 2).'/lib/autoload.php';
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::WARN, 'ExtensionManager', $message);
         };
     }
