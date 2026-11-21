@@ -12,6 +12,12 @@ require_once dirname(__DIR__, 2).'/lib/synth_memory_dispatch.php';
 
 final class RequestStreamingTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::forgetBooted();
+        parent::tearDown();
+    }
+
     public static function transferActionCodes(): array
     {
         return ['items'=>['GiveItemTo'],'caps'=>['GiveCapsTo'],'player-caps'=>['TakeCapsFromPlayer'],'player-items'=>['TakeItemFromPlayer'],'gift-menu'=>['OpenInventory']];
@@ -1719,6 +1725,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => ['session_id' => 'session:one',
@@ -1749,6 +1756,7 @@ final class RequestStreamingTest extends TestCase
                 return $this->rows[$match[1] ?? ''] ?? null;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $root = array_replace($event, ['type'=>'input_text','payload'=>['text'=>'Check my inventory.']]);
         $parent = array_replace($event, ['payload'=>['result'=>['action_id'=>'action:root','idempotency_key'=>'idem:root']]]);
         $db->rows = [
@@ -1819,6 +1827,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
         try {
@@ -1855,6 +1864,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchAll(string $query): array {$this->query=$query;return [['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']];}
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','turn_id'=>'turn:one'];
         $this->assertSame(['ComeCloser'=>['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']],
             synth_protocol_last_actions_issued($db,$event,'Preston'));
@@ -1894,6 +1904,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         try {
             $GLOBALS['db'] = $db;
             $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.end_conversation'];

@@ -3,6 +3,7 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\ActionIntentDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
@@ -174,6 +175,62 @@ final class DaoTestDoubles
         ProtocolEventDao::inject(null);
         ActorActivationDao::inject(null);
         RequestExecutionDao::inject(null);
+    }
+
+    /**
+     * The action intent insert, follow-up origin read and last-issued read of synth_protocol_state.php answered by $fake, which sees
+     * the legacy SQL text (execQuery() for the insert, fetchOne() and fetchAll() for the reads).
+     */
+    public static function actionIntentFrom(object $fake): void
+    {
+        ActionIntentDao::inject(new class($fake) extends ActionIntentDao {
+            public function __construct(private object $fake) {}
+
+            public function insertIntent(string $actionId, string $idempotencyKey, string $sessionId, string $requestId, string $turnId, int $generation, string $actionName, string $capability, int $actorIdentityId, ?int $targetIdentityId, string $argumentsJson, int $deadlineMs): bool
+            {
+                $f = $this->fake;
+                $target = $targetIdentityId === null ? 'NULL' : strval($targetIdentityId);
+                return $f->execQuery("INSERT INTO public.core_action_intent
+                (action_id, idempotency_key, session_id, request_id, turn_id, generation,
+                 action_name, capability, actor_identity_id, target_identity_id, arguments, deadline_at)
+             VALUES ({$f->escapeLiteral($actionId)}, {$f->escapeLiteral($idempotencyKey)}, {$f->escapeLiteral($sessionId)}, {$f->escapeLiteral($requestId)}, {$f->escapeLiteral($turnId)}, {$generation},
+                     {$f->escapeLiteral($actionName)}, {$f->escapeLiteral($capability)}, {$actorIdentityId}, {$target}, {$f->escapeLiteral($argumentsJson)}::jsonb,
+                     NOW() + ({$deadlineMs} * INTERVAL '1 millisecond'))") !== false;
+            }
+
+            public function followupOrigin(string $actionId, string $idempotencyKey, string $sessionId, int $generation, string $turnId, string $runtimeVariant): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT i.action_name, e.canonical_event
+               FROM public.core_action_intent i
+               JOIN public.core_protocol_event e ON e.session_id=i.session_id
+                AND e.request_id=i.request_id AND e.generation=i.generation AND e.turn_id=i.turn_id
+               JOIN public.core_runtime_session r ON r.session_id=i.session_id
+              WHERE i.action_id={$f->escapeLiteral($actionId)} AND i.idempotency_key={$f->escapeLiteral($idempotencyKey)}
+                AND i.session_id={$f->escapeLiteral($sessionId)} AND i.generation={$generation} AND i.turn_id={$f->escapeLiteral($turnId)}
+                AND r.state='active' AND r.active_generation={$generation} AND r.runtime_variant={$f->escapeLiteral($runtimeVariant)}");
+
+                return $row ?: null;
+            }
+
+            public function lastIssuedByAction(string $historyCte, string $sessionId, int $generation, int $sequence, string $turnId): array
+            {
+                $f = $this->fake;
+                return $f->fetchAll($historyCte . "
+        SELECT DISTINCT ON (i.action_name) i.action_name AS action,
+            (h.event_payload->>'gamets')::bigint AS gamets,
+            (h.event_payload->>'ts')::bigint AS ts
+        FROM native_history_scopes s
+        JOIN public.core_history_event h ON h.session_id=s.session_id AND h.generation=s.generation
+            AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
+        JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
+            AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
+            AND i.actor_identity_id=s.reader_identity_id
+        WHERE h.id<=s.cutoff OR (h.session_id={$f->escapeLiteral($sessionId)} AND h.generation={$generation}
+            AND h.context_sequence={$sequence} AND i.turn_id={$f->escapeLiteral($turnId)})
+        ORDER BY i.action_name, (h.event_payload->>'gamets')::bigint DESC, h.id DESC");
+            }
+        });
     }
 
     /**
