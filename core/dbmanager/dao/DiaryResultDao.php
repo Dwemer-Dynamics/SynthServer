@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractDiaryResult;
 
 /** Finds rows of core_diary_result. */
-final class DiaryResultDao
+class DiaryResultDao
 {
     use UsesEntityManager;
 

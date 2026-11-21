@@ -88,8 +88,25 @@ final class DaoTestDoubles
         });
     }
 
+    /** DiaryResultDao::latestVisible() answered by $fake->fetchOne() with the legacy visible-diary query text. */
+    public static function diaryLatestFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\DiaryResultDao {
+            public function __construct(private object $fake) {}
+
+            public function latestVisible(string $diaryCte, bool $automaticOnly): ?array
+            {
+                $row = $this->fake->fetchOne($diaryCte.' SELECT history_event_id,result_payload,published_at,'.($automaticOnly ? '0' : 'content_revision').' AS content_revision FROM '
+                    .($automaticOnly ? 'diary_chain' : 'native_diaries').($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '').' ORDER BY history_event_id DESC LIMIT 1');
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
     public static function reset(): void
     {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null);
         RequestExecutionDao::inject(null);
     }
 }
