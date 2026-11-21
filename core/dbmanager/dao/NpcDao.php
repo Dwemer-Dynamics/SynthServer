@@ -107,6 +107,26 @@ class NpcDao
         return $row === false ? null : $row;
     }
 
+    /**
+     * Writes the faction facts of a linked actor into its NPC row's extended data (factions, observation and completeness, each as
+     * JSON text) and, when $baseIdentity is not empty, its base reference. False when the statement fails.
+     */
+    public function mergeFactionData(int $actorIdentityId, string $factionsJson, string $observationJson, string $completenessJson, string $baseIdentity): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_npc
+                SET extended_data=jsonb_set(
+                    jsonb_set(
+                        jsonb_set(COALESCE(extended_data, '{}'::jsonb), '{factions}', CAST(? AS jsonb), true),
+                        '{faction_observation}', CAST(? AS jsonb), true
+                    ), '{faction_completeness}', CAST(? AS jsonb), true
+                ),
+                    base=CASE WHEN CAST(? AS text) <> '' THEN CAST(? AS text) ELSE base END
+              WHERE actor_identity_id = ?",
+            [$factionsJson, $observationJson, $completenessJson, $baseIdentity, $baseIdentity, $actorIdentityId]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractNpc> */
     public function findAll(int $limit = 1000): array
     {
