@@ -14,6 +14,7 @@ use Synth\Core\Entities\Base\AbstractProfile;
 final class ProfileDao
 {
     use UsesEntityManager;
+    use FailSoftQueries;
 
     /** One row by id, or null. */
     public function find(int $id): ?AbstractProfile
@@ -145,5 +146,11 @@ final class ProfileDao
     public function findAll(): array
     {
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
+    }
+
+    /** The metadata column of one profile ([] when it has no row, null when the read fails). @return array<string, mixed>|null */
+    public function metadataRow(int $id): ?array
+    {
+        return $this->rowOrNull('SELECT metadata FROM core_profiles WHERE id=:p1 LIMIT 1', [$id]);
     }
 }
