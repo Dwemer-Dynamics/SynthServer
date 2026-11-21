@@ -37,6 +37,26 @@ class ActorIdentityDao
         return array_values($this->fresh()->getRepository(AbstractActorIdentity::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
 
+    /**
+     * The newest-seen actor of this session's playthrough whose display name equals this one (compared without case): form id, origin
+     * plugin, playthrough and display name; null when none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestByDisplayName(string $sessionId, string $displayName): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
+               FROM public.core_actor_identity a
+               JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
+              WHERE s.session_id = ? AND lower(a.display_name)=lower(?)
+              ORDER BY a.last_seen_at DESC LIMIT 1",
+            [$sessionId, $displayName]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** The id of the fo4 actor with this form id and origin plugin (compared without case) in this playthrough, or null. */
     public function idByIdentity(string $formId, string $originPlugin, string $playthroughId): ?int
     {

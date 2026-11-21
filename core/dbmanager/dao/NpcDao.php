@@ -107,6 +107,14 @@ class NpcDao
         return $row === false ? null : $row;
     }
 
+    /** The NPC name linked to this actor identity, or null when none. */
+    public function nameForIdentity(int $actorIdentityId): ?string
+    {
+        $value = $this->connection()->fetchOne('SELECT npc_name FROM public.core_npc WHERE actor_identity_id = ? LIMIT 1', [$actorIdentityId]);
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractNpc> */
     public function findAll(int $limit = 1000): array
     {

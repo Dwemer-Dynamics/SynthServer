@@ -110,6 +110,14 @@ class RuntimeSessionDao
         return $this->tryStatement("UPDATE public.core_runtime_session SET state = 'halted', updated_at = NOW() WHERE session_id = ?", [$sessionId]);
     }
 
+    /** The playthrough id a session is bound to, or null when the session is unknown. */
+    public function playthroughOf(string $sessionId): ?string
+    {
+        $value = $this->connection()->fetchOne('SELECT playthrough_id FROM public.core_runtime_session WHERE session_id = ? LIMIT 1', [$sessionId]);
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeSession> */
     public function findAll(int $limit = 1000): array
     {
