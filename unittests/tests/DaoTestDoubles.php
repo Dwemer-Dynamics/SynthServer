@@ -374,6 +374,98 @@ final class DaoTestDoubles
         });
     }
 
+    /** NpcDao's by-name and by-actor reads answered by $fake->fetchOne() with the legacy queries. */
+    public static function npcFrom(object $fake): void
+    {
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            private function literal(string $value): string
+            {
+                return method_exists($this->fake, 'escapeLiteral') ? $this->fake->escapeLiteral($value) : "'".str_replace("'", "''", $value)."'";
+            }
+
+            private function fetchRow(string $sql): ?array
+            {
+                $row = $this->fake->fetchOne($sql);
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+
+            public function metadataByName(string $name): ?array
+            {
+                return $this->fetchRow("SELECT metadata FROM core_npc WHERE npc_name = '".str_replace("'", "''", $name)."' LIMIT 1");
+            }
+
+            public function voiceByName(string $name): ?array
+            {
+                return $this->fetchRow('SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='.$this->literal($name).' LIMIT 1');
+            }
+
+            public function voiceByActor(string $formId, string $originPlugin, string $playthroughId): ?array
+            {
+                $form = $this->literal($formId);
+                $plugin = $this->literal($originPlugin);
+                $playthrough = $this->literal($playthroughId);
+
+                return $this->fetchRow("SELECT n.voiceid,n.extended_data FROM public.core_npc n
+            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
+            WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
+                AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
+            }
+        });
+    }
+
+    /** ActionIntentDao::inventoryAncestry() answered by $fake->fetchOne() with the legacy ancestry query (its identifying parts). */
+    public static function inventoryFrom(object $fake): void
+    {
+        ActionIntentDao::inject(new class($fake) extends ActionIntentDao {
+            public function __construct(private object $fake) {}
+
+            public function inventoryAncestry(bool $retainsGiftOwner, string $actionId, string $idempotencyKey, string $receiptRequestId, string $canonicalReceiptJson,
+                string $sessionId, string $turnId, int $generation, int $sequence, string $runtimeVariant): ?array
+            {
+                $lit = fn(string $value): string => $this->fake->escapeLiteral($value);
+                $row = $this->fake->fetchOne("SELECT i.action_name,i.capability,i.request_id AS origin_request_id,a.full_form_id,a.origin_plugin,a.playthrough_id,
+                    e.canonical_event,t.result,b.full_form_id AS recipient_form_id,
+                    b.origin_plugin AS recipient_plugin,b.playthrough_id AS recipient_playthrough_id
+                FROM public.core_action_intent i
+                JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+                WHERE i.action_id=".$lit($actionId).' AND i.idempotency_key='.$lit($idempotencyKey).' AND i.session_id='.$lit($sessionId)
+                    .' AND i.turn_id='.$lit($turnId).' AND i.generation='.$generation.' AND r.runtime_variant='.$lit($runtimeVariant));
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
+    /** WorkerJobDao's speech status reads answered by $fake->fetchOne() with the legacy queries. */
+    public static function workerJobFrom(object $fake): void
+    {
+        WorkerJobDao::inject(new class($fake) extends WorkerJobDao {
+            public function __construct(private object $fake) {}
+
+            public function ttsStatusById(int $jobId, string $cacheKey): ?array
+            {
+                $row = $this->fake->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
+        WHERE id={$jobId} AND job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
+        AND cache_key=".$this->fake->escapeLiteral($cacheKey));
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+
+            public function ttsActiveByCacheKey(string $cacheKey): ?array
+            {
+                $row = $this->fake->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
+            WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
+            AND state IN ('pending','running') AND deadline_at>clock_timestamp()
+            AND cache_key=".$this->fake->escapeLiteral($cacheKey).' LIMIT 1');
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
     public static function reset(): void
     {
         ActionIntentDao::inject(null);
