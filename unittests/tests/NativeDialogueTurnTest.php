@@ -756,7 +756,7 @@ final class NativeDialogueTurnTest extends TestCase
 
     private function concluded(array $event, callable $setup, callable $turn): array
     {
-        $db=$this->outcomeDb($event); $setup($db); DaoTestDoubles::ownerFrom($db);
+        $db=$this->outcomeDb($event); $setup($db); DaoTestDoubles::outcomeFrom($db);
         $output=new Synth\Api\V2\ProtocolOutput($db,$event); $output->claimed($this->owner($event));
         $sent='';
         ob_start(function (string $chunk) use (&$sent,$db): string {
