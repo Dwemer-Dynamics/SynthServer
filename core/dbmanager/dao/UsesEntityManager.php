@@ -80,6 +80,23 @@ trait UsesEntityManager
         return $this->entityManager;
     }
 
+    /**
+     * Runs one write on the shared session and reports whether it ran. A failure is swallowed (false), as the legacy execQuery()
+     * writes were: the failed statement has already aborted the caller's open transaction, so the caller's later COMMIT fails.
+     *
+     * @param list<mixed> $parameters
+     */
+    private function tryStatement(string $sql, array $parameters = []): bool
+    {
+        try {
+            $this->connection()->executeStatement($sql, $parameters);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** The connection every statement of this DAO runs on (the legacy session: transactions belong to its owner). */
     private function connection(): Connection
     {

@@ -9,20 +9,7 @@ require_once dirname(__DIR__, 3).'/lib/synth_worker_origin.php';
 function synth_memory_run_persisted_job($db, int $jobId, ?callable $generate = null): ?int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Memory providers require an idle database connection');
-    $job = $db->fetchOne("SELECT j.session_id,j.request_id,j.turn_id,j.generation,j.actor_identity_id,
-            j.payload->>'context_sequence' AS context_sequence,p.event_type,p.canonical_event,p.event_sha256
-        FROM public.core_worker_job j
-        JOIN public.core_request_execution e ON e.session_id=j.session_id AND e.request_id=j.request_id
-            AND e.generation=j.generation AND e.turn_id=j.turn_id
-        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
-            AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type
-            AND p.event_sha256=e.request_sha256
-        JOIN public.core_runtime_session r ON r.session_id=j.session_id AND r.active_generation=j.generation
-            AND r.state='active' AND p.canonical_event->>'runtime_variant'=r.runtime_variant
-        JOIN public.core_runtime_context c ON c.session_id=j.session_id AND c.generation=j.generation
-            AND c.snapshot_sequence::text=j.payload->>'context_sequence' AND c.playthrough_id=r.playthrough_id
-        WHERE j.id=".intval($jobId)." AND j.job_type='memory' AND j.memory_batch_id IS NOT NULL
-            AND j.state IN ('pending','running')");
+    $job = \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->persistedMemoryJobOrigin($jobId);
     if (!$job) return null;
     return synth_memory_with_origin($db,$job,static function(array $event,array $context) use ($db,$job,$jobId,$generate) {
         $owned=$db->withNativeRequestLock(static function($connection,array $owner) use($db,$event,$job) {

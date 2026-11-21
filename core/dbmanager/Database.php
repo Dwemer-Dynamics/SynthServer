@@ -116,6 +116,7 @@ use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\ResponseLogDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
+use Synth\Core\DbManager\Dao\SchemaCatalogDao;
 use Synth\Core\DbManager\Dao\SpeechDao;
 use Synth\Core\DbManager\Dao\SocialTaskClaimDao;
 use Synth\Core\DbManager\Dao\SocialTaskEventDao;
@@ -252,6 +253,7 @@ final class Database
         WorldknowledgeAuditDao::class,
         WorldknowledgeCatalogDao::class,
         WorldknowledgeArticleDao::class,
+        SchemaCatalogDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */

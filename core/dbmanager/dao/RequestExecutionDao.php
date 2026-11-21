@@ -11,6 +11,7 @@ use Synth\Core\Entities\Base\AbstractRequestExecution;
 /** Finds rows of core_request_execution. */
 class RequestExecutionDao
 {
+    use FailSoftQueries;
     use UsesEntityManager;
     use TextRows;
 
@@ -35,7 +36,7 @@ class RequestExecutionDao
             [$sessionId, $requestId, $generation]
         );
 
-        return self::textRow($row);
+        return $row === false ? null : $row;
     }
 
     /**
@@ -106,10 +107,266 @@ class RequestExecutionDao
         return $stored === false ? null : (string) $stored;
     }
 
+    /**
+     * Takes the session's transaction-scoped advisory lock that orders claim, cancel, supersession and outcome; held until the
+     * caller's open transaction ends. False when the statement fails.
+     */
+    public function lockSession(string $sessionId): bool
+    {
+        try {
+            return $this->connection()->fetchAssociative('SELECT pg_advisory_xact_lock(hashtext(?))', [$sessionId]) !== false;
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+    }
+
+    /** The existing row of a request locked FOR UPDATE (hash, state, stored response and claim time), or null. @return array<string, mixed>|null */
+    public function lockForClaim(string $sessionId, string $requestId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT request_sha256, state, response_content_type, response_body, error_code, claimed_at
+               FROM public.core_request_execution WHERE session_id = ? AND request_id = ? FOR UPDATE',
+            [$sessionId, $requestId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Inserts the claim of a request. */
+    public function insertClaim(string $sessionId, string $requestId, string $turnId, int $generation, string $requestSha256, string $eventType): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_request_execution (session_id, request_id, turn_id, generation, request_sha256, event_type, state)
+             VALUES (?, ?, ?, ?, ?, ?, 'claimed')",
+            [$sessionId, $requestId, $turnId, $generation, $requestSha256, $eventType]
+        );
+    }
+
+    /** Cancels live requests of older generations (a new init supersedes them). */
+    public function cancelOlderGenerations(string $sessionId, int $generation): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_request_execution SET state='cancelled', response_body=NULL, error_code='stale_generation', completed_at=NOW()
+              WHERE session_id = ? AND generation < ? AND state IN ('claimed','streaming')",
+            [$sessionId, $generation]
+        );
+    }
+
+    /** Cancels live turn-owned requests that a new context sequence supersedes, even when its turn id is reused. */
+    public function cancelSupersededTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_request_execution SET state='cancelled',
+                    response_body=NULL, error_code='superseded_turn', completed_at=NOW()
+                WHERE session_id = ? AND generation = ?
+                  AND (turn_id <> ? OR EXISTS (
+                    SELECT 1 FROM public.core_protocol_event owner
+                    WHERE owner.session_id = ? AND owner.generation = ?
+                      AND owner.request_id=core_request_execution.request_id
+                      AND owner.event_sha256=core_request_execution.request_sha256
+                      AND owner.canonical_event->>'context_sequence' IS DISTINCT FROM ?))
+                  AND (event_type IN ('input_text','input_audio','trigger','action_result','narrator_turn')
+                    OR (event_type='social_task_progress' AND request_id IN (
+                        SELECT p.request_id FROM public.core_protocol_event p
+                        WHERE p.session_id = ? AND p.generation = ?
+                            AND p.event_type='social_task_progress'
+                            AND p.canonical_event->'payload'->>'phase'='arrived'
+                            AND p.event_sha256=core_request_execution.request_sha256)))
+                  AND state IN ('claimed','streaming')",
+            [$sessionId, $generation, $turnId, $sessionId, $generation, (string) $sequence, $sessionId, $generation]
+        );
+    }
+
+    /** Cancels every live request of the session up to this generation except the halting request itself. */
+    public function cancelForHalt(string $sessionId, int $generation, string $haltRequestId): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_request_execution SET state='cancelled', response_body=NULL, error_code='runtime_halted', completed_at=NOW()
+              WHERE session_id = ? AND generation <= ? AND request_id <> ? AND state IN ('claimed','streaming')",
+            [$sessionId, $generation, $haltRequestId]
+        );
+    }
+
+    /** True when a context event with this snapshot sequence already has a cancelled request (a cancel committed first). */
+    public function hasCancelledContext(string $sessionId, int $generation, int $sequence): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 AS cancelled FROM public.core_protocol_event p
+                JOIN public.core_request_execution e USING (session_id, request_id)
+                WHERE p.session_id = ? AND p.generation = ? AND p.event_type='context'
+                  AND p.canonical_event->'payload'->>'snapshot_sequence' = ?
+                  AND e.state='cancelled' LIMIT 1",
+            [$sessionId, $generation, (string) $sequence]
+        ) !== false;
+    }
+
+    /**
+     * Cancels a turn the player cancelled: the cancelled request and every request of that turn and context sequence. Completed
+     * player input is kept as history (state stays complete), but its delivery is revoked.
+     */
+    public function cancelTurn(string $sessionId, int $generation, string $cancelRequestId, string $cancelTurnId, int $cancelSequence): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_request_execution SET
+                    state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
+                    response_body=NULL,error_code='turn_cancelled',
+                    completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
+                WHERE session_id = ? AND generation = ?
+                  AND state IN ('claimed','streaming','complete')
+                  AND (request_id = ? OR request_id IN (
+                    SELECT request_id FROM public.core_protocol_event WHERE session_id = ?
+                      AND generation = ? AND turn_id = ?
+                      AND canonical_event->>'context_sequence' = ?))",
+            [$sessionId, $generation, $cancelRequestId, $sessionId, $generation, $cancelTurnId, (string) $cancelSequence]
+        );
+    }
+
+    /** Cancels one request (completed player input keeps its complete state). */
+    public function cancelRequest(string $sessionId, int $generation, string $cancelRequestId): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_request_execution SET
+                    state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
+                    response_body=NULL,error_code='request_cancelled',
+                    completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
+              WHERE session_id = ? AND request_id = ? AND generation = ? AND state IN ('claimed','streaming','complete')",
+            [$sessionId, $cancelRequestId, $generation]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRequestExecution> */
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
+    }
+
+    /** Cancels the claimed or streaming narrator turns whose reply is still pending for a definition. Runs inside the caller's transaction. */
+    public function cancelNarratorTurnsAwaitingDefinition(string $definitionId): void
+    {
+        $this->connection()->executeStatement(
+            "UPDATE public.core_request_execution e SET state='cancelled',response_body=NULL,
+            error_code='request_cancelled',completed_at=NOW() WHERE e.event_type='narrator_turn' AND e.state IN ('claimed','streaming')
+            AND EXISTS(SELECT 1 FROM public.core_narrator_pending_output p WHERE p.session_id=e.session_id AND p.request_id=e.request_id
+                AND p.definition_id=? AND p.state IN ('pending','generated'))",
+            [$definitionId]
+        );
+    }
+
+    /**
+     * Explicit player cancel of a whole conversation inside the cancel event's claim transaction: every in-flight or
+     * completed-undelivered request of the conversation in this session generation is cancelled (completed player input
+     * stays as history), its worker jobs are cancelled and the session's active turn is cleared when both its id and its
+     * context sequence belong to a cancelled request. Three statements on the caller's session, in that order. Returns the
+     * cancelled request ids; a failed statement is skipped, as the legacy statements were.
+     *
+     * @return list<string>
+     */
+    public function cancelConversation(string $sessionId, int $generation, string $ownRequestId, string $conversationId, string $capability): array
+    {
+        $members = "SELECT request_id FROM public.core_protocol_event WHERE session_id=:p1
+            AND generation=:p2 AND request_id<>:p3
+            AND event_type IN ('input_text','input_audio','trigger')
+            AND jsonb_exists(canonical_event->'capabilities', :p4)
+            AND canonical_event#>>'{payload,conversation_id}'=:p5";
+        $scope = [$sessionId, $generation, $ownRequestId, $capability, $conversationId];
+        $cancelled = $this->rowsOrNull("UPDATE public.core_request_execution SET
+                state=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN 'complete' ELSE 'cancelled' END,
+                response_body=NULL,error_code='request_cancelled',
+                completed_at=CASE WHEN state='complete' AND event_type IN ('input_text','input_audio') THEN completed_at ELSE NOW() END
+            WHERE session_id=:p1 AND generation=:p2 AND state IN ('claimed','streaming','complete')
+                AND request_id IN ({$members}) RETURNING request_id,turn_id", $scope) ?? [];
+        // A failed statement is skipped, as the legacy statements were (their failures were logged and ignored).
+        $this->statementOk("UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+            WHERE session_id=:p1 AND generation=:p2 AND state IN ('pending','running')
+                AND request_id IN ({$members})", $scope);
+        $ids = array_column($cancelled, 'request_id');
+        if ($ids !== []) {
+            $literal = '{'.implode(',', array_map(static fn($id) => '"'.addcslashes(strval($id), '"\\').'"', $ids)).'}';
+            $this->statementOk("UPDATE public.core_runtime_session SET active_turn_id=NULL, updated_at=NOW()
+                WHERE session_id=:p1 AND active_generation=:p2
+                    AND (active_turn_id, active_turn_sequence) IN (
+                        SELECT turn_id, (canonical_event->>'context_sequence')::bigint FROM public.core_protocol_event
+                        WHERE session_id=:p1 AND generation=:p2 AND request_id = ANY(CAST(:p3 AS text[])))",
+                [$sessionId, $generation, $literal]);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * One completed ancestor request with its stored response and the runtime context it ran in, for the exact turn owner.
+     * Parameters, in order: session id, request id, context sequence, generation, turn id, runtime variant. [] when it is
+     * not available, null when the read fails.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function completedResponse(array $parameters): ?array
+    {
+        return $this->rowOrNull("SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
+        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
+        JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=:p3
+        JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.playthrough_id=c.playthrough_id
+        WHERE e.session_id=:p1 AND e.request_id=:p2 AND e.state='complete' AND e.generation=:p4 AND p.generation=e.generation
+            AND e.turn_id=:p5 AND p.turn_id=e.turn_id AND e.event_type=p.event_type AND e.request_sha256=p.event_sha256
+            AND s.runtime_variant=:p6 AND octet_length(e.response_body)<=2097152", $parameters);
+    }
+
+    /**
+     * The runtime context of a still-running request whose canonical event and hash match, for a dialogue route owner check.
+     * Parameters, in order: session id, request id, context sequence, canonical event JSON, event sha256, generation, turn
+     * id, runtime variant. [] when it is not available, null when the read fails.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function runningContext(array $parameters): ?array
+    {
+        return $this->rowOrNull("SELECT c.context_payload
+            FROM public.core_request_execution e
+            JOIN public.core_protocol_event p USING(session_id,request_id)
+            JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
+                AND c.snapshot_sequence=:p3
+            JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.playthrough_id=c.playthrough_id
+            WHERE e.session_id=:p1 AND e.request_id=:p2 AND e.state IN ('claimed','streaming')
+                AND p.canonical_event=:p4::jsonb AND p.event_sha256=:p5 AND e.request_sha256=p.event_sha256
+                AND e.generation=:p6 AND p.generation=e.generation AND e.turn_id=:p7 AND p.turn_id=e.turn_id
+                AND p.event_type=e.event_type AND s.runtime_variant=:p8", $parameters);
+    }
+
+    /**
+     * Evidence that a rechat parent completed under this child's exact owner: the parent's canonical event, response and
+     * context. Parameters, in order: session id, parent request id, context sequence (text), generation, turn id, runtime
+     * variant, child canonical event JSON, child request id, child event sha256, 't'|'f' (also accept the child's own failed,
+     * unrevoked execution). [] when there is none, null when the read fails.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function completedParentEvidence(array $parameters): ?array
+    {
+        return $this->rowOrNull("SELECT p.canonical_event,p.event_sha256,p.event_type,e.response_body,c.context_payload
+        FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
+        JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation AND c.snapshot_sequence=:p3
+        JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
+        JOIN public.core_request_execution child ON child.session_id=e.session_id AND child.request_id=:p8
+        JOIN public.core_protocol_event cp ON cp.session_id=child.session_id AND cp.request_id=child.request_id
+        WHERE e.session_id=:p1 AND e.request_id=:p2 AND e.state='complete'
+            AND e.generation=:p4 AND e.turn_id=:p5 AND p.generation=e.generation AND p.turn_id=e.turn_id
+            AND octet_length(e.response_body)<=2097152
+            AND p.event_sha256=e.request_sha256 AND p.event_type=e.event_type
+            AND p.canonical_event->>'protocol_version'='2' AND p.canonical_event->>'context_sequence'=:p3::text
+            AND p.canonical_event->>'runtime_variant'=:p6 AND s.runtime_variant=:p6
+            AND (child.state IN ('claimed','streaming','complete') OR (:p10::boolean AND child.state='failed'
+                AND COALESCE(child.error_code,'') NOT IN ('turn_cancelled','request_cancelled','superseded_turn')))
+            AND child.generation=:p4 AND child.turn_id=:p5
+            AND cp.canonical_event=:p7::jsonb AND cp.event_sha256=:p9 AND child.request_sha256=cp.event_sha256
+            AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type", $parameters);
+    }
+
+    /** The execution state of a request (of any generation), or null when it has no row. */
+    public function stateOf(string $sessionId, string $requestId): ?string
+    {
+        $state = $this->connection()->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id = ? AND request_id = ? LIMIT 1', [$sessionId, $requestId]);
+
+        return $state === false || $state === null ? null : (string) $state;
     }
 
     /**

@@ -133,14 +133,11 @@ function countMemories()
         require_once __DIR__.'/synth_memory.php';
         $db=\Synth\Bootstrap::db();
         return $db->withNativeRequestLock(static function($connection,array $event) use ($db) {
-            $result=@pg_query($connection,synth_memory_visible_batch_cte($db,$event)
-                .'SELECT count(*) AS n FROM public.core_memory_summary s JOIN native_memory_batches b ON b.id=s.batch_id');
-            if (!$result) throw new RuntimeException('Unable to count native memories');
-            return intval(pg_fetch_assoc($result)['n']);
+            return synth_memory_dao_call('Unable to count native memories',
+                static fn() => \Synth\Core\DbManager\Dao\MemorySummaryDao::current($db)->countVisible(synth_memory_visible_batch_cte($db,$event)));
         },2000);
     }
-	$row = \Synth\Bootstrap::db()->fetchOne("SELECT count(*) AS n FROM public.core_memory WHERE source_type='summary'");
-	return intval($row["n"] ?? 0);
+	return \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->countSummaries();
 }
 
 function deleteElement($id, $onlyEmbedding = false)

@@ -710,24 +710,14 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
 
         if (!\Synth\Bootstrap::has('PATCH_DONT_STORE_SPEECH_ON_DB')) {
-            $escapeLogValue = static function ($value) use ($db) {
-                $value = (string)$value;
-                if (method_exists($db, 'escape')) {
-                    return $db->escape($value);
-                }
-                return str_replace("'", "''", $value);
-            };
+            // The stored text keeps the quote doubling the legacy writer applied to it.
+            $escapeLogValue = static fn($value) => str_replace("'", "''", (string)$value);
 
-            $db->insert(
-                'core_log',
-                array(
-                    'localts' => time(),
-                    'prompt' => nl2br($escapeLogValue(json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
-                    'response' => $escapeLogValue($responseForContext),
-                    'url' => nl2br($escapeLogValue("$receivedData [AI secs] $elapsedTimeAI  [TTS secs] $elapsedTimeTTS"))
-
-
-                )
+            \Synth\Core\DbManager\Dao\LogDao::current($db)->insertEntry(
+                time(),
+                nl2br($escapeLogValue(json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
+                $escapeLogValue($responseForContext),
+                nl2br($escapeLogValue("$receivedData [AI secs] $elapsedTimeAI  [TTS secs] $elapsedTimeTTS"))
             );
 
             // RECHAT
@@ -791,20 +781,7 @@ function logMemory($speaker, $listener, $message, $momentum, $gamets,$event,$ts)
 {
     $db = \Synth\Bootstrap::db();
 
-    $db->insert(
-        'core_memory_log',
-        array(
-                'localts' => time(),
-                'speaker' => $speaker,
-                'listener' => $listener,
-                'message' => $message,
-                'gamets' => $gamets,
-                'session' => $momentum,
-                'momentum'=>$momentum,
-                'event'=>$event,
-                'ts'=>$ts
-        )
-    );
+    \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->insertEntry(time(), strval($speaker), strval($listener), strval($message), $gamets, strval($momentum), strval($momentum), strval($event), $ts);
 }
 
 function lastNames($n, $eventypes)
@@ -817,14 +794,11 @@ function lastNames($n, $eventypes)
     $nativeEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($nativeEvent['protocol_version'] ?? 1) === 2) {
         $m = max(1, min(150, intval($m)));
-        $types = implode(',', array_map(static fn($type) => $db->escapeLiteral(strval($type)), $eventypes));
         $visibleChat = synthBuildChatDeliveryStateSql('delivery_state');
-        $lastRecords = $types === '' ? [] : $db->fetchAll(synth_protocol_history_cte($db, $nativeEvent)
-            . "SELECT data FROM native_history WHERE type IN ({$types})"
-            . " AND (type<>'chat' OR {$visibleChat})"
-            . " ORDER BY gamets DESC,ts DESC,rowid DESC LIMIT {$m}");
+        $lastRecords = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->recentDataByType(
+            synth_protocol_history_cte($db, $nativeEvent), array_map('strval', $eventypes), $visibleChat, $m);
     } else {
-        $lastRecords = $db->fetchAll("SELECT data from core_context_event where type in ('".implode("','",$eventypes)."') order by gamets desc limit $m offset 0");
+        $lastRecords = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentDataByType(array_map('strval', $eventypes), intval($m));
     }
 
     $uppercaseWords=[];
@@ -864,9 +838,7 @@ function lastSpeech($npcname)
     $db = \Synth\Bootstrap::db();
 
 
-    $speaker=$db->escape($npcname);
-    $pj=$db->escape(\Synth\Bootstrap::config("PLAYER_NAME"));
-    $lastRecords = $db->fetchAll("SELECT * from core_speech where (speaker ilike '$speaker' or speaker ilike '%$pj%' ) order by rowid desc LIMIT 5 OFFSET 0");
+    $lastRecords = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->lastLinesBySpeaker(strval($npcname), strval(\Synth\Bootstrap::config("PLAYER_NAME")));
     $buffer="";
     foreach (array_reverse($lastRecords) as $record) {
         $buffer.="{$record["speaker"]}:{$record["speech"]}\n";
@@ -884,8 +856,6 @@ function lastKeyWordsContext($n, $npcname='')
     $db = &\Synth\Bootstrap::ref('db'); $gameRequest = &\Synth\Bootstrap::ref('gameRequest');
 
     $m=$n+1;
-    $speaker=$db->escape($npcname);
-    $pj=$db->escape(\Synth\Bootstrap::config("PLAYER_NAME"));
 
     if (isset($gameRequest[2]))
         $whileago=round($gameRequest[2] - (2/ 0.0000024));
@@ -897,17 +867,11 @@ function lastKeyWordsContext($n, $npcname='')
         $m = max(1, min(150, intval($m)));
         $visibleChat = synthBuildChatDeliveryStateSql('delivery_state');
         // Recall hints use saved dialogue evidence, not the unrelated global speech/playback log.
-        $lastRecords = $db->fetchAll(synth_protocol_history_cte($db, $nativeEvent, $npcname)
-            . "SELECT substring(data FROM position(':' IN data)+1) AS speech FROM native_history"
-            . " WHERE type IN ('chat','inputtext','inputtext_s') AND gamets>" . intval($whileago)
-            . " AND speaker_identity_id IN (reader_identity_id,reader_player_id)"
-            . " AND (type<>'chat' OR {$visibleChat})"
-            . " ORDER BY gamets DESC,ts DESC,rowid DESC LIMIT {$m}");
+        $lastRecords = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->recentDialogueSince(
+            synth_protocol_history_cte($db, $nativeEvent, $npcname), intval($whileago), $visibleChat, $m);
     } else {
-        $lastRecords = $db->fetchAll("SELECT speaker, location, companions, speech, gamets
-     from (select * from core_speech where  gamets>{$whileago}) AS sp
-     where ((speaker ilike '{$speaker}') or (speaker ilike '%{$pj}%' ))
-        order by gamets desc limit {$m} offset 0");
+        $lastRecords = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->recentLinesSince(
+            $whileago, strval($npcname), strval(\Synth\Bootstrap::config("PLAYER_NAME")), intval($m));
     }
 
     $words=[];
@@ -981,7 +945,7 @@ function lastKeyWordsNew($n, $eventypes='')
 
     $m=$n+1;
 
-    $lastRecords = $db->fetchAll("SELECT speaker,location,companions,speech from core_speech order by gamets desc limit $m offset 0");
+    $lastRecords = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->newestLines(intval($m));
     $words=[];
     $uniqueArray=[];
     $uppercaseWords = [];
@@ -1052,7 +1016,7 @@ function lastKeyWords($n, $eventypes='')
 
     $m=$n+1;
 
-    $lastRecords = $db->fetchAll("SELECT message from core_memory_log order by gamets desc limit $m offset 0");
+    $lastRecords = \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->newestMessages(intval($m));
     $words=[];
     $uniqueArray=[];
     $uppercaseWords = [];
@@ -1268,13 +1232,11 @@ function getGametsLimitFor($actor) {
         $limit = max(1,min(150,intval(\Synth\Bootstrap::config('CONTEXT_HISTORY') ?? 50)));
         $db = \Synth\Bootstrap::db();
         $hours = $db->withNativeRequestLock(static function($connection,array $event) use ($db,$actor,$limit) {
-            $query = synth_protocol_history_cte($db,$event,strval($actor))."SELECT (MAX(gamets)-MIN(gamets))*0.0000024 AS hours
-                FROM (SELECT gamets FROM native_history WHERE type='chat'
-                    AND COALESCE(delivery_state,'spoken') IN ('emitted','spoken','presented')
-                    ORDER BY gamets DESC,ts DESC,history_event_id DESC LIMIT {$limit}) recent_chat";
-            $result = @pg_query($connection,$query);
-            if (!$result) throw new RuntimeException('Unable to read native memory window');
-            return floatval(pg_fetch_assoc($result)['hours'] ?? 0);
+            try {
+                return \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->recentChatSpanHours(synth_protocol_history_cte($db,$event,strval($actor)),$limit);
+            } catch (\Doctrine\DBAL\Exception $error) {
+                throw new RuntimeException('Unable to read native memory window',0,$error);
+            }
         },2000);
         $resolvedHours = $hours>0 ? $hours : 72; \Synth\Bootstrap::setAt('SYNTH_NATIVE_MEMORY_HOURS', $cacheKey, $resolvedHours); return $resolvedHours;
     }
@@ -1283,25 +1245,10 @@ function getGametsLimitFor($actor) {
     }
     $db = \Synth\Bootstrap::db();
 
-    $actorEscaped = $db->escape($actor);
     $limit = (int) \Synth\Bootstrap::config("CONTEXT_HISTORY");
 
     $visibleChatStateSql = synthBuildChatDeliveryStateSql('delivery_state');
-    $query = "
-        SELECT
-            (MAX(gamets) - MIN(gamets)) * 0.0000024 AS hour_threshold
-        FROM (
-            SELECT gamets
-            FROM core_context_event
-            WHERE type='chat'
-            AND {$visibleChatStateSql}
-            and people LIKE '%$actorEscaped%'
-            ORDER BY gamets DESC
-            LIMIT $limit
-        ) AS recent_events
-    ";
-
-    $limitRow = $db->fetchOne($query);
+    $limitRow = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->chatSpanForActor(strval($actor), $visibleChatStateSql, $limit) ?? [];
 
     Logger::trace(("MEMORY_EMBEDDING getGametsLimitFor($actor),CONTEXT_HISTORY: " . \Synth\Bootstrap::config('CONTEXT_HISTORY') . " => {$limitRow["hour_threshold"]}"));
 
