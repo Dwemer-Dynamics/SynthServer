@@ -27,12 +27,7 @@ $webRoot = dirname(dirname($scriptPath));
 if ($webRoot == '/') $webRoot = '';
 $webRoot = rtrim($webRoot, '/');
 
-$conn = pg_connect(synthPgConnectionString($dbSettings));
-if (!$conn) {
-    http_response_code(500);
-    echo "<p>DB connection failed.</p>";
-    exit;
-}
+require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
 
 $person = isset($_GET['person']) ? trim(urldecode($_GET['person'])) : '';
 if ($person === '') {
@@ -40,15 +35,13 @@ if ($person === '') {
     exit;
 }
 
-$result = pg_query_params($conn, "SELECT rowid, summary AS content, companions AS people, location, localts, gamets FROM public.core_memory WHERE source_type = 'diary' AND companions LIKE $1", ['%'.$person.'%']);
-$entries = [];
-if ($result) {
-    while ($row = pg_fetch_assoc($result)) { $entries[] = $row; }
+try {
+    $entries = \Synth\Core\DbManager\Dao\MemoryDao::current()->diaryBookEntries($person);
+} catch (\Throwable $error) {
+    $entries = [];
 }
 
 usort($entries, function($a, $b) { return ((int)$a['localts']) - ((int)$b['localts']); });
-
-pg_close($conn);
 
 $safeTitle = htmlspecialchars($person);
 $TITLE = 'The Diary of ' . $person;

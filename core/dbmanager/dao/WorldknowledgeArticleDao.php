@@ -24,4 +24,10 @@ final class WorldknowledgeArticleDao
     {
         return array_values($this->fresh()->getRepository(AbstractWorldknowledgeArticle::class)->findBy([], ['entryId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Topic and description of every article that has no 384-dimension vector yet. @return list<array<string, mixed>> */
+    public function withoutVector384(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT topic, topic_desc FROM core_worldknowledge_article WHERE vector384 IS NULL');
+    }
 }
