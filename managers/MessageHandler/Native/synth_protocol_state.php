@@ -131,8 +131,8 @@ function synth_protocol_assert_request_active(): void
     $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     $db = \Synth\Bootstrap::db();
     synth_protocol_assert_owner_active($db, $event, synth_protocol_retains_gift_owner($event));
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $request = $db->escapeLiteral($event['request_id']);
+    $session = synth_protocol_session_id($event);
+    $request = strval($event['request_id']);
     $generation = intval($event['generation']);
     if (isset($GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE'])) {
         require_once dirname(__DIR__, 3).'/lib'.'/synth_middleterm_jobs.php';
@@ -143,62 +143,38 @@ function synth_protocol_assert_request_active(): void
         require_once dirname(__DIR__, 3).'/lib'.'/synth_tts_jobs.php';
         synth_tts_assert_job_lease($db,$speechLease);
     }
+    $jobs = \Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+    $sequence = intval($event['context_sequence']);
+    $turn = strval($event['turn_id'] ?? '');
     $lease = \Synth\Bootstrap::config('SYNTH_MEMORY_JOB_LEASE') ?? null;
     if (is_array($lease)) {
-        $jobId = intval($lease['id']);
-        $token = $db->escapeLiteral($lease['token']);
-        $sequence = intval($event['context_sequence']);
-        $job = $db->fetchOne("SELECT 1 AS active FROM public.core_worker_job
-            WHERE id={$jobId} AND job_type='memory' AND session_id={$session} AND request_id={$request}
-                AND generation={$generation} AND payload->>'context_sequence'='{$sequence}'
-                AND state='running' AND lease_token={$token} AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
-        if (!$job) throw new SYNTHProtocolCancelled('memory_lease_lost');
+        if (!$jobs->memoryLeaseActive(intval($lease['id']), strval($lease['token']), $session, $request, $generation, $sequence)) {
+            throw new SYNTHProtocolCancelled('memory_lease_lost');
+        }
     }
     $relationshipLease=\Synth\Bootstrap::config('SYNTH_RELATIONSHIP_JOB_LEASE') ?? null;
     if (is_array($relationshipLease)) {
-        $jobId=intval($relationshipLease['id']); $token=$db->escapeLiteral($relationshipLease['token']);
-        $sequence=intval($event['context_sequence']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job WHERE id=$jobId AND job_type='relationship'
-            AND relationship_evaluation_id IS NOT NULL AND session_id=$session AND request_id=$request AND generation=$generation
-            AND payload->>'context_sequence'='$sequence' AND state='running' AND lease_token=$token
-            AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
-        if (!$job) throw new SYNTHProtocolCancelled('relationship_lease_lost');
+        if (!$jobs->relationshipLeaseActive(intval($relationshipLease['id']), strval($relationshipLease['token']), $session, $request, $generation, $sequence)) {
+            throw new SYNTHProtocolCancelled('relationship_lease_lost');
+        }
     }
     $profileLease=\Synth\Bootstrap::config('SYNTH_PROFILE_JOB_LEASE') ?? null;
     if (is_array($profileLease)) {
-        $jobId=intval($profileLease['id']);$token=$db->escapeLiteral($profileLease['token']);
-        $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job WHERE id=$jobId AND job_type='profile'
-            AND payload->>'schema'='synth.profile.job.v1' AND session_id=$session AND request_id=$request
-            AND generation=$generation AND turn_id=$turn AND payload->>'context_sequence'='$sequence'
-            AND state='running' AND lease_token=$token AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
-        if (!$job) throw new SYNTHProtocolCancelled('profile_lease_lost');
+        if (!$jobs->profileLeaseActive(intval($profileLease['id']), strval($profileLease['token']), $session, $request, $generation, $turn, $sequence)) {
+            throw new SYNTHProtocolCancelled('profile_lease_lost');
+        }
     }
     $diaryLease=\Synth\Bootstrap::config('SYNTH_DIARY_JOB_LEASE') ?? null;
     if (is_array($diaryLease)) {
-        $jobId=intval($diaryLease['id']);$token=$db->escapeLiteral($diaryLease['token']);
-        $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 FROM public.core_worker_job j JOIN public.core_diary_input i ON i.id=j.diary_input_id
-            AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation AND i.actor_identity_id=j.actor_identity_id
-            WHERE j.id=$jobId AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1'
-                AND j.session_id=$session AND j.request_id=$request AND j.generation=$generation AND j.turn_id=$turn
-                AND i.context_sequence=$sequence AND j.state='running' AND j.lease_token=$token
-                AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()");
-        if (!$job) throw new SYNTHProtocolCancelled('diary_lease_lost');
+        if (!$jobs->diaryLeaseActive(intval($diaryLease['id']), strval($diaryLease['token']), $session, $request, $generation, $turn, $sequence)) {
+            throw new SYNTHProtocolCancelled('diary_lease_lost');
+        }
     }
     $interactionLease=\Synth\Bootstrap::config('SYNTH_INTERACTION_JOB_LEASE') ?? null;
     if (is_array($interactionLease)) {
-        $jobId=intval($interactionLease['id']);$token=$db->escapeLiteral($interactionLease['token']);
-        $sequence=intval($event['context_sequence']);$turn=$db->escapeLiteral($event['turn_id']);
-        $job=$db->fetchOne("SELECT 1 AS active FROM public.core_worker_job j
-            JOIN public.core_relationship_interaction_evaluation i ON i.id=j.relationship_interaction_id
-                AND i.session_id=j.session_id AND i.request_id=j.request_id AND i.generation=j.generation
-                AND i.speaker_identity_id=j.actor_identity_id AND i.context_sequence::text=j.payload->>'context_sequence'
-            WHERE j.id=$jobId AND j.job_type='relationship' AND j.relationship_evaluation_id IS NULL AND j.memory_batch_id IS NULL
-                AND j.session_id=$session AND j.request_id=$request AND j.generation=$generation AND j.turn_id=$turn
-                AND j.payload->>'context_sequence'='$sequence' AND j.state='running' AND j.lease_token=$token
-                AND j.lease_until>clock_timestamp() AND j.deadline_at>clock_timestamp()");
-        if (!$job) throw new SYNTHProtocolCancelled('interaction_lease_lost');
+        if (!$jobs->interactionLeaseActive(intval($interactionLease['id']), strval($interactionLease['token']), $session, $request, $generation, $turn, $sequence)) {
+            throw new SYNTHProtocolCancelled('interaction_lease_lost');
+        }
     }
 }
 
@@ -206,13 +182,8 @@ function synth_protocol_assert_request_active(): void
 // active turn and context sequence. Stale or cancelled requests throw the protocol cancellation.
 function synth_protocol_assert_owner_active($db, array $event, bool $mayRetainGift = false): void
 {
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $request = $db->escapeLiteral($event['request_id']);
     $generation = intval($event['generation']);
-    $row = $db->fetchOne("SELECT e.state, e.error_code, r.state AS runtime_state, r.active_generation,
-            r.active_turn_id, r.active_turn_sequence
-        FROM public.core_request_execution e JOIN public.core_runtime_session r USING (session_id)
-        WHERE e.session_id={$session} AND e.request_id={$request} AND e.generation={$generation}");
+    $row = \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->ownerState(synth_protocol_session_id($event), strval($event['request_id']), $generation);
     // Only the relationship worker can retain an exact completed gift receipt across turn rollover.
     $retainedGift=$mayRetainGift && ($row['state'] ?? '')==='complete'
         && ($row['error_code'] ?? null)===null;
