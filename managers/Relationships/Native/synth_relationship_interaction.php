@@ -52,12 +52,9 @@ function synth_relationship_interaction_context($db, int $responseId, int $entry
         if (!$participants) return null;
         $ids=[];
         foreach ($participants as $role=>$actor) {
-            $result=@pg_query_params($connection,"SELECT id FROM public.core_actor_identity WHERE game='fo4'
-                AND upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3",
-                [$actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id']]);
-            if (!$result) throw new RuntimeException('Unable to resolve relationship participant');
-            $identity=pg_fetch_assoc($result);if (!$identity) return null;
-            $ids[$role]=intval($identity['id']);
+            $identityId=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->idByIdentity(strval($actor['form_id']),strval($actor['origin_plugin']),strval($actor['playthrough_id']));
+            if ($identityId===null) return null;
+            $ids[$role]=$identityId;
         }
         $states=[];
         foreach (['speaker'=>'listener','listener'=>'speaker'] as $role=>$subject) {

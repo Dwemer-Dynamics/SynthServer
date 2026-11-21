@@ -30,12 +30,9 @@ function synth_relationship_responder($db, array $event, array $context): ?array
         if (is_array($identity) && $key($identity)===$actorKey) $matches[$actorKey]=$identity;
     }
     if (count($matches)!==1) return null;
-    $result=$db->execQuery("SELECT id FROM public.core_actor_identity WHERE game='fo4'
-        AND upper(full_form_id)=upper($1) AND lower(origin_plugin)=lower($2) AND playthrough_id=$3",
-        [$actor['form_id'],$actor['origin_plugin'],$actor['playthrough_id']]);
-    $row=$result ? $db->fetchArray($result) : null;
-    if (!$row || intval($row['id'])<1) return null;
-    return ['actor_identity_id'=>intval($row['id']),'identity'=>$actor];
+    $identityId=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->idByIdentity(strval($actor['form_id']),strval($actor['origin_plugin']),strval($actor['playthrough_id']));
+    if (!$identityId || $identityId<1) return null;
+    return ['actor_identity_id'=>$identityId,'identity'=>$actor];
 }
 
 // Expressions are private SQL fragments supplied by readers, never client/model text.
@@ -44,7 +41,7 @@ function synth_relationship_responder_context_sql(string $event): string
     return "(SELECT captured.context_payload FROM public.core_protocol_event context_owner
         JOIN public.core_runtime_context captured ON captured.session_id=context_owner.session_id
             AND captured.generation=context_owner.generation
-            AND captured.snapshot_sequence=CASE WHEN ($event)->'capabilities' ? 'dialogue.rechat.scene'
+            AND captured.snapshot_sequence=CASE WHEN jsonb_exists(($event)->'capabilities','dialogue.rechat.scene')
                 AND ($event)->>'type'='trigger' AND ($event)#>>'{payload,kind}'='rechat'
                 THEN CASE WHEN jsonb_typeof(($event)#>'{payload,scene_context_sequence}')='number'
                     AND ($event)#>>'{payload,scene_context_sequence}' ~ '^[1-9][0-9]{0,15}$'
@@ -110,7 +107,7 @@ function synth_relationship_responder_sql(string $event, string $actorId, string
                     AND responder_chain.runtime_variant=responder_runtime.runtime_variant AND responder_chain.policy->'private'='false'::jsonb
                     AND responder_chain.policy->>'source_profile_id' ~ '^[1-9][0-9]*$'
                     AND responder_chain.policy->>'source_actor_identity_id' ~ '^[1-9][0-9]*$'
-                    AND CASE WHEN ($event)->'capabilities' ? 'dialogue.rechat.scene' THEN
+                    AND CASE WHEN jsonb_exists(($event)->'capabilities','dialogue.rechat.scene') THEN
                         jsonb_typeof(($context)->'snapshot_sequence')='number'
                         AND CASE WHEN ($context)->>'snapshot_sequence' ~ '^[1-9][0-9]{0,15}$'
                             THEN (($context)->>'snapshot_sequence')::bigint ELSE NULL END>responder_root.snapshot_sequence
@@ -119,6 +116,6 @@ function synth_relationship_responder_sql(string $event, string $actorId, string
                                 AND fresh.playthrough_id=responder_root.playthrough_id AND fresh.context_payload=($context)
                                 AND fresh.player_identity_id=responder_root.player_identity_id
                                 AND fresh.received_at BETWEEN responder_execution.claimed_at-interval '10 seconds' AND responder_execution.claimed_at)
-                        ELSE NOT (($event)->'payload' ? 'scene_context_sequence') END))
+                        ELSE NOT jsonb_exists(($event)->'payload','scene_context_sequence') END))
     )";
 }

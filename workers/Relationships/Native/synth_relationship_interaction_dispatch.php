@@ -14,44 +14,14 @@ function synth_relationship_dispatch_interaction($db, ?callable $generate=null):
             $context=synth_protocol_current_context($db,$event);
             $responder=$context ? synth_relationship_responder($db,$event,$context) : null;
             if (!$responder) return [];
-            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='cancelled',lease_token=NULL,lease_until=NULL,
-                last_error='owner_unavailable',updated_at=clock_timestamp() WHERE job_type='relationship' AND relationship_interaction_id IS NOT NULL
-                    AND session_id=$1 AND state IN ('pending','running') AND (generation<>$2 OR turn_id<>$3 OR payload->>'context_sequence' IS DISTINCT FROM $4
-                        OR relationship_evaluation_id IS NOT NULL OR memory_batch_id IS NOT NULL
-                        OR NOT EXISTS(SELECT 1 FROM public.core_relationship_interaction_evaluation i
-                            JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
-                                AND e.generation=i.generation AND e.turn_id=j.turn_id AND e.state='complete'
-                            JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
-                                AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
-                            WHERE i.id=j.relationship_interaction_id AND i.session_id=j.session_id AND i.request_id=j.request_id
-                                AND i.generation=j.generation AND i.context_sequence::text=j.payload->>'context_sequence'
-                                AND i.speaker_identity_id=j.actor_identity_id AND i.input_payload->'owner'=p.canonical_event
-                                AND ".synth_relationship_responder_sql('p.canonical_event','i.speaker_identity_id',"i.input_payload->'context'")."))",$params);
-            if (!$result) throw new RuntimeException('Unable to retire obsolete interaction owner');
-            $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
-                last_error='lease_expired',updated_at=clock_timestamp() WHERE relationship_interaction_id IS NOT NULL
-                    AND session_id=$1 AND state IN ('pending','running')
-                    AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$event['session_id']]);
-            if (!$result) throw new RuntimeException('Unable to retire expired interaction dispatch');
-            $result=@pg_query_params($connection,"SELECT id FROM public.core_worker_job WHERE job_type='relationship'
-                AND relationship_interaction_id IS NOT NULL AND relationship_evaluation_id IS NULL AND memory_batch_id IS NULL
-                AND session_id=$1 AND generation=$2 AND turn_id=$3 AND payload->>'context_sequence'=$4
-                AND available_at<=clock_timestamp() AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
-                ORDER BY available_at,id LIMIT 1",$params);
-            if (!$result) throw new RuntimeException('Unable to select interaction retry');
-            if ($row=pg_fetch_assoc($result)) return ['job'=>intval($row['id'])];
-            $result=@pg_query_params($connection,"SELECT i.id,i.session_id,i.request_id,i.generation,i.context_sequence,
-                    e.turn_id,e.event_type,p.canonical_event,p.event_sha256
-                FROM public.core_relationship_interaction_evaluation i
-                JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id
-                    AND e.generation=i.generation AND e.turn_id=$3 AND e.state='complete'
-                JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
-                    AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
-                WHERE i.session_id=$1 AND i.generation=$2 AND i.context_sequence::text=$4 AND i.input_payload->'owner'=p.canonical_event
-                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job j WHERE j.relationship_interaction_id=i.id)
-                ORDER BY i.id LIMIT 1",$params);
-            if (!$result) throw new RuntimeException('Unable to recover frozen interaction');
-            if ($row=pg_fetch_assoc($result)) return ['input'=>$row];
+            $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+            $jobs->cancelObsoleteInteractionWork($event['session_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence'],
+                synth_relationship_responder_sql('p.canonical_event','i.speaker_identity_id',"i.input_payload->'context'"));
+            $jobs->failExpiredInteractionWork($event['session_id']);
+            $retry=$jobs->nextInteractionRetry($event['session_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']);
+            if ($retry!==null) return ['job'=>$retry];
+            $frozen=\Synth\Core\DbManager\Dao\RelationshipInteractionEvaluationDao::current($db)->unqueuedFrozen($event['session_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']);
+            if ($frozen) return ['input'=>$frozen];
             // Source visibility stays speaker-scoped. Addressing selects one canonical listener, not every nearby actor.
             $result=@pg_query_params($connection,synth_protocol_history_cte($db,$event)
                 .synth_relationship_response_evidence_cte($db,$event,true)."

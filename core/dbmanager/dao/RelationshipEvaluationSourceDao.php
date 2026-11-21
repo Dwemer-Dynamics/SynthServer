@@ -24,4 +24,31 @@ final class RelationshipEvaluationSourceDao
     {
         return array_values($this->fresh()->getRepository(AbstractRelationshipEvaluationSource::class)->findBy([], ['evaluationId' => 'ASC', 'historyEventId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Freezes that this evaluation read this history event. */
+    public function add(int $evaluationId, int $historyEventId): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_relationship_evaluation_source VALUES(:p1,:p2)',
+            ['p1' => $evaluationId, 'p2' => $historyEventId]
+        );
+    }
+
+    /** The history events this evaluation read, ascending. @return list<int> */
+    public function historyEventIds(int $evaluationId): array
+    {
+        return array_map('intval', $this->connection()->fetchFirstColumn(
+            'SELECT history_event_id FROM public.core_relationship_evaluation_source WHERE evaluation_id=:p1 ORDER BY history_event_id',
+            ['p1' => $evaluationId]
+        ));
+    }
+
+    /** How many history events this evaluation read. */
+    public function countFor(int $evaluationId): int
+    {
+        return (int) $this->connection()->fetchOne(
+            'SELECT count(*) AS n FROM public.core_relationship_evaluation_source WHERE evaluation_id=:p1',
+            ['p1' => $evaluationId]
+        );
+    }
 }

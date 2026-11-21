@@ -24,4 +24,13 @@ final class RelationshipRevisionSourceDao
     {
         return array_values($this->fresh()->getRepository(AbstractRelationshipRevisionSource::class)->findBy([], ['relationshipHistoryEventId' => 'ASC', 'sourceHistoryEventId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Freezes that this revision depends on this source history event. */
+    public function add(int $relationshipHistoryEventId, int|string $sourceHistoryEventId): void
+    {
+        $this->connection()->executeStatement(
+            'INSERT INTO public.core_relationship_revision_source VALUES(:p1,:p2)',
+            ['p1' => $relationshipHistoryEventId, 'p2' => $sourceHistoryEventId]
+        );
+    }
 }
