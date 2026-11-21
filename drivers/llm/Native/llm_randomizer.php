@@ -133,7 +133,7 @@ class LLMRandomizer {
      * @return int Connector slot (1-4)
      */
     private static function getGlobalConnectorSlot() {
-        if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot']))
+        if (isset(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']))
             return intval(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot']);
         $db = \Synth\Bootstrap::db();
         $result = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_profile_model')];
@@ -176,7 +176,7 @@ class LLMRandomizer {
         }
 
         // An acknowledged native slot must not silently become a different model for this NPC.
-        if (isset($GLOBALS['SYNTH_REQUEST_EVENT']['json']['payload']['control']['model_slot'])) return null;
+        if (isset(\Synth\Bootstrap::requestEvent()['json']['payload']['control']['model_slot'])) return null;
 
         // Fallback: chosen slot is empty/unset, use first configured connector in profile.
         foreach (['llm_primary_id', 'llm_secondary_id', 'llm_tertiary_id', 'llm_quaternary_id'] as $fallbackField) {

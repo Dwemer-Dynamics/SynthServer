@@ -76,18 +76,18 @@ function _minimeServiceAvailable() {
  * - In tests, mock handlers imply enabled.
  */
 function isMinimeT5Enabled() {
-    if (isset($GLOBALS["mockMinimeExtract"]) ||
-        isset($GLOBALS["mockMinimePostTopic"]) ||
-        isset($GLOBALS["mockMinimeTask"]) ||
-        isset($GLOBALS["mockMinimeTopic"]) ||
-        isset($GLOBALS["mockMinimePostScene"])) {
+    if (\Synth\Bootstrap::has('mockMinimeExtract') ||
+        \Synth\Bootstrap::has('mockMinimePostTopic') ||
+        \Synth\Bootstrap::has('mockMinimeTask') ||
+        \Synth\Bootstrap::has('mockMinimeTopic') ||
+        \Synth\Bootstrap::has('mockMinimePostScene')) {
         return true;
     }
     return _minimeServiceAvailable();
 }
 
 function minimeExtract($text,$useOnlyDetector=false) {
-    if (isset($GLOBALS["mockMinimeExtract"])) {
+    if (\Synth\Bootstrap::has('mockMinimeExtract')) {
         return call_user_func(\Synth\Bootstrap::config("mockMinimeExtract"), $text);
     }
 
@@ -97,14 +97,14 @@ function minimeExtract($text,$useOnlyDetector=false) {
     }
 
     $nativeRecall = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2
-        && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']);
+        && !empty(\Synth\Bootstrap::claimedRequest());
     // Detection and tag extraction have different response shapes; native text fallback must not reuse a detector result.
     $cacheKey = $nativeRecall ? 'native:'.($useOnlyDetector ? 'detect:' : 'extract:').hash('sha256',_minimeServiceBaseUrl()."\0".$text) : md5($text);
     if ($nativeRecall) {
         require_once __DIR__.'/provider_stream.php';
         synth_protocol_assert_request_active();
     }
-    if (isset($GLOBALS["MINIME_CACHE"][$cacheKey]))
+    if (isset(\Synth\Bootstrap::config('MINIME_CACHE')[$cacheKey]))
         return \Synth\Bootstrap::config("MINIME_CACHE")[$cacheKey];
 
     if ($useOnlyDetector)
@@ -118,12 +118,12 @@ function minimeExtract($text,$useOnlyDetector=false) {
     } else {
         $result = @file_get_contents($url);
     }
-    $GLOBALS["MINIME_CACHE"][$cacheKey] = $result !== false ? $result : null;
+    \Synth\Bootstrap::setAt('MINIME_CACHE', $cacheKey, $result !== false ? $result : null);
     return \Synth\Bootstrap::config("MINIME_CACHE")[$cacheKey];
 }
 
 function minimePostTopic($text) {
-    if (isset($GLOBALS["mockMinimePostTopic"])) {
+    if (\Synth\Bootstrap::has('mockMinimePostTopic')) {
         return call_user_func(\Synth\Bootstrap::config("mockMinimePostTopic"), $text);
     }
 
@@ -138,7 +138,7 @@ function minimePostTopic($text) {
 }
 
 function minimeTask($text) {
-    if (isset($GLOBALS["mockMinimeTask"])) {
+    if (\Synth\Bootstrap::has('mockMinimeTask')) {
         return call_user_func(\Synth\Bootstrap::config("mockMinimeTask"), $text);
     }
 
@@ -153,7 +153,7 @@ function minimeTask($text) {
 }
 
 function minimeTopic($text) {
-    if (isset($GLOBALS["mockMinimeTopic"])) {
+    if (\Synth\Bootstrap::has('mockMinimeTopic')) {
         return call_user_func(\Synth\Bootstrap::config("mockMinimeTopic"), $text);
     }
 
@@ -168,7 +168,7 @@ function minimeTopic($text) {
 }
 
 function minimePostScene($text) {
-    if (isset($GLOBALS["mockMinimePostScene"])) {
+    if (\Synth\Bootstrap::has('mockMinimePostScene')) {
         return call_user_func(\Synth\Bootstrap::config("mockMinimePostScene"), $text);
     }
 

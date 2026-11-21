@@ -144,15 +144,7 @@ if (
  }
 
  $customPrompt = trim((string)($_POST['custom_prompt'] ?? ''));
- $setCustomPromptSql = $customPrompt === '' ? 'NULL' : \Synth\Bootstrap::db()->escapeLiteral($customPrompt);
- $updatedAtSql = \Synth\Bootstrap::db()->escapeLiteral(date('Y-m-d H:i:s'));
- $promptKeySql = \Synth\Bootstrap::db()->escapeLiteral($promptKey);
- $result = \Synth\Bootstrap::db()->execQuery(
- "UPDATE core_prompt
- SET custom_prompt = {$setCustomPromptSql},
- updated_at = {$updatedAtSql}
- WHERE prompt_key = {$promptKeySql}"
- );
+ $result = \Synth\Core\DbManager\Dao\PromptDao::current()->setCustom((string)$promptKey, $customPrompt === '' ? null : $customPrompt);
  echo json_encode([
  'success' => (bool)$result,
  'message' => $result ? 'Prompt saved successfully.' : 'Failed to save prompt.'
@@ -168,14 +160,7 @@ if (
  exit;
  }
 
- $updatedAtSql = \Synth\Bootstrap::db()->escapeLiteral(date('Y-m-d H:i:s'));
- $promptKeySql = \Synth\Bootstrap::db()->escapeLiteral($promptKey);
- $result = \Synth\Bootstrap::db()->execQuery(
- "UPDATE core_prompt
- SET custom_prompt = NULL,
- updated_at = {$updatedAtSql}
- WHERE prompt_key = {$promptKeySql}"
- );
+ $result = \Synth\Core\DbManager\Dao\PromptDao::current()->setCustom((string)$promptKey, null);
  echo json_encode([
  'success' => (bool)$result,
  'message' => $result ? 'Custom prompt cleared.' : 'Failed to clear prompt.'
@@ -410,18 +395,7 @@ foreach ($allProfiles as $prof) {
 // Get current profile data
 $currentProfileData = $profilesConnById[$profileId] ?? null;
 
-$advancedPromptOrderSql = [];
-foreach ($advancedPromptKeys as $index => $advancedPromptKey) {
- $advancedPromptOrderSql[] = "WHEN " . \Synth\Bootstrap::db()->escapeLiteral($advancedPromptKey) . " THEN " . ($index + 1);
-}
-
-$advancedPromptRows = \Synth\Bootstrap::db()->fetchAll(
- "SELECT prompt_key, default_prompt, custom_prompt, description
- FROM core_prompt
- WHERE prompt_key IN (" . implode(', ', array_map([\Synth\Bootstrap::db(), 'escapeLiteral'], $advancedPromptKeys)) . ")
- ORDER BY CASE prompt_key " . implode(' ', $advancedPromptOrderSql) . " ELSE 999 END"
-);
-$advancedPrompts = is_array($advancedPromptRows) ? $advancedPromptRows : [];
+$advancedPrompts = \Synth\Core\DbManager\Dao\PromptDao::current()->rowsForKeys(array_values($advancedPromptKeys));
 require_once __DIR__.DIRECTORY_SEPARATOR.'narrator_private_definitions.php';
 $privateNarratorResult = narrator_private_handle_post();
 

@@ -5,7 +5,7 @@ require_once __DIR__ . '/lib/classes/Logger.php';
 ob_start();
 ini_set('display_errors', '0');
 $path = __DIR__ . DIRECTORY_SEPARATOR;
-$GLOBALS['ENGINE_PATH'] = $path;
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
 require_once $path . 'lib/RequestBody.php';
 require_once $path . 'lib/voice_sample.php';
 require_once $path . 'lib/runtime_bootstrap.php';

@@ -98,7 +98,7 @@ class GroqJsonDriver
     }
 
     protected function init_connector($customParms) {
-        $this->_url = (isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "";
+        $this->_url = (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "";
         if (strlen($this->_url) < 6)
             Logger::error("{$this->name} connector - missing url!");
 
@@ -123,10 +123,10 @@ class GroqJsonDriver
     {
         $this->init_connector($customParms);
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
+        $MAX_TOKENS=intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
 
         // Memory embedding handling
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && \Synth\Bootstrap::has('MEMORY_STATEMENT') ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline)) {
                     if (strpos($contextline["content"],"#MEMORY")===0) {
@@ -144,14 +144,14 @@ class GroqJsonDriver
             synthEnsureNarratorJsonResponseState('GROQJSON');
         }
 
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
-            $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+        if (\Synth\Bootstrap::has('PATCH_PROMPT_ENFORCE_ACTIONS') && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
+            $prefix=((string)\Synth\Bootstrap::config('COMMAND_PROMPT_ENFORCE_ACTIONS'));
         } else {
             $prefix="";
         }
 
         $b_speech_style = (
-            (isset($GLOBALS["SYNTH_SPEECHSTYLE"]) && (!empty($GLOBALS["SYNTH_SPEECHSTYLE"]))) ||
+            (\Synth\Bootstrap::has('SYNTH_SPEECHSTYLE') && (!empty(\Synth\Bootstrap::config('SYNTH_SPEECHSTYLE')))) ||
             (stripos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false)
         );
         if ($b_speech_style) {
@@ -164,7 +164,7 @@ class GroqJsonDriver
             'content' => "{$prefix}. $speechReinforcement \nUse only this JSON object to give your answer and do not send any other characters outside of this JSON structure: \n".json_encode(\Synth\Bootstrap::config("responseTemplate"),JSON_PRETTY_PRINT)
         ];
 
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+        if (\Synth\Bootstrap::has('FUNCTIONS_ARE_ENABLED') && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
             $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
 
@@ -216,8 +216,8 @@ class GroqJsonDriver
                     $assistantAppearedInhistory=true;
                     $dialogueTarget=extractDialogueTarget($element["content"]) ?? [];
                     if (isset($element["tool_calls"])) {
-                        $pb["system"].="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]}";
-                        $lastAction="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#";
+                        $pb["system"].=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]}");
+                        $lastAction=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#");
                         $lastActionName=$element["tool_calls"][0]["function"]["name"];
                         $localFuncCodeName=getFunctionCodeName($element["tool_calls"][0]["function"]["name"]);
                         $localArguments=json_decode($element["tool_calls"][0]["function"]["arguments"],true);
@@ -226,7 +226,7 @@ class GroqJsonDriver
                         }
                         $actionTargetValue = synthExtractActionArgumentTargetValue($localArguments);
                         $actionDialogueTarget = extractDialogueTarget($element["content"] ?? '') ?? [];
-                        if (isset($GLOBALS["F_RETURNMESSAGES"][$localFuncCodeName])) {
+                        if (isset(\Synth\Bootstrap::config('F_RETURNMESSAGES')[$localFuncCodeName])) {
                             $lastAction=synthFormatReturnMessageTemplate($localFuncCodeName, $localArguments);
                         }
                         $contextDataCopy[]=[
@@ -268,20 +268,20 @@ class GroqJsonDriver
                         if (!empty($element["content"]) || isset($element['_synth_action_status'])) {
                             $pb["system"].=$element["content"]."\n";
 
-                            $GLOBALS["PATCH_STORE_FUNC_RES_ACTION"] = $localFuncCodeName;
+                            \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES_ACTION', $localFuncCodeName);
                              if (!isset($element['_synth_action_status']) && stripos($element["content"],"error")===0) {
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]="{$GLOBALS["SYNTH_NAME"]} issued ACTION, but {$element["content"]}";
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', (\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION, but {$element["content"]}"));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}")
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES')))
 
                                 ];
                             } else {
 
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]=synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null);
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}"),
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES'))),
 
                                 ];
                             }
@@ -306,8 +306,8 @@ class GroqJsonDriver
             }
         }
 
-        if ((isset($GLOBALS["CONNECTOR"][$this->name]["PREFILL_JSON"])) && (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["PREFILL_JSON"])) {
-            $GLOBALS["PATCH"]["PREAPPEND"]=synth_provider_json_prefill(strval(\Synth\Bootstrap::config("SYNTH_NAME")));
+        if ((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["PREFILL_JSON"])) && (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["PREFILL_JSON"])) {
+            \Synth\Bootstrap::setAt('PATCH', "PREAPPEND", synth_provider_json_prefill(strval(\Synth\Bootstrap::config("SYNTH_NAME"))));
             $contextDataCopy[]=["role"=>"assistant","content"=>\Synth\Bootstrap::config("PATCH")["PREAPPEND"]];
         }
 
@@ -334,7 +334,7 @@ class GroqJsonDriver
             $MAX_TOKENS=intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
@@ -368,7 +368,7 @@ class GroqJsonDriver
 
         // Groq doesn't support json_schema response format on most models
         // Keep using json_object for compatibility
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
+        if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"]) {
             // Note: json_schema is not widely supported on Groq, so we stick with json_object
             // Only specific models support structured outputs: https://console.groq.com/docs/structured-outputs#supported-models
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'GROQ', "json_schema setting is enabled but not supported on most Groq models - using json_object instead");
@@ -383,13 +383,13 @@ class GroqJsonDriver
                 $data[$k]=$v;
         }
 
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         file_put_contents(dirname(__DIR__, 3) . "/log/context_sent_to_llm.log",date(DATE_ATOM)."\n=\n".var_export($data,true)."\n=\n", FILE_APPEND);
 
         $headers = array(
             'Content-Type: application/json',
-            "Authorization: Bearer {$GLOBALS["CONNECTOR"][$this->name]["API_KEY"]}"
+            ("Authorization: Bearer " . \Synth\Bootstrap::config('CONNECTOR')[$this->name]["API_KEY"])
         );
 
         $timeout = max(intval((\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?? 30), $this->_timeout);
@@ -459,12 +459,12 @@ class GroqJsonDriver
 
     public function process()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         // Seed the parser before appending the first provider chunk; never overwrite that chunk.
-        if (isset($GLOBALS["PATCH"]["PREAPPEND"])) {
+        if (isset(\Synth\Bootstrap::config('PATCH')["PREAPPEND"])) {
             $this->_buffer = \Synth\Bootstrap::config("PATCH")["PREAPPEND"];
-            unset($GLOBALS["PATCH"]["PREAPPEND"]);
+            \Synth\Bootstrap::unsetPath('PATCH', ["PREAPPEND"]);
         }
 
         static $numOutputTokens=0;
@@ -490,7 +490,7 @@ class GroqJsonDriver
             if (strlen($msg) > 0) {
                 $buffer .= $msg;
                 $this->_buffer .= $msg;
-                $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_buffer;
+                \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_buffer);
                 $this->_numOutputTokens += 1;
             }
             $totalBuffer .= $msg;
@@ -518,23 +518,23 @@ class GroqJsonDriver
                         $mangledBuffer = str_replace($this->_extractedbuffer, "", $finalData["message"]);
                         $this->_extractedbuffer=$finalData["message"];
                         if (isset($finalData["listener"])) {
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["listener"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["listener"]);
                         }
                         if (isset($finalData["target"]) && !empty($finalData["target"]) && $finalData["action"]=="Talk") {
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["target"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["target"]);
                         }
 
                         if (isset($finalData["lang"])) {
-                            $GLOBALS["LLM_LANG"]=preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"])));
+                            \Synth\Bootstrap::set('LLM_LANG', preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"]))));
                         }
 
                         if (isset($finalData["mood"])) {
                             $finalData["mood"] = extractFirstEmoteMood($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_ANIMATION"]=GetAnimationHex($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_EXPRESSION"]=GetExpression($finalData["mood"]);
+                            \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', GetAnimationHex($finalData["mood"]));
+                            \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', GetExpression($finalData["mood"]));
                         }
 
-                        $GLOBALS["LAST_LLM_RESPONSE"] = $finalData;
+                        \Synth\Bootstrap::set('LAST_LLM_RESPONSE', $finalData);
 
                     }
                 }
@@ -593,7 +593,7 @@ class GroqJsonDriver
 
     public function processActions()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         if ($this->_functionName) {
             require_once(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "synth_command_payload.php");
@@ -613,7 +613,7 @@ class GroqJsonDriver
             } else
                 return null;
         } else {
-            $GLOBALS["DEBUG_DATA"]["RAW"]=$this->_buffer;
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "RAW", $this->_buffer);
             $parsedResponse=__jpd_decode_lazy($this->_buffer);
             if (is_array($parsedResponse)) {
                 if (!empty($parsedResponse["action"])) {
@@ -653,7 +653,7 @@ class GroqJsonDriver
         else
             $callName=$this->name."/".$callName;
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 512));
+        $MAX_TOKENS=intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 512));
 
         $temperature = floatval((\Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"]) ? : 0.7);
         // Groq requirement: temperature must be > 1e-8
@@ -676,7 +676,7 @@ class GroqJsonDriver
             $MAX_TOKENS=intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             $MAX_TOKENS=intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
@@ -701,7 +701,7 @@ class GroqJsonDriver
             }
         }
 
-        if (isset($GLOBALS["CONNECTOR"][$this->name]["stop"])&&sizeof(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"])>0) {
+        if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["stop"])&&sizeof(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"])>0) {
             $data["stop"]=\Synth\Bootstrap::config("CONNECTOR")[$this->name]["stop"];
         }
 
@@ -714,11 +714,11 @@ class GroqJsonDriver
                 $data[$k]=$v;
         }
 
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         $headers = array(
             'Content-Type: application/json',
-            "Authorization: Bearer {$GLOBALS["CONNECTOR"][$this->name]["API_KEY"]}",
+            ("Authorization: Bearer " . \Synth\Bootstrap::config('CONNECTOR')[$this->name]["API_KEY"]),
             "HTTP-Referer:  https://dwemerdynamics.com/",
             "X-Title: Dwemer Dynamics"
         );

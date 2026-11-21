@@ -124,12 +124,12 @@ class Player2JsonDriver
     }
 
     protected function buildRequestPayload($contextData, $customParms, $forceJson = true) {
-        $maxTokens = intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 250));
+        $maxTokens = intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 250));
         if (isset($customParms["MAX_TOKENS"])) {
             $maxTokens = intval($customParms["MAX_TOKENS"]);
             unset($customParms["MAX_TOKENS"]);
         }
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             $maxTokens = intval(\Synth\Bootstrap::config("FORCE_MAX_TOKENS"));
         }
 
@@ -148,9 +148,9 @@ class Player2JsonDriver
         );
 
         if ($forceJson) {
-            if (isset($GLOBALS["CONNECTOR"][$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"] && isset($GLOBALS["structuredOutputTemplate"])) {
+            if (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["json_schema"]) && \Synth\Bootstrap::config("CONNECTOR")[$this->name]["json_schema"] && \Synth\Bootstrap::has('structuredOutputTemplate')) {
                 $data["response_format"] = \Synth\Bootstrap::config("structuredOutputTemplate");
-            } else if (!isset($GLOBALS["CONNECTOR"][$this->name]["ENFORCE_JSON"]) || \Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
+            } else if (!isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["ENFORCE_JSON"]) || \Synth\Bootstrap::config("CONNECTOR")[$this->name]["ENFORCE_JSON"]) {
                 $data["response_format"] = array("type" => "json_object");
             }
         }
@@ -171,12 +171,12 @@ class Player2JsonDriver
     }
 
     protected function init_connector() {
-        $this->_url = $this->normalizeConnectorUrl((isset($GLOBALS["CONNECTOR"][$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "");
+        $this->_url = $this->normalizeConnectorUrl((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["url"])) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["url"] : "");
         if (strlen($this->_url) < 6)
             Logger::error("{$this->name} connector - missing url!");
 
         // Check for hardcoded IP address override in conf_opts table
-        if (isset($GLOBALS["db"]) && is_object(\Synth\Bootstrap::db())) {
+        if (\Synth\Bootstrap::has('db') && is_object(\Synth\Bootstrap::db())) {
             try {
                 $hostIpRecord = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'Network/HOST_IP'));
                 if (!empty($hostIpRecord) && !empty(trim($hostIpRecord[0]['value']))) {
@@ -239,7 +239,7 @@ class Player2JsonDriver
             }
         }
 
-        $this->_model = (isset($GLOBALS["CONNECTOR"][$this->name]["model"])) ? trim((string)\Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"]) : "";
+        $this->_model = (isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["model"])) ? trim((string)\Synth\Bootstrap::config("CONNECTOR")[$this->name]["model"]) : "";
         $this->_game_key = trim((string)(\Synth\Bootstrap::config("CONNECTOR")[$this->name]["player2_game_key"] ?? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["API_KEY"] ?? "SYNTH"));
         if ($this->_game_key === "") {
             $this->_game_key = "SYNTH";
@@ -255,7 +255,7 @@ class Player2JsonDriver
     {
         $this->init_connector();
 
-        $MAX_TOKENS=intval((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
+        $MAX_TOKENS=intval((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48));
 
 
 
@@ -265,7 +265,7 @@ class Player2JsonDriver
                                                                                                 Tyler, 2023/11/09
         ****/
         
-        if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && isset($GLOBALS["MEMORY_STATEMENT"]) ) {
+        if (isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) && \Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] && \Synth\Bootstrap::has('MEMORY_STATEMENT') ) {
             foreach ($contextData as $n=>$contextline)  {
                 if (is_array($contextline)) {
 
@@ -285,11 +285,11 @@ class Player2JsonDriver
         }
         
         
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
-            $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+        if (\Synth\Bootstrap::has('PATCH_PROMPT_ENFORCE_ACTIONS') && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
+            $prefix=((string)\Synth\Bootstrap::config('COMMAND_PROMPT_ENFORCE_ACTIONS'));
         } else {
             $prefix="";
-            //$prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+            //$prefix="{\Synth\Bootstrap::config("COMMAND_PROMPT_ENFORCE_ACTIONS")}";
         }
         
         if (strpos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false) {
@@ -309,7 +309,7 @@ class Player2JsonDriver
             ];
         }
     
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+        if (\Synth\Bootstrap::has('FUNCTIONS_ARE_ENABLED') && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
             $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
 
@@ -364,8 +364,8 @@ class Player2JsonDriver
                     $assistantAppearedInhistory=true;
                     $dialogueTarget=extractDialogueTarget($element["content"]) ?? "none"; // moved here to be available in tool_calls
                     if (isset($element["tool_calls"])) {
-                        $pb["system"].="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]}";
-                        $lastAction="{$GLOBALS["SYNTH_NAME"]} issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#";
+                        $pb["system"].=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]}");
+                        $lastAction=(\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION {$element["tool_calls"][0]["function"]["name"]} {$element["tool_calls"][0]["function"]["arguments"]}, #RESULT#");
                         $lastActionName=$element["tool_calls"][0]["function"]["name"];
                         $localFuncCodeName=getFunctionCodeName($element["tool_calls"][0]["function"]["name"]);
                         $localArguments=json_decode($element["tool_calls"][0]["function"]["arguments"],true);
@@ -374,7 +374,7 @@ class Player2JsonDriver
                         }
                         $actionTargetValue = synthExtractActionArgumentTargetValue($localArguments);
                         $actionDialogueTarget = extractDialogueTarget($element["content"] ?? '') ?? [];
-                        if (isset($GLOBALS["F_RETURNMESSAGES"][$localFuncCodeName])) {
+                        if (isset(\Synth\Bootstrap::config('F_RETURNMESSAGES')[$localFuncCodeName])) {
                             $lastAction=synthFormatReturnMessageTemplate($localFuncCodeName, $localArguments);
                         }
                         $contextDataCopy[]=[
@@ -417,7 +417,7 @@ class Player2JsonDriver
                                 
                                 $contextData[$n]=[
                                         "role"=>"assistant",
-                                        "content"=>"{\"character\": \"{$GLOBALS["SYNTH_NAME"]}\", \"listener\": \"{$dialogueTarget["target"]}\", \"mood\": \"\", \"action\": \"Talk\",\"target\": \"\", \"message\":\"".trim($dialogueTarget["cleanedString"])."\"}"
+                                        "content"=>("{\"character\": \"" . \Synth\Bootstrap::config('SYNTH_NAME') . "\", \"listener\": \"{$dialogueTarget["target"]}\", \"mood\": \"\", \"action\": \"Talk\",\"target\": \"\", \"message\":\"").trim($dialogueTarget["cleanedString"])."\"}"
                                         
                                     ];
                             }
@@ -430,20 +430,20 @@ class Player2JsonDriver
                             $pb["system"].=$element["content"]."\n";
                             
                            
-                            $GLOBALS["PATCH_STORE_FUNC_RES_ACTION"] = $localFuncCodeName;
+                            \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES_ACTION', $localFuncCodeName);
                              if (!isset($element['_synth_action_status']) && stripos($element["content"],"error")===0) {
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]="{$GLOBALS["SYNTH_NAME"]} issued ACTION, but {$element["content"]}";
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', (\Synth\Bootstrap::config('SYNTH_NAME') . " issued ACTION, but {$element["content"]}"));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}")
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES')))
                                     
                                 ];
                             } else {
                                 
-                                $GLOBALS["PATCH_STORE_FUNC_RES"]=synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null);
+                                \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', synth_provider_tool_result($lastAction, strval($element["content"]), $element['_synth_action_status'] ?? null));
                                 $contextDataCopy[]=[
                                     "role"=>"user",
-                                    "content"=>synthBuildNarratorContextLine("({$GLOBALS["SYNTH_NAME"]} used action $lastActionName). {$GLOBALS["PATCH_STORE_FUNC_RES"]}"),
+                                    "content"=>synthBuildNarratorContextLine(("(" . \Synth\Bootstrap::config('SYNTH_NAME') . " used action $lastActionName). " . \Synth\Bootstrap::config('PATCH_STORE_FUNC_RES'))),
                                     
                                 ];
                             }
@@ -481,7 +481,7 @@ class Player2JsonDriver
 
         $data = $this->buildRequestPayload($contextData, $customParms, true);
 
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         file_put_contents(dirname(__DIR__, 3) . "/log/context_sent_to_llm.log",date(DATE_ATOM)."\n=\n".var_export($data,true)."\n=\n", FILE_APPEND);
 
@@ -565,7 +565,7 @@ class Player2JsonDriver
 
     public function process()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         static $numOutputTokens=0;
 
@@ -591,7 +591,7 @@ class Player2JsonDriver
                 if (strlen($msg) > 0) {
                     $buffer .= $msg;
                     $this->_buffer .= $msg;
-                    $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_buffer;
+                    \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_buffer);
                     $this->_numOutputTokens += 1;
                 }
                 $totalBuffer .= $msg;
@@ -607,7 +607,7 @@ class Player2JsonDriver
                     if (strlen($clean_content) > 0) {
                         $buffer .= $clean_content;
                         $this->_buffer .= $clean_content;
-                        $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_buffer;
+                        \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_buffer);
                         $this->_numOutputTokens += 1;
                     }
                 }
@@ -622,7 +622,7 @@ class Player2JsonDriver
                 if (!empty($clean_remain)) {
                     $buffer .= $clean_remain;
                     $this->_buffer .= $clean_remain;
-                    $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_buffer;
+                    \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_buffer);
                 }
                 $this->_output_buffer = ""; // clear the buffer
             }
@@ -649,26 +649,26 @@ class Player2JsonDriver
                         $mangledBuffer = str_replace($this->_extractedbuffer, "", $finalData["message"]);
                         $this->_extractedbuffer=$finalData["message"];
                         if (isset($finalData["listener"])) {
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["listener"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["listener"]);
                         }
                         if (isset($finalData["target"]) && !empty($finalData["target"]) && $finalData["action"]=="Talk") {
                             // Cover the case where action is talk, and LLM hast pointed a target
-                            $GLOBALS["SCRIPTLINE_LISTENER"]=$finalData["target"];
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $finalData["target"]);
                         }
                         
                         if (isset($finalData["lang"])) {
                             // Sanitize language code - remove extra chars from LLM parsing artifacts
-                            $GLOBALS["LLM_LANG"]=preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"])));
+                            \Synth\Bootstrap::set('LLM_LANG', preg_replace('/[^a-z\-]/i', '', strtolower(trim($finalData["lang"]))));
                         }
                         
                         if (isset($finalData["mood"])) {
                             $finalData["mood"] = extractFirstEmoteMood($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_ANIMATION"]=GetAnimationHex($finalData["mood"]);
-                            $GLOBALS["SCRIPTLINE_EXPRESSION"]=GetExpression($finalData["mood"]);
+                            \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', GetAnimationHex($finalData["mood"]));
+                            \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', GetExpression($finalData["mood"]));
                         }
                         
                         // Store the entire response for TTS systems that need additional data like emotions
-                        $GLOBALS["LAST_LLM_RESPONSE"] = $finalData;
+                        \Synth\Bootstrap::set('LAST_LLM_RESPONSE', $finalData);
                         
                     }
                 }
@@ -707,7 +707,7 @@ class Player2JsonDriver
     // Method to close the data processing operation
     public function processActions()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
         if ($this->_functionName) {
             require_once(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "synth_command_payload.php");
@@ -728,7 +728,7 @@ class Player2JsonDriver
             } else 
                 return null;
         } else {
-            $GLOBALS["DEBUG_DATA"]["RAW"]=$this->_buffer;
+            \Synth\Bootstrap::setAt('DEBUG_DATA', "RAW", $this->_buffer);
             $parsedResponse=__jpd_decode_lazy($this->_buffer);   // USE JPD_LAZY?
             if (is_array($parsedResponse)) {
                 if (!empty($parsedResponse["action"])) {
@@ -775,7 +775,7 @@ class Player2JsonDriver
         }
 
         $data = $this->buildRequestPayload($contextData, $customParms, $forceJson);
-        $GLOBALS["DEBUG_DATA"]["full"]=($data);
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "full", ($data));
 
         $headers = $this->buildHeaders();
         $timeout = max(intval((\Synth\Bootstrap::config("HTTP_TIMEOUT")) ?? 30), $this->_timeout);

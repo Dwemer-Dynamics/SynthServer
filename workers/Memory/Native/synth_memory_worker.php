@@ -94,9 +94,8 @@ function synth_memory_generate_summary($db, array $input, array $context): strin
         throw new RuntimeException('Native summary connector unavailable');
     }
     $prompts = [];
-    foreach ($db->fetchAll("SELECT prompt_key,custom_prompt,default_prompt FROM core_prompt
-        WHERE prompt_key IN ('memory_subsystem_summary','summary_prompt')") as $row) {
-        $prompts[$row['prompt_key']] = !empty($row['custom_prompt']) ? $row['custom_prompt'] : $row['default_prompt'];
+    foreach (\Synth\Core\DbManager\Dao\PromptDao::current($db)->textsForKeys(['memory_subsystem_summary','summary_prompt']) as $promptKey => $row) {
+        $prompts[$promptKey] = !empty($row['custom_prompt']) ? $row['custom_prompt'] : $row['default_prompt'];
     }
     $prompt = synth_memory_summary_prompt($input,$context,strval($prompts['memory_subsystem_summary'] ?? ''),
         strval($prompts['summary_prompt'] ?? \Synth\Bootstrap::config('SUMMARY_PROMPT') ?? ''));

@@ -6,9 +6,11 @@ nothing more.
 - **Owns:** the plugin-facing WebSocket listener and the loopback publish listener (`NotifyServer`, run by
   `bin/notify-server.php`); the best-effort publisher the server's own workers call (`NotifyPublisher`); the closed hint
   frames (`NotifyHint`); where it listens (`NotifyConfig`).
-- **Carries:** `{"schema":"synth.notify.hint.v1","type":"welcome"}` once per connection and
-  `{"type":"wake","topic":"speech"}` when stored speech state changed. Schema:
-  `protocol/v2/schemas/notify-hint.schema.json`. No message text, no identifiers, no secrets.
+- **Carries:** `{"schema":"synth.notify.hint.v1","type":"welcome"}` once per connection,
+  `{"type":"wake","topic":"speech"}` when stored speech state changed, and
+  `{"type":"message_available","message_id":N}` when a queued message was completed (the client then fetches
+  `GET /api/v1/messages/N`; see `managers/MessageHandler`). Schema: `protocol/v2/schemas/notify-hint.schema.json`.
+  No message text, no secrets: a message is named by its id only.
 - **Refuses:** any publish that is not `POST /notify` with a known topic; any plugin frame it would have to interpret
   (plugin frames are never read, only ping and close are answered); more than 16 clients; a publish listener that is
   not loopback.
@@ -40,4 +42,7 @@ use. The plugin connects to the host of its `BaseUrl` on the acknowledged port.
 ## Publishers
 
 `service/tts_worker.php` publishes `speech` when a speech job reaches any terminal state, after its status is stored.
+`MessageHandler::complete()` publishes `message_available` after the payload is stored (`NotifyPublisher::publishMessage()`:
+`POST /notify {"topic":"message","message_id":N}`). notify-server answers 204 when at least one client received the frame
+and 409 when none is connected, so the caller records a failed announcement and retries it later.
 `NotifyPublisher::publish()` returns false quickly when the channel is absent and never throws.

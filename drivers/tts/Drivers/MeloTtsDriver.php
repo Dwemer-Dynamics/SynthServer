@@ -60,15 +60,15 @@ namespace Synth\Drivers\Tts\Drivers {
     $starTime = microtime(true);
 
 
-    $lang=isset($GLOBALS["TTS"]["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:(\Synth\Bootstrap::config("TTS")["MELOTTS"]["language"] ?? 'EN');
+    $lang=isset(\Synth\Bootstrap::config('TTS')["FORCED_LANG_DEV"])?\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]:(\Synth\Bootstrap::config("TTS")["MELOTTS"]["language"] ?? 'EN');
 
 
-    if ((isset($GLOBALS["LLM_LANG"]))&&(isset($GLOBALS["LANG_LLM_XTTS"]))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
+    if ((\Synth\Bootstrap::has('LLM_LANG'))&&(\Synth\Bootstrap::has('LANG_LLM_XTTS'))&&\Synth\Bootstrap::config("LANG_LLM_XTTS")) {
         $lang=\Synth\Bootstrap::config("LLM_LANG");
 
     }
 
-    if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_TTS_LANGUAGE'))
         $lang=\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
     if (empty($lang))
@@ -130,12 +130,12 @@ namespace Synth\Drivers\Tts\Drivers {
 	);
 	$context = stream_context_create($options);
 
-    $url="{$GLOBALS["TTS"]["MELOTTS"]["endpoint"]}/tts";
+    $url=(\Synth\Bootstrap::config('TTS')["MELOTTS"]["endpoint"] . "/tts");
 
     $result = synth_speech_fetch($url, $context, $http_response_header);
 
     if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
         $FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
     } else {
@@ -153,7 +153,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
 
         $startTimeTrans = microtime(true);
-        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+        $filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
             ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
         if (!synth_transcode_speech_cache($response,$fname,$filter)) {
             Logger::error('melotts audio conversion or owned cache publication failed');
@@ -162,7 +162,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $endTimeTrans = microtime(true)-$startTimeTrans;
 
         file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-        $GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in melotts call";
+        \Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in melotts call");
         return "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
     }

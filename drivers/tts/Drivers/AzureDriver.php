@@ -41,13 +41,13 @@ namespace Synth\Drivers\Tts\Drivers {
         {
     $localPath = dirname(SYNTH_TTS_SCRIPT_DIR) . DIRECTORY_SEPARATOR;
     // Loading an adapter must not change another speaker's settings; planned calls are already prepared.
-    if (!isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
+    if (!\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) {
         synthRuntimeBootstrapIfNeeded($localPath, [
             'load_general_settings' => true, 'load_stt_connector' => false, 'load_itt_connector' => false,
         ]);
         synthEnsureTtsConnectorGlobals('azure');
     }
-    if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+    if (!\Synth\Bootstrap::has('AVOID_TTS_CACHE'))
         if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
             return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 
@@ -57,10 +57,10 @@ namespace Synth\Drivers\Tts\Drivers {
     $region = \Synth\Bootstrap::config("TTS")["AZURE"]["region"];
     $apiKey = trim(\Synth\Bootstrap::config("TTS")["AZURE"]["API_KEY"] ?? '');
     // Prefer API Badge 'Azure' if schema key is empty
-    if ($apiKey === '' && !isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) {
+    if ($apiKey === '' && !\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) {
         try {
-            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once($localPath . "lib/{$GLOBALS["DBDRIVER"]}.class.php");
-            if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
+            if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) require_once($localPath . ("lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+            if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) \Synth\Bootstrap::set('db', new sql());
             require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
             $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('azure');
             if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
@@ -87,14 +87,14 @@ namespace Synth\Drivers\Tts\Drivers {
         $OverWriteRate=0.7;
 
     if ($validMood=="angry") {
-        if (!isset($GLOBALS["TEMP"]["VOLHACK"])) {
-            $GLOBALS["TEMP"]["VOLHACK"]=\Synth\Bootstrap::config("TTS")["AZURE"]["volume"];
+        if (!isset(\Synth\Bootstrap::config('TEMP')["VOLHACK"])) {
+            \Synth\Bootstrap::setAt('TEMP', "VOLHACK", \Synth\Bootstrap::config("TTS")["AZURE"]["volume"]);
         }
-        $GLOBALS["TTS"]["AZURE"]["volume"]=\Synth\Bootstrap::config("TEMP")["VOLHACK"]+20;
+        \Synth\Bootstrap::setPath('TTS', ["AZURE", "volume"], \Synth\Bootstrap::config("TEMP")["VOLHACK"]+20);
 
     } else {
-        if (isset($GLOBALS["TEMP"]["VOLHACK"]))
-            $GLOBALS["TTS"]["AZURE"]["volume"]=\Synth\Bootstrap::config("TEMP")["VOLHACK"];
+        if (isset(\Synth\Bootstrap::config('TEMP')["VOLHACK"]))
+            \Synth\Bootstrap::setPath('TTS', ["AZURE", "volume"], \Synth\Bootstrap::config("TEMP")["VOLHACK"]);
     }
 
     $starTime = microtime(true);
@@ -127,7 +127,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
         $voiceId=\Synth\Bootstrap::config("TTS")["AZURE"]["voice"];
 
-        if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]))
+        if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE'))
 			$voiceId=\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 
 
@@ -156,7 +156,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $prosody->appendChild($text);
 
         $style = $doc->createElement("mstts:express-as");
-        if (isset($GLOBALS["TTS"]["AZURE"]["fixedMood"])&& (!empty($GLOBALS["TTS"]["AZURE"]["fixedMood"])))
+        if (isset(\Synth\Bootstrap::config('TTS')["AZURE"]["fixedMood"])&& (!empty(\Synth\Bootstrap::config('TTS')["AZURE"]["fixedMood"])))
             $style->setAttribute("style", \Synth\Bootstrap::config("TTS")["AZURE"]["fixedMood"]); // not supported for all voices
         else
             $style->setAttribute("style", $validMood); // not supported for all voices
@@ -202,10 +202,10 @@ namespace Synth\Drivers\Tts\Drivers {
         }
         //fwrite(STDOUT, $result);
 
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["loudnorm"]="loudnorm=I=-16:TP=-1.5:LRA=11";
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "loudnorm", "loudnorm=I=-16:TP=-1.5:LRA=11");
 
         if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+			\Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
 			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
 		} else {
@@ -219,7 +219,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
         //file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR."soundcache/" . md5(trim($stringforhash)) . ".wav", $result);
         file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($data) . "\n\rCache:$cacheUsed\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rsize of wav ($size)\n\rfunction tts($textString,$mood / $validMood ,$stringforhash)");
-        $GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in azure call ";
+        \Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in azure call ");
 
         return "soundcache/" . md5(trim($stringforhash)) . ".wav";
     }

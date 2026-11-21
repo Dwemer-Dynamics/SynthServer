@@ -18,7 +18,7 @@ synthRuntimeBootstrap(__DIR__, [
     'load_narrator' => true,
     'run_db_updates' => false,
 ]);
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 require_once(__DIR__ . "/lib/core/npc_master.class.php");
 require_once(__DIR__ . "/lib/core/player.class.php");
 require_once(__DIR__ . "/lib/core/activity_status.php");

@@ -6,7 +6,7 @@ require_once __DIR__ . '/lib/classes/Logger.php';
 error_reporting(E_ALL);
 
 $path = dirname(__FILE__) . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $path;
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 
 $startTime = microtime(true);
@@ -34,7 +34,7 @@ try {
 }
 
 Logger::info("SYNTH CSV Import endpoint started");
-$GLOBALS["AUDIT_RUNID_REQUEST"] = "SYNTH_CSV_IMPORT";
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', "SYNTH_CSV_IMPORT");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -91,7 +91,7 @@ if (!move_uploaded_file($_FILES['file']['tmp_name'], $storedFilePath)) {
 Logger::info("SYNTH CSV file uploaded: {$storedFilePath}");
 
 try {
-    $GLOBALS['db'] = \Synth\Bootstrap::db() ?? new sql();
+    \Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 
     $_POST['csv_import'] = '1';
     $_POST['type'] = $import_type;

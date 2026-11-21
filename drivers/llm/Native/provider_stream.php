@@ -256,7 +256,7 @@ function synth_provider_template_context(array $messages): array
             $detail = synth_provider_tool_result($pending[$id], $message['content'], $message['_synth_action_status'] ?? null);
             $result[] = ['role' => 'user', 'content' => synthBuildNarratorContextLine(
                 'Action result for '.json_encode($id, JSON_THROW_ON_ERROR).":\n".$detail)];
-            $GLOBALS['PATCH_STORE_FUNC_RES'] = $detail;
+            \Synth\Bootstrap::set('PATCH_STORE_FUNC_RES', $detail);
             unset($pending[$id]);
         } else {
             $result[] = $message;
@@ -284,7 +284,7 @@ function synth_provider_note_status(int $status): void
 // Keep legacy/background calls and resource-based connector test doubles compatible.
 function synth_provider_open(string $url, $context)
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+    if (empty(\Synth\Bootstrap::claimedRequest())) {
         synth_provider_note_request($url, stream_context_get_options($context)['http']['content'] ?? null);
         return fopen($url, 'r', false, $context);
     }
@@ -306,7 +306,7 @@ function synth_provider_close($stream): void
 function synth_provider_fetch(string $url, $context, ?array &$responseHeaders = null, int $maxBytes = 16 * 1024 * 1024): string|false
 {
     $responseHeaders = [];
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+    if (empty(\Synth\Bootstrap::claimedRequest())) {
         synth_provider_note_request($url, stream_context_get_options($context)['http']['content'] ?? null);
         $body = file_get_contents($url, false, $context);
         $responseHeaders = $http_response_header ?? [];
@@ -336,7 +336,7 @@ function synth_speech_fetch(string $url, $context = null, ?array &$responseHeade
 function synth_speech_curl_exec(CurlHandle $handle, int $timeoutMs = 60000, ?array &$diagnostic = null): string|false
 {
     $diagnostic = ['errno' => 0, 'error' => ''];
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) {
+    if (empty(\Synth\Bootstrap::claimedRequest())) {
         $body = curl_exec($handle);
         $diagnostic = ['errno' => curl_errno($handle), 'error' => curl_error($handle)];
         return $body;
