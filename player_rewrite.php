@@ -40,9 +40,7 @@ function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback
             return strtr($fallback, $replacements);
         }
 
-        $escapedPromptKey = $db->escape($promptKey);
-        $row = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) AS prompt FROM core_prompt WHERE prompt_key='{$escapedPromptKey}' LIMIT 1");
-        $prompt = trim((string)($row['prompt'] ?? ''));
+        $prompt = trim((string)(\Synth\Core\DbManager\Dao\PromptDao::current($db)->effective((string)$promptKey) ?? ''));
         if ($prompt === '') {
             $prompt = $fallback;
         }

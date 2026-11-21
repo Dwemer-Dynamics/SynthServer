@@ -336,12 +336,9 @@ class RelationshipManager {
         try {
             // Query the prompts table for custom or default tier reference
             $db = \Synth\Bootstrap::db() ?? null;
-            $row = $db && is_object($db) && method_exists($db, 'fetchOne') ? $db->fetchOne(
-                "SELECT COALESCE(custom_prompt, default_prompt) as prompt " .
-                "FROM core_prompt WHERE prompt_key = 'rel_tier_reference'"
-            ) : null;
-            if ($row && !empty($row['prompt'])) {
-                $cached = $row['prompt'];
+            $tierPrompt = $db && is_object($db) ? \Synth\Core\DbManager\Dao\PromptDao::current($db)->effective('rel_tier_reference') : null;
+            if (!empty($tierPrompt)) {
+                $cached = $tierPrompt;
                 return $cached;
             }
         } catch (Throwable $e) {

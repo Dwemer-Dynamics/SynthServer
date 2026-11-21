@@ -849,3 +849,15 @@ the fallback. A server answers the init with status `notify_wake: {"port": N}` o
 running; otherwise (or for an older server or client) nothing is sent and the client polls as before. Hint frames
 (`synth.notify.hint.v1`: `welcome`, then `wake` with topic `speech`) are defined by
 `protocol/v2/schemas/notify-hint.schema.json`; see `protocol/v2/README.md` and `managers/Notification/README.md`.
+
+## Queued speech results (`message.queue`)
+
+The optional v2 capability `message.queue` lets the server hand a speech result over through the durable queue
+(`core_message_queue`, `managers/MessageHandler/README.md`) instead of the repeatable cache-key poll. When the server's
+queue is on and the session listed the capability, the dialogue line's `speech` block gains `message_id` (a positive
+integer). The client fetches `GET /api/v1/messages/<message_id>`: 200 with a `synth.message.v1` document (`status:
+delivered`, the owner `session_id`, `request_id`, `generation`, and the `synth.tts_status.v1` `payload`) exactly once; 409
+`pending` while the speech is still being made, 409 `delivered` for every later fetch; 404 `cancelled`, `expired` or
+`unknown`. A `message_available {message_id}` hint on the wake-up channel announces completion, and the client polls as
+the fallback when the channel is down. The client drops a result whose session or generation is not its current one.
+Schemas: `protocol/v2/schemas/message-result.schema.json`, `notify-hint.schema.json` and `protocol/v1/schemas/speech.schema.json`.

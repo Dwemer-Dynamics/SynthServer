@@ -125,7 +125,7 @@ try {
 
     $promptTemplate = null;
     try {
-        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'player_speech_style_prompt'");
+        $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('player_speech_style_prompt');
         if (is_array($promptData)) {
             $promptTemplate = !empty($promptData['custom_prompt']) ? $promptData['custom_prompt'] : ($promptData['default_prompt'] ?? null);
         }

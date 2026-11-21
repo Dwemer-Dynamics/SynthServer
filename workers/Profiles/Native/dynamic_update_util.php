@@ -1425,7 +1425,7 @@ function updateDynamicProfileField($npcName, $field, $historyData, bool $prepare
     $updatePrompt = null;
     if (isset($dbPromptKeyMapping[$promptName])) {
         try {
-            $promptData = \Synth\Bootstrap::db()->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = '{$dbPromptKeyMapping[$promptName]}'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current()->texts((string)$dbPromptKeyMapping[$promptName]);
             if ($promptData) {
                 $updatePrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
             }
