@@ -1106,24 +1106,11 @@ function synth_protocol_persist_observation_history(
         || intval($event['payload']['snapshot_sequence'] ?? 0) < 1) {
         throw new InvalidArgumentException('Native observation requires an owned context sequence.');
     }
-    $result = $db->execQuery("WITH captured AS (
-        SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
-          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
-         WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
-           AND s.active_generation=c.generation AND s.state='active'
-    ), publication AS (
-        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-            synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-        SELECT $6,$7,playthrough_id,$8,$9,$9,$10,$11,$12,'received',
-            session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
-    ) INSERT INTO public.core_history_event
-        (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-        SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,to_jsonb(publication)
-          FROM publication RETURNING id",
-        [$event['session_id'], $event['generation'], $event['payload']['snapshot_sequence'],
-         $event['payload']['playthrough_id'], $event['request_id'], $type, $data, $gamets, time(),
-         $people, $location, json_encode($party, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
-    if ($result === false || pg_fetch_assoc($result) === false) {
+    $published = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->publishObservation(strval($event['session_id']), intval($event['generation']),
+        intval($event['payload']['snapshot_sequence']), strval($event['payload']['playthrough_id']), strval($event['request_id']),
+        $type, $data, $gamets, time(), $people, $location,
+        json_encode($party, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    if (!$published) {
         throw new RuntimeException('Unable to persist owned native observation history.');
     }
 }
@@ -1179,24 +1166,14 @@ function synth_protocol_persist_environment_snapshots(
         $quality=$payload[$type.'_observation'] ?? ($observedRows ? 'partial' : 'unavailable');
         $party[$type.'_observation']=$quality;
         $data=$quality==='unavailable' ? $type.': observation unavailable' : $data.' ('.$quality.')';
-        $typeSql = $db->escapeLiteral($type);
-        $dataSql = $db->escapeLiteral($data);
-        $sessionSql = $db->escapeLiteral($playthrough);
-        $peopleSql = $db->escapeLiteral($people);
-        $partySql = $db->escapeLiteral(json_encode(
-            $party,
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
         if (($event['protocol_version'] ?? 1) === 2) {
             synth_protocol_persist_observation_history($db, $event, $type, $data, $people, '', $party, $gamets);
             continue;
         }
-        if ($db->execQuery(
-            "INSERT INTO public.core_context_event
-                (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
-             VALUES ({$typeSql}, {$dataSql}, {$sessionSql}, {$gamets}, {$now}, {$now},
-                     {$peopleSql}, '', {$partySql}, 'received')"
-        ) === false) {
+        if (!\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->insertLegacySnapshot($type, $data, $playthrough, $gamets, $now, $people, '', json_encode(
+            $party,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ))) {
             throw new RuntimeException('Unable to persist strict environment snapshot.');
         }
     }
@@ -1206,14 +1183,8 @@ function synth_protocol_persist_environment_snapshots(
 function synth_protocol_persist_world_context($db, array $event, array $world): void
 {
     $playthroughId = strval($event['payload']['playthrough_id'] ?? '');
-    $playthroughSql = $db->escapeLiteral($playthroughId);
-    $latest = $db->fetchOne(
-        "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess={$playthroughSql}
-          ORDER BY rowid DESC LIMIT 1"
-    );
-    $previous = is_array($latest['party'] ?? null)
-        ? $latest['party']
-        : json_decode(strval($latest['party'] ?? ''), true);
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestWorldContextParty($playthroughId);
+    $previous = json_decode(strval($latestParty ?? ''), true);
     $keys = ['location', 'cell', 'worldspace', 'weather', 'interior'];
     $unchanged = is_array($previous) &&
         hash_equals(strval($previous['playthrough_id'] ?? ''), $playthroughId)
@@ -1251,11 +1222,6 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
         'session_id' => strval($event['session_id'] ?? ''),
         'playthrough_id' => $playthroughId,
     ]);
-    $contextSql = $db->escapeLiteral($context);
-    $payloadSql = $db->escapeLiteral(json_encode(
-        $historyPayload,
-        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-    ));
     $gamets = intval($world['game_time_ticks']);
     $now = time();
     if (($event['protocol_version'] ?? 1) === 2) {
@@ -1265,12 +1231,8 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
             '|' . $observer . '|', $context, $historyPayload, $gamets);
         return;
     }
-    if ($db->execQuery(
-        "INSERT INTO public.core_context_event
-            (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
-         VALUES ('world_context', {$contextSql}, {$playthroughSql}, {$gamets}, {$now}, {$now},
-                 '|The Narrator|', {$contextSql}, {$payloadSql}, 'received')"
-    ) === false) {
+    if (!\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->insertLegacySnapshot('world_context', $context, $playthroughId, $gamets, $now, '|The Narrator|', $context,
+        json_encode($historyPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR))) {
         throw new RuntimeException('Unable to persist changed world context.');
     }
 }

@@ -828,4 +828,57 @@ class ContextEventDao
             return [];
         }
     }
+
+    /**
+     * Publishes one observation of an acknowledged context as a context event plus its history row, in one statement, only while the
+     * snapshot is the session's active one. True when a history row was written; false when the snapshot is not active or the
+     * statement failed.
+     */
+    public function publishObservation(string $sessionId, int $generation, int $snapshotSequence, string $playthroughId, string $requestId, string $type, string $data, int $gamets, int $now, string $people, string $location, string $partyJson): bool
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "WITH captured AS (
+                    SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
+                      FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
+                     WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ? AND c.playthrough_id = ?
+                       AND s.active_generation=c.generation AND s.state='active'
+                ), publication AS (
+                    INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+                        synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
+                    SELECT ?,?,playthrough_id,?,?,?,?,?,?,'received',
+                        session_id,generation,snapshot_sequence,? FROM captured RETURNING *
+                ) INSERT INTO public.core_history_event
+                    (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                    SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,to_jsonb(publication)
+                      FROM publication RETURNING id",
+                [$sessionId, $generation, $snapshotSequence, $playthroughId, $type, $data, $gamets, $now, $now, $people, $location, $partyJson, $requestId]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return $row !== false;
+    }
+
+    /** Appends a legacy (protocol v1) snapshot event row keyed by playthrough; false when the statement fails. */
+    public function insertLegacySnapshot(string $type, string $data, string $playthroughId, int $gamets, int $now, string $people, string $location, string $partyJson): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_context_event (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')",
+            [$type, $data, $playthroughId, $gamets, $now, $now, $people, $location, $partyJson]
+        );
+    }
+
+    /** The party of the newest world_context event of this playthrough (JSON text or null), or null when there is none. */
+    public function latestWorldContextParty(string $playthroughId): ?string
+    {
+        $value = $this->connection()->fetchOne(
+            "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess = ? ORDER BY rowid DESC LIMIT 1",
+            [$playthroughId]
+        );
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
 }
