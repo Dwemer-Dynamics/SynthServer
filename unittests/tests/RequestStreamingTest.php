@@ -2373,10 +2373,10 @@ final class RequestStreamingTest extends TestCase
     public function testStrictQuestSnapshotReplacesCanonicalQuestRows(): void
     {
         $db = new class {
-            public array $queries = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        DaoTestDoubles::questRecorder($calls);
         synth_protocol_persist_active_quests($db, [
             'payload' => [
                 'playthrough_id' => 'save-fo4-001',
@@ -2391,26 +2391,34 @@ final class RequestStreamingTest extends TestCase
             'objectives' => ['Join Preston Garvey in Sanctuary'],
         ]]);
 
-        $this->assertSame("DELETE FROM public.core_quest WHERE sess='save-fo4-001'", $db->queries[0]);
-        $this->assertStringContainsString('INSERT INTO public.core_quest', $db->queries[1]);
-        $this->assertStringContainsString('When Freedom Calls', $db->queries[1]);
-        $this->assertStringContainsString('Join Preston Garvey in Sanctuary', $db->queries[1]);
-        $this->assertStringContainsString('save-fo4-001', $db->queries[1]);
-        $this->assertStringContainsString('834000000000', $db->queries[1]);
+        // A complete observation replaces the playthrough's projection, then appends the observed quests.
+        $this->assertSame(['deleteBySession', ['save-fo4-001']], $calls[0]);
+        $this->assertSame('record', $calls[1][0]);
+        $row = $calls[1][1][0];
+        $this->assertSame('When Freedom Calls', $row['name']);
+        $this->assertSame('Join Preston Garvey in Sanctuary', $row['briefing']);
+        $this->assertSame('save-fo4-001', $row['sess']);
+        $this->assertSame(834000000000, $row['gamets']);
+        $this->assertSame('0X000229E5', $row['id_quest']);
+        $this->assertSame('Fallout4.esm', $row['mod']);
+        $this->assertSame('active', $row['status']);
         foreach (['unavailable','cached',null] as $quality) {
-            $db->queries=[];
+            $calls = [];
             $payload=['playthrough_id'=>'save-fo4-001'];
             if ($quality!==null) $payload['active_quests_observation']=$quality;
             synth_protocol_persist_active_quests($db,['payload'=>$payload],[]);
-            $this->assertSame([],$db->queries);
+            $this->assertSame([],$calls);
         }
-        $db->queries=[];
+        $calls = [];
         synth_protocol_persist_active_quests($db,['payload'=>['playthrough_id'=>'save-fo4-001']],[[
             'form_id'=>'0x000229E5','origin_plugin'=>'Fallout4.esm','display_name'=>'Observed',
             'current_stage'=>45,'active_objectives'=>0,'objectives'=>[],
         ]]);
-        $this->assertCount(2,$db->queries);
-        $this->assertStringContainsString("upper(id_quest)='0X000229E5' AND lower(mod)=lower('Fallout4.esm')",$db->queries[0]);
+        $this->assertCount(2,$calls);
+        // A partial observation replaces only the observed quest (form id upper-cased, plugin compared without case).
+        $this->assertSame(['deleteObserved', ['save-fo4-001', '0X000229E5', 'Fallout4.esm']], $calls[0]);
+        $this->assertSame('record', $calls[1][0]);
+        DaoTestDoubles::forgetBooted();
         foreach (['complete','partial','cached','unavailable',null] as $quality) {
             $payload=['active_quests'=>[]];
             if ($quality!==null) $payload['active_quests_observation']=$quality;
