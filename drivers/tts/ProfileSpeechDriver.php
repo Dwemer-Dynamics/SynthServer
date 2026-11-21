@@ -63,6 +63,7 @@ final class ProfileSpeechDriver implements TtsDriverInterface
 
     public function queue(array $speaker, string $lineId, string $text, array $settings): string
     {
+        $this->messageId = null;
         require_once dirname(__DIR__, 2).'/lib/synth_tts_plan.php';
         require_once dirname(__DIR__, 2).'/lib/synth_tts_jobs.php';
         require_once dirname(__DIR__, 2).'/lib/synth_tts_worker.php';
@@ -73,7 +74,17 @@ final class ProfileSpeechDriver implements TtsDriverInterface
             'cache_seed' => $plan['cache_seed'], 'cache_key' => md5($plan['cache_seed']), 'tts_plan' => $plan, 'utterance_id' => $lineId];
         // Admission commits under the claimed owner; the worker launch follows outside the transaction.
         $job = synth_tts_enqueue_job($this->db, $entry, $this->root, $this->owner);
+        // The queue message exists before the worker can finish, so the worker always has one to complete.
+        $this->messageId = \Synth\Managers\MessageHandler\SpeechMessages::admit($this->owner->event, $lineId);
         ($this->legacy)(fn() => synth_tts_launch_job($job, $this->root));
         return $entry['cache_key'];
     }
+
+    /** The queue message id of the line queued last, or null when the client does not use the queue. */
+    public function messageId(): ?int
+    {
+        return $this->messageId;
+    }
+
+    private ?int $messageId = null;
 }

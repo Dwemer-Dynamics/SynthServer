@@ -35,11 +35,26 @@ final class NotifyPublisher
         if (!in_array($topic, NotifyHint::TOPICS, true)) {
             return false;
         }
+        return self::post(['topic' => $topic]);
+    }
+
+    /**
+     * Announces one completed queued message by id. True only when the channel is running and at least one client received
+     * the frame, so a false result means the announcement should be retried (the message itself is already stored).
+     */
+    public static function publishMessage(int $messageId): bool
+    {
+        return $messageId >= 1 && self::post(['topic' => 'message', 'message_id' => $messageId]);
+    }
+
+    /** @param array<string,mixed> $document */
+    private static function post(array $document): bool
+    {
         $socket = self::connect();
         if ($socket === null) {
             return false;
         }
-        $body = json_encode(['topic' => $topic], JSON_THROW_ON_ERROR);
+        $body = json_encode($document, JSON_THROW_ON_ERROR);
         $request = "POST /notify HTTP/1.1\r\nHost: " . NotifyConfig::INTERNAL_HOST
             . "\r\nContent-Type: application/json\r\nContent-Length: " . strlen($body)
             . "\r\nConnection: close\r\n\r\n" . $body;
