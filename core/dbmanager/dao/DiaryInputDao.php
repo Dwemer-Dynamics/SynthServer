@@ -56,6 +56,7 @@ final class DiaryInputDao
      */
     public function evidenceRows(string $historyCte, int $limit): array
     {
+        $historyCte = JsonbOperatorSql::plain($historyCte);
         return $this->connection()->fetchAllAssociative(
             $historyCte." SELECT n.history_event_id,n.type,left(n.data,4000) AS data,
                 encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex') AS source_sha256 FROM native_history n

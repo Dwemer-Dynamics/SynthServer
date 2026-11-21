@@ -33,6 +33,7 @@ final class DiaryResultDao
      */
     public function latestVisible(string $diaryCte, bool $automaticOnly): ?array
     {
+        $diaryCte = JsonbOperatorSql::plain($diaryCte);
         $row = $this->connection()->fetchAssociative(
             $diaryCte.' SELECT history_event_id,result_payload,published_at,'.($automaticOnly ? '0' : 'content_revision').' AS content_revision FROM '
             .($automaticOnly ? 'diary_chain' : 'native_diaries').($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '').' ORDER BY history_event_id DESC LIMIT 1'

@@ -45,6 +45,7 @@ final class DiaryInputSourceDao
      */
     public function visibleSourceCounts(string $historyCte, int $inputId): ?array
     {
+        $historyCte = JsonbOperatorSql::plain($historyCte);
         $row = $this->connection()->fetchAssociative(
             $historyCte.' SELECT count(*) AS n,
                 (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=:input) AS total
