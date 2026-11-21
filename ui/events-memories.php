@@ -353,7 +353,7 @@ $eventLogAutoRefresh = isset($_GET["autorefresh"]) && $_GET["autorefresh"];
 $eventLogHiddenTypes = synthGetPersistedEventLogHiddenTypes($db);
 
 $eventLogHiddenTypes = synthNormalizeEventLogTypeList($eventLogHiddenTypes);
-$eventLogVisibleWhereClause = synthBuildVisibleEventLogWhereClause($db, '', $eventLogHiddenTypes);
+$eventLogExcludedTypes = array_values(array_unique(array_merge(synthGetVisibleEventLogExcludedTypes(), $eventLogHiddenTypes)));
 
 // Read-only relationship changes derived from core_npc_history snapshots.
 // They are virtual rows: nothing is written back into the eventlog table.
@@ -393,9 +393,9 @@ if ($eventsAction !== '') {
  $redirectParams = $eventLogCurrentPageParams;
  $redirectParams['deleted'] = intval($deleteResult['deleted_count'] ?? 0);
  } elseif ($eventsAction === 'reset_events') {
- $db->delete("core_context_event", "true");
+ \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->deleteAll();
  } elseif ($eventsAction === 'delete_memory' && intval($eventsValue) > 0) {
- $db->delete('core_memory', "rowid = " . intval($eventsValue));
+ \Synth\Core\DbManager\Dao\MemoryDao::current($db)->deleteRow(intval($eventsValue));
  $redirectParams = ['tab' => 'memory', 'deleted' => 1];
  } else {
  synthManagementRefuse(400, 'Unknown or incomplete Events and Memories action.');
@@ -420,11 +420,9 @@ if (isset($_POST['delete_selected']) && !empty($_POST['rowids'])) {
  Logger::info("Sanitized rowids: " . json_encode($sanitizedRowids));
 
  if (count($sanitizedRowids) > 0) {
- $rowidsStr = implode(',', $sanitizedRowids);
- $existingRows = $db->fetchAll("SELECT rowid FROM core_context_event WHERE rowid IN ($rowidsStr)");
+ $eventDao = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
  $existingRowids = [];
- foreach ($existingRows as $existingRow) {
- $existingRowid = intval($existingRow['rowid'] ?? 0);
+ foreach ($eventDao->existingRowids(array_values($sanitizedRowids)) as $existingRowid) {
  if ($existingRowid > 0) {
  $existingRowids[] = $existingRowid;
  }
@@ -433,10 +431,8 @@ if (isset($_POST['delete_selected']) && !empty($_POST['rowids'])) {
  Logger::info("Existing rowids before delete: " . json_encode($existingRowids));
 
  if (count($existingRowids) > 0) {
- $existingRowidsStr = implode(',', $existingRowids);
- $query = "DELETE FROM core_context_event WHERE rowid IN ($existingRowidsStr)";
- Logger::info("Executing delete query: $query");
- $db->query($query);
+ Logger::info("Deleting events by rowid: " . implode(',', $existingRowids));
+ $eventDao->deleteRowids($existingRowids);
  }
 
  $deletedCount = count($existingRowids);
@@ -472,13 +468,7 @@ if (isset($_POST['save_memory_edit'])) {
  $companions = isset($_POST['companions']) ? $_POST['companions'] : '';
 
  if ($rowid > 0) {
- $db->update(
- 'core_memory',
- "summary = '" . $db->escape($summary) . "',
- tags = '" . $db->escape($tags) . "',
- companions = '" . $db->escape($companions) . "'",
- "rowid = " . $rowid
- );
+ \Synth\Core\DbManager\Dao\MemoryDao::current($db)->updateEditable($rowid, strval($summary), strval($tags), strval($companions));
  }
 
  header("Location: events-memories.php?tab=memory&updated=1");
@@ -574,18 +564,10 @@ function getTimeColor($time) {
  $offset = ($page - 1) * $limit;
 
  // Total/pagination still describes the physical eventlog table only.
- $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $eventLogVisibleWhereClause";
- $countResult = $db->fetchAll($countQuery);
- $totalRecords = $countResult[0]['total'];
+ $totalRecords = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->countVisible($eventLogExcludedTypes, null, null);
  $totalPages = ceil($totalRecords / $limit);
 
- $results = $db->fetchAll(
- "SELECT type, data, people, gamets, localts, ts, rowid
- FROM core_context_event a
- WHERE $eventLogVisibleWhereClause
- ORDER BY " . synthGetEventLogUiOrderBy() . "
- LIMIT $limit OFFSET $offset"
- );
+ $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->visible($eventLogExcludedTypes, null, null, $limit, $offset);
 
  // Virtual relationship rows join the page whose time window contains them, so
  // offsets, page counts and raw event rows are all left untouched.
@@ -685,9 +667,7 @@ function getTimeColor($time) {
  $nextPage = $page + 1;
 
  // Get total count for pagination
- $countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $eventLogVisibleWhereClause";
- $countResult = $db->fetchAll($countQuery);
- $totalRecords = $countResult[0]['total'];
+ $totalRecords = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->countVisible($eventLogExcludedTypes, null, null);
  $totalPages = ceil($totalRecords / $limit);
 
  echo "<div class='pagination-buttons' style='margin: 10px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;'>";
@@ -992,13 +972,7 @@ function getTimeColor($time) {
  : "<span style='color: #f44336;'>Disabled</span>";
  };
 
- $results = $db->fetchAll(
- "SELECT gamets_truncated, n, summary, companions, tags, classifier, scope, ROWID as rowid, packed_message, native_vec
- FROM core_memory
- WHERE source_type='summary'
- ORDER BY gamets_truncated DESC, rowid DESC
- LIMIT 150"
- );
+ $results = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->recentSummariesWithScope(150);
  ?><div style="background: #2a2a2a; border-left: 4px solid var(--synth-accent); padding: 12px 15px; border-radius: 5px; margin: 15px 0; font-size: 0.9em;"><span style="color: var(--synth-accent); font-weight: bold;"> Memories:</span><span style="color: #f8f9fa;">Complete log of memory summaries with scope, participants, and period coverage. Use this to verify memory continuity and long-term context quality.</span></div><div style="background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 8px; padding: 20px; margin: 15px 0;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap;"><h3 style="margin: 0; color: var(--synth-accent); word-spacing: 5px;">Memory System Configuration</h3><a href="<?php echo $webRoot; ?>/ui/core/config_hub.php?tab=globals" target="_blank" class="btn-base btn-primary" style="font-size: 13px; padding: 6px 12px;">Configure Settings</a></div><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;"><div style="background: #2a2a2a; padding: 15px; border-radius: 5px; border: 1px solid #3a3a3a;"><div style="font-weight: bold; margin-bottom: 8px; color: var(--synth-accent); font-size: 14px;">Memory System</div><div style="font-size: 14px;"><?php echo $statusIcon($memoryEnabled); ?></div></div><div style="background: #2a2a2a; padding: 15px; border-radius: 5px; border: 1px solid #3a3a3a;"><div style="font-weight: bold; margin-bottom: 8px; color: var(--synth-accent); font-size: 14px;">TXT2VEC (Embeddings)</div><div style="font-size: 14px;"><?php echo $statusIcon($useText2Vec); ?></div><div style="font-size: 12px; color: #aaa; margin-top: 4px;">URL: <?php echo htmlspecialchars($txtaiUrl); ?></div></div></div><?php if (!$useText2Vec): ?><div style="background: #2a2a2a; border-left: 4px solid var(--synth-accent); padding: 12px; margin-top: 15px; border-radius: 4px;"><strong style="color: var(--synth-accent);">Warning:</strong><span style="color: #f8f9fa;">TXT2VEC is disabled. Memory embeddings and vector search features are unavailable.</span></div><?php endif; ?></div><div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 15px 0; flex-wrap: wrap;"><div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" onclick="syncMemoriesConfirm()" class="btn-base action-button add-new" style="font-weight: bold;">Sync Memory Summaries Now</button></div><button type="button" onclick="deleteAllMemoriesConfirm()" class="btn-base btn-danger" style="background-color: #dc2626; font-weight: bold;">Delete All Memory Summaries</button></div><style>
  .edit-form {
  display: none;
@@ -1129,7 +1103,7 @@ function getTimeColor($time) {
  }
  }
  </script></div><!-- Active Quests Tab --><div id="quests-tab" class="tab-content <?php echo $activeTab === 'quests' ? 'active' : ''; ?>"><?php
- $results = $db->fetchAll("SELECT name, id_quest, briefing, briefing2, data from core_quest");
+ $results = \Synth\Core\DbManager\Dao\QuestDao::current($db)->listAll();
 
  // Define column headers mapping
  $columnHeaders = [

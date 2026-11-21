@@ -24,4 +24,10 @@ final class QuestDao
     {
         return array_values($this->fresh()->getRepository(AbstractQuest::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** Name, id, briefings and data of every quest. @return list<array<string,mixed>> */
+    public function listAll(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT name, id_quest, briefing, briefing2, data FROM public.core_quest');
+    }
 }

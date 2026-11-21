@@ -38,9 +38,7 @@ if (function_exists('requireFilesRecursively')) {
     }
 
     $db = \Synth\Bootstrap::db();
-    $entry = $db->fetchOne(
-        "SELECT rowid, summary AS content, companions AS people FROM public.core_memory WHERE source_type = 'diary' AND rowid = " . intval($entryId) . ' LIMIT 1'
-    );
+    $entry = \Synth\Core\DbManager\Dao\MemoryDao::current($db)->diaryEntry(intval($entryId));
     if (!is_array($entry) || empty($entry)) {
         http_response_code(404);
         echo json_encode(['success' => false, 'error' => 'Diary entry not found.']);

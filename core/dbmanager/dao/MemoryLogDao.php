@@ -24,4 +24,13 @@ final class MemoryLogDao
     {
         return array_values($this->fresh()->getRepository(AbstractMemoryLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** The newest rows by game time, with every column. @return list<array<string,mixed>> */
+    public function newest(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT a.*, rowid AS rowid FROM public.core_memory_log a ORDER BY gamets DESC, rowid DESC LIMIT ?',
+            [$limit]
+        );
+    }
 }
