@@ -24,4 +24,20 @@ final class ProtocolEventDao
     {
         return array_values($this->fresh()->getRepository(AbstractProtocolEvent::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
+
+    /**
+     * True when this request has a protocol event past the control barrier and, if a response is named, that response's own
+     * request also lies past it for this actor.
+     */
+    public function pastControlBarrier(string $sessionId, string $requestId, int|string $barrierEventId, ?int $responseId, int $actorId): bool
+    {
+        return $this->connection()->fetchOne(
+            'SELECT 1 FROM public.core_protocol_event p
+            WHERE p.session_id=:p1 AND p.request_id=:p2 AND p.id>:p3
+                AND (:p4::bigint IS NULL OR EXISTS(SELECT 1 FROM public.core_relationship_response_input i
+                    JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
+                    WHERE i.history_event_id=:p4 AND i.actor_identity_id=:p5 AND origin.id>:p3))',
+            ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $barrierEventId, 'p4' => $responseId, 'p5' => $actorId]
+        ) !== false;
+    }
 }

@@ -76,4 +76,19 @@ final class NpcDao
         }
         throw new \RuntimeException('The scoped character could not be created.');
     }
+
+    /**
+     * Takes the session-level advisory lock that serializes relationship updates for one NPC (namespace 1001). It is held on the
+     * shared session until unlockRelationshipUpdates() or the session ends; it does not start a transaction.
+     */
+    public function lockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_lock(:p1)', ['p1' => 1001000000 + $npcId]);
+    }
+
+    /** Releases the lock taken by lockRelationshipUpdates() for this NPC. */
+    public function unlockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_unlock(:p1)', ['p1' => 1001000000 + $npcId]);
+    }
 }
