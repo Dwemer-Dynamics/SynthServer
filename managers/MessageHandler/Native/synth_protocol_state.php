@@ -1795,25 +1795,11 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
         }
         $actorId = synth_protocol_actor_identity_id($db, $action['actor']);
         $targetId = isset($action['target']) ? synth_protocol_actor_identity_id($db, $action['target']) : null;
-        $session = $db->escapeLiteral(synth_protocol_session_id($event));
-        $actionId = $db->escapeLiteral($action['action_id']);
-        $idempotency = $db->escapeLiteral($action['idempotency_key']);
-        $requestId = $db->escapeLiteral($event['request_id']);
-        $turnId = $db->escapeLiteral($event['turn_id']);
-        $name = $db->escapeLiteral(strval($action['server_code'] ?? $action['name']));
-        $capability = $db->escapeLiteral($action['capability']);
-        $arguments = $db->escapeLiteral(json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        $targetSql = $targetId === null ? 'NULL' : strval($targetId);
-        $deadlineMs = intval($action['deadline_ms']);
-        $generation = intval($event['generation']);
-        if ($db->execQuery(
-            "INSERT INTO public.core_action_intent
-                (action_id, idempotency_key, session_id, request_id, turn_id, generation,
-                 action_name, capability, actor_identity_id, target_identity_id, arguments, deadline_at)
-             VALUES ({$actionId}, {$idempotency}, {$session}, {$requestId}, {$turnId}, {$generation},
-                     {$name}, {$capability}, {$actorId}, {$targetSql}, {$arguments}::jsonb,
-                     NOW() + ({$deadlineMs} * INTERVAL '1 millisecond'))"
-        ) === false) throw new RuntimeException('Unable to persist action intent.');
+        $arguments = json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (!\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->insertIntent(strval($action['action_id']), strval($action['idempotency_key']),
+            synth_protocol_session_id($event), strval($event['request_id']), strval($event['turn_id']), intval($event['generation']),
+            strval($action['server_code'] ?? $action['name']), strval($action['capability']), $actorId, $targetId, $arguments,
+            intval($action['deadline_ms']))) throw new RuntimeException('Unable to persist action intent.');
         if ($native) {
             $context = $context ?? synth_protocol_current_context($db, $event);
             if (!$context) throw new RuntimeException('Action issuance context unavailable.');
@@ -1834,8 +1820,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
     try {
         if ($guarded) {
             if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin action intent.');
-            $owner = $db->escapeLiteral(synth_protocol_session_id($event));
-            if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$owner}))")) {
+            if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->lockSession(synth_protocol_session_id($event))) {
                 throw new RuntimeException('Unable to lock action owner.');
             }
         }
@@ -1850,23 +1835,8 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
 // Administrative action evidence uses the saved frontier and exact issuing actor, not NPC-name visibility.
 function synth_protocol_last_actions_issued($db, array $event, string $actor): array
 {
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
-    $generation = intval($event['generation']);
-    $sequence = intval($event['context_sequence']);
-    $rows = $db->fetchAll(synth_protocol_history_cte($db, $event, $actor)."
-        SELECT DISTINCT ON (i.action_name) i.action_name AS action,
-            (h.event_payload->>'gamets')::bigint AS gamets,
-            (h.event_payload->>'ts')::bigint AS ts
-        FROM native_history_scopes s
-        JOIN public.core_history_event h ON h.session_id=s.session_id AND h.generation=s.generation
-            AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
-        JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
-            AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
-            AND i.actor_identity_id=s.reader_identity_id
-        WHERE h.id<=s.cutoff OR (h.session_id={$session} AND h.generation={$generation}
-            AND h.context_sequence={$sequence} AND i.turn_id={$turn})
-        ORDER BY i.action_name, (h.event_payload->>'gamets')::bigint DESC, h.id DESC");
+    $rows = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->lastIssuedByAction(synth_protocol_history_cte($db, $event, $actor),
+        strval($event['session_id']), intval($event['generation']), intval($event['context_sequence']), strval($event['turn_id']));
     $result = [];
     foreach ($rows as $row) $result[$row['action']] = $row;
     return $result;
@@ -1883,11 +1853,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
         || trim($codeName) === '') {
         return null;
     }
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
     $generation = intval($event['generation']);
     $sequence = intval($event['context_sequence']);
-    $variant = $db->escapeLiteral($event['runtime_variant']);
     $current = $event;
     $visited = [];
     for ($depth = 0; $depth < 64; ++$depth) {
@@ -1898,18 +1865,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
             return null;
         }
         $visited[$result['action_id']] = true;
-        $action = $db->escapeLiteral($result['action_id']);
-        $idempotency = $db->escapeLiteral($result['idempotency_key']);
-        $row = $db->fetchOne(
-            "SELECT i.action_name, e.canonical_event
-               FROM public.core_action_intent i
-               JOIN public.core_protocol_event e ON e.session_id=i.session_id
-                AND e.request_id=i.request_id AND e.generation=i.generation AND e.turn_id=i.turn_id
-               JOIN public.core_runtime_session r ON r.session_id=i.session_id
-              WHERE i.action_id={$action} AND i.idempotency_key={$idempotency}
-                AND i.session_id={$session} AND i.generation={$generation} AND i.turn_id={$turn}
-                AND r.state='active' AND r.active_generation={$generation} AND r.runtime_variant={$variant}"
-        );
+        $row = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->followupOrigin($result['action_id'], $result['idempotency_key'], $event['session_id'],
+            $generation, $event['turn_id'], $event['runtime_variant']);
         if (!$row || ($depth === 0 && ($row['action_name'] ?? '') !== $codeName)) return null;
         $origin = is_array($row['canonical_event'] ?? null) ? $row['canonical_event']
             : json_decode(strval($row['canonical_event'] ?? ''), true);
