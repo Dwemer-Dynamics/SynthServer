@@ -4,7 +4,6 @@ require_once dirname(__DIR__, 3).'/lib/request.php';
 require_once dirname(__DIR__, 3).'/managers/MemoryManager/Native/synth_memory.php';
 require_once dirname(__DIR__, 3).'/managers/MemoryManager/Native/synth_memory_recall.php';
 require_once dirname(__DIR__, 3).'/lib/synth_worker_origin.php';
-require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
 
 // Rehydrate only the stored ingress event that owns this job, never a caller-supplied/latest snapshot.
 function synth_memory_run_persisted_job($db, int $jobId, ?callable $generate = null): ?int

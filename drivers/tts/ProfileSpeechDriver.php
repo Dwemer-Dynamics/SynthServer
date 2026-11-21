@@ -31,8 +31,6 @@ final class ProfileSpeechDriver implements TtsDriverInterface
     // TTSConnector and NpcMaster read the shared connection and voice directories from their legacy scope.
     private function resolve(array $npcRow, array $profile): ?array
     {
-        require_once dirname(__DIR__, 2).'/lib/core/tts_connector.class.php';
-        require_once dirname(__DIR__, 2).'/lib/core/npc_master.class.php';
         $tts = new \TTSConnector();
         $connectorId = intval($profile['tts_connector_id'] ?? 0);
         $connector = $connectorId > 0 ? $tts->getById($connectorId) : null;

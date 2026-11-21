@@ -2202,19 +2202,7 @@ function synth_protocol_complete_request($db, string $state, string $contentType
 // The first terminal outcome of a live claim is the replayable response; later writes never replace it.
 function synth_protocol_record_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): void
 {
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $requestId = $db->escapeLiteral($event['request_id']);
-    $stateSql = $db->escapeLiteral($state);
-    $contentTypeSql = $db->escapeLiteral($contentType);
-    $bodySql = $db->escapeLiteral('\\x' . bin2hex($body));
-    $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
-    $db->execQuery(
-        "UPDATE public.core_request_execution
-            SET state={$stateSql}, response_content_type={$contentTypeSql},
-                response_body={$bodySql}::bytea, error_code={$errorSql}, completed_at=NOW()
-          WHERE session_id={$session} AND request_id={$requestId}
-            AND state IN ('claimed','streaming')"
-    );
+    \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->recordOutcome(synth_protocol_session_id($event), strval($event['request_id']), $state, $contentType, $body, $errorCode);
 }
 
 // Commits a live claim's terminal outcome under the session advisory lock shared with claim, cancel and
@@ -2223,38 +2211,31 @@ function synth_protocol_record_outcome($db, array $event, string $state, string 
 // cancelled with no replay body, as every other cancellation path does. Any persistence failure throws.
 function synth_protocol_commit_outcome($db, array $event, string $state, string $contentType, string $body, string $errorCode = ''): array
 {
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $requestId = $db->escapeLiteral($event['request_id']);
+    $session = synth_protocol_session_id($event);
+    $requestId = strval($event['request_id']);
     $generation = intval($event['generation']);
+    $executions = \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db);
     if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin protocol outcome.');
     try {
-        if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$session}))")) {
+        if (!$executions->lockSessionForOutcome($session)) {
             throw new RuntimeException('Unable to lock protocol outcome owner.');
         }
-        $row = $db->fetchOne("SELECT state, error_code FROM public.core_request_execution
-            WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation} FOR UPDATE");
+        $row = $executions->lockOutcomeRow($session, $requestId, $generation);
         if (!is_array($row)) throw new RuntimeException('Protocol outcome owner unavailable.');
         if (!in_array($row['state'], ['claimed', 'streaming'], true)) {
             synth_protocol_commit_transaction($db);
             return ['won' => false, 'state' => strval($row['state']), 'error_code' => strval($row['error_code'] ?? '')];
         }
-        $bodySql = $db->escapeLiteral('\\x' . bin2hex($body)) . '::bytea';
+        $bodyHex = bin2hex($body);
         $won = true;
         if ($state !== 'cancelled') {
             try { synth_protocol_assert_owner_active($db, $event); }
             catch (SYNTHProtocolCancelled) {
-                [$won, $state, $bodySql, $errorCode] = [false, 'cancelled', 'NULL', 'request_cancelled'];
+                [$won, $state, $bodyHex, $errorCode] = [false, 'cancelled', null, 'request_cancelled'];
             }
         }
-        $stateSql = $db->escapeLiteral($state);
-        $contentTypeSql = $db->escapeLiteral($contentType);
-        $errorSql = $errorCode === '' ? 'NULL' : $db->escapeLiteral($errorCode);
-        $updated = $db->fetchOne("UPDATE public.core_request_execution
-            SET state={$stateSql}, response_content_type={$contentTypeSql},
-                response_body={$bodySql}, error_code={$errorSql}, completed_at=NOW()
-          WHERE session_id={$session} AND request_id={$requestId} AND generation={$generation}
-            AND state IN ('claimed','streaming') RETURNING state");
-        if (($updated['state'] ?? null) !== $state) throw new RuntimeException('Unable to record protocol outcome.');
+        $stored = $executions->finishOutcome($session, $requestId, $generation, $state, $contentType, $bodyHex, $errorCode);
+        if ($stored !== $state) throw new RuntimeException('Unable to record protocol outcome.');
         synth_protocol_commit_transaction($db);
         return ['won' => $won, 'state' => $state, 'error_code' => $errorCode];
     } catch (Throwable $error) {

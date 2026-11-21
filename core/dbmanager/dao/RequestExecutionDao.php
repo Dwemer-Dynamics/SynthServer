@@ -38,6 +38,74 @@ class RequestExecutionDao
     }
 
     /**
+     * Records the first terminal outcome of a live claim (state claimed or streaming) as the replayable response; later calls
+     * change nothing. $body is the raw response bytes, an empty $errorCode stores NULL. True when the statement ran.
+     */
+    public function recordOutcome(string $sessionId, string $requestId, string $state, string $contentType, string $body, string $errorCode): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_request_execution
+                    SET state = ?, response_content_type = ?, response_body = decode(?, 'hex'), error_code = ?, completed_at = NOW()
+                  WHERE session_id = ? AND request_id = ? AND state IN ('claimed','streaming')",
+                [$state, $contentType, bin2hex($body), $errorCode === '' ? null : $errorCode, $sessionId, $requestId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Takes the session's transaction-scoped advisory lock (shared by claim, cancel, supersession and outcome); it is held until
+     * the caller's open transaction ends. False when the statement fails.
+     */
+    public function lockSessionForOutcome(string $sessionId): bool
+    {
+        try {
+            return $this->connection()->fetchAssociative('SELECT pg_advisory_xact_lock(hashtext(?))', [$sessionId]) !== false;
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+    }
+
+    /** The state and error code of one request's row, locked FOR UPDATE until the caller's open transaction ends; null when there is no row. @return array<string, mixed>|null */
+    public function lockOutcomeRow(string $sessionId, string $requestId, int $generation): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT state, error_code FROM public.core_request_execution WHERE session_id = ? AND request_id = ? AND generation = ? FOR UPDATE',
+                [$sessionId, $requestId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Writes the outcome of a request still claimed or streaming and returns the state stored, or null when no live row matched.
+     * $bodyHex is the hex of the response bytes, or null for no replay body; an empty $errorCode stores NULL.
+     */
+    public function finishOutcome(string $sessionId, string $requestId, int $generation, string $state, string $contentType, ?string $bodyHex, string $errorCode): ?string
+    {
+        try {
+            $stored = $this->connection()->fetchOne(
+                "UPDATE public.core_request_execution
+                    SET state = ?, response_content_type = ?, response_body = decode(CAST(? AS text), 'hex'), error_code = ?, completed_at = NOW()
+                  WHERE session_id = ? AND request_id = ? AND generation = ? AND state IN ('claimed','streaming') RETURNING state",
+                [$state, $contentType, $bodyHex, $errorCode === '' ? null : $errorCode, $sessionId, $requestId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $stored === false ? null : (string) $stored;
+    }
+
+    /**
      * Takes the session's transaction-scoped advisory lock that orders claim, cancel, supersession and outcome; held until the
      * caller's open transaction ends. False when the statement fails.
      */
