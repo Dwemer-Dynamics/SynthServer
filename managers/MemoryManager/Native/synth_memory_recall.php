@@ -73,28 +73,14 @@ function synth_memory_candidate_query(string $source, bool $hybrid, bool $recent
 }
 
 // Isolate optional diary timeouts so PostgreSQL does not discard the valid dialogue-memory transaction.
-function synth_memory_query_diaries($connection,string $query,array $parameters): array
+function synth_memory_query_diaries($db,string $query,array $parameters): array
 {
-    if (@pg_query($connection,'SAVEPOINT synth_diary_recall')===false) throw new RuntimeException('Unable to isolate diary recall');
-    if (!@pg_send_query_params($connection,$query,$parameters)) throw new RuntimeException('Unable to query diary recall');
-    $result=pg_get_result($connection);
-    // Consume the query result before issuing savepoint recovery commands on this connection.
-    while (pg_get_result($connection)!==false) {}
-    $success=$result!==false && pg_result_status($result)===PGSQL_TUPLES_OK;
-    $state=$result===false ? null : pg_result_error_field($result,PGSQL_DIAG_SQLSTATE);
-    if (!$success && @pg_query($connection,'ROLLBACK TO SAVEPOINT synth_diary_recall')===false) {
-        throw new RuntimeException('Unable to recover diary recall');
-    }
-    if (@pg_query($connection,'RELEASE SAVEPOINT synth_diary_recall')===false) throw new RuntimeException('Unable to finish diary recall');
-    if ($success) return pg_fetch_all($result) ?: [];
-    if ($state==='57014') {
-        synth_protocol_assert_request_active();
-        Logger::warn('Native diary recall query cancelled; continuing without this optional diary result.');
-        return [];
-    }
-    throw new RuntimeException('Unable to read native diary memory');
+    $rows=\Synth\Core\DbManager\Dao\MemorySummaryDao::current($db)->recallDiaries($query,$parameters);
+    if ($rows!==null) return $rows;
+    synth_protocol_assert_request_active();
+    Logger::warn('Native diary recall query cancelled; continuing without this optional diary result.');
+    return [];
 }
-
 // Every direct source must be visible to the current reader/save; never fall back to global summaries.
 function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 0, ?array $embedding = null, bool $recent = false): array
 {
@@ -111,10 +97,10 @@ function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 
     $vector = $embedding === null ? null : synth_memory_vector_json($embedding);
     return $db->withNativeRequestLock(static function($connection,array $event) use ($db,$actor,$normalized,$timeFloor,$vector,$recent) {
         $query = synth_memory_visible_batch_cte($db,$event,$actor).", recall_query AS (
-            SELECT $1::bigint AS floor,
-                CASE WHEN $2='' THEN NULL::tsquery ELSE to_tsquery('english'::regconfig,$2) END AS any_query,
-                CASE WHEN $3='' THEN NULL::tsquery ELSE to_tsquery('english'::regconfig,$3) END AS all_query,
-                $4::public.vector AS search_vector
+            SELECT CAST(:floor AS bigint) AS floor,
+                CASE WHEN :any='' THEN NULL::tsquery ELSE to_tsquery('english'::regconfig,:any) END AS any_query,
+                CASE WHEN :all='' THEN NULL::tsquery ELSE to_tsquery('english'::regconfig,:all) END AS all_query,
+                CAST(:vector AS public.vector) AS search_vector
         ), visible_summaries AS (
             SELECT s.*,b.last_gamets AS gamets_truncated FROM native_memory_effective_summaries s
                 JOIN native_memory_batches b ON b.id=s.batch_id
@@ -130,23 +116,20 @@ function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 
                     OR (s.embedding IS NULL AND s.native_vec @@ q.any_query)
                     OR (q.search_vector IS NULL AND s.native_vec @@ q.any_query))')."
         )".synth_memory_candidate_query('recall_candidates',$vector!==null,$recent);
-        $result = @pg_query_params($connection,$query,[$timeFloor,implode(' | ',$normalized),implode(' & ',$normalized),$vector]);
-        if (!$result) throw new RuntimeException('Unable to read native memory');
-        $rows=pg_fetch_all($result) ?: [];
+        $rows = synth_memory_dao_call('Unable to read native memory',
+            static fn() => \Synth\Core\DbManager\Dao\MemorySummaryDao::current($db)->recallCandidates($query,$timeFloor,implode(' | ',$normalized),implode(' & ',$normalized),$vector));
         // Diary reflections are separate evidence, not short-term dialogue summaries or fabricated vectors.
         if (!$recent) {
             $readers=[];
             if (trim($actor)==='' && (\Synth\Bootstrap::config('SYNTH_NAME') ?? '')==='The Narrator') {
-                $reader=$db->fetchOne(synth_protocol_history_cte($db,$event,'',null,true)
-                    .' SELECT DISTINCT reader_identity_id FROM native_history_scopes LIMIT 1');
-                if (intval($reader['reader_identity_id'] ?? 0)>0) {
-                    $readers[]=[intval($reader['reader_identity_id']),'narrator',false];
+                $readerId=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->scopeReaderIdentityId(synth_protocol_history_cte($db,$event,'',null,true));
+                if ($readerId>0) {
+                    $readers[]=[$readerId,'narrator',false];
                     if (!filter_var(\Synth\Bootstrap::config('NARRATOR_ONLY_DIARY_ACCESS') ?? false,FILTER_VALIDATE_BOOLEAN)) $readers[]=[0,'npc',true];
                 }
             } elseif (trim($actor)!=='') {
-                $reader=$db->fetchOne(synth_protocol_history_cte($db,$event,$actor)
-                    .' SELECT DISTINCT reader_identity_id FROM native_history_scopes LIMIT 1');
-                if (intval($reader['reader_identity_id'] ?? 0)>0) $readers[]=[intval($reader['reader_identity_id']),'npc',false];
+                $readerId=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->scopeReaderIdentityId(synth_protocol_history_cte($db,$event,$actor));
+                if ($readerId>0) $readers[]=[$readerId,'npc',false];
             }
             foreach ($readers as [$readerId,$role,$allJournals]) {
                 $query=synth_diary_history_cte($db,$event,$readerId,$role,$allJournals).", diary_search AS (
@@ -166,7 +149,7 @@ function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 
                             OR ($4::public.vector IS NULL AND document @@ to_tsquery('english'::regconfig,$2)))
                         ".($vector===null ? "AND NOT (document @@ to_tsquery('english'::regconfig,'Reminiscence'))" : '')."
                 )".synth_memory_candidate_query('diary_ranked',$vector!==null);
-                $diaries=synth_memory_query_diaries($connection,$query,[$timeFloor,implode(' | ',$normalized),implode(' & ',$normalized),$vector]);
+                $diaries=synth_memory_query_diaries($db,$query,[$timeFloor,implode(' | ',$normalized),implode(' & ',$normalized),$vector]);
                 $rows=array_merge($rows,$diaries);
                 $rows=synth_memory_rank_text_candidates($rows,$vector!==null);
             }

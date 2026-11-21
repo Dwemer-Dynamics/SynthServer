@@ -70,9 +70,8 @@ class RelationshipLLM {
      */
     private function acquireNpcLock($npcId) {
         try {
-            // Use pg_advisory_lock with a namespace (1001) + npc_id to avoid collisions
-            $lockId = 1001000000 + intval($npcId);
-            $this->db->execQuery("SELECT pg_advisory_lock({$lockId})");
+            // The lock uses a namespace (1001) + npc_id to avoid collisions
+            \Synth\Core\DbManager\Dao\NpcDao::current($this->db)->lockRelationshipUpdates(intval($npcId));
             return true;
         } catch (Exception $e) {
             Logger::error("[REL-LLM] Failed to acquire advisory lock for NPC {$npcId}: " . $e->getMessage());
@@ -87,8 +86,7 @@ class RelationshipLLM {
      */
     private function releaseNpcLock($npcId) {
         try {
-            $lockId = 1001000000 + intval($npcId);
-            $this->db->execQuery("SELECT pg_advisory_unlock({$lockId})");
+            \Synth\Core\DbManager\Dao\NpcDao::current($this->db)->unlockRelationshipUpdates(intval($npcId));
         } catch (Exception $e) {
             Logger::error("[REL-LLM] Failed to release advisory lock for NPC {$npcId}: " . $e->getMessage());
         }

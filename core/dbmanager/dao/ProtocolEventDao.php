@@ -85,4 +85,42 @@ class ProtocolEventDao
                 AND i.state='complete' AND t.result=:p6::jsonb AND t.status=t.result->>'status'
                 AND s.runtime_variant=:p7 AND e.state='complete'", $parameters);
     }
+
+    /**
+     * The stored canonical event and its hash for a request whose execution completed, on a still active session of the same
+     * runtime variant, for this event type; null when no such request exists.
+     *
+     * @return array<string, mixed>|null canonical_event and event_sha256
+     */
+    public function completedOrigin(string $sessionId, string $requestId, string $eventType): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT p.canonical_event, p.event_sha256 FROM public.core_protocol_event p
+             JOIN public.core_request_execution e ON e.session_id = p.session_id AND e.request_id = p.request_id
+                AND e.generation = p.generation AND e.turn_id = p.turn_id AND e.event_type = p.event_type
+                AND e.request_sha256 = p.event_sha256 AND e.state = 'complete'
+             JOIN public.core_runtime_session r ON r.session_id = e.session_id AND r.active_generation = e.generation
+                AND r.state = 'active' AND p.canonical_event->>'runtime_variant' = r.runtime_variant
+             WHERE p.session_id = ? AND p.request_id = ? AND p.event_type = ?",
+            [$sessionId, $requestId, $eventType]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * True when this request has a protocol event past the control barrier and, if a response is named, that response's own
+     * request also lies past it for this actor.
+     */
+    public function pastControlBarrier(string $sessionId, string $requestId, int|string $barrierEventId, ?int $responseId, int $actorId): bool
+    {
+        return $this->connection()->fetchOne(
+            'SELECT 1 FROM public.core_protocol_event p
+            WHERE p.session_id=:p1 AND p.request_id=:p2 AND p.id>:p3
+                AND (:p4::bigint IS NULL OR EXISTS(SELECT 1 FROM public.core_relationship_response_input i
+                    JOIN public.core_protocol_event origin ON origin.session_id=i.session_id AND origin.request_id=i.request_id
+                    WHERE i.history_event_id=:p4 AND i.actor_identity_id=:p5 AND origin.id>:p3))',
+            ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $barrierEventId, 'p4' => $responseId, 'p5' => $actorId]
+        ) !== false;
+    }
 }

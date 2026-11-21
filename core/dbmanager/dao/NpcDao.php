@@ -79,6 +79,14 @@ class NpcDao
         throw new \RuntimeException('The scoped character could not be created.');
     }
 
+    /** One NPC row locked FOR UPDATE until the caller's open transaction ends; null when it does not exist. @return array<string, mixed>|null */
+    public function lockRowById(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE id=? FOR UPDATE', [$id]);
+
+        return $row === false ? null : $row;
+    }
+
     /** Named NPC rows with the columns the memory-bank tools read, by name. @return list<array<string, mixed>> */
     public function namedProfiles(): array
     {
@@ -117,6 +125,59 @@ class NpcDao
         JOIN public.core_npc n ON n.actor_identity_id=a.id
         JOIN public.core_profiles p ON p.id=n.profile_id
         ORDER BY captured.ordinal FOR SHARE OF n,p", [$capturedActorsJson, $sessionId]);
+    }
+
+    /**
+     * Id, actor identity and name of one character; with $lock the row is locked FOR UPDATE until the caller's open
+     * transaction ends. Null when the character does not exist.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function linkRow(int $id, bool $lock = false): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT id, actor_identity_id, npc_name FROM public.core_npc WHERE id = ?'.($lock ? ' FOR UPDATE' : ''), [$id]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** The whole row of one character, or null. @return array<string, mixed>|null */
+    public function row(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE id = ?', [$id]);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Up to two characters linked to the Fallout 4 actor identity with this form id (case-insensitive), origin plugin
+     * (case-insensitive) and playthrough, ordered by id; two rows mean the link is ambiguous.
+     *
+     * @return list<array<string, mixed>> id, actor_identity_id and npc_name
+     */
+    public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT n.id, n.actor_identity_id, n.npc_name FROM public.core_npc n
+             JOIN public.core_actor_identity a ON a.id = n.actor_identity_id
+             WHERE a.game = 'fo4' AND upper(a.full_form_id) = upper(?) AND lower(a.origin_plugin) = lower(?) AND a.playthrough_id = ?
+             ORDER BY n.id LIMIT 2",
+            [$formId, $originPlugin, $playthroughId]
+        );
+    }
+
+    /**
+     * Takes the session-level advisory lock that serializes relationship updates for one NPC (namespace 1001). It is held on the
+     * shared session until unlockRelationshipUpdates() or the session ends; it does not start a transaction.
+     */
+    public function lockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_lock(:p1)', ['p1' => 1001000000 + $npcId]);
+    }
+
+    /** Releases the lock taken by lockRelationshipUpdates() for this NPC. */
+    public function unlockRelationshipUpdates(int $npcId): void
+    {
+        $this->connection()->executeQuery('SELECT pg_advisory_unlock(:p1)', ['p1' => 1001000000 + $npcId]);
     }
 
     /** The whole row of the profile bound to an actor identity, or null. @return array<string, mixed>|null */

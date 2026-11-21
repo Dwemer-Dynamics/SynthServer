@@ -29,10 +29,10 @@ $sinceGamets = isset($_GET["since_gamets"]) ? intval($_GET["since_gamets"]) : 0;
 $selectedEventType = isset($_GET["event_type"]) ? trim((string)$_GET["event_type"]) : '';
 $applySavedFilters = isset($_GET["use_saved_filters"]) && $_GET["use_saved_filters"];
 $savedHiddenTypes = $applySavedFilters ? synthGetPersistedEventLogHiddenTypes($db) : [];
-$eventLogOrderBy = synthGetEventLogUiOrderBy();
 
 // Base event type filter for the Synthserver Events page.
-$typeFilter = synthBuildVisibleEventLogWhereClause($db, $selectedEventType, $savedHiddenTypes);
+$excludedTypes = array_values(array_unique(array_merge(synthGetVisibleEventLogExcludedTypes(), $savedHiddenTypes)));
+$onlyTypes = null;
 
 // If specific event types are requested (for MCM conversation history panel)
 if (isset($_GET["event_types"]) && !empty($_GET["event_types"])) {
@@ -41,12 +41,7 @@ if (isset($_GET["event_types"]) && !empty($_GET["event_types"])) {
     $allowedTypes = array_filter($allowedTypes);
 
     if (!empty($allowedTypes)) {
-        // Sanitize and quote each type for SQL
-        $quotedTypes = array_map(function($type) use ($db) {
-            return "'" . $db->escape($type) . "'";
-        }, $allowedTypes);
-
-        $typeFilter = "type IN (" . implode(',', $quotedTypes) . ")";
+        $onlyTypes = array_values($allowedTypes);
         // Note: Background chat filtering is handled by JavaScript on the client side
     }
 }
@@ -67,42 +62,12 @@ if ($includeRelationshipRows
 }
 
 // Total count for pagination continues to describe the physical eventlog table only.
-$countQuery = "SELECT COUNT(*) as total FROM core_context_event WHERE $typeFilter";
-$countResult = $db->fetchAll($countQuery);
-$totalRecords = $countResult[0]['total'];
+$eventDao = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
+$totalRecords = $eventDao->countVisible($excludedTypes, $selectedEventType, $onlyTypes);
 $totalPages = $limit > 0 ? ceil($totalRecords / $limit) : 1;
 
-// Build query based on filtering options
-if ($sinceGamets > 0) {
-    // Filter by game timestamp - get events since a specific in-game time
-    $results = $db->fetchAll(
-        "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM core_context_event a
-         WHERE $typeFilter
-         AND gamets >= $sinceGamets
-         ORDER BY $eventLogOrderBy
-         LIMIT $limit"
-    );
-} else if ($sinceRowId > 0) {
-    // Filter by rowid - for incremental updates
-    $results = $db->fetchAll(
-        "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM core_context_event a
-         WHERE $typeFilter
-         AND rowid > $sinceRowId
-         ORDER BY $eventLogOrderBy
-         LIMIT 50"
-    );
-} else {
-    // Normal paginated query - get most recent events by game timestamp (gamets)
-    $results = $db->fetchAll(
-        "SELECT type, data, people, gamets, localts, ts, rowid
-         FROM core_context_event a
-         WHERE $typeFilter
-         ORDER BY $eventLogOrderBy
-         LIMIT $limit OFFSET $offset"
-    );
-}
+// Build query based on filtering options: since_gamets, incremental since_rowid, or the normal paginated page
+$results = $eventDao->visible($excludedTypes, $selectedEventType, $onlyTypes, $limit, $offset, $sinceGamets, $sinceRowId);
 
 $results = is_array($results) ? $results : [];
 if (!empty($relationshipRows)) {

@@ -12,6 +12,7 @@ use Synth\Core\DbManager\Dao\WorkerJobDao;
 use Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao;
 use Synth\Managers\ConfigManager\ConfigManager;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
+use Synth\Core\DbManager\Dao\NpcDao;
 
 final class DaoTestDoubles
 {
@@ -92,6 +93,22 @@ final class DaoTestDoubles
           WHERE session_id={$f->escapeLiteral($sessionId)} AND request_id={$f->escapeLiteral($requestId)} AND generation={$generation}
             AND state IN ('claimed','streaming') RETURNING state");
                 return is_array($updated) ? ($updated['state'] ?? null) : null;
+            }
+        });
+    }
+
+    /** DiaryResultDao::latestVisible() answered by $fake->fetchOne() with the legacy visible-diary query text. */
+    public static function diaryLatestFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\DiaryResultDao {
+            public function __construct(private object $fake) {}
+
+            public function latestVisible(string $diaryCte, bool $automaticOnly): ?array
+            {
+                $row = $this->fake->fetchOne($diaryCte.' SELECT history_event_id,result_payload,published_at,'.($automaticOnly ? '0' : 'content_revision').' AS content_revision FROM '
+                    .($automaticOnly ? 'diary_chain' : 'native_diaries').($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '').' ORDER BY history_event_id DESC LIMIT 1');
+
+                return is_array($row) && $row !== [] ? $row : null;
             }
         });
     }
@@ -220,8 +237,11 @@ final class DaoTestDoubles
 
     public static function reset(): void
     {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null);
         RequestExecutionDao::inject(null);
         HistoryEventDao::inject(null);
+        NpcDao::inject(null);
+        \Synth\Core\DbManager\Dao\MemoryDao::inject(null);
     }
 
     /**
@@ -322,5 +342,53 @@ final class DaoTestDoubles
                 AND conv_e.generation=conv_h.generation
             WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}
                 AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$this->fake->escapeLiteral($conversationId).'))';
+            }
+
+    /** NpcDao::linkedToActor() answered by $fake->fetchAll() (one lookup per call), whatever the SQL text. */
+    public static function linkedActorsFrom(object $fake): void
+    {
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+            {
+                return $this->fake->fetchAll('linked actors '.$formId.'|'.$originPlugin.'|'.$playthroughId);
+            }
+        });
+    }
+
+            public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+            {
+                return $this->fake->fetchAll('linked actors '.$formId.'|'.$originPlugin.'|'.$playthroughId);
+            }
+
+    /** MemoryDao::latestDiaryEntry() answered by $fake->fetchOne() with the legacy diary query. */
+    public static function latestDiaryFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\MemoryDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\MemoryDao {
+            public function __construct(private object $fake) {}
+
+            public function latestDiaryEntry(string $companion): ?array
+            {
+                $row = $this->fake->fetchOne("SELECT topic, summary AS content
+                 FROM public.core_memory
+                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower('{$this->fake->escape($companion)}')
+                 ORDER BY gamets DESC, localts DESC, rowid DESC
+                 LIMIT 1");
+
+                return is_array($row) ? $row : null;
+            }
+        });
+    }
+
+            public function latestDiaryEntry(string $companion): ?array
+            {
+                $row = $this->fake->fetchOne("SELECT topic, summary AS content
+                 FROM public.core_memory
+                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower('{$this->fake->escape($companion)}')
+                 ORDER BY gamets DESC, localts DESC, rowid DESC
+                 LIMIT 1");
+
+                return is_array($row) ? $row : null;
             }
 }

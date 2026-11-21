@@ -64,23 +64,16 @@ function FindClosestNPCName($actorName)
 function DirectConversationsWith($actor, $speaker="")
 {
 
-    $db = \Synth\Bootstrap::db();
     $i_res = 0;
 
     if ($speaker=="")
-        $speakerprmt=$db->escape(GetOriginalSYNTHName());
+        $speakerprmt=GetOriginalSYNTHName();
     else
-        $speakerprmt=$db->escape($speaker);
+        $speakerprmt=$speaker;
 
-    $listenerprmt=$db->escape($actor);
+    $listenerprmt=$actor;
     $gametsLimit=round((\Synth\Bootstrap::gameRequest()[2]??0)-(getGametsLimitFor($actor)/0.0000024),0);
-    $lastLoc=$db->fetchAll("SELECT count(*) as N FROM core_speech WHERE (speaker='$speakerprmt' and listener='$listenerprmt') OR (listener='$speakerprmt' and speaker='$listenerprmt') and gamets<$gametsLimit");
-
-    if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
-        Logger::warn("DirectConversationsWith: zero interactions {$speakerprmt} - {$listenerprmt} ");
-    } else {
-        $i_res = intval($lastLoc[0]["n"]);
-    }
+    $i_res = \Synth\Core\DbManager\Dao\SpeechDao::current(\Synth\Bootstrap::db())->countDirectConversations(strval($speakerprmt),strval($listenerprmt),$gametsLimit);
     //error_log(" --- dbg DirectConversationsWith: |{$i_res}| {$speakerprmt} - {$listenerprmt} ");
     return $i_res;
 

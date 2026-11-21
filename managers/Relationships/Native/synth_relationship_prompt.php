@@ -12,20 +12,12 @@ function synth_relationship_prompt_context($db, string $npcName): string
         if (!$responder || strcasecmp(trim($npcName),$responder['display_name'] ?? '')!==0) {
             return '[RELATIONSHIPS] Saved actor context unavailable; do not infer relationship state.';
         }
-        $result=@pg_query($connection,synth_relationship_visible_cte($db,$event)."
-            SELECT actor.id,actor.full_form_id,actor.origin_plugin,actor.playthrough_id,
-                state.history_event_id,state.affinity,state.relationship_type,state.details
-            FROM native_ancestry current
-            JOIN public.core_runtime_context c ON c.session_id=current.session_id AND c.generation=current.generation
-                AND c.snapshot_sequence=current.snapshot_sequence
-            JOIN public.core_actor_identity actor ON actor.game='fo4' AND actor.playthrough_id=c.playthrough_id
-                AND (actor.id=c.player_identity_id OR actor.id=c.target_identity_id
-                    OR c.audience_identity_ids @> jsonb_build_array(actor.id))
-            LEFT JOIN LATERAL (SELECT r.* FROM native_relationships r WHERE r.subject_identity_id=actor.id
-                ORDER BY r.history_event_id DESC LIMIT 1) state ON TRUE
-            WHERE current.depth=1 AND actor.id<>current.reader_identity_id ORDER BY actor.id");
-        if (!$result) throw new RuntimeException('Unable to read saved relationship prompt');
-        $rows=pg_fetch_all($result);
+        $visibleCte=synth_relationship_visible_cte($db,$event);
+        try {
+            $rows=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->relationshipPromptRows($visibleCte);
+        } catch (Throwable $error) {
+            throw new RuntimeException('Unable to read saved relationship prompt',0,$error);
+        }
         if (!$rows) return '[RELATIONSHIPS] Saved actor context unavailable; do not infer relationship state.';
         $payload=$context['payload'];$actors=array_merge([$payload['player'],$payload['target']],$payload['audience'] ?? []);
         $names=[];$identities=[];

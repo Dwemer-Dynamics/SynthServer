@@ -22,79 +22,32 @@ function synth_diary_browser_filters(array $query): array
 
 function synth_diary_browser_cte(): string
 {
-    return <<<'SQL'
-WITH written_diaries AS (
-    SELECT r.history_event_id AS id, i.actor_identity_id, i.diary_role AS role,
-        i.diary_role||':'||i.actor_identity_id::text AS author_key,
-        COALESCE(NULLIF(i.input_payload#>>'{binding,name}',''),a.display_name,'Unknown author') AS author,
-        r.result_payload->>'topic' AS topic, r.result_payload->>'content' AS content,
-        h.recorded_at AS written_at, h.event_payload->>'gamets' AS gamets,
-        COALESCE(i.input_payload#>>'{context,world,location}','') AS location,
-        COALESCE(i.input_payload#>>'{context,player,display_name}','Sole Survivor') AS player_name,
-        substr(encode(sha256(convert_to(h.playthrough_id,'UTF8')),'hex'),1,12) AS save_key
-    FROM public.core_diary_result r
-    JOIN public.core_diary_input i ON i.id=r.input_id
-    JOIN public.core_history_event h ON h.id=r.history_event_id
-        AND h.session_id=i.session_id AND h.request_id=i.request_id
-        AND h.generation=i.generation AND h.context_sequence=i.context_sequence
-    JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
-        AND a.playthrough_id=h.playthrough_id AND a.game='fo4'
-    WHERE h.event_payload->>'type'='diary_result'
-        AND h.event_payload->>'delivery_state'='derived'
-        AND r.result_sha256=encode(sha256(convert_to(r.result_payload::text,'UTF8')),'hex')
-        AND i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex')
-        AND h.event_payload->'diary_result'=r.result_payload
-        AND h.event_payload->>'diary_result_sha256'=r.result_sha256
-        AND h.event_payload->>'diary_input_sha256'=i.input_sha256
-        AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
-        AND i.input_payload->>'diary_role'=i.diary_role
-        AND octet_length(r.result_payload->>'topic') BETWEEN 1 AND 512
-        AND octet_length(r.result_payload->>'content') BETWEEN 1 AND 65536
-)
-SQL;
+    return \Synth\Core\DbManager\Dao\DiaryResultDao::BROWSER_CTE;
 }
 
-function synth_diary_browser_rows($db, string $query, array $parameters=[]): array
+// A statement failure keeps the message the archive page always showed.
+function synth_diary_browser_read(callable $read): mixed
 {
-    $result=$db->execQuery($query,$parameters);
-    if (!$result) throw new RuntimeException('Diaries could not be loaded.');
-    return pg_fetch_all($result) ?: [];
+    try { return $read(); }
+    catch (\Doctrine\DBAL\Exception $error) { throw new RuntimeException('Diaries could not be loaded.',0,$error); }
 }
 
 function synth_diary_browser_summary($db): array
 {
-    $rows=synth_diary_browser_rows($db,synth_diary_browser_cte()
-        .' SELECT *,count(*) OVER() AS total FROM written_diaries ORDER BY written_at DESC,id DESC LIMIT 1');
-    return ['total'=>(int)($rows[0]['total'] ?? 0),'latest'=>$rows[0] ?? null];
+    $latest=synth_diary_browser_read(static fn()=>\Synth\Core\DbManager\Dao\DiaryResultDao::current($db)->browserLatest());
+    return ['total'=>(int)($latest['total'] ?? 0),'latest'=>$latest];
 }
 
 function synth_diary_browser_load($db, array $query): array
 {
     $filters=synth_diary_browser_filters($query);
-    $conditions=[];$parameters=[];
-    foreach (['author'=>'author_key','role'=>'role','save'=>'save_key'] as $key=>$column) {
-        if ($filters[$key]!=='') {
-            $parameters[]=$filters[$key];$conditions[]=$column.'=$'.count($parameters);
-        }
-    }
-    if ($filters['search']!=='') {
-        $parameters[]=$filters['search'];
-        $conditions[]="strpos(lower(topic||' '||content),lower($".count($parameters)."::text))>0";
-    }
-    $where=$conditions ? ' WHERE '.implode(' AND ',$conditions) : '';
-    $cte=synth_diary_browser_cte();
-    $count=synth_diary_browser_rows($db,$cte.' SELECT count(*) AS total FROM written_diaries'.$where,$parameters);
-    $total=(int)$count[0]['total'];
+    $diaries=\Synth\Core\DbManager\Dao\DiaryResultDao::current($db);
+    $total=synth_diary_browser_read(static fn()=>$diaries->browserCount($filters));
     $page=min($filters['page'],max(1,(int)ceil($total/20)));
     $filters['page']=$page;
-    $parameters[] = 20;$limit='$'.count($parameters);
-    $parameters[] = ($page-1)*20;$offset='$'.count($parameters);
-    $entries=synth_diary_browser_rows($db,$cte.' SELECT * FROM written_diaries'.$where
-        .' ORDER BY written_at DESC,id DESC LIMIT '.$limit.' OFFSET '.$offset,$parameters);
-    $authors=synth_diary_browser_rows($db,$cte
-        .' SELECT author_key,author,role,count(*) AS total FROM written_diaries GROUP BY author_key,author,role ORDER BY author,role LIMIT 1000');
-    $saves=synth_diary_browser_rows($db,$cte
-        .' SELECT save_key,max(player_name) AS player_name,max(written_at) AS written_at FROM written_diaries GROUP BY save_key ORDER BY written_at DESC LIMIT 1000');
+    $entries=synth_diary_browser_read(static fn()=>$diaries->browserEntries($filters,20,($page-1)*20));
+    $authors=synth_diary_browser_read(static fn()=>$diaries->browserAuthors());
+    $saves=synth_diary_browser_read(static fn()=>$diaries->browserSaves());
     return compact('filters','entries','authors','saves','total')+['pages'=>max(1,(int)ceil($total/20))];
 }
 

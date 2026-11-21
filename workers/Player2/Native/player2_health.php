@@ -38,9 +38,8 @@ function synthPlayer2HealthGetOption(string $id, string $default = ''): string
         return $default;
     }
 
-    $escapedId = $db->escape($id);
-    $row = $db->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='{$escapedId}' LIMIT 1");
-    return is_array($row) && array_key_exists('value', $row) ? strval($row['value']) : $default;
+    $value = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', $id);
+    return $value === null ? $default : $value;
 }
 
 function synthPlayer2HealthSetOption(string $id, string $value): bool

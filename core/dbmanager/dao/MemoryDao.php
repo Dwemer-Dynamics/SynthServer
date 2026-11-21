@@ -11,7 +11,7 @@ use Synth\Core\Entities\Base\AbstractMemory;
 use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_memory. */
-final class MemoryDao
+class MemoryDao
 {
     use UsesEntityManager;
 
@@ -19,6 +19,27 @@ final class MemoryDao
     public function find(int $rowid): ?AbstractMemory
     {
         return $this->fresh()->find(AbstractMemory::class, $rowid);
+    }
+
+    /** How many legacy summary memories there are. */
+    public function countSummaries(): int
+    {
+        return (int) $this->connection()->fetchOne("SELECT count(*) AS n FROM public.core_memory WHERE source_type='summary'");
+    }
+
+    /** The newest legacy diary entry (topic, content) written for one companion name, or null. @return array<string, mixed>|null */
+    public function latestDiaryEntry(string $companion): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT topic, summary AS content
+                 FROM public.core_memory
+                 WHERE source_type = 'diary' AND lower(trim(companions)) = lower(?)
+                 ORDER BY gamets DESC, localts DESC, rowid DESC
+                 LIMIT 1",
+            [$companion]
+        );
+
+        return $row === false ? null : $row;
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractMemory> */
@@ -302,6 +323,95 @@ final class MemoryDao
             "SELECT summary AS content, gamets, topic FROM public.core_memory WHERE source_type='diary' AND companions = ? AND gamets > ? AND (topic='Sent Letter' OR topic='Journal Note') ORDER BY gamets DESC, ts DESC LIMIT ".max(1, $limit),
             [$actor, $afterGamets]
         );
+    }
+
+    /** Deletes one memory row. */
+    public function deleteRow(int $rowid): void
+    {
+        $this->connection()->executeStatement('DELETE FROM public.core_memory WHERE rowid = ?', [$rowid]);
+    }
+
+    /** Saves the three fields the memory editors change. */
+    public function updateEditable(int $rowid, string $summary, string $tags, string $companions): void
+    {
+        $this->connection()->executeStatement(
+            'UPDATE public.core_memory SET summary = ?, tags = ?, companions = ? WHERE rowid = ?',
+            [$summary, $tags, $companions, $rowid]
+        );
+    }
+
+    /** Topic and content of every diary entry, newest first. @return list<array<string,mixed>> */
+    public function diaryExport(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT topic, summary AS content FROM public.core_memory WHERE source_type = 'diary' ORDER BY rowid DESC"
+        );
+    }
+
+    /** The newest diary entries, by game time. @return list<array<string,mixed>> */
+    public function recentDiary(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT a.topic, a.summary AS content, a.tags, a.companions AS people, a.location, a.localts, a.gamets, a.ts, a.sess, a.rowid'
+            ." FROM public.core_memory a WHERE a.source_type = 'diary' ORDER BY gamets DESC, rowid DESC LIMIT ?",
+            [$limit]
+        );
+    }
+
+    /** One diary entry (rowid, content, people), or null. @return array<string,mixed>|null */
+    public function diaryEntry(int $rowid): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT rowid, summary AS content, companions AS people FROM public.core_memory WHERE source_type = 'diary' AND rowid = ? LIMIT 1",
+            [$rowid]
+        );
+
+        return is_array($row) ? $row : null;
+    }
+
+    /** The newest summaries with their uid, for the dashboard table. @return list<array<string,mixed>> */
+    public function recentSummariesWithUid(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT gamets_truncated, n, summary, companions, tags, classifier, uid, rowid, packed_message, native_vec'
+            ." FROM public.core_memory WHERE source_type = 'summary' ORDER BY gamets_truncated DESC, rowid DESC LIMIT ?",
+            [$limit]
+        );
+    }
+
+    /** The newest summaries with their scope, for the Events and Memories page. @return list<array<string,mixed>> */
+    public function recentSummariesWithScope(int $limit): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT gamets_truncated, n, summary, companions, tags, classifier, scope, rowid, packed_message, native_vec'
+            ." FROM public.core_memory WHERE source_type = 'summary' ORDER BY gamets_truncated DESC, rowid DESC LIMIT ?",
+            [$limit]
+        );
+    }
+
+    /**
+     * Inserts one diary memory row (column => value, every column a plain scalar); returns false when the statement fails.
+     *
+     * @param array<string, scalar|null> $row
+     */
+    public function insertDiaryEntry(array $row): bool
+    {
+        $columns = array_keys($row);
+        foreach ($columns as $column) {
+            if (!preg_match('/^[a-z_][a-z0-9_]*$/', (string) $column)) {
+                throw new \InvalidArgumentException('Invalid core_memory column.');
+            }
+        }
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_memory ('.implode(', ', $columns).') VALUES ('.implode(', ', array_fill(0, count($columns), '?')).')',
+                array_values($row)
+            );
+        } catch (\Throwable $error) {
+            return false;
+        }
+
+        return true;
     }
 
     /** Uids of the summary memories whose truncated gamets is after $gametsTruncated. @return list<string> */

@@ -13,6 +13,7 @@ class RequestExecutionDao
 {
     use FailSoftQueries;
     use UsesEntityManager;
+    use TextRows;
 
     /** One row by its primary key, or null. */
     public function find(string $sessionId, string $requestId): ?AbstractRequestExecution
@@ -239,6 +240,50 @@ class RequestExecutionDao
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
     }
 
+    /**
+     * True when this request's immutable ingress is the canonical diary_request event: the execution row, its protocol event
+     * (same canonical JSON and hash) and, when $complete, the state complete.
+     */
+    public function diaryOwnerVerified(string $sessionId, string $requestId, int $generation, string $canonicalEvent, string $eventSha256, bool $complete): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
+                ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation AND p.turn_id=e.turn_id
+                    AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
+             WHERE e.session_id=? AND e.request_id=? AND e.generation=? AND e.event_type='diary_request'
+                AND p.canonical_event=CAST(? AS jsonb) AND p.event_sha256=? AND (NOT CAST(? AS boolean) OR e.state='complete')",
+            [$sessionId, $requestId, $generation, $canonicalEvent, $eventSha256, $complete ? 't' : 'f']
+        ) !== false;
+    }
+
+    /** The stored response body (bytea as the driver returns it) of one request; null when there is no row. @return array<string, mixed>|null */
+    public function responseBody(string $sessionId, string $requestId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT response_body FROM public.core_request_execution WHERE session_id=? AND request_id=?',
+            [$sessionId, $requestId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Completes a still claimed request with its replayable NDJSON body; true when exactly that one row changed. */
+    public function completeDiaryAdmission(string $sessionId, string $requestId, string $body): bool
+    {
+        try {
+            $changed = $this->connection()->executeStatement(
+                "UPDATE public.core_request_execution SET state='complete',
+                    response_content_type='application/x-ndjson',response_body=convert_to(CAST(? AS text),'UTF8'),completed_at=clock_timestamp()
+                 WHERE session_id=? AND request_id=? AND state='claimed'",
+                [$body, $sessionId, $requestId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return $changed === 1;
+    }
+
     /** Cancels the claimed or streaming narrator turns whose reply is still pending for a definition. Runs inside the caller's transaction. */
     public function cancelNarratorTurnsAwaitingDefinition(string $definitionId): void
     {
@@ -358,5 +403,55 @@ class RequestExecutionDao
             AND child.generation=:p4 AND child.turn_id=:p5
             AND cp.canonical_event=:p7::jsonb AND cp.event_sha256=:p9 AND child.request_sha256=cp.event_sha256
             AND cp.generation=child.generation AND cp.turn_id=child.turn_id AND cp.event_type=child.event_type", $parameters);
+    }
+
+    /** The execution state of a request (of any generation), or null when it has no row. */
+    public function stateOf(string $sessionId, string $requestId): ?string
+    {
+        $state = $this->connection()->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id = ? AND request_id = ? LIMIT 1', [$sessionId, $requestId]);
+
+        return $state === false || $state === null ? null : (string) $state;
+    }
+
+    /**
+     * The frozen context of a completed request whose response body is exactly the hex-encoded bytes given and whose runtime
+     * session and target identity agree with it; null when nothing matches.
+     *
+     * @return array{target_identity_id: string, playthrough_id: string, canonical_event: string, event_sha256: string, gamets: string}|null
+     */
+    public function completedResponseContext(string $sessionId, string $requestId, int $contextSequence, string $bodyHex,
+        string $turnId, int $generation, string $runtimeVariant): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT c.target_identity_id,c.playthrough_id,p.canonical_event,p.event_sha256,
+                    COALESCE((c.context_payload->'world'->>'game_time_ticks')::bigint,0) AS gamets
+                FROM public.core_request_execution r JOIN public.core_runtime_context c ON c.session_id=r.session_id
+                    AND c.generation=r.generation AND c.snapshot_sequence=:p3
+                JOIN public.core_runtime_session s ON s.session_id=c.session_id AND s.playthrough_id=c.playthrough_id
+                JOIN public.core_protocol_event p ON p.session_id=r.session_id AND p.request_id=r.request_id
+                    AND p.generation=r.generation AND p.turn_id=r.turn_id AND p.event_type=r.event_type
+                    AND p.event_sha256=r.request_sha256
+                JOIN public.core_actor_identity a ON a.id=c.target_identity_id AND a.playthrough_id=c.playthrough_id
+                    AND a.game='fo4' AND upper(a.full_form_id)=upper(c.context_payload->'target'->>'form_id')
+                    AND lower(a.origin_plugin)=lower(c.context_payload->'target'->>'origin_plugin')
+                WHERE r.session_id=:p1 AND r.request_id=:p2 AND r.state='complete'
+                    AND r.response_body=decode(:p4,'hex') AND c.history_event_id IS NOT NULL
+                    AND r.turn_id=:p5 AND r.generation=:p6 AND s.runtime_variant=:p7 AND s.game='fo4'",
+            ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $contextSequence, 'p4' => $bodyHex, 'p5' => $turnId,
+                'p6' => $generation, 'p7' => $runtimeVariant]
+        );
+
+        return self::textRow($row);
+    }
+
+    /** True when the request completed with exactly this canonical event (its digest matches the stored one). */
+    public function completedOwner(string $sessionId, string $requestId, string $canonicalEvent, string $eventSha256): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e
+            ON e.session_id=p.session_id AND e.request_id=p.request_id AND e.request_sha256=p.event_sha256 AND e.state='complete'
+            WHERE p.session_id=:p1 AND p.request_id=:p2 AND p.canonical_event=:p3::jsonb AND p.event_sha256=:p4",
+            ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $canonicalEvent, 'p4' => $eventSha256]
+        ) !== false;
     }
 }

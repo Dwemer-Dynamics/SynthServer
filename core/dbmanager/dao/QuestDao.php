@@ -12,6 +12,7 @@ use Doctrine\DBAL\Exception as DbalException;
 /** Finds rows of core_quest. */
 final class QuestDao
 {
+    private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts'];
     use UsesEntityManager;
 
     /** One row by its primary key, or null. */
@@ -32,7 +33,11 @@ final class QuestDao
         return $this->connection()->fetchAllAssociative("SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT ".max(1, $limit));
     }
 
-    private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts'];
+    /** Name, id, briefings and data of every quest. @return list<array<string,mixed>> */
+    public function listAll(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT name, id_quest, briefing, briefing2, data FROM public.core_quest');
+    }
 
     /**
      * Appends one quest row (column => value over the known columns; others are refused). False when the statement fails or
