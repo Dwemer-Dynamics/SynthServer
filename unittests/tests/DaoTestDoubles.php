@@ -260,6 +260,25 @@ final class DaoTestDoubles
         });
     }
 
+    /** RuntimeContextDao::latestSnapshot() answered by $fake->fetchOne() with the legacy newest-snapshot query; other methods stay real. */
+    public static function latestSnapshotFrom(object $fake): void
+    {
+        RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
+            public function __construct(private object $fake) {}
+
+            public function latestSnapshot(string $sessionId, int $generation): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
+           FROM public.core_runtime_context
+          WHERE session_id={$f->escapeLiteral($sessionId)} AND generation={$generation}
+          ORDER BY snapshot_sequence DESC LIMIT 1");
+
+                return $row ?: null;
+            }
+        });
+    }
+
     /**
      * Forgets every DAO that an earlier test configured with Database::boot*(). A test whose fixture owns its PostgreSQL connection
      * (and an open transaction on it) needs its DAOs bound to that fixture, not to a session booted by another test.

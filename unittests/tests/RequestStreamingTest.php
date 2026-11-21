@@ -1274,6 +1274,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['latest'=>6, 'playthrough_id'=>'save-001', 'loaded_context'=>null]; }
             public function execQuery(string $sql): never { throw new LogicException('Mismatch must not write'); }
         };
+        DaoTestDoubles::latestSnapshotFrom($db);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('context_loaded_anchor_mismatch');
         synth_protocol_persist_context($db, $event, $event['session_id']);
