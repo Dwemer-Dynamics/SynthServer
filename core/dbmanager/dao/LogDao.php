@@ -19,6 +19,18 @@ final class LogDao
         return $this->fresh()->find(AbstractLog::class, $rowid);
     }
 
+    /** Appends one core_log row. False when the insert failed. */
+    public function insertEntry(int $localts, string $prompt, string $response, string $url): bool
+    {
+        try {
+            $this->connection()->executeStatement('INSERT INTO core_log (localts, prompt, response, url) VALUES (?,?,?,?)', [$localts, $prompt, $response, $url]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractLog> */
     public function findAll(int $limit = 1000): array
     {

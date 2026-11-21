@@ -19,6 +19,27 @@ final class RuntimeContextDao
         return $this->fresh()->find(AbstractRuntimeContext::class, ['sessionId' => $sessionId, 'generation' => $generation, 'snapshotSequence' => $snapshotSequence]);
     }
 
+    /** The target identity, playthrough and context payload of one saved snapshot (the owner a memory job writes for), or null. @return array<string, mixed>|null */
+    public function memoryOwner(string $sessionId, int|string $generation, int|string $snapshotSequence): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT target_identity_id,playthrough_id,context_payload
+        FROM public.core_runtime_context WHERE session_id=? AND generation=? AND snapshot_sequence=?',
+            [$sessionId, $generation, $snapshotSequence]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** The player identity of one saved snapshot, or 0 when there is none. */
+    public function playerIdentityId(string $sessionId, int|string $generation, int|string $snapshotSequence): int
+    {
+        return (int) $this->connection()->fetchOne(
+            'SELECT player_identity_id FROM public.core_runtime_context WHERE session_id=? AND generation=? AND snapshot_sequence=?',
+            [$sessionId, $generation, $snapshotSequence]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {

@@ -11,6 +11,7 @@ final class WaitConsequenceFixtureDatabase
     private ?array $lockOwner=null;
     public function __construct(public $connection) {}
     public function escape(string $value): string {return pg_escape_string($this->connection,$value);}
+    public function getCatalogueSqlConnection() {return $this->connection;}
     public function isTransactionIdle(): bool {return pg_transaction_status($this->connection)===PGSQL_TRANSACTION_IDLE;}
     public function escapeLiteral(string $value): string {return pg_escape_literal($this->connection,$value);}
     public function execQuery(string $sql,array $params=[])
