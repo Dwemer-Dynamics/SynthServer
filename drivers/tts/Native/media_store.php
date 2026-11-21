@@ -250,38 +250,12 @@ function synth_media_register($db, array $media, array $correlation = []): void
     if (!$db) {
         throw new SynthMediaException(503, 'media_database_unavailable', 'Media metadata database is unavailable.');
     }
-    $textOrNull = static function ($value) use ($db): string {
-        $value = trim(strval($value ?? ''));
-        return $value === '' ? 'NULL' : $db->escapeLiteral($value);
-    };
-    $intOrNull = static function ($value): string {
-        return is_numeric($value) && intval($value) > 0 ? strval(intval($value)) : 'NULL';
-    };
-    $mediaId = $db->escapeLiteral($media['media_id']);
-    $contentType = $db->escapeLiteral($media['content_type']);
-    $sha256 = $db->escapeLiteral($media['sha256']);
-    $size = intval($media['size']);
-    $result = $db->execQuery(
-        "INSERT INTO public.core_media_object AS existing
-            (media_id, storage_key, content_type, byte_length, sha256, state, request_id,
-             turn_id, utterance_id, generation, speaker_identity_id, published_at)
-         VALUES ({$mediaId}, {$mediaId}, {$contentType}, {$size}, {$sha256}, 'ready', "
-            . $textOrNull($correlation['request_id'] ?? '') . ', '
-            . $textOrNull($correlation['turn_id'] ?? '') . ', '
-            . $textOrNull($correlation['utterance_id'] ?? '') . ', '
-            . $intOrNull($correlation['generation'] ?? null) . ', '
-            . $intOrNull($correlation['speaker_identity_id'] ?? null) . ", NOW())
-         ON CONFLICT (media_id) DO UPDATE SET
-            content_type=EXCLUDED.content_type, byte_length=EXCLUDED.byte_length,
-            sha256=EXCLUDED.sha256, state='ready', published_at=NOW(), failure_code=NULL,
-            request_id=COALESCE(existing.request_id, EXCLUDED.request_id),
-            turn_id=COALESCE(existing.turn_id, EXCLUDED.turn_id),
-            utterance_id=COALESCE(existing.utterance_id, EXCLUDED.utterance_id),
-            generation=COALESCE(existing.generation, EXCLUDED.generation),
-            speaker_identity_id=COALESCE(
-                existing.speaker_identity_id,
-                EXCLUDED.speaker_identity_id
-            )"
+    $result = \Synth\Core\DbManager\Dao\MediaObjectDao::current($db)->publishReady(
+        strval($media['media_id']),
+        strval($media['content_type']),
+        intval($media['size']),
+        strval($media['sha256']),
+        $correlation
     );
     if ($result === false) {
         throw new SynthMediaException(500, 'media_database_failed', 'Media metadata could not be registered.');
@@ -294,10 +268,7 @@ function synth_media_require_ready($db, array $media): void
     if (!$db) {
         throw new SynthMediaException(503, 'media_database_unavailable', 'Media metadata database is unavailable.');
     }
-    $row = $db->fetchOne(
-        'SELECT content_type, byte_length, sha256, state FROM public.core_media_object WHERE media_id='
-        . $db->escapeLiteral($media['media_id']) . ' LIMIT 1'
-    );
+    $row = \Synth\Core\DbManager\Dao\MediaObjectDao::current($db)->delivery(strval($media['media_id']));
     if (!$row) {
         throw new SynthMediaException(404, 'media_not_registered', 'Media is not registered for delivery.');
     }

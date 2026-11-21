@@ -55,6 +55,10 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     return str_contains($sql,'public.core_media_object') ? $this->media : ['state'=>'running','within_deadline'=>'t'];
                 }
             };
+            \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
+                public function __construct(private object $fake) {}
+                public function delivery(string $mediaId): ?array { return $this->fake->media; }
+            });
             $this->assertSame('pending',synth_tts_resolve_job_status($db,$read,$root)['status']);
             $db->media=['state'=>'ready','content_type'=>'audio/wav','byte_length'=>strlen($wav),'sha256'=>hash('sha256',$wav)];
             $resolved=synth_tts_resolve_job_status($db,$read,$root);
@@ -64,6 +68,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             $this->assertSame($before,file_get_contents($status));
             $this->assertSame($metadata,file_get_contents($object.'.json'));
         } finally {
+            \Synth\Core\DbManager\Dao\MediaObjectDao::inject(null);
             if ($claim!==null) $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=$claim;
             foreach ([$cache,$status,$object,$object.'.json'] as $file) if(is_file($file)) unlink($file);
             foreach (['data/tmp/npc_tts_status','data/tmp','data','soundcache/media','soundcache',''] as $dir) {
@@ -103,6 +108,10 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     return $publish();
                 }
             };
+            \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
+                public function __construct(private object $fake) {}
+                public function publishReady(string $mediaId, string $contentType, int $size, string $sha256, array $correlation): bool { $this->fake->writes++; return true; }
+            });
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']['json']=['protocol_version'=>2,'session_id'=>'status-fixture',
                 'request_id'=>'status-request','generation'=>1,'context_sequence'=>1,'capabilities'=>[]];
@@ -127,6 +136,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             $this->assertFalse(synth_write_npc_tts_status($key,'failed',[],$root));
             $this->assertSame($before,file_get_contents($status));
         } finally {
+            \Synth\Core\DbManager\Dao\MediaObjectDao::inject(null);
             foreach($keys as $name) unset($GLOBALS[$name]);
             foreach($saved as $name=>$value) $GLOBALS[$name]=$value;
             foreach ([$cache,$status,$object,$object.'.json'] as $file) if(is_file($file)) unlink($file);

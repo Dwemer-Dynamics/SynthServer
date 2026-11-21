@@ -33,6 +33,13 @@ trait UsesEntityManager
         return new self($entityManager);
     }
 
+    /** Replaces the process-wide DAO (null forgets it and the per-session one). For tests that stub reads with a subclass. */
+    public static function inject(?self $dao): void
+    {
+        self::$instance = $dao;
+        self::$bound = null;
+    }
+
     /** The configured process-wide DAO. */
     public static function shared(): self
     {

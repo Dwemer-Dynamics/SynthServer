@@ -160,6 +160,12 @@ $db=new class($published,$cancel) {
     }
 };
 $GLOBALS['db']=$db;
+require_once $root.'/vendor/autoload.php';
+\Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($published) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
+    public function __construct(private array $published) {}
+    public function publishReady(string $mediaId, string $contentType, int $size, string $sha256, array $correlation): bool { return true; }
+    public function delivery(string $mediaId): ?array { return ['state'=>'ready','content_type'=>'audio/wav','byte_length'=>$this->published['size'],'sha256'=>$this->published['sha256']]; }
+});
 $path=$fixture.'/';
 register_shutdown_function(static function() use($db,$fixture,$wireEvent,$original) {
     $diag=['later_work'=>$GLOBALS['later_work'],'completions'=>$db->completions,'temporary_files_left'=>count(glob($fixture.'/soundcache/_synth-stt-*')),'canonical_unchanged'=>json_encode($wireEvent)===$original,'owner'=>[$wireEvent['request_id'],$wireEvent['turn_id'],$wireEvent['generation'],$wireEvent['context_sequence']],'stt_diagnostic'=>$GLOBALS['STT_LAST_DIAGNOSTIC']??[]];

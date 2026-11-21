@@ -13,16 +13,10 @@ function synthDefaultTtsPronunciationEntries(): array
     ];
 }
 
-// Create the dictionary table and add missing built-in entries without changing user data.
+// Add missing built-in entries without changing user data.
 function synthEnsureTtsPronunciationDictionary(): bool
 {
     if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
-        return false;
-    }
-
-    $schemaPath = dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR
-        . 'database_schema' . DIRECTORY_SEPARATOR . 'core_tts_pronunciation.sql';
-    if (!is_readable($schemaPath) || \Synth\Bootstrap::db()->execQuery(file_get_contents($schemaPath)) === false) {
         return false;
     }
 

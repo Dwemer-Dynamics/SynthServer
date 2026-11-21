@@ -109,12 +109,11 @@ def build(root):
         assert re.fullmatch(r'[a-z0-9_]+',row['topic']) and row['topic'] not in topics
         topics.add(row['topic'])
         lore_rows.append([row[field] for field in LORE_FIELDS]+[row['topic'],sha(compact(row).encode('utf-8'))])
-    schema=(root/'lib/core/database_schema/bio_template_actor_map.sql').read_text(encoding='utf-8')
     sql='''-- Generated Fallout 4 catalogue. Run tools/build-fallout-content-sql.py to rebuild.
 -- Authored sources and attribution are checked in beside this file.
 -- The versioned PHP installer owns the transaction and version marker.
 SET LOCAL standard_conforming_strings = on;
-'''+schema+'\n'
+'''+'\n'
     sql+='INSERT INTO public.core_npc_biography_template (npc_name,'+','.join(FIELDS)+') VALUES\n'+values(npc_rows)+'\nON CONFLICT (npc_name) DO NOTHING;\n\n'
     # Repair only untouched copies of the six earlier factory templates. Any
     # operator edit to a seeded field, including the old tag list, is preserved.

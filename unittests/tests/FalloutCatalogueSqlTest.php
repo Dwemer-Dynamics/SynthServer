@@ -278,17 +278,14 @@ final class FalloutCatalogueSqlTest extends DatabaseTestCase
         }
     }
 
-    public function testVersionFailureRollsBackImportedLoreAndSchemaUpgrade(): void
+    public function testVersionFailureRollsBackImportedLore(): void
     {
         $this->clearFactoryCatalogue();$db=$this->db();
-        self::assertNotFalse($db->execQuery('DELETE FROM public.core_npc_biography_template_actor WHERE base_plugin IS NULL'));
-        self::assertNotFalse($db->execQuery('ALTER TABLE public.core_npc_biography_template_actor ALTER COLUMN base_plugin SET NOT NULL,ALTER COLUMN base_local_formid SET NOT NULL'));
         $before=$this->snapshot();$adapter=new FalloutCatalogueSqlTestAdapter($db,'UPDATE public.core_catalog_version SET version=GREATEST');
         try { synthInstallFalloutCatalogueSql($adapter,$this->root());self::fail('Late version failure must fail'); }
         catch (RuntimeException $error) { self::assertStringContainsString('migration version',$error->getMessage()); }
         self::assertSame(['BEGIN','ROLLBACK'],$this->transactions($adapter));
         self::assertSame($before,$this->snapshot());
-        self::assertSame('NO',$db->fetchOne("SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='core_npc_biography_template_actor' AND column_name='base_plugin'")['is_nullable']);
     }
 
     public function testLegacyVersionTableWithoutUniqueKeyRemainsIdempotent(): void
