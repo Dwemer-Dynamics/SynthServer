@@ -181,3 +181,16 @@ Files under: root scripts
 | --- | --- | --- |
 | global uses (all non-test PHP) | 2660 | 2349 |
 | `require_once` | 1838 | 1838 |
+
+### W6-drivers
+
+All uses in `drivers/` (LLM and TTS drivers). New helper `Bootstrap::coalescePath($name, $path, $default)` replaces `$GLOBALS['N'][...][...] ??= $default` used as an expression (the Zonos Gradio defaults). Multi-argument `unset($GLOBALS['A'], $GLOBALS['B'])` was split by hand into `forget()` calls; the converter now reports it instead of guessing.
+
+Stacked on W5-root-scripts (#173).
+
+Files under: drivers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2349 | 1740 |
+| `require_once` | 1838 | 1838 |

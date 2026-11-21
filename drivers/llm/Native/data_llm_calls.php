@@ -38,24 +38,24 @@ function FastCallOAI($question) {
 }
 
 function snapshot_response_prompt_debug_data($connectorData = null) {
-    if (!isset($GLOBALS["DEBUG_DATA"]) || !is_array(\Synth\Bootstrap::config("DEBUG_DATA"))) {
-        $GLOBALS["DEBUG_DATA"] = [];
+    if (!\Synth\Bootstrap::has('DEBUG_DATA') || !is_array(\Synth\Bootstrap::config("DEBUG_DATA"))) {
+        \Synth\Bootstrap::set('DEBUG_DATA', []);
     }
 
-    if (isset($GLOBALS["DEBUG_DATA"]["full"]) && is_array(\Synth\Bootstrap::config("DEBUG_DATA")["full"])) {
-        $GLOBALS["DEBUG_DATA"]["response_full"] = \Synth\Bootstrap::config("DEBUG_DATA")["full"];
+    if (isset(\Synth\Bootstrap::config('DEBUG_DATA')["full"]) && is_array(\Synth\Bootstrap::config("DEBUG_DATA")["full"])) {
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "response_full", \Synth\Bootstrap::config("DEBUG_DATA")["full"]);
     } else {
-        unset($GLOBALS["DEBUG_DATA"]["response_full"]);
+        \Synth\Bootstrap::unsetPath('DEBUG_DATA', ["response_full"]);
     }
 
     if ($connectorData === null
-        && isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])
+        && \Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA')
         && is_array(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA"))) {
         $connectorData = \Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA");
     }
 
     if (!is_array($connectorData)) {
-        unset($GLOBALS["DEBUG_DATA"]["response_connector"]);
+        \Synth\Bootstrap::unsetPath('DEBUG_DATA', ["response_connector"]);
         return;
     }
 
@@ -69,15 +69,15 @@ function snapshot_response_prompt_debug_data($connectorData = null) {
     });
 
     if (!empty($responseConnector)) {
-        $GLOBALS["DEBUG_DATA"]["response_connector"] = $responseConnector;
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "response_connector", $responseConnector);
     } else {
-        unset($GLOBALS["DEBUG_DATA"]["response_connector"]);
+        \Synth\Bootstrap::unsetPath('DEBUG_DATA', ["response_connector"]);
     }
 }
 
 function synth_try_llm_fallback($reason = "unknown") {
     if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
-    if (empty($GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"]) || !is_array(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_PROFILE_DATA"))) {
+    if (empty(\Synth\Bootstrap::config('SYNTH_CORE_CURRENT_PROFILE_DATA')) || !is_array(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_PROFILE_DATA"))) {
         Logger::info("[FALLBACK] No current profile data available; cannot retry. reason={$reason}");
         return null;
     }
@@ -141,7 +141,7 @@ function synth_try_llm_fallback($reason = "unknown") {
         }
         Logger::warn("[FALLBACK] Connector ID {$candidateId} not found; advancing chain. reason={$reason}");
     }
-    $GLOBALS["SYNTH_LLM_ATTEMPTED_CONNECTOR_IDS"] = $attempted;
+    \Synth\Bootstrap::set('SYNTH_LLM_ATTEMPTED_CONNECTOR_IDS', $attempted);
 
     if (!$fallbackConnectorData) {
         Logger::info("[FALLBACK] Connector chain exhausted" . Logger::formatContext([
@@ -162,32 +162,32 @@ function synth_try_llm_fallback($reason = "unknown") {
     ]));
 
     $fallbackDepth = intval(\Synth\Bootstrap::config("SYNTH_LLM_FALLBACK_DEPTH") ?? 0) + 1;
-    $GLOBALS["SYNTH_LLM_FALLBACK_DEPTH"] = $fallbackDepth;
-    $GLOBALS["IN_FALLBACK_MODE"] = true;
-    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $fallbackConnectorData;
+    \Synth\Bootstrap::set('SYNTH_LLM_FALLBACK_DEPTH', $fallbackDepth);
+    \Synth\Bootstrap::set('IN_FALLBACK_MODE', true);
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $fallbackConnectorData);
     $connector->setOldGlobals($fallbackConnectorData);
 
     $result = call_llm_internal();
     $fallbackDepth = intval(\Synth\Bootstrap::config("SYNTH_LLM_FALLBACK_DEPTH") ?? 1) - 1;
     if ($fallbackDepth <= 0) {
-        unset($GLOBALS["SYNTH_LLM_FALLBACK_DEPTH"], $GLOBALS["IN_FALLBACK_MODE"]);
+        \Synth\Bootstrap::forget('SYNTH_LLM_FALLBACK_DEPTH'); \Synth\Bootstrap::forget('IN_FALLBACK_MODE');
     } else {
-        $GLOBALS["SYNTH_LLM_FALLBACK_DEPTH"] = $fallbackDepth;
+        \Synth\Bootstrap::set('SYNTH_LLM_FALLBACK_DEPTH', $fallbackDepth);
     }
     return $result;
 }
 
 function call_llm() {
     require_once dirname(__DIR__, 3).'/lib'.'/relationship_response.php';
-    global $contextData, $gameRequest, $receivedData, $startTime, $db;
-    global $ERROR_TRIGGERED, $talkedSoFar, $alreadysent, $FUNCTIONS_ARE_ENABLED;
-    global $overrideParameters, $request;
+    $contextData = &\Synth\Bootstrap::ref('contextData'); $gameRequest = &\Synth\Bootstrap::ref('gameRequest'); $receivedData = &\Synth\Bootstrap::ref('receivedData'); $startTime = &\Synth\Bootstrap::ref('startTime'); $db = &\Synth\Bootstrap::ref('db');
+    $ERROR_TRIGGERED = &\Synth\Bootstrap::ref('ERROR_TRIGGERED'); $talkedSoFar = &\Synth\Bootstrap::ref('talkedSoFar'); $alreadysent = &\Synth\Bootstrap::ref('alreadysent'); $FUNCTIONS_ARE_ENABLED = &\Synth\Bootstrap::ref('FUNCTIONS_ARE_ENABLED');
+    $overrideParameters = &\Synth\Bootstrap::ref('overrideParameters'); $request = &\Synth\Bootstrap::ref('request');
 
-    unset($GLOBALS["SYNTH_LLM_ATTEMPTED_CONNECTOR_IDS"], $GLOBALS["SYNTH_LLM_FALLBACK_DEPTH"], $GLOBALS["IN_FALLBACK_MODE"]);
+    \Synth\Bootstrap::forget('SYNTH_LLM_ATTEMPTED_CONNECTOR_IDS'); \Synth\Bootstrap::forget('SYNTH_LLM_FALLBACK_DEPTH'); \Synth\Bootstrap::forget('IN_FALLBACK_MODE');
     // Call the internal function (which now handles the full fallback chain itself)
     try {
         $accepted=call_llm_internal();
-        synth_relationship_finish_response((bool)$accepted && empty($GLOBALS['ERROR_TRIGGERED']) && empty($GLOBALS['FORCED_STOP']));
+        synth_relationship_finish_response((bool)$accepted && empty(\Synth\Bootstrap::config('ERROR_TRIGGERED')) && empty(\Synth\Bootstrap::config('FORCED_STOP')));
         return $accepted;
     } catch (Throwable $error) {
         synth_relationship_finish_response(false);
@@ -197,7 +197,7 @@ function call_llm() {
 
 function synthRecoverPlainLlmSpeech(): bool
 {
-    global $gameRequest, $talkedSoFar, $alreadysent;
+    $gameRequest = &\Synth\Bootstrap::ref('gameRequest'); $talkedSoFar = &\Synth\Bootstrap::ref('talkedSoFar'); $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
     if (($gameRequest[0] ?? '') === 'diary' || count($talkedSoFar ?? []) > 0 || count($alreadysent ?? []) > 0) {
         return false;
@@ -238,26 +238,26 @@ function call_llm_internal() {
     if (function_exists('synth_protocol_assert_request_active')) synth_protocol_assert_request_active();
     require_once dirname(__DIR__, 3).'/lib'.'/relationship_response.php';
     synth_relationship_begin_response();
-    global $contextData, $gameRequest, $receivedData, $startTime, $db;
-    global $ERROR_TRIGGERED, $talkedSoFar, $alreadysent, $FUNCTIONS_ARE_ENABLED;
-    global $overrideParameters, $request;
+    $contextData = &\Synth\Bootstrap::ref('contextData'); $gameRequest = &\Synth\Bootstrap::ref('gameRequest'); $receivedData = &\Synth\Bootstrap::ref('receivedData'); $startTime = &\Synth\Bootstrap::ref('startTime'); $db = &\Synth\Bootstrap::ref('db');
+    $ERROR_TRIGGERED = &\Synth\Bootstrap::ref('ERROR_TRIGGERED'); $talkedSoFar = &\Synth\Bootstrap::ref('talkedSoFar'); $alreadysent = &\Synth\Bootstrap::ref('alreadysent'); $FUNCTIONS_ARE_ENABLED = &\Synth\Bootstrap::ref('FUNCTIONS_ARE_ENABLED');
+    $overrideParameters = &\Synth\Bootstrap::ref('overrideParameters'); $request = &\Synth\Bootstrap::ref('request');
 
     $outputWasValid = true;
     $firstLlmChunkLogged = false;
-    unset($GLOBALS['SYNTH_LLM_RAW_TEXT']);
+    \Synth\Bootstrap::forget('SYNTH_LLM_RAW_TEXT');
 
 
-    if (isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
+    if (\Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA')) {
         $connector=new LLMConnector();
         $connectionHandler = $connector->getConnector(\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_CONNECTOR_DATA"));
-        error_log("[CORE SYSTEM] Using new profile system {$GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["driver"]}/{$GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"]["model"]}");
+        error_log(("[CORE SYSTEM] Using new profile system " . \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA')["driver"] . "/" . \Synth\Bootstrap::config('SYNTH_CORE_CURRENT_CONNECTOR_DATA')["model"]));
     } else {
         error_log("No connector defined");
         Logger::error("No connector defined");
         terminate();
     }
 
-    if (isset($GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"]) && \Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")) {
+    if (\Synth\Bootstrap::has('CLEAN_CONTEXT_FOCUS_CHAT') && \Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")) {
 
          /* *****
         Player TTS
@@ -265,7 +265,7 @@ function call_llm_internal() {
         Player TTS. We overwrite some confs an then restore them.
         */
         // Only process player TTS on the first attempt, not during fallback retry
-        if (!isset($GLOBALS["IN_FALLBACK_MODE"])
+        if (!\Synth\Bootstrap::has('IN_FALLBACK_MODE')
             && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"])
             && (!function_exists('synthShouldSkipPlayerTtsForRequest') || !synthShouldSkipPlayerTtsForRequest($gameRequest[0], $gameRequest[3] ?? ""))) {
             require(dirname(__DIR__, 3).'/lib'."/../processor/player_tts.php");
@@ -282,7 +282,7 @@ function call_llm_internal() {
                 synthEnsureNarratorJsonResponseState('DATA_FUNCTIONS_FAST_STANDARD');
             }
             if (
-                !empty($GLOBALS["PROMPT_ACTIONS_LIST"])
+                !empty(\Synth\Bootstrap::config('PROMPT_ACTIONS_LIST'))
                 && isset($contextData[0]["content"])
                 && strpos($contextData[0]["content"], '<available_actions_list>') === false
             ) {
@@ -292,7 +292,7 @@ function call_llm_internal() {
 
         $buffer=$connectionHandler->fast_request($contextData,$overrideParameters,'standard');
         snapshot_response_prompt_debug_data($currentConnectorData);
-        $preserveAsterisksInContext = isset($GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"]) ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
+        $preserveAsterisksInContext = \Synth\Bootstrap::has('PRESERVE_ASTERISKS_IN_CONTEXT') ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
         $inlineNarrationMode = strtolower(trim((string)(\Synth\Bootstrap::config("INLINE_NARRATION_MODE") ?? '')));
         if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
             $inlineNarrationMode = 'disabled';
@@ -305,17 +305,17 @@ function call_llm_internal() {
 
         if (\Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
             require_once(\Synth\Bootstrap::enginePath()."/functions".DIRECTORY_SEPARATOR."json_response.php");
-            $GLOBALS["COMMAND_PROMPT"]="";
+            \Synth\Bootstrap::set('COMMAND_PROMPT', "");
 
             setActions();
         } else {
-            $GLOBALS["FUNC_LIST"][]="Talk";
-            $GLOBALS["COMMAND_PROMPT"]="";
+            \Synth\Bootstrap::append('FUNC_LIST', "Talk");
+            \Synth\Bootstrap::set('COMMAND_PROMPT', "");
 
         }
 
         $jsonformat= json_encode(["character"=>\Synth\Bootstrap::config("SYNTH_NAME"),
-        "listener"=>"specify who {$GLOBALS["SYNTH_NAME"]} is talking to, comma separated, max two listeners, in addressing order",
+        "listener"=>("specify who " . \Synth\Bootstrap::config('SYNTH_NAME') . " is talking to, comma separated, max two listeners, in addressing order"),
         "message"=>"lines of dialogue",
         "mood"=>"One of :".implode("|",normalizeEmoteMoods(\Synth\Bootstrap::config("EMOTEMOODS") ?? "")),
         "action"=>"One of :".implode("|",\Synth\Bootstrap::config("FUNC_LIST")),
@@ -357,11 +357,11 @@ function call_llm_internal() {
         $connectionHandler = $connector->getConnector($currentConnectorData);
 
         $buffer2=$connectionHandler->fast_request($contextData2,[],'formatter');
-        unset($GLOBALS["_JSON_BUFFER"]);
+        \Synth\Bootstrap::forget('_JSON_BUFFER');
         $finalRes=__jpd_decode_lazy($buffer2);
         file_put_contents(dirname(__DIR__, 3).'/lib'."/../log/output_from_llm_fast_step_2.log", $buffer2, FILE_APPEND);
         file_put_contents(dirname(__DIR__, 3).'/lib'."/../log/output_from_llm_fast_step_2.log", print_r($finalRes,true), FILE_APPEND);
-        unset($GLOBALS["_JSON_BUFFER"]);
+        \Synth\Bootstrap::forget('_JSON_BUFFER');
         $fakeObject["choices"][0]=[
             "index"=>0,
             "delta"=>["role"=>"assistant","content"=>json_encode($finalRes)]
@@ -383,7 +383,7 @@ function call_llm_internal() {
         Player TTS. We overwrite some confs an then restore them.
         */
         // Only process player TTS on the first attempt, not during fallback retry
-        if (!isset($GLOBALS["IN_FALLBACK_MODE"])
+        if (!\Synth\Bootstrap::has('IN_FALLBACK_MODE')
             && in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"])
             && (!function_exists('synthShouldSkipPlayerTtsForRequest') || !synthShouldSkipPlayerTtsForRequest($gameRequest[0], $gameRequest[3] ?? ""))) {
             require(dirname(__DIR__, 3).'/lib'."/../processor/player_tts.php");
@@ -453,9 +453,9 @@ function call_llm_internal() {
     $numOutputTokens = 0;
     $INCREMENTAL_SENTENCESIZE=20;
     $actionsAllowedForTurn = (
-        !empty($GLOBALS["FUNCTIONS_ARE_ENABLED"])
+        !empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED'))
         || (
-            isset($GLOBALS["PROMPT_ACTIONS_LIST"])
+            \Synth\Bootstrap::has('PROMPT_ACTIONS_LIST')
             && is_string(\Synth\Bootstrap::config("PROMPT_ACTIONS_LIST"))
             && trim(\Synth\Bootstrap::config("PROMPT_ACTIONS_LIST")) !== ""
         )
@@ -475,7 +475,7 @@ function call_llm_internal() {
                 "preview" => Logger::summarizePayload($tmpData, 120),
             ]));
         }
-        if ($tmpData==-1 || (isset($GLOBALS["VALIDATE_LLM_OUTPUT_FNCT"]) && !\Synth\Bootstrap::config("VALIDATE_LLM_OUTPUT_FNCT")($tmpData))) {
+        if ($tmpData==-1 || (\Synth\Bootstrap::has('VALIDATE_LLM_OUTPUT_FNCT') && !\Synth\Bootstrap::config("VALIDATE_LLM_OUTPUT_FNCT")($tmpData))) {
             if ($tmpData == -1 && count($talkedSoFar ?? []) == 0 && count($alreadysent ?? []) == 0) {
                 if (synthRecoverPlainLlmSpeech()) {
                     if (method_exists($connectionHandler, "close")) {
@@ -540,8 +540,8 @@ function call_llm_internal() {
             $extractedData = substr($buffer, 0, $position + 1);
             $remainingData = substr($buffer, $position + 1);
             $sentences=split_sentences_stream(cleanResponse($extractedData));
-            $GLOBALS["DEBUG_DATA"]["response"][]=["raw"=>$buffer,"processed"=>implode("|", $sentences)];
-            $GLOBALS["DEBUG_DATA"]["perf"][]=(microtime(true) - $startTime)." secs in openai stream";
+            \Synth\Bootstrap::appendPath('DEBUG_DATA', ["response"], ["raw"=>$buffer,"processed"=>implode("|", $sentences)]);
+            \Synth\Bootstrap::appendPath('DEBUG_DATA', ["perf"], (microtime(true) - $startTime)." secs in openai stream");
 
             if ($gameRequest[0] != "diary") {
                 returnLines($sentences, modelResponse: true);
@@ -554,7 +554,7 @@ function call_llm_internal() {
             $totalProcessedData.=$extractedData;
             $extractedData="";
             $buffer=$remainingData;
-            //$user_input_after=$GLOBALS["db"]->fetchAll("select count(*) as N from core_context_event where type='user_input' and ts>$gameRequest[1]"); //9.0ms
+            //$user_input_after=\Synth\Bootstrap::config("db")->fetchAll("select count(*) as N from core_context_event where type='user_input' and ts>$gameRequest[1]"); //9.0ms
 
 
         }
@@ -589,8 +589,8 @@ function call_llm_internal() {
         Logger::info("REMAINING DATA <$buffer>");
         $sentences=split_sentences_stream(cleanResponse(trim($buffer)));
 
-        $GLOBALS["DEBUG_DATA"]["response"][]=["raw"=>$buffer,"processed"=>implode("|", $sentences)];
-        $GLOBALS["DEBUG_DATA"]["perf"][]=(microtime(true) - $startTime)." secs in openai stream";
+        \Synth\Bootstrap::appendPath('DEBUG_DATA', ["response"], ["raw"=>$buffer,"processed"=>implode("|", $sentences)]);
+        \Synth\Bootstrap::appendPath('DEBUG_DATA', ["perf"], (microtime(true) - $startTime)." secs in openai stream");
         if ($gameRequest[0] != "diary") {
             returnLines($sentences, modelResponse: true);
         } else {
@@ -601,8 +601,8 @@ function call_llm_internal() {
     }
 
     if ($actionsAllowedForTurn && $outputWasValid)  {
-        $functionsEnabledBeforeActionProcessing = !empty($GLOBALS["FUNCTIONS_ARE_ENABLED"]);
-        $GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
+        $functionsEnabledBeforeActionProcessing = !empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED'));
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
         $requestTypeForActions = (string)($gameRequest[0] ?? "");
         $isRechatActionContext = in_array($requestTypeForActions, ["rechat", "narration"], true);
         $rechatActionsAllowed = filter_var(\Synth\Bootstrap::config("RECHAT_ALLOW_ACTIONS") ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -617,12 +617,12 @@ function call_llm_internal() {
         } else {
             $actions=$connectionHandler->processActions();
             $rawActionsForLog = is_array($actions) ? $actions : [];
-            if (isset($GLOBALS["action_post_process_fnct"])) {
+            if (\Synth\Bootstrap::has('action_post_process_fnct')) {
                 $actions=\Synth\Bootstrap::config("action_post_process_fnct")($actions);
             }
 
             // Extnded version which is an array, so we can hook more than one function
-            if (isset($GLOBALS["action_post_process_fnct_ex"]) && is_array(\Synth\Bootstrap::config("action_post_process_fnct_ex"))) {
+            if (\Synth\Bootstrap::has('action_post_process_fnct_ex') && is_array(\Synth\Bootstrap::config("action_post_process_fnct_ex"))) {
                 foreach (\Synth\Bootstrap::config("action_post_process_fnct_ex") as $postFilterFunc)
                     $actions=$postFilterFunc($actions);
             }
@@ -663,7 +663,7 @@ function call_llm_internal() {
 
             if (\Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
                 $isRolemasteredNpc = (
-                    (!empty($GLOBALS["NPC_ROLEMASTERED"])) ||
+                    (!empty(\Synth\Bootstrap::config('NPC_ROLEMASTERED'))) ||
                     synthResolveNpcRolemasterState(\Synth\Bootstrap::config("SYNTH_NAME") ?? '', ['load_lookup' => true])
                 );
                 $copyActions=[];
@@ -855,7 +855,7 @@ function call_llm_internal() {
                             $target=trim($mang4[0]);
                             $resolvedTarget="";
 
-                            if ($target !== "" && isset($GLOBALS["PLAYER_NAME"]) && strcasecmp($target, \Synth\Bootstrap::config("PLAYER_NAME")) === 0) {
+                            if ($target !== "" && \Synth\Bootstrap::has('PLAYER_NAME') && strcasecmp($target, \Synth\Bootstrap::config("PLAYER_NAME")) === 0) {
                                 $resolvedTarget=\Synth\Bootstrap::config("PLAYER_NAME");
                             }
 
@@ -1020,7 +1020,7 @@ function call_llm_internal() {
                     array(
                         'action' => $actionName,
                         'fullcall' =>$singleaction,
-                        'actorname'=> isset($GLOBALS["PATCH_ACTION_ALL_ACTORS"])?\Synth\Bootstrap::config("PATCH_ACTION_ALL_ACTORS"):$actorName,
+                        'actorname'=> \Synth\Bootstrap::has('PATCH_ACTION_ALL_ACTORS')?\Synth\Bootstrap::config("PATCH_ACTION_ALL_ACTORS"):$actorName,
                         'ts' => $gameRequest[1],
                         'gamets' => $gameRequest[2],
                         'localts'=>time(),
@@ -1032,7 +1032,7 @@ function call_llm_internal() {
 
 
             }
-            $GLOBALS["DEBUG_DATA"]["response"][]=$actions;
+            \Synth\Bootstrap::appendPath('DEBUG_DATA', ["response"], $actions);
 
             $requestTypeForActionEmit = (string)($gameRequest[0] ?? "");
             $isRechatActionEmitContext = in_array($requestTypeForActionEmit, ["rechat", "narration"], true);
@@ -1117,10 +1117,10 @@ function call_llm_internal() {
             }
 
         }
-        $GLOBALS["FUNCTIONS_ARE_ENABLED"] = $functionsEnabledBeforeActionProcessing;
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', $functionsEnabledBeforeActionProcessing);
     }
 
-    if (isset($GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"]) && \Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")) {
+    if (\Synth\Bootstrap::has('CLEAN_CONTEXT_FOCUS_CHAT') && \Synth\Bootstrap::config("CLEAN_CONTEXT_FOCUS_CHAT")) {
         ;//Was a faked stream
     } else
         $connectionHandler->close('standard');

@@ -192,13 +192,13 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
             continue;
         }
         // enclosing call by-ref check
-        $depth = 0; $byref = false;
+        $depth = 0; $byref = false; $inUnset = false;
         for ($q = $i - 1; $q >= 0; $q--) {
             $s = $t[$q]->id < 256 ? $t[$q]->text : "";
             if ($s === ')' || $s === ']' || $s === '}') $depth++;
             elseif ($s === '(' || $s === '[' || $s === '{') {
                 if ($depth === 0) {
-                    if ($s === '(') { $p = sig($t, $q, -1); if ($p >= 0 && ($t[$p]->is([T_STRING, T_LIST, T_ARRAY]) && in_array(strtolower($t[$p]->text), BYREF, true) || $t[$p]->is([T_UNSET, T_ISSET]))) $byref = true; }
+                    if ($s === '(') { $p = sig($t, $q, -1); if ($p >= 0 && ($t[$p]->is([T_STRING, T_LIST, T_ARRAY]) && in_array(strtolower($t[$p]->text), BYREF, true) || $t[$p]->is([T_UNSET, T_ISSET]))) { $byref = true; if ($t[$p]->is([T_UNSET, T_ISSET])) $inUnset = true; } }
                     break;
                 }
                 $depth--;
@@ -207,6 +207,7 @@ function convertFile(string $code, ?array $only, array &$stats, array &$manual, 
         // foreach by-ref
         $fe = false;
         for ($q = $i - 1; $q >= 0 && $q > $i - 40; $q--) { if ($t[$q]->is(T_FOREACH)) { for ($r = $i; $r < $i + 40 && $r < $n; $r++) { if ($t[$r]->is(T_AS)) { $nx = sig($t, $r); if ($nx >= 0 && $t[$nx]->text === '&') $fe = true; break; } } break; } if ($t[$q]->text === ';') break; }
+        if ($inUnset) { $manual[] = "$file:$line multi-unset/isset $key"; continue; }
         if ($byref || $fe) {
             $pk = pathOf($t, $dimRanges);
             if ($pk === null || ($hasDims && end($pk) === '')) { $manual[] = "$file:$line byref-call $key"; continue; }
