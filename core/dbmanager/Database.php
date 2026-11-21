@@ -14,6 +14,10 @@ namespace Synth\Core\DbManager;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
+use Synth\Core\DbManager\Dao\ActionCustomDao;
+use Synth\Core\DbManager\Dao\ActionDao;
+use Synth\Core\DbManager\Dao\ActionIntentDao;
+use Synth\Core\DbManager\Dao\ActionResultDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ActorEventBatchDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
@@ -21,6 +25,7 @@ use Synth\Core\DbManager\Dao\CatalogVersionDao;
 use Synth\Core\DbManager\Dao\CharacterGenerationDao;
 use Synth\Core\DbManager\Dao\CharacterGenerationFieldDao;
 use Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao;
+use Synth\Core\DbManager\Dao\ConfigPresetDao;
 use Synth\Core\DbManager\Dao\ConfigSettingDao;
 use Synth\Core\DbManager\Dao\DialogueOriginPolicyDao;
 use Synth\Core\DbManager\Dao\DialogueRouteDao;
@@ -30,7 +35,10 @@ use Synth\Core\DbManager\Dao\DiaryInputDao;
 use Synth\Core\DbManager\Dao\DiaryInputSourceDao;
 use Synth\Core\DbManager\Dao\DiaryJobResultDao;
 use Synth\Core\DbManager\Dao\DiaryResultDao;
+use Synth\Core\DbManager\Dao\FactionDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
+use Synth\Core\DbManager\Dao\ItemDescriptionCustomDao;
+use Synth\Core\DbManager\Dao\ItemDescriptionDao;
 use Synth\Core\DbManager\Dao\IttConnectorDao;
 use Synth\Core\DbManager\Dao\LlmConnectorDao;
 use Synth\Core\DbManager\Dao\LlmRequestLogDao;
@@ -101,9 +109,14 @@ use Synth\Core\DbManager\Dao\SocialTaskEventDao;
 use Synth\Core\DbManager\Dao\SocialTaskInputDao;
 use Synth\Core\DbManager\Dao\SttConnectorDao;
 use Synth\Core\DbManager\Dao\TtsConnectorDao;
+use Synth\Core\DbManager\Dao\TtsPronunciationDao;
 use Synth\Core\DbManager\Dao\VisualContextDao;
 use Synth\Core\DbManager\Dao\VisualDescriptionRevisionDao;
 use Synth\Core\DbManager\Dao\VisualResultDao;
+use Synth\Core\DbManager\Dao\WorkerJobDao;
+use Synth\Core\DbManager\Dao\WorldknowledgeArticleDao;
+use Synth\Core\DbManager\Dao\WorldknowledgeAuditDao;
+use Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao;
 use Synth\Core\DbManager\Dao\WorldspaceDao;
 use Synth\Core\DbManager\Types\PreciseDateTimeType;
 use Synth\Core\Doctrine\EntityManagerFactory;
@@ -201,6 +214,19 @@ final class Database
         CharacterGenerationFieldDao::class,
         CharacterGenerationDao::class,
         CharacterGenerationRevisionDao::class,
+        ActionIntentDao::class,
+        ActionResultDao::class,
+        WorkerJobDao::class,
+        ActionCustomDao::class,
+        ActionDao::class,
+        TtsPronunciationDao::class,
+        ItemDescriptionCustomDao::class,
+        ItemDescriptionDao::class,
+        FactionDao::class,
+        ConfigPresetDao::class,
+        WorldknowledgeAuditDao::class,
+        WorldknowledgeCatalogDao::class,
+        WorldknowledgeArticleDao::class,
     ];
 
     /** Column types the entities use beyond Doctrine's own, by name. */
