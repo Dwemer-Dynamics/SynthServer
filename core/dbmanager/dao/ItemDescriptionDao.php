@@ -48,6 +48,21 @@ class ItemDescriptionDao
         return $this->connection()->fetchAllAssociative($sql.' ORDER BY name ASC', $params);
     }
 
+    /** The description of the combined (base and custom) item whose name equals this one, ignoring case, or null. */
+    public function combinedDescriptionByName(string $name): ?string
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER(:name) LIMIT 1',
+                ['name' => $name]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false || $row['description'] === null ? null : (string) $row['description'];
+    }
+
     /** Plugin, base id, name and description of one item, or null. @return array<string, mixed>|null */
     public function recordByKey(string $plugin, string $baseid): ?array
     {
@@ -60,14 +75,6 @@ class ItemDescriptionDao
     public function descriptionByKey(string $plugin, string $baseid): ?string
     {
         $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
-
-        return is_string($value) ? $value : null;
-    }
-
-    /** The description of the first item of the combined catalogue whose name matches case-insensitively, or null. */
-    public function combinedDescriptionByName(string $name): ?string
-    {
-        $value = $this->connection()->fetchOne('SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER(?) LIMIT 1', [$name]);
 
         return is_string($value) ? $value : null;
     }

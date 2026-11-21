@@ -1,12 +1,14 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/worldknowledge_vocabulary.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 final class WorldKnowledgeVocabularyTest extends TestCase
 {
     private array $saved=[];
     protected function setUp(): void
     {
+        DaoTestDoubles::worldContextFromGlobalDb();
         foreach (['SYNTH_CORE_CURRENT_NPC_DATA'] as $key) {
             $this->saved[$key]=['exists'=>array_key_exists($key,$GLOBALS),'value'=>$GLOBALS[$key] ?? null];
             unset($GLOBALS[$key]);
@@ -14,6 +16,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
     }
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->saved as $key=>$state) {
             if ($state['exists']) $GLOBALS[$key]=$state['value']; else unset($GLOBALS[$key]);
         }
@@ -133,6 +136,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
             $GLOBALS['db']=$db;
+            DaoTestDoubles::worldknowledgeFrom($db);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot,knowall,commonwealth';
             $GLOBALS['WORLDKNOWLEDGE_INFINIUM']=true;
@@ -166,6 +170,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 self::assertSame(0,$db->globalLatestReads);
             }
         } finally {
+            DaoTestDoubles::resetWorldknowledge();
             foreach ($saved as $key=>[$exists,$value]) { if ($exists) $GLOBALS[$key]=$value; else unset($GLOBALS[$key]); }
         }
     }

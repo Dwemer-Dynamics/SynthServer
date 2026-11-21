@@ -54,26 +54,11 @@ function synth_dialogue_capture_origin_policy($db, array $event, array $settings
     $db->withNativeRequestLock(static function($connection,array $owner) use($event,$policy,$executionMode,$inputText) {
         if ($owner!==$event) throw new LogicException('dialogue_policy_owner_changed');
         $canonical=synth_protocol_canonical_json($event);
-        $result=@pg_query_params($connection,"INSERT INTO public.core_dialogue_origin_policy(session_id,request_id,execution_mode,policy,input_text)
-            SELECT e.session_id,e.request_id,$3,$4::jsonb,$9 FROM public.core_request_execution e
-            JOIN public.core_protocol_event p USING(session_id,request_id)
-            WHERE e.session_id=$1 AND e.request_id=$2 AND e.state IN ('claimed','streaming')
-                AND p.canonical_event=$5::jsonb AND p.event_sha256=$6 AND e.request_sha256=p.event_sha256
-                AND e.generation=$7 AND p.generation=e.generation AND e.turn_id=$8 AND p.turn_id=e.turn_id
-                AND e.event_type=p.event_type
-            ON CONFLICT(session_id,request_id) DO NOTHING",
-            [$event['session_id'],$event['request_id'],strtoupper(trim($executionMode)),json_encode($policy,JSON_THROW_ON_ERROR),
-             $canonical,hash('sha256',$canonical),$event['generation'],$event['turn_id'],$inputText]);
-        if (!$result) throw new RuntimeException('dialogue_policy_capture_failed');
+        $policies=\Synth\Core\DbManager\Dao\DialogueOriginPolicyDao::current();
+        if (!$policies->captureForClaim(strval($event['session_id']),strval($event['request_id']),strtoupper(trim($executionMode)),json_encode($policy,JSON_THROW_ON_ERROR),
+            $canonical,hash('sha256',$canonical),intval($event['generation']),strval($event['turn_id']),$inputText)) throw new RuntimeException('dialogue_policy_capture_failed');
         // A no-op is valid only for an already captured, identical canonical live request.
-        $result=@pg_query_params($connection,"SELECT 1 FROM public.core_dialogue_origin_policy d
-            JOIN public.core_protocol_event p USING(session_id,request_id)
-            JOIN public.core_request_execution e USING(session_id,request_id)
-            WHERE d.session_id=$1 AND d.request_id=$2 AND p.canonical_event=$3::jsonb
-                AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256 AND e.state IN ('claimed','streaming')
-                AND e.generation=$5 AND p.generation=e.generation AND e.turn_id=$6 AND p.turn_id=e.turn_id
-                AND e.event_type=p.event_type",
-            [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical),$event['generation'],$event['turn_id']]);
-        if (!$result || !pg_fetch_assoc($result)) throw new LogicException('dialogue_policy_canonical_owner_unavailable');
+        if (!$policies->isCapturedForClaim(strval($event['session_id']),strval($event['request_id']),$canonical,hash('sha256',$canonical),intval($event['generation']),strval($event['turn_id'])))
+            throw new LogicException('dialogue_policy_canonical_owner_unavailable');
     },2000);
 }

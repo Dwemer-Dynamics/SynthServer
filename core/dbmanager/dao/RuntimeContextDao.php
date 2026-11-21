@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractRuntimeContext;
 
 /** Finds rows of core_runtime_context. */
-final class RuntimeContextDao
+class RuntimeContextDao
 {
     use UsesEntityManager;
     use FailSoftQueries;
@@ -41,10 +41,84 @@ final class RuntimeContextDao
         );
     }
 
+    /** The acknowledged history event of one context snapshot, or 0 when there is none (or the statement fails). */
+    public function historyEventId(string $sessionId, int $generation, int $sequence): int
+    {
+        try {
+            $value = $this->connection()->fetchOne(
+                'SELECT history_event_id FROM public.core_runtime_context WHERE session_id = ? AND generation = ? AND snapshot_sequence = ?',
+                [$sessionId, $generation, $sequence]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return 0;
+        }
+
+        return $value === false ? 0 : (int) $value;
+    }
+
+    /**
+     * The context snapshot (with its session's runtime variant) that a regeneration approval may be recorded against: an active
+     * save, an acknowledged snapshot and a non-player actor of the same playthrough. Null when none. Throws when the statement fails.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function approvalScope(string $sessionId, int|string $generation, int|string $sequence, int|string $actorId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT c.*,r.runtime_variant FROM public.core_runtime_context c
+             JOIN public.core_runtime_session r USING(session_id)
+             JOIN public.core_actor_identity a ON a.id = :actor AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
+             WHERE c.session_id = :session AND c.generation = :generation AND c.snapshot_sequence = :sequence
+                AND r.state='active' AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id
+                AND c.history_event_id IS NOT NULL AND c.player_identity_id IS NOT NULL AND a.id<>c.player_identity_id",
+            ['session' => $sessionId, 'generation' => $generation, 'sequence' => $sequence, 'actor' => $actorId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The saved context a loaded save names (payload, playthrough, session, generation, snapshot sequence and history event id),
+     * only when its session ran in this runtime variant; null when there is none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function loadedContext(string $sessionId, string $playthroughId, int $generation, int $sequence, string $runtimeVariant): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
+               FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
+              WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?
+                AND c.playthrough_id = ? AND r.runtime_variant = ?",
+            [$sessionId, $generation, $sequence, $playthroughId, $runtimeVariant]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractRuntimeContext::class)->findBy([], ['sessionId' => 'ASC', 'generation' => 'ASC', 'snapshotSequence' => 'ASC'], max(1, $limit)));
+    }
+
+    /**
+     * The player identity of one context snapshot, only when it is a fo4 actor of the snapshot's playthrough whose form id, origin plugin
+     * and playthrough match the snapshot's saved player; 0 when there is none.
+     */
+    public function savedPlayerIdentityId(string $sessionId, int $generation, int $snapshotSequence): int
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT c.player_identity_id FROM public.core_runtime_context c JOIN public.core_actor_identity a
+                ON a.id=c.player_identity_id AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
+                    AND upper(a.full_form_id)=upper(c.context_payload#>>'{player,form_id}')
+                    AND lower(a.origin_plugin)=lower(c.context_payload#>>'{player,origin_plugin}')
+                    AND a.playthrough_id=c.context_payload#>>'{player,playthrough_id}'
+             WHERE c.session_id=? AND c.generation=? AND c.snapshot_sequence=?",
+            [$sessionId, $generation, $snapshotSequence]
+        );
+
+        return $id === false || $id === null ? 0 : (int) $id;
     }
 
     /**

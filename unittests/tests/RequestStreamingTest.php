@@ -15,6 +15,8 @@ final class RequestStreamingTest extends TestCase
     protected function tearDown(): void
     {
         DaoTestDoubles::reset();
+        DaoTestDoubles::forgetBooted();
+        parent::tearDown();
     }
 
     public static function transferActionCodes(): array
@@ -894,7 +896,10 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString("r.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex')",$source);
         $worker=file_get_contents(dirname(__DIR__,2).'/workers/Memory/Native/synth_diary_jobs.php');
         $this->assertStringContainsString("hash('sha256',\$value['content'])",$worker);
-        $this->assertStringContainsString('CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END',$worker);
+        // The embedding attachment statement lives in the DAO the worker calls.
+        $this->assertStringContainsString('attachCheckpointEmbedding',$worker);
+        $dao=file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/DiaryResultDao.php');
+        $this->assertStringContainsString('CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END',$dao);
     }
 
     public function testNativeMemorySummaryRejectsInvalidFrozenRevision(): void
@@ -1201,10 +1206,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString("WHEN h.event_payload ? 'synth_wait_consequence' THEN",$query);
         $this->assertStringContainsString("CASE WHEN original.type IN ('funcret','infoaction') THEN",$query);
         $this->assertStringContainsString('($b_actor && !$nativeHistory)',$history);
-        $telemetry = file_get_contents(dirname(__DIR__,2).'/gamedata.php');
-        $this->assertStringContainsString("synth_session_id IS NULL AND COALESCE(delivery_state",$telemetry);
-        $legacy = file_get_contents(dirname(__DIR__,2).'/processor/comm.php');
-        $this->assertSame(3,substr_count($legacy,'synth_session_id IS NULL'));
+        // Legacy delivery telemetry and _speech only touch rows without a native session: the guard lives in ContextEventDao.
+        $dao = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/ContextEventDao.php');
+        $this->assertStringContainsString("synth_session_id IS NULL AND COALESCE(delivery_state",$dao);
+        $this->assertSame(2,substr_count($dao,'synth_session_id IS NULL'));
+        $this->assertStringContainsString('setLiveChatDeliveryState',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+        $this->assertStringNotContainsString('delivery_state',file_get_contents(dirname(__DIR__,2).'/processor/comm.php'));
     }
 
     public function testNativeHistoryInsertionUsesClaimLockAndAtomicEvidenceWrite(): void
@@ -1239,6 +1246,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
             public function fetchOne(string $sql): ?array { $this->queries[] = $sql; return $this->row; }
         };
+        DaoTestDoubles::identityFrom($db);
         $this->assertSame($db->row, synth_protocol_loaded_context($db, $event));
         $sql = $db->queries[0];
         foreach (["c.session_id='session:previous'", 'c.generation=6', 'c.snapshot_sequence=42',
@@ -1322,7 +1330,7 @@ final class RequestStreamingTest extends TestCase
             foreach (['main_synth_pipeline.php','gamedata.php'] as $path) {
                 $this->assertStringNotContainsString('synthMaybeHandleIncomingGametsRollback(',file_get_contents(dirname(__DIR__,2).'/'.$path));
             }
-            $this->assertStringContainsString('$db->delete(\'core_quest\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+            $this->assertStringContainsString("QuestDao::current(\$db)->deleteBySession('synth_active_quest')",file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
         } finally {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
             $GLOBALS['db'] = $previousDb;
@@ -1722,6 +1730,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => ['session_id' => 'session:one',
@@ -1822,6 +1831,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::identityFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
         try {
@@ -1897,6 +1907,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         try {
             $GLOBALS['db'] = $db;
             $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.end_conversation'];
@@ -2201,6 +2212,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
 
         $identityId = synth_protocol_actor_identity_id($db, [
             'form_id' => '0x0001a4d7',
@@ -2222,6 +2234,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 42]; }
             public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         synth_protocol_persist_actor_factions($db, [[
             'actor' => [
                 'form_id' => '0x0001A4D7', 'origin_plugin' => 'Fallout4.esm',
@@ -2257,6 +2270,7 @@ final class RequestStreamingTest extends TestCase
                     return !str_contains($sql, $this->needle);
                 }
             };
+            DaoTestDoubles::identityFrom($db);
             try {
                 synth_protocol_persist_actor_factions($db, [[
                     'actor' => ['form_id' => '0x0001A4D7', 'origin_plugin' => 'Fallout4.esm',

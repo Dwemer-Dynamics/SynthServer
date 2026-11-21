@@ -140,8 +140,7 @@ if ($requestType === 'rechat' && ($event['protocol_version'] ?? 1) === 2) {
     $lastChat = synthWorldKnowledgeNativeDialogueRows($db, $event, true, 1)[0] ?? null;
     $inputText = trim(strval($lastChat['data'] ?? ''));
 } elseif ($requestType === 'rechat' && $db && method_exists($db, 'fetchOne')) {
-    $lastChat = $db->fetchOne("SELECT data FROM core_context_event WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
-    $inputText = trim(strval($lastChat['data'] ?? ''));
+    $inputText = trim(strval(\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestChatData() ?? ''));
 } else {
     $inputText = trim(strval($gameRequest[3] ?? ''));
 }
@@ -193,13 +192,8 @@ foreach ($catalog as $row) {
     if (strval($row['source_kind'] ?? '') === 'factory' && strval($row['catalog_version'] ?? '') !== '') {
         $trace['catalog_id'] = strval($row['catalog_id'] ?? '');
         $trace['catalog_version'] = strval($row['catalog_version']);
-        if (method_exists($db, 'fetchOne') && method_exists($db, 'escapeLiteral')) {
-            $catalogRecord = $db->fetchOne(
-                'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id='
-                . $db->escapeLiteral($trace['catalog_id']) . ' AND catalog_version='
-                . $db->escapeLiteral($trace['catalog_version']) . ' LIMIT 1'
-            );
-            $trace['catalog_checksum'] = strval($catalogRecord['checksum_sha256'] ?? '');
+        if (method_exists($db, 'fetchOne')) {
+            $trace['catalog_checksum'] = strval(\Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao::current($db)->checksum($trace['catalog_id'], $trace['catalog_version']) ?? '');
         }
         break;
     }
@@ -216,10 +210,7 @@ $retrieval = $retriever->extract($inputText, [], $topicCount);
 $currentTopic = '';
 if (method_exists($db, 'fetchOne')) {
     try {
-        $currentTopicRow = $db->fetchOne(
-            "SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key='current_worldknowledge_topic' LIMIT 1"
-        );
-        $currentTopic = trim(strval($currentTopicRow['value'] ?? ''));
+        $currentTopic = trim(strval(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'current_worldknowledge_topic') ?? ''));
     } catch (Throwable) {
         $currentTopic = '';
     }

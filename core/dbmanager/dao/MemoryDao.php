@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractMemory;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_memory. */
 class MemoryDao
@@ -39,6 +40,135 @@ class MemoryDao
         );
 
         return $row === false ? null : $row;
+    }
+
+    // Legacy (pre-native) memory reads. The scope and companion conditions are SQL fragments built by data_memory.php from values quoted
+    // with quoteLiteral(); every other value is bound.
+
+    /** $value as a quoted SQL literal for a fragment built by the caller. */
+    public function quoteLiteral(string $value): string
+    {
+        return $this->connection()->quote($value);
+    }
+
+    /** True when a non-empty summary exists for this scope. */
+    public function hasScopedSummary(string $scope): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM core_memory WHERE source_type='summary' AND scope=? AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL LIMIT 1",
+            [$scope]
+        ) !== false;
+    }
+
+    /** The newest dialogue summary before $floor for one scope and companion condition (summary, gamets_truncated), or null. @return array<string, mixed>|null */
+    public function newestDialogueSummaryBefore(string $scopeSql, string $companionSql, int $floor): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT summary, gamets_truncated FROM public.core_memory"
+            . " WHERE source_type='summary' AND classifier='dialogue'"
+            . " AND NULLIF(BTRIM(COALESCE(summary, '')), '') IS NOT NULL"
+            . " AND gamets_truncated < " . $floor
+            . " AND {$scopeSql} AND {$companionSql}"
+            . " ORDER BY gamets_truncated DESC, rowid DESC LIMIT 1"
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Summaries matching a tsquery (any and all terms), best rank first. @return list<array<string, mixed>> */
+    public function summariesByKeywords(string $scopeSql, string $companionSql, string $anyTerms, string $allTerms): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT summary,gamets_truncated,
+        ts_rank(native_vec, to_tsquery(:any)) AS rank_any,
+        ts_rank(native_vec, to_tsquery(:all)) AS rank_all
+        FROM core_memory A
+        where source_type='summary' AND native_vec @@to_tsquery(:any)
+        and not (native_vec @@to_tsquery('#Reminiscence'))
+        and {$scopeSql}
+        and {$companionSql}
+
+        ORDER BY rank_all DESC, rank_any DESC",
+            ['any' => $anyTerms, 'all' => $allTerms]
+        );
+    }
+
+    /**
+     * The 50 closest summaries to an embedding, mixing vector distance with text rank. $anyTerms and $allTerms are tsquery texts
+     * ('' means no text rank); $timeThreshold 0 means no time limit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function hybridSummaryCandidates(string $scopeSql, string $companionSql, string $vectorText, string $anyTerms, string $allTerms, int|float $timeThreshold): array
+    {
+        $rankAny = $anyTerms !== '' ? 'ts_rank(native_vec, to_tsquery(:any))' : '0::real';
+        $rankAll = $allTerms !== '' ? 'ts_rank(native_vec, to_tsquery(:all))' : '0::real';
+        $rankCombined = "($rankAny + $rankAll)";
+        $params = ['vector' => $vectorText, 'threshold' => $timeThreshold];
+        if ($anyTerms !== '') $params['any'] = $anyTerms;
+        if ($allTerms !== '') $params['all'] = $allTerms;
+
+        return $this->connection()->fetchAllAssociative(
+            "SELECT rowid,gamets_truncated,
+                        embedding <-> CAST(:vector AS public.vector) as distance,
+                         $rankAny AS rank_any_fts_raw,
+                         $rankAll AS rank_all_fts_raw,
+                         $rankCombined AS rank_fts,
+                         (embedding <-> CAST(:vector AS public.vector)) - $rankCombined AS mixed_distance,
+                         summary
+                    FROM public.core_memory
+                    WHERE source_type='summary' AND embedding IS NOT NULL
+                    and {$scopeSql}
+                    and {$companionSql}
+                    and (gamets_truncated<:threshold or :threshold=0)
+
+                    ORDER BY
+                        mixed_distance ASC,
+                        distance ASC,
+                        gamets_truncated DESC,
+                        rowid DESC
+                    LIMIT 50 OFFSET 0",
+            $params
+        );
+    }
+
+    /** The summaries of one companion after a game time (content, gamets_truncated), newest first, at most 100. @return list<array<string, mixed>> */
+    public function companionSummariesAfter(string $scopeSql, string $companion, int|string $afterGamets): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT summary as content,gamets_truncated FROM core_memory where source_type='summary' AND summary is not null and {$scopeSql} and companions like '%|'||?||'|%' and gamets_truncated>? order by gamets_truncated desc LIMIT 100",
+            [$companion, $afterGamets]
+        );
+    }
+
+    /** The newest game time of any summary, or 0. */
+    public function maxSummaryGamets(): int
+    {
+        return (int) $this->connection()->fetchOne("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null");
+    }
+
+    /** How many history events lie strictly between two game times. */
+    public function countEventsBetween(int $afterGamets, int $beforeGamets): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) AS n FROM memory_v WHERE gamets > ? AND gamets < ?', [$afterGamets, $beforeGamets]);
+    }
+
+    /** Stores an embedding (a '[1,2,...]' vector text) on one memory row. */
+    public function setEmbeddingVector(int|string $rowid, string $vectorText): void
+    {
+        $this->connection()->executeStatement('update core_memory set embedding=CAST(? AS public.vector) where rowid=?', [$vectorText, $rowid]);
+    }
+
+    /** Clears the embedding of one memory row. */
+    public function clearEmbeddingVector(int $rowid): void
+    {
+        $this->connection()->executeStatement('UPDATE public.core_memory SET embedding = NULL WHERE rowid = ?', [$rowid]);
+    }
+
+    /** Deletes one summary memory row. */
+    public function deleteSummaryRow(int $rowid): void
+    {
+        $this->connection()->executeStatement("DELETE FROM public.core_memory WHERE source_type='summary' AND rowid = ?", [$rowid]);
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractMemory> */
@@ -411,5 +541,224 @@ class MemoryDao
         }
 
         return true;
+    }
+
+    /** Uids of the summary memories whose truncated gamets is after $gametsTruncated. @return list<string> */
+    public function summaryUidsAfter(int $gametsTruncated): array
+    {
+        return array_map('strval', $this->connection()->fetchFirstColumn(
+            "SELECT uid FROM public.core_memory WHERE source_type = 'summary' AND gamets_truncated > ?",
+            [$gametsTruncated]
+        ));
+    }
+
+    /** Removes every memory (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_memory');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Packs diary and auto-diary log lines that have no summary row yet into global diary summaries. False when the statement failed. */
+    public function packMissingDiaries(): bool
+    {
+        return $this->run("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
+        select gamets,1,message,message,'diary',uid,
+            case
+                when nullif(trim(speaker), '') is null then ''
+                else '|' || trim(both '|' from trim(speaker)) || '|'
+            end,
+            'global'
+        from core_memory_log
+        where event in ('diary','auto_diary')
+        and uid not in (select uid from core_memory where source_type='summary' AND classifier in  ('diary','auto_diary'))");
+    }
+
+    /** Packs diary log lines newer than this game time into global diary summaries. False when the statement failed. */
+    public function packDiariesAfter(int $maxRow): bool
+    {
+        return $this->run("insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,companions,scope)
+                                    select gamets,1,message,message,'diary',uid,
+                                        case
+                                            when nullif(trim(speaker), '') is null then ''
+                                            else '|' || trim(both '|' from trim(speaker)) || '|'
+                                        end,
+                                        'global'
+                                    from core_memory_log
+                                    where event='diary'
+                                    and gamets>$maxRow
+                                ");
+    }
+
+    /**
+     * Packs the dialogue rows newer than $maxRow and older than $minRowTs into scene summaries: queues are cut at location changes and
+     * time buckets of $pfi game-time units, and a queue needs $minEventsPerSummary rows. False when the statement failed.
+     */
+    public function packDialogueSummaries(int $maxRow, int $minRowTs, int $pfi, int $minEventsPerSummary): bool
+    {
+        $query="insert into core_memory (gamets_truncated,n,packed_message,summary,classifier,uid,scope,companions)
+                                with source_rows as (
+                                    select
+                                        uid,
+                                        gamets,
+                                        coalesce(ts, 0) as ts,
+                                        message,
+                                        speaker,
+                                        listener,
+                                        round(gamets::numeric/$pfi, 0) as time_bucket,
+                                        trim(regexp_replace(coalesce(
+                                            substring(message from '(?i)\\(context\\s+(?:new\\s+)?location:\\s*([^,\\)]+)'),
+                                            substring(message from '(?i)\\(at\\s+([^\\)]+)\\)'),
+                                            ''
+                                        ), '\\s+', ' ', 'g')) as location_key
+                                    from memory_v
+                                    where message not ilike 'Dear Diary%'
+                                      and gamets>$maxRow
+                                ),
+                                location_grouped_rows as (
+                                    select
+                                        *,
+                                        count(location_key) filter (where location_key <> '') over (
+                                            order by gamets asc, ts asc, uid asc
+                                            rows between unbounded preceding and current row
+                                        ) as location_group
+                                    from source_rows
+                                ),
+                                normalized_rows as (
+                                    select
+                                        uid,
+                                        gamets,
+                                        ts,
+                                        message,
+                                        speaker,
+                                        listener,
+                                        time_bucket,
+                                        case
+                                            when location_group=0 then null
+                                            else lower(max(nullif(location_key, '')) over (partition by location_group))
+                                        end as location_key
+                                    from location_grouped_rows
+                                ),
+                                queue_boundaries as (
+                                    select
+                                        uid,
+                                        gamets,
+                                        ts,
+                                        message,
+                                        speaker,
+                                        listener,
+                                        time_bucket,
+                                        location_key,
+                                        lag(location_key) over (order by gamets asc, ts asc, uid asc) as prev_location_key,
+                                        lag(time_bucket) over (order by gamets asc, ts asc, uid asc) as prev_time_bucket
+                                    from normalized_rows
+                                ),
+                                queued_rows as (
+                                    select
+                                        uid,
+                                        gamets,
+                                        ts,
+                                        message,
+                                        speaker,
+                                        listener,
+                                        case
+                                            when prev_time_bucket is null then 1
+                                            when location_key is null then 1
+                                            when prev_location_key is null then 1
+                                            when location_key<>prev_location_key then 1
+                                            when time_bucket<>prev_time_bucket then 1
+                                            else 0
+                                        end as is_new_queue
+                                    from queue_boundaries
+                                ),
+                                grouped_rows as (
+                                    select
+                                        uid,
+                                        gamets,
+                                        ts,
+                                        message,
+                                        speaker,
+                                        listener,
+                                        sum(is_new_queue) over (
+                                            order by gamets asc, ts asc, uid asc
+                                            rows between unbounded preceding and current row
+                                        ) as queue_id
+                                    from queued_rows
+                                ),
+                                grouped_summaries as (
+                                    select
+                                        queue_id,
+                                        max(gamets) as gamets_truncated,
+                                        count(*) as n,
+                                        STRING_AGG(message, chr(13) || chr(10) || chr(13) || chr(10) order by gamets asc, ts asc, uid asc) AS packed_message,
+                                        NULL as summary,
+                                        'dialogue' as classifier,
+                                        max(uid) as uid,
+                                        'global' as scope
+                                    from grouped_rows
+                                    group by queue_id
+                                    having count(*)>=$minEventsPerSummary
+                                ),
+                                queue_participants as (
+                                    select queue_id, '|' || string_agg(name, '|' order by name) || '|' as companions
+                                    from (
+                                        select distinct
+                                            queue_id,
+                                            trim(regexp_replace(person, '\\s*\\([^)]*\\)\\s*$', '', 'g')) as name
+                                        from grouped_rows
+                                        cross join lateral unnest(array[speaker, listener]) as participant(person)
+                                        where lower(trim(person)) not in ('', '-', '--', 'unknown', 'the narrator')
+                                    ) participant_names
+                                    where name <> ''
+                                    group by queue_id
+                                )
+                                select * from (
+                                    select
+                                        summaries.gamets_truncated,
+                                        summaries.n,
+                                        summaries.packed_message,
+                                        summaries.summary,
+                                        summaries.classifier,
+                                        summaries.uid,
+                                        summaries.scope,
+                                        participants.companions
+                                    from grouped_summaries summaries
+                                    left join queue_participants participants on participants.queue_id=summaries.queue_id
+                                    order by summaries.gamets_truncated asc
+                                ) as T
+                                where gamets_truncated>$maxRow and gamets_truncated<$minRowTs";
+
+        return $this->run($query);
+    }
+
+    /** Runs one packing statement; its failure is reported, never thrown, as the legacy query() did. */
+    private function run(string $sql): bool
+    {
+        try {
+            $this->connection()->executeStatement($sql);
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * The game timestamp of the newest summary row, as a one-row list (empty when there is no summary): gamets_truncated.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function lastSummaryGameTimestamp(): array
+    {
+        try {
+            return $this->connection()->fetchAllAssociative("SELECT gamets_truncated FROM core_memory WHERE source_type = 'summary' ORDER BY gamets_truncated DESC LIMIT 1");
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
     }
 }

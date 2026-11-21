@@ -234,10 +234,70 @@ class RequestExecutionDao
         );
     }
 
+
+    /**
+     * True when this request is complete and its stored canonical ingress event equals $canonicalJson with digest $sha256.
+     * Throws when the statement fails.
+     */
+    public function completedIngressMatches(string $sessionId, string $requestId, int $generation, string $canonicalJson, string $sha256): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
+                USING(session_id,request_id,generation,turn_id,event_type)
+             WHERE e.session_id = :session AND e.request_id = :request AND e.generation = :generation AND e.state='complete'
+                AND p.event_sha256=e.request_sha256 AND p.event_sha256 = :sha AND p.canonical_event = CAST(:canonical AS jsonb)",
+            ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'canonical' => $canonicalJson, 'sha' => $sha256]
+        ) !== false;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRequestExecution> */
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
+    }
+
+    /**
+     * True when this request's immutable ingress is the canonical diary_request event: the execution row, its protocol event
+     * (same canonical JSON and hash) and, when $complete, the state complete.
+     */
+    public function diaryOwnerVerified(string $sessionId, string $requestId, int $generation, string $canonicalEvent, string $eventSha256, bool $complete): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
+                ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation AND p.turn_id=e.turn_id
+                    AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
+             WHERE e.session_id=? AND e.request_id=? AND e.generation=? AND e.event_type='diary_request'
+                AND p.canonical_event=CAST(? AS jsonb) AND p.event_sha256=? AND (NOT CAST(? AS boolean) OR e.state='complete')",
+            [$sessionId, $requestId, $generation, $canonicalEvent, $eventSha256, $complete ? 't' : 'f']
+        ) !== false;
+    }
+
+    /** The stored response body (bytea as the driver returns it) of one request; null when there is no row. @return array<string, mixed>|null */
+    public function responseBody(string $sessionId, string $requestId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT response_body FROM public.core_request_execution WHERE session_id=? AND request_id=?',
+            [$sessionId, $requestId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Completes a still claimed request with its replayable NDJSON body; true when exactly that one row changed. */
+    public function completeDiaryAdmission(string $sessionId, string $requestId, string $body): bool
+    {
+        try {
+            $changed = $this->connection()->executeStatement(
+                "UPDATE public.core_request_execution SET state='complete',
+                    response_content_type='application/x-ndjson',response_body=convert_to(CAST(? AS text),'UTF8'),completed_at=clock_timestamp()
+                 WHERE session_id=? AND request_id=? AND state='claimed'",
+                [$body, $sessionId, $requestId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return $changed === 1;
     }
 
     /** Cancels the claimed or streaming narrator turns whose reply is still pending for a definition. Runs inside the caller's transaction. */
@@ -409,5 +469,63 @@ class RequestExecutionDao
             WHERE p.session_id=:p1 AND p.request_id=:p2 AND p.canonical_event=:p3::jsonb AND p.event_sha256=:p4",
             ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $canonicalEvent, 'p4' => $eventSha256]
         ) !== false;
+    }
+
+    /**
+     * The fresh-owner proof of an ambient NPC turn: the request's own claimed execution, its canonical protocol event, the active
+     * session turn and the context it was admitted against, plus whether a recent ambient trigger of the same session is still
+     * cooling down. Null when the owner is not (or no longer) fresh, false when the statement failed.
+     *
+     * @return array<string, mixed>|null|false
+     */
+    public function ambientFreshOwner(string $sessionId, string $requestId, int $generation, string $turnId, int $contextSequence, string $runtimeVariant, string $canonicalJson, string $sha256): array|null|false
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT c.context_payload, s.playthrough_id,
+                    EXISTS(SELECT 1 FROM public.core_request_execution prior
+                        JOIN public.core_protocol_event pp USING(session_id,request_id)
+                        WHERE prior.session_id=e.session_id AND prior.request_id<>e.request_id
+                            AND prior.claimed_at BETWEEN e.claimed_at-INTERVAL '60 seconds' AND e.claimed_at
+                            AND prior.event_type='trigger' AND pp.event_sha256=prior.request_sha256
+                            AND pp.canonical_event#>>'{payload,kind}'='bored'
+                            AND pp.canonical_event->'capabilities' @> '[\"dialogue.ambient_npc\"]'::jsonb) AS cooling_down
+                FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
+                JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.state='active'
+                    AND s.active_generation=e.generation AND s.active_turn_id=e.turn_id AND s.active_turn_sequence=:sequence
+                JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
+                    AND c.snapshot_sequence=:sequence AND c.playthrough_id=s.playthrough_id
+                WHERE e.session_id=:session AND e.request_id=:request AND e.state IN ('claimed','streaming')
+                    AND e.generation=:generation AND e.turn_id=:turn AND s.runtime_variant=:variant
+                    AND p.canonical_event=CAST(:canonical AS jsonb) AND p.event_sha256=:sha AND e.request_sha256=p.event_sha256
+                    AND p.event_type=e.event_type AND p.generation=e.generation AND p.turn_id=e.turn_id
+                    AND c.received_at BETWEEN e.claimed_at-INTERVAL '10 seconds' AND e.claimed_at",
+                ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'turn' => $turnId, 'sequence' => $contextSequence,
+                 'variant' => $runtimeVariant, 'canonical' => $canonicalJson, 'sha' => $sha256]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The stored response body of a completed request, at most 2 MiB: its bytea as the driver returns it (hex text). Null when
+     * the request is not complete, the body is larger, or the statement failed.
+     */
+    public function completedResponseBody(string $sessionId, string $requestId): ?string
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT response_body FROM public.core_request_execution
+                 WHERE session_id = :session AND request_id = :request AND state = 'complete' AND octet_length(response_body) <= 2097152",
+                ['session' => $sessionId, 'request' => $requestId]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false || $row['response_body'] === null ? null : (string) $row['response_body'];
     }
 }

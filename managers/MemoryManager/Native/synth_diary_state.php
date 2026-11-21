@@ -6,14 +6,17 @@ require_once dirname(__DIR__, 3).'/lib/synth_profile_state.php';
 function synth_diary_assert_owner($connection, array $event, bool $complete=false): void
 {
     $canonical=synth_protocol_canonical_json($event);
-    $result=@pg_query_params($connection,"SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
-        ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.generation=e.generation AND p.turn_id=e.turn_id
-            AND p.event_type=e.event_type AND p.event_sha256=e.request_sha256
-        WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.event_type='diary_request'
-            AND p.canonical_event=$4::jsonb AND p.event_sha256=$5 AND (NOT $6::boolean OR e.state='complete')",
-        [$event['session_id'],$event['request_id'],$event['generation'],$canonical,hash('sha256',$canonical),$complete ? 't' : 'f']);
-    if (!$result) throw new RuntimeException('Unable to verify diary request.');
-    if (!pg_fetch_assoc($result)) throw new LogicException('Diary canonical owner unavailable.');
+    $verified=synth_diary_dao(static fn()=>\Synth\Core\DbManager\Dao\RequestExecutionDao::current()->diaryOwnerVerified(
+        $event['session_id'],$event['request_id'],intval($event['generation']),$canonical,hash('sha256',$canonical),$complete),
+        'Unable to verify diary request.');
+    if (!$verified) throw new LogicException('Diary canonical owner unavailable.');
+}
+
+// A DAO statement failure surfaces as the RuntimeException the raw statement used to throw at this site.
+function synth_diary_dao(callable $statement, string $message): mixed
+{
+    try { return $statement(); }
+    catch (\Doctrine\DBAL\Exception $error) { throw new RuntimeException($message,0,$error); }
 }
 
 // Verify the same row link after acquiring its lock; a rename/rebind during admission cannot redirect publication.
@@ -35,7 +38,7 @@ function synth_diary_lock_binding($db, array $binding): array
         catch (InvalidArgumentException $error) { $alias=Narrator::DEFAULT_ROLEPLAY_NAME; }
         return array_replace($settings,['roleplay_name'=>$alias,'npc_static_bio'=>$settings['background'] ?? '']);
     }
-    $row=$db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval($binding['npc_id']).' FOR UPDATE');
+    $row=\Synth\Core\DbManager\Dao\NpcDao::current($db)->lockRowById(intval($binding['npc_id']));
     if (!$row || intval($row['actor_identity_id'])!==$binding['actor_identity_id'] || $row['npc_name']!==$binding['name']) {
         throw new LogicException('Diary actor link changed.');
     }
@@ -74,14 +77,8 @@ function synth_diary_player_owned_binding($db,array $event,string $role): array
     }
     $context=synth_protocol_current_context($db,$event);
     if (!$context) throw new LogicException('Player-owned diary context unavailable.');
-    $row=$db->fetchOne("SELECT c.player_identity_id FROM public.core_runtime_context c JOIN public.core_actor_identity a
-        ON a.id=c.player_identity_id AND a.game='fo4' AND a.playthrough_id=c.playthrough_id
-            AND upper(a.full_form_id)=upper(c.context_payload#>>'{player,form_id}')
-            AND lower(a.origin_plugin)=lower(c.context_payload#>>'{player,origin_plugin}')
-            AND a.playthrough_id=c.context_payload#>>'{player,playthrough_id}'
-        WHERE c.session_id=".$db->escapeLiteral($event['session_id'])
-        .' AND c.generation='.intval($event['generation']).' AND c.snapshot_sequence='.intval($event['context_sequence']));
-    $actor=intval($row['player_identity_id'] ?? 0);
+    $actor=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->savedPlayerIdentityId(
+        strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']));
     if ($actor<1) throw new LogicException('Diary player identity unavailable.');
     return ['actor_identity_id'=>$actor,'identity'=>$context['player'],
         'name'=>$role==='narrator' ? 'The Narrator' : $context['player']['display_name'],$role=>true];
@@ -252,9 +249,7 @@ function synth_diary_visible_role($db,array $event,int $actorId,string $role,boo
 {
     if (!in_array($role,['npc','player','narrator'],true)) throw new InvalidArgumentException('Invalid diary reader role.');
     if ($actorId<1) return null;
-    $row=$db->fetchOne(synth_diary_history_cte($db,$event,$actorId,$role)
-        ." SELECT history_event_id,result_payload,published_at,".($automaticOnly ? '0' : 'content_revision')." AS content_revision FROM ".($automaticOnly ? 'diary_chain' : 'native_diaries')
-        .($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '')." ORDER BY history_event_id DESC LIMIT 1");
+    $row=\Synth\Core\DbManager\Dao\DiaryResultDao::current($db)->latestVisible(synth_diary_history_cte($db,$event,$actorId,$role),$automaticOnly);
     if (!$row) return null;
     $value=json_decode($row['result_payload'],true,flags:JSON_THROW_ON_ERROR);
     synth_diary_validate_result($value);
@@ -332,9 +327,8 @@ function synth_diary_capture_character($db, ?array $identity, string $prompt, ?i
         $playerOwned=$role!=='npc';$narrator=$role==='narrator';
         $binding=$playerOwned ? synth_diary_player_owned_binding($db,$event,$role) : synth_diary_npc_binding($db,$event,$identity);
         $actor=$binding['actor_identity_id'];
-        $existing=$db->fetchOne('SELECT id,input_payload,input_sha256=encode(sha256(convert_to(input_payload::text,\'UTF8\')),\'hex\') AS valid
-            FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
-            .' AND actor_identity_id='.$actor." AND diary_role='$role'");
+        $inputs=\Synth\Core\DbManager\Dao\DiaryInputDao::current($db);
+        $existing=$inputs->frozenForRequest(strval($event['session_id']),strval($event['request_id']),intval($actor),$role);
         if ($existing) {
             $input=json_decode($existing['input_payload'],true,flags:JSON_THROW_ON_ERROR);
             if ($existing['valid']!=='t' || $input['prompt']!==$prompt || $input['connector_id']!==$connectorId || $input['max_tokens']!==$maxTokens
@@ -352,10 +346,7 @@ function synth_diary_capture_character($db, ?array $identity, string $prompt, ?i
             if (!is_string($value) || strlen($value)>16384 || str_contains($value,"\0") || !preg_match('//u',$value)) throw new InvalidArgumentException('Invalid diary profile input.');
             $fields[$field]=$value;
         }
-        $history=array_reverse($db->fetchAll(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $actor,$playerOwned)." SELECT n.history_event_id,n.type,left(n.data,4000) AS data,
-            encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex') AS source_sha256 FROM native_history n
-            JOIN public.core_history_event h ON h.id=n.history_event_id
-            WHERE n.type NOT IN ('prechat','itemfound','infoaction') ORDER BY n.history_event_id DESC LIMIT $historyLimit") ?: []);
+        $history=array_reverse($inputs->evidenceRows(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $actor,$playerOwned),$historyLimit));
         $prior=synth_diary_visible_role($db,$event,$actor,$role);
         $characterName=$narrator ? $base['roleplay_name'] : $binding['name'];
         if ($role==='player' && trim($base['player_name'] ?? '')!=='') $characterName=trim($base['player_name']);
@@ -382,13 +373,12 @@ function synth_diary_capture_character($db, ?array $identity, string $prompt, ?i
             ['role'=>'user','content'=>strtr($prompt,$replace)]];
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if (strlen($json)>1048576) throw new LengthException('Diary input exceeds its bound.');
-        $result=@pg_query_params($connection,"INSERT INTO public.core_diary_input(session_id,request_id,generation,context_sequence,actor_identity_id,
-            diary_role,prior_history_event_id,input_payload,input_sha256,profile_revision_id) VALUES($1,$2,$3,$4,$5,$9,$6,$7::jsonb,
-                encode(sha256(convert_to(($7::jsonb)::text,'UTF8')),'hex'),$8) RETURNING id",[$event['session_id'],$event['request_id'],$event['generation'],
-                    $event['context_sequence'],$actor,$input['prior_revision'],$json,$input['profile_revision'],$role]);
-        if (!$result) throw new RuntimeException('Unable to freeze diary input.');
-        $id=intval(pg_fetch_assoc($result)['id']);
-        foreach ($history as $source) if (!@pg_query_params($connection,'INSERT INTO public.core_diary_input_source VALUES($1,$2,$3)',[$id,$source['history_event_id'],$source['source_sha256']])) throw new RuntimeException('Unable to freeze diary sources.');
+        $id=$inputs->insertInput(strval($event['session_id']),strval($event['request_id']),intval($event['generation']),intval($event['context_sequence']),
+            intval($actor),$role,$input['prior_revision']===null ? null : intval($input['prior_revision']),$json,
+            $input['profile_revision']===null ? null : intval($input['profile_revision']));
+        if ($id===null) throw new RuntimeException('Unable to freeze diary input.');
+        $sources=\Synth\Core\DbManager\Dao\DiaryInputSourceDao::current($db);
+        foreach ($history as $source) if (!$sources->insertSource($id,intval($source['history_event_id']),strval($source['source_sha256']))) throw new RuntimeException('Unable to freeze diary sources.');
         return $id;
     },2000);
 }
@@ -412,13 +402,8 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$inputId,$value,$expectedInputHash,$role) {
         synth_diary_assert_owner($connection,$event,true);
         $playerOwned=$role!=='npc';$narrator=$role==='narrator';
-        $row=$db->fetchOne("SELECT * FROM public.core_diary_input WHERE id=".intval($inputId)
-            .' AND session_id='.$db->escapeLiteral($event['session_id']).' AND request_id='.$db->escapeLiteral($event['request_id'])
-            .' AND generation='.intval($event['generation']).' AND context_sequence='.intval($event['context_sequence'])
-            ." AND diary_role='$role' AND input_sha256=encode(sha256(convert_to(input_payload::text,'UTF8')),'hex')
-                AND input_payload->>'actor_identity_id'=actor_identity_id::text AND input_payload->>'diary_role'=diary_role
-                AND input_payload->'prior_revision'=COALESCE(to_jsonb(prior_history_event_id),'null'::jsonb)
-                AND input_payload->'profile_revision'=COALESCE(to_jsonb(profile_revision_id),'null'::jsonb)");
+        $row=\Synth\Core\DbManager\Dao\DiaryInputDao::current($db)->consistentForPublication(intval($inputId),strval($event['session_id']),
+            strval($event['request_id']),intval($event['generation']),intval($event['context_sequence']),$role);
         if (!$row || ($expectedInputHash!==null && !hash_equals($expectedInputHash,$row['input_sha256']))) throw new LogicException('Diary input unavailable.');
         $input=json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         if (synth_protocol_canonical_json($input['owner'])!==synth_protocol_canonical_json($event)) throw new LogicException('Diary publication owner mismatch.');
@@ -426,9 +411,8 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
         if (synth_protocol_canonical_json($binding)!==synth_protocol_canonical_json($input['binding'])) throw new LogicException('Diary actor link changed.');
         synth_diary_lock_binding($db,$binding);
         $resultJson=json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-        $existing=$db->fetchOne("SELECT history_event_id,result_payload,
-            result_sha256=encode(sha256(convert_to(result_payload::text,'UTF8')),'hex') AS valid
-            FROM public.core_diary_result WHERE input_id=".$inputId);
+        $results=\Synth\Core\DbManager\Dao\DiaryResultDao::current($db);
+        $existing=$results->resultForInput(intval($inputId));
         if ($existing) {
             if ($existing['valid']!=='t' || synth_protocol_canonical_json(json_decode($existing['result_payload'],true))!==synth_protocol_canonical_json($value)) throw new LogicException('Diary result replay conflicts.');
             return intval($existing['history_event_id']);
@@ -441,34 +425,16 @@ function synth_diary_publish_character($db, int $inputId, array $value, ?string 
         if (($role==='player' ? null : (synth_profile_visible($db,$event,$binding['actor_identity_id'],$narrator)['revision'] ?? null))!==$input['profile_revision']) {
             throw new LogicException('Diary saved profile changed.');
         }
-        $visible=$db->fetchOne(synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned)." SELECT count(*) AS n,
-            (SELECT count(*) FROM public.core_diary_input_source WHERE input_id=$inputId) AS total FROM public.core_diary_input_source s
-            JOIN native_history v ON v.history_event_id=s.history_event_id JOIN public.core_history_event h ON h.id=s.history_event_id
-            JOIN public.core_diary_input i ON i.id=s.input_id
-            WHERE s.input_id=$inputId AND s.source_sha256=encode(sha256(convert_to(h.event_payload::text,'UTF8')),'hex')
-                AND EXISTS(SELECT 1 FROM jsonb_array_elements(i.input_payload->'history') evidence
-                    WHERE evidence->>'history_event_id'=s.history_event_id::text AND evidence->>'source_sha256'=s.source_sha256)");
+        $visible=\Synth\Core\DbManager\Dao\DiaryInputSourceDao::current($db)->visibleSourceCounts(
+            synth_protocol_history_cte($db,$event,'',$playerOwned ? null : $binding['actor_identity_id'],$playerOwned),intval($inputId));
         if (intval($visible['n'])!==count($input['history']) || intval($visible['total'])!==count($input['history'])) throw new LogicException('Diary source evidence unavailable.');
         $context=synth_protocol_current_context($db,$event);$playthrough=$context['player']['playthrough_id'];
-        $pending=$db->fetchOne('SELECT 1 FROM public.core_diary_input i JOIN public.core_diary_result r ON r.input_id=i.id
-            JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
-            WHERE i.session_id='.$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
-            .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.$binding['actor_identity_id']
-            ." AND i.diary_role='$role' AND r.history_event_id>c.history_event_id");
-        if ($pending) throw new LogicException('A diary result awaits a new acknowledged snapshot.');
-        $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-            VALUES('diary_result','Accepted native diary reflection',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
-                ||jsonb_build_object('diary_input_sha256',$8::text,'diary_result',$9::jsonb,
-                    'diary_result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex')) FROM publication RETURNING id
-        ) INSERT INTO public.core_diary_result(history_event_id,input_id,result_payload,result_sha256)
-            SELECT id,$10,$9::jsonb,encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex') FROM history RETURNING history_event_id",
-            [$playthrough,intval($context['payload']['world']['game_time_ticks'] ?? 0),time(),$event['session_id'],$event['generation'],
-                $event['context_sequence'],$event['request_id'],$row['input_sha256'],$resultJson,$inputId]);
-        if (!$result) throw new RuntimeException('Unable to publish native diary.');
-        return intval(pg_fetch_assoc($result)['history_event_id']);
+        if ($results->resultAwaitsSnapshot(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']),
+            intval($binding['actor_identity_id']),$role)) throw new LogicException('A diary result awaits a new acknowledged snapshot.');
+        $published=$results->publish(strval($playthrough),intval($context['payload']['world']['game_time_ticks'] ?? 0),time(),
+            strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']),strval($event['request_id']),
+            strval($row['input_sha256']),$resultJson,intval($inputId));
+        if ($published===null) throw new RuntimeException('Unable to publish native diary.');
+        return $published;
     },2000);
 }

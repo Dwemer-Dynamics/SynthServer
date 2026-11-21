@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractLocationLegacy;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_location_legacy. */
 final class LocationLegacyDao
@@ -89,5 +90,104 @@ final class LocationLegacyDao
         );
 
         return $row === false ? null : $row;
+    }
+
+    /** Empties the legacy location table (a full replace from the game). False when the statement fails. */
+    public function truncate(): bool
+    {
+        try {
+            $this->connection()->executeStatement('TRUNCATE TABLE public.core_location_legacy');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Stores one location from the game by formid: updates the row when one exists, else inserts it. $x and $y are both set or
+     * both null (no coordinates). False when a statement fails, as the legacy writer did.
+     */
+    public function saveByFormid(string $name, string $formid, string $worldspace, string $tags, int $isInterior, ?float $x, ?float $y, string $refs, bool $cleared): bool
+    {
+        $point = ($x === null || $y === null) ? 'NULL' : 'point(CAST(? AS float8), CAST(? AS float8))';
+        $pointParams = ($x === null || $y === null) ? [] : [$x, $y];
+        try {
+            $exists = $this->connection()->fetchOne('SELECT 1 FROM public.core_location_legacy WHERE formid = CAST(? AS bigint) LIMIT 1', [$formid]) !== false;
+            if ($exists) {
+                $this->connection()->executeStatement(
+                    'UPDATE public.core_location_legacy SET name = ?, worldspace = ?, tags = ?, is_interior = ?, coords = '.$point
+                    .', refs = ?, cleared = CAST(? AS boolean), updated_at = now() WHERE formid = CAST(? AS bigint)',
+                    array_merge([$name, $worldspace, $tags, $isInterior], $pointParams, [$refs, $cleared ? 'true' : 'false', $formid])
+                );
+            } else {
+                $this->connection()->executeStatement(
+                    'INSERT INTO public.core_location_legacy (name, formid, worldspace, tags, is_interior, coords, refs, cleared, updated_at) VALUES '
+                    .'(?, CAST(? AS bigint), ?, ?, ?, '.$point.', ?, CAST(? AS boolean), now())',
+                    array_merge([$name, $formid, $worldspace, $tags, $isInterior], $pointParams, [$refs, $cleared ? 'true' : 'false'])
+                );
+            }
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Name and coordinates (as the point's text) of exterior markers that have coordinates and belong to the worldspace (or to
+     * none). Throws when unreadable.
+     *
+     * @return list<array{name: ?string, coords: ?string}>
+     */
+    public function exteriorMarkers(string $worldspace, int $limit = 2000): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT name, coords::text AS coords FROM public.core_location_legacy
+             WHERE COALESCE(is_interior, 0) = 0 AND coords IS NOT NULL AND (worldspace IS NULL OR worldspace = '' OR worldspace = ?)
+             LIMIT ".max(1, $limit),
+            [$worldspace]
+        );
+    }
+
+    /**
+     * The column names of core_location_legacy, as information_schema lists them. Throws when the read fails.
+     *
+     * @return list<string>
+     */
+    public function columnNames(): array
+    {
+        return array_map('strval', $this->connection()->fetchFirstColumn(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'core_location_legacy'"
+        ));
+    }
+
+    /**
+     * Rows whose name (or worldspace, or region: the $matchColumns, each a plain column name) equals the lower-cased candidate.
+     * $regionColumn names the column returned as `region` ('region' or 'worldspace'), or is '' for an empty region.
+     *
+     * @param list<string> $matchColumns
+     * @return list<array<string, mixed>>
+     */
+    public function rowsMatchingCandidate(string $regionColumn, array $matchColumns, string $candidateKey): array
+    {
+        foreach ([...$matchColumns, $regionColumn] as $column) {
+            if ($column !== '' && preg_match('/^[a-z_][a-z0-9_]*$/', $column) !== 1) {
+                throw new \InvalidArgumentException('Invalid column name.');
+            }
+        }
+        if ($matchColumns === []) {
+            return [];
+        }
+        $clauses = [];
+        foreach ($matchColumns as $column) {
+            $clauses[] = "LOWER({$column}) = :candidate";
+        }
+        $select = $regionColumn === '' ? "name, '' AS region" : ($regionColumn === 'region' ? 'name, region' : "name, {$regionColumn} AS region");
+        try {
+            return $this->connection()->fetchAllAssociative("SELECT {$select} FROM core_location_legacy WHERE ".implode(' OR ', $clauses), ['candidate' => $candidateKey]);
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
     }
 }

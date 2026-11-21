@@ -5,33 +5,34 @@
 
 function AddFirstTimeMet($followerName,$momentum,$gamets,$ts) {
 
-    $fn=\Synth\Bootstrap::db()->escape($followerName);
+    $db=\Synth\Bootstrap::db();
 
     // Check if already recorded - with error handling
-    $already = @\Synth\Bootstrap::db()->fetchAll("select 1 as t from core_memory_log where event='first_met' and message like '%met {$fn}%'");
-    if ($already === false) {
+    try {
+        $already = \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->hasFirstMetMentioning($followerName);
+    } catch (\Doctrine\DBAL\Exception $error) {
         Logger::warn("[AddFirstTimeMet] Query to memory table failed for follower: {$followerName}");
         return;
     }
 
-    if (is_array($already) && sizeof($already)>0) {
+    if ($already) {
         // Already exists;
         return;
     }
 
     // Get first interaction timestamp - with error handling
-    $realFirst = @\Synth\Bootstrap::db()->fetchAll("SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM core_speech where companions ilike '%$fn%' order by rowid asc limit 1 offset 0");
-
-    if ($realFirst === false) {
+    try {
+        $realFirst = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->firstLineWithCompanion($followerName);
+    } catch (\Doctrine\DBAL\Exception $error) {
         Logger::warn("[AddFirstTimeMet] Query to speech table failed for follower: {$followerName}");
         return;
     }
 
-    if (is_array($realFirst) && sizeof($realFirst)>0) {
-        $gamets=$realFirst[0]["gamets"];
-        $ts=$realFirst[0]["ts"];
-        $momentum=$realFirst[0]["localts"];
-        $fallout_date=$realFirst[0]["fallout_date"]; // game timestamp converted to fallout date YYYY-MM-DD HH:MM:SS
+    if ($realFirst !== null) {
+        $gamets=$realFirst["gamets"];
+        $ts=$realFirst["ts"];
+        $momentum=$realFirst["localts"];
+        $fallout_date=$realFirst["fallout_date"]; // game timestamp converted to fallout date YYYY-MM-DD HH:MM:SS
 
         logMemory(\Synth\Bootstrap::config("PLAYER_NAME"), $followerName,
         ("(Important note: " . \Synth\Bootstrap::config('PLAYER_NAME') . " met {$followerName} for the first time on {$fallout_date}. This is an important event, so use tag #FirstTimeMet.)"),

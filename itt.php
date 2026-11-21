@@ -193,9 +193,7 @@ try {
     ]);
 
     if ($request['interaction_mode'] === 'npc_portrait') {
-        $npcData = $db->fetchOne(
-            'SELECT * FROM public.core_npc WHERE actor_identity_id=' . $actorIdentityId . ' LIMIT 1'
-        );
+        $npcData = \Synth\Core\DbManager\Dao\NpcDao::current($db)->rowByActorIdentity((int)$actorIdentityId);
         if (!$npcData) {
             throw new SynthVisualRequestException(404, 'npc_profile_not_found', 'Targeted NPC profile was not found for this actor identity.');
         }
@@ -259,7 +257,7 @@ try {
             'portrait_media' => $portraitReference,
         ];
         synthIttComplete($recordId, 200, true, $extra, [], static function () use ($db, $actorIdentityId, $portraitMedia): void {
-            $current = $db->fetchOne('SELECT * FROM public.core_npc WHERE actor_identity_id=' . $actorIdentityId . ' FOR UPDATE');
+            $current = \Synth\Core\DbManager\Dao\NpcDao::current($db)->lockRowByActorIdentity((int)$actorIdentityId);
             if (!$current) throw new RuntimeException('NPC portrait profile disappeared.');
             $metadata = json_decode(strval($current['metadata'] ?? '{}'), true);
             $metadata = is_array($metadata) ? $metadata : [];

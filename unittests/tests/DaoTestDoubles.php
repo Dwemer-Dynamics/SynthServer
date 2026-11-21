@@ -4,16 +4,20 @@
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
 use Synth\Core\DbManager\Dao\ActionIntentDao;
+use Synth\Core\DbManager\Dao\ItemDescriptionDao;
+use Synth\Core\DbManager\Dao\PluginsDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
+use Synth\Core\DbManager\Dao\RuntimeContextDao;
+use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
+use Synth\Core\DbManager\Dao\WorldknowledgeCatalogDao;
+use Synth\Managers\ConfigManager\ConfigManager;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
-use Synth\Core\DbManager\Dao\ItemDescriptionDao;
 use Synth\Core\DbManager\Dao\NpcDao;
-use Synth\Core\DbManager\Dao\PluginsDao;
 
 final class DaoTestDoubles
 {
@@ -98,6 +102,22 @@ final class DaoTestDoubles
         });
     }
 
+    /** DiaryResultDao::latestVisible() answered by $fake->fetchOne() with the legacy visible-diary query text. */
+    public static function diaryLatestFrom(object $fake): void
+    {
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(new class($fake) extends \Synth\Core\DbManager\Dao\DiaryResultDao {
+            public function __construct(private object $fake) {}
+
+            public function latestVisible(string $diaryCte, bool $automaticOnly): ?array
+            {
+                $row = $this->fake->fetchOne($diaryCte.' SELECT history_event_id,result_payload,published_at,'.($automaticOnly ? '0' : 'content_revision').' AS content_revision FROM '
+                    .($automaticOnly ? 'diary_chain' : 'native_diaries').($automaticOnly ? " WHERE reason IN ('sleep','wait')" : '').' ORDER BY history_event_id DESC LIMIT 1');
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
     /**
      * Records the claim-transaction DAO calls of synth_protocol_claim_request instead of running them: every write appends
      * [method, arguments] to $calls. $script scripts the reads: 'lockForClaim' (the session row, or null), 'findAnchor' and
@@ -161,110 +181,81 @@ final class DaoTestDoubles
         RequestExecutionDao::inject(null);
     }
 
-    /** ActorIdentityDao::identityRow() answered by $fake->fetchOne() with the legacy identity query. */
+    /**
+     * The actor identity, activation and loaded-context reads and writes of synth_protocol_state.php answered by $fake, which sees
+     * the legacy SQL text (fetchOne() for reads and RETURNING, execQuery() for the other writes).
+     */
     public static function identityFrom(object $fake): void
     {
         ActorIdentityDao::inject(new class($fake) extends ActorIdentityDao {
             public function __construct(private object $fake) {}
 
-            public function identityRow(int $id, ?string $game = null): ?array
+            public function lockFo4Identity(string $fullFormId, string $originPlugin, string $playthroughId): ?int
             {
-                $row = $this->fake->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE '
-                    .($game !== null ? "game='{$game}' AND " : '')."id={$id}");
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT id FROM public.core_actor_identity
+          WHERE game={$f->escapeLiteral('fo4')}
+            AND upper(full_form_id)=upper({$f->escapeLiteral($fullFormId)})
+            AND lower(origin_plugin)=lower({$f->escapeLiteral($originPlugin)})
+            AND playthrough_id={$f->escapeLiteral($playthroughId)}
+          FOR UPDATE");
 
-                return is_array($row) && $row !== [] ? $row : null;
+                return $row ? intval($row['id']) : null;
+            }
+
+            public function touch(int $id, ?string $displayName): bool
+            {
+                $f = $this->fake;
+                $name = $displayName === null ? 'NULL' : $f->escapeLiteral($displayName);
+                $f->execQuery("UPDATE public.core_actor_identity
+                SET last_seen_at=NOW(), display_name=COALESCE({$name}, display_name)
+              WHERE id=" . $id);
+
+                return true;
+            }
+
+            public function insertFo4(string $fullFormId, string $originPlugin, string $playthroughId, ?string $displayName): ?int
+            {
+                $f = $this->fake;
+                $name = $displayName === null ? 'NULL' : $f->escapeLiteral($displayName);
+                $row = $f->fetchOne("INSERT INTO public.core_actor_identity (game, full_form_id, origin_plugin, playthrough_id, display_name)
+         VALUES ({$f->escapeLiteral('fo4')}, {$f->escapeLiteral($fullFormId)}, {$f->escapeLiteral($originPlugin)}, {$f->escapeLiteral($playthroughId)}, {$name})
+         RETURNING id");
+
+                return !$row || intval($row['id'] ?? 0) < 1 ? null : intval($row['id']);
             }
         });
-    }
-
-    /** NpcDao's by-name and by-actor reads answered by $fake->fetchOne() with the legacy queries. */
-    public static function npcFrom(object $fake): void
-    {
-        NpcDao::inject(new class($fake) extends NpcDao {
+        RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
             public function __construct(private object $fake) {}
 
-            private function literal(string $value): string
+            public function loadedContext(string $sessionId, string $playthroughId, int $generation, int $sequence, string $runtimeVariant): ?array
             {
-                return method_exists($this->fake, 'escapeLiteral') ? $this->fake->escapeLiteral($value) : "'".str_replace("'", "''", $value)."'";
-            }
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
+        FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
+        WHERE c.session_id={$f->escapeLiteral($sessionId)} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}
+            AND c.playthrough_id={$f->escapeLiteral($playthroughId)} AND r.runtime_variant={$f->escapeLiteral($runtimeVariant)}");
 
-            private function fetchRow(string $sql): ?array
-            {
-                $row = $this->fake->fetchOne($sql);
-
-                return is_array($row) && $row !== [] ? $row : null;
-            }
-
-            public function metadataByName(string $name): ?array
-            {
-                return $this->fetchRow("SELECT metadata FROM core_npc WHERE npc_name = '".str_replace("'", "''", $name)."' LIMIT 1");
-            }
-
-            public function voiceByName(string $name): ?array
-            {
-                return $this->fetchRow('SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='.$this->literal($name).' LIMIT 1');
-            }
-
-            public function voiceByActor(string $formId, string $originPlugin, string $playthroughId): ?array
-            {
-                $form = $this->literal($formId);
-                $plugin = $this->literal($originPlugin);
-                $playthrough = $this->literal($playthroughId);
-
-                return $this->fetchRow("SELECT n.voiceid,n.extended_data FROM public.core_npc n
-            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
-            WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
-                AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
+                return $row ?: null;
             }
         });
-    }
-
-    /** ActionIntentDao::inventoryAncestry() answered by $fake->fetchOne() with the legacy ancestry query (its identifying parts). */
-    public static function inventoryFrom(object $fake): void
-    {
-        ActionIntentDao::inject(new class($fake) extends ActionIntentDao {
+        ActorActivationDao::inject(new class($fake) extends ActorActivationDao {
             public function __construct(private object $fake) {}
 
-            public function inventoryAncestry(bool $retainsGiftOwner, string $actionId, string $idempotencyKey, string $receiptRequestId, string $canonicalReceiptJson,
-                string $sessionId, string $turnId, int $generation, int $sequence, string $runtimeVariant): ?array
+            public function upsertActive(string $sessionId, int $generation, int $actorIdentityId, string $source): bool
             {
-                $lit = fn(string $value): string => $this->fake->escapeLiteral($value);
-                $row = $this->fake->fetchOne("SELECT i.action_name,i.capability,i.request_id AS origin_request_id,a.full_form_id,a.origin_plugin,a.playthrough_id,
-                    e.canonical_event,t.result,b.full_form_id AS recipient_form_id,
-                    b.origin_plugin AS recipient_plugin,b.playthrough_id AS recipient_playthrough_id
-                FROM public.core_action_intent i
-                JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-                WHERE i.action_id=".$lit($actionId).' AND i.idempotency_key='.$lit($idempotencyKey).' AND i.session_id='.$lit($sessionId)
-                    .' AND i.turn_id='.$lit($turnId).' AND i.generation='.$generation.' AND r.runtime_variant='.$lit($runtimeVariant));
+                $f = $this->fake;
+                $f->execQuery("INSERT INTO public.core_actor_activation
+            (session_id, generation, actor_identity_id, source, state)
+         VALUES ({$f->escapeLiteral($sessionId)}, {$generation}, {$actorIdentityId}, {$f->escapeLiteral($source)}, 'active')
+         ON CONFLICT (session_id, generation, actor_identity_id) DO UPDATE SET
+            source = CASE
+                WHEN public.core_actor_activation.source='manual' THEN 'manual'
+                ELSE EXCLUDED.source
+            END,
+            state='active', last_seen_at=NOW()");
 
-                return is_array($row) && $row !== [] ? $row : null;
-            }
-        });
-    }
-
-    /** WorkerJobDao's speech status reads answered by $fake->fetchOne() with the legacy queries. */
-    public static function workerJobFrom(object $fake): void
-    {
-        WorkerJobDao::inject(new class($fake) extends WorkerJobDao {
-            public function __construct(private object $fake) {}
-
-            public function ttsStatusById(int $jobId, string $cacheKey): ?array
-            {
-                $row = $this->fake->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
-        WHERE id={$jobId} AND job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
-        AND cache_key=".$this->fake->escapeLiteral($cacheKey));
-
-                return is_array($row) && $row !== [] ? $row : null;
-            }
-
-            public function ttsActiveByCacheKey(string $cacheKey): ?array
-            {
-                $row = $this->fake->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
-            WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
-            AND state IN ('pending','running') AND deadline_at>clock_timestamp()
-            AND cache_key=".$this->fake->escapeLiteral($cacheKey).' LIMIT 1');
-
-                return is_array($row) && $row !== [] ? $row : null;
+                return true;
             }
         });
     }
@@ -280,6 +271,72 @@ final class DaoTestDoubles
                 $daoClass::inject(null);
             }
         }
+    }
+
+    /**
+     * The world-knowledge processor's three reads answered by the test's own fake: the newest chat text ($fake->fetchOne with
+     * the legacy chat query), a catalog checksum and the 'conf' setting current_worldknowledge_topic.
+     */
+    public static function worldknowledgeFrom(object $fake): void
+    {
+        ContextEventDao::inject(new class($fake) extends ContextEventDao {
+            public function __construct(private object $fake) {}
+
+            public function latestChatData(): ?string
+            {
+                $row = $this->fake->fetchOne("SELECT data FROM core_context_event WHERE type='chat' ORDER BY gamets DESC LIMIT 1");
+
+                return is_array($row) && isset($row['data']) ? (string) $row['data'] : null;
+            }
+        });
+        WorldknowledgeCatalogDao::inject(new class($fake) extends WorldknowledgeCatalogDao {
+            public function __construct(private object $fake) {}
+
+            public function checksum(string $catalogId, string $catalogVersion): ?string
+            {
+                $row = $this->fake->fetchOne('SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id='
+                    .$this->fake->escapeLiteral($catalogId).' AND catalog_version='.$this->fake->escapeLiteral($catalogVersion).' LIMIT 1');
+
+                return is_array($row) && isset($row['checksum_sha256']) ? (string) $row['checksum_sha256'] : null;
+            }
+        });
+        ConfigManager::inject(new class($fake) extends ConfigManager {
+            public function __construct(private object $fake) {}
+
+            public function get(string $scope, string $key, ?string $default = null): ?string
+            {
+                $row = $this->fake->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = '{$scope}' AND config_key='{$key}' LIMIT 1");
+
+                return is_array($row) && isset($row['value']) ? (string) $row['value'] : $default;
+            }
+        });
+    }
+
+    public static function resetWorldknowledge(): void
+    {
+        ContextEventDao::inject(null);
+        WorldknowledgeCatalogDao::inject(null);
+        ConfigManager::inject(null);
+    }
+
+    /** ContextEventDao::latestWorldContextRow() answered by the test's current $GLOBALS['db']->fetchAll() with the legacy query. */
+    public static function worldContextFromGlobalDb(): void
+    {
+        ContextEventDao::inject(new class extends ContextEventDao {
+            public function __construct() {}
+
+            public function latestWorldContextRow(): ?array
+            {
+                $rows = $GLOBALS['db']->fetchAll("SELECT party, data
+           FROM core_context_event
+          WHERE type='world_context'
+            AND COALESCE(party, '') <> ''
+          ORDER BY localts DESC, ts DESC, rowid DESC
+          LIMIT 1");
+
+                return is_array($rows) && $rows !== [] ? $rows[0] : null;
+            }
+        });
     }
 
     /** PluginsDao::findRowByName() answered by $fake->fetchOne() with the legacy plugin query. */
@@ -320,14 +377,17 @@ final class DaoTestDoubles
     public static function reset(): void
     {
         ActionIntentDao::inject(null);
-        PluginsDao::inject(null);
-        ItemDescriptionDao::inject(null);
         ActorIdentityDao::inject(null);
         WorkerJobDao::inject(null);
+        PluginsDao::inject(null);
+        ItemDescriptionDao::inject(null);
+        ContextEventDao::inject(null);
+        \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null);
         RequestExecutionDao::inject(null);
         HistoryEventDao::inject(null);
         NpcDao::inject(null);
         \Synth\Core\DbManager\Dao\MemoryDao::inject(null);
+        WorkerJobDao::inject(null);
     }
 
     /**
@@ -476,5 +536,60 @@ final class DaoTestDoubles
                  LIMIT 1");
 
                 return is_array($row) ? $row : null;
+            }
+
+    /**
+     * The middleterm dispatch statements of WorkerJobDao (retire, next due job, owner discovery) answered by $fake with their
+     * legacy SQL text: execQuery() for the retiring UPDATE and the discovery CTE, fetchOne() for the due-job read.
+     */
+    public static function middletermDispatchFrom(object $fake): void
+    {
+        WorkerJobDao::inject(new class($fake) extends WorkerJobDao {
+            public function __construct(private object $fake) {}
+
+            public function retireMiddletermJobs(): bool
+            {
+                return $this->fake->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
+        THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
+        WHERE job_type='middleterm' AND state IN ('pending','running')") !== false;
+            }
+
+            public function nextDueMiddleterm(): ?int
+            {
+                $row = $this->fake->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
+        ORDER BY available_at,id LIMIT 1");
+
+                return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+            }
+
+            public function discoverMiddletermOwner(): ?array
+            {
+                $result = $this->fake->execQuery("WITH candidate AS (SELECT r.session_id FROM public.core_runtime_session r) SELECT c.* FROM candidate c");
+
+                return $result instanceof \PgSql\Result ? (pg_fetch_assoc($result) ?: null) : null;
+            }
+        });
+    }
+
+            public function retireMiddletermJobs(): bool
+            {
+                return $this->fake->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3
+        THEN 'failed' ELSE 'stale' END,lease_token=NULL,lease_until=NULL,last_error='middleterm_owner_expired'
+        WHERE job_type='middleterm' AND state IN ('pending','running')") !== false;
+            }
+
+            public function nextDueMiddleterm(): ?int
+            {
+                $row = $this->fake->fetchOne("SELECT id FROM public.core_worker_job WHERE job_type='middleterm' AND available_at<=clock_timestamp()
+        ORDER BY available_at,id LIMIT 1");
+
+                return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+            }
+
+            public function discoverMiddletermOwner(): ?array
+            {
+                $result = $this->fake->execQuery("WITH candidate AS (SELECT r.session_id FROM public.core_runtime_session r) SELECT c.* FROM candidate c");
+
+                return $result instanceof \PgSql\Result ? (pg_fetch_assoc($result) ?: null) : null;
             }
 }

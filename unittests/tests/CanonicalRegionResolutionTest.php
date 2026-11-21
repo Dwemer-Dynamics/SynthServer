@@ -47,6 +47,26 @@ final class CanonicalRegionTestDbAdapter
         pg_close($connection);
         return $escaped;
     }
+
+    private ?\PgSql\Connection $session = null;
+
+    /** The persistent connection the DAO statements of the code under test run on (the shared-session contract). */
+    public function getCatalogueSqlConnection(): \PgSql\Connection
+    {
+        return $this->session ??= $this->connect();
+    }
+
+    public function GetLastError(): string
+    {
+        return pg_last_error($this->getCatalogueSqlConnection());
+    }
+
+    public function execQuery(string $sql, array $parameters = [])
+    {
+        $connection = $this->getCatalogueSqlConnection();
+
+        return $parameters === [] ? @pg_query($connection, $sql) : @pg_query_params($connection, $sql, $parameters);
+    }
 }
 
 final class CanonicalRegionResolutionTest extends DatabaseTestCase

@@ -68,12 +68,10 @@ function synthPersistPlayerEvent($db, array $event): void
     }
     $input=$transition;unset($input['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id']];
-    $result=$db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM public.core_history_event
-        WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND event_payload->>'type'='player_event'
-          AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",[...$owner,$transition['event_id']]);
-    if ($result===false) throw new RuntimeException('player_event_history_read_failed');
-    if ($row=pg_fetch_assoc($result)) {
-        $previous=json_decode($row['party'],true,flags:JSON_THROW_ON_ERROR);
+    $partyJson=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->playerEventParty(strval($owner[0]),intval($owner[1]),strval($owner[2]),strval($transition['event_id']));
+    if ($partyJson===false) throw new RuntimeException('player_event_history_read_failed');
+    if ($partyJson!==null) {
+        $previous=json_decode($partyJson,true,flags:JSON_THROW_ON_ERROR);
         if (($previous['player'] ?? null)!=$player || ($previous['input_event'] ?? null)!=$input)
             throw new DomainException('player_event_conflict');
         return;

@@ -842,7 +842,8 @@ function synthLatestNearbyActorStatusMapForRechat(): array
         return [];
     }
 
-    $rows = $db->fetchAll("SELECT party, localts, ts FROM core_context_event WHERE type='nearby_actors' AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0");
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyRow('nearby_actors');
+    $rows = $latestParty === null ? [] : [$latestParty];
     if (!is_array($rows) || empty($rows)) {
         return [];
     }
@@ -1447,15 +1448,7 @@ function lookupSpatialCompanionsFromSpeech($speakerName, $listenerName = "", $ut
         return [];
     }
 
-    $speakerEscaped = $db->escape($speakerName);
-    $rows = $db->fetchAll(
-        "SELECT rowid, companions, listener, speaker, speech, topic, localts
-         FROM core_speech
-         WHERE LOWER(speaker)=LOWER('{$speakerEscaped}')
-           AND localts > " . (time() - 900) . "
-         ORDER BY rowid DESC
-         LIMIT 80"
-    );
+    $rows = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->recentBySpeaker($speakerName, time() - 900);
     if (!is_array($rows) || empty($rows)) {
         return [];
     }
@@ -1883,25 +1876,11 @@ function lookupLatestSpatialCompanionsByParticipant($participantName, $maxAgeSec
         return [];
     }
 
-    $participantEscaped = $db->escape($participantName);
     $participantPipeToken = "|" . strtolower($participantName) . "|";
-    $participantPipeEscaped = $db->escape($participantPipeToken);
     $ageSeconds = max(30, intval($maxAgeSeconds));
     $cutoff = time() - $ageSeconds;
 
-    $rows = $db->fetchAll(
-        "SELECT rowid, companions, listener, speaker, topic
-         FROM core_speech
-         WHERE localts > {$cutoff}
-           AND topic LIKE '%spatial:%'
-           AND (
-                LOWER(speaker)=LOWER('{$participantEscaped}')
-                OR LOWER(listener)=LOWER('{$participantEscaped}')
-                OR LOWER(companions) LIKE '%{$participantPipeEscaped}%'
-           )
-         ORDER BY rowid DESC
-         LIMIT 20"
-    );
+    $rows = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->recentSpatialForParticipant($participantName, $participantPipeToken, $cutoff);
 
     if (!is_array($rows) || empty($rows)) {
         return [];
@@ -1944,16 +1923,7 @@ function lookupConversationPeopleSourceOfTruth($speakerName, $targetName, $maxAg
 
     $ageSeconds = max(30, intval($maxAgeSeconds));
     $cutoff = time() - $ageSeconds;
-    $rows = $db->fetchAll(
-        "SELECT rowid, type, data, people
-         FROM core_context_event
-         WHERE localts > {$cutoff}
-           AND type IN ('chat','prechat','inputtext','inputtext_s','narrator_inputtext')
-           AND people IS NOT NULL
-           AND TRIM(people) <> ''
-         ORDER BY rowid DESC
-         LIMIT 120"
-    );
+    $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentInputRowsWithPeople($cutoff);
 
     if (!is_array($rows) || empty($rows)) {
         return "";

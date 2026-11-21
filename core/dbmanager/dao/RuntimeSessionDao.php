@@ -286,6 +286,14 @@ class RuntimeSessionDao
         return self::textRow($row);
     }
 
+    /** Active generation and state of one session, or null when it has no row. @return array{active_generation: mixed, state: mixed}|null */
+    public function generationAndState(string $sessionId): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT active_generation, state FROM public.core_runtime_session WHERE session_id = ?', [$sessionId]);
+
+        return $row === false ? null : $row;
+    }
+
     /** Whether this session of this playthrough exists and is active. */
     public function isActive(string $sessionId, string $playthroughId): bool
     {

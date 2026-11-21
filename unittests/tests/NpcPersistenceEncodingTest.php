@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'DatabaseTestCase.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'npc_master.class.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'eventlog_helper.php';
@@ -82,10 +83,14 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
                 if (str_contains($query,"job_type='middleterm'")) return [];
                 return $this->inner->fetchOne($query);
             }
-            public function execQuery($query): mixed {
+            public function execQuery($query,array $params=[]): mixed {
                 if (str_contains($query,'WITH candidate AS (')) return $this->inner->execQuery('SELECT 1 WHERE FALSE');
                 if (str_contains($query,'UPDATE public.core_worker_job')) return true;
-                return $this->inner->execQuery($query);
+                if (str_contains($query,'SELECT n.*') && str_contains($query,'middle_term_enabled')) {
+                    $this->selected=pg_fetch_all($this->inner->execQuery($query,$params)) ?: [];
+                    return $this->inner->execQuery('SELECT 1 WHERE FALSE'); // Exercise real selection SQL without generating any provider work.
+                }
+                return $this->inner->execQuery($query,$params);
             }
             public function __call(string $name,array $args): mixed {return $this->inner->$name(...$args);}
             public function fetchAll($query): array {
@@ -98,6 +103,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
         };
         $keys=['db','ENGINE_ROOT','ENGINE_PATH','FEATURES','TASKS'];$saved=array_intersect_key($GLOBALS,array_flip($keys));
         try {
+            DaoTestDoubles::middletermDispatchFrom($observed);
             $GLOBALS['db']=$observed;$GLOBALS['ENGINE_ROOT']=dirname(__DIR__,2).'/';
             $GLOBALS['FEATURES']['MEMORY_EMBEDDING']['AUTO_CREATE_SUMMARYS']=false;
             require dirname(__DIR__,2).'/service/processors/middleterm/entrypoint.php';
@@ -109,6 +115,7 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
             }
             sort($expected);sort($selected);$this->assertSame($expected,$selected);
         } finally {
+            DaoTestDoubles::reset();
             foreach ($keys as $key) unset($GLOBALS[$key]);
             foreach ($saved as $key=>$value) $GLOBALS[$key]=$value;
         }

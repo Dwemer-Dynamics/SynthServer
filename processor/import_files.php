@@ -160,8 +160,7 @@ function synthHandleBiographyImport($csvData, $timestamp, $game_timestamp): bool
                 continue;
             }
 
-            $ok = $db->upsertRowOnConflict(
-                'core_npc_biography_template_custom',
+            $ok = \Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao::current($db)->upsertImported(
                 [
                     'npc_name' => $npc_name,
                     'core' => $core,
@@ -178,8 +177,7 @@ function synthHandleBiographyImport($csvData, $timestamp, $game_timestamp): bool
                     'gender' => $getValue('gender'),
                     'race' => $getValue('race'),
                     'refid' => $getValue('refid'),
-                ],
-                'npc_name'
+                ]
             );
 
             if ($ok === false) {

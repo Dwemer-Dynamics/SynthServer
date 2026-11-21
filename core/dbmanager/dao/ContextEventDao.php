@@ -7,10 +7,13 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractContextEvent;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_context_event. */
-final class ContextEventDao
+class ContextEventDao
 {
+    /** The legacy (no native session) in-flight chat rows' delivery states that a speech row counts as live. */
+    private const LIVE_CHAT = "synth_session_id IS NULL AND COALESCE(delivery_state, 'emitted') <> 'aborted'";
     use UsesEntityManager;
     use TextRows;
 
@@ -394,5 +397,435 @@ final class ContextEventDao
              LIMIT :p2",
             ['p1' => $name, 'p2' => $limit]
         ));
+    }
+
+    /**
+     * Marks legacy chat rows (no native session) whose delivery state (NULL counts as 'emitted') is one of $states as aborted;
+     * only the rows carrying one of $utteranceIds when those are given. False when the statement fails.
+     *
+     * @param list<string> $states
+     * @param list<string>|null $utteranceIds
+     */
+    public function abortInFlightChat(array $states, ?array $utteranceIds = null): bool
+    {
+        if ($states === [] || ($utteranceIds !== null && $utteranceIds === [])) {
+            return true;
+        }
+        $sql = "UPDATE public.core_context_event SET delivery_state = 'aborted' WHERE type = 'chat' AND synth_session_id IS NULL AND COALESCE(delivery_state, 'emitted') IN ("
+            .implode(', ', array_fill(0, count($states), '?')).')';
+        $parameters = array_map('strval', $states);
+        if ($utteranceIds !== null) {
+            $sql .= ' AND utterance_id IN ('.implode(', ', array_fill(0, count($utteranceIds), '?')).')';
+            array_push($parameters, ...array_map('strval', $utteranceIds));
+        }
+        try {
+            $this->connection()->executeStatement($sql, array_values($parameters));
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Row ids of the live legacy chat rows of one utterance, newest first. @return list<int> */
+    public function liveChatRowIdsForUtterance(string $utteranceId): array
+    {
+        return array_map('intval', $this->connection()->fetchFirstColumn(
+            "SELECT rowid FROM public.core_context_event WHERE type = 'chat' AND utterance_id = ? AND ".self::LIVE_CHAT.' ORDER BY rowid DESC',
+            [$utteranceId]
+        ));
+    }
+
+    /** Live legacy chat rows at one gamets whose text starts with "<speaker>:", newest first (rowid, gamets, data). @return list<array<string, mixed>> */
+    public function liveChatRowsBySpeakerAtGamets(int $gamets, string $speaker, int $limit = 40): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT rowid, gamets, data FROM public.core_context_event WHERE gamets = ? AND type = 'chat' AND ".self::LIVE_CHAT
+            .' AND data ILIKE ? ORDER BY ts DESC, rowid DESC LIMIT '.max(1, $limit),
+            [$gamets, $speaker.':%']
+        );
+    }
+
+    /** Live legacy chat rows received after $sinceLocalts whose text starts with "<speaker>:", newest first (rowid, gamets, data). @return list<array<string, mixed>> */
+    public function recentLiveChatRowsBySpeaker(string $speaker, int $sinceLocalts, int $limit = 60): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT rowid, gamets, data FROM public.core_context_event WHERE type = 'chat' AND ".self::LIVE_CHAT
+            .' AND localts > ? AND data ILIKE ? ORDER BY rowid DESC LIMIT '.max(1, $limit),
+            [$sinceLocalts, $speaker.':%']
+        );
+    }
+
+    /** Sets the delivery state of one live legacy chat row; an aborted row stays aborted. */
+    public function setLiveChatDeliveryState(int $rowid, string $state): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                'UPDATE public.core_context_event SET delivery_state = ? WHERE rowid = ? AND '.self::LIVE_CHAT,
+                [$state, $rowid]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Sets the delivery state of the live legacy chat rows of one utterance. */
+    public function setLiveChatDeliveryStateForUtterance(string $utteranceId, string $state): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_context_event SET delivery_state = ? WHERE type = 'chat' AND utterance_id = ? AND ".self::LIVE_CHAT,
+                [$state, $utteranceId]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Newest live legacy chat row whose text is exactly $text (and, when given, whose people contain $speaker), or null. */
+    public function latestLiveChatRowId(string $text, string $speaker = ''): ?int
+    {
+        $sql = "SELECT rowid FROM public.core_context_event WHERE type = 'chat' AND ".self::LIVE_CHAT.' AND data = ?';
+        $parameters = [$text];
+        if ($speaker !== '') {
+            $sql .= " AND people ILIKE '%' || ? || '%'";
+            $parameters[] = $speaker;
+        }
+        $rowid = $this->connection()->fetchOne($sql.' ORDER BY rowid DESC LIMIT 1', $parameters);
+
+        return $rowid === false ? null : (int) $rowid;
+    }
+
+    /** The party column of the newest row of this type by rowid, or null. */
+    public function latestPartyByRowid(string $type): ?string
+    {
+        $party = $this->connection()->fetchOne('SELECT party FROM public.core_context_event WHERE type = ? ORDER BY rowid DESC LIMIT 1', [$type]);
+
+        return $party === false || $party === null ? null : (string) $party;
+    }
+
+    /** The party column of the newest row of this type by gamets then rowid, or null. */
+    public function latestPartyByGamets(string $type): ?string
+    {
+        $party = $this->connection()->fetchOne('SELECT party FROM public.core_context_event WHERE type = ? ORDER BY gamets DESC, rowid DESC LIMIT 1', [$type]);
+
+        return $party === false || $party === null ? null : (string) $party;
+    }
+
+    /** Gives the SYNTH rows received since $cutoffLocalts that still carry a placeholder gamets (5 or less) the real $gamets. */
+    public function adoptRecentSynthGamets(int $gamets, int $cutoffLocalts): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_context_event SET gamets = ? WHERE sess = 'synth' AND gamets <= 5 AND localts >= ?",
+                [$gamets, $cutoffLocalts]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes every event row (the wipe command). */
+    public function wipe(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_context_event');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes the chat and prechat rows received after $sinceLocalts whose text contains $needle (a literal substring, as the legacy LIKE matched it). */
+    public function deleteRecentChatContaining(string $needle, int $sinceLocalts): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "DELETE FROM public.core_context_event WHERE type IN ('chat', 'prechat') AND data LIKE ? AND localts > ?",
+                ['%'.$needle.'%', $sinceLocalts]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Gamets and ts of the newest row (by rowid), or null when there are none. @return array{gamets: mixed, ts: mixed}|null */
+    public function newestTimes(): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT gamets, ts FROM public.core_context_event ORDER BY rowid DESC LIMIT 1');
+
+        return $row === false ? null : $row;
+    }
+
+    /** The text of the newest chat row by gamets, or null when there is none. */
+    public function latestChatData(): ?string
+    {
+        $data = $this->connection()->fetchOne("SELECT data FROM public.core_context_event WHERE type = 'chat' ORDER BY gamets DESC LIMIT 1");
+
+        return $data === false || $data === null ? null : (string) $data;
+    }
+
+    /** Whether a user_input row newer than $ts exists. */
+    public function hasUserInputAfter(int|string $ts): bool
+    {
+        try {
+            return $this->connection()->fetchOne("SELECT rowid FROM public.core_context_event WHERE type = 'user_input' AND ts > ? ORDER BY rowid DESC LIMIT 1", [$ts]) !== false;
+        } catch (DbalException $error) {
+            return false;
+        }
+    }
+
+    /** The type of the newest row (by gamets, then ts) among the given types, or null when there is none or the read fails. @param list<string> $types */
+    public function latestTypeAmong(array $types): ?string
+    {
+        if ($types === []) {
+            return null;
+        }
+        try {
+            $type = $this->connection()->fetchOne(
+                'SELECT type FROM public.core_context_event WHERE type IN ('.implode(', ', array_fill(0, count($types), '?')).') ORDER BY gamets DESC, ts DESC LIMIT 1',
+                array_map('strval', array_values($types))
+            );
+        } catch (DbalException $error) {
+            return null;
+        }
+
+        return $type === false || $type === null ? null : (string) $type;
+    }
+
+    /** How many rechat and player-input rows are newer (by gamets) than the newest narration row; null when the read fails. */
+    public function countSinceNarration(): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne(
+                "SELECT COUNT(*) FROM public.core_context_event WHERE type IN ('rechat', 'inputtext', 'inputtext_s')
+                 AND gamets > (SELECT COALESCE(MAX(gamets), 0) FROM public.core_context_event WHERE type = 'narration')"
+            );
+        } catch (DbalException $error) {
+            return null;
+        }
+    }
+
+    /**
+     * The newest event of this type that carries a party payload (by game time, then insert time): party, localts, ts.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestPartyRow(string $type): ?array
+    {
+        return $this->firstRow(
+            "SELECT party, localts, ts FROM core_context_event WHERE type = :type AND COALESCE(party, '') <> '' ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0",
+            ['type' => $type]
+        );
+    }
+
+    /**
+     * The newest events of this type that carry a party payload, by game time: gamets, party, ts.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function latestPartyRows(string $type, int $limit): array
+    {
+        return $this->rows(
+            "SELECT gamets, party, ts FROM core_context_event WHERE type = :type AND COALESCE(party, '') <> '' ORDER BY gamets DESC LIMIT {$limit} OFFSET 0",
+            ['type' => $type]
+        );
+    }
+
+    /**
+     * The newest world-context payload row by local time: party and data text.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestWorldContextRow(): ?array
+    {
+        return $this->firstRow(
+            "SELECT party, data FROM core_context_event WHERE type = 'world_context' AND COALESCE(party, '') <> '' ORDER BY localts DESC, ts DESC, rowid DESC LIMIT 1",
+            []
+        );
+    }
+
+    /**
+     * Recent player/NPC input rows that name their audience: rowid, type, data, people, newest first, at most 120.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function recentInputRowsWithPeople(int $cutoff): array
+    {
+        return $this->rows(
+            "SELECT rowid, type, data, people FROM core_context_event
+             WHERE localts > :cutoff AND type IN ('chat','prechat','inputtext','inputtext_s','narrator_inputtext')
+               AND people IS NOT NULL AND TRIM(people) <> '' ORDER BY rowid DESC LIMIT 120",
+            ['cutoff' => $cutoff]
+        );
+    }
+
+    /**
+     * The ten newest info-action, item-found and item-transfer events by game time: gamets, data, ts, type.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function recentItemAndActionEvents(): array
+    {
+        return $this->rows(
+            "SELECT gamets, data, ts, type FROM core_context_event WHERE type IN ('infoaction','itemfound','itemtransfer') ORDER BY gamets DESC LIMIT 10 OFFSET 0",
+            []
+        );
+    }
+
+    /**
+     * Input-text events whose audience contains this actor name (a LIKE match, wildcards in the name keep their meaning),
+     * newest first: gamets, data, ts.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function inputEventsForActor(string $actor): array
+    {
+        return $this->rows(
+            "SELECT gamets, data, ts FROM core_context_event
+             WHERE type IN ('inputtext','inputtext_s','narrator_inputtext') AND people LIKE '%' || :actor || '%'
+             ORDER BY gamets DESC, ts DESC",
+            ['actor' => $actor]
+        );
+    }
+
+    /**
+     * Rechat and narration events of the last two minutes of local time, newest first, at most 10: type, data, gamets.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function recentRechatRows(int $cutoff): array
+    {
+        return $this->rows(
+            "SELECT type, data, gamets FROM core_context_event a WHERE type IN ('rechat','narration') AND localts > :cutoff
+             ORDER BY gamets DESC, ts DESC LIMIT 10 OFFSET 0",
+            ['cutoff' => $cutoff]
+        );
+    }
+
+    /** The data of the newest function-return event that mentions this actor (a LIKE match), or null. */
+    public function latestFunctionReturnData(string $actor): ?string
+    {
+        $row = $this->firstRow(
+            "SELECT a.data AS data FROM core_context_event a WHERE data LIKE '%' || :actor || '%' AND type IN ('funcret')
+             ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0",
+            ['actor' => $actor]
+        );
+
+        return $row === null ? null : (string) $row['data'];
+    }
+
+    /** Whether a death event says this actor was defeated or killed (a LIKE match on the event text). */
+    public function actorHasDied(string $actor): bool
+    {
+        return $this->firstRow(
+            "SELECT 1 AS n, gamets FROM core_context_event WHERE type = 'death'
+               AND (data LIKE '%defeated ' || :actor || '%' OR data LIKE '%killed ' || :actor || '%')
+             ORDER BY gamets DESC LIMIT 1",
+            ['actor' => $actor]
+        ) !== null;
+    }
+
+    /**
+     * The 150 newest events that mention this actor (a LIKE match) and are not bookkeeping types, with the narrator prefix
+     * the event kind implies: one column, data.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function eventDataMentioning(string $actor): array
+    {
+        return $this->rows(
+            "SELECT CASE
+                 WHEN type LIKE 'info%' OR type LIKE 'death%' OR type LIKE 'funcret%' OR type LIKE 'location%' OR data LIKE '%background chat%' THEN 'The Narrator:'
+                 ELSE ''
+               END || a.data AS data
+             FROM core_context_event a WHERE data LIKE '%' || :actor || '%'
+               AND type <> 'combatend' AND type <> 'bored' AND type <> 'init' AND type <> 'lockpicked' AND type <> 'info' AND type <> 'funcret' AND type <> 'quest'
+               AND type <> 'user_input' AND data NOT ILIKE '%sSubtitle%' AND data NOT ILIKE '%sSpeakerName%'
+               AND type <> 'funccall' AND type <> 'togglemodel' ORDER BY gamets DESC, ts DESC, localts DESC, rowid DESC LIMIT 150 OFFSET 0",
+            ['actor' => $actor]
+        );
+    }
+
+    /** The largest positive game timestamp, as the driver returns it (null when there is none). */
+    public function maxGameTimestamp(): ?string
+    {
+        $row = $this->firstRow('SELECT MAX(gamets) AS m_gts FROM core_context_event WHERE (gamets > 0)', []);
+
+        return $row === null || $row['m_gts'] === null ? null : (string) $row['m_gts'];
+    }
+
+    /** The largest insert time among events with a positive game timestamp, as the driver returns it (null when there is none). */
+    public function maxTimestamp(): ?string
+    {
+        $row = $this->firstRow('SELECT MAX(ts) AS m_gts FROM core_context_event WHERE (gamets > 0)', []);
+
+        return $row === null || $row['m_gts'] === null ? null : (string) $row['m_gts'];
+    }
+
+    /** The newest game timestamp of any event, as the driver returns it, or null when there are no events. */
+    public function newestGameTimestamp(): ?string
+    {
+        $row = $this->firstRow('SELECT gamets AS gamets FROM core_context_event ORDER BY gamets DESC LIMIT 1', []);
+
+        return $row === null || $row['gamets'] === null ? null : (string) $row['gamets'];
+    }
+
+    /**
+     * The newest event with a positive game timestamp with its game date in every converted format (needs the convert_gamets
+     * SQL functions): gamets and the fallout_* columns and rowid.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestGameDateRow(): ?array
+    {
+        return $this->firstRow(
+            "SELECT gamets,
+                convert_gamets2fallout_date(gamets) AS fallout_date,
+                convert_gamets2fallout_long_date(gamets) AS fallout_long_date,
+                convert_gamets2fallout_long_date2(gamets) AS fallout_long_date2,
+                convert_gamets2days(gamets) AS fallout_days,
+                convert_gamets2hours(gamets) AS fallout_hours,
+                convert_gamets2gregorian_date(gamets) AS fallout_gregorian_date,
+                ((gamets * 0.0000001) - floor(gamets * 0.0000001)) AS fallout_time,
+                rowid
+             FROM core_context_event WHERE (gamets > 0) ORDER BY gamets DESC, ts DESC LIMIT 1",
+            []
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     * @return array<string, mixed>|null
+     */
+    private function firstRow(string $sql, array $parameters): ?array
+    {
+        $rows = $this->rows($sql, $parameters);
+
+        return $rows === [] ? null : $rows[0];
+    }
+
+    /**
+     * Reads as the legacy fetchAll did: a failed statement reads as no rows.
+     *
+     * @param array<string, mixed> $parameters
+     * @return list<array<string, mixed>>
+     */
+    private function rows(string $sql, array $parameters): array
+    {
+        try {
+            return $this->connection()->fetchAllAssociative($sql, $parameters);
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
     }
 }

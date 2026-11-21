@@ -3,6 +3,16 @@
 require_once __DIR__.'/synth_memory.php';
 require_once dirname(__DIR__, 3).'/lib/synth_npc_identity.php';
 
+// Runs a DAO statement that must succeed; a statement failure keeps the original RuntimeException message of its site.
+function synth_middleterm_dao(callable $statement, string $message): mixed
+{
+    try {
+        return $statement();
+    } catch (\Doctrine\DBAL\Exception $error) {
+        throw new RuntimeException($message, 0, $error);
+    }
+}
+
 // Match the legacy explicit-key precedence; disabling generation does not erase accepted narrative history.
 function synth_middleterm_enabled(array $npc, array $profile): bool
 {
@@ -40,7 +50,7 @@ function synth_middleterm_owned_cte(string $historyCte): string
                 AND p.canonical_event->>'context_sequence'=i.context_sequence::text)
         AND i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex')
         AND ((i.input_payload->>'schema'='synth.middleterm.input.v1' AND i.regeneration_approval_id IS NULL
-            AND NOT (i.input_payload ? 'regeneration'))
+            AND NOT jsonb_exists(i.input_payload,'regeneration'))
             OR (i.input_payload->>'schema'='synth.middleterm.input.v2' AND i.regeneration_approval_id IS NOT NULL))
         AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
         AND i.input_payload#>>'{identity,playthrough_id}'=a.playthrough_id
@@ -200,10 +210,8 @@ function synth_middleterm_visible($db, string $actor): ?array
 {
     if (!synth_npc_native_request() || synth_protocol_response_is_narrator()) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$actor) {
-        $result=@pg_query($connection,synth_middleterm_history_cte($db,$event,$actor)
-            .' SELECT history_event_id,effective_narrative AS narrative,content_revision FROM middleterm_latest');
-        if (!$result) throw new RuntimeException('Unable to read native narrative memory.');
-        $row=pg_fetch_assoc($result);
+        $row=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermResultDao::current($db)->latestNarrative(synth_middleterm_history_cte($db,$event,$actor)),
+            'Unable to read native narrative memory.');
         return $row ? ['history_event_id'=>intval($row['history_event_id']),'narrative'=>$row['narrative']]
             +(intval($row['content_revision'])>0 ? ['content_revision'=>intval($row['content_revision'])] : []) : null;
     },2000);
@@ -237,35 +245,22 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
         $identity=$context ? synth_protocol_response_actor_identity($db,$event,$context) : null;
         if (!is_array($identity) || isset($identity['kind'])) return null;
         $actor=synth_protocol_actor_identity_id($db,$identity);$name=$identity['display_name'];
-        $npc=$db->fetchOne('SELECT * FROM public.core_npc WHERE actor_identity_id='.$actor);
+        $npc=\Synth\Core\DbManager\Dao\NpcDao::current($db)->rowByActor($actor);
         if (!$npc) return null;
-        $profile=$db->fetchOne('SELECT metadata FROM public.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
+        $profile=\Synth\Core\DbManager\Dao\ProfileDao::current($db)->metadataRow(intval($npc['profile_id'] ?? 0));
         if (!synth_middleterm_enabled($npc,$profile ?: [])) return null;
-        if (!@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-middleterm:'||$1,0))",[$actor])) {
+        if (!\Synth\Core\DbManager\Dao\MiddletermInputDao::current($db)->lockActor($actor)) {
             throw new RuntimeException('Unable to lock narrative admission.');
         }
-        $pending=@pg_query_params($connection,"SELECT 1 FROM public.core_worker_job WHERE job_type='middleterm'
-            AND actor_identity_id=$1 AND state IN ('pending','running') AND deadline_at>clock_timestamp() LIMIT 1",[$actor]);
-        if (!$pending) throw new RuntimeException('Unable to check narrative admission.');
-        if (pg_fetch_assoc($pending)) return null;
+        if (synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->hasLiveMiddletermJob($actor),'Unable to check narrative admission.')) return null;
         $cte=synth_middleterm_history_cte($db,$event,$name);
         if (synth_middleterm_has_unsaved_control($db,$event,$actor)) return null;
         // A published result must enter the next acknowledged snapshot before another chain can be admitted.
-        $unobserved=@pg_query_params($connection,"SELECT 1 FROM public.core_middleterm_input i JOIN public.core_middleterm_result r ON r.input_id=i.id
-            WHERE i.session_id=$1 AND i.generation=$2 AND i.actor_identity_id=$3 AND r.history_event_id>$4 LIMIT 1",
-            [$event['session_id'],$event['generation'],$actor,intval($db->fetchOne('SELECT history_event_id FROM public.core_runtime_context WHERE session_id='
-                .$db->escapeLiteral($event['session_id']).' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['history_event_id'] ?? 0)]);
-        if (!$unobserved) throw new RuntimeException('Unable to check narrative frontier.');
-        if (pg_fetch_assoc($unobserved)) return null;
+        $acknowledged=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->historyEventId($event['session_id'],intval($event['generation']),intval($event['context_sequence']));
+        if (synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermResultDao::current($db)->publishedAfter($event['session_id'],intval($event['generation']),$actor,$acknowledged),
+            'Unable to check narrative frontier.')) return null;
         $approved=null;
-        $candidates=$approvalId!==null?[['history_event_id'=>$approvalId]]:$db->fetchAll("SELECT q.history_event_id
-            FROM public.core_middleterm_regeneration_approval q
-            WHERE q.session_id=".$db->escapeLiteral($event['session_id']).' AND q.generation='.intval($event['generation'])."
-                AND q.actor_identity_id=$actor AND NOT EXISTS(SELECT 1 FROM public.core_middleterm_regeneration_approval newer
-                    WHERE newer.session_id=q.session_id AND newer.generation=q.generation AND newer.narrative_id=q.narrative_id
-                        AND newer.actor_identity_id=q.actor_identity_id AND newer.history_event_id>q.history_event_id)
-                AND NOT EXISTS(SELECT 1 FROM public.core_middleterm_replacement done WHERE done.approval_id=q.history_event_id)
-            ORDER BY q.last_considered_at NULLS FIRST,q.history_event_id LIMIT 20");
+        $candidates=$approvalId!==null?[['history_event_id'=>$approvalId]]:\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->discoverCandidates($event['session_id'],intval($event['generation']),$actor);
         $considered=[];
         foreach ($candidates as $candidate) {
             $id=intval($candidate['history_event_id']);$considered[]=$id;
@@ -275,30 +270,21 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             if ($check['status']==='ready') {$approved=$check;break;}
         }
         // Rotate bounded discovery so twenty obsolete plans cannot permanently hide a later valid approval.
-        if ($approvalId===null && $considered && $db->execQuery('UPDATE public.core_middleterm_regeneration_approval
-            SET last_considered_at=clock_timestamp() WHERE history_event_id IN ('.implode(',',$considered).')')===false) {
+        if ($approvalId===null && $considered && !\Synth\Core\DbManager\Dao\MiddletermRegenerationApprovalDao::current($db)->markConsidered($considered)) {
             throw new RuntimeException('Unable to advance regeneration discovery.');
         }
         if ($approvalId!==null && $approved===null) return null;
         if ($approved!==null) {
             // A management snapshot is not an owner: only verified, completed immutable ingress may adopt approval.
-            $owner=@pg_query_params($connection,"SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
-                USING(session_id,request_id,generation,turn_id,event_type)
-                WHERE e.session_id=$1 AND e.request_id=$2 AND e.generation=$3 AND e.state='complete'
-                    AND p.event_sha256=e.request_sha256 AND p.event_sha256=$5 AND p.canonical_event=$4::jsonb",
-                [$event['session_id'],$event['request_id'],$event['generation'],synth_protocol_canonical_json($event),
-                    hash('sha256',synth_protocol_canonical_json($event))]);
-            if (!$owner) throw new RuntimeException('Unable to verify regeneration owner.');
-            if (!pg_fetch_assoc($owner)) return null;
+            $canonicalOwner=synth_protocol_canonical_json($event);
+            $owned=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->completedIngressMatches($event['session_id'],$event['request_id'],
+                intval($event['generation']),$canonicalOwner,hash('sha256',$canonicalOwner)),'Unable to verify regeneration owner.');
+            if (!$owned) return null;
             $prior=$approved['plan']['prior'];$sources=$approved['plan']['sources'];
         } else {
             $prior=synth_middleterm_visible($db,$name);
-            $result=@pg_query($connection,$cte." SELECT s.id,s.summary_revision,s.summary,b.last_gamets
-                FROM native_memory_effective_summaries s JOIN native_memory_batches b ON b.id=s.batch_id
-                WHERE b.actor_identity_id=$actor AND NOT EXISTS(SELECT 1 FROM middleterm_covered used WHERE used.summary_id=s.id)
-                ORDER BY b.last_gamets,s.id LIMIT 100");
-            if (!$result) throw new RuntimeException('Unable to select narrative sources.');
-            $sources=synth_middleterm_select_sources(pg_fetch_all($result) ?: [],$prior);
+            $rows=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermSourceDao::current($db)->unusedSummaries($cte,$actor),'Unable to select narrative sources.');
+            $sources=synth_middleterm_select_sources($rows,$prior);
             if (!$sources) return null;
         }
         require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
@@ -319,16 +305,12 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
             'target_narrative_id'=>intval($approved['plan']['target']['narrative_id']),'plan_sha256'=>$approved['plan']['plan_sha256']];
         $json=json_encode($input,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if (strlen($json)>1000000) throw new LengthException('Narrative input exceeds its bound.');
-        $result=@pg_query_params($connection,"INSERT INTO public.core_middleterm_input(session_id,request_id,generation,context_sequence,
-            actor_identity_id,playthrough_id,prior_history_event_id,input_payload,input_sha256,regeneration_approval_id)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,encode(sha256(convert_to(($8::jsonb)::text,'UTF8')),'hex'),$9)
-            ON CONFLICT(session_id,request_id,generation,actor_identity_id,input_sha256) DO UPDATE SET input_sha256=EXCLUDED.input_sha256 RETURNING id",
-            [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$actor,$identity['playthrough_id'],$prior['history_event_id'] ?? null,$json,$approved['approval_id']??null]);
-        if (!$result || !($row=pg_fetch_assoc($result))) throw new RuntimeException('Unable to freeze narrative input.');
-        $id=intval($row['id']);
-        foreach ($sources as $position=>$source) if (!@pg_query_params($connection,"INSERT INTO public.core_middleterm_source
-            (input_id,position,summary_id,summary_revision,source_sha256) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
-            [$id,$position,$source['id'],$source['revision'],hash('sha256',$source['summary'])])) throw new RuntimeException('Unable to freeze narrative source.');
+        $id=synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermInputDao::current($db)->freeze($event['session_id'],$event['request_id'],intval($event['generation']),
+            intval($event['context_sequence']),$actor,$identity['playthrough_id'],isset($prior['history_event_id']) ? intval($prior['history_event_id']) : null,$json,
+            isset($approved['approval_id']) ? intval($approved['approval_id']) : null),'Unable to freeze narrative input.');
+        if ($id===null) throw new RuntimeException('Unable to freeze narrative input.');
+        foreach ($sources as $position=>$source) if (!\Synth\Core\DbManager\Dao\MiddletermSourceDao::current($db)->freezeSource($id,$position,intval($source['id']),
+            intval($source['revision']),hash('sha256',$source['summary']))) throw new RuntimeException('Unable to freeze narrative source.');
         return $id;
     },2000);
 }
@@ -336,14 +318,6 @@ function synth_middleterm_capture($db,?int $approvalId=null): ?int
 // Confirmed same-generation corrections fence workers immediately, before a later snapshot exposes the new text.
 function synth_middleterm_has_unsaved_control($db,array $event,int $actorId): bool
 {
-    $result=$db->fetchOne("SELECT EXISTS(SELECT 1 FROM public.core_middleterm_control_revision c
-        JOIN public.core_middleterm_input i ON i.actor_identity_id=$actorId
-        JOIN public.core_middleterm_result r ON r.input_id=i.id AND r.history_event_id=c.narrative_id
-        JOIN public.core_history_event h ON h.id=c.history_event_id
-        JOIN public.core_runtime_context snapshot ON snapshot.session_id=h.session_id AND snapshot.generation=h.generation
-        WHERE h.session_id=".$db->escapeLiteral($event['session_id']).' AND h.generation='.intval($event['generation'])
-        .' AND snapshot.snapshot_sequence='.intval($event['context_sequence'])
-        ." AND h.id>COALESCE(snapshot.history_event_id,0)) AS pending");
-    if (!$result) throw new RuntimeException('Unable to check pending narrative corrections.');
-    return $result['pending']==='t';
+    return synth_middleterm_dao(static fn()=>\Synth\Core\DbManager\Dao\MiddletermControlRevisionDao::current($db)->hasUnsavedForActor($actorId,$event['session_id'],
+        intval($event['generation']),intval($event['context_sequence'])),'Unable to check pending narrative corrections.');
 }
