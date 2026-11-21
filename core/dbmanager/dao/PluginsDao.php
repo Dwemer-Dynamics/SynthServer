@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractPlugins;
 
 /** Finds rows of core_plugins. */
-final class PluginsDao
+class PluginsDao
 {
     use UsesEntityManager;
 

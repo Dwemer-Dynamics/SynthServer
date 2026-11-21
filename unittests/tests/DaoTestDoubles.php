@@ -11,7 +11,9 @@ use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
+use Synth\Core\DbManager\Dao\ItemDescriptionDao;
 use Synth\Core\DbManager\Dao\NpcDao;
+use Synth\Core\DbManager\Dao\PluginsDao;
 
 final class DaoTestDoubles
 {
@@ -280,9 +282,46 @@ final class DaoTestDoubles
         }
     }
 
+    /** PluginsDao::findRowByName() answered by $fake->fetchOne() with the legacy plugin query. */
+    public static function pluginsFrom(object $fake): void
+    {
+        PluginsDao::inject(new class($fake) extends PluginsDao {
+            public function __construct(private object $fake) {}
+
+            public function findRowByName(string $pluginName): ?array
+            {
+                $name = method_exists($this->fake, 'escape') ? $this->fake->escape($pluginName) : str_replace("'", "''", $pluginName);
+                $row = $this->fake->fetchOne("SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix, updated_at
+            FROM public.core_plugins
+            WHERE LOWER(plugin_name) = LOWER('{$name}')
+            LIMIT 1");
+
+                return is_array($row) && $row !== [] ? $row : null;
+            }
+        });
+    }
+
+    /** ItemDescriptionDao::combinedDescriptionByName() answered by $fake->fetchAll() with the legacy combined-catalogue query. */
+    public static function combinedDescriptionsFrom(object $fake): void
+    {
+        ItemDescriptionDao::inject(new class($fake) extends ItemDescriptionDao {
+            public function __construct(private object $fake) {}
+
+            public function combinedDescriptionByName(string $name): ?string
+            {
+                $escaped = method_exists($this->fake, 'escape') ? $this->fake->escape($name) : str_replace("'", "''", $name);
+                $rows = $this->fake->fetchAll("SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER('{$escaped}') LIMIT 1");
+
+                return !empty($rows) && !empty($rows[0]['description']) ? (string) $rows[0]['description'] : null;
+            }
+        });
+    }
+
     public static function reset(): void
     {
         ActionIntentDao::inject(null);
+        PluginsDao::inject(null);
+        ItemDescriptionDao::inject(null);
         ActorIdentityDao::inject(null);
         WorkerJobDao::inject(null);
         RequestExecutionDao::inject(null);

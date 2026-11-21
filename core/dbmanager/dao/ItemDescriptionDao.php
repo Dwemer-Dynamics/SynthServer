@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractItemDescription;
 
 /** Finds rows of core_item_description. */
-final class ItemDescriptionDao
+class ItemDescriptionDao
 {
     use UsesEntityManager;
 
