@@ -50,18 +50,13 @@ function DataRetrieveFirstTimeMet($s_player_name, $s_npc_name) {
         if (($s_npc_name == "SYNTH") || ($s_player_name == "SYNTH")) { // SYNTH easter egg
             return "{$s_player_name} met {$s_npc_name} for the first time on 0199-04-26, 15:36:00, years ago.";
         }
-		$s_player = $db->escape($s_player_name);
-		$s_npc = $db->escape($s_npc_name);
+		$s_player = $s_player_name;
+		$s_npc = $s_npc_name;
 
         $crt_gamets = intval(DataLastKnownGameTS());
 
-		$db_rec = $db->fetchAll("SELECT speaker,listener,
-			message,gamets,momentum,rowid
-			FROM core_memory_log
-			WHERE event = 'first_met' AND gamets > 0 AND
-			((speaker = '{$s_player}' AND listener = '$s_npc') OR
-			(listener = '{$s_player}' AND speaker = '$s_npc'))
-			ORDER BY rowid ASC LIMIT 1; ");
+		$first_met = \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->firstMet($s_player, $s_npc);
+		$db_rec = $first_met === null ? [] : [$first_met];
 
         $b_found_memory = (is_array($db_rec) && sizeof($db_rec)>0);
 
@@ -97,18 +92,13 @@ function GetFirstTimeMetMemory($s_player_name, $s_npc_name) {
     $i_res = 0;
 
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
-		$s_player = $db->escape($s_player_name);
-		$s_npc = $db->escape($s_npc_name);
+		$s_player = $s_player_name;
+		$s_npc = $s_npc_name;
 
         //$crt_gamets = intval(DataLastKnownGameTS());
 
-		$db_rec = $db->fetchAll("SELECT speaker,listener,
-			message,gamets,momentum,rowid
-			FROM core_memory_log
-			WHERE event = 'first_met' AND gamets > 0 AND
-			((speaker = '{$s_player}' AND listener = '$s_npc') OR
-			(listener = '{$s_player}' AND speaker = '$s_npc'))
-			ORDER BY rowid ASC LIMIT 1; ");
+		$first_met = \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->firstMet($s_player, $s_npc);
+		$db_rec = $first_met === null ? [] : [$first_met];
 
         $b_found_memory = (is_array($db_rec) && sizeof($db_rec)>0);
 
@@ -138,16 +128,9 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
     $db = \Synth\Bootstrap::db();
 	$i_res = 0;
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
-		$s_player = $db->escape($s_player_name);
-		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
-        WHERE (gamets > 0) AND
-          ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
-          (listener = '{$s_player}' AND speaker = '{$s_npc}'))
-        ORDER BY gamets DESC LIMIT 1 ");
-		if (is_array($db_rec) && sizeof($db_rec)>0) {
-			$i_res = intval($db_rec[0]['gamets']);
-		}
+		$s_player = $s_player_name;
+		$s_npc = $s_npc_name;
+		$i_res = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->lastInteractionGamets($s_player, $s_npc);
 	}
 	return $i_res;
 }
@@ -155,11 +138,7 @@ function GetLastInteraction($s_player_name, $s_npc_name) {
 function GetLastSpeechTs() {
     $db = \Synth\Bootstrap::db();
     $i_res=0;
-	$db_rec = $db->fetchAll("SELECT gamets as gamets FROM core_speech
-        WHERE (gamets > 0) ORDER BY gamets DESC LIMIT 1 ");
-	if (is_array($db_rec) && sizeof($db_rec)>0) {
-		$i_res = intval($db_rec[0]['gamets']);
-	}
+	$i_res = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->latestGamets();
 
 	return $i_res;
 }
@@ -168,16 +147,9 @@ function GetFirstInteraction($s_player_name, $s_npc_name) {
     $db = \Synth\Bootstrap::db();
 	$i_res = 0;
 	if ((strlen($s_player_name)>0) && (strlen($s_npc_name)>0) && ($s_player_name != $s_npc_name)) {
-		$s_player = $db->escape($s_player_name);
-		$s_npc = $db->escape($s_npc_name);
-		$db_rec = $db->fetchAll("SELECT gamets FROM core_speech
-        WHERE (gamets > 0) AND
-          ((speaker = '{$s_player}' AND listener = '{$s_npc}') OR
-          (listener = '{$s_player}' AND speaker = '{$s_npc}'))
-        ORDER BY gamets ASC LIMIT 1 ");
-		if (is_array($db_rec) && sizeof($db_rec)>0) {
-			$i_res = intval($db_rec[0]['gamets']);
-		}
+		$s_player = $s_player_name;
+		$s_npc = $s_npc_name;
+		$i_res = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->firstInteractionGamets($s_player, $s_npc);
 	}
 	return $i_res;
 }

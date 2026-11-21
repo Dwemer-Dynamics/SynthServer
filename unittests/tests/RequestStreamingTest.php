@@ -904,7 +904,7 @@ final class RequestStreamingTest extends TestCase
     public function testNativeMemoryJobsKeepEvidenceAndInputLocks(): void
     {
         $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/MemoryBatchDao.php'));
         $this->assertStringContainsString('synth_memory_lock_job_input($connection,$db,$event,$jobId)',$source);
     }
 
@@ -1058,7 +1058,7 @@ final class RequestStreamingTest extends TestCase
             catch (InvalidArgumentException $error) { $this->assertStringStartsWith('Invalid memory vector',$error->getMessage()); }
         }
         $source=file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory_recall.php');
-        foreach (['synth_memory_visible_batch_cte','pg_query_params','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
+        foreach (['synth_memory_visible_batch_cte','recallCandidates','},2000);','LIMIT 50','synth_provider_fetch',"'timeout'=>10"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
         $this->assertStringNotContainsString('FROM public.core_memory',$source);
@@ -1122,8 +1122,8 @@ final class RequestStreamingTest extends TestCase
             $this->assertSame('Memory providers require an idle database connection',$error->getMessage());
         }
         $this->assertFalse($called);
-        $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
-        foreach (['attempts<3',"INTERVAL '2 minutes'",'clock_timestamp()','lease_token=$5',"last_error='provider_failed'"] as $guard) {
+        $source = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/WorkerJobDao.php');
+        foreach (['attempts<3',"INTERVAL '2 minutes'",'clock_timestamp()','lease_token=?',"last_error='provider_failed'"] as $guard) {
             $this->assertStringContainsString($guard,$source);
         }
     }
@@ -1147,11 +1147,12 @@ final class RequestStreamingTest extends TestCase
         $source = file_get_contents(dirname(__DIR__,2).'/managers/MemoryManager/Native/synth_memory.php');
         $this->assertStringContainsString('withNativeRequestLock',$source);
         $this->assertStringContainsString('synth_memory_visible_batch_cte($db, $event)',$source);
-        $this->assertStringContainsString('pg_query_params',$source);
-        $this->assertStringNotContainsString('FROM memory_v',$source);
-        $this->assertStringContainsString('memory_next_group',$source);
-        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$source);
-        $this->assertStringContainsString("hashtextextended('synth-memory:'",$source);
+        $this->assertStringContainsString('uncoveredMemoryEvents',$source);
+        $dao = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/MemoryBatchDao.php');
+        $this->assertStringNotContainsString('FROM memory_v',$dao);
+        $this->assertStringContainsString('memory_next_group',$dao);
+        $this->assertStringContainsString('FROM native_memory_evidence_batches b JOIN public.core_memory_batch_source',$dao);
+        $this->assertStringContainsString("hashtextextended('synth-memory:'",$dao);
         $this->assertStringContainsString('}, 2000);',$source);
     }
 
@@ -1163,12 +1164,13 @@ final class RequestStreamingTest extends TestCase
         foreach ([$names,$keywords] as $reader) {
             $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent', $reader);
             $this->assertStringContainsString("synthBuildChatDeliveryStateSql('delivery_state')", $reader);
-            $this->assertStringContainsString('ORDER BY gamets DESC,ts DESC,rowid DESC', $reader);
+            $this->assertStringContainsString('ORDER BY gamets DESC,ts DESC,rowid DESC', file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/HistoryEventDao.php'));
             $this->assertStringContainsString('max(1, min(150, intval($m)))', $reader);
         }
-        $this->assertStringContainsString('speaker_identity_id IN (reader_identity_id,reader_player_id)', $keywords);
+        $history = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/HistoryEventDao.php');
+        $this->assertStringContainsString('speaker_identity_id IN (reader_identity_id,reader_player_id)', $history);
         $this->assertStringContainsString('synth_protocol_history_cte($db, $nativeEvent, $npcname)', $keywords);
-        $this->assertStringContainsString("\$types === '' ? []", $names);
+        $this->assertStringContainsString('if ($types === []) return [];', $history);
     }
 
     public function testNativeHistoryUsesBoundedImmutableAncestryAndLegacyDeliveryCannotMutateIt(): void
