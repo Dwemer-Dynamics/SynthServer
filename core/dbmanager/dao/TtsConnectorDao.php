@@ -26,4 +26,10 @@ final class TtsConnectorDao
     {
         return array_values($this->fresh()->getRepository(AbstractTtsConnector::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** Number of TTS connectors (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_tts_connector');
+    }
 }

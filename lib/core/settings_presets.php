@@ -135,8 +135,7 @@ function synthSettingsPresetEnsureStorage(): void
     if (!$db) {
         throw new RuntimeException('Database connection is unavailable.');
     }
-    $row = $db->fetchOne("SELECT to_regclass('public.core_config_preset') AS relation");
-    if (empty($row['relation'])) {
+    if (!\Synth\Core\DbManager\Dao\ConfigPresetDao::current($db)->tableExists()) {
         // The baseline migration owns this table; a missing relation means the migrations have not run.
         throw new RuntimeException('Could not prepare preset storage.');
     }
@@ -183,31 +182,30 @@ function synthSettingsPresetSave(string $name, array $snapshot, string $overwrit
     }
     try {
         // Serialize writers so the count cap and duplicate-name check remain true under concurrent saves.
-        if ($db->execQuery('LOCK TABLE public.core_config_preset IN SHARE ROW EXCLUSIVE MODE') === false) {
+        $presets = \Synth\Core\DbManager\Dao\ConfigPresetDao::current($db);
+        if (!$presets->lockTable()) {
             throw new RuntimeException('Could not lock preset storage.');
         }
         $data = ['snapshot' => json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)];
         if ($overwriteId !== '') {
             $id = synthSettingsPresetCustomId($overwriteId);
-            $row = $db->fetchOne('SELECT name FROM public.core_config_preset WHERE id = ' . $id);
-            if (!isset($row['name'])) {
+            $presetName = $presets->nameOf($id);
+            if ($presetName === null) {
                 throw new InvalidArgumentException('Preset not found.');
             }
-            $name = $row['name'];
-            $data['updated_at'] = date('Y-m-d H:i:s');
-            if ($db->updateRow('core_config_preset', $data, 'id = ' . $id) === false) {
+            $name = $presetName;
+            if (!$presets->overwrite($id, $data['snapshot'], date('Y-m-d H:i:s'))) {
                 throw new RuntimeException('Could not overwrite the preset.');
             }
         } else {
-            $existing = $db->fetchOne('SELECT count(*) AS count, count(*) FILTER (WHERE lower(name) = lower('
-                . $db->escapeLiteral($name) . ')) AS duplicate FROM public.core_config_preset');
+            $existing = $presets->countsForName($name);
             if ((int)$existing['duplicate'] > 0) {
                 throw new InvalidArgumentException('That name already exists. Select it and use Overwrite.');
             }
             if ((int)$existing['count'] >= 50) {
                 throw new InvalidArgumentException('The 50-preset limit has been reached. Overwrite an existing preset.');
             }
-            $id = $db->insertReturningId('core_config_preset', ['name' => $name] + $data);
+            $id = $presets->insert($name, $data['snapshot']);
             if ($id <= 0) {
                 throw new RuntimeException('Could not save the preset.');
             }
@@ -233,8 +231,8 @@ function synthSettingsPresetApply(string $presetId): array
     if ($preset === null) {
         $id = synthSettingsPresetCustomId($presetId);
         synthSettingsPresetEnsureStorage();
-        $row = $db->fetchOne('SELECT name, snapshot FROM public.core_config_preset WHERE id = ' . $id);
-        if (!isset($row['name'])) {
+        $row = \Synth\Core\DbManager\Dao\ConfigPresetDao::current($db)->nameAndSnapshot($id);
+        if ($row === null) {
             throw new InvalidArgumentException('Preset not found.');
         }
         $preset = ['id' => $presetId, 'name' => $row['name'],

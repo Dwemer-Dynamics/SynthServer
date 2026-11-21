@@ -11,6 +11,7 @@ use Synth\Core\Entities\Base\AbstractNpc;
 /** Finds rows of core_npc. */
 final class NpcDao
 {
+    use FailSoftQueries;
     use UsesEntityManager;
 
     /** One row by its primary key, or null. */
@@ -75,5 +76,45 @@ final class NpcDao
             }
         }
         throw new \RuntimeException('The scoped character could not be created.');
+    }
+
+    /** Named NPC rows with the columns the memory-bank tools read, by name. @return list<array<string, mixed>> */
+    public function namedProfiles(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT id, npc_name, core, npc_static_bio, personality, goals, speechstyle, extended_data FROM core_npc WHERE npc_name IS NOT NULL ORDER BY npc_name ASC');
+    }
+
+    /** Number of characters (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_npc');
+    }
+
+    /** Gender and race of the character with this reference id, or null. @return array<string, mixed>|null */
+    public function genderAndRaceByRefid(string $refid): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT gender, race FROM core_npc WHERE refid = ?', [$refid]);
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The rechat responder candidates among the captured actors of a scene, in capture order, with their NPC row and profile
+     * metadata. The NPC and profile rows are locked FOR SHARE, as the legacy read did. Null when the read fails.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    public function rechatCandidates(string $capturedActorsJson, string $sessionId): ?array
+    {
+        return $this->rowsOrNull("SELECT a.id AS actor_identity_id,n.id AS npc_id,n.profile_id,
+            to_jsonb(n) AS npc,captured.actor AS identity,p.metadata AS profile_metadata
+        FROM jsonb_array_elements(:p1::jsonb) WITH ORDINALITY captured(actor,ordinal)
+        JOIN public.core_actor_identity a ON a.game='fo4' AND upper(a.full_form_id)=upper(captured.actor->>'form_id')
+            AND lower(a.origin_plugin)=lower(captured.actor->>'origin_plugin')
+            AND a.playthrough_id=captured.actor->>'playthrough_id'
+        JOIN public.core_runtime_session s ON s.session_id=:p2 AND s.playthrough_id=a.playthrough_id
+        JOIN public.core_npc n ON n.actor_identity_id=a.id
+        JOIN public.core_profiles p ON p.id=n.profile_id
+        ORDER BY captured.ordinal FOR SHARE OF n,p", [$capturedActorsJson, $sessionId]);
     }
 }

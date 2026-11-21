@@ -25,6 +25,21 @@ final class LogDao
         return array_values($this->fresh()->getRepository(AbstractLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
 
+    /** Appends one core_log row (localts, prompt, response, url); false when the statement fails. */
+    public function insert(int $localts, string $prompt, string $response, string $url): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_log (localts, prompt, response, url) VALUES (?, ?, ?, ?)',
+                [$localts, $prompt, $response, $url]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
     /** Number of rows. */
     public function countAll(): int
     {
