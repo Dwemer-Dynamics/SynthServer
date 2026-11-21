@@ -470,4 +470,62 @@ class RequestExecutionDao
             ['p1' => $sessionId, 'p2' => $requestId, 'p3' => $canonicalEvent, 'p4' => $eventSha256]
         ) !== false;
     }
+
+    /**
+     * The fresh-owner proof of an ambient NPC turn: the request's own claimed execution, its canonical protocol event, the active
+     * session turn and the context it was admitted against, plus whether a recent ambient trigger of the same session is still
+     * cooling down. Null when the owner is not (or no longer) fresh, false when the statement failed.
+     *
+     * @return array<string, mixed>|null|false
+     */
+    public function ambientFreshOwner(string $sessionId, string $requestId, int $generation, string $turnId, int $contextSequence, string $runtimeVariant, string $canonicalJson, string $sha256): array|null|false
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT c.context_payload, s.playthrough_id,
+                    EXISTS(SELECT 1 FROM public.core_request_execution prior
+                        JOIN public.core_protocol_event pp USING(session_id,request_id)
+                        WHERE prior.session_id=e.session_id AND prior.request_id<>e.request_id
+                            AND prior.claimed_at BETWEEN e.claimed_at-INTERVAL '60 seconds' AND e.claimed_at
+                            AND prior.event_type='trigger' AND pp.event_sha256=prior.request_sha256
+                            AND pp.canonical_event#>>'{payload,kind}'='bored'
+                            AND pp.canonical_event->'capabilities' @> '[\"dialogue.ambient_npc\"]'::jsonb) AS cooling_down
+                FROM public.core_request_execution e JOIN public.core_protocol_event p USING(session_id,request_id)
+                JOIN public.core_runtime_session s ON s.session_id=e.session_id AND s.state='active'
+                    AND s.active_generation=e.generation AND s.active_turn_id=e.turn_id AND s.active_turn_sequence=:sequence
+                JOIN public.core_runtime_context c ON c.session_id=e.session_id AND c.generation=e.generation
+                    AND c.snapshot_sequence=:sequence AND c.playthrough_id=s.playthrough_id
+                WHERE e.session_id=:session AND e.request_id=:request AND e.state IN ('claimed','streaming')
+                    AND e.generation=:generation AND e.turn_id=:turn AND s.runtime_variant=:variant
+                    AND p.canonical_event=CAST(:canonical AS jsonb) AND p.event_sha256=:sha AND e.request_sha256=p.event_sha256
+                    AND p.event_type=e.event_type AND p.generation=e.generation AND p.turn_id=e.turn_id
+                    AND c.received_at BETWEEN e.claimed_at-INTERVAL '10 seconds' AND e.claimed_at",
+                ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'turn' => $turnId, 'sequence' => $contextSequence,
+                 'variant' => $runtimeVariant, 'canonical' => $canonicalJson, 'sha' => $sha256]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The stored response body of a completed request, at most 2 MiB: its bytea as the driver returns it (hex text). Null when
+     * the request is not complete, the body is larger, or the statement failed.
+     */
+    public function completedResponseBody(string $sessionId, string $requestId): ?string
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT response_body FROM public.core_request_execution
+                 WHERE session_id = :session AND request_id = :request AND state = 'complete' AND octet_length(response_body) <= 2097152",
+                ['session' => $sessionId, 'request' => $requestId]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false || $row['response_body'] === null ? null : (string) $row['response_body'];
+    }
 }

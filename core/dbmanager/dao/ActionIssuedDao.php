@@ -24,4 +24,17 @@ final class ActionIssuedDao
     {
         return array_values($this->fresh()->getRepository(AbstractActionIssued::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** The newest action issued to this actor (every column), or false when there is none or the read failed. @return array<string, mixed>|false */
+    public function lastForActor(string $actor): array|false
+    {
+        try {
+            return $this->connection()->fetchAssociative(
+                'SELECT * FROM public.core_action_issued WHERE actorname = :actor ORDER BY gamets DESC, ts DESC LIMIT 1 OFFSET 0',
+                ['actor' => $actor]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+    }
 }

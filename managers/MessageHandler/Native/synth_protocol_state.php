@@ -222,42 +222,27 @@ final class SYNTHClaimedRequest
 
 function synth_protocol_actor_identity_id($db, array $identity): int
 {
-    $game = $db->escapeLiteral('fo4');
     // PostgreSQL's canonical identity constraint deliberately keeps the 0x
     // prefix lowercase while permitting either case for the eight hex digits.
     // strtoupper() changed the prefix to 0X and made every first-seen actor
     // context fail before dialogue could begin.
-    $formId = $db->escapeLiteral('0x' . synthNormalizeRuntimeFormId($identity['form_id']));
-    $originPlugin = $db->escapeLiteral($identity['origin_plugin']);
-    $playthroughId = $db->escapeLiteral($identity['playthrough_id']);
+    $formId = '0x' . synthNormalizeRuntimeFormId($identity['form_id']);
+    $originPlugin = strval($identity['origin_plugin']);
+    $playthroughId = strval($identity['playthrough_id']);
     $displayName = trim(strval($identity['display_name'] ?? ''));
-    $displayNameSql = $displayName === '' ? 'NULL' : $db->escapeLiteral($displayName);
-    $row = $db->fetchOne(
-        "SELECT id FROM public.core_actor_identity
-          WHERE game={$game}
-            AND upper(full_form_id)=upper({$formId})
-            AND lower(origin_plugin)=lower({$originPlugin})
-            AND playthrough_id={$playthroughId}
-          FOR UPDATE"
-    );
-    if ($row) {
-        $db->execQuery(
-            "UPDATE public.core_actor_identity
-                SET last_seen_at=NOW(), display_name=COALESCE({$displayNameSql}, display_name)
-              WHERE id=" . intval($row['id'])
-        );
-        return intval($row['id']);
+    $displayNameOrNull = $displayName === '' ? null : $displayName;
+    $actors = \Synth\Core\DbManager\Dao\ActorIdentityDao::current($db);
+    $existing = $actors->lockFo4Identity($formId, $originPlugin, $playthroughId);
+    if ($existing !== null) {
+        $actors->touch($existing, $displayNameOrNull);
+        return $existing;
     }
 
-    $inserted = $db->fetchOne(
-        "INSERT INTO public.core_actor_identity (game, full_form_id, origin_plugin, playthrough_id, display_name)
-         VALUES ({$game}, {$formId}, {$originPlugin}, {$playthroughId}, {$displayNameSql})
-         RETURNING id"
-    );
-    if (!$inserted || intval($inserted['id'] ?? 0) < 1) {
+    $inserted = $actors->insertFo4($formId, $originPlugin, $playthroughId, $displayNameOrNull);
+    if ($inserted === null || $inserted < 1) {
         throw new RuntimeException('Unable to persist actor identity.');
     }
-    return intval($inserted['id']);
+    return $inserted;
 }
 
 // Resolve only an explicitly saved observation. This does not authorize history rewind or deletion.
@@ -268,15 +253,8 @@ function synth_protocol_loaded_context($db, array $event): ?array
         || !in_array('context.saved_anchor', $event['capabilities'] ?? [], true)
         || ($anchor['playthrough_id'] ?? '') !== ($event['payload']['playthrough_id'] ?? '')) return null;
     // The ingress validator owns shape/range validation before this database helper is called.
-    $session = $db->escapeLiteral($anchor['session_id']);
-    $playthrough = $db->escapeLiteral($anchor['playthrough_id']);
-    $variant = $db->escapeLiteral($event['runtime_variant']);
-    $generation = intval($anchor['generation']);
-    $sequence = intval($anchor['context_sequence']);
-    return $db->fetchOne("SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
-        FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
-        WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}
-            AND c.playthrough_id={$playthrough} AND r.runtime_variant={$variant}") ?: null;
+    return \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->loadedContext(strval($anchor['session_id']), strval($anchor['playthrough_id']),
+        intval($anchor['generation']), intval($anchor['context_sequence']), strval($event['runtime_variant']));
 }
 
 // A bounded ancestry relation over copied insertion evidence; never reads mutable/global eventlog rows.
@@ -1300,20 +1278,7 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
 function synth_protocol_persist_activation($db, array $event, string $sessionId): void
 {
     $actorId = synth_protocol_actor_identity_id($db, $event['payload']['actor']);
-    $session = $db->escapeLiteral($sessionId);
-    $generation = intval($event['generation']);
-    $source = $db->escapeLiteral($event['payload']['source']);
-    $db->execQuery(
-        "INSERT INTO public.core_actor_activation
-            (session_id, generation, actor_identity_id, source, state)
-         VALUES ({$session}, {$generation}, {$actorId}, {$source}, 'active')
-         ON CONFLICT (session_id, generation, actor_identity_id) DO UPDATE SET
-            source = CASE
-                WHEN public.core_actor_activation.source='manual' THEN 'manual'
-                ELSE EXCLUDED.source
-            END,
-            state='active', last_seen_at=NOW()"
-    );
+    \Synth\Core\DbManager\Dao\ActorActivationDao::current($db)->upsertActive($sessionId, intval($event['generation']), $actorId, strval($event['payload']['source']));
 }
 
 function synth_protocol_persist_action_result($db, array $event, string $sessionId): void

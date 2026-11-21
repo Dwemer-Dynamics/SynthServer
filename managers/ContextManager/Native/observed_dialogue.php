@@ -88,15 +88,12 @@ function synthPersistObservedDialogue($db,array $event): void
     $observed=synthValidateObservedDialogue($payload['observed_dialogue'],$payload);
     $input=$observed;unset($input['witnesses']['age_ms']);
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id'],$observed['observation_id']];
-    $result=$db->execQuery("SELECT h.event_payload->'synth_witness_observation'->'input' AS input
-        FROM public.core_history_event h JOIN public.core_runtime_session s ON s.session_id=h.session_id
-        WHERE h.session_id=$1 AND h.generation=$2 AND h.playthrough_id=$3
-          AND h.event_payload->'synth_witness_observation'->>'observation_id'=$4
-          AND s.active_generation=h.generation AND s.state='active' LIMIT 1",$owner);
-    if ($result===false) throw new RuntimeException('observed_dialogue_read_failed');
-    if ($row=pg_fetch_assoc($result)) {
+    $history=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db);
+    $previousInput=$history->observedDialogueInput(strval($owner[0]),intval($owner[1]),strval($owner[2]),strval($owner[3]));
+    if ($previousInput===false) throw new RuntimeException('observed_dialogue_read_failed');
+    if ($previousInput!==null) {
         // JSONB reorders object keys; compare canonical keys without coercing scalars.
-        if (synth_protocol_sort_keys(json_decode($row['input'],true,flags:JSON_THROW_ON_ERROR))!==synth_protocol_sort_keys($input))
+        if (synth_protocol_sort_keys(json_decode($previousInput,true,flags:JSON_THROW_ON_ERROR))!==synth_protocol_sort_keys($input))
             throw new DomainException('observed_dialogue_conflict');
         return; // The original row keeps its first-observation scene; the retry's later context grants nothing.
     }
@@ -112,23 +109,8 @@ function synthPersistObservedDialogue($db,array $event): void
     $json=fn($value)=>json_encode($value,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
     $speakerName=str_replace('|',' ',trim($observed['speaker']['display_name']));
     // `people` stays empty: legacy name readers must not turn this row into a name-matched memory.
-    $result=$db->execQuery("WITH captured AS (
-        SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
-          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
-         WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
-           AND s.active_generation=c.generation AND s.state='active'
-    ), publication AS (
-        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-            synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-        SELECT 'backgroundchat',$6,playthrough_id,$7,$8,$8,'',$9,$10,'received',
-            session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
-    ) INSERT INTO public.core_history_event
-        (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-        SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,
-            to_jsonb(publication)||jsonb_build_object('synth_witness_observation',$10::jsonb,'synth_dialogue_hearer_ids',$11::jsonb)
-          FROM publication RETURNING id",
-        [$event['session_id'],$event['generation'],$payload['snapshot_sequence'],$payload['playthrough_id'],$event['request_id'],
-         $speakerName.': '.$observed['text'],$observed['witnesses']['game_time_ticks'],time(),
-         strval($payload['world']['location'] ?? ''),$json($binding),$json(array_values(array_merge([$speakerId],$witnessIds)))]);
-    if ($result===false || pg_fetch_assoc($result)===false) throw new RuntimeException('observed_dialogue_insert_failed');
+    if (!$history->publishObservedDialogue(strval($event['session_id']),intval($event['generation']),intval($payload['snapshot_sequence']),strval($payload['playthrough_id']),
+        strval($event['request_id']),$speakerName.': '.$observed['text'],intval($observed['witnesses']['game_time_ticks']),time(),
+        strval($payload['world']['location'] ?? ''),$json($binding),$json(array_values(array_merge([$speakerId],$witnessIds)))))
+        throw new RuntimeException('observed_dialogue_insert_failed');
 }

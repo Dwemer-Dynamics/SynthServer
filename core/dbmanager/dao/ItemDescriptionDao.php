@@ -47,4 +47,19 @@ final class ItemDescriptionDao
 
         return $this->connection()->fetchAllAssociative($sql.' ORDER BY name ASC', $params);
     }
+
+    /** The description of the combined (base and custom) item whose name equals this one, ignoring case, or null. */
+    public function combinedDescriptionByName(string $name): ?string
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER(:name) LIMIT 1',
+                ['name' => $name]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false || $row['description'] === null ? null : (string) $row['description'];
+    }
 }

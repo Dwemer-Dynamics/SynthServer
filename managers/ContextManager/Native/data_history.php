@@ -54,9 +54,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
 
         $db = \Synth\Bootstrap::db();
 
-        $actorcn=$db->escape($actor);
-        $results = $db->fetchAll("SELECT speaker,speech,listener,gamets,localts,'speech',gamets - LAG(gamets) OVER (ORDER BY gamets ASC) AS gamets_diff,location,ts
-        FROM core_speech where companions like '%$actorcn%' order by ts desc LIMIT 1000 OFFSET 0");
+        $results = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->expandedHistoryForActor((string)$actor);
          $rawData=[];
         foreach ($results as $row) {
             $rawData[] = $row;
@@ -111,7 +109,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
         }
 
 
-        $results = $db->fetchAll("SELECT gamets,data,ts,type FROM core_context_event where type in ('infoaction','itemfound','itemtransfer') order by gamets desc LIMIT 10 OFFSET 0");
+        $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentItemAndActionEvents();
         $rawData=[];
         foreach ($results as $row) {
             $eventData = $row["data"];
@@ -124,7 +122,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
             $lastDialogFull[$row["ts"]]= array('role' => 'user', 'content' => "The Narrator: {$eventData}");
         }
 
-        $results = $db->fetchAll("SELECT gamets,party,ts FROM core_context_event where type='world_context' and COALESCE(party, '') <> '' order by gamets desc LIMIT 10 OFFSET 0");
+        $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestPartyRows('world_context', 10);
         $rawData=[];
         foreach ($results as $row) {
             $payload = json_decode($row["party"] ?? "", true);
@@ -152,11 +150,7 @@ function DataLastDataExpandedForNPC($actor, $lastNelements = -10,$sqlfilter="") 
 
         ksort($lastDialogFull);
 
-        $results = $db->fetchAll("SELECT gamets,data,ts
-            FROM core_context_event
-            WHERE type in ('inputtext','inputtext_s','narrator_inputtext')
-              AND people like '%$actorcn%'
-            ORDER BY gamets desc, ts desc");
+        $results = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->inputEventsForActor((string)$actor);
         $rawData=[];
         foreach ($results as $row) {
             $rawData[] = $row;
@@ -1347,13 +1341,7 @@ function DataSpeechJournal($topic,$limit=50)
     $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = [];
-    $tn=$db->escape($topic);
-    $results = $db->fetchAll("SElECT  speaker,speech,location,listener,topic as quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM core_speech
-     where (speaker like '%$tn%' or  listener like '%$tn%' or location like '%$tn%' or
-      companions like '%|$tn|%' or  companions like '%$tn%' OR companions LIKE '%|$tn (busy)|%'
-      OR companions LIKE '%|$tn (hostile)|%' OR companions LIKE '%|$tn (restrained)|%' )
-      and listener<>'unknown'
-      order by rowid desc");
+    $results = \Synth\Core\DbManager\Dao\SpeechDao::current($db)->linesAboutTopic((string)$topic);
     if (!$results) {
         return json_encode([]);
     }

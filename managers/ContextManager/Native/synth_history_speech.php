@@ -58,31 +58,21 @@ function synth_history_speech_routes($db, array $event, string $actor, array $ro
             if (!array_key_exists($key,$responses)) {
                 if (count($responses)>=32 || $bytes+intval($source['response_bytes'])>8*1024*1024) continue;
                 $bytes+=intval($source['response_bytes']); $responses[$key]=[];
-                $bodyResult=@pg_query_params($connection,"SELECT response_body FROM public.core_request_execution
-                    WHERE session_id=$1 AND request_id=$2 AND state='complete' AND octet_length(response_body)<=2097152",
-                    [$source['session_id'],$source['request_id']]);
-                if (!$bodyResult || !($body=pg_fetch_assoc($bodyResult))) continue;
-                $lines=synth_rechat_completed_lines(synth_protocol_decode_bytea($body['response_body']),$request);
+                $bodyBytes=\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->completedResponseBody(strval($source['session_id']),strval($source['request_id']));
+                if ($bodyBytes===null) continue;
+                $lines=synth_rechat_completed_lines(synth_protocol_decode_bytea($bodyBytes),$request);
                 if ($lines===null) continue;
                 $selection=null;
                 if (synth_protocol_owns_rechat($request)) {
-                    $selected=@pg_query_params($connection,"SELECT selected.role,selected.identity
-                        FROM public.core_rechat_selection selected
-                        JOIN public.core_rechat_continuation continuation USING(session_id,request_id)
-                        JOIN public.core_rechat_chain chain ON chain.id=continuation.chain_id AND chain.session_id=continuation.session_id
-                        WHERE selected.session_id=$1 AND selected.request_id=$2 AND selected.prepared_at IS NOT NULL
-                            AND selected.role IN ('npc','narrator') AND continuation.status='reserved'
-                            AND chain.generation=$3 AND chain.context_sequence=$4 AND chain.turn_id=$5 AND chain.runtime_variant=$6",
-                        [$request['session_id'],$request['request_id'],$request['generation'],$request['context_sequence'],$request['turn_id'],$request['runtime_variant']]);
-                    if (!$selected || !($selection=pg_fetch_assoc($selected))) continue;
+                    $selection=\Synth\Core\DbManager\Dao\RechatSelectionDao::current($db)->preparedReservedSelection(strval($request['session_id']),strval($request['request_id']),
+                        intval($request['generation']),intval($request['context_sequence']),strval($request['turn_id']),strval($request['runtime_variant']));
+                    if ($selection===null) continue;
                     $selection['identity']=$selection['identity']===null ? null : json_decode($selection['identity'],true,flags:JSON_THROW_ON_ERROR);
                 }
-                $routeResult=@pg_query_params($connection,'SELECT * FROM public.core_dialogue_route
-                    WHERE session_id=$1 AND request_id=$2 AND generation=$3 AND context_sequence=$4 AND utterance_id IS NOT NULL',
-                    [$source['session_id'],$source['request_id'],$source['generation'],$source['context_sequence']]);
-                if (!$routeResult) throw new RuntimeException('history_speech_route_query_failed');
+                $routeRows=\Synth\Core\DbManager\Dao\DialogueRouteDao::current($db)->utteranceRoutes(strval($source['session_id']),strval($source['request_id']),intval($source['generation']),intval($source['context_sequence']));
+                if ($routeRows===null) throw new RuntimeException('history_speech_route_query_failed');
                 $routes=[];
-                foreach (pg_fetch_all($routeResult) as $route) $routes[$route['line_id']]=$route;
+                foreach ($routeRows as $route) $routes[$route['line_id']]=$route;
                 foreach ($lines as $entry) {
                     $line=$entry['line']; $route=$routes[$line['line_id']] ?? null;
                     if ($line['type']!=='dialogue' || !$route || !hash_equals($route['line_sha256'],hash('sha256',$entry['wire']))) continue;

@@ -29,6 +29,19 @@ class ActorActivationDao
         );
     }
 
+    /** Activates an actor for this generation; a manual source is never overwritten by another one. */
+    public function upsertActive(string $sessionId, int $generation, int $actorIdentityId, string $source): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_actor_activation (session_id, generation, actor_identity_id, source, state)
+             VALUES (?, ?, ?, ?, 'active')
+             ON CONFLICT (session_id, generation, actor_identity_id) DO UPDATE SET
+                source = CASE WHEN public.core_actor_activation.source='manual' THEN 'manual' ELSE EXCLUDED.source END,
+                state='active', last_seen_at=NOW()",
+            [$sessionId, $generation, $actorIdentityId, $source]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractActorActivation> */
     public function findAll(int $limit = 1000): array
     {

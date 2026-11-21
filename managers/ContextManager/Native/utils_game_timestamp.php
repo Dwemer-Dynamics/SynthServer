@@ -690,7 +690,7 @@ function DataLastKnownGameTS() {
 // retrieve gamets from core_context_event
     $db = \Synth\Bootstrap::db();
 
-    $lastLoc=$db->fetchAll("SELECT MAX(gamets) AS m_gts FROM core_context_event WHERE (gamets > 0) LIMIT 1");
+    $lastLoc=[['m_gts' => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->maxGameTimestamp()]];
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DataLastKnownGameTS: NO record found");
     } else { // ok
@@ -712,7 +712,7 @@ function DataLastKnownTS() {
 // retrieve gamets from core_context_event
     $db = \Synth\Bootstrap::db();
 
-    $lastLoc=$db->fetchAll("SELECT MAX(ts) AS m_gts FROM core_context_event WHERE (gamets > 0)");
+    $lastLoc=[['m_gts' => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->maxTimestamp()]];
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         Logger::warn("DataLastKnownTS: NO record found");
     } else { // ok
@@ -736,16 +736,8 @@ function DataLastKnownGameTS_record() {
     $arr_result = [];
     $arr_result["exitcode"] = 0;
 
-    $lastLoc=$db->fetchAll("SELECT gamets, ".
-        "convert_gamets2fallout_date(gamets) as fallout_date, ".
-        "convert_gamets2fallout_long_date(gamets) as fallout_long_date, ".
-        "convert_gamets2fallout_long_date2(gamets) as fallout_long_date2, ".
-        "convert_gamets2days(gamets) as fallout_days, ".
-        "convert_gamets2hours(gamets) as fallout_hours, ".
-        "convert_gamets2gregorian_date(gamets) as fallout_gregorian_date, ".
-        "((gamets * 0.0000001) - floor(gamets * 0.0000001)) as fallout_time, ".
-        "rowid ".
-        " FROM core_context_event WHERE (gamets > 0) ORDER BY gamets desc, ts desc LIMIT 1");
+    $latestDate=\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestGameDateRow();
+    $lastLoc=$latestDate === null ? [] : [$latestDate];
     if (!is_array($lastLoc) || sizeof($lastLoc)==0) {
         $arr_result["exitcode"] = -1;
         Logger::warn("DataLastKnownGameTS_record: NO match found");

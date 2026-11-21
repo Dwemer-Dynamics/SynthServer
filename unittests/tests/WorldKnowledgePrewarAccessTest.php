@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../../lib/worldknowledge_runtime.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 require_once __DIR__ . '/../../lib/worldknowledge_catalog.php';
 require_once __DIR__ . '/../../lib/fallout_content_pack.php';
 
@@ -14,6 +15,7 @@ final class WorldKnowledgePrewarAccessTest extends TestCase
 
     protected function setUp(): void
     {
+        DaoTestDoubles::worldContextFromGlobalDb();
         foreach (['SYNTH_CORE_CURRENT_NPC_DATA', 'WORLDKNOWLEDGE', 'SYNTH_NAME', 'db',
             'SYNTH_REQUEST_EVENT', 'SYNTH_PROTOCOL_REQUEST_CLAIMED', 'CACHE_LAST_KNOWN_LOCATION',
             'CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS', 'CACHE_LAST_KNOWN_LOCATION_HUMAN'] as $key) {
@@ -24,6 +26,7 @@ final class WorldKnowledgePrewarAccessTest extends TestCase
 
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         foreach ($this->savedGlobals as $key => [$exists, $value]) {
             if ($exists) $GLOBALS[$key] = $value;
             else unset($GLOBALS[$key]);
