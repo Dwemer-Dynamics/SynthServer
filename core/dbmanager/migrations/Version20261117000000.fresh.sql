@@ -1104,11 +1104,25 @@ CREATE TABLE public.core_location_legacy (
     coords point,
     refs text,
     cleared boolean,
-    updated_at timestamp without time zone
+    updated_at timestamp without time zone,
+    rowid bigint NOT NULL
 )
 WITH (autovacuum_enabled='on', toast.autovacuum_enabled='on');
 -- end-statement
 COMMENT ON TABLE public.core_location_legacy IS 'locations sent from plugin';
+-- end-statement
+CREATE SEQUENCE public.core_location_legacy_rowid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+-- end-statement
+ALTER SEQUENCE public.core_location_legacy_rowid_seq OWNED BY public.core_location_legacy.rowid;
+-- end-statement
+ALTER TABLE ONLY public.core_location_legacy ALTER COLUMN rowid SET DEFAULT nextval('public.core_location_legacy_rowid_seq'::regclass);
+-- end-statement
+SELECT pg_catalog.setval('public.core_location_legacy_rowid_seq', 1, false);
 -- end-statement
 CREATE TABLE public.core_log (
     localts bigint NOT NULL,
@@ -4343,6 +4357,39 @@ ALTER TABLE ONLY public.core_profiles
 -- end-statement
 ALTER TABLE ONLY public.core_prompt
     ADD CONSTRAINT prompts_pkey PRIMARY KEY (prompt_key);
+-- end-statement
+ALTER TABLE ONLY public.core_action_issued
+    ADD CONSTRAINT core_action_issued_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_audit_request
+    ADD CONSTRAINT core_audit_request_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_context_event
+    ADD CONSTRAINT core_context_event_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_director_note
+    ADD CONSTRAINT core_director_note_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_log
+    ADD CONSTRAINT core_log_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_memory
+    ADD CONSTRAINT core_memory_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_memory_log
+    ADD CONSTRAINT core_memory_log_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_quest
+    ADD CONSTRAINT core_quest_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_response_log
+    ADD CONSTRAINT core_response_log_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_speech
+    ADD CONSTRAINT core_speech_pkey PRIMARY KEY (rowid);
+-- end-statement
+ALTER TABLE ONLY public.core_location_legacy
+    ADD CONSTRAINT core_location_legacy_pkey PRIMARY KEY (rowid);
 -- end-statement
 ALTER TABLE ONLY public.core_relationship_eval_queue
     ADD CONSTRAINT relationship_eval_queue_npc_id_key UNIQUE (npc_id);
