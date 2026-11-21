@@ -20,25 +20,12 @@
     synth_middleterm_dispatch(\Synth\Bootstrap::db());
 
     //$results = \Synth\Bootstrap::config("db")->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null order by gamets_truncated desc limit 1"); //0.8ms
-    $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null"); // 0.5ms, faster
-    $lastMemory = intval($results[0]["gamets_truncated"]);
+    $lastMemory = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->maxSummaryGamets();
 
     //$results = \Synth\Bootstrap::config("db")->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");
-    $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets) as gamets from core_context_event"); // faster
-    $maxRow = intval($results[0]["gamets"]);
+    $maxRow = intval(\Synth\Core\DbManager\Dao\ContextEventDao::current(\Synth\Bootstrap::db())->maxGamets());
 
-    $allEnabledMtNpc=\Synth\Bootstrap::db()->fetchAll("
-        SELECT n.*
-        FROM core_npc n
-        LEFT JOIN core_profiles p ON p.id = n.profile_id
-        WHERE n.actor_identity_id IS NULL AND (
-            lower(COALESCE(n.extended_data->>'middle_term_enabled', '')) IN ('1', 'true', 't', 'yes', 'on')
-            OR (
-                NOT (COALESCE(n.extended_data, '{}'::jsonb) ? 'middle_term_enabled')
-                AND lower(COALESCE(p.metadata->>'MIDDLE_TERM_MEMORY_ENABLED', '')) IN ('1', 'true', 't', 'yes', 'on')
-            )
-        )
-    ");
+    $allEnabledMtNpc=\Synth\Core\DbManager\Dao\NpcDao::current(\Synth\Bootstrap::db())->legacyMiddletermNpcs();
 
     foreach ($allEnabledMtNpc as $npc) {
         $mwdata=json_decode($npc["extended_data"]);
@@ -58,10 +45,7 @@
     // range here; Fallout 4 can create large game-time jumps that otherwise cause this
     // five-second task to invoke an empty compaction forever.
     $settledCutoff = $maxRow - intval(1 / 0.0000024);
-    $eligibleResult = \Synth\Bootstrap::db()->fetchOne(
-        "SELECT COUNT(*) AS n FROM memory_v WHERE gamets > {$lastMemory} AND gamets < {$settledCutoff}"
-    );
-    $eligibleEvents = intval($eligibleResult["n"] ?? 0);
+    $eligibleEvents = \Synth\Core\DbManager\Dao\MemoryDao::current(\Synth\Bootstrap::db())->countEventsBetween($lastMemory, $settledCutoff);
 
     if ($autoCreateEnabled && ($maxRow - $lastMemory) > $pfi && $eligibleEvents >= $minimumEvents) {
         $memoryUtility = escapeshellarg(\Synth\Bootstrap::enginePath() . "/debug/util_memory_subsystem.php");

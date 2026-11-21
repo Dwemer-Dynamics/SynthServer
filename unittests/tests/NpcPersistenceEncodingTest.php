@@ -83,10 +83,14 @@ final class NpcPersistenceEncodingTest extends DatabaseTestCase
                 if (str_contains($query,"job_type='middleterm'")) return [];
                 return $this->inner->fetchOne($query);
             }
-            public function execQuery($query): mixed {
+            public function execQuery($query,array $params=[]): mixed {
                 if (str_contains($query,'WITH candidate AS (')) return $this->inner->execQuery('SELECT 1 WHERE FALSE');
                 if (str_contains($query,'UPDATE public.core_worker_job')) return true;
-                return $this->inner->execQuery($query);
+                if (str_contains($query,'SELECT n.*') && str_contains($query,'middle_term_enabled')) {
+                    $this->selected=pg_fetch_all($this->inner->execQuery($query,$params)) ?: [];
+                    return $this->inner->execQuery('SELECT 1 WHERE FALSE'); // Exercise real selection SQL without generating any provider work.
+                }
+                return $this->inner->execQuery($query,$params);
             }
             public function __call(string $name,array $args): mixed {return $this->inner->$name(...$args);}
             public function fetchAll($query): array {

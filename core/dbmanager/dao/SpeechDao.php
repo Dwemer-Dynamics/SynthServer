@@ -91,6 +91,17 @@ final class SpeechDao
         return $this->connection()->fetchAllAssociative("SELECT speaker,location,companions,speech from core_speech order by gamets desc limit {$limit} offset 0");
     }
 
+    /** The earliest line with this companion present (gamets, fallout_date, ts, localts), or null. @return array<string, mixed>|null */
+    public function firstLineWithCompanion(string $name): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT gamets,convert_gamets2fallout_date(gamets) as fallout_date,ts,localts FROM core_speech where companions ilike '%'||?||'%' order by rowid asc limit 1 offset 0",
+            [$name]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractSpeech> */
     public function findAll(int $limit = 1000): array
     {
@@ -178,5 +189,86 @@ final class SpeechDao
         }
 
         return true;
+    }
+
+    /**
+     * The 80 newest lines this speaker (compared case-insensitively) said after the cutoff local time: rowid, companions,
+     * listener, speaker, speech, topic, localts. A failed statement reads as no rows.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function recentBySpeaker(string $speaker, int $cutoff): array
+    {
+        return $this->rows(
+            'SELECT rowid, companions, listener, speaker, speech, topic, localts FROM core_speech
+             WHERE LOWER(speaker) = LOWER(:speaker) AND localts > :cutoff ORDER BY rowid DESC LIMIT 80',
+            ['speaker' => $speaker, 'cutoff' => $cutoff]
+        );
+    }
+
+    /**
+     * The 20 newest spatial lines after the cutoff local time in which the participant spoke, was addressed, or is listed among
+     * the companions (matched as the pipe-delimited token, a LIKE match): rowid, companions, listener, speaker, topic.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function recentSpatialForParticipant(string $participant, string $pipeToken, int $cutoff): array
+    {
+        return $this->rows(
+            "SELECT rowid, companions, listener, speaker, topic FROM core_speech
+             WHERE localts > :cutoff AND topic LIKE '%spatial:%'
+               AND (LOWER(speaker) = LOWER(:participant) OR LOWER(listener) = LOWER(:participant)
+                    OR LOWER(companions) LIKE '%' || :token || '%')
+             ORDER BY rowid DESC LIMIT 20",
+            ['cutoff' => $cutoff, 'participant' => $participant, 'token' => $pipeToken]
+        );
+    }
+
+    /**
+     * The 1000 newest lines whose companions mention this actor (a LIKE match), with the game-time gap to the previous line:
+     * speaker, speech, listener, gamets, localts, 'speech', gamets_diff, location, ts.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function expandedHistoryForActor(string $actor): array
+    {
+        return $this->rows(
+            "SELECT speaker, speech, listener, gamets, localts, 'speech', gamets - LAG(gamets) OVER (ORDER BY gamets ASC) AS gamets_diff, location, ts
+             FROM core_speech WHERE companions LIKE '%' || :actor || '%' ORDER BY ts DESC LIMIT 1000 OFFSET 0",
+            ['actor' => $actor]
+        );
+    }
+
+    /**
+     * Every known line that involves this topic (as speaker, listener, location or companion, LIKE matches), newest first, with
+     * the game date: speaker, speech, location, listener, quest, fallout_date, gamets.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function linesAboutTopic(string $topic): array
+    {
+        return $this->rows(
+            "SELECT speaker, speech, location, listener, topic AS quest, convert_gamets2fallout_date(gamets) AS fallout_date, gamets FROM core_speech
+             WHERE (speaker LIKE '%' || :topic || '%' OR listener LIKE '%' || :topic || '%' OR location LIKE '%' || :topic || '%'
+                OR companions LIKE '%|' || :topic || '|%' OR companions LIKE '%' || :topic || '%' OR companions LIKE '%|' || :topic || ' (busy)|%'
+                OR companions LIKE '%|' || :topic || ' (hostile)|%' OR companions LIKE '%|' || :topic || ' (restrained)|%')
+               AND listener <> 'unknown' ORDER BY rowid DESC",
+            ['topic' => $topic]
+        );
+    }
+
+    /**
+     * Reads as the legacy fetchAll did: a failed statement reads as no rows.
+     *
+     * @param array<string, mixed> $parameters
+     * @return list<array<string, mixed>>
+     */
+    private function rows(string $sql, array $parameters): array
+    {
+        try {
+            return $this->connection()->fetchAllAssociative($sql, $parameters);
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
     }
 }

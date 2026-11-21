@@ -68,7 +68,7 @@ function DataGetCurrentTask(string $scope = 'journal')
     $snapshot = $scope==='speaker' ? synth_protocol_speaker_quest_snapshot($db) : synth_protocol_prompt_snapshot($db);
     if (($snapshot['_synth_quest_prompt_scope'] ?? '')==='none') return '';
     $results = $snapshot !== null ? array_slice(synthSnapshotQuestRows($snapshot), 0, 8)
-        : $db->fetchAll("SElECT name, briefing as description,gamets,status FROM core_quest order by CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets desc LIMIT 8");
+        : \Synth\Core\DbManager\Dao\QuestDao::current($db)->topActiveQuests();
     if (!$results) {
         if ($snapshot !== null) {
             return "\n\n#Active Quests\n" . (array_key_exists('active_quests', $snapshot)
@@ -106,8 +106,8 @@ function DataLastRetFunc($actor, $lastNelements = -2)
 {
     $db = \Synth\Bootstrap::db();
     $lastDialogFull = array();
-    $results = $db->fetchAll("select  a.data  as data  FROM  core_context_event a
-    WHERE data like '%$actor%' and type in ('funcret')  order by gamets desc,ts desc LIMIT 1 OFFSET 0");
+    $funcRetData = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestFunctionReturnData((string)$actor);
+    $results = $funcRetData === null ? [] : [['data' => $funcRetData]];
     $lastData = "";
     foreach ($results as $row) {
         $pattern = "/\{(.*?)\(/";
@@ -143,9 +143,7 @@ function DataLastAction($actor)
     $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = array();
-    $cnActor = $db->escape($actor);
-    $results = $db->fetchOne("select  *  FROM public.core_action_issued
-    WHERE actorname='$cnActor' order by gamets desc,ts desc LIMIT 1 OFFSET 0");
+    $results = \Synth\Core\DbManager\Dao\ActionIssuedDao::current($db)->lastForActor((string)$actor);
 
     return $results;
 
@@ -156,15 +154,7 @@ function DataActorHasDied($actor)
     $db = \Synth\Bootstrap::db();
 
     $lastDialogFull = array();
-    $cnActor = $db->escape($actor);
-
-    $rows = \Synth\Bootstrap::db()->fetchAll("select 1 as n,gamets from core_context_event where type='death'
-        and (data like '%defeated $cnActor%' or data like '%killed $cnActor%')
-        order by gamets desc limit 1");
-    if ($rows)
-        return true;
-
-    return false;
+    return \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->actorHasDied((string)$actor);
 
 }
 
@@ -211,15 +201,9 @@ function synthLatestWorldContextPayload(): ?array
     $snapshot = synth_protocol_prompt_snapshot($db);
     if ($snapshot !== null) return is_array($snapshot['world'] ?? null) ? $snapshot['world'] : null;
 
-    $rows = $db->fetchAll(
-        "SELECT party, data
-           FROM core_context_event
-          WHERE type='world_context'
-            AND COALESCE(party, '') <> ''
-          ORDER BY localts DESC, ts DESC, rowid DESC
-          LIMIT 1"
-    );
-    if (!is_array($rows) || empty($rows)) {
+    $latestWorld = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestWorldContextRow();
+    $rows = $latestWorld === null ? [] : [$latestWorld];
+    if (empty($rows)) {
         return null;
     }
 
@@ -418,11 +402,7 @@ function locationsTableColumns()
 
     $columns = [];
     try {
-        $rows = $db->fetchAll(
-            "SELECT column_name
-               FROM information_schema.columns
-              WHERE table_schema = 'public' AND table_name = 'core_location_legacy'"
-        );
+        $rows = array_map(static fn($name) => ['column_name' => $name], \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->columnNames());
         foreach ($rows as $row) {
             $column = strtolower((string) ($row["column_name"] ?? ""));
             if ($column !== "") {
@@ -455,38 +435,30 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
     }
 
     $columns = locationsTableColumns();
-    $candidateEsc = $db->escape($candidateKey);
-
-    $selectFields = ["name"];
+    $regionColumn = "";
     $whereFields = ["name"];
 
     if (isset($columns["region"])) {
-        $selectFields[] = "region";
+        $regionColumn = "region";
         $whereFields[] = "region";
     } elseif (isset($columns["worldspace"])) {
-        $selectFields[] = "worldspace AS region";
+        $regionColumn = "worldspace";
         $whereFields[] = "worldspace";
-    } else {
-        $selectFields[] = "'' AS region";
     }
 
-    $whereClauses = [];
+    $matchColumns = [];
     foreach (array_unique($whereFields) as $field) {
         if (isset($columns[strtolower($field)])) {
-            $whereClauses[] = "LOWER({$field}) = '{$candidateEsc}'";
+            $matchColumns[] = $field;
         }
     }
 
-    if (empty($whereClauses)) {
+    if (empty($matchColumns)) {
         \Synth\Bootstrap::setAt('CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE', $candidateKey, "");
         return "";
     }
 
-    $rows = $db->fetchAll(
-        "SELECT " . implode(", ", $selectFields) . "
-           FROM core_location_legacy
-          WHERE " . implode(" OR ", $whereClauses)
-    );
+    $rows = \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->rowsMatchingCandidate($regionColumn, $matchColumns, $candidateKey);
 
     $canonical = resolveCanonicalRegionFromLocationRows($rows, $candidateKey);
     if ($canonical === "" && is_array($rows)) {

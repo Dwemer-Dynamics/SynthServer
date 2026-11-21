@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractActorIdentity;
 
 /** Finds rows of core_actor_identity. */
-final class ActorIdentityDao
+class ActorIdentityDao
 {
     use UsesEntityManager;
 
@@ -45,6 +45,47 @@ final class ActorIdentityDao
                 AND upper(full_form_id)=upper(:p1) AND lower(origin_plugin)=lower(:p2) AND playthrough_id=:p3",
             ['p1' => $formId, 'p2' => $originPlugin, 'p3' => $playthroughId]
         );
+
+        return $id === false ? null : (int) $id;
+    }
+
+    /**
+     * The id of the fo4 actor with this form id (compared without case), origin plugin and playthrough, locked FOR UPDATE until the
+     * caller's open transaction ends; null when there is none.
+     */
+    public function lockFo4Identity(string $fullFormId, string $originPlugin, string $playthroughId): ?int
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT id FROM public.core_actor_identity
+              WHERE game = 'fo4' AND upper(full_form_id) = upper(?) AND lower(origin_plugin) = lower(?) AND playthrough_id = ?
+              FOR UPDATE",
+            [$fullFormId, $originPlugin, $playthroughId]
+        );
+
+        return $id === false ? null : (int) $id;
+    }
+
+    /** Stamps the actor as seen now; a non-null display name replaces the stored one. */
+    public function touch(int $id, ?string $displayName): bool
+    {
+        return $this->tryStatement(
+            'UPDATE public.core_actor_identity SET last_seen_at = NOW(), display_name = COALESCE(?, display_name) WHERE id = ?',
+            [$displayName, $id]
+        );
+    }
+
+    /** Inserts a first-seen fo4 actor and returns its id, or null when the insert fails. */
+    public function insertFo4(string $fullFormId, string $originPlugin, string $playthroughId, ?string $displayName): ?int
+    {
+        try {
+            $id = $this->connection()->fetchOne(
+                "INSERT INTO public.core_actor_identity (game, full_form_id, origin_plugin, playthrough_id, display_name)
+                 VALUES ('fo4', ?, ?, ?, ?) RETURNING id",
+                [$fullFormId, $originPlugin, $playthroughId, $displayName]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
 
         return $id === false ? null : (int) $id;
     }

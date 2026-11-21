@@ -152,6 +152,47 @@ class LocationLegacyDao
     }
 
     /**
+     * The column names of core_location_legacy, as information_schema lists them. Throws when the read fails.
+     *
+     * @return list<string>
+     */
+    public function columnNames(): array
+    {
+        return array_map('strval', $this->connection()->fetchFirstColumn(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'core_location_legacy'"
+        ));
+    }
+
+    /**
+     * Rows whose name (or worldspace, or region: the $matchColumns, each a plain column name) equals the lower-cased candidate.
+     * $regionColumn names the column returned as `region` ('region' or 'worldspace'), or is '' for an empty region.
+     *
+     * @param list<string> $matchColumns
+     * @return list<array<string, mixed>>
+     */
+    public function rowsMatchingCandidate(string $regionColumn, array $matchColumns, string $candidateKey): array
+    {
+        foreach ([...$matchColumns, $regionColumn] as $column) {
+            if ($column !== '' && preg_match('/^[a-z_][a-z0-9_]*$/', $column) !== 1) {
+                throw new \InvalidArgumentException('Invalid column name.');
+            }
+        }
+        if ($matchColumns === []) {
+            return [];
+        }
+        $clauses = [];
+        foreach ($matchColumns as $column) {
+            $clauses[] = "LOWER({$column}) = :candidate";
+        }
+        $select = $regionColumn === '' ? "name, '' AS region" : ($regionColumn === 'region' ? 'name, region' : "name, {$regionColumn} AS region");
+        try {
+            return $this->connection()->fetchAllAssociative("SELECT {$select} FROM core_location_legacy WHERE ".implode(' OR ', $clauses), ['candidate' => $candidateKey]);
+        } catch (\Doctrine\DBAL\Exception) {
+            return [];
+        }
+    }
+
+    /**
      * Up to 20 legacy locations whose normalized name equals $key, as name and worldspace (empty when the table has no
      * worldspace column). Throws when the table is unreadable.
      *

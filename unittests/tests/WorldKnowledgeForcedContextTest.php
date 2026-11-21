@@ -5,9 +5,20 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../../lib/settings.php';
 require_once __DIR__.'/DaoTestDoubles.php';
 require_once __DIR__ . '/../../lib/worldknowledge_forced_context.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 final class WorldKnowledgeForcedContextTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        DaoTestDoubles::worldContextFromGlobalDb();
+    }
+
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::reset();
+    }
+
     public function testForcedContextDefaultsEnabledWhileConnectorFallbackIsOptIn(): void
     {
         foreach (['LOCATION_WORLDKNOWLEDGE', 'RACE_WORLDKNOWLEDGE', 'FACTION_WORLDKNOWLEDGE', 'WORLDKNOWLEDGE_EXTRACTOR_FALLBACK'] as $setting) {

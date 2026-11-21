@@ -86,12 +86,10 @@ function synthPersistActorEvents($db,array $event): void
     $input=$batch;unset($input['age_ms']);
     $player=array_intersect_key($payload['player'],array_flip(['form_id','origin_plugin','playthrough_id']));
     $owner=[$event['session_id'],$event['generation'],$payload['playthrough_id'],$batch['batch_id']];
-    $result=$db->execQuery("SELECT b.player_payload,b.input_payload FROM public.core_actor_event_batch b
-        JOIN public.core_runtime_session s ON s.session_id=b.session_id
-        WHERE b.session_id=$1 AND b.generation=$2 AND b.playthrough_id=$3 AND b.batch_id=$4
-          AND s.active_generation=b.generation AND s.playthrough_id=b.playthrough_id AND s.state='active'",$owner);
-    if ($result===false) throw new RuntimeException('actor_event_batch_read_failed');
-    if ($row=pg_fetch_assoc($result)) {
+    $batches=\Synth\Core\DbManager\Dao\ActorEventBatchDao::current($db);
+    $row=$batches->activePayloads(strval($owner[0]),intval($owner[1]),strval($owner[2]),strval($owner[3]));
+    if ($row===false) throw new RuntimeException('actor_event_batch_read_failed');
+    if ($row!==null) {
         // JSONB reorders object keys; canonicalize keys, never coerce scalar types or numeric-looking strings.
         if (synth_protocol_sort_keys(json_decode($row['player_payload'],true,flags:JSON_THROW_ON_ERROR))!==synth_protocol_sort_keys($player)
             || synth_protocol_sort_keys(json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR))!==synth_protocol_sort_keys($input))
@@ -99,15 +97,9 @@ function synthPersistActorEvents($db,array $event): void
         return; // A retry never changes the original context, age or knowledge projection.
     }
     $known=synthBindActorEvents($batch,$payload);
-    $result=$db->execQuery("INSERT INTO public.core_actor_event_batch
-        (session_id,generation,playthrough_id,batch_id,context_sequence,request_id,player_payload,input_payload,capture_age_ms)
-        SELECT c.session_id,c.generation,c.playthrough_id,$4,c.snapshot_sequence,$6,$7::jsonb,$8::jsonb,$9
-          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
-         WHERE c.session_id=$1 AND c.generation=$2 AND c.playthrough_id=$3 AND c.snapshot_sequence=$5
-           AND s.active_generation=c.generation AND s.playthrough_id=c.playthrough_id AND s.state='active' RETURNING batch_id",
-        [...$owner,$payload['snapshot_sequence'],$event['request_id'],json_encode($player,JSON_THROW_ON_ERROR),
-            json_encode($input,JSON_THROW_ON_ERROR),$batch['age_ms']]);
-    if ($result===false || pg_fetch_assoc($result)===false) throw new RuntimeException('actor_event_batch_insert_failed');
+    if (!$batches->insertForActiveContext(strval($owner[0]),intval($owner[1]),strval($owner[2]),strval($owner[3]),intval($payload['snapshot_sequence']),
+        strval($event['request_id']),json_encode($player,JSON_THROW_ON_ERROR),json_encode($input,JSON_THROW_ON_ERROR),intval($batch['age_ms'])))
+        throw new RuntimeException('actor_event_batch_insert_failed');
     if (!$known) return;
     $descriptions=[];
     foreach ($known as $record) $descriptions[]=$record['subject_name'].' '.$record['event']['kind'].' '.$record['event']['item']['display_name'];

@@ -21,6 +21,45 @@ class WorldknowledgeArticleDao
         return $this->fresh()->find(AbstractWorldknowledgeArticle::class, $entryId);
     }
 
+    /** Stores an embedding (a '[1,2,...]' vector text) on the article whose first topic part matches (any case). */
+    public function setVectorByTopic(string $canonicalTopic, string $vectorText): void
+    {
+        $this->connection()->executeStatement(
+            "update core_worldknowledge_article set vector384=CAST(? AS public.vector) where lower(split_part(topic, ',', 1))=lower(?)",
+            [$vectorText, $canonicalTopic]
+        );
+    }
+
+    /**
+     * The five articles closest to four query embeddings (topic fields and the five distance columns). Each vector is a '[1,2,...]'
+     * text, in the order of the weighting the caller expects.
+     *
+     * @param list<string> $vectors four vector texts
+     * @return list<array<string, mixed>>
+     */
+    public function nearestToVectors(array $vectors): array
+    {
+        [$v1, $v2, $v3, $v4] = array_values($vectors);
+
+        return $this->connection()->fetchAllAssociative(
+            "SELECT  topic_desc,
+                                topic,
+                                knowledge_class,
+                                knowledge_class_basic,
+                                topic_desc_basic,
+                    vector384 <-> CAST(:v1 AS public.vector) as distance1,
+                    vector384 <-> CAST(:v2 AS public.vector) as distance2,
+                    vector384 <-> CAST(:v3 AS public.vector) as distance3,
+                    vector384 <-> CAST(:v4 AS public.vector) as distance4,
+                    ((vector384 <-> CAST(:v1 AS public.vector)) + (vector384 <-> CAST(:v2 AS public.vector))/4 + (vector384 <-> CAST(:v3 AS public.vector))/2 + (vector384 <-> CAST(:v4 AS public.vector))/2 )/2 as distance
+                FROM public.core_worldknowledge_article
+                WHERE vector384 IS NOT NULL
+                ORDER BY ((vector384 <-> CAST(:v1 AS public.vector)) + (vector384 <-> CAST(:v2 AS public.vector))/4 + (vector384 <-> CAST(:v3 AS public.vector))/2 + (vector384 <-> CAST(:v4 AS public.vector))/2 )/4 ASC
+                LIMIT 5 OFFSET 0",
+            ['v1' => $v1, 'v2' => $v2, 'v3' => $v3, 'v4' => $v4]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractWorldknowledgeArticle> */
     public function findAll(int $limit = 1000): array
     {
