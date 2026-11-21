@@ -336,7 +336,7 @@ include(__DIR__.DIRECTORY_SEPARATOR."tmpl/head.html");
 <link rel="stylesheet" href="<?php echo $webRoot; ?>/ui/css/relationship_timeline.css?v=<?php echo filemtime(__DIR__ . DIRECTORY_SEPARATOR . 'css' . DIRECTORY_SEPARATOR . 'relationship_timeline.css'); ?>">
 <?php
 
-require_once(LIB_PATH .DIRECTORY_SEPARATOR."{$GLOBALS["DBDRIVER"]}.class.php");
+require_once(LIB_PATH .DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."misc_ui_functions.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."chat_helper_functions.php");
 require_once(LIB_PATH .DIRECTORY_SEPARATOR."eventlog_helper.php");
@@ -345,7 +345,7 @@ require_once(LIB_PATH .DIRECTORY_SEPARATOR."eventlog_helper.php");
 require_once(dirname(__DIR__).DIRECTORY_SEPARATOR."lib".DIRECTORY_SEPARATOR."utils_game_timestamp.php");
 
 $db = \Synth\Bootstrap::db() ?? new sql();
-$GLOBALS['db'] = $db;
+\Synth\Bootstrap::set('db', $db);
 
 $eventLogLimit = isset($_GET["limit"]) ? intval($_GET["limit"]) : 100;
 $eventLogPage = isset($_GET["page"]) ? max(1, intval($_GET["page"])) : 1;

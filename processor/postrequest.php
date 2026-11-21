@@ -23,8 +23,8 @@ if ($minimeEnabled) {
     if ($worldknowledgeInfiniumEnabled) {
         if (in_array($gameRequest[0], ["inputtext", "inputtext_s", "rechat", "continue"])) {
 
-            //$TEST_TEXT=lastSpeech($GLOBALS["SYNTH_NAME"]);
-            //$TEST_TEXT="{$GLOBALS["SYNTH_NAME"]}:".implode(" ",$GLOBALS["talkedSoFar"]);
+            //$TEST_TEXT=lastSpeech(\Synth\Bootstrap::config("SYNTH_NAME"));
+            //$TEST_TEXT="{\Synth\Bootstrap::config("SYNTH_NAME")}:".implode(" ",\Synth\Bootstrap::config("talkedSoFar"));
             $TEST_TEXT = implode(" ", \Synth\Bootstrap::config("talkedSoFar"));
 
             $topic = json_decode(minimePostTopic($TEST_TEXT), true);
@@ -35,18 +35,18 @@ if ($minimeEnabled) {
 // POST MEMORY
 if ($minimeEnabled) {
     if (in_array($gameRequest[0], ["inputtext", "inputtext_s"])) {
-        if (sizeof($memoryInjectionCtx) == 0 && empty($GLOBALS['MEMORY_STRICT_FALLBACK_ATTEMPTED'])) {
+        if (sizeof($memoryInjectionCtx) == 0 && empty(\Synth\Bootstrap::config('MEMORY_STRICT_FALLBACK_ATTEMPTED'))) {
             // In case main memory search didnt return resutls because minime activated and user is nt directly asking a question
             \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'POST MEMORY SEARCH', "");
-            $GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"] = true;
+            \Synth\Bootstrap::set('PATCH_BYPASS_MINIME_EXTRACT', true);
 
-            $GLOBALS["MEMORY_THRESHOLD_MODIFIER"] = 0.5;
+            \Synth\Bootstrap::set('MEMORY_THRESHOLD_MODIFIER', 0.5);
             $memoryInjection                      = offerMemory($gameRequest);
             if ($memoryInjection) {
 
                 $gameRequestCopy    = $gameRequest;
                 $gameRequestCopy[0] = "infoaction";
-                $gameRequestCopy[3] = "#MEMORY: {$GLOBALS["SYNTH_NAME"]} remembers this: [$memoryInjection]";
+                $gameRequestCopy[3] = ("#MEMORY: " . \Synth\Bootstrap::config('SYNTH_NAME') . " remembers this: [$memoryInjection]");
                 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'POST MEMORY SEARCH', ", memory found ($memoryInjection)");
                 logEvent($gameRequestCopy, \Synth\Bootstrap::config("SYNTH_NAME")); // Memory log only avaibale to current NPC.
             }
@@ -117,7 +117,7 @@ if ($minimeEnabled) {
                 $currentConnectorData = $connector->getById($sceneClassifierConnectorId);
             }
 
-            if (empty($currentConnectorData) && isset($GLOBALS["db"]) && \Synth\Bootstrap::db()) {
+            if (empty($currentConnectorData) && \Synth\Bootstrap::has('db') && \Synth\Bootstrap::db()) {
                 foreach ($sceneClassifierLabels as $sceneClassifierLabel) {
                     $sceneClassifierRow = ['id' => \Synth\Core\DbManager\Dao\LlmConnectorDao::current(\Synth\Bootstrap::db())->findIdByLabel($sceneClassifierLabel)];
                     if (is_array($sceneClassifierRow) && !empty($sceneClassifierRow["id"])) {

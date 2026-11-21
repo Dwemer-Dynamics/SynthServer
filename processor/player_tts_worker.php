@@ -29,14 +29,14 @@ if ($line === "") {
     exit(0);
 }
 
-$GLOBALS["ENGINE_PATH"] = $path;
-$GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
-$GLOBALS["SYNTH_RESPONSE_STREAMING"] = false;
-$GLOBALS["SYNTH_GAME_ID"] = "fo4";
-$GLOBALS["SYNTH_WORLD_NAME"] = "Commonwealth";
-$GLOBALS["SYNTH_NAME"] = "Player";
-$GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-$GLOBALS["AUDIT_RUNID_REQUEST"] = "player_menu_tts_worker";
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', "fo4");
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', "Commonwealth");
+\Synth\Bootstrap::set('SYNTH_NAME', "Player");
+\Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', "player_menu_tts_worker");
 
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "response.php");
@@ -67,11 +67,11 @@ try {
         strval(time()),
         $playerPrefix . ": " . $line,
     ];
-    $GLOBALS["gameRequest"] = &$gameRequest;
-    $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] = false;
-    $GLOBALS["AVOID_TTS_CACHE"] = false;
+    \Synth\Bootstrap::bind('gameRequest', $gameRequest);
+    \Synth\Bootstrap::set('PLAYER_TTS_WRITE_OUTPUT', false);
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', false);
     if ($cachePath !== "") {
-        $GLOBALS["PLAYER_TTS_EXPECTED_CACHE_PATH"] = $cachePath;
+        \Synth\Bootstrap::set('PLAYER_TTS_EXPECTED_CACHE_PATH', $cachePath);
     }
 
     require($path . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");

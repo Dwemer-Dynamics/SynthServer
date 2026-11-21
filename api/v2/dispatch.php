@@ -22,7 +22,7 @@ function synth_api_v2_dispatch(string $root, array $event, string $route): void
     $output->open();
     $legacy = static fn(callable $call) => synth_api_v2_legacy_scope($app, $call);
     // Request-wide only the start-line server version used by the shared frame encoders.
-    if (array_key_exists('SYNTH_SERVER_VERSION', $app->config)) $GLOBALS['SYNTH_SERVER_VERSION'] = $app->config['SYNTH_SERVER_VERSION'];
+    if (array_key_exists('SYNTH_SERVER_VERSION', $app->config)) \Synth\Bootstrap::set('SYNTH_SERVER_VERSION', $app->config['SYNTH_SERVER_VERSION']);
     try {
         // Validated and logged only until the catalog has storage: no row is written, so there is nothing to claim.
         if ($route === 'location_catalog') { synth_api_v2_location_catalog($output, $event); return; }
@@ -89,15 +89,15 @@ function synth_api_v2_legacy_scope(Bootstrap $app, callable $call)
     }
     $previous = [];
     foreach ($values as $key => $value) {
-        if (array_key_exists($key, $GLOBALS)) $previous[$key] = $GLOBALS[$key];
-        $GLOBALS[$key] = $value;
+        if (\Synth\Bootstrap::exists($key)) $previous[$key] = \Synth\Bootstrap::config($key);
+        \Synth\Bootstrap::set($key, $value);
     }
     try {
         return $call();
     } finally {
         foreach ($values as $key => $_) {
-            if (array_key_exists($key, $previous)) $GLOBALS[$key] = $previous[$key];
-            else unset($GLOBALS[$key]);
+            if (array_key_exists($key, $previous)) \Synth\Bootstrap::set($key, $previous[$key]);
+            else \Synth\Bootstrap::forget($key);
         }
     }
 }

@@ -78,7 +78,7 @@ if (!function_exists('synthTtsStudioSanitizeOghmaTag')) {
 if (!function_exists('synthTtsStudioResolveConnectorRow')) {
     function synthTtsStudioResolveConnectorRow(string $driver): ?array
     {
-        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             return null;
         }
 
@@ -253,12 +253,12 @@ if (!function_exists('synthTtsStudioApplyConnectorGlobals')) {
 
         $providerKey = $ttsConnector->getProviderKeyFromDriver($driver);
         $endpoint = synthTtsStudioResolveEndpointForDriver($driver);
-        $GLOBALS["TTSFUNCTION"] = $driver;
-        $GLOBALS["TTS_FUNCTION"] = $driver;
+        \Synth\Bootstrap::set('TTSFUNCTION', $driver);
+        \Synth\Bootstrap::set('TTS_FUNCTION', $driver);
         if ($providerKey !== '' && $endpoint !== '') {
-            $GLOBALS["TTS"][$providerKey]['endpoint'] = $endpoint;
-            $GLOBALS["TTS"][$providerKey]['url'] = $endpoint;
-            $GLOBALS["TTS"][$providerKey]['URL'] = $endpoint;
+            \Synth\Bootstrap::setPath('TTS', [$providerKey, 'endpoint'], $endpoint);
+            \Synth\Bootstrap::setPath('TTS', [$providerKey, 'url'], $endpoint);
+            \Synth\Bootstrap::setPath('TTS', [$providerKey, 'URL'], $endpoint);
         }
     }
 }
@@ -614,37 +614,37 @@ if (!function_exists('synthTtsStudioConfigureCompatibleTestGlobals')) {
     function synthTtsStudioConfigureCompatibleTestGlobals(string $driver, string $ttsFunction, string $voice, string $language = ''): void
     {
         synthTtsStudioApplyConnectorGlobals($driver);
-        $GLOBALS["TTSFUNCTION"] = $ttsFunction;
-        $GLOBALS["SYNTH_NAME"] = "The Narrator";
-        $GLOBALS["AVOID_TTS_CACHE"] = true;
-        $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-        $GLOBALS["HERIKA_ANIMATIONS"] = false;
-        $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-        $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-        $GLOBALS["DEBUG_DATA"] = [];
-        if (!isset($GLOBALS["HTTP_TIMEOUT"]) || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) {
-            $GLOBALS["HTTP_TIMEOUT"] = 20;
+        \Synth\Bootstrap::set('TTSFUNCTION', $ttsFunction);
+        \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+        \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+        \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+        \Synth\Bootstrap::set('HERIKA_ANIMATIONS', false);
+        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+        \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+        \Synth\Bootstrap::set('DEBUG_DATA', []);
+        if (!\Synth\Bootstrap::has('HTTP_TIMEOUT') || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) {
+            \Synth\Bootstrap::set('HTTP_TIMEOUT', 20);
         }
-        $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-        if (!isset($GLOBALS["FEATURES"]["MISC"])) {
-            $GLOBALS["FEATURES"]["MISC"] = [];
+        \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+        if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"])) {
+            \Synth\Bootstrap::setAt('FEATURES', "MISC", []);
         }
-        if (!isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])) {
-            $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
+        if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])) {
+            \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
         }
-        if (!isset($GLOBALS["PLAYER_NAME"])) {
-            $GLOBALS["PLAYER_NAME"] = 'Player';
+        if (!\Synth\Bootstrap::has('PLAYER_NAME')) {
+            \Synth\Bootstrap::set('PLAYER_NAME', 'Player');
         }
-        $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
-        $GLOBALS["PATCH_OVERRIDE_VOICE"] = $voice;
+        \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+        \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voice);
         $language = synthTtsStudioSanitizeLanguage($language);
         if ($language !== '') {
-            $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"] = $language;
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_TTS_LANGUAGE', $language);
         }
-        if (!isset($GLOBALS["TRACK"]) || !is_array(\Synth\Bootstrap::config("TRACK"))) {
-            $GLOBALS["TRACK"] = [];
+        if (!\Synth\Bootstrap::has('TRACK') || !is_array(\Synth\Bootstrap::config("TRACK"))) {
+            \Synth\Bootstrap::set('TRACK', []);
         }
-        $GLOBALS["TRACK"]["FILES_GENERATED"] = [];
+        \Synth\Bootstrap::setAt('TRACK', "FILES_GENERATED", []);
     }
 }
 
@@ -656,7 +656,7 @@ if (!function_exists('synthTtsStudioRunReturnLinesTest')) {
             return ['file' => '', 'error' => 'returnLines function not available'];
         }
 
-        $GLOBALS["TRACK"]["FILES_GENERATED"] = [];
+        \Synth\Bootstrap::setAt('TRACK', "FILES_GENERATED", []);
         $bufferLevel = ob_get_level();
         ob_start();
 
@@ -668,7 +668,7 @@ if (!function_exists('synthTtsStudioRunReturnLinesTest')) {
                 @file_put_contents($logFile, "Captured output from returnLines: " . $capturedOutput . "\n", FILE_APPEND);
             }
 
-            $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0])
+            $file = isset(\Synth\Bootstrap::config('TRACK')["FILES_GENERATED"][0])
                 ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0])
                 : '';
             @file_put_contents($logFile, "Generated file: " . ($file ?: 'NONE') . "\n", FILE_APPEND);
@@ -704,33 +704,33 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_xtts' && isset($_GET['vo
 
     // Initialize database if needed
     try {
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             @include_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
-            if (isset($GLOBALS["DBDRIVER"])) {
+            if (\Synth\Bootstrap::has('DBDRIVER')) {
                 @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php");
             }
-            $GLOBALS['db'] = new sql();
+            \Synth\Bootstrap::set('db', new sql());
         }
         @file_put_contents($logFile, "Database initialized\n", FILE_APPEND);
     } catch (Throwable $e) {
         @file_put_contents($logFile, "Database init error: " . $e->getMessage() . "\n", FILE_APPEND);
     }
     synthTtsStudioApplyConnectorGlobals('xtts-fastapi');
-    $GLOBALS["TTSFUNCTION"] = 'xtts-fastapi';
-    $GLOBALS["SYNTH_NAME"] = "The Narrator";
-    $GLOBALS["AVOID_TTS_CACHE"] = true;
-    $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-    $GLOBALS["HERIKA_ANIMATIONS"] = false;
-    $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-    $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-    $GLOBALS["DEBUG_DATA"] = [];
-    if (!isset($GLOBALS["HTTP_TIMEOUT"]) || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { $GLOBALS["HTTP_TIMEOUT"] = 20; }
-    $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"])) $GLOBALS["FEATURES"]["MISC"] = [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])) $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
-    if (!isset($GLOBALS["PLAYER_NAME"])) $GLOBALS["PLAYER_NAME"] = 'Player';
-    $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
-    $GLOBALS["PATCH_OVERRIDE_VOICE"] = $voice;
+    \Synth\Bootstrap::set('TTSFUNCTION', 'xtts-fastapi');
+    \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+    \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+    \Synth\Bootstrap::set('HERIKA_ANIMATIONS', false);
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+    \Synth\Bootstrap::set('DEBUG_DATA', []);
+    if (!\Synth\Bootstrap::has('HTTP_TIMEOUT') || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { \Synth\Bootstrap::set('HTTP_TIMEOUT', 20); }
+    \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"])) \Synth\Bootstrap::setAt('FEATURES', "MISC", []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])) \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
+    if (!\Synth\Bootstrap::has('PLAYER_NAME')) \Synth\Bootstrap::set('PLAYER_NAME', 'Player');
+    \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+    \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voice);
 
     @file_put_contents($logFile, "Globals configured\n", FILE_APPEND);
 
@@ -761,7 +761,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_xtts' && isset($_GET['vo
             @file_put_contents($logFile, "Captured output from returnLines: " . $capturedOutput . "\n", FILE_APPEND);
         }
 
-        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
+        $file = isset(\Synth\Bootstrap::config('TRACK')["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
         @file_put_contents($logFile, "Generated file: " . ($file ?: 'NONE') . "\n", FILE_APPEND);
         $testError = 'Failed to generate audio file';
 
@@ -804,7 +804,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_xtts' && isset($_GET['vo
     }
 
     @file_put_contents($logFile, "=== Test Handler Complete ===\n\n", FILE_APPEND);
-    unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
     exit;
 }
 
@@ -821,32 +821,32 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_chatterbox' && isset($_G
     try { @ini_set('default_socket_timeout', '20'); } catch (Throwable $_) {}
 
     try {
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             @include_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
-            if (isset($GLOBALS["DBDRIVER"])) {
+            if (\Synth\Bootstrap::has('DBDRIVER')) {
                 @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php");
             }
-            $GLOBALS['db'] = new sql();
+            \Synth\Bootstrap::set('db', new sql());
         }
     } catch (Throwable $e) {
         @file_put_contents($logFile, "Database init error: " . $e->getMessage() . "\n", FILE_APPEND);
     }
     synthTtsStudioApplyConnectorGlobals('chatterbox');
-    $GLOBALS["TTSFUNCTION"] = 'chatterbox';
-    $GLOBALS["SYNTH_NAME"] = "The Narrator";
-    $GLOBALS["AVOID_TTS_CACHE"] = true;
-    $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-    $GLOBALS["HERIKA_ANIMATIONS"] = false;
-    $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-    $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-    $GLOBALS["DEBUG_DATA"] = [];
-    if (!isset($GLOBALS["HTTP_TIMEOUT"]) || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { $GLOBALS["HTTP_TIMEOUT"] = 20; }
-    $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"])) $GLOBALS["FEATURES"]["MISC"] = [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])) $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
-    if (!isset($GLOBALS["PLAYER_NAME"])) $GLOBALS["PLAYER_NAME"] = 'Player';
-    $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
-    $GLOBALS["PATCH_OVERRIDE_VOICE"] = $voice;
+    \Synth\Bootstrap::set('TTSFUNCTION', 'chatterbox');
+    \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+    \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+    \Synth\Bootstrap::set('HERIKA_ANIMATIONS', false);
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+    \Synth\Bootstrap::set('DEBUG_DATA', []);
+    if (!\Synth\Bootstrap::has('HTTP_TIMEOUT') || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { \Synth\Bootstrap::set('HTTP_TIMEOUT', 20); }
+    \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"])) \Synth\Bootstrap::setAt('FEATURES', "MISC", []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])) \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
+    if (!\Synth\Bootstrap::has('PLAYER_NAME')) \Synth\Bootstrap::set('PLAYER_NAME', 'Player');
+    \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+    \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voice);
 
     $testText = "Patrolling the Commonwealth almost makes you wish for a Nuclear Winter.";
 
@@ -868,7 +868,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_chatterbox' && isset($_G
             @file_put_contents($logFile, "Captured output: " . $capturedOutput . "\n", FILE_APPEND);
         }
 
-        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
+        $file = isset(\Synth\Bootstrap::config('TRACK')["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
         $testError = 'Failed to generate audio file';
 
         if ($file === '') {
@@ -904,7 +904,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_chatterbox' && isset($_G
         echo json_encode(['error' => $e->getMessage()]);
     }
 
-    unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
     exit;
 }
 
@@ -922,33 +922,33 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_pockettts' && isset($_GE
     try { @ini_set('default_socket_timeout', '20'); } catch (Throwable $_) {}
 
     try {
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             @include_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
-            if (isset($GLOBALS["DBDRIVER"])) {
+            if (\Synth\Bootstrap::has('DBDRIVER')) {
                 @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php");
             }
-            $GLOBALS['db'] = new sql();
+            \Synth\Bootstrap::set('db', new sql());
         }
     } catch (Throwable $e) {
         @file_put_contents($logFile, "Database init error: " . $e->getMessage() . "\n", FILE_APPEND);
     }
     synthTtsStudioApplyConnectorGlobals('pockettts');
-    $GLOBALS["TTSFUNCTION"] = 'pockettts';
+    \Synth\Bootstrap::set('TTSFUNCTION', 'pockettts');
     @file_put_contents($logFile, "TTSFUNCTION set to: pockettts\n", FILE_APPEND);
-    $GLOBALS["SYNTH_NAME"] = "The Narrator";
-    $GLOBALS["AVOID_TTS_CACHE"] = true;
-    $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-    $GLOBALS["HERIKA_ANIMATIONS"] = false;
-    $GLOBALS["SCRIPTLINE_LISTENER"] = '';
-    $GLOBALS["SCRIPTLINE_EXPRESSION"] = '';
-    $GLOBALS["DEBUG_DATA"] = [];
-    if (!isset($GLOBALS["HTTP_TIMEOUT"]) || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { $GLOBALS["HTTP_TIMEOUT"] = 20; }
-    $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"])) $GLOBALS["FEATURES"]["MISC"] = [];
-    if (!isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])) $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
-    if (!isset($GLOBALS["PLAYER_NAME"])) $GLOBALS["PLAYER_NAME"] = 'Player';
-    $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
-    $GLOBALS["PATCH_OVERRIDE_VOICE"] = $voice;
+    \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+    \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+    \Synth\Bootstrap::set('HERIKA_ANIMATIONS', false);
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+    \Synth\Bootstrap::set('DEBUG_DATA', []);
+    if (!\Synth\Bootstrap::has('HTTP_TIMEOUT') || (int)\Synth\Bootstrap::config("HTTP_TIMEOUT") <= 0) { \Synth\Bootstrap::set('HTTP_TIMEOUT', 20); }
+    \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"])) \Synth\Bootstrap::setAt('FEATURES', "MISC", []);
+    if (!isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])) \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
+    if (!\Synth\Bootstrap::has('PLAYER_NAME')) \Synth\Bootstrap::set('PLAYER_NAME', 'Player');
+    \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+    \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voice);
 
     $testText = "Patrolling the Commonwealth almost makes you wish for a Nuclear Winter.";
 
@@ -970,7 +970,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_pockettts' && isset($_GE
             @file_put_contents($logFile, "Captured output: " . $capturedOutput . "\n", FILE_APPEND);
         }
 
-        $file = isset($GLOBALS["TRACK"]["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
+        $file = isset(\Synth\Bootstrap::config('TRACK')["FILES_GENERATED"][0]) ? basename((string)\Synth\Bootstrap::config("TRACK")["FILES_GENERATED"][0]) : '';
         $testError = 'Failed to generate audio file';
 
         if ($file === '') {
@@ -1006,7 +1006,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_pockettts' && isset($_GE
         echo json_encode(['error' => $e->getMessage()]);
     }
 
-    unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
     exit;
 }
 
@@ -1024,12 +1024,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_omnivoice' && isset($_GE
     try { @ini_set('default_socket_timeout', '45'); } catch (Throwable $_) {}
 
     try {
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             @include_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
-            if (isset($GLOBALS["DBDRIVER"])) {
+            if (\Synth\Bootstrap::has('DBDRIVER')) {
                 @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php");
             }
-            $GLOBALS['db'] = new sql();
+            \Synth\Bootstrap::set('db', new sql());
         }
     } catch (Throwable $e) {
         @file_put_contents($logFile, "Database init error: " . $e->getMessage() . "\n", FILE_APPEND);
@@ -1066,24 +1066,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_omnivoice' && isset($_GE
         echo json_encode(['error' => $testError]);
     }
 
-    unset($GLOBALS["PATCH_OVERRIDE_VOICE"], $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]);
+    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE'); \Synth\Bootstrap::forget('PATCH_OVERRIDE_TTS_LANGUAGE');
     exit;
 }
 
 // Handle test voice requests (GET) - MUST be before any output buffering
 if (isset($_GET['action']) && ($_GET['action'] === 'test_cartesia' || $_GET['action'] === 'test_inworld') && isset($_GET['voice'])) {
     // Initialize database connection for test handlers
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-        require_once(__DIR__ . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+        require_once(__DIR__ . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
     }
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-        $GLOBALS["db"] = new sql();
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+        \Synth\Bootstrap::set('db', new sql());
     }
 
     // Helper function for test handlers
     function getClonedVoicesForTest($provider) {
         $db = \Synth\Bootstrap::db();
-        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             return [];
         }
         if ($provider === 'cartesia') {
@@ -1295,12 +1295,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'batch_process' && isset($_GET
 
     try {
         // Initialize database if needed
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
             @include_once($enginePath . "conf" . DIRECTORY_SEPARATOR . "conf.php");
-            if (isset($GLOBALS["DBDRIVER"])) {
+            if (\Synth\Bootstrap::has('DBDRIVER')) {
                 @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php");
             }
-            $GLOBALS['db'] = new sql();
+            \Synth\Bootstrap::set('db', new sql());
         }
 
         $voicePath = $enginePath . 'data' . DIRECTORY_SEPARATOR . 'voices' . DIRECTORY_SEPARATOR . $voiceName;
@@ -1447,11 +1447,11 @@ if (!in_array($activeTab, $validTabs, true)) {
 }
 
 // Initialize database connection
-if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-    require_once(__DIR__ . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
+if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+    require_once(__DIR__ . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 }
-if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
-    $GLOBALS["db"] = new sql();
+if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
+    \Synth\Bootstrap::set('db', new sql());
 }
 
 // The pronunciation dictionary manager needs the database connection resolved above.
@@ -1535,7 +1535,7 @@ function resolveLocalVoiceName($voiceName): string {
 
 function getClonedVoices($provider) {
     $db = \Synth\Bootstrap::db();
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return [];
     }
     if ($provider === 'cartesia') {
@@ -1560,7 +1560,7 @@ function getClonedVoices($provider) {
 
 function isProviderConfigured($provider) {
     $db = \Synth\Bootstrap::db();
-    if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return false;
     }
     $db = \Synth\Bootstrap::db();
@@ -1577,7 +1577,7 @@ function getCartesiaConfigurationStatus(): array
 
     $hasApiCredential = false;
     $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
-    if ($apiBadgeId !== null && isset($GLOBALS["db"]) && \Synth\Bootstrap::db()) {
+    if ($apiBadgeId !== null && \Synth\Bootstrap::has('db') && \Synth\Bootstrap::db()) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
         $badgeRow = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);
@@ -1628,7 +1628,7 @@ function getInworldConfigurationStatus(): array
 
     $hasApiCredential = false;
     $apiBadgeId = \Synth\Core\Contracts\ApiKeyRef::normalize($row['api_key_id'] ?? null);
-    if ($apiBadgeId !== null && isset($GLOBALS["db"]) && \Synth\Bootstrap::db()) {
+    if ($apiBadgeId !== null && \Synth\Bootstrap::has('db') && \Synth\Bootstrap::db()) {
         require_once __DIR__ . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
         $badgeRow = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyById($apiBadgeId);
         $hasApiCredential = is_array($badgeRow) && !empty($badgeRow['api_key']);

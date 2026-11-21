@@ -44,20 +44,20 @@ if ($speaker === "" || $text === "" || $cacheSeed === "") {
     exit(0);
 }
 
-$GLOBALS["ENGINE_PATH"] = $path;
-$GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
-$GLOBALS["SYNTH_RESPONSE_STREAMING"] = false;
-$GLOBALS["SYNTH_GAME_ID"] = "fo4";
-$GLOBALS["SYNTH_WORLD_NAME"] = "Commonwealth";
-$GLOBALS["SYNTH_NAME"] = $speaker;
-$GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-$GLOBALS["AUDIT_RUNID_REQUEST"] = "npc_tts_worker";
-$GLOBALS["gameRequest"] = [
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', "fo4");
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', "Commonwealth");
+\Synth\Bootstrap::set('SYNTH_NAME', $speaker);
+\Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', "npc_tts_worker");
+\Synth\Bootstrap::set('gameRequest', [
     "npc_tts_worker",
     strval(time()),
     strval(time()),
     $speaker . ": " . $text,
-];
+]);
 
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "response.php");
@@ -96,8 +96,8 @@ try {
         "run_db_updates" => false,
     ]);
     if (is_array($job['protocol_event'] ?? null)) {
-        $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => $job['protocol_event']];
-        $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
+        \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', ['json' => $job['protocol_event']]);
+        \Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
         synth_protocol_assert_request_active();
     }
 
@@ -120,15 +120,15 @@ try {
     }
     if ($ttsPlan === null && !empty($job["npc_data"]) && is_array($job["npc_data"])) {
         $npcMaster = new NpcMaster();
-        $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $job["npc_data"];
-        $GLOBALS["SYNTH_NAME"] = trim(strval($job["npc_data"]["npc_name"] ?? $speaker));
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $job["npc_data"]);
+        \Synth\Bootstrap::set('SYNTH_NAME', trim(strval($job["npc_data"]["npc_name"] ?? $speaker)));
         if (\Synth\Bootstrap::config("SYNTH_NAME") === "") {
-            $GLOBALS["SYNTH_NAME"] = $speaker;
+            \Synth\Bootstrap::set('SYNTH_NAME', $speaker);
         }
         $npcMaster->setOldGlobalsFromCurrentNpcData($job["npc_data"], true);
     }
     if (trim(strval($job["tts_function"] ?? "")) !== "") {
-        $GLOBALS["TTSFUNCTION"] = trim(strval($job["tts_function"]));
+        \Synth\Bootstrap::set('TTSFUNCTION', trim(strval($job["tts_function"])));
     }
 
     $correlation = [

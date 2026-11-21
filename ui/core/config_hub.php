@@ -51,13 +51,13 @@ if (!in_array($initialTab, $validTabs, true)) {
 
 function synthConfigHubActiveClass($tabId)
 {
-    global $initialTab;
+    $initialTab = &\Synth\Bootstrap::ref('initialTab');
     return $initialTab === $tabId ? ' active' : '';
 }
 
 function synthConfigHubIframeAttrs($tabId, $src, $loading = 'lazy')
 {
-    global $initialTab;
+    $initialTab = &\Synth\Bootstrap::ref('initialTab');
     $escapedSrc = htmlspecialchars($src, ENT_QUOTES, 'UTF-8');
     if ($initialTab === $tabId) {
         return 'loading="eager" src="' . $escapedSrc . '"';

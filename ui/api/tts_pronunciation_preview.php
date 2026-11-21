@@ -37,7 +37,7 @@ $_SESSION['synth_tts_pronunciation_previews'] = $recentRequests;
 session_write_close();
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
 synthRuntimeBootstrap($enginePath, [
@@ -83,21 +83,21 @@ if (!is_array($connector)) {
 
 try {
     $ttsConnector->setOldGlobals($connector);
-    $GLOBALS['SYNTH_NAME'] = Narrator::CANONICAL_NAME;
-    $GLOBALS['AVOID_TTS_CACHE'] = true;
-    $GLOBALS['TTS_FFMPEG_FILTERS'] = [];
-    $GLOBALS['SYNTH_ANIMATIONS'] = false;
-    $GLOBALS['SCRIPTLINE_LISTENER'] = '';
-    $GLOBALS['SCRIPTLINE_EXPRESSION'] = '';
-    $GLOBALS['DEBUG_DATA'] = [];
-    $GLOBALS['FEATURES'] = \Synth\Bootstrap::config('FEATURES') ?? [];
-    $GLOBALS['FEATURES']['MISC'] = \Synth\Bootstrap::config('FEATURES')['MISC'] ?? [];
-    $GLOBALS['FEATURES']['MISC']['TTS_RANDOM_PITCH'] = false;
-    $GLOBALS['PATCH_DONT_STORE_SPEECH_ON_DB'] = true;
-    $GLOBALS['PATCH_OVERRIDE_VOICE'] = $voice;
-    $GLOBALS['SYNTH_TTS_PRONUNCIATION_BYPASS'] = true;
-    $GLOBALS['TRACK'] = ['FILES_GENERATED' => []];
-    unset($GLOBALS['PATCH_OVERRIDE_VOICE_ID'], $GLOBALS['PATCH_OVERRIDE_TTS_LANGUAGE']);
+    \Synth\Bootstrap::set('SYNTH_NAME', Narrator::CANONICAL_NAME);
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+    \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+    \Synth\Bootstrap::set('SYNTH_ANIMATIONS', false);
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+    \Synth\Bootstrap::set('DEBUG_DATA', []);
+    \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config('FEATURES') ?? []);
+    \Synth\Bootstrap::setAt('FEATURES', 'MISC', \Synth\Bootstrap::config('FEATURES')['MISC'] ?? []);
+    \Synth\Bootstrap::setPath('FEATURES', ['MISC', 'TTS_RANDOM_PITCH'], false);
+    \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+    \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $voice);
+    \Synth\Bootstrap::set('SYNTH_TTS_PRONUNCIATION_BYPASS', true);
+    \Synth\Bootstrap::set('TRACK', ['FILES_GENERATED' => []]);
+    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE_ID'); \Synth\Bootstrap::forget('PATCH_OVERRIDE_TTS_LANGUAGE');
 
     returnLines([$text], false);
     $generated = strval(\Synth\Bootstrap::config('TRACK')['FILES_GENERATED'][0] ?? '');

@@ -53,6 +53,15 @@ final class DialogueManager
         $character = $this->characters->resolve($request);
         if (!$this->llm->supports($character->connector)) throw new TurnRejected('llm_connector_unsupported');
         // Voice is optional: a profile without a portable TTS connector is admitted and answers as text.
+        // Extension filter (API 1.1 dialogue.request.received): may rewrite the player's text; never throws.
+        $received = ExtensionManager::filterHook(Hooks::DIALOGUE_REQUEST_RECEIVED, ['request_id' => strval($request->event['request_id'] ?? ''),
+            'character_key' => $character->key, 'npc_name' => $character->displayName(), 'player_name' => $request->playerName(),
+            'text' => $request->text()]);
+        if ($received['text'] !== $request->text()) {
+            $changed = $request->event;
+            $changed['payload']['text'] = $received['text'];
+            $request = new \Synth\Core\TurnRequest($changed, $request->context);
+        }
         return new AdmittedTurn($request, $character, $this->speech->settings($character));
     }
 
@@ -88,6 +97,11 @@ final class DialogueManager
         // Over-limit output stops provider consumption and ends the turn as an error; nothing is truncated.
         $emit = function (string $text) use ($turn, &$count, &$voiceNoted, &$spoken): void {
             $this->output->assertActive();
+            // Extension filter (API 1.1 dialogue.reply.parsed): one parsed line; an empty text drops it. Never throws.
+            $parsed = ExtensionManager::filterHook(Hooks::DIALOGUE_REPLY_PARSED, ['request_id' => strval($turn->request->event['request_id'] ?? ''),
+                'character_key' => $turn->character->key, 'npc_name' => $turn->character->displayName(), 'line_index' => $count, 'text' => $text]);
+            $text = trim($parsed['text']);
+            if ($text === '') return;
             if ($count >= self::MAX_LINES) throw new \LengthException('provider_output_too_many_lines');
             if (mb_strlen($text) > self::MAX_LINE_CHARS) throw new \LengthException('provider_line_oversized');
             $suffix = $this->output->allocateLine();

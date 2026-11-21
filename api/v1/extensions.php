@@ -52,7 +52,7 @@ use Synth\Managers\ExtensionManager\ExtensionManager;
         if ($action === 'enable') {
             try {
                 $manager->enable($id);
-            } catch (\InvalidArgumentException) {
+            } catch (\InvalidArgumentException | \RuntimeException) {
                 synthApiRefuse(422, 'Extension cannot be enabled', 'extension_not_enableable');
                 return;
             }

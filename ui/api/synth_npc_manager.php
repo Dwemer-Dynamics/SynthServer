@@ -3,7 +3,7 @@
 ob_start();
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once $enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php';
 synthRuntimeBootstrap($enginePath, [

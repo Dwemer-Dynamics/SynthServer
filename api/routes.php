@@ -53,6 +53,12 @@ if ($route === 'edit' || str_starts_with($route, 'edit/')) {
     return;
 }
 
+// Routes an enabled extension registered (/api/v1/ext/<id>/...); routed by v1/ext.php from the registry.
+if (str_starts_with($route, 'ext/')) {
+    require __DIR__ . '/v1/ext.php';
+    return;
+}
+
 if ($route === 'extensions' || str_starts_with($route, 'extensions/')) {
     require __DIR__ . '/v1/extensions.php';
     return;

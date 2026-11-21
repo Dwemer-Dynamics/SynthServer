@@ -3,7 +3,7 @@
 ob_start();
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 synthRuntimeBootstrap($enginePath, [
@@ -55,27 +55,27 @@ try {
         $playerName = 'Player';
     }
 
-    $GLOBALS["gameRequest"] = [
+    \Synth\Bootstrap::set('gameRequest', [
         "player_tts_preview",
         strval(time()),
         strval(time()),
         $playerName . ": " . $testText,
-    ];
-    $gameRequest = &$GLOBALS["gameRequest"];
-    $GLOBALS["PLAYER_TTS_WRITE_OUTPUT"] = false;
-    $GLOBALS["AVOID_TTS_CACHE"] = false;
-    $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
-    $GLOBALS["SCRIPTLINE_LISTENER"] = "";
-    $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] = "";
-    $GLOBALS["SCRIPTLINE_EXPRESSION"] = "";
-    $GLOBALS["SCRIPTLINE_ANIMATION"] = "";
-    $GLOBALS["SYNTH_ANIMATIONS"] = false;
-    $GLOBALS["DEBUG_DATA"] = [];
-    $GLOBALS["TRACK"] = [];
-    $GLOBALS["FEATURES"] = \Synth\Bootstrap::config("FEATURES") ?? [];
-    $GLOBALS["FEATURES"]["MISC"] = \Synth\Bootstrap::config("FEATURES")["MISC"] ?? [];
-    $GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"] = false;
-    $GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"] = true;
+    ]);
+    $gameRequest = &\Synth\Bootstrap::ref('gameRequest');
+    \Synth\Bootstrap::set('PLAYER_TTS_WRITE_OUTPUT', false);
+    \Synth\Bootstrap::set('AVOID_TTS_CACHE', false);
+    \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', "");
+    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', "");
+    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', "");
+    \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "");
+    \Synth\Bootstrap::set('SYNTH_ANIMATIONS', false);
+    \Synth\Bootstrap::set('DEBUG_DATA', []);
+    \Synth\Bootstrap::set('TRACK', []);
+    \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config("FEATURES") ?? []);
+    \Synth\Bootstrap::setAt('FEATURES', "MISC", \Synth\Bootstrap::config("FEATURES")["MISC"] ?? []);
+    \Synth\Bootstrap::setPath('FEATURES', ["MISC", "TTS_RANDOM_PITCH"], false);
+    \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
 
     require($enginePath . "processor" . DIRECTORY_SEPARATOR . "player_tts.php");
 

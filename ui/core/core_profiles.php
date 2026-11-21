@@ -467,7 +467,7 @@ body .setting-key .profile-setting-sync-btn:hover { border-color:var(--synth-acc
         <span class="message"></span>
     </div>
 <?php
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 
 $profiles = new CoreProfile();
 

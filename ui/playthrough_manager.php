@@ -14,7 +14,7 @@ if (!in_array(strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')), ['GET',
 $enginePath = dirname(__DIR__) . DIRECTORY_SEPARATOR;
 
 require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
-require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "{$GLOBALS["DBDRIVER"]}.class.php");
+require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . (\Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "utils_game_timestamp.php");
 require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "playthrough_schema.php");

@@ -6,11 +6,11 @@ ini_set("log_errors", "1");
 
 $root = dirname(__DIR__);
 $path = $root . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = $path;
-$GLOBALS["SYNTH_RESPONSE_FORMAT"] = "json";
-$GLOBALS["SYNTH_RESPONSE_STREAMING"] = false;
-$GLOBALS["SYNTH_GAME_ID"] = "fo4";
-$GLOBALS["SYNTH_WORLD_NAME"] = "Commonwealth";
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', "json");
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', "fo4");
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', "Commonwealth");
 
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "logger.php");

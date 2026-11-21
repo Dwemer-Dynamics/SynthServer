@@ -22,7 +22,7 @@ if (!isset($webRoot)) {
 }
 
 // Ensure runtime globals are available for UI chrome even when included directly.
-if (defined('BASE_PATH') && (!isset($GLOBALS["DBDRIVER"]) || !isset($GLOBALS["db"]))) {
+if (defined('BASE_PATH') && (!\Synth\Bootstrap::has('DBDRIVER') || !\Synth\Bootstrap::has('db'))) {
  $enginePath = BASE_PATH . DIRECTORY_SEPARATOR;
  @require_once($enginePath . "lib" . DIRECTORY_SEPARATOR . "runtime_bootstrap.php");
  if (function_exists('synthRuntimeBootstrapIfNeeded')) {
@@ -44,8 +44,8 @@ function isValidPluginVersion($version) {
 
 $pluginVersionDisplay = 'N/A'; // Default value
 
-// Attempt to use a global $db object if available and valid
-if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
+// Attempt to use the shared $db object if available and valid
+if (\Synth\Bootstrap::has('db') && is_object(\Synth\Bootstrap::db())) {
  try {
  if (method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
  $pluginVersionRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version')];
@@ -57,7 +57,7 @@ if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
  }
  }
  } elseif (method_exists(\Synth\Bootstrap::db(), 'fetchAll')) {
- // Fallback to fetchAll on global $db if fetchOne not found
+ // Fallback to fetchAll on the shared $db if fetchOne not found
  $rows = (static function ($stored) { return $stored === null ? [] : [['value' => $stored]]; })(\Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'plugin_dll_version'));
  if ($rows && isset($rows[0]) && isset($rows[0]['value']) && trim($rows[0]['value']) !== '') {
  $version = trim($rows[0]['value']);
@@ -75,7 +75,7 @@ if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
  // Only attempt to create a new DB connection if we don't already have a global one
  // and only if we have all the required components
  try {
- if (isset($GLOBALS["DBDRIVER"]) && !empty($GLOBALS["DBDRIVER"])) {
+ if (\Synth\Bootstrap::has('DBDRIVER') && !empty(\Synth\Bootstrap::config('DBDRIVER'))) {
  $dbDriverFile = BASE_PATH . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . \Synth\Bootstrap::config("DBDRIVER") . ".class.php";
 
  // Only try to load the SQL class if it doesn't already exist

@@ -8,7 +8,7 @@ header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
 $enginePath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 require_once($enginePath . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
 
@@ -91,9 +91,9 @@ try {
         throw new RuntimeException("TTS is not configured for {$author}'s profile.");
     }
 
-    $GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA'] = $profileData;
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $profileData);
     $profileManager->setOldGlobals($profileData);
-    $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] = $npcData;
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $npcData);
     if ($isNarrator) {
         $narratorManager->loadCharacterIntoGlobals();
     } else {
@@ -134,14 +134,14 @@ try {
     try {
         $wasCached = is_file($soundCachePath) && filesize($soundCachePath) > 0;
         if (!$wasCached) {
-            $GLOBALS['AVOID_TTS_CACHE'] = false;
-            $GLOBALS['PATCH_DONT_STORE_SPEECH_ON_DB'] = true;
-            $GLOBALS['SCRIPTLINE_LISTENER'] = '';
-            $GLOBALS['SCRIPTLINE_EXPRESSION'] = '';
-            $GLOBALS['TTS_FFMPEG_FILTERS'] = \Synth\Bootstrap::config('TTS_FFMPEG_FILTERS') ?? [];
-            $GLOBALS['FEATURES'] = \Synth\Bootstrap::config('FEATURES') ?? [];
-            $GLOBALS['FEATURES']['MISC'] = \Synth\Bootstrap::config('FEATURES')['MISC'] ?? [];
-            $GLOBALS['FEATURES']['MISC']['TTS_RANDOM_PITCH'] = false;
+            \Synth\Bootstrap::set('AVOID_TTS_CACHE', false);
+            \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', '');
+            \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', '');
+            \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', \Synth\Bootstrap::config('TTS_FFMPEG_FILTERS') ?? []);
+            \Synth\Bootstrap::set('FEATURES', \Synth\Bootstrap::config('FEATURES') ?? []);
+            \Synth\Bootstrap::setAt('FEATURES', 'MISC', \Synth\Bootstrap::config('FEATURES')['MISC'] ?? []);
+            \Synth\Bootstrap::setPath('FEATURES', ['MISC', 'TTS_RANDOM_PITCH'], false);
 
             $ttsOutput = callNpcTtsWithFallback($content, 'default', $cacheSeed);
             $generatedFile = basename(strval($ttsOutput));

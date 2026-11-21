@@ -145,10 +145,10 @@ if ($webRoot == '/') $webRoot = '';
 $webRoot = rtrim($webRoot, '/');
 
 require_once(__DIR__.DIRECTORY_SEPARATOR."../profile_loader.php");
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? null;
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? null);
 // Early Export CSV handler (must run before any output)
 if (isset($_GET["export"])) {
- if (!\Synth\Bootstrap::db()) { $GLOBALS["db"] = new sql(); }
+ if (!\Synth\Bootstrap::db()) { \Synth\Bootstrap::set('db', new sql()); }
  $llmEarly = new LLMConnector();
  $idEarly = $_GET['export'];
  $rowEarly = $llmEarly->getById($idEarly);
@@ -202,7 +202,7 @@ $noticeMsg = '';
 if (isset($_GET['notice']) && $_GET['notice'] !== '') {
  $noticeMsg = (string)$_GET['notice'];
 }
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 $llm = new LLMConnector();
 
 // Read network IPs for Custom service helper buttons

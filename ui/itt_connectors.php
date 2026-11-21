@@ -31,7 +31,7 @@ function ih($value): string
 
 function ittPageUrl(array $params = []): string
 {
-    global $isEmbed;
+    $isEmbed = &\Synth\Bootstrap::ref('isEmbed');
     if ($isEmbed && !isset($params['embed'])) {
         $params['embed'] = '1';
     }
