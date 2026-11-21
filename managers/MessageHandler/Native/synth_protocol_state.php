@@ -913,14 +913,10 @@ function synth_protocol_persist_quest_history($db, array $event): void
     if (($event['protocol_version'] ?? 1) !== 2) return;
     $journal = synth_protocol_quest_history_observation($event['payload']);
     if ($journal === null) return;
-    $result = $db->execQuery("SELECT event_payload->'party' AS party FROM public.core_history_event
-        WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
-          AND context_sequence<$4 AND event_payload->>'type'='quest_observation'
-        ORDER BY id DESC LIMIT 1", [$event['session_id'], $event['generation'],
-            $event['payload']['playthrough_id'], $event['payload']['snapshot_sequence']]);
-    if ($result === false) throw new RuntimeException('Unable to read owned quest observation history.');
-    $row = pg_fetch_assoc($result);
-    $party = $row ? json_decode($row['party'], true, flags: JSON_THROW_ON_ERROR) : null;
+    $previousParty = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->previousQuestObservationParty(strval($event['session_id']), intval($event['generation']),
+        strval($event['payload']['playthrough_id']), intval($event['payload']['snapshot_sequence']));
+    if ($previousParty === false) throw new RuntimeException('Unable to read owned quest observation history.');
+    $party = $previousParty !== null ? json_decode($previousParty, true, flags: JSON_THROW_ON_ERROR) : null;
     if (is_string($party)) $party = json_decode($party, true, flags: JSON_THROW_ON_ERROR);
     // Preserve false versus unavailable tracking while ignoring object-key serialization order.
     if (synth_protocol_sort_keys($party['journal'] ?? null) === synth_protocol_sort_keys($journal)) return;
@@ -974,14 +970,10 @@ function synth_protocol_persist_quest_events($db, array $event): void
     }
     $owner = [$event['session_id'], $event['generation'], $payload['playthrough_id']];
     $player = array_intersect_key($payload['player'], array_flip(['form_id','origin_plugin','playthrough_id']));
-    $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party
-        FROM public.core_history_event WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
-          AND event_payload->>'type'='quest_events'
-          AND (event_payload->>'party')::jsonb->>'batch_id'=$4 LIMIT 1", [...$owner, $batch['batch_id']]);
-    if ($result === false) throw new RuntimeException('Unable to read native quest batch history.');
-    $row = pg_fetch_assoc($result);
-    if ($row) {
-        $previous = json_decode($row['party'], true, flags: JSON_THROW_ON_ERROR);
+    $batchParty = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->questBatchParty(strval($owner[0]), intval($owner[1]), strval($owner[2]), strval($batch['batch_id']));
+    if ($batchParty === false) throw new RuntimeException('Unable to read native quest batch history.');
+    if ($batchParty !== null) {
+        $previous = json_decode($batchParty, true, flags: JSON_THROW_ON_ERROR);
         if (($previous['input_events'] ?? null) != $batch['events'] || ($previous['player'] ?? null) != $player) {
             throw new DomainException('quest_event_batch_conflict');
         }
@@ -996,15 +988,11 @@ function synth_protocol_persist_quest_events($db, array $event): void
             throw new DomainException('quest_event_visibility_sequence_invalid');
         }
         if (!array_key_exists($sequence, $witnesses)) {
-            $result = $db->execQuery("SELECT context_payload FROM public.core_runtime_context
-                WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$4
-                  AND player_identity_id=(SELECT player_identity_id FROM public.core_runtime_context
-                    WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$5)",
-                [...$owner, $sequence, $payload['snapshot_sequence']]);
-            if ($result === false) throw new RuntimeException('Unable to read native quest visibility witness.');
-            $row = pg_fetch_assoc($result);
-            if (!$row) throw new DomainException('quest_event_visibility_context_missing');
-            $witnesses[$sequence] = json_decode($row['context_payload'], true, flags: JSON_THROW_ON_ERROR);
+            $witnessPayload = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->witnessPayload(strval($owner[0]), intval($owner[1]), strval($owner[2]),
+                intval($sequence), intval($payload['snapshot_sequence']));
+            if ($witnessPayload === false) throw new RuntimeException('Unable to read native quest visibility witness.');
+            if ($witnessPayload === null) throw new DomainException('quest_event_visibility_context_missing');
+            $witnesses[$sequence] = json_decode($witnessPayload, true, flags: JSON_THROW_ON_ERROR);
         }
         $quest = synth_protocol_quest_event_witness($witnesses[$sequence], $record);
         $grounded[] = ['event'=>$record, 'journal_witness'=>$quest,
@@ -1033,20 +1021,18 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
     $gamets = intval($event['payload']['world']['game_time_ticks'] ?? 0);
     if ($gamets <= 0) $gamets = intval($event['payload']['snapshot_sequence'] ?? 1);
     $timestamp = time();
-    $playthrough = $db->escapeLiteral(trim(strval(
-        $event['payload']['playthrough_id'] ?? 'unknown'
-    )));
-    if ($quality==='complete' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}") === false) {
+    $playthrough = trim(strval($event['payload']['playthrough_id'] ?? 'unknown'));
+    $questRows = \Synth\Core\DbManager\Dao\QuestDao::current($db);
+    if ($quality==='complete' && !$questRows->deleteBySession($playthrough)) {
         throw new RuntimeException('Unable to replace playthrough quest projection.');
     }
     foreach (array_slice($quests, 0, 16) as $quest) {
         if (!is_array($quest)) continue;
-        $id = $db->escapeLiteral(strtoupper(strval($quest['form_id'] ?? '')));
-        $name = $db->escapeLiteral(trim(strval($quest['display_name'] ?? '')));
-        $editor = $db->escapeLiteral(trim(strval($quest['editor_id'] ?? '')));
-        $plugin = $db->escapeLiteral(trim(strval($quest['origin_plugin'] ?? '')));
-        if ($quality==='partial' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}
-            AND upper(id_quest)={$id} AND lower(mod)=lower({$plugin})")===false) {
+        $id = strtoupper(strval($quest['form_id'] ?? ''));
+        $name = trim(strval($quest['display_name'] ?? ''));
+        $editor = trim(strval($quest['editor_id'] ?? ''));
+        $plugin = trim(strval($quest['origin_plugin'] ?? ''));
+        if ($quality==='partial' && !$questRows->deleteObserved($playthrough, $id, $plugin)) {
             throw new RuntimeException('Unable to update observed quest projection.');
         }
         $stage = intval($quest['current_stage'] ?? 0);
@@ -1059,22 +1045,19 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
             ? implode('; ', array_slice($objectives, 0, 8))
             : 'Stage ' . $stage . '; ' . (($quest['objectives_observation'] ?? 'unavailable')==='unavailable'
                 ? 'active objective observation unavailable' : 'active objective count ' . $objectiveCount);
-        $briefing = $db->escapeLiteral($briefingText);
-        $objectiveJson = $db->escapeLiteral(json_encode(
+        $objectiveJson = json_encode(
             $objectives,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
-        $data = $db->escapeLiteral(json_encode(
+        );
+        $data = json_encode(
             $quest,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
-        if ($db->execQuery(
-            "INSERT INTO public.core_quest
-                (ts, sess, id_quest, name, editor_id, giver_actor_id, mod, stage,
-                 briefing, briefing2, localts, gamets, data, status)
-             VALUES ('{$timestamp}', {$playthrough}, {$id}, {$name}, {$editor}, '',
-                     {$plugin}, {$stage}, {$briefing}, {$objectiveJson}, {$timestamp}, {$gamets}, {$data}, 'active')"
-        ) === false) {
+        );
+        if (!$questRows->record([
+            'ts' => strval($timestamp), 'sess' => $playthrough, 'id_quest' => $id, 'name' => $name, 'editor_id' => $editor,
+            'giver_actor_id' => '', 'mod' => $plugin, 'stage' => $stage, 'briefing' => $briefingText, 'briefing2' => $objectiveJson,
+            'localts' => $timestamp, 'gamets' => $gamets, 'data' => $data, 'status' => 'active',
+        ])) {
             throw new RuntimeException('Unable to persist playthrough quest projection.');
         }
     }

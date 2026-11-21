@@ -96,6 +96,27 @@ class RuntimeContextDao
         return $row === false ? null : $row;
     }
 
+    /**
+     * The payload of an earlier snapshot of the same player (the one $currentSequence belongs to) in this playthrough: null when
+     * there is none, false when the read failed.
+     */
+    public function witnessPayload(string $sessionId, int $generation, string $playthroughId, int $sequence, int $currentSequence): string|null|false
+    {
+        try {
+            $value = $this->connection()->fetchOne(
+                "SELECT context_payload FROM public.core_runtime_context
+                  WHERE session_id = ? AND generation = ? AND playthrough_id = ? AND snapshot_sequence = ?
+                    AND player_identity_id=(SELECT player_identity_id FROM public.core_runtime_context
+                      WHERE session_id = ? AND generation = ? AND playthrough_id = ? AND snapshot_sequence = ?)",
+                [$sessionId, $generation, $playthroughId, $sequence, $sessionId, $generation, $playthroughId, $currentSequence]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return $value === false ? null : (string) $value;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {
