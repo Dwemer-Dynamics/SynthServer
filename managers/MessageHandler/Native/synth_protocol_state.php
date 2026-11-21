@@ -2471,19 +2471,36 @@ function synth_protocol_prompt_actor_states(
 // v2 reads only the named immutable snapshot; v1 retains its legacy latest-context behavior.
 function synth_protocol_original_context($db, array $event): ?array
 {
-    $sessionId = synth_protocol_session_id($event);
+    $session = $db->escapeLiteral(synth_protocol_session_id($event));
     $generation = intval($event['generation'] ?? 0);
-    $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db);
     if (($event['protocol_version'] ?? 1) === 2) {
         $sequence = intval($event['context_sequence'] ?? 0);
         if ($sequence < 1) return null;
-        $row = $contexts->activeSnapshotPayload($sessionId, $generation, $sequence);
-        if ($row === null) return null;
-        $payload = json_decode($row, true);
+        $row = $db->fetchOne(
+            "SELECT c.context_payload
+               FROM public.core_runtime_context c
+               JOIN public.core_runtime_session r ON r.session_id=c.session_id
+                AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id AND r.state='active'
+              WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}"
+        );
+        if (!$row) return null;
+        $payload = is_array($row['context_payload'] ?? null) ? $row['context_payload']
+            : json_decode(strval($row['context_payload'] ?? ''), true);
         if (!is_array($payload) || !is_array($payload['player'] ?? null)) return null;
         return ['payload' => $payload, 'player' => $payload['player'], 'target' => $payload['target'] ?? null];
     }
-    $row = $contexts->latestLegacyContext($sessionId, $generation);
+    $row = $db->fetchOne(
+        "SELECT c.context_payload,
+                p.full_form_id AS player_form_id, p.origin_plugin AS player_plugin,
+                p.playthrough_id, p.display_name AS player_name,
+                t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
+                t.display_name AS target_name
+           FROM public.core_runtime_context c
+           JOIN public.core_actor_identity p ON p.id=c.player_identity_id
+           LEFT JOIN public.core_actor_identity t ON t.id=c.target_identity_id
+          WHERE c.session_id={$session} AND c.generation={$generation}
+          ORDER BY c.snapshot_sequence DESC LIMIT 1"
+    );
     if (!$row) {
         return null;
     }

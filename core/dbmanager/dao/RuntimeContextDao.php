@@ -96,45 +96,6 @@ class RuntimeContextDao
         return $row === false ? null : $row;
     }
 
-    /** The payload JSON of one snapshot while its session is active in that generation and playthrough; null when none. */
-    public function activeSnapshotPayload(string $sessionId, int $generation, int $sequence): ?string
-    {
-        $value = $this->connection()->fetchOne(
-            "SELECT c.context_payload FROM public.core_runtime_context c
-               JOIN public.core_runtime_session r ON r.session_id=c.session_id
-                AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id AND r.state='active'
-              WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?",
-            [$sessionId, $generation, $sequence]
-        );
-
-        return $value === false || $value === null ? null : (string) $value;
-    }
-
-    /**
-     * The newest snapshot of a generation with its player and target identities (the protocol v1 context): payload, player form id,
-     * plugin, playthrough and name, target form id, plugin and name; null when none.
-     *
-     * @return array<string, mixed>|null
-     */
-    public function latestLegacyContext(string $sessionId, int $generation): ?array
-    {
-        $row = $this->connection()->fetchAssociative(
-            "SELECT c.context_payload,
-                    p.full_form_id AS player_form_id, p.origin_plugin AS player_plugin,
-                    p.playthrough_id, p.display_name AS player_name,
-                    t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
-                    t.display_name AS target_name
-               FROM public.core_runtime_context c
-               JOIN public.core_actor_identity p ON p.id=c.player_identity_id
-               LEFT JOIN public.core_actor_identity t ON t.id=c.target_identity_id
-              WHERE c.session_id = ? AND c.generation = ?
-              ORDER BY c.snapshot_sequence DESC LIMIT 1",
-            [$sessionId, $generation]
-        );
-
-        return $row === false ? null : $row;
-    }
-
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {
