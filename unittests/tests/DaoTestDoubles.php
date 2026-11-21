@@ -4,6 +4,8 @@
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
 use Synth\Core\DbManager\Dao\ActorActivationDao;
+use Synth\Core\DbManager\Dao\ActorIdentityDao;
+use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
@@ -174,6 +176,85 @@ final class DaoTestDoubles
         ProtocolEventDao::inject(null);
         ActorActivationDao::inject(null);
         RequestExecutionDao::inject(null);
+    }
+
+    /**
+     * The actor identity, activation and loaded-context reads and writes of synth_protocol_state.php answered by $fake, which sees
+     * the legacy SQL text (fetchOne() for reads and RETURNING, execQuery() for the other writes).
+     */
+    public static function identityFrom(object $fake): void
+    {
+        ActorIdentityDao::inject(new class($fake) extends ActorIdentityDao {
+            public function __construct(private object $fake) {}
+
+            public function lockFo4Identity(string $fullFormId, string $originPlugin, string $playthroughId): ?int
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT id FROM public.core_actor_identity
+          WHERE game={$f->escapeLiteral('fo4')}
+            AND upper(full_form_id)=upper({$f->escapeLiteral($fullFormId)})
+            AND lower(origin_plugin)=lower({$f->escapeLiteral($originPlugin)})
+            AND playthrough_id={$f->escapeLiteral($playthroughId)}
+          FOR UPDATE");
+
+                return $row ? intval($row['id']) : null;
+            }
+
+            public function touch(int $id, ?string $displayName): bool
+            {
+                $f = $this->fake;
+                $name = $displayName === null ? 'NULL' : $f->escapeLiteral($displayName);
+                $f->execQuery("UPDATE public.core_actor_identity
+                SET last_seen_at=NOW(), display_name=COALESCE({$name}, display_name)
+              WHERE id=" . $id);
+
+                return true;
+            }
+
+            public function insertFo4(string $fullFormId, string $originPlugin, string $playthroughId, ?string $displayName): ?int
+            {
+                $f = $this->fake;
+                $name = $displayName === null ? 'NULL' : $f->escapeLiteral($displayName);
+                $row = $f->fetchOne("INSERT INTO public.core_actor_identity (game, full_form_id, origin_plugin, playthrough_id, display_name)
+         VALUES ({$f->escapeLiteral('fo4')}, {$f->escapeLiteral($fullFormId)}, {$f->escapeLiteral($originPlugin)}, {$f->escapeLiteral($playthroughId)}, {$name})
+         RETURNING id");
+
+                return !$row || intval($row['id'] ?? 0) < 1 ? null : intval($row['id']);
+            }
+        });
+        RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
+            public function __construct(private object $fake) {}
+
+            public function loadedContext(string $sessionId, string $playthroughId, int $generation, int $sequence, string $runtimeVariant): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT c.context_payload, c.playthrough_id, c.session_id, c.generation, c.snapshot_sequence, c.history_event_id
+        FROM public.core_runtime_context c JOIN public.core_runtime_session r USING (session_id)
+        WHERE c.session_id={$f->escapeLiteral($sessionId)} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}
+            AND c.playthrough_id={$f->escapeLiteral($playthroughId)} AND r.runtime_variant={$f->escapeLiteral($runtimeVariant)}");
+
+                return $row ?: null;
+            }
+        });
+        ActorActivationDao::inject(new class($fake) extends ActorActivationDao {
+            public function __construct(private object $fake) {}
+
+            public function upsertActive(string $sessionId, int $generation, int $actorIdentityId, string $source): bool
+            {
+                $f = $this->fake;
+                $f->execQuery("INSERT INTO public.core_actor_activation
+            (session_id, generation, actor_identity_id, source, state)
+         VALUES ({$f->escapeLiteral($sessionId)}, {$generation}, {$actorIdentityId}, {$f->escapeLiteral($source)}, 'active')
+         ON CONFLICT (session_id, generation, actor_identity_id) DO UPDATE SET
+            source = CASE
+                WHEN public.core_actor_activation.source='manual' THEN 'manual'
+                ELSE EXCLUDED.source
+            END,
+            state='active', last_seen_at=NOW()");
+
+                return true;
+            }
+        });
     }
 
     /**

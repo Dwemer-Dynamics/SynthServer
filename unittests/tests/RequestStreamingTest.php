@@ -12,6 +12,12 @@ require_once dirname(__DIR__, 2).'/lib/synth_memory_dispatch.php';
 
 final class RequestStreamingTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::forgetBooted();
+        parent::tearDown();
+    }
+
     public static function transferActionCodes(): array
     {
         return ['items'=>['GiveItemTo'],'caps'=>['GiveCapsTo'],'player-caps'=>['TakeCapsFromPlayer'],'player-items'=>['TakeItemFromPlayer'],'gift-menu'=>['OpenInventory']];
@@ -1236,6 +1242,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
             public function fetchOne(string $sql): ?array { $this->queries[] = $sql; return $this->row; }
         };
+        DaoTestDoubles::identityFrom($db);
         $this->assertSame($db->row, synth_protocol_loaded_context($db, $event));
         $sql = $db->queries[0];
         foreach (["c.session_id='session:previous'", 'c.generation=6', 'c.snapshot_sequence=42',
@@ -1719,6 +1726,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => ['session_id' => 'session:one',
@@ -1819,6 +1827,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::identityFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
         try {
@@ -1894,6 +1903,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         try {
             $GLOBALS['db'] = $db;
             $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = ['action.end_conversation'];
@@ -2198,6 +2208,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
 
         $identityId = synth_protocol_actor_identity_id($db, [
             'form_id' => '0x0001a4d7',
@@ -2219,6 +2230,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 42]; }
             public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        DaoTestDoubles::identityFrom($db);
         synth_protocol_persist_actor_factions($db, [[
             'actor' => [
                 'form_id' => '0x0001A4D7', 'origin_plugin' => 'Fallout4.esm',
@@ -2254,6 +2266,7 @@ final class RequestStreamingTest extends TestCase
                     return !str_contains($sql, $this->needle);
                 }
             };
+            DaoTestDoubles::identityFrom($db);
             try {
                 synth_protocol_persist_actor_factions($db, [[
                     'actor' => ['form_id' => '0x0001A4D7', 'origin_plugin' => 'Fallout4.esm',
