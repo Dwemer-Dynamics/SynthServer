@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractActionIntent;
 
 /** Finds rows of core_action_intent. */
-final class ActionIntentDao
+class ActionIntentDao
 {
     use UsesEntityManager;
 

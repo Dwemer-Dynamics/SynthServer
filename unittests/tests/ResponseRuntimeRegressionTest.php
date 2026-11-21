@@ -56,6 +56,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                     return str_contains($sql,'public.core_media_object') ? $this->media : ['state'=>'running','within_deadline'=>'t'];
                 }
             };
+            DaoTestDoubles::workerJobFrom($db);
             \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
                 public function __construct(private object $fake) {}
                 public function delivery(string $mediaId): ?array { return $this->fake->media; }
@@ -1049,6 +1050,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
 
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         unset(
             $GLOBALS['db'],
             $GLOBALS['SYNTH_NAME'],
@@ -1110,6 +1112,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             }
         };
 
+        DaoTestDoubles::npcFrom($GLOBALS['db']);
         $this->assertSame(18, getNpcLevel('Ranger Ghost'));
         $this->assertStringContainsString('FROM core_npc', $GLOBALS['db']->lastQuery);
     }

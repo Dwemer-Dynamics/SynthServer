@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractWorkerJob;
 
 /** Finds rows of core_worker_job. */
-final class WorkerJobDao
+class WorkerJobDao
 {
     use UsesEntityManager;
 

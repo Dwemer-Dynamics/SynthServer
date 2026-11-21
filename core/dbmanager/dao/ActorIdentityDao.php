@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractActorIdentity;
 
 /** Finds rows of core_actor_identity. */
-final class ActorIdentityDao
+class ActorIdentityDao
 {
     use UsesEntityManager;
 
