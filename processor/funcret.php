@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 if (!function_exists('synthActionShouldEmitDebugNotification')) {
 	function synthActionShouldEmitDebugNotification($functionCodeName)
 	{

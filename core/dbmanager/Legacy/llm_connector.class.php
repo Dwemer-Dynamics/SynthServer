@@ -1,7 +1,6 @@
 <?php
 
 require_once dirname(__DIR__, 3).'/lib/autoload.php';
-require_once __DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php";
 
 if (!function_exists('synthConnectorExtraParametersEnabled')) {
     function synthConnectorExtraParametersEnabled(array $connector): bool

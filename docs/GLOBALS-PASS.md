@@ -340,3 +340,12 @@ Directory: workers. `tools/require-prune.php` deleted 25 class-file `require_onc
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1755 | 1730 |
 | global uses | 64 | 64 |
+
+### R5-processor-service-prompts-functions-core
+
+Directory: processor, service, prompts, functions, core (small, grouped in one PR: 12+7+0+0+6 deleted). `tools/require-prune.php` deleted 25 class-file `require_once` lines and replaced 10 `Logger.php` lines by `autoload.php`. Stacked on R4 (#192).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1730 | 1705 |
+| global uses | 64 | 64 |
