@@ -358,3 +358,12 @@ Directory: managers, lib, api, stt, debug, tools, bin (the `lib/core/*.class.php
 | --- | --- | --- |
 | `require_once` (all non-test PHP) | 1705 | 1678 |
 | global uses | 64 | 64 |
+
+### R7-legacy-core-functions
+
+Directory: lib/legacy_core_functions.php (new, Composer files entry). `tools/require-prune.php` deleted 0 class-file `require_once` lines and replaced 0 `Logger.php` lines by `autoload.php`. Moves 17 guarded functions out of the llm_connector, narrator and npc_master class files; stacked on R6 (#195).
+
+| | before | after |
+| --- | --- | --- |
+| `require_once` (all non-test PHP) | 1678 | 1678 |
+| global uses | 64 | 64 |
