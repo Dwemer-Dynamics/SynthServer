@@ -161,6 +161,7 @@ $db=new class($published,$cancel) {
 };
 $GLOBALS['db']=$db;
 require_once $root.'/vendor/autoload.php';
+require_once $root.'/unittests/tests/DaoTestDoubles.php';DaoTestDoubles::ownerFrom($db);
 \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($published) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
     public function __construct(private array $published) {}
     public function publishReady(string $mediaId, string $contentType, int $size, string $sha256, array $correlation): bool { return true; }
