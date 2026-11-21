@@ -261,3 +261,23 @@ Files under: managers
 | --- | --- | --- |
 | global uses (all non-test PHP) | 938 | 269 |
 | `require_once` | 1838 | 1838 |
+
+### W12-dbmanager
+
+All uses in `core/dbmanager/` (the legacy connector, narrator, player and profile classes). `unset` of two nested keys uses `unsetPath`; the two "database connection not initialized" exception messages now name `Bootstrap::db()` instead of `$GLOBALS['db']`.
+
+Exception list for the whole pass (what the count still contains, measured with the CHEVO-PARITY method):
+
+- `bootstrap.php`: `Synth\Bootstrap` is the store; its own `$GLOBALS` reads and writes are the implementation (47).
+- `lib/classes/Logger.php`: two `$GLOBALS['SYNTH_REQUEST_ID']` uses; the logger is required standalone before any autoloader.
+- `tools/globals-convert.php`, `tools/globals-comments.php`: mention the tokens in comments.
+- Literal replacement keys `'{$GLOBALS["SYNTH_NAME"]}'` / `PLAYER_NAME` in `functions/functions.php`, `ui/function_editor.php`, `workers/Profiles/Native/dynamic_update_util.php`, `processor/request.php` and `managers/MemoryManager/Native/synth_diary_state.php`.
+
+Not counted by the method: whole-array uses of `$GLOBALS` (no subscript), such as `array_intersect_key($GLOBALS, ...)`.
+
+Files under: core/dbmanager
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 269 | 64 |
+| `require_once` | 1864 | 1864 |

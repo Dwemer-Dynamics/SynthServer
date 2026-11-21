@@ -7,8 +7,8 @@ class Player
 
     public function __construct()
     {
-        if (!isset($GLOBALS["db"])) {
-            throw new \Exception("Database connection not initialized. Please ensure \$GLOBALS['db'] is set before instantiating Player class.");
+        if (!\Synth\Bootstrap::has('db')) {
+            throw new \Exception("Database connection not initialized. Please ensure the shared database handle (Bootstrap::db()) is installed before instantiating Player class.");
         }
         $this->db = \Synth\Bootstrap::db();
     }

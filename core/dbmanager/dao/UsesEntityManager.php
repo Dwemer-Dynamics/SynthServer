@@ -51,7 +51,7 @@ trait UsesEntityManager
 
     /**
      * The DAO for request code that still owns a legacy session: the booted process-wide DAO when Database::boot() ran,
-     * else one over $db (default $GLOBALS['db']), built once per session object.
+     * else one over $db (default \Synth\Bootstrap::config('db')), built once per session object.
      */
     public static function current(?object $db = null): self
     {

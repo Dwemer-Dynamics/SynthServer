@@ -12,8 +12,8 @@ class Narrator
 
     public function __construct()
     {
-        if (!isset($GLOBALS["db"])) {
-            throw new \Exception("Database connection not initialized. Please ensure \$GLOBALS['db'] is set before instantiating Narrator class.");
+        if (!\Synth\Bootstrap::has('db')) {
+            throw new \Exception("Database connection not initialized. Please ensure the shared database handle (Bootstrap::db()) is installed before instantiating Narrator class.");
         }
         $this->db = \Synth\Bootstrap::db();
     }
@@ -217,21 +217,21 @@ class Narrator
         }
 
         if ($seedMissing && !isset($allSettings['remove_asterisks_from_npc_output'])) {
-            $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_NPC_OUTPUT', $GLOBALS) || !empty($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? '1' : '0';
+            $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_NPC_OUTPUT', $GLOBALS) || !empty(\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT')) ? '1' : '0';
             if ($this->set('remove_asterisks_from_npc_output', $serialized)) {
                 $allSettings['remove_asterisks_from_npc_output'] = $serialized;
             }
         }
 
         if ($seedMissing && !isset($allSettings['remove_asterisks_from_player_input'])) {
-            $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_PLAYER_INPUT', $GLOBALS) || !empty($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? '1' : '0';
+            $serialized = !array_key_exists('REMOVE_ASTERISKS_FROM_PLAYER_INPUT', $GLOBALS) || !empty(\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT')) ? '1' : '0';
             if ($this->set('remove_asterisks_from_player_input', $serialized)) {
                 $allSettings['remove_asterisks_from_player_input'] = $serialized;
             }
         }
 
         if ($seedMissing && !isset($allSettings['remove_player_autochat_asterisks'])) {
-            $serialized = !array_key_exists('REMOVE_PLAYER_AUTOCHAT_ASTERISKS', $GLOBALS) || !empty($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? '1' : '0';
+            $serialized = !array_key_exists('REMOVE_PLAYER_AUTOCHAT_ASTERISKS', $GLOBALS) || !empty(\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS')) ? '1' : '0';
             if ($this->set('remove_player_autochat_asterisks', $serialized)) {
                 $allSettings['remove_player_autochat_asterisks'] = $serialized;
             }
@@ -250,22 +250,22 @@ class Narrator
             'quest_comment_cooldown' => ['QUEST_COMMENT_COOLDOWN', 'int', 3],
             'hide_from_context' => ['HIDE_NARRATOR_DIALOGUE', 'bool', false],
             'dynamic_profile' => ['DYNAMIC_PROFILE', 'bool', false],
-            'inline_narration_mode' => ['INLINE_NARRATION_MODE', 'string', isset($GLOBALS['INLINE_NARRATION_MODE']) ? \Synth\Bootstrap::config('INLINE_NARRATION_MODE') : 'disabled'],
+            'inline_narration_mode' => ['INLINE_NARRATION_MODE', 'string', \Synth\Bootstrap::has('INLINE_NARRATION_MODE') ? \Synth\Bootstrap::config('INLINE_NARRATION_MODE') : 'disabled'],
             'remove_player_autochat_asterisks' => [
                 'REMOVE_PLAYER_AUTOCHAT_ASTERISKS',
                 'bool',
-                isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS']) ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true,
+                \Synth\Bootstrap::has('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') ? (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS') : true,
             ],
             'preserve_asterisks_in_context' => ['PRESERVE_ASTERISKS_IN_CONTEXT', 'bool', false],
             'remove_asterisks_from_player_input' => [
                 'REMOVE_ASTERISKS_FROM_PLAYER_INPUT',
                 'bool',
-                isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true,
+                \Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT') : true,
             ],
             'remove_asterisks_from_npc_output' => [
                 'REMOVE_ASTERISKS_FROM_NPC_OUTPUT',
                 'bool',
-                isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']) ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true,
+                \Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') ? (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') : true,
             ],
             'diary_enabled' => ['NARRATOR_DIARY_ENABLED', 'bool', false],
             'auto_diary_enabled' => ['NARRATOR_AUTO_DIARY_ENABLED', 'bool', false],
@@ -279,15 +279,15 @@ class Narrator
             
             if (isset($allSettings[$dbKey])) {
                 if ($type === 'bool') {
-                    $GLOBALS[$globalKey] = filter_var($allSettings[$dbKey], FILTER_VALIDATE_BOOLEAN);
+                    \Synth\Bootstrap::set($globalKey, filter_var($allSettings[$dbKey], FILTER_VALIDATE_BOOLEAN));
                 } elseif ($type === 'int') {
-                    $GLOBALS[$globalKey] = intval($allSettings[$dbKey]);
+                    \Synth\Bootstrap::set($globalKey, intval($allSettings[$dbKey]));
                 } else {
-                    $GLOBALS[$globalKey] = $allSettings[$dbKey];
+                    \Synth\Bootstrap::set($globalKey, $allSettings[$dbKey]);
                 }
-            } elseif (!isset($GLOBALS[$globalKey])) {
+            } elseif (!\Synth\Bootstrap::has($globalKey)) {
                 // Only set default if GLOBALS doesn't already have a value
-                $GLOBALS[$globalKey] = $default;
+                \Synth\Bootstrap::set($globalKey, $default);
             }
         }
 
@@ -295,7 +295,7 @@ class Narrator
         if (!in_array($inlineNarrationMode, ['disabled', 'narrator', 'npc', 'text_only'], true)) {
             $inlineNarrationMode = 'disabled';
         }
-        $GLOBALS['INLINE_NARRATION_MODE'] = $inlineNarrationMode;
+        \Synth\Bootstrap::set('INLINE_NARRATION_MODE', $inlineNarrationMode);
         
         // NOTE: Character data (SYNTH_NAME, SYNTH_PERS, PROMPT_HEAD, etc.) is NOT loaded here.
         // loadCharacterIntoGlobals() should only be called when The Narrator is confirmed
@@ -313,63 +313,63 @@ class Narrator
         $allSettings=synth_profile_effective_data($this->db,$allSettings,true);
         
         // Routing always uses the canonical name; prompts may use the roleplay alias.
-        $GLOBALS['SYNTH_NAME'] = self::CANONICAL_NAME;
-        $GLOBALS['NARRATOR_ROLEPLAY_NAME'] = $this->getRoleplayName();
-        $GLOBALS['SYNTH_ROLEPLAY_NAME'] = \Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME');
+        \Synth\Bootstrap::set('SYNTH_NAME', self::CANONICAL_NAME);
+        \Synth\Bootstrap::set('NARRATOR_ROLEPLAY_NAME', $this->getRoleplayName());
+        \Synth\Bootstrap::set('SYNTH_ROLEPLAY_NAME', \Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME'));
         $promptName = \Synth\Bootstrap::config('NARRATOR_ROLEPLAY_NAME');
         
         // Map character fields to GLOBALS
         // Set SYNTH_PERS from core field (like NPCs do)
         if (isset($allSettings['core']) && $allSettings['core'] !== null && $allSettings['core'] !== '') {
-            $GLOBALS['SYNTH_PERS'] = "Roleplay as {$promptName}.\n" . synthRenderNarratorRoleplayText($allSettings['core']);
+            \Synth\Bootstrap::set('SYNTH_PERS', "Roleplay as {$promptName}.\n" . synthRenderNarratorRoleplayText($allSettings['core']));
         } else {
-            $GLOBALS['SYNTH_PERS'] = "Roleplay as {$promptName}";
+            \Synth\Bootstrap::set('SYNTH_PERS', "Roleplay as {$promptName}");
         }
         
         if (isset($allSettings['background'])) {
-            $GLOBALS['SYNTH_BACKGROUND'] = synthRenderNarratorRoleplayText($allSettings['background']);
+            \Synth\Bootstrap::set('SYNTH_BACKGROUND', synthRenderNarratorRoleplayText($allSettings['background']));
         }
         
         if (isset($allSettings['personality'])) {
-            $GLOBALS['SYNTH_PERSONALITY'] = synthRenderNarratorRoleplayText($allSettings['personality']);
+            \Synth\Bootstrap::set('SYNTH_PERSONALITY', synthRenderNarratorRoleplayText($allSettings['personality']));
         }
         
         if (isset($allSettings['speechstyle'])) {
-            $GLOBALS['SYNTH_SPEECHSTYLE'] = synthRenderNarratorRoleplayText($allSettings['speechstyle']);
+            \Synth\Bootstrap::set('SYNTH_SPEECHSTYLE', synthRenderNarratorRoleplayText($allSettings['speechstyle']));
         }
         
         if (isset($allSettings['goals'])) {
-            $GLOBALS['SYNTH_GOALS'] = synthRenderNarratorRoleplayText($allSettings['goals']);
+            \Synth\Bootstrap::set('SYNTH_GOALS', synthRenderNarratorRoleplayText($allSettings['goals']));
         }
 
         foreach (['occupation'=>'SYNTH_OCCUPATION','skills'=>'SYNTH_SKILLS'] as $field=>$global) {
-            if (isset($allSettings[$field])) $GLOBALS[$global]=synthRenderNarratorRoleplayText($allSettings[$field]);
+            if (isset($allSettings[$field])) \Synth\Bootstrap::set($global, synthRenderNarratorRoleplayText($allSettings[$field]));
         }
         
         if (isset($allSettings['worldknowledge'])) {
-            $GLOBALS['WORLDKNOWLEDGE'] = $allSettings['worldknowledge'];
+            \Synth\Bootstrap::set('WORLDKNOWLEDGE', $allSettings['worldknowledge']);
         }
 
         // Override PROMPT_HEAD if narrator has a custom prompt_head (like NPCs do)
         if (isset($allSettings['prompt_head']) && $allSettings['prompt_head'] !== null && $allSettings['prompt_head'] !== '') {
-            $GLOBALS['PROMPT_HEAD'] = synthRenderNarratorRoleplayText($allSettings['prompt_head']);
+            \Synth\Bootstrap::set('PROMPT_HEAD', synthRenderNarratorRoleplayText($allSettings['prompt_head']));
         }
 
         if (isset($allSettings['voiceid']) && $allSettings['voiceid']) {
-            $GLOBALS['PATCH_OVERRIDE_VOICE']          = $allSettings['voiceid'];
+            \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $allSettings['voiceid']);
 
-            $GLOBALS['TTS']['XTTSFASTAPI']['voiceid']  = $allSettings['voiceid'];
-            $GLOBALS['TTS']['CHATTERBOX']['voiceid']   = $allSettings['voiceid'];
-            $GLOBALS['TTS']['POCKETTTS']['voiceid']    = $allSettings['voiceid'];
-            $GLOBALS['TTS']['OMNIVOICE']['voiceid']    = $allSettings['voiceid'];
-            $GLOBALS['TTS']['PIPERTTS']['voiceid']     = $allSettings['voiceid'];
-            $GLOBALS['TTS']['ELEVEN_LABS']['voice_id'] = $allSettings['voiceid'];
-            $GLOBALS['TTS']['KOKORO']['voiceid']       = $allSettings['voiceid'];
-            $GLOBALS['TTS']['CARTESIA']['voiceid']     = $allSettings['voiceid'];
-            $GLOBALS['TTS']['INWORLD']['voiceid']      = $allSettings['voiceid'];
+            \Synth\Bootstrap::setPath('TTS', ['XTTSFASTAPI', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['CHATTERBOX', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['POCKETTTS', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['OMNIVOICE', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['PIPERTTS', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['ELEVEN_LABS', 'voice_id'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['KOKORO', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['CARTESIA', 'voiceid'], $allSettings['voiceid']);
+            \Synth\Bootstrap::setPath('TTS', ['INWORLD', 'voiceid'], $allSettings['voiceid']);
 
         } else {
-            unset($GLOBALS['PATCH_OVERRIDE_VOICE']);
+            \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
         }
     }
     
