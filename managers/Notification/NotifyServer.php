@@ -123,6 +123,19 @@ final class NotifyServer
         return $sent;
     }
 
+    /** Sends one `message_available` frame (the id only) to every connected plugin. Returns how many were written. */
+    public function broadcastMessage(int $messageId): int
+    {
+        $frame = self::textFrame(NotifyHint::messageAvailable($messageId));
+        $sent = 0;
+        foreach (array_keys($this->clients) as $key) {
+            if ($this->clients[$key]['handshaken'] && $this->write($key, $frame)) {
+                $sent++;
+            }
+        }
+        return $sent;
+    }
+
     public function close(): void
     {
         foreach (array_keys($this->clients) as $key) {
@@ -188,6 +201,14 @@ final class NotifyServer
         }
         $decoded = json_decode(substr($request, $end + 4), true);
         $topic = is_array($decoded) ? ($decoded['topic'] ?? null) : null;
+        if ($topic === 'message') {
+            $messageId = $decoded['message_id'] ?? null;
+            if (!is_int($messageId) || $messageId < 1 || count($decoded) !== 2) {
+                return '400 Bad Request';
+            }
+            // No connected client: the caller keeps the message announced-pending and retries, the client polls meanwhile.
+            return $this->broadcastMessage($messageId) > 0 ? '204 No Content' : '409 Conflict';
+        }
         if (!is_string($topic) || !in_array($topic, NotifyHint::TOPICS, true)) {
             return '400 Bad Request';
         }

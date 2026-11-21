@@ -13,8 +13,8 @@ if (PHP_SAPI !== "cli") {
     exit;
 }
 
-$GLOBALS["ENGINE_ROOT"] = __DIR__ . DIRECTORY_SEPARATOR;
-$GLOBALS["ENGINE_PATH"] = \Synth\Bootstrap::engineRoot();
+\Synth\Bootstrap::set('ENGINE_ROOT', __DIR__ . DIRECTORY_SEPARATOR);
+\Synth\Bootstrap::set('ENGINE_PATH', \Synth\Bootstrap::engineRoot());
 $enginePath             = \Synth\Bootstrap::engineRoot();
 
 require_once $enginePath . "lib/runtime_bootstrap.php";
@@ -30,7 +30,7 @@ require_once $enginePath . "prompts/command_prompt.php";
 require_once $enginePath . "lib/chat_helper_functions.php";
 require_once $enginePath . "lib/data_functions.php";
 
-$GLOBALS["db"] = \Synth\Bootstrap::db() ?? new sql();
+\Synth\Bootstrap::set('db', \Synth\Bootstrap::db() ?? new sql());
 
 function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback, array $replacements): string
 {
@@ -40,9 +40,7 @@ function synthPlayerRewritePromptFromManager(string $promptKey, string $fallback
             return strtr($fallback, $replacements);
         }
 
-        $escapedPromptKey = $db->escape($promptKey);
-        $row = $db->fetchOne("SELECT COALESCE(custom_prompt, default_prompt) AS prompt FROM core_prompt WHERE prompt_key='{$escapedPromptKey}' LIMIT 1");
-        $prompt = trim((string)($row['prompt'] ?? ''));
+        $prompt = trim((string)(\Synth\Core\DbManager\Dao\PromptDao::current($db)->effective((string)$promptKey) ?? ''));
         if ($prompt === '') {
             $prompt = $fallback;
         }
@@ -62,12 +60,12 @@ require_once $enginePath . "lib/core/npc_master.class.php";
 require_once $enginePath . "lib/core/core_profiles.class.php";
 
 SaveOriginalSYNTHName();
-$GLOBALS["SYNTH_NAME"] = "(actor)";
+\Synth\Bootstrap::set('SYNTH_NAME', "(actor)");
 
 // Initialize function parameters before requiring functions.php
-$GLOBALS["FUNCTION_PARM_INSPECT"] = [];
-$GLOBALS["FUNCTION_PARM_MOVETO"]  = [];
-$GLOBALS["F_NAMES"]               = [];
+\Synth\Bootstrap::set('FUNCTION_PARM_INSPECT', []);
+\Synth\Bootstrap::set('FUNCTION_PARM_MOVETO', []);
+\Synth\Bootstrap::set('F_NAMES', []);
 
 require $enginePath . "functions/functions.php";
 
@@ -75,42 +73,42 @@ $connector            = new LLMConnector();
 $currentConnectorData = $connector->getById(\Synth\Bootstrap::config("CORE_CONNECTOR_PLAYER"));
 $connectionHandler    = $connector->getConnector($currentConnectorData);
 
-$GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
-$GLOBALS["CURRENT_CONNECTOR"]                = $currentConnectorData["driver"];
+\Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
+\Synth\Bootstrap::set('CURRENT_CONNECTOR', $currentConnectorData["driver"]);
 
 $connector->setOldGlobals($currentConnectorData);
 
 // Make functions.php data global
 
-$GLOBALS["FUNCTIONS_ARE_ENABLED"] = false;
+\Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
 
 // Some functions need this setted */
 $res                       = \Synth\Bootstrap::db()->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from core_context_event order by gamets desc limit 1 offset 0");
-$GLOBALS["gameRequest"]    = ["inputtext"];
-$GLOBALS["gameRequest"][2] = $res[0]["gamets"] + 1;
+\Synth\Bootstrap::set('gameRequest', ["inputtext"]);
+\Synth\Bootstrap::setAt('gameRequest', 2, $res[0]["gamets"] + 1);
 
-$GLOBALS["SYNTH_NO_EXAMPLES"] = true; // When no assistant entry in history, will try ti provide a bogus example.
+\Synth\Bootstrap::set('SYNTH_NO_EXAMPLES', true); // When no assistant entry in history, will try ti provide a bogus example.
 
 $sourceSpeech = trim((string)($argv[1] ?? ''));
 $targetNpc = isset($argv[2]) && $argv[2] !== '' ? trim($argv[2]) : '';
 
-if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
-    error_log("Choose a LLM model and connector. Used connector: '{$GLOBALS["CORE_CONNECTOR_DIRECTOR"]}'", S_LOG_CRITICAL);
+if (! \Synth\Bootstrap::has('SYNTH_CORE_CURRENT_CONNECTOR_DATA')) {
+    error_log(("Choose a LLM model and connector. Used connector: '" . \Synth\Bootstrap::config('CORE_CONNECTOR_DIRECTOR') . "'"), S_LOG_CRITICAL);
 
 } else {
 
-    error_log("Using {$GLOBALS["CURRENT_CONNECTOR"]} <{$sourceSpeech}>");
+    error_log(("Using " . \Synth\Bootstrap::config('CURRENT_CONNECTOR') . " <{$sourceSpeech}>"));
 
     $contextDataHistoric = DataLastDataExpandedFor("", -15);
     $contextDataHistoric = array_merge([["role" => "user", "content" => "# HISTORIC DIALOGUE AND EVENTS IN CHRONOLOGICAL ORDER"]], $contextDataHistoric);
 
     // The player rewrite receives a dedicated survival block below. Suppress the
     // nearby-player copy here so AUTOCHAT does not see the same state twice.
-    $GLOBALS['SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY'] = true;
+    \Synth\Bootstrap::set('SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY', true);
     try {
         $contextDataWorld = DataLastInfoFor("", -2, $includeActorDescriptions = true, $excludeBusy = true);
     } finally {
-        unset($GLOBALS['SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY']);
+        \Synth\Bootstrap::forget('SYNTH_SUPPRESS_PLAYER_SURVIVAL_NEARBY');
     }
     $contextDataFull  = array_merge($contextDataWorld??[], $contextDataHistoric??[]);
     $historyData      = "";
@@ -131,7 +129,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
     } catch (Exception $e) {
         error_log("Could not load player data from core_player: " . $e->getMessage());
     }
-    if (empty($playerSpeechStyle) && isset($GLOBALS["PLAYER_SPEECH_STYLE"]) && !empty($GLOBALS["PLAYER_SPEECH_STYLE"])) {
+    if (empty($playerSpeechStyle) && \Synth\Bootstrap::has('PLAYER_SPEECH_STYLE') && !empty(\Synth\Bootstrap::config('PLAYER_SPEECH_STYLE'))) {
         $playerSpeechStyle = \Synth\Bootstrap::config("PLAYER_SPEECH_STYLE");
     }
 
@@ -160,10 +158,10 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
     // Build system message: simple identity + PROMPT_HEAD as roleplay ruleset
     $npcLine = (!empty($targetNpc) && $targetNpc !== '(actor)') ? " You are currently speaking to {$targetNpc}." : '';
     $promptHead = '';
-    if (!empty($GLOBALS["PROMPT_HEAD"])) {
+    if (!empty(\Synth\Bootstrap::config('PROMPT_HEAD'))) {
         $promptHead = strtr(\Synth\Bootstrap::config("PROMPT_HEAD"), ["#SYNTH_NAME#" => \Synth\Bootstrap::config("PLAYER_NAME")]);
     }
-    $systemContent = "You are roleplaying as {$GLOBALS["PLAYER_NAME"]}.{$npcLine}";
+    $systemContent = ("You are roleplaying as " . \Synth\Bootstrap::config('PLAYER_NAME') . ".{$npcLine}");
     if (!empty($promptHead)) {
         $systemContent .= "\n\n" . $promptHead;
     }
@@ -175,7 +173,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
 
     // Build instruction
     if ($sourceSpeech === "") {
-        $instruction = "Write dialogue for {$GLOBALS["PLAYER_NAME"]}.";
+        $instruction = ("Write dialogue for " . \Synth\Bootstrap::config('PLAYER_NAME') . ".");
         $outputInstruction = "Output only the final spoken dialogue line. No narration. No stage directions. No speaker names. No bracketed comments.";
     } else {
         $promptReplacements = [
@@ -215,7 +213,7 @@ if (! isset($GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"])) {
     $customParm["MAX_TOKENS"] = 4000;
 
     $buffer = $connectionHandler->fast_request($prompt, ["MAX_TOKENS" => 4000]);
-    $buffer = str_replace("{$GLOBALS["PLAYER_NAME"]}:}", "", $buffer);
+    $buffer = str_replace((\Synth\Bootstrap::config('PLAYER_NAME') . ":}"), "", $buffer);
     echo trim($buffer) . PHP_EOL;
 
 }

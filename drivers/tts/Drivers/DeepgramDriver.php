@@ -40,20 +40,20 @@ namespace Synth\Drivers\Tts\Drivers {
     // Resolve API key: prefer API Badge 'Deepgram', fallback to schema
     $apiKey = '';
     try {
-        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/{$GLOBALS["DBDRIVER"]}.class.php");
-        if (!isset($GLOBALS["db"]) || !\Synth\Bootstrap::db()) $GLOBALS["db"] = new sql();
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) require_once(SYNTH_TTS_SCRIPT_DIR . ("/../lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) \Synth\Bootstrap::set('db', new sql());
         require_once SYNTH_TTS_SCRIPT_DIR . '/../core/dbmanager/repositories/ApiBadgeRepository.php';
         $row = (new \Synth\Core\ApiBadgeRepository(\Synth\Bootstrap::db()))->keyByLowerLabel('deepgram');
         if (is_array($row) && !empty($row['api_key'])) $apiKey = trim($row['api_key']);
     } catch (Throwable $_e) {}
     if ($apiKey === '') $apiKey = \Synth\Bootstrap::config("TTS")["deepgram"]["API_KEY"];
 
-    $voiceModel = isset($GLOBALS["TTS"]["deepgram"]["model"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["model"] : "aura-2-thalia-en";
+    $voiceModel = isset(\Synth\Bootstrap::config('TTS')["deepgram"]["model"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["model"] : "aura-2-thalia-en";
     // Allow voice override for player TTS or per-NPC voice
-    if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"]) && !empty($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+    if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE') && !empty(\Synth\Bootstrap::config('PATCH_OVERRIDE_VOICE'))) {
         $voiceModel = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
     }
-    $bitRate = isset($GLOBALS["TTS"]["deepgram"]["bitrate"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["bitrate"] : 24000;
+    $bitRate = isset(\Synth\Bootstrap::config('TTS')["deepgram"]["bitrate"]) ? \Synth\Bootstrap::config("TTS")["deepgram"]["bitrate"] : 24000;
     $encoding = "linear16";
 
     $startTimeFull = microtime(true);
@@ -64,7 +64,7 @@ namespace Synth\Drivers\Tts\Drivers {
     $wavName = $cachePath . $hash . ".wav";
 
     // Check cache
-    if (!isset($GLOBALS["AVOID_TTS_CACHE"])) {
+    if (!\Synth\Bootstrap::has('AVOID_TTS_CACHE')) {
         if (file_exists($wavName)) {
             Logger::info("TTS cache hit for hash: " . $hash);
             return "soundcache/" . $hash . ".wav";
@@ -103,7 +103,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $endTimeFull = microtime(true) - $startTimeFull;
 
         file_put_contents($cachePath . $hash . ".txt", trim($textString) . "\n\rtotal call time:" . (microtime(true) - $startTimeTrans) . " sec\n\r");
-        $GLOBALS["DEBUG_DATA"][] = "Deepgram TTS complete. FFMPEG time: $endTimeTrans sec, total $endTimeFull secs";
+        \Synth\Bootstrap::append('DEBUG_DATA', "Deepgram TTS complete. FFMPEG time: $endTimeTrans sec, total $endTimeFull secs");
         Logger::info("Deepgram TTS complete for hash: " . $hash . ", FFMPEG time: $endTimeTrans sec, total $endTimeFull secs");
 
         return "soundcache/" . $hash . ".wav";

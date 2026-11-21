@@ -104,8 +104,8 @@ class KoboldCppJsonDriver
         $context="";
 
         
-        $GLOBALS["PROMPT_HEAD"]=strtr(\Synth\Bootstrap::config("PROMPT_HEAD"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
-        $GLOBALS["SYNTH_PERS"]=strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]);
+        \Synth\Bootstrap::set('PROMPT_HEAD', strtr(\Synth\Bootstrap::config("PROMPT_HEAD"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]));
+        \Synth\Bootstrap::set('SYNTH_PERS', strtr(\Synth\Bootstrap::config("SYNTH_PERS"),["#PLAYER_NAME#"=>\Synth\Bootstrap::config("PLAYER_NAME")]));
 
         foreach ($contextData as $n=>$s_msg) {	// Have to mangle context format
 
@@ -131,7 +131,7 @@ class KoboldCppJsonDriver
             }
         }
 
-        $stop_sequence=["{$GLOBALS["PLAYER_NAME"]}:","\n{$GLOBALS["PLAYER_NAME"]} ","Author's notes","###"];
+        $stop_sequence=[(\Synth\Bootstrap::config('PLAYER_NAME') . ":"),("\n" . \Synth\Bootstrap::config('PLAYER_NAME') . " "),"Author's notes","###"];
 
         require_once(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR."functions".DIRECTORY_SEPARATOR."json_response.php");
 
@@ -140,15 +140,15 @@ class KoboldCppJsonDriver
         }
 
         /* This is handled in the template files
-        if (isset($GLOBALS["FUNCTIONS_ARE_ENABLED"]) && $GLOBALS["FUNCTIONS_ARE_ENABLED"]) {
-            $contextData[0]["content"].=$GLOBALS["COMMAND_PROMPT"];
+        if (isset(\Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) && \Synth\Bootstrap::config("FUNCTIONS_ARE_ENABLED")) {
+            $contextData[0]["content"].=\Synth\Bootstrap::config("COMMAND_PROMPT");
         }
         */
 
-        if (isset($GLOBALS["PATCH_PROMPT_ENFORCE_ACTIONS"]) && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
-            $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+        if (\Synth\Bootstrap::has('PATCH_PROMPT_ENFORCE_ACTIONS') && \Synth\Bootstrap::config("PATCH_PROMPT_ENFORCE_ACTIONS")) {
+            $prefix=((string)\Synth\Bootstrap::config('COMMAND_PROMPT_ENFORCE_ACTIONS'));
         }
-        $prefix="{$GLOBALS["COMMAND_PROMPT_ENFORCE_ACTIONS"]}";
+        $prefix=((string)\Synth\Bootstrap::config('COMMAND_PROMPT_ENFORCE_ACTIONS'));
 
         if (strpos(\Synth\Bootstrap::config("SYNTH_PERS"),"#SpeechStyle")!==false) {
             $speechReinforcement="Use #SpeechStyle. ";
@@ -162,82 +162,82 @@ class KoboldCppJsonDriver
         
         if (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="alpaca") {
            
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="vicuna-1") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
            
 
         }  elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="vicuna-1.1") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="chatml") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="chatml-c") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="synthia") {
 
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="extended-alpaca") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="superHOT") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="zephyr") {
 
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="openchat") {
 
            
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
         } elseif (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["template"]=="dreamgen") {
 
            
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
-        } elseif (file_exists(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php")) {
+        } elseif (file_exists(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"))) {
 
-            Logger::info("Using template ".dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
-            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR."{$GLOBALS["CONNECTOR"][$this->name]["template"]}.php");
+            Logger::info("Using template ".dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
+            include(dirname(__DIR__, 3) . DIRECTORY_SEPARATOR . "connector" . DIRECTORY_SEPARATOR . "templates".DIRECTORY_SEPARATOR.(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["template"] . ".php"));
 
         }
 
        
         
-        $TEMPERATURE=((isset($GLOBALS["CONNECTOR"][$this->name]["temperature"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"] : 0.9)+0);
-        $REP_PEN=((isset($GLOBALS["CONNECTOR"][$this->name]["rep_pen"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["rep_pen"] : 1.12)+0);
-        $TOP_P=((isset($GLOBALS["CONNECTOR"][$this->name]["top_p"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"] : 0.9)+0);
+        $TEMPERATURE=((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["temperature"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["temperature"] : 0.9)+0);
+        $REP_PEN=((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["rep_pen"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["rep_pen"] : 1.12)+0);
+        $TOP_P=((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["top_p"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["top_p"] : 0.9)+0);
 
-        $MAX_TOKENS=((isset($GLOBALS["CONNECTOR"][$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
+        $MAX_TOKENS=((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["max_tokens"]) ? \Synth\Bootstrap::config("CONNECTOR")[$this->name]["max_tokens"] : 48)+0);
 
 
         if (\Synth\Bootstrap::config("CONNECTOR")[$this->name]["newline_as_stopseq"]) {
             $stop_sequence[]="\n";
         }
 
-        if (isset($GLOBALS["more_stopseq"])) {
+        if (\Synth\Bootstrap::has('more_stopseq')) {
             foreach (\Synth\Bootstrap::config("more_stopseq") as $stopseq)
                 $stop_sequence[]=$stopseq;
         }
@@ -262,7 +262,7 @@ class KoboldCppJsonDriver
 
         );
 
-        if ((isset($GLOBALS["CONNECTOR"][$this->name]["eos_token"]))&&!empty($GLOBALS["CONNECTOR"][$this->name]["eos_token"])) {
+        if ((isset(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["eos_token"]))&&!empty(\Synth\Bootstrap::config('CONNECTOR')[$this->name]["eos_token"])) {
                 $eos_token_allow_grammar='| "'.\Synth\Bootstrap::config("CONNECTOR")[$this->name]["eos_token"].'"';
         } else
             $eos_token_allow_grammar='';
@@ -281,7 +281,7 @@ class KoboldCppJsonDriver
             }
         }
 
-        if (isset($GLOBALS["FORCE_MAX_TOKENS"])) {
+        if (\Synth\Bootstrap::has('FORCE_MAX_TOKENS')) {
             if (\Synth\Bootstrap::config("FORCE_MAX_TOKENS")==null) {
                 unset($postData["max_length"]);
             } else {
@@ -294,7 +294,7 @@ class KoboldCppJsonDriver
                 $postData[$k]=$v;
         }
 
-        $GLOBALS["DEBUG_DATA"]["koboldcpp_prompt"]=$postData;
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "koboldcpp_prompt", $postData);
 
         $headers = array(
             'Content-Type: application/json'
@@ -339,9 +339,9 @@ class KoboldCppJsonDriver
         file_put_contents(dirname(__DIR__, 3) . "/log/debugStream.log", $line, FILE_APPEND);
        
         
-        if (!empty($GLOBALS["PATCH"]["PREAPPEND"])) {
+        if (!empty(\Synth\Bootstrap::config('PATCH')["PREAPPEND"])) {
             $this->_jsonBuffer=\Synth\Bootstrap::config("PATCH")["PREAPPEND"];
-            $GLOBALS["PATCH"]["PREAPPEND"]="";
+            \Synth\Bootstrap::setAt('PATCH', "PREAPPEND", "");
         }
         
         if (strpos($line, 'data: {') !== 0) {
@@ -359,8 +359,8 @@ class KoboldCppJsonDriver
  
         if (isset($data["token"])) {
             $this->_jsonBuffer.=$data["token"];
-            $GLOBALS["SYNTH_LLM_RAW_TEXT"] = $this->_jsonBuffer;
-            unset($GLOBALS["_JSON_BUFFER"]);
+            \Synth\Bootstrap::set('SYNTH_LLM_RAW_TEXT', $this->_jsonBuffer);
+            \Synth\Bootstrap::forget('_JSON_BUFFER');
             $partialResult=__jpd_decode_lazy($this->_jsonBuffer);
             
             if (isset($partialResult["message"]))
@@ -383,21 +383,21 @@ class KoboldCppJsonDriver
                 $this->_extractedbuffer=$partialResult[0]["message"];
                 if (isset($partialResult[0]["listener"])) {
                     if (isset($partialResult[0]["action"])&&($partialResult[0]["action"]=="Talk")&& lazyEmpty($partialResult[0]["listener"]) && !lazyEmpty($partialResult[0]["target"]))
-                        $GLOBALS["SCRIPTLINE_LISTENER"]=$partialResult[0]["target"];
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $partialResult[0]["target"]);
                     else
-                        $GLOBALS["SCRIPTLINE_LISTENER"]=$partialResult[0]["listener"];
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $partialResult[0]["listener"]);
 
                      
                 }
                 
                 if (isset($partialResult[0]["mood"])) {
                     $partialResult[0]["mood"] = extractFirstEmoteMood($partialResult[0]["mood"]);
-                    $GLOBALS["SCRIPTLINE_ANIMATION"]=GetAnimationHex($partialResult[0]["mood"]);
-                    $GLOBALS["SCRIPTLINE_EXPRESSION"]=GetExpression($partialResult[0]["mood"]);
+                    \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', GetAnimationHex($partialResult[0]["mood"]));
+                    \Synth\Bootstrap::set('SCRIPTLINE_EXPRESSION', GetExpression($partialResult[0]["mood"]));
                 }
                 
                 // Store the entire response for TTS systems that need additional data like emotions
-                $GLOBALS["LAST_LLM_RESPONSE"] = $partialResult[0];
+                \Synth\Bootstrap::set('LAST_LLM_RESPONSE', $partialResult[0]);
                 
             }
             
@@ -414,7 +414,7 @@ class KoboldCppJsonDriver
         // Closing must not drain an unfinished provider response.
         synth_provider_close($this->primary_handler);
         $this->primary_handler = null;
-        $GLOBALS["DEBUG_DATA"]["RAW"]=$this->_jsonBuffer;
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "RAW", $this->_jsonBuffer);
 
         //file_put_contents(dirname(__DIR__, 3) . "/log/output_from_llm.log",$this->_jsonBuffer, FILE_APPEND | LOCK_EX);
         file_put_contents(dirname(__DIR__, 3) . "/log/output_from_llm.log",date(DATE_ATOM)."\n=\n".$this->_jsonBuffer."\n=\n", FILE_APPEND);
@@ -433,9 +433,9 @@ class KoboldCppJsonDriver
 
     public function processActions()
     {
-        global $alreadysent;
+        $alreadysent = &\Synth\Bootstrap::ref('alreadysent');
 
-        unset($GLOBALS["_JSON_BUFFER"]);    // __jpd_decode_lazy has a cache
+        \Synth\Bootstrap::forget('_JSON_BUFFER');    // __jpd_decode_lazy has a cache
         
         $jsonData=__jpd_decode_lazy($this->_jsonBuffer);
         
@@ -449,7 +449,7 @@ class KoboldCppJsonDriver
         
         $this->_commandBuffer=[];
 
-        $GLOBALS["DEBUG_DATA"]["RAW"]=$this->_jsonBuffer;
+        \Synth\Bootstrap::setAt('DEBUG_DATA', "RAW", $this->_jsonBuffer);
         
         if (is_array($jsonData)&&isset($jsonData["action"])) { // !!!
             $parsedResponse=$jsonData;

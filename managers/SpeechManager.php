@@ -39,7 +39,11 @@ final class SpeechManager
         try { $cacheKey = $this->driver->queue($character->identity, $lineId, $text, $settings); }
         catch (\SYNTHProtocolCancelled $error) { throw $error; }
         catch (\Throwable $error) { $this->failure = $error->getMessage(); return null; }
-        return ['schema' => 'synth.speech.v1', 'utterance_id' => $lineId, 'cache_key' => $cacheKey,
+        $speech = ['schema' => 'synth.speech.v1', 'utterance_id' => $lineId, 'cache_key' => $cacheKey,
             'status' => 'pending', 'deadline_ms' => self::DEADLINE_MS];
+        // A client that negotiated the queue (capability message.queue) also gets the id to fetch the result by.
+        $messageId = method_exists($this->driver, 'messageId') ? $this->driver->messageId() : null;
+        if ($messageId !== null) $speech['message_id'] = $messageId;
+        return $speech;
     }
 }

@@ -32,17 +32,7 @@ function synth_seed_prompt_manager_defaults(object $db): void
     ];
 
     foreach ($seedPrompts as $key => $row) {
-        $prompt = synth_db_escape($db, $row['default_prompt']);
-        $description = synth_db_escape($db, $row['description']);
-        $promptKey = synth_db_escape($db, $key);
-        $db->execQuery("
-            INSERT INTO public.core_prompt (prompt_key, default_prompt, description)
-            VALUES ('{$promptKey}', '{$prompt}', '{$description}')
-            ON CONFLICT (prompt_key) DO UPDATE SET
-                default_prompt = EXCLUDED.default_prompt,
-                description = EXCLUDED.description,
-                updated_at = CURRENT_TIMESTAMP
-        ");
+        \Synth\Core\DbManager\Dao\PromptDao::current($db)->upsertDefault((string)$key, (string)$row['default_prompt'], (string)$row['description']);
     }
 }
 

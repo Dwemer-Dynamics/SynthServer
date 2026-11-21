@@ -9,7 +9,7 @@ namespace Synth\Drivers\Tts;
  * Registers a provider driver as the legacy speech callable.
  *
  * The speech plan (lib/synth_tts_plan.php) and lib/chat_helper_functions.php still look a provider up through
- * $GLOBALS['SYNTH_TTS_DRIVERS'][<key>] and $GLOBALS['TTS_IN_USE']; each tts/tts-*.php hook calls register() so
+ * \Synth\Bootstrap::config('SYNTH_TTS_DRIVERS')[<key>] and \Synth\Bootstrap::config('TTS_IN_USE'); each tts/tts-*.php hook calls register() so
  * those callers keep working unchanged.
  */
 final class TtsProviderRegistry
@@ -21,8 +21,8 @@ final class TtsProviderRegistry
     {
         self::$providers[$provider->key()] = $provider;
         $callable = static fn($textString, $mood = 'default', $stringforhash = '') => $provider->synthesize($textString, $mood, $stringforhash);
-        $GLOBALS['SYNTH_TTS_DRIVERS'][$provider->key()] = $callable;
-        $GLOBALS['TTS_IN_USE'] = $callable;
+        \Synth\Bootstrap::setAt('SYNTH_TTS_DRIVERS', $provider->key(), $callable);
+        \Synth\Bootstrap::set('TTS_IN_USE', $callable);
     }
 
     public static function get(string $key): ?TtsProviderInterface

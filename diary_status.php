@@ -17,8 +17,8 @@ try {
     synthRuntimeBootstrap(__DIR__.DIRECTORY_SEPARATOR,['run_db_updates'=>false]);
     require_once __DIR__.'/lib/synth_diary_status.php';
     // The read lock rechecks the original durable owner; no new request is claimed here.
-    $GLOBALS['SYNTH_REQUEST_EVENT']=$normalized;
-    $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+    \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', $normalized);
+    \Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
     echo synth_diary_request_status(\Synth\Bootstrap::db());
 } catch (SYNTHProtocolCancelled|LogicException $error) {
     synth_protocol_fail('diary_owner_unavailable',409);

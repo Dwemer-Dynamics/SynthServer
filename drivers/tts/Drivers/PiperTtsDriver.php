@@ -46,7 +46,7 @@ namespace Synth\Drivers\Tts\Drivers {
         public function synthesize($textString, $mood, $stringforhash)
         {
 
-		if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
+		if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE")===false )
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 		
@@ -57,13 +57,13 @@ namespace Synth\Drivers\Tts\Drivers {
 		$url = piper_tts_synthesis_url(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["endpoint"] ?? '');
 
 		/*
-		$lang = isset($GLOBALS["TTS"]["FORCED_LANG_DEV"]) ? $GLOBALS["TTS"]["FORCED_LANG_DEV"] : $GLOBALS["TTS"]["PIPERTTS"]["language"];
+		$lang = isset(\Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"]) ? \Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"] : \Synth\Bootstrap::config("TTS")["PIPERTTS"]["language"];
 		
-		if (isset($GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"]))
-        	$lang = $GLOBALS["PATCH_OVERRIDE_TTS_LANGUAGE"];
+		if (isset(\Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE")))
+        	$lang = \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE");
 
 		if (empty($lang))
-			$lang = $GLOBALS["TTS"]["PIPERTTS"]["language"] ?? "EN";
+			$lang = \Synth\Bootstrap::config("TTS")["PIPERTTS"]["language"] ?? "EN";
 		*/
 		
 		$voice = \Synth\Bootstrap::config("TTS")["FORCED_VOICE_DEV"] ?? (\Synth\Bootstrap::config("TTS")["PIPERTTS"]["voiceid"] ?? "en_US-amy-low");
@@ -73,7 +73,7 @@ namespace Synth\Drivers\Tts\Drivers {
 		$speaker_name = trim(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["speaker"] ?? "");
 		$speaker_id = intval(\Synth\Bootstrap::config("TTS")["PIPERTTS"]["speaker_id"] ?? 0);
 	
-        if (isset($GLOBALS["PATCH_OVERRIDE_VOICE"])) {
+        if (\Synth\Bootstrap::has('PATCH_OVERRIDE_VOICE')) {
 			$voice = \Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE");
 			$speaker_id = intval(\Synth\Bootstrap::config("PATCH_OVERRIDE_VOICE_ID") ?? 0);
 		}
@@ -131,11 +131,11 @@ namespace Synth\Drivers\Tts\Drivers {
 		$response = synth_speech_fetch($url, $context, $http_response_header);
 
 
-		if (isset($GLOBALS["TTS_FFMPEG_FILTERS"]) && is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-			$GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"]="adelay=150|150";
+		if (\Synth\Bootstrap::has('TTS_FFMPEG_FILTERS') && is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
+			\Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
 			$FFMPEG_FILTER='-af "'.implode(",",\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")).'"';
 
-			//if (isset($GLOBALS["TTS_FFMPEG_FILTERS"]["tempo"])) 
+			//if (isset(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")["tempo"])) 
 			//	error_log(" filter: $FFMPEG_FILTER - exec trace ".__FILE__." ".__LINE__." ".__FUNCTION__);
         } else {
 			$FFMPEG_FILTER='-filter:a "adelay=150|150"';
@@ -148,7 +148,7 @@ namespace Synth\Drivers\Tts\Drivers {
 			$fname = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 			
 			$startTimeTrans = microtime(true);
-			$filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+			$filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
 			    ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
 			if (!synth_transcode_speech_cache($response,$fname,$filter)) {
 			    Logger::error('piper-tts audio conversion or owned cache publication failed');
@@ -157,9 +157,9 @@ namespace Synth\Drivers\Tts\Drivers {
 			$endTimeTrans = microtime(true)-$startTimeTrans;
 			
             file_put_contents(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-			$GLOBALS["DEBUG_DATA"][]=(microtime(true) - $starTime)." secs in Piper-TTS call, voice id={$voice} / {$speaker_name} / {$speaker_id}.";
+			\Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime)." secs in Piper-TTS call, voice id={$voice} / {$speaker_name} / {$speaker_id}.");
 
-			/* if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && $GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) {
+			/* if (isset(\Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
 				$rootPath=SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" ;
 				$tfolder=$rootPath."/$voice";
 				@mkdir($tfolder);

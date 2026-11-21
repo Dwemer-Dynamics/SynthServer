@@ -30,7 +30,7 @@ if (!function_exists('omnivoice_sanitize_language')) {
 if (!function_exists('omnivoice_apply_text_hooks')) {
     function omnivoice_apply_text_hooks(string $text): string {
         foreach (['OMNIVOICE_TEXTMODIFIER', 'XTTS_TEXTMODIFIER'] as $hookGroup) {
-            if (!isset($GLOBALS["HOOKS"][$hookGroup]) || !is_array(\Synth\Bootstrap::config("HOOKS")[$hookGroup])) {
+            if (!isset(\Synth\Bootstrap::config('HOOKS')[$hookGroup]) || !is_array(\Synth\Bootstrap::config("HOOKS")[$hookGroup])) {
                 continue;
             }
             foreach (\Synth\Bootstrap::config("HOOKS")[$hookGroup] as $hook) {
@@ -113,7 +113,7 @@ if (!function_exists('omnivoice_first_non_empty')) {
 if (!function_exists('omnivoice_fallback_candidates')) {
     function omnivoice_fallback_candidates(string $requestedVoice): array {
         // Planned replies retry only their captured NPC fallback through the shared reply executor.
-        if (isset($GLOBALS['SYNTH_ACTIVE_TTS_PLAN'])) return [];
+        if (\Synth\Bootstrap::has('SYNTH_ACTIVE_TTS_PLAN')) return [];
         $candidates = [
             \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["fallback_male"] ?? '',
             \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["fallback_female"] ?? '',
@@ -159,7 +159,7 @@ namespace Synth\Drivers\Tts\Drivers {
     $cacheHash = md5(trim($stringforhash));
     $cachePath = SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache" . DIRECTORY_SEPARATOR;
 
-    if (isset($GLOBALS["AVOID_TTS_CACHE"]) && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
+    if (\Synth\Bootstrap::has('AVOID_TTS_CACHE') && \Synth\Bootstrap::config("AVOID_TTS_CACHE") === false) {
         $cachedFile = $cachePath . $cacheHash . ".wav";
         if (file_exists($cachedFile)) {
             return $cachedFile;
@@ -173,7 +173,7 @@ namespace Synth\Drivers\Tts\Drivers {
 
     $lang = omnivoice_first_non_empty(
         \Synth\Bootstrap::config("PATCH_OVERRIDE_TTS_LANGUAGE") ?? '',
-        (!empty($GLOBALS["LANG_LLM_XTTS"]) ? (\Synth\Bootstrap::config("LLM_LANG") ?? '') : ''),
+        (!empty(\Synth\Bootstrap::config('LANG_LLM_XTTS')) ? (\Synth\Bootstrap::config("LLM_LANG") ?? '') : ''),
         \Synth\Bootstrap::config("TTS")["FORCED_LANG_DEV"] ?? '',
         \Synth\Bootstrap::config("TTS")["OMNIVOICE"]["language"] ?? ''
     );
@@ -206,7 +206,7 @@ namespace Synth\Drivers\Tts\Drivers {
     }
 
     if (is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS") ?? null)) {
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["adelay"] = "adelay=150|150";
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "adelay", "adelay=150|150");
         $FFMPEG_FILTER = '-af "' . implode(",", \Synth\Bootstrap::config("TTS_FFMPEG_FILTERS")) . '"';
     } else {
         $FFMPEG_FILTER = '-filter:a "adelay=150|150"';
@@ -217,7 +217,7 @@ namespace Synth\Drivers\Tts\Drivers {
         $fname = $cachePath . $cacheHash . ".wav";
 
         $startTimeTrans = microtime(true);
-        $filter=!empty($GLOBALS['TTS_FFMPEG_FILTERS']) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
+        $filter=!empty(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) && is_array(\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS'))
             ? implode(',',\Synth\Bootstrap::config('TTS_FFMPEG_FILTERS')) : 'adelay=150|150';
         if (!synth_transcode_speech_cache($response,$fname,$filter)) return false;
         $endTimeTrans = microtime(true) - $startTimeTrans;
@@ -225,9 +225,9 @@ namespace Synth\Drivers\Tts\Drivers {
         $textString .= PHP_EOL . print_r($options, true);
         $textString .= PHP_EOL . print_r($http_response_header ?? [], true);
         file_put_contents($cachePath . $cacheHash . ".txt", trim($textString) . "\n$FFMPEG_FILTER\n\rtotal call time:" . (microtime(true) - $starTime) . " ms\n\rffmpeg transcoding: $endTimeTrans secs\n\rsize of wav ($size)\n\rfunction tts($textString,$mood=\"cheerful\",$stringforhash)");
-        $GLOBALS["DEBUG_DATA"][] = (microtime(true) - $starTime) . " secs in omnivoice call";
+        \Synth\Bootstrap::append('DEBUG_DATA', (microtime(true) - $starTime) . " secs in omnivoice call");
 
-        if (isset($GLOBALS["DEVELOP_STORE_AUDIO_FOR_TRANING"]) && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
+        if (\Synth\Bootstrap::has('DEVELOP_STORE_AUDIO_FOR_TRANING') && \Synth\Bootstrap::config("DEVELOP_STORE_AUDIO_FOR_TRANING")) {
             $tfolder = $cachePath . "/" . $voice;
             @mkdir($tfolder);
             copy($fname, $tfolder . "/" . basename($fname));

@@ -1,0 +1,25 @@
+# Structure of Version20261120110000 (durable message queue core_message_queue). Rendered by the server under search_path synth, synth_meta, public; checked by tools/schema-check.php.
+column|public|core_message_queue|cancelled_at|timestamp with time zone|timestamptz|YES||
+column|public|core_message_queue|completed_at|timestamp with time zone|timestamptz|YES||
+column|public|core_message_queue|created_at|timestamp with time zone|timestamptz|NO|now()|
+column|public|core_message_queue|dedup_key|text|text|NO||
+column|public|core_message_queue|delivered_at|timestamp with time zone|timestamptz|YES||
+column|public|core_message_queue|expires_at|timestamp with time zone|timestamptz|NO||
+column|public|core_message_queue|generation|bigint|int8|NO||
+column|public|core_message_queue|id|bigint|int8|NO|nextval('core_message_queue_id_seq'::regclass)|
+column|public|core_message_queue|last_error|text|text|YES||
+column|public|core_message_queue|message_type|text|text|NO||
+column|public|core_message_queue|notified_at|timestamp with time zone|timestamptz|YES||
+column|public|core_message_queue|notify_attempts|integer|int4|NO|0|
+column|public|core_message_queue|payload|jsonb|jsonb|YES||
+column|public|core_message_queue|request_id|text|text|NO||
+column|public|core_message_queue|session_id|text|text|NO||
+column|public|core_message_queue|status|text|text|NO|'pending'::text|
+constraint|public|core_message_queue|core_message_queue_generation_check|c|t|CHECK ((generation > 0))
+constraint|public|core_message_queue|core_message_queue_pkey|p|t|PRIMARY KEY (id)
+constraint|public|core_message_queue|core_message_queue_status_check|c|t|CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'delivered'::text, 'cancelled'::text, 'expired'::text])))
+index|public|core_message_queue|core_message_queue_dedup|CREATE UNIQUE INDEX core_message_queue_dedup ON public.core_message_queue USING btree (session_id, request_id, dedup_key)
+index|public|core_message_queue|core_message_queue_pkey|CREATE UNIQUE INDEX core_message_queue_pkey ON public.core_message_queue USING btree (id)
+index|public|core_message_queue|core_message_queue_session|CREATE INDEX core_message_queue_session ON public.core_message_queue USING btree (session_id, generation)
+index|public|core_message_queue|core_message_queue_status|CREATE INDEX core_message_queue_status ON public.core_message_queue USING btree (status, created_at, id)
+table|public|core_message_queue|BASE TABLE

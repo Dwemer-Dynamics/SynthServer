@@ -36,7 +36,7 @@ namespace Synth\Drivers\Tts\Drivers {
         {
 
     // Cache
-		if (!isset($GLOBALS["AVOID_TTS_CACHE"]))
+		if (!\Synth\Bootstrap::has('AVOID_TTS_CACHE'))
 			if (file_exists(SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav"))
 				return SYNTH_TTS_SCRIPT_DIR . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "soundcache/" . md5(trim($stringforhash)) . ".wav";
 

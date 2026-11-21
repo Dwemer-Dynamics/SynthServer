@@ -168,3 +168,29 @@ Files under: service
 | --- | --- | --- |
 | global uses (all non-test PHP) | 2773 | 2660 |
 | `require_once` | 1838 | 1838 |
+
+### W5-root-scripts
+
+All uses in the root scripts (`main_synth_pipeline.php`, `player_rewrite.php`, `prompt.includes.php` and the small entry scripts). New helper `Bootstrap::bind($name, &$source)` replaces `$GLOBALS['gameRequest'] = &$gameRequest;`. Multi-argument `unset` splits into one `forget()` per name. The converter now reports `unset`/`isset` arguments it cannot rewrite instead of turning them into reads.
+
+Stacked on W4-service.
+
+Files under: root scripts
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2660 | 2349 |
+| `require_once` | 1838 | 1838 |
+
+### W6-drivers
+
+All uses in `drivers/` (LLM and TTS drivers). New helper `Bootstrap::coalescePath($name, $path, $default)` replaces `$GLOBALS['N'][...][...] ??= $default` used as an expression (the Zonos Gradio defaults). Multi-argument `unset($GLOBALS['A'], $GLOBALS['B'])` was split by hand into `forget()` calls; the converter now reports it instead of guessing.
+
+Stacked on W5-root-scripts (#173).
+
+Files under: drivers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 2349 | 1740 |
+| `require_once` | 1838 | 1838 |

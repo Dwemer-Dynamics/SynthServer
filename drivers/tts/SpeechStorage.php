@@ -64,7 +64,7 @@ final class SpeechStorage
             return @rename($temporary,$target);
         };
         try {
-            if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+            if (!empty(\Synth\Bootstrap::claimedRequest())
                 && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
                 $db=\Synth\Bootstrap::db() ?? null;
                 if (!is_object($db) || !method_exists($db,'withNativeRequestLock')) return false;
@@ -203,7 +203,7 @@ final class SpeechStorage
                 }
                 return $media;
             };
-            if (!empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+            if (!empty(\Synth\Bootstrap::claimedRequest())
                 && (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
                 if (!is_object($db) || !method_exists($db,'withNativeRequestLock')) throw new \LogicException('Speech registration requires its native owner lock');
                 return $db->withNativeRequestLock($register,2000);

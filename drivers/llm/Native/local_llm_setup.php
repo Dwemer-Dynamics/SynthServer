@@ -91,7 +91,7 @@ function synthLocalLlmNormalizeSetup(array $raw): array
 function synthLocalLlmManagedConnector(): ?array
 {
     // No database connection (the page rendered without one) means no managed connector, not a warning.
-    if (!isset($GLOBALS['db'])) return null;
+    if (!\Synth\Bootstrap::has('db')) return null;
     $row = \Synth\Bootstrap::db()->fetchOne("SELECT * FROM core_llm_connector WHERE metadata @> " .
         "'{\"quickstart_managed\":true}'::jsonb ORDER BY id LIMIT 1");
     return is_array($row) && intval($row['id'] ?? 0) > 0 ? $row : null;
@@ -105,7 +105,7 @@ function synthLocalLlmCurrentSetup(): array
         'connector_id' => 0, 'has_api_key' => false, 'host_ip' => '', 'wsl_ip' => '',
     ];
     foreach (['Network/HOST_IP' => 'host_ip', 'Network/WSL_IP' => 'wsl_ip'] as $id => $field) {
-        if (!isset($GLOBALS['db'])) break;
+        if (!\Synth\Bootstrap::has('db')) break;
         $row = \Synth\Bootstrap::db()->fetchOne("SELECT config_value AS value FROM public.core_config_setting WHERE scope = 'conf' AND config_key=" . \Synth\Bootstrap::db()->escapeLiteral($id));
         $setup[$field] = trim(strval($row['value'] ?? ''));
     }
