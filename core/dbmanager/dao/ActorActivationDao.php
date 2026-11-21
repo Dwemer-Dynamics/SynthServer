@@ -19,6 +19,16 @@ final class ActorActivationDao
         return $this->fresh()->find(AbstractActorActivation::class, ['sessionId' => $sessionId, 'generation' => $generation, 'actorIdentityId' => $actorIdentityId]);
     }
 
+    /** Marks the active activations of the session, up to this generation, stale (a halt). */
+    public function staleUpToGeneration(string $sessionId, int $generation): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_actor_activation SET state='stale', last_seen_at=NOW()
+              WHERE session_id = ? AND generation <= ? AND state='active'",
+            [$sessionId, $generation]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractActorActivation> */
     public function findAll(int $limit = 1000): array
     {
