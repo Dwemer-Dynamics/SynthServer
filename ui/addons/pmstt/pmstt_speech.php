@@ -41,7 +41,8 @@ if (!is_array($payload) || trim(strval($payload['text'] ?? '')) === '') {
     exit;
 }
 
-$speech=$db->escape(trim(strval($payload['text'])));
+// Quotes are doubled as the session's escape() did before this page stopped using it; the queue escapes them again on insert.
+$speech=str_replace("'", "''", trim(strval($payload['text'])));
 
 synthQueueCommandResponse(
     "rolemaster",

@@ -80,14 +80,8 @@ function synth_rechat_prepare_continuation($db, array $event): array
                     throw new LogicException('rechat_parent_reservation_missing');
                 }
                 $originCanonical=synth_protocol_canonical_json($origin);
-                $result=@pg_query_params($connection,"SELECT d.policy FROM public.core_dialogue_origin_policy d
-                    JOIN public.core_request_execution e USING(session_id,request_id)
-                    JOIN public.core_protocol_event p USING(session_id,request_id)
-                    WHERE d.session_id=$1 AND d.request_id=$2 AND e.state='complete'
-                        AND p.canonical_event=$3::jsonb AND p.event_sha256=$4 AND e.request_sha256=p.event_sha256",
-                    [$event['session_id'],$origin['request_id'],$originCanonical,hash('sha256',$originCanonical)]);
-                if (!$result) throw new RuntimeException('rechat_origin_policy_query_failed');
-                $saved=pg_fetch_assoc($result);
+                $saved=\Synth\Core\DbManager\Dao\DialogueOriginPolicyDao::current()->completedOriginPolicy([$event['session_id'],$origin['request_id'],$originCanonical,hash('sha256',$originCanonical)]);
+                if ($saved===null) throw new RuntimeException('rechat_origin_policy_query_failed');
                 if (!$saved) throw new LogicException('rechat_origin_policy_unavailable');
                 $serverPolicy=json_decode($saved['policy'],true,flags:JSON_THROW_ON_ERROR);
                 $socialOrigin=false;
@@ -120,10 +114,8 @@ function synth_rechat_prepare_continuation($db, array $event): array
             $reservation=synth_rechat_reserve_continuation($db,$event,$chain===null ? $serverPolicy : [],$initialTerminal);
             $selection=synth_rechat_select_responder($db,$event);
             synth_rechat_assert_live_selection($connection,$event,$selection);
-            $result=@pg_query_params($connection,'UPDATE public.core_rechat_selection
-                SET prepared_at=COALESCE(prepared_at,clock_timestamp()) WHERE session_id=$1 AND request_id=$2 RETURNING prepared_at',
-                [$event['session_id'],$event['request_id']]);
-            if (!$result || !($receipt=pg_fetch_assoc($result))) throw new RuntimeException('rechat_prepare_receipt_failed');
+            $receipt=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->markPrepared($event['session_id'],$event['request_id']);
+            if (!$receipt) throw new RuntimeException('rechat_prepare_receipt_failed');
             $selection['prepared_at']=$receipt['prepared_at'];
             if (!@pg_query($connection,'RELEASE SAVEPOINT synth_rechat_prepare')) throw new RuntimeException('rechat_prepare_release_failed');
             return ['reservation'=>$reservation,'selection'=>$selection];
@@ -142,15 +134,9 @@ function synth_rechat_prepared_selection($db, array $event): array
         if ($owner!==$event) throw new LogicException('rechat_prepared_owner_changed');
         $proof=synth_rechat_completed_parent($db,$event);
         if ($proof===null) throw new LogicException('rechat_prepared_parent_unavailable');
-        $result=@pg_query_params($connection,"SELECT s.*,d.status,d.parent_request_id,d.parent_line_id,d.parent_response_sha256,
-                d.round_number,d.chain_id,c.budget,c.policy,c.terminal_reason AS chain_terminal
-            FROM public.core_rechat_selection s JOIN public.core_rechat_continuation d USING(session_id,request_id)
-            JOIN public.core_rechat_chain c ON c.id=d.chain_id AND c.session_id=d.session_id
-            WHERE s.session_id=$1 AND s.request_id=$2 AND s.prepared_at IS NOT NULL
-                AND c.generation=$3 AND c.context_sequence=$4 AND c.turn_id=$5 AND c.runtime_variant=$6",
-            [$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$event['turn_id'],$event['runtime_variant']]);
-        if (!$result) throw new RuntimeException('rechat_prepared_selection_query_failed');
-        $selection=pg_fetch_assoc($result);
+        $selection=\Synth\Core\DbManager\Dao\RechatSelectionDao::current()->preparedForOwner($event['session_id'],$event['request_id'],$event['generation'],
+            $event['context_sequence'],$event['turn_id'],$event['runtime_variant']);
+        if ($selection===null) throw new RuntimeException('rechat_prepared_selection_query_failed');
         if (!$selection || $selection['parent_request_id']!==$event['payload']['reply_to_request_id']
             || $selection['parent_line_id']!==$event['payload']['reply_to_line_id']
             || !hash_equals($selection['parent_response_sha256'],$proof['response_sha256'])) {

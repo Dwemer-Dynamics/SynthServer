@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractWorkerJob;
 
 /** Finds rows of core_worker_job. */
-final class WorkerJobDao
+class WorkerJobDao
 {
     use UsesEntityManager;
 
@@ -83,6 +83,67 @@ final class WorkerJobDao
                AND j.lease_until > clock_timestamp() AND j.deadline_at > clock_timestamp()",
             [$jobId, $sessionId, $requestId, $generation, $turnId, (string) $sequence, $token]
         ) !== false;
+    }
+
+    /** Cancels pending and running jobs of older generations. */
+    public function cancelOlderGenerations(string $sessionId, int $generation): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+              WHERE session_id = ? AND generation < ? AND state IN ('pending','running')",
+            [$sessionId, $generation]
+        );
+    }
+
+    /**
+     * Cancels jobs of an older turn or context sequence when a new context supersedes them; diary jobs and relationship gift
+     * jobs of the current schema are kept.
+     */
+    public function cancelSupersededTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+                WHERE session_id = ? AND generation = ?
+                  AND (turn_id <> ? OR COALESCE(payload->'protocol_event'->>'context_sequence',
+                    payload->>'context_sequence') IS DISTINCT FROM ?)
+                  AND (job_type<>'diary' OR payload->>'schema' IS DISTINCT FROM 'synth.diary.job.v1')
+                  AND (job_type<>'relationship' OR relationship_evaluation_id IS NULL
+                    OR payload->>'schema' IS DISTINCT FROM 'synth.relationship.gift-job.v1')
+                  AND state IN ('pending','running')",
+            [$sessionId, $generation, $turnId, (string) $sequence]
+        );
+    }
+
+    /** Cancels pending and running jobs up to this generation (a halt). */
+    public function cancelForHalt(string $sessionId, int $generation): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+              WHERE session_id = ? AND generation <= ? AND state IN ('pending', 'running')",
+            [$sessionId, $generation]
+        );
+    }
+
+    /** Cancels the pending and running jobs of one cancelled turn and context sequence. */
+    public function cancelTurn(string $sessionId, int $generation, string $turnId, int $sequence): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+                WHERE session_id = ? AND generation = ? AND turn_id = ?
+                  AND COALESCE(payload->'protocol_event'->>'context_sequence',payload->>'context_sequence') = ?
+                  AND state IN ('pending','running')",
+            [$sessionId, $generation, $turnId, (string) $sequence]
+        );
+    }
+
+    /** Cancels the pending and running jobs of one cancelled request. */
+    public function cancelRequest(string $sessionId, int $generation, string $requestId): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_worker_job SET state='cancelled', updated_at=NOW()
+                WHERE session_id = ? AND generation = ? AND request_id = ? AND state IN ('pending','running')",
+            [$sessionId, $generation, $requestId]
+        );
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractWorkerJob> */
@@ -285,5 +346,18 @@ final class WorkerJobDao
                 AND i.input_payload->'profile_revision'=COALESCE(to_jsonb(i.profile_revision_id),'null'::jsonb)",
             [$turnId, $sessionId, $requestId, $generation, $sequence]
         );
+    }
+
+    /** How many finished (ready, failed, cancelled or stale) jobs of one type were last updated more than $days days ago; null when the count fails. */
+    public function countFinishedOlderThan(string $jobType, int $days): ?int
+    {
+        try {
+            return (int) $this->connection()->fetchOne(
+                "SELECT COUNT(*) FROM public.core_worker_job WHERE job_type = ? AND state IN ('ready','failed','cancelled','stale') AND updated_at < now() - make_interval(days => ?)",
+                [$jobType, $days]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
     }
 }
