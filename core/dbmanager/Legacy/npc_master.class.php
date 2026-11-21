@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib/autoload.php';
 if (!function_exists('synthParseStableFormReference')) {
     require_once(dirname(__DIR__, 3).'/lib/core/game_plugins.php');
 }
@@ -1817,8 +1817,7 @@ FROM restore
         require_once dirname(__DIR__, 3).'/lib/synth_character_voice.php';
         $currentNpcData=synth_character_request_voice_profile($this->db,$currentNpcData);
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $connectorData = null;
         $profileData = $explicitProfile ?? (\Synth\Bootstrap::config("SYNTH_CORE_CURRENT_PROFILE_DATA") ?? []);

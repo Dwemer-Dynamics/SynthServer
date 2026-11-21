@@ -1,6 +1,5 @@
 <?php
 
-require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'itt_connector.class.php');
 require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'visual_context.php');
 require_once(dirname(__DIR__, 3) . '/drivers/itt/IttWrapper.php');
 

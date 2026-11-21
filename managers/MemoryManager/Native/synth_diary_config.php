@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/core/core_profiles.class.php';
 
 // Match each reference role's automatic switches; manual NPC/Narrator requests bypass automatic policy.
 function synth_diary_resolve_automation(string $role,string $reason,array $character,array $profile,array $environment): array

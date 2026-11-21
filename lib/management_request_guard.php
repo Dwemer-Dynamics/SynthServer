@@ -8,7 +8,7 @@
 // these directories are never affected. The host, origin and address rules live in Synth\Lib\LocalAccess and
 // Synth\Lib\SameOriginRequest; the functions below keep their names and delegate to them.
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 require_once __DIR__ . '/LocalAccess.php';
 require_once __DIR__ . '/SameOriginRequest.php';
 

@@ -177,7 +177,6 @@ function synth_diary_generate($db, array $input): array
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary provider requires an idle database connection.');
     synth_protocol_assert_request_active();
-    require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
     $selection=synth_diary_input_connector($input);
     if ($selection['kind']==='core') {
         $manager=new LLMConnector();$settings=$manager->getById($selection['id']);

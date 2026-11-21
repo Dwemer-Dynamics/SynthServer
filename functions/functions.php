@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 require_once dirname(__DIR__).'/lib/synth_jev_actions.php';
 
 // Functions to be provided to OpenAI
