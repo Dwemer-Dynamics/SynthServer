@@ -41,7 +41,6 @@ final class RuntimeContextDao
         );
     }
 
-
     /** The acknowledged history event of one context snapshot, or 0 when there is none (or the statement fails). */
     public function historyEventId(string $sessionId, int $generation, int $sequence): int
     {
