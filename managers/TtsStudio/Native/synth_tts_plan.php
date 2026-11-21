@@ -24,7 +24,7 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
 {
     $inputs = [];
     foreach (SYNTH_TTS_PLAN_GLOBALS as $key) {
-        if ($explicitInputs === null && array_key_exists($key, $GLOBALS)) $inputs[$key] = $GLOBALS[$key];
+        if ($explicitInputs === null && \Synth\Bootstrap::exists($key)) $inputs[$key] = \Synth\Bootstrap::config($key);
         elseif ($explicitInputs !== null && array_key_exists($key, $explicitInputs)) $inputs[$key] = $explicitInputs[$key];
     }
     $inputs['SYNTH_NAME'] = $speaker;
@@ -108,7 +108,7 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
                 $find = 'getExisting' . $title . 'VoiceIdByName';
                 $config = $getter(); $ids = [];
                 $previousDeadline = \Synth\Bootstrap::config('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE') ?? null;
-                $GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE'] = microtime(true) + 10;
+                \Synth\Bootstrap::set('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE', microtime(true) + 10);
                 try {
                     foreach ($samples as $voice => $snapshot) {
                         if ($snapshot !== null) continue;
@@ -121,8 +121,8 @@ function synth_capture_tts_plan(string $root, string $speaker, string $cacheText
                         $ids[$voice] = $id;
                     }
                 } finally {
-                    unset($GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE']);
-                    if ($previousDeadline !== null) $GLOBALS['SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE'] = $previousDeadline;
+                    \Synth\Bootstrap::forget('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE');
+                    if ($previousDeadline !== null) \Synth\Bootstrap::set('SYNTH_CLOUD_VOICE_LOOKUP_DEADLINE', $previousDeadline);
                 }
                 return $ids;
             });
@@ -174,25 +174,25 @@ function synth_with_tts_plan(array $plan, string $seed, string $speaker, string 
     $keys = array_merge(SYNTH_TTS_PLAN_GLOBALS, ['SYNTH_ACTIVE_TTS_PLAN', 'HOOKS', 'TTS_FALLBACK_FNCT', 'TTS_IN_USE']);
     $previous = [];
     foreach ($keys as $key) {
-        if (array_key_exists($key, $GLOBALS)) $previous[$key] = $GLOBALS[$key];
+        if (\Synth\Bootstrap::exists($key)) $previous[$key] = \Synth\Bootstrap::config($key);
     }
     try {
         foreach (SYNTH_TTS_PLAN_GLOBALS as $key) {
-            unset($GLOBALS[$key]);
-            if (array_key_exists($key, $plan['inputs'])) $GLOBALS[$key] = $plan['inputs'][$key];
+            \Synth\Bootstrap::forget($key);
+            if (array_key_exists($key, $plan['inputs'])) \Synth\Bootstrap::set($key, $plan['inputs'][$key]);
         }
-        $GLOBALS['SYNTH_ACTIVE_TTS_PLAN'] = $plan;
-        $GLOBALS['HOOKS']['XTTS_TEXTMODIFIER'] = $plan['local_callbacks']['text_hooks'] ?? [];
-        $GLOBALS['HOOKS']['OMNIVOICE_TEXTMODIFIER'] = $plan['local_callbacks']['omni_text_hooks'] ?? [];
-        unset($GLOBALS['TTS_FALLBACK_FNCT']);
+        \Synth\Bootstrap::set('SYNTH_ACTIVE_TTS_PLAN', $plan);
+        \Synth\Bootstrap::setAt('HOOKS', 'XTTS_TEXTMODIFIER', $plan['local_callbacks']['text_hooks'] ?? []);
+        \Synth\Bootstrap::setAt('HOOKS', 'OMNIVOICE_TEXTMODIFIER', $plan['local_callbacks']['omni_text_hooks'] ?? []);
+        \Synth\Bootstrap::forget('TTS_FALLBACK_FNCT');
         if (isset($plan['local_callbacks']['fallback'])) {
-            $GLOBALS['TTS_FALLBACK_FNCT'] = $plan['local_callbacks']['fallback'];
+            \Synth\Bootstrap::set('TTS_FALLBACK_FNCT', $plan['local_callbacks']['fallback']);
         }
         return $generate();
     } finally {
         foreach ($keys as $key) {
-            unset($GLOBALS[$key]);
-            if (array_key_exists($key, $previous)) $GLOBALS[$key] = $previous[$key];
+            \Synth\Bootstrap::forget($key);
+            if (array_key_exists($key, $previous)) \Synth\Bootstrap::set($key, $previous[$key]);
         }
     }
 }

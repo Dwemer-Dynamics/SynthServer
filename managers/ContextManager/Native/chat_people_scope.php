@@ -126,17 +126,17 @@ function synthSetCurrentTurnPeopleSnapshot($peoplePipe)
 {
     $normalized = normalizePeoplePipeList(parsePeoplePipeList($peoplePipe));
     if ($normalized === "") {
-        unset($GLOBALS["SYNTH_TURN_PEOPLE_SNAPSHOT"]);
+        \Synth\Bootstrap::forget('SYNTH_TURN_PEOPLE_SNAPSHOT');
         return "";
     }
 
-    $GLOBALS["SYNTH_TURN_PEOPLE_SNAPSHOT"] = $normalized;
+    \Synth\Bootstrap::set('SYNTH_TURN_PEOPLE_SNAPSHOT', $normalized);
     return $normalized;
 }
 
 function synthGetCurrentTurnPeopleSnapshot()
 {
-    if (!isset($GLOBALS["SYNTH_TURN_PEOPLE_SNAPSHOT"])) {
+    if (!\Synth\Bootstrap::has('SYNTH_TURN_PEOPLE_SNAPSHOT')) {
         return "";
     }
 
@@ -269,13 +269,13 @@ function shouldIncludeActorNameInPeopleList($name)
 
 function isWhisperExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
+    $mode = \Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "WHISPER");
 }
 
 function isCloseExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
+    $mode = \Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "CLOSE");
 }
 
@@ -286,7 +286,7 @@ function isPrivateConversationExecutionMode()
 
 function isShoutExecutionMode()
 {
-    $mode = isset($GLOBALS["SYNTH_EXECUTION_MODE"]) ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
+    $mode = \Synth\Bootstrap::has('SYNTH_EXECUTION_MODE') ? strtoupper(trim((string)\Synth\Bootstrap::config("SYNTH_EXECUTION_MODE"))) : "";
     return ($mode === "SHOUT");
 }
 
@@ -294,8 +294,8 @@ function buildPrivateConversationPeople($listenerName = "")
 {
     $participants = [];
 
-    if (!empty($GLOBALS["PLAYER_NAME"])) {
-        appendUniqueActorName($participants, $GLOBALS["PLAYER_NAME"]);
+    if (!empty(\Synth\Bootstrap::config('PLAYER_NAME'))) {
+        appendUniqueActorName($participants, \Synth\Bootstrap::config('PLAYER_NAME'));
     }
 
     $listenerName = trim((string)$listenerName);
@@ -436,7 +436,7 @@ function normalizeDialogueListenerName($listenerName)
         return "";
     }
 
-    if (strcasecmp($listenerName, "Sole Survivor") === 0 && !empty($GLOBALS["PLAYER_NAME"])) {
+    if (strcasecmp($listenerName, "Sole Survivor") === 0 && !empty(\Synth\Bootstrap::config('PLAYER_NAME'))) {
         return trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
 
@@ -454,7 +454,7 @@ function isPlayerDialogueListenerName($listenerName)
         return false;
     }
 
-    $playerName = isset($GLOBALS["PLAYER_NAME"]) ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
+    $playerName = \Synth\Bootstrap::has('PLAYER_NAME') ? trim((string)\Synth\Bootstrap::config("PLAYER_NAME")) : "";
     if ($playerName !== "" && strcasecmp($listenerName, $playerName) === 0) {
         return true;
     }
@@ -464,12 +464,12 @@ function isPlayerDialogueListenerName($listenerName)
 
 function synthGetStrictRechatListenerName()
 {
-    if (empty($GLOBALS["ENFORCE_STRICT_RECHAT_RESPONSE"])) {
+    if (empty(\Synth\Bootstrap::config('ENFORCE_STRICT_RECHAT_RESPONSE'))) {
         return "";
     }
 
     if (
-        !isset($GLOBALS["gameRequest"]) ||
+        !\Synth\Bootstrap::has('gameRequest') ||
         !is_array(\Synth\Bootstrap::gameRequest()) ||
         !in_array((\Synth\Bootstrap::gameRequest()[0] ?? ""), ["rechat", "continue"], true)
     ) {
@@ -486,11 +486,11 @@ function synthGetStrictRechatListenerName()
 
 function synthGetStrictDirectedPlayerListenerName()
 {
-    if (empty($GLOBALS["ENFORCE_STRICT_RECHAT_RESPONSE"])) {
+    if (empty(\Synth\Bootstrap::config('ENFORCE_STRICT_RECHAT_RESPONSE'))) {
         return "";
     }
 
-    if (!isset($GLOBALS["gameRequest"]) || !is_array(\Synth\Bootstrap::gameRequest())) {
+    if (!\Synth\Bootstrap::has('gameRequest') || !is_array(\Synth\Bootstrap::gameRequest())) {
         return "";
     }
 
@@ -1198,19 +1198,19 @@ function synthSwitchActiveNpcProfile($npcName)
     $profile->setOldGlobals($currentProfileData);
     $npcMaster->setOldGlobalsFromCurrentNpcData($currentNpcData, false);
 
-        $GLOBALS["SYNTH_CORE_CURRENT_NPC_DATA"] = $currentNpcData;
-    $GLOBALS["SYNTH_CORE_CURRENT_PROFILE_DATA"] = $currentProfileData;
-    $GLOBALS["SYNTH_CORE_CURRENT_CONNECTOR_DATA"] = $currentConnectorData;
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $currentNpcData);
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $currentProfileData);
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $currentConnectorData);
     if (function_exists('synthRuntimeSetActiveProfile')) {
         synthRuntimeSetActiveProfile($currentNpcData['md5']);
     } else {
-        $GLOBALS["active_profile"] = $currentNpcData['md5'];
+        \Synth\Bootstrap::set('active_profile', $currentNpcData['md5']);
     }
 
-    $partyConf = isset($GLOBALS["CACHE_PARTY"]) ? \Synth\Bootstrap::config("CACHE_PARTY") : DataGetCurrentPartyConf();
-    $GLOBALS["CACHE_PARTY"] = $partyConf;
+    $partyConf = \Synth\Bootstrap::has('CACHE_PARTY') ? \Synth\Bootstrap::config("CACHE_PARTY") : DataGetCurrentPartyConf();
+    \Synth\Bootstrap::set('CACHE_PARTY', $partyConf);
     $currentParty = json_decode($partyConf, true);
-    $GLOBALS["IS_NPC"] = !(is_array($currentParty) && in_array($npcName, array_keys($currentParty), true));
+    \Synth\Bootstrap::set('IS_NPC', !(is_array($currentParty) && in_array($npcName, array_keys($currentParty), true)));
 
     return true;
 }
@@ -1743,7 +1743,7 @@ function buildCanonicalAudiencePeople($fallbackPeople = "", $participants = [])
 
 function buildNarratorSharedPeopleForEvent($eventType, $eventData, $listenerName = "", $fallbackPeople = "")
 {
-    if (!empty($GLOBALS["HIDE_NARRATOR_DIALOGUE"])) {
+    if (!empty(\Synth\Bootstrap::config('HIDE_NARRATOR_DIALOGUE'))) {
         return "";
     }
 
@@ -1752,7 +1752,7 @@ function buildNarratorSharedPeopleForEvent($eventType, $eventData, $listenerName
 
     if ($eventType === "narrator_inputtext") {
         $speakerName = extractSpeakerNameFromInputEvent($eventData);
-        if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
+        if ($speakerName === "" && !empty(\Synth\Bootstrap::config('PLAYER_NAME'))) {
             $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
         }
         if ($speakerName !== "") {
@@ -2259,7 +2259,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
     if ($eventType === "narrator_inputtext") {
         $participants = [];
         $speakerName = extractSpeakerNameFromInputEvent($eventData);
-        if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
+        if ($speakerName === "" && !empty(\Synth\Bootstrap::config('PLAYER_NAME'))) {
             $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
         }
         if ($speakerName !== "") {
@@ -2267,7 +2267,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
         }
         appendUniqueActorName($participants, ($listenerName !== "") ? $listenerName : "The Narrator");
 
-        if (!empty($GLOBALS["HIDE_NARRATOR_DIALOGUE"])) {
+        if (!empty(\Synth\Bootstrap::config('HIDE_NARRATOR_DIALOGUE'))) {
             return normalizePeoplePipeList($participants);
         }
 
@@ -2290,7 +2290,7 @@ function buildScopedPeopleForPlayerInput($eventType, $eventData, $listenerName, 
 
     // Include the speaker so player-directed lines remain attributable in people context.
     $speakerName = extractSpeakerNameFromInputEvent($eventData);
-    if ($speakerName === "" && !empty($GLOBALS["PLAYER_NAME"])) {
+    if ($speakerName === "" && !empty(\Synth\Bootstrap::config('PLAYER_NAME'))) {
         $speakerName = trim((string)\Synth\Bootstrap::config("PLAYER_NAME"));
     }
     if ($speakerName !== "" && !in_array($speakerName, $targetNames, true)) {
@@ -2369,7 +2369,7 @@ function isNarratorHistoricContextLine($content)
 function filterHistoricContextForNarratorVisibility(array $contextDataHistoric, $actorName)
 {
     $narratorReader=synth_protocol_response_is_narrator(normalizeActorNameForComparison($actorName));
-    $hideNarratorDialogue = !empty($GLOBALS["HIDE_NARRATOR_DIALOGUE"]);
+    $hideNarratorDialogue = !empty(\Synth\Bootstrap::config('HIDE_NARRATOR_DIALOGUE'));
     $nativeHistory=(\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2;
 
     $filtered=array_values(array_filter($contextDataHistoric, static function ($entry) use ($hideNarratorDialogue,$narratorReader,$nativeHistory) {

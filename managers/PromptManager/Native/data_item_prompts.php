@@ -5,7 +5,7 @@
 
 function getCapsFromMetadata($npcName = null) {
     if ($npcName === null) {
-        $npcName = isset($GLOBALS["SYNTH_NAME"]) ? \Synth\Bootstrap::config("SYNTH_NAME") : "";
+        $npcName = \Synth\Bootstrap::has('SYNTH_NAME') ? \Synth\Bootstrap::config("SYNTH_NAME") : "";
     }
 
     if (empty($npcName)) {
@@ -40,7 +40,7 @@ function getCapsFromMetadata($npcName = null) {
 }
 
 function isItemBlacklisted($itemName) {
-    if (!isset($GLOBALS["ITEM_BLACKLIST"]) || empty($GLOBALS["ITEM_BLACKLIST"])) {
+    if (!\Synth\Bootstrap::has('ITEM_BLACKLIST') || empty(\Synth\Bootstrap::config('ITEM_BLACKLIST'))) {
         return false;
     }
 

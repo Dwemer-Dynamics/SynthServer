@@ -172,17 +172,17 @@ function DataLastKnowDate()
 {
     $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return synthWorldContextDateText($snapshot['world'] ?? null);
-    if (isset($GLOBALS["CACHE_LAST_KNOW_DATE"])) {
+    if (\Synth\Bootstrap::has('CACHE_LAST_KNOW_DATE')) {
         return \Synth\Bootstrap::config("CACHE_LAST_KNOW_DATE");
     }
 
     $payloadDate = synthWorldContextDateText(synthLatestWorldContextPayload());
     if ($payloadDate !== "") {
-        $GLOBALS["CACHE_LAST_KNOW_DATE"] = $payloadDate;
+        \Synth\Bootstrap::set('CACHE_LAST_KNOW_DATE', $payloadDate);
         return \Synth\Bootstrap::config("CACHE_LAST_KNOW_DATE");
     }
 
-    $GLOBALS["CACHE_LAST_KNOW_DATE"] = "";
+    \Synth\Bootstrap::set('CACHE_LAST_KNOW_DATE', "");
     return "";
 }
 
@@ -190,12 +190,12 @@ function DataLastKnownLocation()
 {
     $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return synthWorldContextLocationFromPayload($snapshot['world'] ?? null);
-    if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION"])) {
+    if (\Synth\Bootstrap::has('CACHE_LAST_KNOWN_LOCATION')) {
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION");
     }
 
     $location = synthWorldContextLocationFromPayload(synthLatestWorldContextPayload());
-    $GLOBALS["CACHE_LAST_KNOWN_LOCATION"] = $location;
+    \Synth\Bootstrap::set('CACHE_LAST_KNOWN_LOCATION', $location);
     return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION");
 
 }
@@ -335,26 +335,26 @@ function DataLastKnownLocationContextParts($cached = false)
         $location = synthWorldContextLocationFromPayload($snapshot['world'] ?? null);
         return ['location' => $location, 'location_base' => normalizeLocationContextToken($location, true), 'region_raw' => ''];
     }
-    if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"])) {
+    if (\Synth\Bootstrap::has('CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS')) {
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
     }
 
     $payload = synthLatestWorldContextPayload();
     $payloadLocation = synthWorldContextLocationFromPayload($payload);
     if ($payloadLocation !== "") {
-        $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"] = [
+        \Synth\Bootstrap::set('CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS', [
             "location" => $payloadLocation,
             "location_base" => normalizeLocationContextToken($payloadLocation, true),
             "region_raw" => "",
-        ];
+        ]);
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
     }
 
-    $GLOBALS["CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS"] = [
+    \Synth\Bootstrap::set('CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS', [
         "location" => "",
         "location_base" => "",
         "region_raw" => "",
-    ];
+    ]);
 
     return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_CONTEXT_PARTS");
 }
@@ -412,7 +412,7 @@ function locationsTableColumns()
 {
     $db = \Synth\Bootstrap::db();
 
-    if (isset($GLOBALS["CACHE_LOCATIONS_TABLE_COLUMNS"])) {
+    if (\Synth\Bootstrap::has('CACHE_LOCATIONS_TABLE_COLUMNS')) {
         return \Synth\Bootstrap::config("CACHE_LOCATIONS_TABLE_COLUMNS");
     }
 
@@ -437,7 +437,7 @@ function locationsTableColumns()
         $columns["name"] = true;
     }
 
-    $GLOBALS["CACHE_LOCATIONS_TABLE_COLUMNS"] = $columns;
+    \Synth\Bootstrap::set('CACHE_LOCATIONS_TABLE_COLUMNS', $columns);
     return $columns;
 }
 
@@ -450,7 +450,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
         return "";
     }
 
-    if (isset($GLOBALS["CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE"][$candidateKey])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE')[$candidateKey])) {
         return \Synth\Bootstrap::config("CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE")[$candidateKey];
     }
 
@@ -478,7 +478,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
     }
 
     if (empty($whereClauses)) {
-        $GLOBALS["CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE"][$candidateKey] = "";
+        \Synth\Bootstrap::setAt('CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE', $candidateKey, "");
         return "";
     }
 
@@ -504,7 +504,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
             }
         }
     }
-    $GLOBALS["CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE"][$candidateKey] = $canonical;
+    \Synth\Bootstrap::setAt('CACHE_CANONICAL_REGION_BY_LOCATION_CANDIDATE', $candidateKey, $canonical);
 
     return $canonical;
 }
@@ -512,7 +512,7 @@ function lookupCanonicalRegionByLocationCandidate($candidate)
 function DataLastKnownCanonicalRegionHuman($cached = false)
 {
     $cacheKey = "REGION_CANONICAL";
-    if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_LAST_KNOWN_LOCATION_HUMAN')[$cacheKey])) {
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cacheKey];
     }
 
@@ -535,7 +535,7 @@ function DataLastKnownCanonicalRegionHuman($cached = false)
         $canonical = normalizeLocationContextToken($reportedRegion, true);
     }
 
-    $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey] = $canonical;
+    \Synth\Bootstrap::setAt('CACHE_LAST_KNOWN_LOCATION_HUMAN', $cacheKey, $canonical);
     return $canonical;
 }
 
@@ -543,13 +543,13 @@ function DataLastKnownLocationHuman($region=false,$cached=false)
 {
 
     $cache_key = $region ? "REGION" : "LOC";
-    if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cache_key]))
+    if (isset(\Synth\Bootstrap::config('CACHE_LAST_KNOWN_LOCATION_HUMAN')[$cache_key]))
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cache_key];
 
     $parts = DataLastKnownLocationContextParts($cached);
     $val = $region ? ($parts["region_raw"] ?? "") : ($parts["location"] ?? "");
 
-    $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cache_key] = $val;
+    \Synth\Bootstrap::setAt('CACHE_LAST_KNOWN_LOCATION_HUMAN', $cache_key, $val);
     return $val;
 
 }
@@ -568,7 +568,7 @@ function DataLastKnownWeatherHuman()
     $snapshot = synth_protocol_prompt_snapshot(\Synth\Bootstrap::db() ?? null);
     if ($snapshot !== null) return trim(strval($snapshot['world']['weather'] ?? ''));
     $cacheKey = "WEATHER";
-    if (isset($GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey])) {
+    if (isset(\Synth\Bootstrap::config('CACHE_LAST_KNOWN_LOCATION_HUMAN')[$cacheKey])) {
         return \Synth\Bootstrap::config("CACHE_LAST_KNOWN_LOCATION_HUMAN")[$cacheKey];
     }
 
@@ -578,11 +578,11 @@ function DataLastKnownWeatherHuman()
     if (is_array($payload)) {
         $payloadWeather = trim((string)($payload['weather'] ?? ''));
         if ($payloadWeather !== "") {
-            $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey] = $payloadWeather;
+            \Synth\Bootstrap::setAt('CACHE_LAST_KNOWN_LOCATION_HUMAN', $cacheKey, $payloadWeather);
             return $payloadWeather;
         }
     }
 
-    $GLOBALS["CACHE_LAST_KNOWN_LOCATION_HUMAN"][$cacheKey] = "";
+    \Synth\Bootstrap::setAt('CACHE_LAST_KNOWN_LOCATION_HUMAN', $cacheKey, "");
     return "";
 }

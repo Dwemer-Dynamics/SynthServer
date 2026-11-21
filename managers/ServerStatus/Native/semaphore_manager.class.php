@@ -1,5 +1,5 @@
 <?php
-// Simple semaphore helper with static methods. Exposes resources in $GLOBALS["SEMAPHORES"] for existing audit callers.
+// Simple semaphore helper with static methods. Exposes resources in \Synth\Bootstrap::config("SEMAPHORES") for existing audit callers.
 
 require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
 class SemaphoreManager {
@@ -7,7 +7,7 @@ class SemaphoreManager {
     protected static $acquired = [];
 
     protected static function runId(): string {
-        return isset($GLOBALS["runid"]) ? (string)\Synth\Bootstrap::config("runid") : '-';
+        return \Synth\Bootstrap::has('runid') ? (string)\Synth\Bootstrap::config("runid") : '-';
     }
 
     protected static function keyFromId(string $id): int {
@@ -32,7 +32,7 @@ class SemaphoreManager {
                 if (!isset(self::$acquired[$key])) {
                     self::$acquired[$key] = false;
                 }
-                $GLOBALS["SEMAPHORES"][$id] = self::$semaphores[$key];
+                \Synth\Bootstrap::setAt('SEMAPHORES', $id, self::$semaphores[$key]);
                 return self::$semaphores[$key];
             }
 
@@ -46,7 +46,7 @@ class SemaphoreManager {
                 self::$acquired[$key] = false;
             }
             // Expose under the logical id used by audit callers.
-            $GLOBALS["SEMAPHORES"][$id] = self::$semaphores[$key];
+            \Synth\Bootstrap::setAt('SEMAPHORES', $id, self::$semaphores[$key]);
         }
         return self::$semaphores[$key];
     }

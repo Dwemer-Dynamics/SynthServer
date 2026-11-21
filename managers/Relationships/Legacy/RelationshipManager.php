@@ -445,7 +445,7 @@ class RelationshipManager {
         bool $unknownPlayer = false
     ) {
         if ($tierOnly === null) {
-            $tierOnly = !empty($GLOBALS['RELLLM_CONNECTOR']) && intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')) > 0;
+            $tierOnly = !empty(\Synth\Bootstrap::config('RELLLM_CONNECTOR')) && intval(\Synth\Bootstrap::config('RELLLM_CONNECTOR')) > 0;
         }
         $tierOnly = (bool)$tierOnly;
 

@@ -8,7 +8,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_autochat.php';
 function synth_emit_native_player_transcript(array $gameRequest): bool
 {
     $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || synth_autochat_selected($event)
+    if (empty(\Synth\Bootstrap::claimedRequest()) || synth_autochat_selected($event)
         || !synth_protocol_owns_dialogue_turn($event)
         || !in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
         || !in_array($gameRequest[0] ?? '', ['inputtext', 'inputtext_s', 'narrator_inputtext'], true)
@@ -23,7 +23,7 @@ function synth_emit_native_player_transcript(array $gameRequest): bool
         $subtitle = formatPlayerSubtitleText($subtitle, \Synth\Bootstrap::config('PLAYER_NAME') ?? null);
     if ($subtitle === '') return false;
     synth_buffer_speech_response_line('Player', $subtitle, '', '__player_text_only', '', '', 1.0, speechRole: 'player');
-    $GLOBALS['SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER'] = $owner;
+    \Synth\Bootstrap::set('SYNTH_NATIVE_PLAYER_TRANSCRIPT_OWNER', $owner);
     return true;
 }
 
@@ -94,7 +94,7 @@ if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
             return false;
         }
 
-        if (!empty($GLOBALS['SYNTH_SKIP_PLAYER_TTS'])) {
+        if (!empty(\Synth\Bootstrap::config('SYNTH_SKIP_PLAYER_TTS'))) {
             return true;
         }
 
@@ -103,7 +103,7 @@ if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
             return true;
         }
 
-        if ($eventData === null && isset($GLOBALS['gameRequest'][3])) {
+        if ($eventData === null && isset(\Synth\Bootstrap::gameRequest()[3])) {
             $eventData = \Synth\Bootstrap::gameRequest()[3];
         }
 
@@ -114,7 +114,7 @@ if (!function_exists('synthShouldSkipPlayerTtsForRequest')) {
         $queryParts = function_exists('synth_parse_payload_fields')
             ? synth_parse_payload_fields($eventData)
             : [];
-        if (empty($queryParts) && isset($GLOBALS['SYNTH_STRUCTURED_INPUT_FIELDS']) && is_array(\Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS'))) {
+        if (empty($queryParts) && \Synth\Bootstrap::has('SYNTH_STRUCTURED_INPUT_FIELDS') && is_array(\Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS'))) {
             $queryParts = \Synth\Bootstrap::config('SYNTH_STRUCTURED_INPUT_FIELDS');
         }
         $skipValue = strtolower(trim(strval($queryParts['skip_player_tts'] ?? '')));

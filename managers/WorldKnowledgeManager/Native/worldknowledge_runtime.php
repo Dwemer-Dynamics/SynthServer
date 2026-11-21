@@ -310,7 +310,7 @@ function synthWorldKnowledgeQuestAccessGates(array $row, ?array $questView = nul
     $event = \Synth\Bootstrap::requestEvent()['json'] ?? null;
     $db = \Synth\Bootstrap::db() ?? null;
     if ($questView === null && is_array($event) && ($event['protocol_version'] ?? null) === 2
-        && !empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) && is_object($db)) {
+        && !empty(\Synth\Bootstrap::claimedRequest()) && is_object($db)) {
         try {
             $view = synthQuestAccessReaderView($db, $event);
         } catch (SYNTHProtocolCancelled $cancelled) {

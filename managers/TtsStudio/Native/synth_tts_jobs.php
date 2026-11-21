@@ -51,7 +51,7 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
         $event=$owner->event;
         synth_protocol_assert_owner_active($db,$event);
     } else {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) throw new LogicException('Speech admission requires an owner');
+        if (empty(\Synth\Bootstrap::claimedRequest())) throw new LogicException('Speech admission requires an owner');
         $event=\Synth\Bootstrap::requestEvent()['json'];
         synth_protocol_assert_request_active();
     }
@@ -125,7 +125,7 @@ function synth_tts_assert_job_lease($db, array $lease): void
             updated_at=clock_timestamp() WHERE id=$id AND state='running' AND lease_token=$token
             AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
         if ($renewed===false || pg_affected_rows($renewed)!==1) throw new SYNTHProtocolCancelled('speech_lease_lost');
-        $GLOBALS['SYNTH_TTS_JOB_LEASE']['heartbeat_at']=microtime(true);
+        \Synth\Bootstrap::setAt('SYNTH_TTS_JOB_LEASE', 'heartbeat_at', microtime(true));
     }
 }
 
@@ -148,9 +148,9 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
         if (!is_array($event) || !is_array($payload)
             || !hash_equals($job['event_sha256'],hash('sha256',synth_protocol_canonical_json($event)))
             || ($event['context_sequence'] ?? null)!==($payload['context_sequence'] ?? null)) throw new LogicException('Speech job ingress mismatch');
-        $GLOBALS['db']=$db;$GLOBALS['SYNTH_REQUEST_EVENT']=synth_normalize_json_event($event);
-        $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
-        unset($GLOBALS['SYNTH_TTS_JOB_LEASE']);
+        \Synth\Bootstrap::set('db', $db);\Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', synth_normalize_json_event($event));
+        \Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
+        \Synth\Bootstrap::forget('SYNTH_TTS_JOB_LEASE');
         synth_protocol_assert_request_active();
         $path=synth_tts_job_input_path($root,strval($payload['input_id'] ?? ''));
         $size=@filesize($path);
@@ -175,7 +175,7 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
             return pg_fetch_assoc($claimed)['lease_token'] ?? null;
         },2000);
         if ($token===null) return false;
-        $GLOBALS['SYNTH_TTS_JOB_LEASE']=['id'=>$jobId,'token'=>$token,'heartbeat_at'=>microtime(true)];
+        \Synth\Bootstrap::set('SYNTH_TTS_JOB_LEASE', ['id'=>$jobId,'token'=>$token,'heartbeat_at'=>microtime(true)]);
         if (!$generate($input)) throw new RuntimeException('Speech generation failed');
         return $db->withNativeRequestLock(static function($connection) use($db,$jobId,$token,$input,$root): bool {
             $status=synth_read_npc_tts_status($input['cache_key'],$root);
@@ -211,8 +211,8 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
         throw $error;
     } finally {
         foreach($keys as $key) {
-            unset($GLOBALS[$key]);
-            if(array_key_exists($key,$saved)) $GLOBALS[$key]=$saved[$key];
+            \Synth\Bootstrap::forget($key);
+            if(array_key_exists($key,$saved)) \Synth\Bootstrap::set($key, $saved[$key]);
         }
     }
 }

@@ -106,7 +106,7 @@ function GetAnimationHex($mood)
     } else if ($mood=="drunk") {
         // No animation :(
         Logger::info("Using filter for mood drunk");
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["tempo"]='atempo=0.65';
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "tempo", 'atempo=0.65');
         return "DrunkStart";
 
     } else if ($mood=="sober") {
@@ -117,7 +117,7 @@ function GetAnimationHex($mood)
 
     } else if ($mood=="high") {
         // No animation :(
-        $GLOBALS["TTS_FFMPEG_FILTERS"]["tempo"]='atempo=1.45';
+        \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "tempo", 'atempo=1.45');
 
     }
 
@@ -206,7 +206,7 @@ function GetExpression($mood) {
      }
 
 
-     $GLOBALS["PATCH_ORIGINAL_MOOD_ISSUED"]=$mood;
+     \Synth\Bootstrap::set('PATCH_ORIGINAL_MOOD_ISSUED', $mood);
      return $result;
 
  }
@@ -567,7 +567,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
             $metaData["inventory"],
             $getItemDescription,
             $describedBaseids,
-            !empty($GLOBALS["INVENTORY_ITEMS_DESCRIPTIONS_ONLY"])
+            !empty(\Synth\Bootstrap::config('INVENTORY_ITEMS_DESCRIPTIONS_ONLY'))
         );
         if ($inventoryContext !== '') {
             $INVENTORY_ADD = "\n" . $inventoryContext;
@@ -612,7 +612,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         $STATS_ADD = "";
     }
     // Add dialogue target's equipment (if DIALOGUE_TARGET is set)
-    if (!$nativeEquipment && isset($GLOBALS["DIALOGUE_TARGET"]) && !empty($GLOBALS["DIALOGUE_TARGET"])) {
+    if (!$nativeEquipment && \Synth\Bootstrap::has('DIALOGUE_TARGET') && !empty(\Synth\Bootstrap::config('DIALOGUE_TARGET'))) {
         $targetName = \Synth\Bootstrap::config("DIALOGUE_TARGET");
         $targetNpcData = $npcMaster->getByName($targetName);
 
@@ -737,7 +737,7 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
         $dynamicBio .= $STATS_ADD ?? "";
     }
 
-    if (isset($GLOBALS["HOOKS"]["BIOGRAPHY_BUILDER"])) {
+    if (isset(\Synth\Bootstrap::config('HOOKS')["BIOGRAPHY_BUILDER"])) {
         foreach (\Synth\Bootstrap::config("HOOKS")["BIOGRAPHY_BUILDER"] as $fName => $builder) {
             error_log("[buildDynamicBiography] BIOGRAPHY_BUILDER {$fName}");
 
@@ -789,8 +789,8 @@ function buildDynamicProfileDisplay() {
     ];
 
     foreach ($synthFields as $fieldName => $label) {
-        if (isset($GLOBALS[$fieldName]) && !empty(trim($GLOBALS[$fieldName]))) {
-            $currentDynamicProfile .= "\n$label:\n" . trim($GLOBALS[$fieldName]) . "\n";
+        if (\Synth\Bootstrap::has($fieldName) && !empty(trim(\Synth\Bootstrap::config($fieldName)))) {
+            $currentDynamicProfile .= "\n$label:\n" . trim(\Synth\Bootstrap::config($fieldName)) . "\n";
         }
     }
 

@@ -512,8 +512,8 @@ function synthActionCatalogGetEditorFieldDefaultValue($field, $row = null)
 
     $defaultValue = $field['default'] ?? null;
     $globalDefaultKey = trim(strval($field['global_default_key'] ?? ''));
-    if ($globalDefaultKey !== '' && array_key_exists($globalDefaultKey, $GLOBALS)) {
-        $defaultValue = $GLOBALS[$globalDefaultKey];
+    if ($globalDefaultKey !== '' && \Synth\Bootstrap::exists($globalDefaultKey)) {
+        $defaultValue = \Synth\Bootstrap::config($globalDefaultKey);
     }
 
     $metadataDefaultPath = trim(strval($field['metadata_default_path'] ?? ''));
@@ -1064,10 +1064,10 @@ function synthActionCatalogGetRuntimeRequirementContext()
     $cacheKey = implode('|', [
         trim(strval(\Synth\Bootstrap::config("SYNTH_NAME") ?? '')),
         trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? '')),
-        !empty($GLOBALS["IS_NPC"]) ? '1' : '0',
+        !empty(\Synth\Bootstrap::config('IS_NPC')) ? '1' : '0',
         $requestType,
         strval(\Synth\Bootstrap::gameRequest()[2] ?? ''),
-        !empty($GLOBALS["is_rolemastered"]) ? '1' : '0',
+        !empty(\Synth\Bootstrap::config('is_rolemastered')) ? '1' : '0',
     ]);
 
     if ($cachedKey === $cacheKey && is_array($cachedContext)) {
@@ -1087,7 +1087,7 @@ function synthActionCatalogGetRuntimeRequirementContext()
         'player_name' => trim(strval(\Synth\Bootstrap::config("PLAYER_NAME") ?? '')),
         'request_type' => $requestType,
         'is_rechat' => in_array($requestType, ['rechat', 'narration'], true),
-        'is_npc_mode' => !empty($GLOBALS["IS_NPC"]),
+        'is_npc_mode' => !empty(\Synth\Bootstrap::config('IS_NPC')),
         'is_rolemastered' => synthResolveNpcRolemasterState(\Synth\Bootstrap::config("SYNTH_NAME") ?? '', [
             'metadata' => $metadata,
             'extended' => $extended,
@@ -1119,8 +1119,8 @@ function synthActionCatalogGetConfigListValues($definition)
     }
 
     $rawValues = '';
-    if ($configKey !== '' && isset($GLOBALS[$configKey])) {
-        $rawValues = trim(strval($GLOBALS[$configKey]));
+    if ($configKey !== '' && \Synth\Bootstrap::has($configKey)) {
+        $rawValues = trim(strval(\Synth\Bootstrap::config($configKey)));
     }
     if ($rawValues === '') {
         $rawValues = $fallbackCsv;
@@ -1388,7 +1388,7 @@ function synthActionCatalogGetLastActionsIssuedMap()
     static $cachedKey = null;
     static $cachedRows = null;
 
-    if (!isset($GLOBALS["db"]) || !(\Synth\Bootstrap::db() instanceof sql)) {
+    if (!\Synth\Bootstrap::has('db') || !(\Synth\Bootstrap::db() instanceof sql)) {
         return [];
     }
 
@@ -1437,7 +1437,7 @@ function synthActionCatalogIsActionOnCooldown($codeName, $cooldownSeconds)
 {
     $codeName = trim(strval($codeName));
     $cooldownSeconds = intval($cooldownSeconds);
-    if ($codeName === '' || $cooldownSeconds <= 0 || empty($GLOBALS["gameRequest"][2])) {
+    if ($codeName === '' || $cooldownSeconds <= 0 || empty(\Synth\Bootstrap::gameRequest()[2])) {
         return false;
     }
 
@@ -1484,23 +1484,23 @@ function synthActionCatalogRowMatchesRequirements($row, $context = null)
 
 function synthActionCatalogResetCache()
 {
-    unset($GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"]);
-    unset($GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"]);
+    \Synth\Bootstrap::forget('SYNTH_ACTION_CATALOG_DB_READY');
+    \Synth\Bootstrap::forget('SYNTH_ACTION_CATALOG_ROWS_BY_CODE');
 }
 
 function synthActionCatalogDbReady()
 {
-    if (isset($GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"])) {
+    if (\Synth\Bootstrap::has('SYNTH_ACTION_CATALOG_DB_READY')) {
         return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_DB_READY");
     }
 
     if ((\Synth\Bootstrap::config("DBDRIVER") ?? '') !== 'postgresql') {
-        $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"] = false;
+        \Synth\Bootstrap::set('SYNTH_ACTION_CATALOG_DB_READY', false);
         return false;
     }
 
-    if (!isset($GLOBALS["db"]) || !(\Synth\Bootstrap::db() instanceof sql)) {
-        $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"] = false;
+    if (!\Synth\Bootstrap::has('db') || !(\Synth\Bootstrap::db() instanceof sql)) {
+        \Synth\Bootstrap::set('SYNTH_ACTION_CATALOG_DB_READY', false);
         return false;
     }
 
@@ -1521,7 +1521,7 @@ function synthActionCatalogDbReady()
     ");
 
     $ready = isset($coreAction["exists"]) && isset($coreActionCustom["exists"]) && isset($combinedView["exists"]);
-    $GLOBALS["SYNTH_ACTION_CATALOG_DB_READY"] = $ready;
+    \Synth\Bootstrap::set('SYNTH_ACTION_CATALOG_DB_READY', $ready);
     return $ready;
 }
 
@@ -1810,11 +1810,11 @@ function synthDeleteUnexpectedBaseActionCatalogRows($rowsByCode, $updateCustomRo
 
 function synthGetActionCatalogRowsByCode()
 {
-    if (isset($GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"])) {
+    if (\Synth\Bootstrap::has('SYNTH_ACTION_CATALOG_ROWS_BY_CODE')) {
         return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
     }
 
-    $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"] = [];
+    \Synth\Bootstrap::set('SYNTH_ACTION_CATALOG_ROWS_BY_CODE', []);
     if (!synthActionCatalogDbReady()) {
         return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
     }
@@ -1860,7 +1860,7 @@ function synthGetActionCatalogRowsByCode()
             'import_version' => synthActionCatalogNormalizeImportVersion($row['import_version'] ?? 0),
             'script_proxy_program' => synthActionCatalogDecodeJson($row['script_proxy_program'] ?? null, []),
         ];
-        $GLOBALS["SYNTH_ACTION_CATALOG_ROWS_BY_CODE"][$codeName] = $normalizedRow;
+        \Synth\Bootstrap::setAt('SYNTH_ACTION_CATALOG_ROWS_BY_CODE', $codeName, $normalizedRow);
     }
 
     return \Synth\Bootstrap::config("SYNTH_ACTION_CATALOG_ROWS_BY_CODE");
@@ -2098,7 +2098,7 @@ function synthActionCatalogIsNarratorMode()
         return true;
     }
 
-    if (!empty($GLOBALS["DIRECT_NARRATOR_DIALOGUE"])) {
+    if (!empty(\Synth\Bootstrap::config('DIRECT_NARRATOR_DIALOGUE'))) {
         return true;
     }
 
@@ -2131,7 +2131,7 @@ function synthActionCatalogRowIsAvailableInCurrentMode($row)
         return !empty($row['available_to_narrator']);
     }
 
-    $isNpcMode = !empty($GLOBALS["IS_NPC"]);
+    $isNpcMode = !empty(\Synth\Bootstrap::config('IS_NPC'));
     if ($isNpcMode) {
         return !empty($row['available_to_npc']);
     }
@@ -2286,9 +2286,9 @@ function synthActionCatalogApplyRowsToRuntimeFunctions()
             ? synthFormatActionPromptTemplate($row['description'] ?? '', [], $row)
             : strval($row['description'] ?? '');
 
-        $GLOBALS["F_NAMES"][$codeName] = $runtimeActionName;
-        $GLOBALS["F_DESCRIPTIONS"][$codeName] = $runtimeDescription;
-        $GLOBALS["F_RETURNMESSAGES"][$codeName] = strval($row['return_message'] ?? '');
+        \Synth\Bootstrap::setAt('F_NAMES', $codeName, $runtimeActionName);
+        \Synth\Bootstrap::setAt('F_DESCRIPTIONS', $codeName, $runtimeDescription);
+        \Synth\Bootstrap::setAt('F_RETURNMESSAGES', $codeName, strval($row['return_message'] ?? ''));
 
         $catalogFunctionEntry = synthActionCatalogBuildFunctionEntryFromRow($row);
         if ($catalogFunctionEntry === null) {
@@ -2333,9 +2333,9 @@ function synthActionCatalogApplyRowsToRuntimeFunctions()
         }
     }
 
-    $GLOBALS["SYNTH_ACTION_NAME_PREFERRED_CODE"] = $preferredCodeByActionName;
-    $GLOBALS["BASE_FUNCTIONS"] = $dedupedRuntimeFunctionMap;
-    $GLOBALS["FUNCTIONS"] = array_values($dedupedRuntimeFunctionMap);
+    \Synth\Bootstrap::set('SYNTH_ACTION_NAME_PREFERRED_CODE', $preferredCodeByActionName);
+    \Synth\Bootstrap::set('BASE_FUNCTIONS', $dedupedRuntimeFunctionMap);
+    \Synth\Bootstrap::set('FUNCTIONS', array_values($dedupedRuntimeFunctionMap));
 }
 
 function synthActionCatalogUpsertCustomToggle($codeName, $enabled)
@@ -3071,7 +3071,7 @@ function synthActionCatalogBuildScriptProxyInfoActionMessage($codeName, $context
     $previousSYNTHName = \Synth\Bootstrap::config('SYNTH_NAME') ?? null;
 
     if ($actorName !== '') {
-        $GLOBALS['SYNTH_NAME'] = $actorName;
+        \Synth\Bootstrap::set('SYNTH_NAME', $actorName);
     }
 
     if (function_exists('synthBuildFuncretResultInfoActionMessage')) {
@@ -3089,9 +3089,9 @@ function synthActionCatalogBuildScriptProxyInfoActionMessage($codeName, $context
     }
 
     if ($hadSYNTHName) {
-        $GLOBALS['SYNTH_NAME'] = $previousSYNTHName;
+        \Synth\Bootstrap::set('SYNTH_NAME', $previousSYNTHName);
     } else {
-        unset($GLOBALS['SYNTH_NAME']);
+        \Synth\Bootstrap::forget('SYNTH_NAME');
     }
 
     return trim(strval($message));

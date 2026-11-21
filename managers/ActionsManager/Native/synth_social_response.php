@@ -46,11 +46,11 @@ function synth_social_emit_arrival($db,array $event,array $task,string $root): v
         'RANDOM_NARATION'=>false,'RANDOM_NARATION_CHANCE'=>0,'RANDOM_NARRATION_COOLDOWN'=>0,
     ],'STANDARD');
     $speaker=$line['performer'];$listener=$line['recipient'];
-    $GLOBALS['SYNTH_INPUT_TARGET']=$speaker['display_name'];
-    $GLOBALS['SYNTH_INPUT_TARGET_IDENTITY']=$speaker;
-    $GLOBALS['SYNTH_NAME']=$speaker['display_name'];
-    $GLOBALS['SYNTH_SPEECH_ROLE']='npc';
-    $GLOBALS['SYNTH_RESPONSE_SPEAKER_FORMID']=$speaker['form_id'];
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET', $speaker['display_name']);
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET_IDENTITY', $speaker);
+    \Synth\Bootstrap::set('SYNTH_NAME', $speaker['display_name']);
+    \Synth\Bootstrap::set('SYNTH_SPEECH_ROLE', 'npc');
+    \Synth\Bootstrap::set('SYNTH_RESPONSE_SPEAKER_FORMID', $speaker['form_id']);
     // Scope to canonical identity, including two actors with the same display name.
     $key=synth_tts_cache_key($root,$speaker['display_name'],$line['text'],$speaker);
     $utterance='social:'.substr(hash('sha256',$event['request_id'].'|'.$task['execution_id']),0,32);

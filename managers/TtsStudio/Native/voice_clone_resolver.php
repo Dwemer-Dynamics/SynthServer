@@ -189,7 +189,7 @@ if (!function_exists('synth_voice_clone_dirs')) {
         ];
 
         foreach (['SYNTH_VOICE_SAMPLE_DIR', 'VOICE_SAMPLE_DIR', 'VOICE_DIR'] as $globalKey) {
-            $value = trim(strval($GLOBALS[$globalKey] ?? ''));
+            $value = trim(strval(\Synth\Bootstrap::config($globalKey) ?? ''));
             if ($value !== '') {
                 $dirs[] = $value;
             }
@@ -249,7 +249,7 @@ if (!function_exists('synth_voice_clone_game_roots')) {
             'SYNTH_GAME_VOICE_ROOTS',
             'FO4_VOICE_SAMPLE_ROOTS',
         ] as $globalKey) {
-            $value = $GLOBALS[$globalKey] ?? '';
+            $value = \Synth\Bootstrap::config($globalKey) ?? '';
             $values = is_array($value) ? $value : preg_split('/[;|]/', strval($value));
             foreach ($values ?: [] as $root) {
                 $root = trim(strval($root), " \t\n\r\0\x0B\"'");

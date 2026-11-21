@@ -161,10 +161,10 @@ class RelationshipLLM {
      *
      * CRITICAL: This prevents the relationship connector from corrupting
      * the main chat connector's globals. We:
-     * 1. Save the current $GLOBALS["CONNECTOR"]
+     * 1. Save the current \Synth\Bootstrap::config("CONNECTOR")
      * 2. Call setOldGlobals() to configure for relationship LLM
      * 3. Make the request
-     * 4. Restore the original $GLOBALS["CONNECTOR"] in finally block
+     * 4. Restore the original \Synth\Bootstrap::config("CONNECTOR") in finally block
      *
      * @param array $messages The messages to send
      * @param array $params Request parameters (MAX_TOKENS, etc)
@@ -180,7 +180,7 @@ class RelationshipLLM {
         $llmConnector = new LLMConnector();
 
         // Save current connector globals (the main chat connector's settings)
-        $savedGlobals = isset($GLOBALS["CONNECTOR"]) ? \Synth\Bootstrap::config("CONNECTOR") : null;
+        $savedGlobals = \Synth\Bootstrap::has('CONNECTOR') ? \Synth\Bootstrap::config("CONNECTOR") : null;
 
         try {
             // SWAP IN: Configure globals for relationship LLM
@@ -194,7 +194,7 @@ class RelationshipLLM {
         } finally {
             // SWAP BACK: Restore main chat connector's globals
             if ($savedGlobals !== null) {
-                $GLOBALS["CONNECTOR"] = $savedGlobals;
+                \Synth\Bootstrap::set('CONNECTOR', $savedGlobals);
             }
         }
     }

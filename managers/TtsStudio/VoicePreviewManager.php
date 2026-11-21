@@ -189,15 +189,15 @@ final class VoicePreviewManager
     private function speak(array $npc, string $voice, string $text): string
     {
         $name = (string) ($npc['npc_name'] ?? 'NPC');
-        $GLOBALS['SYNTH_NAME'] = $name;
-        $GLOBALS['PATCH_OVERRIDE_VOICE'] = synth_resolve_tts_voice_reference($voice, [
+        \Synth\Bootstrap::set('SYNTH_NAME', $name);
+        \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', synth_resolve_tts_voice_reference($voice, [
             'root' => rtrim($this->enginePath, DIRECTORY_SEPARATOR), 'actor_name' => $name, 'sync_sample' => false,
-        ]);
-        $GLOBALS['AVOID_TTS_CACHE'] = true;
-        $GLOBALS['TTS_FFMPEG_FILTERS'] = [];
-        $GLOBALS['PATCH_DONT_STORE_SPEECH_ON_DB'] = true;
-        $GLOBALS['FEATURES']['MISC']['TTS_RANDOM_PITCH'] = false;
-        $GLOBALS['TRACK'] = [];
+        ]));
+        \Synth\Bootstrap::set('AVOID_TTS_CACHE', true);
+        \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
+        \Synth\Bootstrap::set('PATCH_DONT_STORE_SPEECH_ON_DB', true);
+        \Synth\Bootstrap::setPath('FEATURES', ['MISC', 'TTS_RANDOM_PITCH'], false);
+        \Synth\Bootstrap::set('TRACK', []);
 
         $directory = $this->enginePath . 'soundcache';
         if (!is_dir($directory) && !@mkdir($directory, 0775, true) && !is_dir($directory)) {

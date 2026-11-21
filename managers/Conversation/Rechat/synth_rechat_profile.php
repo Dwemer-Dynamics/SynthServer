@@ -66,17 +66,17 @@ function synth_rechat_load_profile($db, array $event): array
                 $promptCharacter['npc_name']=$selection['identity']['display_name'];
                 $npcMaster->setOldGlobalsFromCurrentNpcData($promptCharacter,false);
             }
-            $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA']=$character;
-            $GLOBALS['SYNTH_CORE_CURRENT_PROFILE_DATA']=$profile;
-            $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$connector;
-            $GLOBALS['active_profile']=$token;
-            $GLOBALS['SYNTH_NAME']=$selection['role']==='npc' ? $selection['identity']['display_name'] : 'The Narrator';
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $character);
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_PROFILE_DATA', $profile);
+            \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $connector);
+            \Synth\Bootstrap::set('active_profile', $token);
+            \Synth\Bootstrap::set('SYNTH_NAME', $selection['role']==='npc' ? $selection['identity']['display_name'] : 'The Narrator');
             foreach ($inputKeys as $key) {
-                if (array_key_exists($key,$inputSettings)) $GLOBALS[$key]=$inputSettings[$key]; else unset($GLOBALS[$key]);
+                if (array_key_exists($key,$inputSettings)) \Synth\Bootstrap::set($key, $inputSettings[$key]); else \Synth\Bootstrap::forget($key);
             }
             // Profile/NPC overrides cannot restore actions which the admitted chain disabled.
-            $GLOBALS['RECHAT_ALLOW_ACTIONS']=$selection['policy']['allow_actions'];
-            $GLOBALS['RECHAT_MODE']=$selection['policy']['mode'];
+            \Synth\Bootstrap::set('RECHAT_ALLOW_ACTIONS', $selection['policy']['allow_actions']);
+            \Synth\Bootstrap::set('RECHAT_MODE', $selection['policy']['mode']);
             if (!@pg_query($connection,'RELEASE SAVEPOINT synth_rechat_profile')) throw new RuntimeException('rechat_profile_release_failed');
             return ['selection'=>$selection,'character'=>$character,'profile'=>$profile,'connector'=>$connector];
         } catch (Throwable $error) {

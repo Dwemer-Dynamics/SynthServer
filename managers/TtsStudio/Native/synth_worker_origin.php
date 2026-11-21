@@ -22,13 +22,13 @@ function synth_worker_with_origin($db, array $job, callable $work, string $kind)
         'COMMAND_PROMPT_ENFORCE_ACTIONS','BASE_FUNCTIONS','SYNTH_CLIENT_CAPABILITIES','DIRECT_NARRATOR_DIALOGUE'];
     $previous=array_intersect_key($GLOBALS,array_flip($keys));
     try {
-        $GLOBALS['db']=$db;
-        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$event];
-        $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
-        unset($GLOBALS['SYNTH_MEMORY_JOB_LEASE'],$GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE'],$GLOBALS['SYNTH_INTERACTION_JOB_LEASE'],$GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE']);
-        unset($GLOBALS['SYNTH_RETAINED_GIFT_OWNER']);
+        \Synth\Bootstrap::set('db', $db);
+        \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', ['json'=>$event]);
+        \Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
+        \Synth\Bootstrap::forget('SYNTH_MEMORY_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_RELATIONSHIP_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_INTERACTION_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_MIDDLETERM_JOB_LEASE');
+        \Synth\Bootstrap::forget('SYNTH_RETAINED_GIFT_OWNER');
         if ($kind==='relationship' && ($job['retained_gift'] ?? null)==='t' && ($event['type'] ?? '')==='action_result') {
-            $GLOBALS['SYNTH_RETAINED_GIFT_OWNER']=$event;
+            \Synth\Bootstrap::set('SYNTH_RETAINED_GIFT_OWNER', $event);
         }
         synth_protocol_assert_request_active();
         $context=synth_protocol_current_context($db,$event);
@@ -36,8 +36,8 @@ function synth_worker_with_origin($db, array $job, callable $work, string $kind)
         return $work($event,$context);
     } finally {
         foreach ($keys as $key) {
-            if (array_key_exists($key,$previous)) $GLOBALS[$key]=$previous[$key];
-            else unset($GLOBALS[$key]);
+            if (array_key_exists($key,$previous)) \Synth\Bootstrap::set($key, $previous[$key]);
+            else \Synth\Bootstrap::forget($key);
         }
     }
 }

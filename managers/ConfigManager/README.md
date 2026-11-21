@@ -9,7 +9,7 @@ The one door to stored settings (`public.core_config_setting`), built on `Config
 | `ConfigFile` | Reads the optional `config/config.inc.php` (template `config/config.inc.tmpl.php`) and names its values as the legacy `SYNTH_DB_*` variables. |
 
 ```php
-$config = ConfigManager::shared();                 // booted DAO, else the legacy $GLOBALS['db'] session
+$config = ConfigManager::shared();                 // booted DAO, else the legacy `Bootstrap::db()` session
 $config->get('conf', 'synth_mode', 'STANDARD');    // raw text of any scope
 $config->set('player', 'tts_connector_id', 3);     // any scope; booleans and arrays are stored as text
 $config->setEditable('CONTEXT_HISTORY', '40');     // declared general setting only; throws InvalidArgumentException

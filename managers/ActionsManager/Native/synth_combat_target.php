@@ -238,7 +238,7 @@ function synth_combat_identification_question_kind(string $text): ?string
 function synth_combat_identification_reply($db,array $event,?string $transcript=null): ?array
 {
     $awareness=synth_enemy_awareness_supported($event);$contacts=synth_combat_contacts_supported($event);
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || (!$contacts && !$awareness)
+    if (empty(\Synth\Bootstrap::claimedRequest()) || (!$contacts && !$awareness)
         || !in_array($event['type'] ?? '',['input_text','input_audio'],true)
         || !in_array($event['payload']['control']['mode'] ?? 'STANDARD',['STANDARD','WHISPER','CLOSE','SHOUT'],true)) return null;
     $text=($event['type'] ?? '')==='input_text' ? ($event['payload']['text'] ?? null) : $transcript;

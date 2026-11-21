@@ -60,7 +60,7 @@ if (!function_exists('synth_voice_clone_sync_endpoint_from_globals')) {
     {
         $driver = synth_voice_clone_sync_normalize_driver($driver);
         $providerKey = synth_voice_clone_sync_provider_key($driver);
-        $config = ($providerKey !== '' && isset($GLOBALS['TTS'][$providerKey]) && is_array(\Synth\Bootstrap::config('TTS')[$providerKey]))
+        $config = ($providerKey !== '' && isset(\Synth\Bootstrap::config('TTS')[$providerKey]) && is_array(\Synth\Bootstrap::config('TTS')[$providerKey]))
             ? \Synth\Bootstrap::config('TTS')[$providerKey]
             : [];
 

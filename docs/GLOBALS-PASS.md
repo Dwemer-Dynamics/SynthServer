@@ -248,3 +248,16 @@ Files under: lib stt tts debug tools conf
 | --- | --- | --- |
 | global uses (all non-test PHP) | about 1071 | 938 |
 | `require_once` | 1838 | 1838 |
+
+### W11-managers
+
+All uses in `managers/` except two literal placeholder lines in `managers/MemoryManager/Native/synth_diary_state.php` (`'{$GLOBALS["SYNTH_NAME"]}'` / `PLAYER_NAME` as replacement keys). Dynamic simple keys were converted with a scripted pass (`$GLOBALS[$k]` to `config/has/exists/set/forget($k)`), five `$GLOBALS['gameRequest'] = &$gameRequest` bindings use `bind()`, and the few non-statement shapes (`++`, assignment used as a return value, multi-argument `isset`/`unset`) were rewritten by hand.
+
+Stacked on W10-lib (#184).
+
+Files under: managers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 938 | 269 |
+| `require_once` | 1838 | 1838 |

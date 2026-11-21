@@ -16,18 +16,18 @@ function synthRegisterPromptInjection(string $slot, string $id, $content, int $p
         return false;
     }
 
-    if (!isset($GLOBALS['PROMPT_INJECTIONS']) || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS'))) {
-        $GLOBALS['PROMPT_INJECTIONS'] = [];
+    if (!\Synth\Bootstrap::has('PROMPT_INJECTIONS') || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS'))) {
+        \Synth\Bootstrap::set('PROMPT_INJECTIONS', []);
     }
-    if (!isset($GLOBALS['PROMPT_INJECTIONS'][$slot]) || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS')[$slot])) {
-        $GLOBALS['PROMPT_INJECTIONS'][$slot] = [];
+    if (!isset(\Synth\Bootstrap::config('PROMPT_INJECTIONS')[$slot]) || !is_array(\Synth\Bootstrap::config('PROMPT_INJECTIONS')[$slot])) {
+        \Synth\Bootstrap::setAt('PROMPT_INJECTIONS', $slot, []);
     }
 
-    $GLOBALS['PROMPT_INJECTIONS'][$slot][$id] = [
+    \Synth\Bootstrap::setPath('PROMPT_INJECTIONS', [$slot, $id], [
         'id' => $id,
         'content' => $content,
         'priority' => $priority,
-    ];
+    ]);
 
     return true;
 }
@@ -92,15 +92,15 @@ function synthRegisterActorProfileEnricher(string $id, callable $callback, int $
         return false;
     }
 
-    if (!isset($GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS']) || !is_array(\Synth\Bootstrap::config('PROMPT_ACTOR_PROFILE_ENRICHERS'))) {
-        $GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS'] = [];
+    if (!\Synth\Bootstrap::has('PROMPT_ACTOR_PROFILE_ENRICHERS') || !is_array(\Synth\Bootstrap::config('PROMPT_ACTOR_PROFILE_ENRICHERS'))) {
+        \Synth\Bootstrap::set('PROMPT_ACTOR_PROFILE_ENRICHERS', []);
     }
 
-    $GLOBALS['PROMPT_ACTOR_PROFILE_ENRICHERS'][$id] = [
+    \Synth\Bootstrap::setAt('PROMPT_ACTOR_PROFILE_ENRICHERS', $id, [
         'id' => $id,
         'callback' => $callback,
         'priority' => $priority,
-    ];
+    ]);
 
     return true;
 }

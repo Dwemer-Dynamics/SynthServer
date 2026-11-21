@@ -673,7 +673,7 @@ final class NativeDialogueTurnTest extends TestCase
         $start=strpos($source,'function synth_protocol_write_response_line(');
         $writer=substr($source,$start,strpos($source,"\n}\n",$start)-$start);
         $order=array_map(fn($needle)=>strpos($writer,$needle),['synth_protocol_prepare_line(',
-            "\$GLOBALS['SYNTH_PROTOCOL_RESPONSE_BODY'] =",'echo $wire;',"synth_jev_action_trace('dispatch'",
+            "Bootstrap::set('SYNTH_PROTOCOL_RESPONSE_BODY',",'echo $wire;',"synth_jev_action_trace('dispatch'",
             'synth_protocol_flush_output();']);
         $this->assertNotContains(false,$order);
         $sorted=$order; sort($sorted);

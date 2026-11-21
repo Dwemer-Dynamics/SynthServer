@@ -8,7 +8,7 @@ require_once(dirname(__DIR__, 3).'/lib'.DIRECTORY_SEPARATOR."logger.php");
  */
 function initializeLogTrimming($maxLines = 10000) {
     try {
-        if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
+        if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
             return;
         }
 

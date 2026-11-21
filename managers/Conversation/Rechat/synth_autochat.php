@@ -38,7 +38,7 @@ function synth_autochat_line(): ?array
 {
     $state = \Synth\Bootstrap::config('SYNTH_AUTOCHAT') ?? null;
     $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];
-    if (!is_array($state) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !synth_autochat_selected($event)
+    if (!is_array($state) || empty(\Synth\Bootstrap::claimedRequest()) || !synth_autochat_selected($event)
         || ($state['utterance_id'] ?? null) !== synth_autochat_utterance_id($event)) return null;
     return $state;
 }
@@ -74,7 +74,7 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
     require_once dirname(__DIR__, 3).'/lib'.'/synth_dialogue_policy.php';
     require_once __DIR__.'/synth_player_rewrite.php';
     require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
-    if (!synth_autochat_selected($event) || empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])
+    if (!synth_autochat_selected($event) || empty(\Synth\Bootstrap::claimedRequest())
         || $event !== (\Synth\Bootstrap::requestEvent()['json'] ?? null)) throw new LogicException('autochat_owner_required');
     // One owner guard for the component and its driver: same claimed event, then the canonical liveness check.
     $assertActive = static function () use ($event): void {
@@ -127,8 +127,8 @@ function synth_autochat_prepare($db, array $event, array &$gameRequest, ?string 
     $accepted = synth_autochat_rewrite($db, $event, $transcript);
     $structured['text'] = $accepted['text'];
     $gameRequest[3] = json_encode($structured, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    $GLOBALS['SYNTH_AUTOCHAT'] = ['text' => $accepted['text'], 'target' => $accepted['target'], 'player' => $accepted['player'],
-        'utterance_id' => synth_autochat_utterance_id($event), 'published' => false, 'data' => null];
+    \Synth\Bootstrap::set('SYNTH_AUTOCHAT', ['text' => $accepted['text'], 'target' => $accepted['target'], 'player' => $accepted['player'],
+        'utterance_id' => synth_autochat_utterance_id($event), 'published' => false, 'data' => null]);
 }
 
 // Runs once, right after the ordinary input adapter. The adapter's fields must be the bound structured input with the
@@ -155,7 +155,7 @@ function synth_autochat_freeze_input(array $adapted, array $gameRequest): void
         || (\Synth\Bootstrap::config('SYNTH_PLAYER_INPUT_TEXT') ?? null) !== $line['text'] || (\Synth\Bootstrap::config('SYNTH_INPUT_TARGET') ?? null) !== $label) {
         throw new LogicException('autochat_derived_text_mismatch');
     }
-    $GLOBALS['SYNTH_AUTOCHAT']['data'] = $data;
+    \Synth\Bootstrap::setAt('SYNTH_AUTOCHAT', 'data', $data);
 }
 
 // The turn's player history row under its deterministic utterance id. Its text must be exactly the frozen derived
@@ -205,7 +205,7 @@ function synth_autochat_emit_player_line(bool $voiced): bool
     // Marked only once the line is buffered: a buffering failure leaves it unpublished and propagates, which ends
     // the root before any NPC provider call.
     synth_buffer_response_line('Player', 'say', $line['text'], $metadata, 'player');
-    $GLOBALS['SYNTH_AUTOCHAT']['published'] = true;
+    \Synth\Bootstrap::setAt('SYNTH_AUTOCHAT', 'published', true);
     return true;
 }
 

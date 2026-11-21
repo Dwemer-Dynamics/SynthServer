@@ -247,7 +247,7 @@ function synth_memory_process_job($db, int $jobId, callable $generate, ?callable
     $job = synth_memory_claim($db,$jobId);
     if (!$job) return null;
     $previousLease = \Synth\Bootstrap::config('SYNTH_MEMORY_JOB_LEASE') ?? null;
-    $GLOBALS['SYNTH_MEMORY_JOB_LEASE'] = ['id'=>$jobId,'token'=>$job['lease_token']];
+    \Synth\Bootstrap::set('SYNTH_MEMORY_JOB_LEASE', ['id'=>$jobId,'token'=>$job['lease_token']]);
     try {
         $input = json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);
         $summary = synth_memory_checkpoint($db,$jobId,$job['lease_token'],$job['input_sha256']);
@@ -263,8 +263,8 @@ function synth_memory_process_job($db, int $jobId, callable $generate, ?callable
         synth_memory_fail($db,$jobId,$job['lease_token']);
         throw $error;
     } finally {
-        if ($previousLease === null) unset($GLOBALS['SYNTH_MEMORY_JOB_LEASE']);
-        else $GLOBALS['SYNTH_MEMORY_JOB_LEASE']=$previousLease;
+        if ($previousLease === null) \Synth\Bootstrap::forget('SYNTH_MEMORY_JOB_LEASE');
+        else \Synth\Bootstrap::set('SYNTH_MEMORY_JOB_LEASE', $previousLease);
     }
 }
 

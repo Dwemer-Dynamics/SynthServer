@@ -49,7 +49,7 @@ function cleanResponse($rawResponse)
     $shouldPreserveTags = false;
     $eventTags = [];
 
-    if (isset($GLOBALS["TTSFUNCTION"]) && !empty($GLOBALS["TTSFUNCTION"])) {
+    if (\Synth\Bootstrap::has('TTSFUNCTION') && !empty(\Synth\Bootstrap::config('TTSFUNCTION'))) {
         // Map TTSFUNCTION to TTS array key
         $ttsMap = [
             'xtts-fastapi' => 'XTTSFASTAPI',
@@ -65,13 +65,13 @@ function cleanResponse($rawResponse)
 
         $ttsKey = $ttsMap[\Synth\Bootstrap::config("TTSFUNCTION")] ?? strtoupper(\Synth\Bootstrap::config("TTSFUNCTION"));
 
-        if (isset($GLOBALS["TTS"][$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) &&
+        if (isset(\Synth\Bootstrap::config('TTS')[$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) &&
             (bool)\Synth\Bootstrap::config("TTS")[$ttsKey]["PARALINGUISTIC_TAGS_ENABLED"]) {
             $shouldPreserveTags = true;
 
             // Parse the configurable tag list
-            if (isset($GLOBALS["TTS"][$ttsKey]["PARALINGUISTIC_TAGS_LIST"]) &&
-                !empty($GLOBALS["TTS"][$ttsKey]["PARALINGUISTIC_TAGS_LIST"])) {
+            if (isset(\Synth\Bootstrap::config('TTS')[$ttsKey]["PARALINGUISTIC_TAGS_LIST"]) &&
+                !empty(\Synth\Bootstrap::config('TTS')[$ttsKey]["PARALINGUISTIC_TAGS_LIST"])) {
                 $tagsList = \Synth\Bootstrap::config("TTS")[$ttsKey]["PARALINGUISTIC_TAGS_LIST"];
                 $eventTags = array_map('trim', explode(',', $tagsList));
             }
@@ -116,17 +116,17 @@ function cleanResponse($rawResponse)
     $matches = [];
         // Some LLMs will omit part of the name in brackets (e.g., Ranger [NCR Patrol] becomes Ranger in the response).
     // This avoids reading off the abbreviated name in the TTS.
-    if (preg_match('/^(.+?) \[(.+)\]$/', $GLOBALS["SYNTH_NAME"], $matches)) {
+    if (preg_match('/^(.+?) \[(.+)\]$/', \Synth\Bootstrap::ref('SYNTH_NAME'), $matches)) {
         $synthNameShort = $matches[1];
     }
 
-    if (stripos($toSplit, "{$GLOBALS["SYNTH_NAME"]}:") !== false || preg_match("/{$synthNameShort}\s*:/", $toSplit, $matches)) {
+    if (stripos($toSplit, (\Synth\Bootstrap::config('SYNTH_NAME') . ":")) !== false || preg_match("/{$synthNameShort}\s*:/", $toSplit, $matches)) {
         $rawResponseSplited = explode(":", $toSplit);
         array_shift($rawResponseSplited);
         $toSplit = implode(":", $rawResponseSplited);
     }
 
-    //$toSplit = preg_replace("/{$GLOBALS["SYNTH_NAME"]}\s*:\s*/", '', $toSplit);
+    //$toSplit = preg_replace("/{\Synth\Bootstrap::config("SYNTH_NAME")}\s*:\s*/", '', $toSplit);
 
     $sentences = split_sentences($toSplit);
 
@@ -365,7 +365,7 @@ function checkOAIComplains($responseTextUnmooded)
 {
 
 
-    if (isset($GLOBALS["OPENAI_FILTER_DISABLED"]))
+    if (\Synth\Bootstrap::has('OPENAI_FILTER_DISABLED'))
         return 0;
 
     $scoring = 0;
@@ -599,7 +599,7 @@ function isInlineNarrationEnabled() {
 }
 
 function shouldRemovePlayerAutochatAsterisks() {
-    if (isset($GLOBALS['REMOVE_PLAYER_AUTOCHAT_ASTERISKS'])) {
+    if (\Synth\Bootstrap::has('REMOVE_PLAYER_AUTOCHAT_ASTERISKS')) {
         return (bool)\Synth\Bootstrap::config('REMOVE_PLAYER_AUTOCHAT_ASTERISKS');
     }
 
@@ -611,7 +611,7 @@ function shouldSplitInlineNarration() {
 }
 
 function shouldStripPlayerInputAsterisks() {
-    if (isset($GLOBALS['REMOVE_ASTERISKS_FROM_PLAYER_INPUT'])) {
+    if (\Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_PLAYER_INPUT')) {
         return (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_PLAYER_INPUT');
     }
 
@@ -623,7 +623,7 @@ function shouldStripNpcOutputAsterisks() {
         return (bool)\Synth\Bootstrap::config('strip_emotes_from_output');
     }
 
-    if (isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'])) {
+    if (\Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_NPC_OUTPUT')) {
         return (bool)\Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT');
     }
 
@@ -790,12 +790,12 @@ function formatTextOnlyInlineNarrationSpeechText($text, $narrationParts = null) 
 }
 
 function shouldStripAsterisksFromCleanContextBuffer() {
-    $preserveAsterisksInContext = isset($GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"]) ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
+    $preserveAsterisksInContext = \Synth\Bootstrap::has('PRESERVE_ASTERISKS_IN_CONTEXT') ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
     return getInlineNarrationMode() === 'disabled' && !$preserveAsterisksInContext;
 }
 
 function unmoodSentence($sentence) {
-    global $forceMood;
+    $forceMood = &\Synth\Bootstrap::ref('forceMood');
 
     $output = synth_relationship_strip_commands((string)$sentence);
     $isPlayerSpeech = synth_protocol_current_speech_role()==='player';
@@ -810,8 +810,8 @@ function unmoodSentence($sentence) {
 
     if (!$isPlayerSpeech) {
         $processAsterisks = shouldStripNpcOutputAsterisks();
-        if (isset($GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT'])) {
-            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'unmoodSentence', "REMOVE_ASTERISKS_FROM_NPC_OUTPUT is setted to <{$GLOBALS['REMOVE_ASTERISKS_FROM_NPC_OUTPUT']}>" );
+        if (\Synth\Bootstrap::has('REMOVE_ASTERISKS_FROM_NPC_OUTPUT')) {
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'unmoodSentence', ("REMOVE_ASTERISKS_FROM_NPC_OUTPUT is setted to <" . \Synth\Bootstrap::config('REMOVE_ASTERISKS_FROM_NPC_OUTPUT') . ">") );
         }
     }
 
@@ -833,7 +833,7 @@ function unmoodSentence($sentence) {
     ]);
 
     // Clean player name from output (for AUTOCHAT mode) - handles multiple repetitions
-    if (isset($GLOBALS["PLAYER_NAME"])) {
+    if (\Synth\Bootstrap::has('PLAYER_NAME')) {
         $playerName = preg_quote(\Synth\Bootstrap::config("PLAYER_NAME"), '/');
         // Remove all leading occurrences of "PLAYERNAME:" or "PLAYERNAME: " (case-insensitive)
         $output = preg_replace('/^(?:' . $playerName . '\s*:\s*)+/i', '', $output);

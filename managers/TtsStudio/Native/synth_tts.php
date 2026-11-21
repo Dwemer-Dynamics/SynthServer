@@ -13,7 +13,7 @@ function synth_tts_cache_seed(string $root, string $speaker, string $text, ?arra
     $voice = '';
 
     try {
-        if (!isset($GLOBALS["TTSFUNCTION"])) {
+        if (!\Synth\Bootstrap::has('TTSFUNCTION')) {
             synthRuntimeBootstrapIfNeeded($root, [
                 'load_tts_connector' => true,
                 'run_db_updates' => false,
@@ -221,7 +221,7 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         'PATCH_OVERRIDE_VOICE_ID','SYNTH_ACTIVE_TTS_PLAN','LAST_LLM_RESPONSE','TTS_FALLBACK_FNCT'];
     $canonicalSaved=[];
     if ($canonicalActor!==null)foreach($canonicalKeys as $key) {
-        $canonicalSaved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key]??null];unset($GLOBALS[$key]);
+        $canonicalSaved[$key]=[\Synth\Bootstrap::exists($key),\Synth\Bootstrap::config($key)??null];\Synth\Bootstrap::forget($key);
     }
     Logger::phaseStart($phaseName, [
         "speaker" => $speaker,
@@ -237,12 +237,12 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
 
         require_once $root . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php";
 
-        if (!isset($GLOBALS["TTS_FFMPEG_FILTERS"]) || !is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
-            $GLOBALS["TTS_FFMPEG_FILTERS"] = [];
+        if (!\Synth\Bootstrap::has('TTS_FFMPEG_FILTERS') || !is_array(\Synth\Bootstrap::config("TTS_FFMPEG_FILTERS"))) {
+            \Synth\Bootstrap::set('TTS_FFMPEG_FILTERS', []);
         }
 
-        $GLOBALS["SYNTH_NAME"] = $speaker;
-        if ($canonicalActor!==null) $GLOBALS['SYNTH_SPEECH_ROLE']='npc';
+        \Synth\Bootstrap::set('SYNTH_NAME', $speaker);
+        if ($canonicalActor!==null) \Synth\Bootstrap::set('SYNTH_SPEECH_ROLE', 'npc');
 
         $canonicalVoice=null;
         if ($canonicalActor!==null) {
@@ -262,14 +262,14 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
                 $voiceData = $canonicalVoice ?? synth_tts_load_npc_voice_data($db, $speaker, $canonicalActor);
                 $voice = trim(strval($voiceData['voiceid'] ?? ''));
                 if ($voice !== '') {
-                    $GLOBALS["PATCH_OVERRIDE_VOICE"] = synth_resolve_tts_voice_reference($voice, [
+                    \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', synth_resolve_tts_voice_reference($voice, [
                         'root' => $root,
                         'actor_name' => $canonicalActor===null ? $speaker : '',
                         'voice_name' => $voiceData['voice_name'] ?? '',
                         'voice_formid' => $voiceData['voice_formid'] ?? '',
-                    ]);
+                    ]));
                 } elseif ($canonicalActor !== null) {
-                    unset($GLOBALS['PATCH_OVERRIDE_VOICE']);
+                    \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
                 }
             }
 
@@ -317,12 +317,12 @@ function synth_tts_generate_for_response(string $root, string $speaker, string $
         return false;
     } finally {
         // Restore temporary speaker overrides on success, provider failure and cancellation.
-        if ($hadName) $GLOBALS["SYNTH_NAME"] = $oldName;
-        else unset($GLOBALS["SYNTH_NAME"]);
-        if ($hadVoice) $GLOBALS["PATCH_OVERRIDE_VOICE"] = $oldVoice;
-        else unset($GLOBALS["PATCH_OVERRIDE_VOICE"]);
+        if ($hadName) \Synth\Bootstrap::set('SYNTH_NAME', $oldName);
+        else \Synth\Bootstrap::forget('SYNTH_NAME');
+        if ($hadVoice) \Synth\Bootstrap::set('PATCH_OVERRIDE_VOICE', $oldVoice);
+        else \Synth\Bootstrap::forget('PATCH_OVERRIDE_VOICE');
         foreach($canonicalSaved as $key=>[$exists,$value]) {
-            if($exists)$GLOBALS[$key]=$value;else unset($GLOBALS[$key]);
+            if($exists)\Synth\Bootstrap::set($key, $value);else \Synth\Bootstrap::forget($key);
         }
     }
 }
