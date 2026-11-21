@@ -236,16 +236,16 @@ $returnFunctionArray[] = array('role' => $LAST_ROLE, 'content' => $request);
 
 $contextData = array_merge($head, ($contextDataFull), $functionCalled, $returnFunctionArray);
 
-file_put_contents(__DIR__ . "/../log/context_for_{$GLOBALS["SYNTH_NAME"]}_after_func.txt", print_r($contextData, true));
+file_put_contents(__DIR__ . ("/../log/context_for_" . \Synth\Bootstrap::config('SYNTH_NAME') . "_after_func.txt"), print_r($contextData, true));
 
 if ($useFunctionsAgain) {
-	$GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
+	\Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
 	\Synth\Bootstrap::config("FUNCTIONS");
-	$GLOBALS["FUNCTIONS_FORCE_CALL"] = "auto";
-	$GLOBALS["FOLLOWUP_CHAIN_NEXT_DEPTH"] = $currentFollowupChainDepth + 1;
+	\Synth\Bootstrap::set('FUNCTIONS_FORCE_CALL', "auto");
+	\Synth\Bootstrap::set('FOLLOWUP_CHAIN_NEXT_DEPTH', $currentFollowupChainDepth + 1);
 } else {
-	$GLOBALS["FUNCTIONS_ARE_ENABLED"] = false;
-	unset($GLOBALS["FOLLOWUP_CHAIN_NEXT_DEPTH"]);
+	\Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', false);
+	\Synth\Bootstrap::forget('FOLLOWUP_CHAIN_NEXT_DEPTH');
 }
 
 ?>

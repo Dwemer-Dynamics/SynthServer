@@ -300,7 +300,7 @@ if (!in_array($gameRequest[0],["inputtext","inputtext_s","narrator_inputtext"]))
 }
 
 // Store globally for later use (e.g., updating speech table after LLM response)
-$GLOBALS["SYNTH_EXECUTION_MODE"] = $EXECUTION_MODE;
+\Synth\Bootstrap::set('SYNTH_EXECUTION_MODE', $EXECUTION_MODE);
 
 if ($EXECUTION_MODE=="STANDARD") {
 
@@ -327,7 +327,7 @@ if ($EXECUTION_MODE=="STANDARD") {
         $gameRequest[0] = 'cheatmode';
         // Bracketed so event scoping reads it as a context label, not a "Director instruction" speaker; rows then keep the selected NPC's audience.
         $gameRequest[3] = '[Director instruction: '.$instruction.'. Respond as the selected character and use only supported structured actions; do not claim unsupported game changes.]';
-        $GLOBALS['FUNCTIONS_ARE_ENABLED'] = true;
+        \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
     } else {
     
     ignore_user_abort(true);
@@ -361,13 +361,13 @@ if ($EXECUTION_MODE=="STANDARD") {
         $target = trim(str_replace(["\r", "\n", "|", "(", ")"], " ", $target));
         $target = preg_replace('/\s+/', ' ', $target);
         if ($target !== '') {
-            $GLOBALS["SYNTH_CHEATMODE_TARGET"] = $target;
+            \Synth\Bootstrap::set('SYNTH_CHEATMODE_TARGET', $target);
         }
     }
     \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'SYNTH_MODE', "Cheat Mode request: " . $newSpeech);
     $gameRequest[0] = "cheatmode";
     $gameRequest[3] = "<$newSpeech>";
-    $GLOBALS["FUNCTIONS_ARE_ENABLED"] = true;
+    \Synth\Bootstrap::set('FUNCTIONS_ARE_ENABLED', true);
     
 } else if ($EXECUTION_MODE=="AUTOCHAT") {
     // Native only (see above): the bound structured input is kept and lib/synth_autochat.php replaces its derived
@@ -389,9 +389,9 @@ if ($EXECUTION_MODE=="STANDARD") {
 
 $CONTEXT_MODE=['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_context_mode')];
 if (isset($CONTEXT_MODE["value"]) && $CONTEXT_MODE["value"]==1) 
-    $GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"]=true;
+    \Synth\Bootstrap::set('CLEAN_CONTEXT_FOCUS_CHAT', true);
 else
-    $GLOBALS["CLEAN_CONTEXT_FOCUS_CHAT"]=false;
+    \Synth\Bootstrap::set('CLEAN_CONTEXT_FOCUS_CHAT', false);
 
 
 ?>

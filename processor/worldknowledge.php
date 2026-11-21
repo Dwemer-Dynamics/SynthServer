@@ -7,9 +7,9 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' 
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'worldknowledge_vocabulary.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'eventlog_helper.php';
 
-$GLOBALS['WORLDKNOWLEDGE_HINT'] = '';
-$GLOBALS['WORLDKNOWLEDGE_INJECTED_TOPICS'] = [];
-$GLOBALS['WORLDKNOWLEDGE_FORCED_SIGNALS'] = [];
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', '');
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_INJECTED_TOPICS', []);
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_FORCED_SIGNALS', []);
 $worldKnowledgeStarted = hrtime(true);
 
 if (!function_exists('isWorldKnowledgeEnabled')) {
@@ -23,7 +23,7 @@ if (!function_exists('synthWorldKnowledgeNativeDialogueRows')) {
     /** Saved dialogue for the owned responder, with bounded rows, bytes and query time. */
     function synthWorldKnowledgeNativeDialogueRows($db, array $event, bool $chatOnly = false, int $limit = 6): array
     {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || ($event['protocol_version'] ?? null) !== 2
+        if (empty(\Synth\Bootstrap::claimedRequest()) || ($event['protocol_version'] ?? null) !== 2
             || !is_object($db) || !method_exists($db, 'withNativeRequestLock')
             || !method_exists($db, 'escapeLiteral') || !method_exists($db, 'fetchOne')
             || !is_int($event['generation'] ?? null) || $event['generation'] < 1
@@ -314,7 +314,7 @@ $trace['vocabulary_context']=['included'=>false];
 if ($vocabularyContext!==null) {
     $vocabularyRow=$vocabularyContext['row'];
     $vocabularyDecision=$vocabularyContext['decision'];
-    $GLOBALS['WORLDKNOWLEDGE_HINT'].=synthWorldKnowledgeRenderArticleXml($vocabularyRow,$vocabularyDecision,'vocabulary');
+    \Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') . (synthWorldKnowledgeRenderArticleXml($vocabularyRow,$vocabularyDecision,'vocabulary')));
     synthWorldKnowledgeMarkTopicInjected(strval($vocabularyRow['topic'] ?? 'wasteland_vocabulary'));
     $trace['vocabulary_context']=['included'=>true,'topic'=>'wasteland_vocabulary','level'=>'basic',
         'source_kind'=>$vocabularyRow['source_kind'] ?? ''];
@@ -338,12 +338,12 @@ foreach ($topics as $topic) {
     synthWorldKnowledgeMarkTopicInjected(strval($row['topic'] ?? $topic));
     if ($decision['level'] === 'denied') {
         $deniedCount++;
-        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
-            . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation');
+        \Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') . ((\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
+            . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation')));
         $promptEntryCount++;
     } else {
-        $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
-            . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation');
+        \Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') . ((\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
+            . synthWorldKnowledgeRenderArticleXml($row, $decision, 'conversation')));
         $selectedCount++;
         $promptEntryCount++;
     }
@@ -356,10 +356,10 @@ foreach ($topics as $topic) {
     ];
 }
 
-$GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] = max(0, $resultLimit - $promptEntryCount);
+\Synth\Bootstrap::set('WORLDKNOWLEDGE_FORCED_REMAINING', max(0, $resultLimit - $promptEntryCount));
 $forcedCount = synthWorldKnowledgeInjectForcedLocationContext($db)
     + synthWorldKnowledgeInjectForcedActorContext($db);
-unset($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING']);
+\Synth\Bootstrap::forget('WORLDKNOWLEDGE_FORCED_REMAINING');
 $trace['forced_signals'] = array_values(\Synth\Bootstrap::config('WORLDKNOWLEDGE_FORCED_SIGNALS') ?? []);
 $forcedDeniedCount = count(array_filter(
     $trace['forced_signals'],
@@ -384,8 +384,8 @@ $trace['elapsed_ms'] = round((hrtime(true) - $worldKnowledgeStarted) / 1_000_000
 $articleXml = trim(strval(\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') ?? ''));
 if ($articleXml !== '') {
     $status = htmlspecialchars(strval($trace['status']), ENT_QUOTES | ENT_XML1, 'UTF-8');
-    $GLOBALS['WORLDKNOWLEDGE_HINT'] = '<oghma contract="oghma-parity-v1" status="' . $status . '">' . "\n"
-        . $articleXml . "\n</oghma>";
+    \Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', '<oghma contract="oghma-parity-v1" status="' . $status . '">' . "\n"
+        . $articleXml . "\n</oghma>");
     $trace['prompt_hash'] = hash('sha256', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT'));
 }
 synthWorldKnowledgeRecordAudit($db, $trace);

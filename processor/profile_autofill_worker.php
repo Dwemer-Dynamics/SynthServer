@@ -26,19 +26,19 @@ if ($npcName === '') {
     exit(0);
 }
 
-$GLOBALS['ENGINE_PATH'] = $path;
-$GLOBALS['SYNTH_RESPONSE_FORMAT'] = 'json';
-$GLOBALS['SYNTH_RESPONSE_STREAMING'] = false;
-$GLOBALS['SYNTH_GAME_ID'] = 'fo4';
-$GLOBALS['SYNTH_WORLD_NAME'] = 'Commonwealth';
-$GLOBALS['SYNTH_NAME'] = $npcName;
-$GLOBALS['AUDIT_RUNID_REQUEST'] = 'profile_autofill_worker';
-$GLOBALS['gameRequest'] = [
+\Synth\Bootstrap::set('ENGINE_PATH', $path);
+\Synth\Bootstrap::set('SYNTH_RESPONSE_FORMAT', 'json');
+\Synth\Bootstrap::set('SYNTH_RESPONSE_STREAMING', false);
+\Synth\Bootstrap::set('SYNTH_GAME_ID', 'fo4');
+\Synth\Bootstrap::set('SYNTH_WORLD_NAME', 'Commonwealth');
+\Synth\Bootstrap::set('SYNTH_NAME', $npcName);
+\Synth\Bootstrap::set('AUDIT_RUNID_REQUEST', 'profile_autofill_worker');
+\Synth\Bootstrap::set('gameRequest', [
     'profile_autofill_worker',
     strval(time()),
     strval(time()),
     $npcName,
-];
+]);
 
 require_once($path . 'lib' . DIRECTORY_SEPARATOR . 'runtime_bootstrap.php');
 require_once($path . 'lib' . DIRECTORY_SEPARATOR . 'logger.php');

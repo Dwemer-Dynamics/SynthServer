@@ -207,3 +207,16 @@ Files under: workers
 | --- | --- | --- |
 | global uses (all non-test PHP) | 1740 | 1560 |
 | `require_once` | 1838 | 1838 |
+
+### W8-processor
+
+All uses in `processor/` except one literal placeholder (`processor/request.php`, the `'{$GLOBALS["SYNTH_NAME"]}'` replacement keys). The three `$GLOBALS['gameRequest'] = &$x` bindings use `Bootstrap::bind()`.
+
+Stacked on W7-workers (#179).
+
+Files under: processor
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 1560 | 1380 |
+| `require_once` | 1838 | 1838 |
