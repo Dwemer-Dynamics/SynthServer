@@ -11,7 +11,7 @@
  * connection attempts when the service is down.
  */
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 function _minimeServiceBaseUrl() {
     $defaultUrl = 'http://127.0.0.1:8082';
     $configuredUrl = \Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['TXTAI_URL'] ?? $defaultUrl;

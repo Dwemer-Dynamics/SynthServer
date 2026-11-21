@@ -2,7 +2,6 @@
 
 require_once __DIR__.'/synth_relationship_jobs.php';
 require_once dirname(__DIR__, 3).'/lib/synth_worker_origin.php';
-require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
 require_once __DIR__.'/synth_relationship_interaction_model.php';
 
 // Resolve the established custom/default prompt before freezing work, not at a later provider retry.

@@ -1,6 +1,8 @@
 <?php
 // Removes `require_once` statements for files that Composer now autoloads (token based, like globals-convert.php).
 //   php tools/require-prune.php [--dry] <dir|file>...
+// - legacy class files (NOT llm_connector, narrator and npc_master: those files also define functions that callers
+//   use without touching the class, so their requires stay until the functions move)
 // - legacy class files (core/dbmanager/Legacy/*.class.php and their lib/core/*.class.php hooks): the statement is deleted.
 // - lib/classes/Logger.php: replaced by lib/autoload.php (Logger is autoloaded once the autoloader is loaded), or deleted
 //   when the file already loads the autoloader.
@@ -8,7 +10,7 @@
 // (`if (...) require_once ...;`, `$x = require_once ...`) is listed on stderr for hand conversion.
 $dry = false; $paths = [];
 foreach (array_slice($argv, 1) as $a) { if ($a === '--dry') $dry = true; else $paths[] = $a; }
-const CLASS_FILES = '/(llm_connector|tts_connector|stt_connector|itt_connector|npc_master|api_badge|core_profiles|narrator|player|import_rules)\.class\.php/';
+const CLASS_FILES = '/(tts_connector|stt_connector|itt_connector|api_badge|core_profiles|player|import_rules)\.class\.php/';
 $manual = []; $stats = ['deleted' => 0, 'logger_replaced' => 0, 'logger_deleted' => 0];
 
 function sigp(array $t, int $i, int $dir): int {

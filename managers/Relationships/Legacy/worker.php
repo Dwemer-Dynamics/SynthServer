@@ -80,7 +80,7 @@ if ($daemon && function_exists('pcntl_fork')) {
 }
 
 // Single SYNTH error/exception/fatal handler, writing to this worker's own log. The shutdown hook only cleans up.
-require_once $enginePath . 'lib/classes/Logger.php';
+require_once $enginePath . 'lib/autoload.php';
 \Synth\Lib\Logger::setHandlerLog($logFile);
 \Synth\Lib\Logger::installHandlers();
 
@@ -103,7 +103,6 @@ try {
     ]);
 
     @file_put_contents($logFile, date('[Y-m-d H:i:s]') . " TRACE: Loading api_badge and logger\n", FILE_APPEND);
-    require_once $enginePath . 'lib/core/api_badge.class.php';
     require_once $enginePath . 'lib/logger.php';
 
     // Set up minimal globals that LLM connector needs

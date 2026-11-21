@@ -6,7 +6,7 @@ Post tasks.
 */
 
 // Helper function to properly check boolean values (handles string "false" from form submissions)
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 if (!function_exists('isWorldKnowledgeSettingEnabled')) {
     function isWorldKnowledgeSettingEnabled($value) {
         if ($value === null) return false;
