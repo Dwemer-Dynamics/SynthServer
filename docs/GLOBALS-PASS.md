@@ -194,3 +194,16 @@ Files under: drivers
 | --- | --- | --- |
 | global uses (all non-test PHP) | 2349 | 1740 |
 | `require_once` | 1838 | 1838 |
+
+### W7-workers
+
+All uses in `workers/` except one literal placeholder: `workers/Profiles/Native/dynamic_update_util.php` has `'{$GLOBALS["SYNTH_NAME"]}'` replacement keys, which are text, not accesses. Dynamic keys (`$GLOBALS[$key]`) were converted by hand to `Bootstrap::set($key, ...)`, `forget($key)` and `config($key)`; the middle-term task closure uses `setPath('TASKS', ['middleterm', 'fn'], function ...)`. Whole-array uses of `$GLOBALS` (passed to resolvers, `array_intersect_key($GLOBALS, ...)`) are not counted by the `$GLOBALS[` method and still need an `all()` accessor.
+
+Stacked on W6-drivers (#176).
+
+Files under: workers
+
+| | before | after |
+| --- | --- | --- |
+| global uses (all non-test PHP) | 1740 | 1560 |
+| `require_once` | 1838 | 1838 |

@@ -65,14 +65,14 @@ function synthPlayer2HealthMarkGameActivity(?int $now = null): bool
     if ($newSession || ($now - $lastActivity) >= SYNTH_PLAYER2_HEALTH_ACTIVITY_WRITE_INTERVAL) {
         synthPlayer2HealthSetOption('PLAYER2_GAME_LAST_ACTIVITY_TS', strval($now));
     }
-    $GLOBALS['PLAYER2_GAME_REQUEST_ACTIVE'] = true;
+    \Synth\Bootstrap::set('PLAYER2_GAME_REQUEST_ACTIVE', true);
 
     return $newSession;
 }
 
 function synthPlayer2HealthMarkUsed(string $connectorUrl, ?int $now = null): bool
 {
-    if (empty($GLOBALS['PLAYER2_GAME_REQUEST_ACTIVE'])) {
+    if (empty(\Synth\Bootstrap::config('PLAYER2_GAME_REQUEST_ACTIVE'))) {
         return false;
     }
 
