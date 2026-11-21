@@ -105,6 +105,7 @@ final class MiddletermInputDao
      */
     public function regenerationTarget(string $cte, int $narrativeId): ?array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         try {
             $row = $this->connection()->fetchAssociative(
                 $cte." SELECT i.history_event_id,i.input_sha256,i.control_revision,i.content_revision,

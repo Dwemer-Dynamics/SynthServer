@@ -33,6 +33,7 @@ final class MiddletermResultDao
      */
     public function latestNarrative(string $cte): ?array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         $row = $this->connection()->fetchAssociative(
             $cte.' SELECT history_event_id,effective_narrative AS narrative,content_revision FROM middleterm_latest'
         );
@@ -53,6 +54,7 @@ final class MiddletermResultDao
     /** True when the saved narrative is owned and visible through the caller's middleterm history CTE (false when the statement fails). */
     public function ownedVisible(string $cte, int $historyEventId): bool
     {
+        $cte = JsonbOperatorSql::plain($cte);
         try {
             return $this->connection()->fetchOne(
                 $cte.' SELECT history_event_id FROM middleterm_owned WHERE history_event_id = ?',

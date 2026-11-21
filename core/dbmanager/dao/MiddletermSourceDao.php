@@ -33,6 +33,7 @@ final class MiddletermSourceDao
      */
     public function unusedSummaries(string $cte, int $actorId): array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         return $this->connection()->fetchAllAssociative(
             $cte." SELECT s.id,s.summary_revision,s.summary,b.last_gamets
                 FROM native_memory_effective_summaries s JOIN native_memory_batches b ON b.id=s.batch_id
@@ -66,6 +67,7 @@ final class MiddletermSourceDao
      */
     public function regenerationSources(string $cte, int $narrativeId): array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         return $this->connection()->fetchAllAssociative(
             $cte." SELECT d.position,current.id,current.summary_revision,current.summary,b.last_gamets,
                     family.root_id AS source_family_id
@@ -97,6 +99,7 @@ final class MiddletermSourceDao
      */
     public function currentSources(string $cte, int $inputId, int $actorId): array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         return $this->connection()->fetchAllAssociative(
             $cte." SELECT d.position,d.summary_id,d.summary_revision,d.source_sha256,s.summary,b.last_gamets
                 FROM public.core_middleterm_source d JOIN native_memory_effective_summaries s ON s.id=d.summary_id

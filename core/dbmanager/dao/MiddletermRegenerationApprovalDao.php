@@ -85,6 +85,7 @@ final class MiddletermRegenerationApprovalDao
      */
     public function findReplay(string $cte, string $sessionId, int|string $generation, int|string $actorId, string $scopeJson, string $token): ?array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         $row = $this->connection()->fetchAssociative(
             $cte." SELECT q.history_event_id,
                 q.approval_payload->'scope' = CAST(:scope AS jsonb) AS same_scope FROM regeneration_receipts q
@@ -130,6 +131,7 @@ final class MiddletermRegenerationApprovalDao
      */
     public function approvedReceipt(string $cte, int $approvalId, int $actorId, string $runtimeVariant, string $sessionId, int $generation, int $sequence): ?array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         try {
             $row = $this->connection()->fetchAssociative(
                 $cte." SELECT q.*,c.history_event_id AS cutoff,
@@ -175,6 +177,7 @@ final class MiddletermRegenerationApprovalDao
      */
     public function statusRow(string $cte, string $sessionId, int $generation, int $actorId, int $narrativeId): ?array
     {
+        $cte = JsonbOperatorSql::plain($cte);
         try {
             $row = $this->connection()->fetchAssociative(
                 $cte." SELECT raw.history_event_id AS approval_id,
