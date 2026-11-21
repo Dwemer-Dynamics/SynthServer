@@ -30,4 +30,10 @@ final class QuestDao
     {
         return $this->connection()->fetchAllAssociative("SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT ".max(1, $limit));
     }
+
+    /** Name, id, briefings and data of every quest. @return list<array<string,mixed>> */
+    public function listAll(): array
+    {
+        return $this->connection()->fetchAllAssociative('SELECT name, id_quest, briefing, briefing2, data FROM public.core_quest');
+    }
 }

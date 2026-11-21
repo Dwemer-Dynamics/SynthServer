@@ -45,10 +45,10 @@ function synthAiResponseFormatLocalTs($value)
     return $dt->format("d-m-Y H:i:s");
 }
 
-function synthAiResponseSafeFetchAll($db, $query)
+function synthAiResponseSafeFetchAll(callable $fetch)
 {
     try {
-        return $db->fetchAll($query);
+        return $fetch();
     } catch (Throwable $exception) {
         if (class_exists('Logger')) {
             Logger::warn("AI response page query failed: " . $exception->getMessage());
@@ -60,7 +60,7 @@ function synthAiResponseSafeFetchAll($db, $query)
 function synthAiResponseSafeDeleteLog($db)
 {
     try {
-        $db->delete("core_log", "true");
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->deleteAll();
         return true;
     } catch (Throwable $exception) {
         if (class_exists('Logger')) {
@@ -740,17 +740,12 @@ if ($cleanLogRequested) {
     exit;
 }
 
-$totalRow = synthAiResponseSafeFetchAll($db, "SELECT COUNT(*) AS total FROM core_log");
+$totalRow = synthAiResponseSafeFetchAll(static fn() => [["total" => \Synth\Core\DbManager\Dao\LogDao::current($db)->countAll()]]);
 $totalRecords = intval($totalRow[0]["total"] ?? 0);
 $totalPages = max(1, (int)ceil($totalRecords / $limit));
 
 if (isset($_GET["export"]) && ($_GET["export"] === "1" || $_GET["export"] === "log")) {
-    $allRows = synthAiResponseSafeFetchAll(
-        $db,
-        "SELECT A.*, ROWID
-         FROM core_log a
-         ORDER BY localts DESC, rowid DESC"
-    );
+    $allRows = synthAiResponseSafeFetchAll(static fn() => \Synth\Core\DbManager\Dao\LogDao::current($db)->newestFirst());
 
     $extraColumns = [];
     foreach ($allRows as $row) {
@@ -786,13 +781,7 @@ if (isset($_GET["export"]) && ($_GET["export"] === "1" || $_GET["export"] === "l
     exit;
 }
 
-$rows = synthAiResponseSafeFetchAll(
-    $db,
-    "SELECT A.*, ROWID
-     FROM core_log a
-     ORDER BY localts DESC, rowid DESC
-     LIMIT " . intval($limit) . " OFFSET " . intval($offset)
-);
+$rows = synthAiResponseSafeFetchAll(static fn() => \Synth\Core\DbManager\Dao\LogDao::current($db)->newestFirst(intval($limit), intval($offset)));
 
 $extraColumns = [];
 foreach ($rows as $row) {

@@ -9,6 +9,7 @@ use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
 use Synth\Core\DbManager\Dao\HistoryEventDao;
+use Synth\Core\DbManager\Dao\NpcDao;
 
 final class DaoTestDoubles
 {
@@ -190,6 +191,7 @@ final class DaoTestDoubles
         \Synth\Core\DbManager\Dao\DiaryResultDao::inject(null);
         RequestExecutionDao::inject(null);
         HistoryEventDao::inject(null);
+        NpcDao::inject(null);
     }
 
     /**
@@ -290,5 +292,23 @@ final class DaoTestDoubles
                 AND conv_e.generation=conv_h.generation
             WHERE conv_h.id=history_event_id AND conv_h.session_id={$session}
                 AND conv_e.canonical_event#>>'{payload,conversation_id}'=".$this->fake->escapeLiteral($conversationId).'))';
+            }
+
+    /** NpcDao::linkedToActor() answered by $fake->fetchAll() (one lookup per call), whatever the SQL text. */
+    public static function linkedActorsFrom(object $fake): void
+    {
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+            {
+                return $this->fake->fetchAll('linked actors '.$formId.'|'.$originPlugin.'|'.$playthroughId);
+            }
+        });
+    }
+
+            public function linkedToActor(string $formId, string $originPlugin, string $playthroughId): array
+            {
+                return $this->fake->fetchAll('linked actors '.$formId.'|'.$originPlugin.'|'.$playthroughId);
             }
 }

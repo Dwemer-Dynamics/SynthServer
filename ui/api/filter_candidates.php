@@ -93,23 +93,7 @@ function filterCandidateQueryRecentRows(sql $db, array $types): array
         return [];
     }
 
-    $quotedTypes = array_map(function (string $type) use ($db): string {
-        return "'" . $db->escape($type) . "'";
-    }, $types);
-
-    $sql = "
-        SELECT rowid, type, data, party
-        FROM (
-            SELECT rowid, type, data, party
-            FROM core_context_event
-            ORDER BY rowid DESC
-            LIMIT 5000
-        ) recent
-        WHERE type IN (" . implode(', ', $quotedTypes) . ")
-        ORDER BY rowid DESC
-    ";
-
-    return $db->fetchAll($sql);
+    return \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentOfTypes($types);
 }
 
 function filterCandidateStripItemTags(string $itemName): string
@@ -251,24 +235,7 @@ function filterCandidateBuildEventTypes(sql $db): array
         'region',
     ];
 
-    $quotedTypes = array_map(function (string $type) use ($db): string {
-        return "'" . $db->escape($type) . "'";
-    }, $excludedTypes);
-
-    $sql = "
-        SELECT type, COUNT(*) AS count
-        FROM (
-            SELECT rowid, type
-            FROM core_context_event
-            ORDER BY rowid DESC
-            LIMIT 5000
-        ) recent
-        WHERE type NOT IN (" . implode(', ', $quotedTypes) . ")
-        GROUP BY type
-        ORDER BY COUNT(*) DESC, LOWER(type) ASC
-    ";
-
-    $rows = $db->fetchAll($sql);
+    $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->recentTypeCounts($excludedTypes);
     $items = [];
 
     foreach ($rows as $row) {
