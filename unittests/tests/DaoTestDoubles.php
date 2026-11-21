@@ -3,6 +3,8 @@
 // Test doubles that let a test keep answering a DAO read from its own scripted fake `$db`. The double builds the legacy
 // SQL text and asks the fake, so the fake's rows are what the DAO returns. Call reset() when the test is done.
 
+use Synth\Core\DbManager\Dao\ActionIntentDao;
+use Synth\Core\DbManager\Dao\ActionResultDao;
 use Synth\Core\DbManager\Dao\ActorActivationDao;
 use Synth\Core\DbManager\Dao\ActorIdentityDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
@@ -256,6 +258,93 @@ final class DaoTestDoubles
             state='active', last_seen_at=NOW()");
 
                 return true;
+            }
+        });
+    }
+
+    /**
+     * The action-result persistence reads and writes of synth_protocol_state.php answered by $fake, which sees the legacy SQL text
+     * (fetchOne() for reads and the locked reads, execQuery() for the writes).
+     */
+    public static function actionResultFrom(object $fake): void
+    {
+        ActionIntentDao::inject(new class($fake) extends ActionIntentDao {
+            public function __construct(private object $fake) {}
+
+            public function lockIntent(string $actionId, string $sessionId, int $generation): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT action_id, idempotency_key, state, action_name, (deadline_at + INTERVAL '5 minutes' < NOW()) AS expired
+           FROM public.core_action_intent
+          WHERE action_id={$f->escapeLiteral($actionId)} AND session_id={$f->escapeLiteral($sessionId)} AND generation={$generation}
+          FOR UPDATE");
+
+                return $row ?: null;
+            }
+
+            public function issuingEvent(string $actionId, string $sessionId, int $generation): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT e.canonical_event->>'context_sequence' AS context_sequence,
+                    e.canonical_event->>'protocol_version' AS protocol_version
+               FROM public.core_action_intent i
+               JOIN public.core_protocol_event e
+                 ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
+              WHERE i.action_id={$f->escapeLiteral($actionId)} AND i.session_id={$f->escapeLiteral($sessionId)} AND i.generation={$generation}");
+
+                return $row ?: null;
+            }
+
+            public function inventoryOwner(string $actionId, string $sessionId, int $generation): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT i.turn_id, i.request_id, i.action_name, i.capability,
+                a.full_form_id, a.origin_plugin, a.playthrough_id, e.canonical_event,
+                t.full_form_id AS recipient_form_id, t.origin_plugin AS recipient_plugin,
+                t.playthrough_id AS recipient_playthrough_id
+            FROM public.core_action_intent i
+            JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+            LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id AND t.game='fo4'
+            JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
+                AND e.generation=i.generation AND e.turn_id=i.turn_id
+            JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+            WHERE i.action_id={$f->escapeLiteral($actionId)} AND i.session_id={$f->escapeLiteral($sessionId)} AND i.generation={$generation}
+                AND i.state IN ('pending','dispatched','complete')
+                AND r.state='active' AND r.active_generation={$generation} AND r.active_turn_id=i.turn_id
+                AND r.active_turn_sequence::text=e.canonical_event->>'context_sequence'
+                AND r.runtime_variant=e.canonical_event->>'runtime_variant'");
+
+                return $row ?: null;
+            }
+
+            public function markComplete(string $actionId): bool
+            {
+                $f = $this->fake;
+
+                return $f->execQuery("UPDATE public.core_action_intent SET state='complete' WHERE action_id={$f->escapeLiteral($actionId)}") !== false;
+            }
+        });
+        ActionResultDao::inject(new class($fake) extends ActionResultDao {
+            public function __construct(private object $fake) {}
+
+            public function lockResult(string $actionId): ?string
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT result FROM public.core_action_result WHERE action_id={$f->escapeLiteral($actionId)} FOR UPDATE");
+                if (!$row) {
+                    return null;
+                }
+                $value = $row['result'] ?? null;
+
+                return is_array($value) ? json_encode($value) : ($value === null ? null : strval($value));
+            }
+
+            public function insertResult(string $actionId, string $idempotencyKey, string $status, string $resultJson): bool
+            {
+                $f = $this->fake;
+
+                return $f->execQuery("INSERT INTO public.core_action_result (action_id, idempotency_key, status, result)
+         VALUES ({$f->escapeLiteral($actionId)}, {$f->escapeLiteral($idempotencyKey)}, {$f->escapeLiteral($status)}, {$f->escapeLiteral($resultJson)}::jsonb)") !== false;
             }
         });
     }
