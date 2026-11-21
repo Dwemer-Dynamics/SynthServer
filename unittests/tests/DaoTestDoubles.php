@@ -186,7 +186,7 @@ final class DaoTestDoubles
                 return method_exists($this->fake, 'escapeLiteral') ? $this->fake->escapeLiteral($value) : "'".str_replace("'", "''", $value)."'";
             }
 
-            private function row(string $sql): ?array
+            private function fetchRow(string $sql): ?array
             {
                 $row = $this->fake->fetchOne($sql);
 
@@ -195,12 +195,12 @@ final class DaoTestDoubles
 
             public function metadataByName(string $name): ?array
             {
-                return $this->row("SELECT metadata FROM core_npc WHERE npc_name = '".str_replace("'", "''", $name)."' LIMIT 1");
+                return $this->fetchRow("SELECT metadata FROM core_npc WHERE npc_name = '".str_replace("'", "''", $name)."' LIMIT 1");
             }
 
             public function voiceByName(string $name): ?array
             {
-                return $this->row('SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='.$this->literal($name).' LIMIT 1');
+                return $this->fetchRow('SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='.$this->literal($name).' LIMIT 1');
             }
 
             public function voiceByActor(string $formId, string $originPlugin, string $playthroughId): ?array
@@ -209,7 +209,7 @@ final class DaoTestDoubles
                 $plugin = $this->literal($originPlugin);
                 $playthrough = $this->literal($playthroughId);
 
-                return $this->row("SELECT n.voiceid,n.extended_data FROM public.core_npc n
+                return $this->fetchRow("SELECT n.voiceid,n.extended_data FROM public.core_npc n
             JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
             WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
                 AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
