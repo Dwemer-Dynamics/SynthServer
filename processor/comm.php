@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 require_once(\Synth\Bootstrap::enginePath()."/lib/dynamic_update_util.php");
 require_once(\Synth\Bootstrap::enginePath()."/lib/utils_game_timestamp.php");
 require_once(\Synth\Bootstrap::enginePath()."/lib/playthrough_snapshot.php");
@@ -188,7 +188,6 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     
     // Narrator Welcome Message on Load
     try {
-        require_once(\Synth\Bootstrap::enginePath() . "/lib/core/narrator.class.php");
         $narrator = new Narrator();
         
         // Check if narrator is enabled and welcome message is enabled
@@ -670,7 +669,6 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     */
     // Check if quest comments are enabled for narrator
     try {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
         $narrator = new Narrator();
         
         if ($narrator->getBool('enabled', true) && $narrator->getBool('quest_comment_enabled', false)) {
@@ -986,7 +984,6 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
         
         // Handle The Narrator separately
         if ($npcName === "The Narrator") {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
             $narrator = new Narrator();
             
             // Check if narrator has dynamic profile enabled
@@ -1150,8 +1147,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
     }
     
     if (!class_exists('Player')) {
-        require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-    }
+        }
     $player = new Player();
     $playerName = getConfiguredPlayerDiaryName($player);
     
@@ -1221,7 +1217,6 @@ if (\Synth\Bootstrap::has('TRIGGER_NARRATOR_WELCOME') && \Synth\Bootstrap::confi
     $MUST_END = false; // Don't end, continue to main.php
     
     // Load narrator profile
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narrator = new Narrator();
     
     // Get narrator profile ID
@@ -1253,7 +1248,6 @@ if (\Synth\Bootstrap::has('TRIGGER_NARRATOR_QUEST_COMMENT') && \Synth\Bootstrap:
     $MUST_END = false; // Don't end, continue to main.php
     
     // Load narrator profile
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "narrator.class.php");
     $narrator = new Narrator();
     
     // Get narrator profile ID

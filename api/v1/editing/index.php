@@ -20,7 +20,7 @@ declare(strict_types=1);
  * management guards (allowed host, same-origin). Answers carry a generic message, never exception text.
  */
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 require_once dirname(__DIR__, 3) . '/lib/management_request_guard.php';
 require_once dirname(__DIR__, 3) . '/lib/RequestBody.php';
 require_once dirname(__DIR__, 3) . '/lib/runtime_bootstrap.php';

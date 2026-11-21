@@ -12,7 +12,7 @@ declare(strict_types=1);
 use Synth\Managers\TtsStudio\VoicePreviewManager;
 use Synth\Managers\TtsStudio\VoiceSampleStore;
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 ob_start();
 
 /**

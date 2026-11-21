@@ -1,7 +1,6 @@
 <?php
 
 require_once dirname(__DIR__, 3) . '/core/dbmanager/repositories/ApiBadgeRepository.php';
-require_once __DIR__ . DIRECTORY_SEPARATOR . 'api_badge.class.php';
 
 class TTSConnector
 {
@@ -867,8 +866,7 @@ class TTSConnector
             return null;
         }
         if (!class_exists('ApiBadge')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php");
-        }
+            }
         $apiBadge = new ApiBadge();
         if ($apiBadge->getByLabel($badgeLabel) || $apiBadge->create(['label' => $badgeLabel, 'api_key' => $apiKey]) !== '') {
             unset($metadata['API_KEY']);
