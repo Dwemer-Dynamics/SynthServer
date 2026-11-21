@@ -1201,7 +1201,7 @@ final class RequestStreamingTest extends TestCase
         $source = file_get_contents(dirname(__DIR__,2).'/lib/postgresql.class.php');
         $owned = explode('private function insertRow', explode('public function insert($table, $data)', $source, 2)[1], 2)[0];
         $this->assertStringContainsString("['core_context_event', 'public.core_context_event']", $owned);
-        $this->assertStringContainsString("SYNTH_PROTOCOL_REQUEST_CLAIMED", $owned);
+        $this->assertStringContainsString("Bootstrap::claimedRequest()", $owned);
         $this->assertStringContainsString("BEGIN ISOLATION LEVEL READ COMMITTED", $owned);
         $this->assertStringContainsString("SHOW transaction_isolation", $owned);
         $this->assertStringContainsString("SET LOCAL lock_timeout='2s'", $owned);
