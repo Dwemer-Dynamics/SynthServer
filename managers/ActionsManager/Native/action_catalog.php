@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/core' . '/../../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib/core' . '/../../lib/autoload.php';
 require_once(dirname(__DIR__, 3).'/lib/core' . DIRECTORY_SEPARATOR . 'game_plugins.php');
 require_once(dirname(__DIR__, 3).'/lib/core' . DIRECTORY_SEPARATOR . 'npc_master.class.php');
 

@@ -10,7 +10,6 @@ require_once(__DIR__."/emote_moods.php");
 require_once(__DIR__."/core/activity_status.php");
 require_once(__DIR__."/core/game_plugins.php");
 require_once(__DIR__."/core/npc_master.class.php");
-require_once(__DIR__."/core/core_profiles.class.php");
 require_once(__DIR__."/prompt_injections.php");
 require_once(__DIR__."/memory_ranking.php");
 require_once(__DIR__."/synth_protocol_state.php");
