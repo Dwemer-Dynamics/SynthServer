@@ -213,7 +213,6 @@ function synthApplyNpcMetadataUpdatesByName(string $npcName, array $updates): bo
         return false;
     }
 
-    require_once dirname(__DIR__, 3).'/lib/core' . DIRECTORY_SEPARATOR . 'npc_master.class.php';
     if (!class_exists('NpcMaster')) {
         return false;
     }

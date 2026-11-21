@@ -11,7 +11,7 @@
  *   - queries: RelationshipManager::getRelationship($npcName, $targetName)
  */
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 class RelationshipManager {
 
     // Valid relationship types (the "flavor" of the relationship)
@@ -367,7 +367,6 @@ class RelationshipManager {
      * Get NPC's relationship data from extended_data
      */
     public static function getRelationships($npcName) {
-        require_once dirname(__DIR__, 3).'/lib/core/npc_master.class.php';
         $npcMaster = new NpcMaster();
         $npcData = $npcMaster->getByName($npcName);
 
@@ -679,7 +678,6 @@ class RelationshipManager {
     }
 
     public static function parseChanges($aiResponse, $npcName) {
-        require_once dirname(__DIR__, 3).'/lib/core/npc_master.class.php';
         $npcMaster = new NpcMaster();
         $npcData = $npcMaster->getByName($npcName);
 
@@ -723,7 +721,6 @@ class RelationshipManager {
      */
     public static function setRelationship($npcName, $targetName, $affinity, $type = null) {
         $targetName = self::normalizeTargetName($targetName);
-        require_once dirname(__DIR__, 3).'/lib/core/npc_master.class.php';
         $npcMaster = new NpcMaster();
         $npcData = $npcMaster->getByName($npcName);
 

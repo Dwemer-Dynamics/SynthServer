@@ -27,7 +27,6 @@ function synth_diary_lock_binding($db, array $binding): array
             'speechstyle'=>$settings['speech_style'] ?? ''];
     }
     if (($binding['narrator'] ?? false)===true) {
-        require_once dirname(__DIR__, 3).'/lib/core/narrator.class.php';
         $settings=[];
         // One statement freezes the Narrator configuration without creating an NPC row or changing globals.
         $settings=\Synth\Managers\ConfigManager\ConfigManager::shared()->getManyForShare('narrator');

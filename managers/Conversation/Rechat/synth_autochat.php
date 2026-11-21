@@ -73,7 +73,6 @@ function synth_autochat_rewrite($db, array $event, ?string $transcript): array
 {
     require_once dirname(__DIR__, 3).'/lib'.'/synth_dialogue_policy.php';
     require_once __DIR__.'/synth_player_rewrite.php';
-    require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
     if (!synth_autochat_selected($event) || empty(\Synth\Bootstrap::claimedRequest())
         || $event !== (\Synth\Bootstrap::requestEvent()['json'] ?? null)) throw new LogicException('autochat_owner_required');
     // One owner guard for the component and its driver: same claimed event, then the canonical liveness check.

@@ -1,11 +1,6 @@
 <?php
 
 require_once __DIR__.'/synth_rechat_prepare.php';
-require_once dirname(__DIR__, 3).'/lib'.'/core/npc_master.class.php';
-require_once dirname(__DIR__, 3).'/lib'.'/core/narrator.class.php';
-require_once dirname(__DIR__, 3).'/lib'.'/core/core_profiles.class.php';
-require_once dirname(__DIR__, 3).'/lib'.'/core/llm_connector.class.php';
-require_once dirname(__DIR__, 3).'/lib'.'/core/tts_connector.class.php';
 require_once dirname(__DIR__, 3).'/lib'.'/llm_randomizer.php';
 
 // Load only the prepared role's live profile. Voice synthesis/resolution remains in the speech stage, outside this lock.

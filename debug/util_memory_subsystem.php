@@ -22,11 +22,6 @@ require_once $enginePath . "lib/memory_helper_vectordb.php";
 require_once $enginePath . "lib/data_functions.php";
 require_once $enginePath . "lib/minimet5_service.php";
 
-require_once $enginePath . "lib/core/api_badge.class.php";
-require_once $enginePath . "lib/core/llm_connector.class.php";
-require_once $enginePath . "lib/core/tts_connector.class.php";
-require_once $enginePath . "lib/core/npc_master.class.php";
-require_once $enginePath . "lib/core/core_profiles.class.php";
 
 function synthResolveSummaryConnectorRuntime(): ?array
 {

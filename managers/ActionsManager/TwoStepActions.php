@@ -261,7 +261,6 @@ final class TwoStepActions
      */
     public static function complete(array $messages): string
     {
-        require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
         $id = intval(\Synth\Bootstrap::config('CORE_CONNECTOR_TWO_STEP') ?? 0);
         $connectors = new \LLMConnector();
         $connector = $id > 0 ? $connectors->getById($id) : null;

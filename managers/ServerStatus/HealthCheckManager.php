@@ -59,7 +59,6 @@ final class HealthCheckManager
     /** Rows of core_api_badge holding a non-empty key, counted by the database through the existing facade. */
     public static function apiKeyCount(): int
     {
-        require_once dirname(__DIR__, 2) . '/lib/core/api_badge.class.php';
         return (new \ApiBadge())->countWithKeys();
     }
 
@@ -201,7 +200,6 @@ final class HealthCheckManager
             'llm_endpoints_checked' => 0, 'llm_endpoints_reachable' => 0, 'llm_hosted_unchecked' => 0];
         try {
             if ($rows === null) {
-                require_once dirname(__DIR__, 2) . '/lib/core/llm_connector.class.php';
                 $rows = (new \LLMConnector())->endpointRows();
             }
             $targets = self::llmTargets($rows);

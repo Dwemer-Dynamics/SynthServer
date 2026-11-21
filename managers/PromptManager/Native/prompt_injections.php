@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 function synthNormalizePromptInjectionKey(string $value): string
 {
     $value = strtolower(trim($value));
