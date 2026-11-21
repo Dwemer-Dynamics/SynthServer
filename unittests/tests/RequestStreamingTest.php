@@ -56,6 +56,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::actionResultFrom($db);
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
             'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
@@ -1636,6 +1637,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): never { throw new LogicException('No write is permitted for this mismatch'); }
         };
+        DaoTestDoubles::actionResultFrom($db);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('action_context_mismatch');
         synth_protocol_persist_action_result($db, ['protocol_version' => 2, 'generation' => 2,
@@ -1661,6 +1663,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool {$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::actionResultFrom($db);
         $db->owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>'EquipItem',
             'capability'=>'action.equip_item','full_form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm',
             'playthrough_id'=>'save:fo4:001','canonical_event'=>$parent];

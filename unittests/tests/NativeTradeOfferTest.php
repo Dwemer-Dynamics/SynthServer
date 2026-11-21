@@ -2,12 +2,19 @@
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__.'/DaoTestDoubles.php';
 require_once dirname(__DIR__, 2).'/lib/synth_protocol_state.php';
 require_once dirname(__DIR__, 2).'/managers/ActionsManager/TradeOffer.php';
 
 // Confirmed NPC sale: server-side offer validation, receipt verification and the text the NPC is given.
 final class NativeTradeOfferTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::forgetBooted();
+        parent::tearDown();
+    }
+
     private const CAPS = ['form_id' => '0x0000000F', 'origin_plugin' => 'Fallout4.esm', 'display_name' => 'Bottle Cap',
         'value' => 1, 'weight' => 0, 'form_type' => 35, 'equipped' => false];
 
@@ -272,6 +279,7 @@ final class NativeTradeOfferTest extends TestCase
             }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::actionResultFrom($db);
         $db->owner = ['turn_id' => 'turn:trade', 'request_id' => 'parent:trade', 'action_name' => 'Barter', 'capability' => 'action.barter',
             'full_form_id' => $npc['form_id'], 'origin_plugin' => 'Fallout4.esm', 'playthrough_id' => 'trade-save', 'canonical_event' => $parent,
             'recipient_form_id' => '0x00000014', 'recipient_plugin' => 'Fallout4.esm', 'recipient_playthrough_id' => 'trade-save'];
