@@ -7,8 +7,8 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractNpc;
-use Doctrine\DBAL\Driver\Exception as DriverException;
 use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Driver\Exception as DriverException;
 
 /** Finds rows of core_npc. */
 class NpcDao
@@ -50,6 +50,35 @@ class NpcDao
         );
     }
 
+
+    /** The raw core_npc row of one actor identity, or null (or when the statement fails). @return array<string, mixed>|null */
+    public function rowByActor(int $actorId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE actor_identity_id = ?', [$actorId]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /** The NPC's extended data and its profile's metadata (NULL without a profile), or null when there is no NPC (or the statement fails). @return array<string, mixed>|null */
+    public function extendedDataWithProfileMetadata(int $actorId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT n.extended_data,p.metadata FROM public.core_npc n
+                 LEFT JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id = ?',
+                [$actorId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractNpc> */
     public function findAll(int $limit = 1000): array
     {
@@ -78,6 +107,14 @@ class NpcDao
             }
         }
         throw new \RuntimeException('The scoped character could not be created.');
+    }
+
+    /** One NPC row locked FOR UPDATE until the caller's open transaction ends; null when it does not exist. @return array<string, mixed>|null */
+    public function lockRowById(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE id=? FOR UPDATE', [$id]);
+
+        return $row === false ? null : $row;
     }
 
     /** Named NPC rows with the columns the memory-bank tools read, by name. @return list<array<string, mixed>> */
@@ -171,6 +208,68 @@ class NpcDao
     public function unlockRelationshipUpdates(int $npcId): void
     {
         $this->connection()->executeQuery('SELECT pg_advisory_unlock(:p1)', ['p1' => 1001000000 + $npcId]);
+    }
+
+    /** The whole row of the profile bound to an actor identity, or null. @return array<string, mixed>|null */
+    public function rowByActorIdentity(int $actorIdentityId): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE actor_identity_id = ? LIMIT 1', [$actorIdentityId]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** As rowByActorIdentity(), with the row locked FOR UPDATE until the caller's open transaction ends. @return array<string, mixed>|null */
+    public function lockRowByActorIdentity(int $actorIdentityId): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE actor_identity_id = ? FOR UPDATE', [$actorIdentityId]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** The name of the profile with this md5, or null. */
+    public function nameByMd5(string $md5): ?string
+    {
+        $name = $this->connection()->fetchOne('SELECT npc_name FROM public.core_npc WHERE md5 = ? LIMIT 1', [$md5]);
+
+        return $name === false || $name === null ? null : (string) $name;
+    }
+
+    /** The whole row of the profile with this name, compared without case, or null. @return array<string, mixed>|null */
+    public function rowByNameIgnoreCase(string $name): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE lower(npc_name) = lower(?) LIMIT 1', [$name]);
+
+        return $row === false ? null : $row;
+    }
+
+    /** Fills the base id of the profile with this name that is not bound to an actor identity, when it has none yet. False when the statement fails. */
+    public function fillBaseWhereEmpty(string $name, string $baseId): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_npc SET base = COALESCE(NULLIF(base, ''), ?) WHERE npc_name = ? AND actor_identity_id IS NULL",
+                [$baseId, $name]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Stores the last known coordinates (JSON text) in the metadata of the profile with this name that is not bound to an actor identity. False when the statement fails. */
+    public function setLastCoordsWhereUnbound(string $name, string $coordsJson): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_npc SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{last_coords}', CAST(? AS jsonb), true) WHERE npc_name = ? AND actor_identity_id IS NULL",
+                [$coordsJson, $name]
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

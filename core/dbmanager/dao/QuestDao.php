@@ -7,10 +7,12 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractQuest;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_quest. */
 final class QuestDao
 {
+    private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts'];
     use UsesEntityManager;
 
     /** One row by its primary key, or null. */
@@ -35,5 +37,53 @@ final class QuestDao
     public function listAll(): array
     {
         return $this->connection()->fetchAllAssociative('SELECT name, id_quest, briefing, briefing2, data FROM public.core_quest');
+    }
+
+    /**
+     * Appends one quest row (column => value over the known columns; others are refused). False when the statement fails or
+     * nothing valid was given.
+     *
+     * @param array<string, mixed> $row
+     */
+    public function record(array $row): bool
+    {
+        $row = array_intersect_key($row, array_flip(self::COLUMNS));
+        if ($row === []) {
+            return false;
+        }
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_quest ('.implode(', ', array_keys($row)).') VALUES ('.implode(', ', array_fill(0, count($row), '?')).')',
+                array_values($row)
+            );
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes the quest rows of one projection session. False when the statement fails. */
+    public function deleteBySession(string $sess): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_quest WHERE sess = ?', [$sess]);
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes every quest row (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_quest');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -148,6 +148,14 @@ final class ProfileDao
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
 
+    /** The whole profile row (every column as the driver returns it); null when there is none. @return array<string, mixed>|null */
+    public function rowById(int $id): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_profiles WHERE id=?', [$id]);
+
+        return $row === false ? null : $row;
+    }
+
     /**
      * The ids of the default NPC and default narrator profiles, with those rows locked FOR UPDATE until the caller's open
      * transaction ends.

@@ -97,7 +97,7 @@ final class QuestAccessPolicyTest extends TestCase
             public function __construct(private array $row) {}
             public function fetchAll(string $query): array { return [$this->row]; }
         };
-        DaoTestDoubles::worldKnowledgeFrom($db);
+        DaoTestDoubles::worldKnowledgeReadsFrom($db);
         $rows = synthWorldKnowledgeFetchEffectiveCatalog($db);
         $topics = array_column($rows, 'canonical_topic');
         $this->assertSame(count($topics), count(array_unique($topics)));
@@ -118,7 +118,7 @@ final class QuestAccessPolicyTest extends TestCase
                 throw new SYNTHProtocolCancelled('Quest policy catalogue cancelled');
             }
         };
-        DaoTestDoubles::worldKnowledgeFrom($db);
+        DaoTestDoubles::worldKnowledgeReadsFrom($db);
         try {
             synthWorldKnowledgeFetchEffectiveCatalog($db);
             $this->fail('Cancelled catalogue read continued');
@@ -279,7 +279,7 @@ final class QuestAccessPolicyTest extends TestCase
         };
         $decisions = [synthWorldKnowledgeAccessDecision($this->row(), ['knowall']),
             synthWorldKnowledgeAccessDecision($this->row('quest_unreviewed_future'), ['knowall'])];
-        DaoTestDoubles::worldKnowledgeFrom($db);
+        DaoTestDoubles::worldKnowledgeReadsFrom($db);
         synthWorldKnowledgeRecordAudit($db, ['access_decisions' => $decisions]);
         $this->assertStringContainsString('INSERT INTO public.core_worldknowledge_audit', $db->query);
         $this->assertStringNotContainsString(self::ADVANCED_SECRET, $db->query);

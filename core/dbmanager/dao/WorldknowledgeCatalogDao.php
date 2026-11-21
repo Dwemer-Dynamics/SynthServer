@@ -37,6 +37,17 @@ class WorldknowledgeCatalogDao
         return $row === false ? null : $row;
     }
 
+    /** The sha256 checksum recorded for one catalog version, or null when there is no such catalog row. */
+    public function checksum(string $catalogId, string $catalogVersion): ?string
+    {
+        $checksum = $this->connection()->fetchOne(
+            'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id = ? AND catalog_version = ? LIMIT 1',
+            [$catalogId, $catalogVersion]
+        );
+
+        return $checksum === false || $checksum === null ? null : (string) $checksum;
+    }
+
     /**
      * The expected and installed factory row counts of one catalogue; [] when it is not installed or the read fails.
      *
@@ -75,21 +86,6 @@ class WorldknowledgeCatalogDao
             .'(?,?,?,?,?,CAST(? AS jsonb),TRUE,CURRENT_TIMESTAMP)',
             [$catalogId, $catalogVersion, $displayName, $checksum, $rowCount, $manifestJson]
         );
-    }
-
-    /** The stored checksum of one catalogue, or null when it has no row or the read fails. */
-    public function checksum(string $catalogId, string $catalogVersion): ?string
-    {
-        try {
-            $row = $this->connection()->fetchAssociative(
-                'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id=? AND catalog_version=? LIMIT 1',
-                [$catalogId, $catalogVersion]
-            );
-        } catch (DbalException|DriverException $error) {
-            return null;
-        }
-
-        return $row === false ? null : strval($row['checksum_sha256'] ?? '');
     }
 
     /** @param list<mixed> $parameters */

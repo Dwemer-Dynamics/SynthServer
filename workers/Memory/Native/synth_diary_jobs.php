@@ -35,10 +35,9 @@ function synth_diary_admit_request($db): string
             : ($event['payload']['include_player'] ? 'role setting or no diary connector' : 'no diary connector');
         $body=synth_protocol_encode_ack($queued ? 'diary_queued' : 'diary_disabled',
             ['detail'=>"Queued: $queued; disabled ($disabledReason): $disabled. Generation runs in the background."]);
-        $result=@pg_query_params($connection,"UPDATE public.core_request_execution SET state='complete',
-            response_content_type='application/x-ndjson',response_body=convert_to($3,'UTF8'),completed_at=clock_timestamp()
-            WHERE session_id=$1 AND request_id=$2 AND state='claimed' RETURNING request_id",[$event['session_id'],$event['request_id'],$body]);
-        if (!$result || pg_num_rows($result)!==1) throw new LogicException('Diary admission was not claimed.');
+        if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->completeDiaryAdmission(strval($event['session_id']),strval($event['request_id']),$body)) {
+            throw new LogicException('Diary admission was not claimed.');
+        }
         return $body;
     },2000);
 }
@@ -48,14 +47,8 @@ function synth_diary_automation_available($db,array $event,array $binding,string
 {
     if (!$policy['enabled']) return false;
     if ($event['payload']['reason']==='manual') return true;
-    $pending=$db->fetchOne("SELECT 1 FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
-        LEFT JOIN public.core_diary_result r ON r.input_id=i.id
-        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
-        WHERE i.session_id=".$db->escapeLiteral($event['session_id']).' AND i.generation='.intval($event['generation'])
-        .' AND c.snapshot_sequence='.intval($event['context_sequence']).' AND i.actor_identity_id='.intval($binding['actor_identity_id'])
-        ." AND i.diary_role='$role' AND ((j.state IN ('pending','running') AND j.deadline_at>clock_timestamp()
-            AND (j.attempts<3 OR (j.state='running' AND j.lease_until>clock_timestamp()))) OR r.history_event_id>c.history_event_id) LIMIT 1");
-    if ($pending) return false;
+    if (\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->diaryAdmissionPending(strval($event['session_id']),intval($event['generation']),
+        intval($event['context_sequence']),intval($binding['actor_identity_id']),$role)) return false;
     $last=synth_diary_visible_role($db,$event,$binding['actor_identity_id'],$role,true);
     if ($last===null) return true;
     if ($last['published_at']<1) throw new LogicException('Diary cooldown timestamp unavailable.');
@@ -71,16 +64,15 @@ function synth_diary_prepare_npc($db, array $identity): ?int
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_npc_binding($db,$event,$identity);
         // An admitted input owns its original settings even if configuration changes before a replay.
-        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
-            .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='npc'");
-        if ($existing) return intval($existing['id']);
+        $existing=\Synth\Core\DbManager\Dao\DiaryInputDao::current($db)->idForRequest(strval($event['session_id']),strval($event['request_id']),intval($binding['actor_identity_id']),'npc');
+        if ($existing!==null) return $existing;
         $npc=synth_diary_lock_binding($db,$binding);
-        $profile=$db->fetchOne('SELECT * FROM public.core_profiles WHERE id='.intval($npc['profile_id'] ?? 0));
+        $profile=\Synth\Core\DbManager\Dao\ProfileDao::current($db)->rowById(intval($npc['profile_id'] ?? 0));
         if (!$profile) throw new LogicException('Diary profile unavailable.');
         $automation=synth_diary_resolve_automation('npc',$event['payload']['reason'],$npc,$profile,$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'npc',$automation)) return null;
         $settings=synth_diary_resolve_settings('npc',$npc,$profile,$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>\Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->driverAndMaxTokens($id),
             static fn()=>null,intval(LLMRandomizer::getConnectorIdForField($profile,'diary_connector_id')));
         if ($settings===null) return null;
         return synth_diary_capture_npc($db,$identity,$settings['prompt'],$settings['connector_id'],
@@ -107,16 +99,15 @@ function synth_diary_prepare_narrator($db): ?int
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_narrator_binding($db,$event);
-        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
-            .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='narrator'");
-        if ($existing) return intval($existing['id']);
+        $existing=\Synth\Core\DbManager\Dao\DiaryInputDao::current($db)->idForRequest(strval($event['session_id']),strval($event['request_id']),intval($binding['actor_identity_id']),'narrator');
+        if ($existing!==null) return $existing;
         $narrator=synth_diary_lock_binding($db,$binding);
         $automation=synth_diary_resolve_automation('narrator',$event['payload']['reason'],$narrator,[],$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'narrator',$automation)) return null;
-        $profile=$db->fetchOne('SELECT * FROM public.core_profiles WHERE id='.intval($narrator['profile_id'] ?? 0));
+        $profile=\Synth\Core\DbManager\Dao\ProfileDao::current($db)->rowById(intval($narrator['profile_id'] ?? 0));
         if (!$profile) throw new LogicException('Narrator diary profile unavailable.');
         $settings=synth_diary_resolve_settings('narrator',$narrator,$profile,$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>\Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->driverAndMaxTokens($id),
             static fn()=>null,intval(LLMRandomizer::getConnectorIdForField($profile,'diary_connector_id')));
         if ($settings===null) return null;
         return synth_diary_capture_narrator($db,$settings['prompt'],$settings['connector_id'],
@@ -132,14 +123,13 @@ function synth_diary_prepare_player($db): ?int
     return $db->withNativeRequestLock(static function($connection,array $event) use($db) {
         synth_diary_assert_owner($connection,$event);
         $binding=synth_diary_player_owned_binding($db,$event,'player');
-        $existing=$db->fetchOne('SELECT id FROM public.core_diary_input WHERE session_id='.$db->escapeLiteral($event['session_id'])
-            .' AND request_id='.$db->escapeLiteral($event['request_id']).' AND actor_identity_id='.$binding['actor_identity_id']." AND diary_role='player'");
-        if ($existing) return intval($existing['id']);
+        $existing=\Synth\Core\DbManager\Dao\DiaryInputDao::current($db)->idForRequest(strval($event['session_id']),strval($event['request_id']),intval($binding['actor_identity_id']),'player');
+        if ($existing!==null) return $existing;
         $player=synth_diary_lock_binding($db,$binding);
         $automation=synth_diary_resolve_automation('player',$event['payload']['reason'],$player,[],$GLOBALS);
         if (!synth_diary_automation_available($db,$event,$binding,'player',$automation)) return null;
         $settings=synth_diary_resolve_settings('player',$player,[],$GLOBALS,
-            static fn(int $id)=>$db->fetchOne('SELECT driver,max_tokens FROM public.core_llm_connector WHERE id='.$id),
+            static fn(int $id)=>\Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->driverAndMaxTokens($id),
             static fn()=>synthResolveDiaryConnectorName(\Synth\Bootstrap::config('CONNECTORS_DIARY') ?? null,false));
         if ($settings===null) return null;
         return synth_diary_capture_character($db,null,$settings['prompt'],$settings['connector_id'],$settings['max_tokens'],
@@ -156,13 +146,9 @@ function synth_diary_enqueue_character($db, ?array $identity, string $role): ?in
             'player'=>synth_diary_prepare_player($db), default=>throw new LogicException('Invalid diary admission role.')
         };
         if ($inputId===null) return null;
-        $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
-            (job_type,session_id,request_id,turn_id,generation,actor_identity_id,diary_input_id,payload,deadline_at)
-            SELECT 'diary',session_id,request_id,$2,generation,actor_identity_id,id,
-                jsonb_build_object('schema','synth.diary.job.v1','context_sequence',context_sequence),clock_timestamp()+INTERVAL '30 minutes'
-            FROM public.core_diary_input WHERE id=$1 ON CONFLICT DO NOTHING",[$inputId,$event['turn_id']]);
-        if (!$result) throw new RuntimeException('Unable to admit diary job.');
-        return intval($db->fetchOne('SELECT id FROM public.core_worker_job WHERE diary_input_id='.$inputId)['id']);
+        $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+        synth_diary_dao(static fn()=>$jobs->admitDiary($inputId,strval($event['turn_id'])),'Unable to admit diary job.');
+        return intval($jobs->idForDiaryInput($inputId));
     },2000);
 }
 
@@ -243,9 +229,7 @@ function synth_diary_validate_job_input(array $input): void
 function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callable $embed=null): bool
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary worker requires an idle database connection.');
-    $job=$db->fetchOne("SELECT j.*,i.input_payload,i.input_sha256,i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid
-        FROM public.core_worker_job j JOIN public.core_diary_input i ON i.id=j.diary_input_id
-        WHERE j.id=".intval($jobId)." AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')");
+    $job=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->diaryJobWithInput($jobId);
     if (!$job) return false;
     if ($job['valid']!=='t') throw new LogicException('Frozen diary input hash mismatch.');
     $input=json_decode($job['input_payload'],true,flags:JSON_THROW_ON_ERROR);synth_diary_validate_job_input($input);
@@ -259,75 +243,48 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
                 : synth_diary_npc_binding($db,$event,$input['binding']['identity']);
             if (synth_protocol_canonical_json($binding)!==synth_protocol_canonical_json($input['binding'])) throw new LogicException('Diary job binding changed.');
             synth_diary_lock_binding($db,$binding);
-            if (!@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtext($1))',['synth.diary.actor:'.$job['actor_identity_id']])) throw new RuntimeException('Unable to lock diary actor.');
-            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=$2,
-                lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
-                WHERE j.id=$1 AND attempts<3 AND deadline_at>clock_timestamp() AND available_at<=clock_timestamp()
-                    AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
-                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job other WHERE other.id<>j.id AND other.job_type='diary'
-                        AND other.actor_identity_id=j.actor_identity_id AND other.state='running'
-                        AND other.lease_until>clock_timestamp() AND other.deadline_at>clock_timestamp()) RETURNING lease_token",[$jobId,bin2hex(random_bytes(16))]);
-            if (!$result) throw new RuntimeException('Unable to claim diary job.');
-            return pg_fetch_assoc($result)['lease_token'] ?? null;
+            $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+            if (!$jobs->lockAdvisoryKey('synth.diary.actor:'.$job['actor_identity_id'])) throw new RuntimeException('Unable to lock diary actor.');
+            return synth_diary_dao(static fn()=>$jobs->claimDiary($jobId,bin2hex(random_bytes(16))),'Unable to claim diary job.');
         },2000);
         if (!$token) return false;
         \Synth\Bootstrap::set('SYNTH_DIARY_JOB_LEASE', ['id'=>$jobId,'token'=>$token]);
         try {
-            $saved=$db->fetchOne("SELECT result_payload,result_sha256=encode(sha256(convert_to(result_payload::text,'UTF8')),'hex')
-                AND input_sha256=".$db->escapeLiteral($job['input_sha256'])." AS valid
-                FROM public.core_diary_job_result WHERE job_id=$jobId");
+            $checkpoints=\Synth\Core\DbManager\Dao\DiaryJobResultDao::current($db);
+            $saved=$checkpoints->checkpoint($jobId,strval($job['input_sha256']));
             if ($saved && $saved['valid']!=='t') throw new LogicException('Diary checkpoint hash mismatch.');
             $value=$saved ? json_decode($saved['result_payload'],true,flags:JSON_THROW_ON_ERROR)
                 : ($generate ? $generate($input) : synth_diary_generate($db,$input));
             synth_diary_validate_result($value);
-            if (!$saved) $db->withNativeRequestLock(static function($connection) use($jobId,$job,$value) {
-                if (!@pg_query_params($connection,"INSERT INTO public.core_diary_job_result(job_id,input_sha256,result_payload,result_sha256)
-                    VALUES($1,$3,$2::jsonb,encode(sha256(convert_to(($2::jsonb)::text,'UTF8')),'hex'))",[$jobId,json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$job['input_sha256']])) throw new RuntimeException('Unable to checkpoint diary output.');
+            if (!$saved) $db->withNativeRequestLock(static function($connection) use($db,$jobId,$job,$value) {
+                if (!\Synth\Core\DbManager\Dao\DiaryJobResultDao::current($db)->insertCheckpoint($jobId,strval($job['input_sha256']),
+                    json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))) throw new RuntimeException('Unable to checkpoint diary output.');
             },2000);
             require_once dirname(__DIR__, 3).'/managers/MemoryManager/Native/synth_memory_recall.php';
-            $vector=$db->fetchOne("SELECT embedding_attempted,
-                (embedding IS NULL AND embedding_sha256 IS NULL AND embedding_text_sha256 IS NULL) OR
-                    (embedding_attempted AND embedding_sha256=encode(sha256(convert_to(embedding::text,'UTF8')),'hex')
-                        AND (embedding_text_sha256 IS NULL OR embedding_text_sha256=encode(sha256(convert_to(result_payload->>'content','UTF8')),'hex'))) AS valid
-                FROM public.core_diary_job_result WHERE job_id=$jobId");
+            $vector=$checkpoints->embeddingState($jobId);
             if (!$vector || $vector['valid']!=='t') throw new LogicException('Diary embedding checkpoint invalid.');
             if ($vector['embedding_attempted']!=='t') {
                 $embedding=synth_memory_optional_embedding($value['content'],
                     $embed ?? ($generate===null ? 'synth_memory_fetch_embedding' : null));
                 if ($embedding!==null) $embedding=synth_memory_vector_json($embedding);
                 $embeddingTextHash=$embedding===null ? null : hash('sha256',$value['content']);
-                $db->withNativeRequestLock(static function($connection) use($jobId,$embedding,$embeddingTextHash) {
-                    if (!@pg_query_params($connection,"UPDATE public.core_diary_job_result SET embedding=$2::public.vector,
-                        embedding_sha256=CASE WHEN $2 IS NULL THEN NULL ELSE encode(sha256(convert_to(($2::public.vector)::text,'UTF8')),'hex') END,
-                        embedding_text_sha256=$3,embedding_attempted=true WHERE job_id=$1 AND NOT embedding_attempted",[$jobId,$embedding,$embeddingTextHash])) throw new RuntimeException('Unable to checkpoint diary embedding.');
+                $db->withNativeRequestLock(static function($connection) use($db,$jobId,$embedding,$embeddingTextHash) {
+                    if (!\Synth\Core\DbManager\Dao\DiaryJobResultDao::current($db)->recordEmbedding($jobId,$embedding,$embeddingTextHash)) throw new RuntimeException('Unable to checkpoint diary embedding.');
                 },2000);
             }
             $db->withNativeRequestLock(static function($connection) use($db,$job,$jobId,$value,$input) {
                 $revision=synth_diary_publish_character($db,intval($job['diary_input_id']),$value,$job['input_sha256'],$input['diary_role']);
                 // Preserve old checkpoints without inventing provenance; publish their accepted text without an unbound vector.
-                $attached=@pg_query_params($connection,"UPDATE public.core_diary_result r SET
-                        embedding=CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding ELSE NULL END,
-                        embedding_sha256=CASE WHEN c.embedding_text_sha256 IS NOT NULL THEN c.embedding_sha256 ELSE NULL END,
-                        embedding_text_sha256=c.embedding_text_sha256
-                    FROM public.core_diary_job_result c WHERE r.history_event_id=$1 AND c.job_id=$2
-                        AND r.result_sha256=c.result_sha256 AND r.input_id=$3 AND c.embedding_attempted
-                        AND ((c.embedding IS NULL AND c.embedding_sha256 IS NULL AND c.embedding_text_sha256 IS NULL) OR
-                            (c.embedding_sha256=encode(sha256(convert_to(c.embedding::text,'UTF8')),'hex')
-                                AND (c.embedding_text_sha256 IS NULL OR c.embedding_text_sha256=encode(sha256(convert_to(r.result_payload->>'content','UTF8')),'hex'))))
-                    RETURNING r.history_event_id",[$revision,$jobId,$job['diary_input_id']]);
-                if (!$attached || pg_num_rows($attached)!==1) throw new RuntimeException('Unable to publish diary embedding.');
-                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',last_error=NULL,
-                    lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=$1",[$jobId])) throw new RuntimeException('Unable to complete diary job.');
+                if (!\Synth\Core\DbManager\Dao\DiaryResultDao::current($db)->attachCheckpointEmbedding($revision,$jobId,intval($job['diary_input_id']))) throw new RuntimeException('Unable to publish diary embedding.');
+                if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->markDiaryReady($jobId)) throw new RuntimeException('Unable to complete diary job.');
             },2000);
             return true;
         } catch (Throwable $error) {
             \Synth\Bootstrap::forget('SYNTH_DIARY_JOB_LEASE');
-            $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
+            $db->withNativeRequestLock(static function($connection) use($db,$jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof LengthException;
-                if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN $3::boolean OR attempts>=3 OR deadline_at<=clock_timestamp()
-                    THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
-                    last_error=$4,updated_at=clock_timestamp() WHERE id=$1 AND state='running' AND lease_token=$2",
-                    [$jobId,$token,$terminal ? 't' : 'f',$terminal ? 'input_or_result_invalid' : 'attempt_failed'])) throw new RuntimeException('Unable to retain diary failure.');
+                if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->failDiaryAttempt($jobId,$token,$terminal,
+                    $terminal ? 'input_or_result_invalid' : 'attempt_failed')) throw new RuntimeException('Unable to retain diary failure.');
             },2000);
             Logger::warn('Native diary attempt did not complete; durable state retained.');
             return false;
@@ -339,23 +296,12 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
 function synth_diary_dispatch_jobs($db, ?callable $generate=null): int
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Diary dispatch requires an idle database connection.');
-    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
-        lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
-        WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')
-            AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
-                    WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
-                        AND e.request_id=j.request_id AND e.generation=j.generation AND e.state IN ('claimed','streaming','complete')))")===false) throw new RuntimeException('Unable to retire diary work.');
-    $jobs=$db->fetchAll("SELECT j.id FROM public.core_worker_job j JOIN public.core_request_execution e
-        ON e.session_id=j.session_id AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'
-        WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.available_at<=clock_timestamp()
-            AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp())) ORDER BY j.available_at,j.id LIMIT 5");
+    if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->retireDiaryWork()) throw new RuntimeException('Unable to retire diary work.');
+    $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->dispatchableDiaryJobs();
     $done=0;
     foreach ($jobs as $job) try { if (synth_diary_run_job($db,intval($job['id']),$generate)) ++$done; }
     catch (Throwable $error) {
-        if ($error instanceof LogicException) $db->execQuery("UPDATE public.core_worker_job SET state='failed',last_error='input_or_owner_invalid',
-            lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=".intval($job['id'])."
-            AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))");
+        if ($error instanceof LogicException) \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->failInvalidDiary(intval($job['id']));
         Logger::warn('Native diary job unavailable; durable diagnostic retained.');
     }
     return $done;

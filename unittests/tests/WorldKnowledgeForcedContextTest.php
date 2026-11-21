@@ -256,7 +256,7 @@ final class WorldKnowledgeForcedContextTest extends TestCase
                 return [];
             }
         };
-        DaoTestDoubles::worldKnowledgeFrom($GLOBALS['db']);
+        DaoTestDoubles::worldKnowledgeReadsFrom($GLOBALS['db']);
         $GLOBALS['WORLDKNOWLEDGE'] = 'domain:medicine';
         $GLOBALS['SYNTH_NAME'] = 'Nick Valentine';
         $GLOBALS['SYNTH_CORE_CURRENT_NPC_DATA'] = ['npc_codename' => 'nick_valentine'];
