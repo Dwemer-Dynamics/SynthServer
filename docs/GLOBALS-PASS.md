@@ -383,3 +383,26 @@ Justified explicit requires (load-time side effects or entry loaders; do not aut
 | `lib/*.php` module hooks (`synth_protocol_state.php`, `synth_command_payload.php`, `utils_game_timestamp.php`, `provider_stream.php`, ...) | about 300 together | One-line shims that require the real `managers/` or `drivers/` code. Loading them eagerly through Composer `files` would pull whole modules into every request, so they stay lazy. |
 
 Not done yet, in priority order: convert the function groups behind the hooks and the three load-time-side-effect files (`chat_helper_functions`, `data_functions`, `profile_loader`) into autoloaded classes with thin wrapper functions, one group per PR. The wrappers still need a loaded file, so they belong in a small side-effect-free `files` entry (like `lib/legacy_core_functions.php`) while the bodies move into classes. Each group needs its own review because their callers use the functions without the file being proven loaded; `git grep` the callers first (the method used in #198).
+
+## Justified module hubs (measured)
+
+Final `require_once` count after R1-R6, the legacy-function move (#198) and the status docs (#200): **1,684** (CHEVO-PARITY count method, `origin/unstable` e2e85c3). Global uses: **64** (exception list above). The remaining explicit requires are the entry loaders and files with load-time side effects listed in the status section, plus the three module hubs below. No further requires can be pruned cheaply and safely: the only class-file requires left are the seven one-line `lib/core/*.class.php` shims, which would be left as empty files.
+
+The three hubs are listed as justified because each one's job is to load a module's function files, and PHP has no function autoloading: removing the callers' requires means every function the hub reaches needs a thin wrapper in an always-loaded `files` entry. Reach below is the transitive closure of the hub's requires (files / top-level functions / lines), measured on e2e85c3.
+
+| Hub | Direct requires | Reach | Load-time statements that make eager or `files` loading unsafe |
+| --- | --- | --- | --- |
+| `lib/chat_helper_functions.php` (40 callers) | 14 | 42 files, 427 functions, about 10,500 lines | Four `define()` constants (`_MINIMAL_DISTANCE_TO_BE_THE_SAME`, `_MAXIMAL_DISTANCE_TO_BE_RELATED`, `_MINIMAL_ELEMENTS_TO_TRIGGER_MESSAGE`, `_MAX_SUBTITLE_LENGTH`) and a require chain that includes `synth_protocol_state.php`, the TTS and memory function groups. Eager loading would pull the whole chat stack into every request, including `health.php`. |
+| `lib/data_functions.php` (35 callers) | 22 | 86 files, 726 functions, about 23,400 lines | Five guarded `if` blocks, one of which registers `synthRegisterActorProfileEnricher` at include time (a hook registration whose order matters), and requires of `npc_master.class.php`, `synth_protocol_state.php` and the data/context/memory function groups. |
+| `ui/profile_loader.php` (36 callers) | 7 | 32 files, 304 functions, about 6,200 lines | It is a page entry, not a library: sends no-cache headers, calls `session_start()`, `ob_start()`, exits to `synth_setup.php` when `pg_connect` is missing, and runs `synthRuntimeBootstrapIfNeeded(...)`. It cannot be autoloaded at all. |
+
+Across the tree there are 229 function files with about 1,874 top-level functions; the three hubs reach roughly 1,000 of them.
+
+### Conversion plan for whoever picks this up
+
+1. One module per PR, never the whole hub: start with the leaf function files (declarations only, no requires at load), most-required first (`utils_game_timestamp`, `synth_command_payload`, `provider_stream`, `speech_cache`, `synth_control`).
+2. Move each function body into a static method of an autoloaded class next to the original file (same directory keeps `__DIR__` and relative requires valid) and keep the old name as a thin wrapper in a small side-effect-free file listed under `autoload.files` (the `lib/legacy_core_functions.php` pattern). Copy the parameter list exactly, including by-reference parameters and variadics.
+3. Watch for what changes meaning when a body moves: `__FUNCTION__`, `__DIR__`/`__FILE__`, `static` variables, `func_get_args()`, `compact`/`extract`/variable variables, `function_exists('thisFunction')` guards (an always-present function takes the other branch in callers: see the `synthGetPromptCharacterName` fix in #198), and functions returned by reference.
+4. Move load-time statements (`define()` constants, hook registrations) into an explicit init that the entry points already call, in the order they ran.
+5. Delete the per-file requires with `tools/require-prune.php` style token edits, `git grep` every caller first, and run the full suite on the exact head. Expect a few source-reading tests in `unittests/tests` to need new needles.
+6. `ui/profile_loader.php` stays: only its callers' `require_once` of it can change, by turning it into an include of a smaller page-prologue file that contains just the header/session/bootstrap statements.
