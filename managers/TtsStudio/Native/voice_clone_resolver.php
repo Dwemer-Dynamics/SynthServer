@@ -1,5 +1,5 @@
 <?php
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'voice_clone_sync.php';
 require_once dirname(__DIR__, 3).'/lib' . '/media_store.php';
 

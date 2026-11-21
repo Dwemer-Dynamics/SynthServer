@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/core' . '/llm_connector.class.php';
 require_once dirname(__DIR__, 3).'/lib' . '/settings.php';
 
 function synthLocalLlmServerCatalog(): array

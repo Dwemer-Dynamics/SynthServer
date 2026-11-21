@@ -1197,8 +1197,7 @@ if (!function_exists('synthLoadActiveSttConnectorIntoGlobals')) {
         }
 
         if (!class_exists('STTConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "stt_connector.class.php");
-        }
+            }
 
         $connector = new STTConnector();
         try {
@@ -1221,8 +1220,7 @@ if (!function_exists('synthLoadActiveIttConnectorIntoGlobals')) {
         }
 
         if (!class_exists('ITTConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'itt_connector.class.php');
-        }
+            }
 
         try {
             $row = (new ITTConnector())->getById($connectorId);
@@ -1239,8 +1237,7 @@ if (!function_exists('synthResolvePreferredTtsConnectorRow')) {
     function synthResolvePreferredTtsConnectorRow(string $driver = ''): ?array
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $connector = new TTSConnector();
         $normalizedDriver = $driver !== '' ? $connector->normalizeDriverValue($driver) : '';
@@ -1314,8 +1311,7 @@ if (!function_exists('synthLoadPreferredTtsConnectorIntoGlobals')) {
     function synthLoadPreferredTtsConnectorIntoGlobals(string $driver = ''): void
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $row = synthResolvePreferredTtsConnectorRow($driver);
         if (!$row) {
@@ -1331,8 +1327,7 @@ if (!function_exists('synthEnsureTtsConnectorGlobals')) {
     function synthEnsureTtsConnectorGlobals(string $driver): void
     {
         if (!class_exists('TTSConnector')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-        }
+            }
 
         $connector = new TTSConnector();
         $normalizedDriver = $connector->normalizeDriverValue($driver);
@@ -1355,8 +1350,7 @@ if (!function_exists('synthLoadPlayerNameIntoGlobals')) {
     function synthLoadPlayerNameIntoGlobals(): void
     {
         if (!class_exists('Player')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-        }
+            }
 
         try {
             $player = new Player();
@@ -1595,8 +1589,7 @@ if (!function_exists('synthMaybeSyncPlayerName')) {
         }
 
         if (!class_exists('Player')) {
-            require_once(__DIR__ . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-        }
+            }
 
         try {
             $player = new Player();

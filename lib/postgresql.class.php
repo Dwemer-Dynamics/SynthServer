@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . "/autoload.php";
-require_once __DIR__ . '/../lib/classes/Logger.php';
 require_once("logger.php");
 
 if (class_exists('sql', false)) {

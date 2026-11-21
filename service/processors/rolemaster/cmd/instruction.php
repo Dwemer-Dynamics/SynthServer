@@ -5,10 +5,6 @@ require_once(__DIR__ . '/../../../../lib/synth_command_payload.php');
 require_once(\Synth\Bootstrap::engineRoot() . ("/lib/" . \Synth\Bootstrap::config('DBDRIVER') . ".class.php"));
 if (!\Synth\Bootstrap::has('db')) { \Synth\Bootstrap::set('db', new sql()); }
 
-require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/api_badge.class.php");
-require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/llm_connector.class.php");
-require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/npc_master.class.php");
-require_once(\Synth\Bootstrap::engineRoot() . "/lib/core/core_profiles.class.php");
 require_once(\Synth\Bootstrap::engineRoot() . "/lib/relationship_manager.php");
 
 \Synth\Bootstrap::set('ENGINE_PATH', \Synth\Bootstrap::engineRoot()); // Todo, make this uniform

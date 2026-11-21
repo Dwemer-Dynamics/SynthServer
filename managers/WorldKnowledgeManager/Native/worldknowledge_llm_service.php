@@ -5,7 +5,7 @@
  * This replaces the T5-based minimeTopic function for multilingual support
  */
 
-require_once dirname(__DIR__, 3).'/lib/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib/../lib/autoload.php';
 function LLMTopic($text, $language = 'ja') {
     $startTime = microtime(true);
 

@@ -8,7 +8,7 @@
 // Full Prompt then is $PROMPT_HEAD + $SYNTH_PERS + $COMMAND_PROMPT + CONTEXT + requirement + cue
 
 // Common patterns to use in most functions
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 $maxWordsLimit = intval(\Synth\Bootstrap::config("MAX_WORDS_LIMIT") ?? 0);
 $MAXIMUM_WORDS=($maxWordsLimit>0)?"(Maximum {$maxWordsLimit} words)":"";
 \Synth\Bootstrap::set('MAXIMUM_WORDS', $MAXIMUM_WORDS);
