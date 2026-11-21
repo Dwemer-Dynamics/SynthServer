@@ -189,8 +189,7 @@ function resolveInworldConnectorRow(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
 
     $ttsConnector = new TTSConnector();
     $candidateIds = [
@@ -262,8 +261,7 @@ function hydrateInworldConnectorGlobals(): ?array {
         return null;
     }
     if (!class_exists('TTSConnector')) {
-        require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-    }
+        }
     $ttsConnector = new TTSConnector();
     $ttsConnector->setOldGlobals($row);
     return $row;
@@ -301,8 +299,7 @@ function getInworldActiveConfig(): array {
     if (is_array($row)) {
         if ($workspace === '') {
             if (!class_exists('TTSConnector')) {
-                require_once(SYNTH_TTS_SCRIPT_DIR . "/../lib/core/tts_connector.class.php");
-            }
+                }
             $ttsConnector = new TTSConnector();
             $metadata = $ttsConnector->decodeMetadata($row['metadata'] ?? '{}');
             $workspace = normalizeInworldWorkspaceName($metadata['workspace'] ?? '');
@@ -311,7 +308,6 @@ function getInworldActiveConfig(): array {
             $db = ensureInworldDb();
             if ($db && is_array($row)) {
                 // The key the connector names, else the global Inworld key.
-                require_once SYNTH_TTS_SCRIPT_DIR . '/../lib/core/api_badge.class.php';
                 $apiCredential = trim(ApiBadge::keyForConnector($row, 'Inworld'));
             }
         }

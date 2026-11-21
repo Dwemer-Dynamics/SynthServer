@@ -113,11 +113,9 @@ Logger::phaseStart($playerTtsPhase, [
 ]);
 
 if (!class_exists('Player')) {
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
-}
+    }
 if (!class_exists('TTSConnector')) {
-    require_once(__DIR__ . DIRECTORY_SEPARATOR . ".." . DIRECTORY_SEPARATOR . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "tts_connector.class.php");
-}
+    }
 
 $origTTS = \Synth\Bootstrap::config("TTSFUNCTION") ?? '';
 $hadTtsFunctionAlias = array_key_exists("TTS_FUNCTION", $GLOBALS);

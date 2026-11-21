@@ -214,7 +214,6 @@ function DataLastInfoFor($actorBeingCalled, $lastNelements = -2,$includeActorDes
                 $profileString = "$actor";
 
                 try {
-                    require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
                     $player = new Player();
 
                     // Add appearance if available
@@ -1018,7 +1017,6 @@ function synthIsPlayerSurvivalStateFresh(array $survival, int $staleSeconds = 18
 function synthGetFreshPlayerSurvivalState(int $staleSeconds = 180): ?array
 {
     try {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'player.class.php');
         $player = new Player();
         $survival = $player->getJson('survival');
     } catch (Throwable $e) {

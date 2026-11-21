@@ -1,7 +1,7 @@
 <?php
 // Simple semaphore helper with static methods. Exposes resources in \Synth\Bootstrap::config("SEMAPHORES") for existing audit callers.
 
-require_once dirname(__DIR__, 3).'/lib' . '/../lib/classes/Logger.php';
+require_once dirname(__DIR__, 3).'/lib' . '/../lib/autoload.php';
 class SemaphoreManager {
     protected static $semaphores = [];
     protected static $acquired = [];

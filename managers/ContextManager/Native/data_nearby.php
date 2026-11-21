@@ -80,7 +80,6 @@ function DataGetTrackedStat($stat) {
 
     // Try to get from core_player table first
     try {
-        require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
         $player = new Player();
         $value = $player->get($stat);
 
@@ -100,7 +99,6 @@ function ResolvePlayerBackstory($player = null): string
 
     if ($player === null) {
         try {
-            require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "player.class.php");
             $player = new Player();
         } catch (Throwable $e) {
             Logger::debug("Could not initialize Player while resolving backstory: " . $e->getMessage());

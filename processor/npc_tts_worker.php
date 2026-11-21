@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 error_reporting(E_ALL);
 ini_set("display_errors", "0");
 ini_set("log_errors", "1");
@@ -66,9 +66,6 @@ require_once($path . "lib" . DIRECTORY_SEPARATOR . "auditing.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "logger.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "synth_tts.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "npc_tts_status.php");
-require_once($path . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "npc_master.class.php");
-require_once($path . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "llm_connector.class.php");
-require_once($path . "lib" . DIRECTORY_SEPARATOR . "core" . DIRECTORY_SEPARATOR . "core_profiles.class.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "chat_helper_functions.php");
 require_once($path . "lib" . DIRECTORY_SEPARATOR . "synth_tts_plan.php");
 

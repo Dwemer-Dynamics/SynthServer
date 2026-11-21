@@ -2,7 +2,7 @@
 
 // Thin hook: resolves the Gemini key and keyword hints, then the SttWrapper "gemini" driver does the call.
 // The vocal tone it reports is cached here for the context builders (getPlayerTone) and put in front of the transcript.
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 require_once dirname(__DIR__) . '/drivers/stt/SttWrapper.php';
 
 $localPath = dirname(__FILE__) . '/../';
