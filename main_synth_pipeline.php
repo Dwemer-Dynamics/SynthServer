@@ -1439,7 +1439,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
             \Synth\Bootstrap::set('PROMPT_HEAD', \Synth\Bootstrap::config('PROMPT_HEAD') . ("\n[This is your final response in this exchange. Conclude your current thought naturally - you are not leaving, just finishing what you were saying for now.]"));
         }
         if ($ownedRound['role']==='narrator') {
-            $narrationRow=$db->fetchOne("SELECT custom_prompt,default_prompt FROM core_prompt WHERE prompt_key='random_narration_prompt'");
+            $narrationRow=\Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('random_narration_prompt');
             $narrationPrompt=!empty($narrationRow['custom_prompt']) ? $narrationRow['custom_prompt'] : ($narrationRow['default_prompt'] ?? '');
             if (!$narrationPrompt) {
                 $narrationPrompt='Describe the current scene visually using ONLY details from the provided context. Focus on the characters present - their appearance, expressions, body language, and what they are wearing. Include environmental details like lighting and atmosphere. Keep it grounded and concise (2-3 sentences). Do not invent new information, advance the plot, or include dialogue.';
@@ -1684,7 +1684,7 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
                 // Load random narration prompt from database with fallback
                 $narrationPrompt = null;
                 try {
-                    $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'random_narration_prompt'");
+                    $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('random_narration_prompt');
                     if ($promptData) {
                         // Use custom_prompt if set, otherwise use default_prompt
                         $narrationPrompt = (!empty($promptData['custom_prompt'])) ? $promptData['custom_prompt'] : $promptData['default_prompt'];
@@ -1878,7 +1878,7 @@ if ($gameRequest[0] == "narrator_welcome") {
         // Load welcome prompt from prompts table with hardcoded fallback
         $welcomePrompt = null;
         try {
-            $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'narrator_welcome_prompt'");
+            $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('narrator_welcome_prompt');
             if ($promptData) {
                 $welcomePrompt = (!empty($promptData['custom_prompt']))
                     ? $promptData['custom_prompt']
@@ -2158,7 +2158,7 @@ if (!empty(\Synth\Bootstrap::config('SYNTH_AMBIENT_NPC_EXCHANGE')) && $gameReque
 } elseif (!empty(\Synth\Bootstrap::config('NARRATOR_BORED_EVENT_ACTIVE')) && $gameRequest[0] == "bored") {
     $boredPrompt = null;
     try {
-        $promptData = $db->fetchOne("SELECT custom_prompt, default_prompt FROM core_prompt WHERE prompt_key = 'narrator_bored_prompt'");
+        $promptData = \Synth\Core\DbManager\Dao\PromptDao::current($db)->texts('narrator_bored_prompt');
         if ($promptData) {
             $boredPrompt = !empty($promptData['custom_prompt']) ? $promptData['custom_prompt'] : ($promptData['default_prompt'] ?? null);
         }
