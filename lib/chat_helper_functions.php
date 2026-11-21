@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 define("_MINIMAL_DISTANCE_TO_BE_THE_SAME", 0.0);
 define("_MAXIMAL_DISTANCE_TO_BE_RELATED", 0.8);
 define("_MINIMAL_ELEMENTS_TO_TRIGGER_MESSAGE", 3);

@@ -80,7 +80,6 @@ function getNpcLevel(string $npcName): ?int {
  */
 function getPlayerLevel(): ?int {
     try {
-        require_once(dirname(__DIR__, 3).'/lib' . "/core/player.class.php");
         $player = new Player();
         
         $stats = $player->getJson('stats');

@@ -59,7 +59,6 @@ final class HealthCheckManager
     /** Rows of core_api_badge holding a non-empty key, counted by the database through the existing facade. */
     public static function apiKeyCount(): int
     {
-        require_once dirname(__DIR__, 2) . '/lib/core/api_badge.class.php';
         return (new \ApiBadge())->countWithKeys();
     }
 

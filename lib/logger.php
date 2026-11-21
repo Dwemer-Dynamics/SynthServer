@@ -5,7 +5,6 @@ require_once __DIR__ . "/autoload.php";
 // existing `Logger::info($message, $logFile)` call sites working and forwards everything to it. New code should call
 // \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'Classifier', $data) directly.
 
-require_once __DIR__ . '/classes/Logger.php';
 
 class Logger {
     private const DEFAULT_LOG = __DIR__ . '/../log/synth.log';

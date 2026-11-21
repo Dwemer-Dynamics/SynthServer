@@ -11,7 +11,7 @@
  *   - queries: RelationshipManager::getRelationship($npcName, $targetName)
  */
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 class RelationshipManager {
 
     // Valid relationship types (the "flavor" of the relationship)

@@ -1,7 +1,6 @@
 <?php
 
 require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'narrator.class.php');
-require_once(dirname(__DIR__, 3).'/lib' . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'tts_connector.class.php');
 
 // Build the saved connector and installed voice choices used by pronunciation previews.
 function synthTtsPronunciationPreviewOptions(string $enginePath): array
