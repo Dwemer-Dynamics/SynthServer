@@ -13,6 +13,7 @@ use Synth\Core\Entities\Base\AbstractProfile;
 /** Finds rows of core_profiles. */
 final class ProfileDao
 {
+    use FailSoftQueries;
     use UsesEntityManager;
 
     /** One row by id, or null. */
@@ -190,5 +191,11 @@ final class ProfileDao
     public function insertBlank(string $label, string $metadataJson): int
     {
         return (int) $this->connection()->fetchOne('INSERT INTO core_profiles (label, metadata) VALUES (?, ?) RETURNING id', [$label, $metadataJson]);
+    }
+
+    /** The metadata column of one profile ([] when it has no row, null when the read fails). @return array<string, mixed>|null */
+    public function metadataRow(int $id): ?array
+    {
+        return $this->rowOrNull('SELECT metadata FROM core_profiles WHERE id=:p1 LIMIT 1', [$id]);
     }
 }
