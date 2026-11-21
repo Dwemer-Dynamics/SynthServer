@@ -76,4 +76,32 @@ final class NpcDao
         }
         throw new \RuntimeException('The scoped character could not be created.');
     }
+
+    /** The raw core_npc row of one actor identity, or null (or when the statement fails). @return array<string, mixed>|null */
+    public function rowByActor(int $actorId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT * FROM public.core_npc WHERE actor_identity_id = ?', [$actorId]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /** The NPC's extended data and its profile's metadata (NULL without a profile), or null when there is no NPC (or the statement fails). @return array<string, mixed>|null */
+    public function extendedDataWithProfileMetadata(int $actorId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT n.extended_data,p.metadata FROM public.core_npc n
+                 LEFT JOIN public.core_profiles p ON p.id=n.profile_id WHERE n.actor_identity_id = ?',
+                [$actorId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
 }

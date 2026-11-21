@@ -42,4 +42,19 @@ class RequestExecutionDao
     {
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
     }
+
+    /**
+     * True when this request is complete and its stored canonical ingress event equals $canonicalJson with digest $sha256.
+     * Throws when the statement fails.
+     */
+    public function completedIngressMatches(string $sessionId, string $requestId, int $generation, string $canonicalJson, string $sha256): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_request_execution e JOIN public.core_protocol_event p
+                USING(session_id,request_id,generation,turn_id,event_type)
+             WHERE e.session_id = :session AND e.request_id = :request AND e.generation = :generation AND e.state='complete'
+                AND p.event_sha256=e.request_sha256 AND p.event_sha256 = :sha AND p.canonical_event = CAST(:canonical AS jsonb)",
+            ['session' => $sessionId, 'request' => $requestId, 'generation' => $generation, 'canonical' => $canonicalJson, 'sha' => $sha256]
+        ) !== false;
+    }
 }

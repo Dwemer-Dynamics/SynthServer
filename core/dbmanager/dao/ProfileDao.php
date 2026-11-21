@@ -146,4 +146,16 @@ final class ProfileDao
     {
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** The metadata column of one profile as a row, or null when missing (or the statement fails). @return array<string, mixed>|null */
+    public function metadataRow(int $id): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT metadata FROM public.core_profiles WHERE id = ?', [$id]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
 }
