@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractActorActivation;
 
 /** Finds rows of core_actor_activation. */
-final class ActorActivationDao
+class ActorActivationDao
 {
     use UsesEntityManager;
 
@@ -17,6 +17,16 @@ final class ActorActivationDao
     public function find(string $sessionId, int|string $generation, int|string $actorIdentityId): ?AbstractActorActivation
     {
         return $this->fresh()->find(AbstractActorActivation::class, ['sessionId' => $sessionId, 'generation' => $generation, 'actorIdentityId' => $actorIdentityId]);
+    }
+
+    /** Marks the active activations of the session, up to this generation, stale (a halt). */
+    public function staleUpToGeneration(string $sessionId, int $generation): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_actor_activation SET state='stale', last_seen_at=NOW()
+              WHERE session_id = ? AND generation <= ? AND state='active'",
+            [$sessionId, $generation]
+        );
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractActorActivation> */

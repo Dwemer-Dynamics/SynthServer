@@ -24,4 +24,34 @@ final class CharacterGenerationFieldDao
     {
         return array_values($this->fresh()->getRepository(AbstractCharacterGenerationField::class)->findBy([], ['jobId' => 'ASC', 'field' => 'ASC'], max(1, $limit)));
     }
+
+    /**
+     * The checkpointed text of one field of a profile job and whether its stored hash still matches, or null.
+     *
+     * @return array{result_text: string, valid: bool}|null
+     */
+    public function checkpoint(int $jobId, string $field): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT result_text, result_sha256 = encode(sha256(convert_to(result_text, 'UTF8')), 'hex') AS valid
+             FROM public.core_character_generation_field WHERE job_id = ? AND field = ?",
+            [$jobId, $field]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Records one generated field with its hash; throws when the statement fails. */
+    public function record(int $jobId, string $field, string $text): void
+    {
+        try {
+            $this->connection()->executeStatement(
+                "INSERT INTO public.core_character_generation_field (job_id, field, result_text, result_sha256)
+                 VALUES (?, ?, ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'))",
+                [$jobId, $field, $text, $text]
+            );
+        } catch (\Throwable $error) {
+            throw new \RuntimeException('Unable to checkpoint profile field.', 0, $error);
+        }
+    }
 }

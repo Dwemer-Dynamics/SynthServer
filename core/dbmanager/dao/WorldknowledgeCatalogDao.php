@@ -24,4 +24,14 @@ final class WorldknowledgeCatalogDao
     {
         return array_values($this->fresh()->getRepository(AbstractWorldknowledgeCatalog::class)->findBy([], ['catalogId' => 'ASC', 'catalogVersion' => 'ASC'], max(1, $limit)));
     }
+
+    /** The one active catalog row (catalog_id, catalog_version, display_name, checksum_sha256, row_count, activated_at), or null. @return array<string, mixed>|null */
+    public function active(): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT catalog_id, catalog_version, display_name, checksum_sha256, row_count, activated_at FROM public.core_worldknowledge_catalog WHERE is_active LIMIT 1'
+        );
+
+        return $row === false ? null : $row;
+    }
 }

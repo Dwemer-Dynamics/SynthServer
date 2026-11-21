@@ -1065,6 +1065,8 @@ final class JsonSchemaCatalogTest extends TestCase
         };
         $event=['protocol_version'=>2,'session_id'=>'profile:test','generation'=>1,'context_sequence'=>1,
             'payload'=>['actors'=>[$identity],'include_narrator'=>false]];
+        require_once __DIR__.'/DaoTestDoubles.php';
+        DaoTestDoubles::linkedActorsFrom($db);
         $this->assertSame(19,synth_profile_refresh_bindings($db,$event)['Piper']['npc_id']);
         $this->assertSame(1,$db->lookups);
         foreach (['form_id'=>'0x00000016','playthrough_id'=>'other:test','display_name'=>'Renamed'] as $key=>$value) {
@@ -1073,6 +1075,7 @@ final class JsonSchemaCatalogTest extends TestCase
             catch(RuntimeException $error) { $this->assertSame('profile_refresh_actor_not_in_snapshot',$error->getMessage()); }
         }
         $this->assertSame(1,$db->lookups,'Unobserved actors must fail before profile lookup or identity creation.');
+        DaoTestDoubles::reset();
     }
 
     public function testVisualHistoryCannotBeWrittenOutsideCompletionTransaction(): void
