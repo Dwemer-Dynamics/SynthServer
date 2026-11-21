@@ -146,4 +146,10 @@ final class ProfileDao
     {
         return array_values($this->fresh()->getRepository(AbstractProfile::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** Inserts an empty profile with this label and metadata JSON and returns its id. */
+    public function insertBlank(string $label, string $metadataJson): int
+    {
+        return (int) $this->connection()->fetchOne('INSERT INTO core_profiles (label, metadata) VALUES (?, ?) RETURNING id', [$label, $metadataJson]);
+    }
 }

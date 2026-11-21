@@ -24,4 +24,15 @@ final class SpeechDao
     {
         return array_values($this->fresh()->getRepository(AbstractSpeech::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /** The highest gamets of a line spoken by, to or in company of this actor, or null when there is none. */
+    public function lastGametsFor(string $actor): ?string
+    {
+        $last = $this->connection()->fetchOne(
+            'SELECT max(gamets) FROM core_speech WHERE speaker = :actor OR listener = :actor OR companions LIKE :company',
+            ['actor' => $actor, 'company' => '%|'.$actor.'|%']
+        );
+
+        return $last === false || $last === null ? null : (string) $last;
+    }
 }

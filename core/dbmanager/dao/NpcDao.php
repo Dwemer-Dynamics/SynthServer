@@ -76,4 +76,18 @@ final class NpcDao
         }
         throw new \RuntimeException('The scoped character could not be created.');
     }
+
+    /** Number of characters (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_npc');
+    }
+
+    /** Gender and race of the character with this reference id, or null. @return array<string, mixed>|null */
+    public function genderAndRaceByRefid(string $refid): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT gender, race FROM core_npc WHERE refid = ?', [$refid]);
+
+        return $row === false ? null : $row;
+    }
 }

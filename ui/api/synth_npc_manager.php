@@ -366,19 +366,10 @@ function synthNpcManagerResolveReturnLocation(array $lastCoords): ?array
         return null;
     }
 
-    $db = \Synth\Bootstrap::db();
     $x = floatval($lastCoords['x']);
     $y = floatval($lastCoords['y']);
     $worldspace = trim((string)($lastCoords['worldspace'] ?? ''));
-    $worldspaceClause = $worldspace === ''
-        ? ''
-        : " AND lower(COALESCE(worldspace, '')) = lower('" . $db->escape($worldspace) . "')";
-    $point = $db->escape("({$x},{$y})");
-    $row = $db->fetchOne(
-        "SELECT name, formid, worldspace FROM core_location_legacy " .
-        "WHERE coords IS NOT NULL{$worldspaceClause} " .
-        "ORDER BY coords <-> '{$point}'::point LIMIT 1"
-    );
+    $row = \Synth\Core\DbManager\Dao\LocationLegacyDao::current(\Synth\Bootstrap::db())->nearestToPoint($x, $y, $worldspace);
     if (!is_array($row) || !isset($row['formid'])) {
         return null;
     }

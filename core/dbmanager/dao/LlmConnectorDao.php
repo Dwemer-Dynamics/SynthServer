@@ -103,4 +103,18 @@ final class LlmConnectorDao
     {
         return array_values($this->fresh()->getRepository(AbstractLlmConnector::class)->findBy([], ['id' => 'ASC']));
     }
+
+    /** Number of LLM connectors (home dashboard). */
+    public function dashboardCount(): int
+    {
+        return (int) $this->connection()->fetchOne('SELECT COUNT(*) FROM core_llm_connector');
+    }
+
+    /** The label of one connector, or null (quickstart). */
+    public function labelById(int $id): ?string
+    {
+        $label = $this->connection()->fetchOne('SELECT label FROM core_llm_connector WHERE id = ? LIMIT 1', [$id]);
+
+        return $label === false ? null : (string) $label;
+    }
 }
