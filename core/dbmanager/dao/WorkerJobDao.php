@@ -153,6 +153,202 @@ class WorkerJobDao
         return array_values($this->fresh()->getRepository(AbstractWorkerJob::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
 
+    /** True when this actor and role already have a live diary job or an unacknowledged result for this snapshot (automatic reservation check). */
+    public function diaryAdmissionPending(string $sessionId, int $generation, int $sequence, int $actorIdentityId, string $role): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
+             LEFT JOIN public.core_diary_result r ON r.input_id=i.id
+             JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
+             WHERE i.session_id=? AND i.generation=? AND c.snapshot_sequence=? AND i.actor_identity_id=?
+                AND i.diary_role=? AND ((j.state IN ('pending','running') AND j.deadline_at>clock_timestamp()
+                    AND (j.attempts<3 OR (j.state='running' AND j.lease_until>clock_timestamp()))) OR r.history_event_id>c.history_event_id) LIMIT 1",
+            [$sessionId, $generation, $sequence, $actorIdentityId, $role]
+        ) !== false;
+    }
+
+    /** Inserts the diary job of one frozen input unless it exists; throws on statement failure. */
+    public function admitDiary(int $inputId, string $turnId): void
+    {
+        $this->connection()->executeStatement(
+            "INSERT INTO public.core_worker_job
+                (job_type,session_id,request_id,turn_id,generation,actor_identity_id,diary_input_id,payload,deadline_at)
+             SELECT 'diary',session_id,request_id,?,generation,actor_identity_id,id,
+                jsonb_build_object('schema','synth.diary.job.v1','context_sequence',context_sequence),clock_timestamp()+INTERVAL '30 minutes'
+             FROM public.core_diary_input WHERE id=? ON CONFLICT DO NOTHING",
+            [$turnId, $inputId]
+        );
+    }
+
+    /** The id of the job of one diary input, or null. */
+    public function idForDiaryInput(int $inputId): ?int
+    {
+        $id = $this->connection()->fetchOne('SELECT id FROM public.core_worker_job WHERE diary_input_id=?', [$inputId]);
+
+        return $id === false ? null : (int) $id;
+    }
+
+    /** One pending or running diary job with its frozen input and whether the input hash still matches; null when none. @return array<string, mixed>|null */
+    public function diaryJobWithInput(int $jobId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT j.*,i.input_payload,i.input_sha256,i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid
+             FROM public.core_worker_job j JOIN public.core_diary_input i ON i.id=j.diary_input_id
+             WHERE j.id=? AND j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')",
+            [$jobId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Takes the transaction-scoped advisory lock of one key (hashtext); it is held until the caller's open transaction ends. */
+    public function lockAdvisoryKey(string $key): bool
+    {
+        try {
+            return $this->connection()->fetchAssociative('SELECT pg_advisory_xact_lock(hashtext(?))', [$key]) !== false;
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+    }
+
+    /**
+     * Claims one diary job for a new two-minute lease unless the actor already has another live running diary job; returns the
+     * lease token, or null when nothing was claimed. Throws on statement failure.
+     */
+    public function claimDiary(int $jobId, string $token): ?string
+    {
+        $claimed = $this->connection()->fetchOne(
+            "UPDATE public.core_worker_job j SET state='running',attempts=attempts+1,lease_token=?,
+                lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
+             WHERE j.id=? AND attempts<3 AND deadline_at>clock_timestamp() AND available_at<=clock_timestamp()
+                AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))
+                AND NOT EXISTS(SELECT 1 FROM public.core_worker_job other WHERE other.id<>j.id AND other.job_type='diary'
+                    AND other.actor_identity_id=j.actor_identity_id AND other.state='running'
+                    AND other.lease_until>clock_timestamp() AND other.deadline_at>clock_timestamp()) RETURNING lease_token",
+            [$token, $jobId]
+        );
+
+        return $claimed === false ? null : (string) $claimed;
+    }
+
+    /** Marks a diary job ready and clears its lease. False when the statement fails. */
+    public function markDiaryReady(int $jobId): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_worker_job SET state='ready',last_error=NULL,
+                    lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=?",
+                [$jobId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Releases a running diary attempt for retry (or fails it when terminal, out of attempts or past its deadline). False when the statement fails. */
+    public function failDiaryAttempt(int $jobId, string $token, bool $terminal, string $lastError): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_worker_job SET state=CASE WHEN CAST(? AS boolean) OR attempts>=3 OR deadline_at<=clock_timestamp()
+                    THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
+                    last_error=?,updated_at=clock_timestamp() WHERE id=? AND state='running' AND lease_token=?",
+                [$terminal ? 't' : 'f', $lastError, $jobId, $token]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Retires diary jobs past their deadline or attempts or whose owner request/generation is gone. False when the statement fails. */
+    public function retireDiaryWork(): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_worker_job j SET state=CASE WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'stale' END,
+                    lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
+                 WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.state IN ('pending','running')
+                    AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
+                        OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
+                            WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
+                                AND e.request_id=j.request_id AND e.generation=j.generation AND e.state IN ('claimed','streaming','complete')))"
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Ids of up to five dispatchable diary jobs whose request completed. @return list<array<string, mixed>> */
+    public function dispatchableDiaryJobs(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT j.id FROM public.core_worker_job j JOIN public.core_request_execution e
+                ON e.session_id=j.session_id AND e.request_id=j.request_id AND e.generation=j.generation AND e.state='complete'
+             WHERE j.job_type='diary' AND j.payload->>'schema'='synth.diary.job.v1' AND j.available_at<=clock_timestamp()
+                AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp())) ORDER BY j.available_at,j.id LIMIT 5"
+        );
+    }
+
+    /** Fails a diary job whose input or owner is invalid unless it is under a live lease. False when the statement fails. */
+    public function failInvalidDiary(int $jobId): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                "UPDATE public.core_worker_job SET state='failed',last_error='input_or_owner_invalid',
+                    lease_token=NULL,lease_until=NULL,updated_at=clock_timestamp() WHERE id=?
+                    AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))",
+                [$jobId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * The diary jobs, frozen inputs and (when written) results of one request, with their integrity flags, for the batch status read.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function diaryStatusRows(string $sessionId, string $requestId, int $generation, string $turnId, int $sequence): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT j.state,j.deadline_at<=clock_timestamp() AS expired,
+                j.attempts>=3 AND (j.state='pending' OR j.lease_until<=clock_timestamp()) AS exhausted,
+                j.lease_until>clock_timestamp() AS live_lease,i.id,i.actor_identity_id,i.diary_role,i.input_payload,i.input_sha256,
+                i.input_sha256=encode(sha256(convert_to(i.input_payload::text,'UTF8')),'hex') AS valid_input,
+                r.history_event_id,r.result_payload,
+                r.result_sha256=encode(sha256(convert_to(r.result_payload::text,'UTF8')),'hex') AS valid_result,
+                h.session_id=i.session_id AND h.request_id=i.request_id AND h.generation=i.generation
+                    AND h.context_sequence=i.context_sequence AND h.playthrough_id=c.playthrough_id
+                    AND h.event_payload->>'type'='diary_result' AND h.event_payload->>'delivery_state'='derived'
+                    AND h.event_payload->'diary_result'=r.result_payload
+                    AND h.event_payload->>'diary_result_sha256'=r.result_sha256
+                    AND h.event_payload->>'diary_input_sha256'=i.input_sha256 AS valid_history
+            FROM public.core_diary_input i JOIN public.core_worker_job j ON j.diary_input_id=i.id
+                AND j.session_id=i.session_id AND j.request_id=i.request_id AND j.generation=i.generation
+                AND j.actor_identity_id=i.actor_identity_id AND j.turn_id=? AND j.job_type='diary'
+                AND j.payload->>'schema'='synth.diary.job.v1' AND j.payload->>'context_sequence'=i.context_sequence::text
+            JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation
+                AND c.snapshot_sequence=i.context_sequence
+            LEFT JOIN public.core_diary_result r ON r.input_id=i.id
+            LEFT JOIN public.core_history_event h ON h.id=r.history_event_id
+            WHERE i.session_id=? AND i.request_id=? AND i.generation=? AND i.context_sequence=? AND i.diary_role IN ('npc','narrator','player')
+                AND i.input_payload->>'actor_identity_id'=i.actor_identity_id::text
+                AND i.input_payload->>'diary_role'=i.diary_role AND i.input_payload->'context'=c.context_payload
+                AND i.input_payload->'prior_revision'=COALESCE(to_jsonb(i.prior_history_event_id),'null'::jsonb)
+                AND i.input_payload->'profile_revision'=COALESCE(to_jsonb(i.profile_revision_id),'null'::jsonb)",
+            [$turnId, $sessionId, $requestId, $generation, $sequence]
+        );
+    }
+
     /** How many finished (ready, failed, cancelled or stale) jobs of one type were last updated more than $days days ago; null when the count fails. */
     public function countFinishedOlderThan(string $jobType, int $days): ?int
     {
