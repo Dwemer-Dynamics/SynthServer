@@ -24,4 +24,15 @@ final class RuntimeContextDao
     {
         return array_values($this->fresh()->getRepository(AbstractRuntimeContext::class)->findBy([], ['sessionId' => 'ASC', 'generation' => 'ASC', 'snapshotSequence' => 'ASC'], max(1, $limit)));
     }
+
+    /** The player actor identity of one runtime context snapshot, or 0 when the snapshot has none. */
+    public function playerIdentityId(string $sessionId, int $generation, int $snapshotSequence): int
+    {
+        $id = $this->connection()->fetchOne(
+            'SELECT player_identity_id FROM public.core_runtime_context WHERE session_id = ? AND generation = ? AND snapshot_sequence = ?',
+            [$sessionId, $generation, $snapshotSequence]
+        );
+
+        return $id === false || $id === null ? 0 : (int) $id;
+    }
 }

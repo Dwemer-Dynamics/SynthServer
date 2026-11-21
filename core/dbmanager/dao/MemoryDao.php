@@ -24,4 +24,29 @@ final class MemoryDao
     {
         return array_values($this->fresh()->getRepository(AbstractMemory::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
     }
+
+    /**
+     * Inserts one diary memory row (column => value, every column a plain scalar); returns false when the statement fails.
+     *
+     * @param array<string, scalar|null> $row
+     */
+    public function insertDiaryEntry(array $row): bool
+    {
+        $columns = array_keys($row);
+        foreach ($columns as $column) {
+            if (!preg_match('/^[a-z_][a-z0-9_]*$/', (string) $column)) {
+                throw new \InvalidArgumentException('Invalid core_memory column.');
+            }
+        }
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_memory ('.implode(', ', $columns).') VALUES ('.implode(', ', array_fill(0, count($columns), '?')).')',
+                array_values($row)
+            );
+        } catch (\Throwable $error) {
+            return false;
+        }
+
+        return true;
+    }
 }

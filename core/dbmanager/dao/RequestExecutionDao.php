@@ -42,4 +42,12 @@ class RequestExecutionDao
     {
         return array_values($this->fresh()->getRepository(AbstractRequestExecution::class)->findBy([], ['sessionId' => 'ASC', 'requestId' => 'ASC'], max(1, $limit)));
     }
+
+    /** The execution state of a request (of any generation), or null when it has no row. */
+    public function stateOf(string $sessionId, string $requestId): ?string
+    {
+        $state = $this->connection()->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id = ? AND request_id = ? LIMIT 1', [$sessionId, $requestId]);
+
+        return $state === false || $state === null ? null : (string) $state;
+    }
 }

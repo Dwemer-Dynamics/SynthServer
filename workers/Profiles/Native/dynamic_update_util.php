@@ -174,9 +174,7 @@ function generateNearbyDiary($npcName, $gameRequest, $eventType) {
             $topic = DataLastKnowDate();
             $location = DataLastKnownLocation();
             $momentum=time();
-            $db->insert(
-                'core_memory',
-                array(
+            \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                     'source_type' => 'diary',
                     'ts' => $gameRequest[1],
                     'gamets' => $gameRequest[2],
@@ -555,9 +553,7 @@ function generatePlayerDiary($gameRequest, $eventType)
         $location = DataLastKnownLocation();
         $momentum = time();
 
-        $db->insert(
-            'core_memory',
-            array(
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                 'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -1270,9 +1266,7 @@ function generateFollowerDiary($followerName, $gameRequest, $eventType) {
         $topic = DataLastKnowDate();
         $location = DataLastKnownLocation();
         $momentum=time();
-        $db->insert(
-            'core_memory',
-            array(
+        \Synth\Core\DbManager\Dao\MemoryDao::current($db)->insertDiaryEntry(array(
                 'source_type' => 'diary',
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -1681,10 +1675,9 @@ function triggerImmediateProfileProcessing(?callable $profileProcessor = null, ?
                 } catch (Throwable $error) {
                     if (synth_profile_origin_rejected($error)) {
                         $owner=$queueData['native_owner'];
-                        $state=$db->fetchOne('SELECT state FROM public.core_request_execution WHERE session_id='
-                            .$db->escapeLiteral(strval($owner['session_id'] ?? '')).' AND request_id='.$db->escapeLiteral(strval($owner['request_id'] ?? '')));
+                        $state=\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->stateOf(strval($owner['session_id'] ?? ''),strval($owner['request_id'] ?? ''));
                         // A just-admitted refresh can be queued before its response completes; keep waiting for it.
-                        if ($state && !in_array($state['state'],['claimed','streaming'],true)) {
+                        if ($state!==null && !in_array($state,['claimed','streaming'],true)) {
                             \Synth\Managers\ConfigManager\ConfigManager::shared()->rename('conf', $queueId, 'dynamic_profiles_failed_'.hash('sha256',$queueId));
                         }
                     }
