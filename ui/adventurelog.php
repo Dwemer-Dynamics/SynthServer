@@ -37,14 +37,6 @@ require_once(__DIR__.DIRECTORY_SEPARATOR."profile_loader.php");
 $TITLE = "SYNTH Adventure Log";
 $isEmbed = (isset($_GET['embed']) && $_GET['embed'] == '1');
 
-// Connect to the database
-$conn = pg_connect(synthPgConnectionString($dbSettings));
-
-if (!$conn) {
- echo "<div class='message'>Failed to connect to database: " . pg_last_error() . "</div>";
- exit;
-}
-
 // Function to sanitize and validate integers
 function sanitize_int($value, $default) {
  $value = filter_var($value, FILTER_VALIDATE_INT);
@@ -167,7 +159,7 @@ function process_event_row($row, $for_csv = false) {
 }
 
 // Function to handle CSV export
-function handle_csv_export($conn, $schema) {
+function handle_csv_export($schema) {
  if (isset($_GET['export'])) {
  $exportType = $_GET['export'];
 
@@ -192,29 +184,21 @@ function handle_csv_export($conn, $schema) {
  }
  } else {
  // Get the most recent date from the eventlog
- $latestDateQuery = "
- SELECT to_char(to_timestamp(localts::double precision) AT TIME ZONE 'UTC', 'YYYY-MM-DD') as event_date
- FROM public.core_context_event
- WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
- ORDER BY localts DESC
- LIMIT 1
- ";
-
- $latestDateResult = pg_query($conn, $latestDateQuery);
- if (!$latestDateResult) {
+ try {
+ $latestDate = \Synth\Core\DbManager\Dao\ContextEventDao::current()->adventureLatestDate();
+ } catch (\Throwable $error) {
  header("HTTP/1.1 500 Internal Server Error");
- echo "Error fetching latest date: " . pg_last_error($conn);
+ echo "Error fetching latest date: " . $error->getMessage();
  exit;
  }
 
- $latestDateRow = pg_fetch_assoc($latestDateResult);
- if (!$latestDateRow) {
+ if ($latestDate === null) {
  header("HTTP/1.1 404 Not Found");
  echo "No events found in the adventure log.";
  exit;
  }
 
- $selectedDate = $latestDateRow['event_date'];
+ $selectedDate = $latestDate;
  }
 
  // Calculate the start and end timestamps for the selected day in UTC
@@ -224,30 +208,22 @@ function handle_csv_export($conn, $schema) {
  $dtSelectedEnd->modify('+1 day')->modify('-1 second');
  $endOfDay = $dtSelectedEnd->getTimestamp();
 
- // Prepare the SQL query with explicit casting
- $query = "
- SELECT type, data, people, location, localts, gamets
- FROM public.core_context_event
- WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
- AND to_timestamp(localts::double precision) BETWEEN to_timestamp($startOfDay) AND to_timestamp($endOfDay)
- ORDER BY localts ASC
- ";
+ try {
+ $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current()->adventureEventsBetween($startOfDay, $endOfDay);
+ } catch (\Throwable $error) {
+ header("HTTP/1.1 500 Internal Server Error");
+ echo "Error fetching data: " . $error->getMessage();
+ exit;
+ }
  } elseif ($exportType === 'all_csv') {
  // Export CSV for all data without date filtering
- $query = "
- SELECT type, data, people, location, localts, gamets
- FROM public.core_context_event
- WHERE type IN ('im_alive', 'chat','infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
- ORDER BY localts ASC
- ";
- }
-
- $result = pg_query($conn, $query);
-
- if (!$result) {
+ try {
+ $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current()->adventureEventsAll();
+ } catch (\Throwable $error) {
  header("HTTP/1.1 500 Internal Server Error");
- echo "Error fetching data: " . pg_last_error($conn);
+ echo "Error fetching data: " . $error->getMessage();
  exit;
+ }
  }
 
  // Set headers to prompt file download
@@ -275,7 +251,7 @@ function handle_csv_export($conn, $schema) {
  $previousLocation = null;
 
  // Fetch and process each row, then write to the CSV
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($rows as $row) {
  $processed_row = process_event_row($row, true); // true indicates CSV context
  if ($processed_row !== null) {
  // Check for location change
@@ -317,7 +293,7 @@ function handle_csv_export($conn, $schema) {
 }
 
 // Handle CSV export if requested - do this before any output buffering
-handle_csv_export($conn, $schema);
+handle_csv_export($schema);
 
 // Start output buffering after CSV handling
 ob_start();
@@ -426,37 +402,19 @@ if ($useFalloutTime) {
  }
 }
 
-// Prepare the SQL query with explicit casting to double precision
-$allDatesQuery = "
- SELECT DISTINCT
- gamets,
- localts,
- type,
- data,
- people,
- location,
- to_char(to_timestamp(CAST(localts AS bigint)), 'YYYY-MM-DD') as date,
- CASE
- WHEN " . ($useFalloutTime ? 'true' : 'false') . " THEN
- gamets
- ELSE
- localts
- END as sort_field
- FROM public.core_context_event
- WHERE type IN ('im_alive', 'chat', 'infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
- AND gamets > 0
- ORDER BY sort_field ASC
-";
+$allDatesRows = null;
+$allDatesError = '';
+try {
+ $allDatesRows = \Synth\Core\DbManager\Dao\ContextEventDao::current()->adventureCalendarEvents($useFalloutTime);
+} catch (\Throwable $error) {
+ $allDatesError = $error->getMessage();
+}
 
-\Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - SQL Query: {$allDatesQuery}");
-
-$allDatesResult = pg_query($conn, $allDatesQuery);
-
-if ($allDatesResult) {
+if ($allDatesRows !== null) {
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Processing events for month: {$falloutMonths[$month]}");
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Looking for events in year: {$year}");
 
- while ($dateRow = pg_fetch_assoc($allDatesResult)) {
+ foreach ($allDatesRows as $dateRow) {
  if (!$useFalloutTime) {
  // Regular calendar mode - use localts
  if (isset($dateRow['localts']) && $dateRow['localts'] > 0) {
@@ -509,7 +467,7 @@ if ($allDatesResult) {
  }
  }
 } else {
- echo "<div class='message'>Error fetching event dates: " . pg_last_error($conn) . "</div>";
+ echo "<div class='message'>Error fetching event dates: " . $allDatesError . "</div>";
 }
 
 /**
@@ -706,37 +664,18 @@ if ($shouldFetchEvents) {
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Start of day: " . $startOfDay);
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - End of day: " . $endOfDay);
 
- $query = "
- SELECT type, data, people, location, localts, gamets
- FROM public.core_context_event
- WHERE type IN ('im_alive', 'chat', 'infoaction', 'rpg_lvlup', 'rechat', 'quest', 'itemfound', 'inputtext', 'goodnight', 'goodmorning',  'death', 'combatendmighty', 'combatend', 'lockpicked')
- AND (
- CASE
- WHEN " . ($useFalloutTime ? 'true' : 'false') . " THEN
- -- For Fallout mode, we'll filter in PHP instead of SQL
- gamets > 0
- ELSE
- -- For Gregorian mode, use localts with proper timestamp conversion
- localts >= " . (isset($startOfDay) ? $startOfDay : 0) . "
- AND localts < " . (isset($endOfDay) ? $endOfDay : 0) . "
- END
- )
- ORDER BY localts ASC
- ";
-
- \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - SQL Query: " . $query);
- $result = pg_query($conn, $query);
-
- if (!$result) {
- echo "<div class='message'>Query error: " . pg_last_error($conn) . "</div>";
+ try {
+ $rows = \Synth\Core\DbManager\Dao\ContextEventDao::current()->adventureEventsForDay($useFalloutTime, isset($startOfDay) ? $startOfDay : 0, isset($endOfDay) ? $endOfDay : 0);
+ } catch (\Throwable $error) {
+ echo "<div class='message'>Query error: " . $error->getMessage() . "</div>";
  exit;
  }
 
  // Log the number of rows returned
- $numRows = pg_num_rows($result);
+ $numRows = count($rows);
  \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'adventurelog', "Debug - Number of rows returned: " . $numRows);
 } else {
- $result = false;
+ $rows = false;
 }
 ?><main class="container"><div class="page-header"><h1>Adventure Log</h1></div><?php
  function renderHeader() {
@@ -870,9 +809,7 @@ if ($shouldFetchEvents) {
  $calendarArray = renderCalendar($month, $year, $allEventDates, $useFalloutTime, $falloutMonths);
  echo renderCalendarHTML($calendarArray, $useFalloutTime);
  ?><!-- Event Table --><table class="event-table" id="event-table"><colgroup><col class="col-context"><col class="col-people"><col class="col-gamets"><col class="col-time"></colgroup><tr><th>Context</th><th>Nearby People</th><th><a href="https://fallout.fandom.com/wiki/Timeline" target="_blank" style="color: yellow;">Fallout Time</a></th><th>Time (UTC)</th></tr><?php
- if ($shouldFetchEvents && $result) {
- // Reset the result pointer to the beginning for table rendering
- pg_result_seek($result, 0);
+ if ($shouldFetchEvents && $rows !== false) {
 
  // Initialize variables
  $hasEvents = false;
@@ -882,7 +819,7 @@ if ($shouldFetchEvents) {
  $locationHeader = '';
 
  // Get the first row to check initial location
- $firstRow = pg_fetch_assoc($result);
+ $firstRow = $rows[0] ?? false;
  if ($firstRow) {
  $firstProcessedRow = process_event_row($firstRow, false);
  if ($firstProcessedRow !== null) {
@@ -901,15 +838,13 @@ if ($shouldFetchEvents) {
  }
  $locationHeader = "<tr class='location-change-row'><td colspan='4'>Current Location: {$initialLocation}</td></tr>";
  }
- // Reset the result pointer again for the main loop
- pg_result_seek($result, 0);
  }
 
  // Buffer the output
  ob_start();
 
  // Fetch and display each row in the table
- while ($row = pg_fetch_assoc($result)) {
+ foreach ($rows as $row) {
  $processed_row = process_event_row($row, false);
  if ($processed_row === null) {
  continue;
@@ -1004,8 +939,6 @@ if ($shouldFetchEvents) {
  echo "<tr><td colspan='4' style='text-align: center; padding: 20px;'>Select a date to view events.</td></tr>";
  }
  ?></table><?php
- // **Close Database Connection**
- pg_close($conn);
  ?></main></body><?php
 include(__DIR__.DIRECTORY_SEPARATOR."tmpl/footer.html");
 

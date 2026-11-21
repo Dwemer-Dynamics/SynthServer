@@ -58,7 +58,7 @@ $apiBadge = new ApiBadge();
  if (preg_match('/^[0-9A-F]{8}$/i', $filename)) {
  $refid = strtoupper($filename); // Normalize to uppercase if needed
 
- $npcData = $db->fetchOne("SELECT gender, race FROM core_npc WHERE refid = '$refid'");
+ $npcData = \Synth\Core\DbManager\Dao\NpcDao::current($db)->genderAndRaceByRefid($refid);
 
  if ($npcData) {
  $gender = $npcData['gender'];

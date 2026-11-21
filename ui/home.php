@@ -57,9 +57,7 @@ function synth_home_h($value): string
 function synth_home_table_exists($db, string $table): bool
 {
     try {
-        $safeTable = str_replace("'", "''", $table);
-        $row = $db->fetchOne("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema IN ('synth','public') AND table_name='{$safeTable}') AS exists");
-        return isset($row['exists']) && ($row['exists'] === true || $row['exists'] === 't' || $row['exists'] === '1' || $row['exists'] === 1);
+        return \Synth\Core\DbManager\Dao\SchemaCatalogDao::current($db)->tableExists($table);
     } catch (Throwable $e) {
         return false;
     }
@@ -68,12 +66,7 @@ function synth_home_table_exists($db, string $table): bool
 function synth_home_table_columns($db, string $table): array
 {
     try {
-        $safeTable = str_replace("'", "''", $table);
-        $rows = $db->fetchAll("SELECT column_name FROM information_schema.columns WHERE table_schema IN ('synth','public') AND table_name='{$safeTable}'");
-        if (!is_array($rows)) {
-            return [];
-        }
-        return array_map(static fn($row) => (string)($row['column_name'] ?? ''), $rows);
+        return \Synth\Core\DbManager\Dao\SchemaCatalogDao::current($db)->tableColumns($table);
     } catch (Throwable $e) {
         if (class_exists('Logger')) {
             Logger::warn("Home dashboard column query failed: " . $e->getMessage());
@@ -96,12 +89,13 @@ function synth_home_setting($db, string $scope, string $key, $fallback = null)
     return $fallback;
 }
 
-function synth_home_value($db, string $query, string $key, $fallback = null)
+// A dashboard value read by $read; a failed read gives the fallback.
+function synth_home_value(callable $read, $fallback = null)
 {
     try {
-        $row = $db->fetchOne($query);
-        if (is_array($row) && array_key_exists($key, $row)) {
-            return $row[$key];
+        $value = $read();
+        if ($value !== null) {
+            return $value;
         }
     } catch (Throwable $e) {
         if (class_exists('Logger')) {
@@ -111,10 +105,11 @@ function synth_home_value($db, string $query, string $key, $fallback = null)
     return $fallback;
 }
 
-function synth_home_rows($db, string $query): array
+// Dashboard rows read by $read; a failed read gives no rows.
+function synth_home_rows(callable $read): array
 {
     try {
-        $rows = $db->fetchAll($query);
+        $rows = $read();
         return is_array($rows) ? $rows : [];
     } catch (Throwable $e) {
         if (class_exists('Logger')) {
@@ -270,41 +265,35 @@ $hasBioTemplates = synth_home_table_exists($db, 'core_npc_biography_template');
 $hasWorldKnowledge = synth_home_table_exists($db, 'core_worldknowledge_article');
 $hasWorldKnowledgeCatalogs = synth_home_table_exists($db, 'core_worldknowledge_catalog');
 
-$eventCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event", 'total', 0) : 0;
-$chatCount = $hasEventlog ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_context_event WHERE type='chat'", 'total', 0) : 0;
-$npcCount = $hasNpcMaster ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_npc", 'total', 0) : 0;
-$diaryCount = $hasDiary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='diary'", 'total', 0) : 0;
-$memoryCount = $hasMemorySummary ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_memory WHERE source_type='summary'", 'total', 0) : 0;
+$eventCount = $hasEventlog ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardCount(), 0) : 0;
+$chatCount = $hasEventlog ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardCount('chat'), 0) : 0;
+$npcCount = $hasNpcMaster ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\NpcDao::current($db)->dashboardCount(), 0) : 0;
+$diaryCount = $hasDiary ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\MemoryDao::current($db)->dashboardCountBySource('diary'), 0) : 0;
+$memoryCount = $hasMemorySummary ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\MemoryDao::current($db)->dashboardCountBySource('summary'), 0) : 0;
 
 // Installed libraries are separate from the NPCs already encountered in a save.
 $characterTemplateCount = null;
 if ($hasBioTemplates && in_array('npc_name', synth_home_table_columns($db, 'core_npc_biography_template'), true)) {
-    $characterTemplateCount = synth_home_value($db,
-        "SELECT COUNT(*) AS total FROM public.core_npc_biography_template WHERE strpos(npc_name, 'fo4_')=1 AND strpos(npc_name, 'fo4_creature_')<>1",
-        'total');
+    $characterTemplateCount = synth_home_value(static fn() => \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->dashboardFo4CharacterCount());
 }
 $worldLoreCount = null;
 if ($hasWorldKnowledge && $hasWorldKnowledgeCatalogs
     && array_diff(['source_kind', 'is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'core_worldknowledge_article')) === []
     && array_diff(['is_active', 'catalog_id', 'catalog_version'], synth_home_table_columns($db, 'core_worldknowledge_catalog')) === []) {
-    $worldLoreCount = synth_home_value($db,
-        "SELECT COUNT(*) AS total FROM public.core_worldknowledge_article AS article JOIN public.core_worldknowledge_catalog AS catalog"
-        . " ON article.catalog_id=catalog.catalog_id AND article.catalog_version=catalog.catalog_version"
-        . " WHERE article.source_kind='factory' AND article.is_active AND catalog.is_active",
-        'total');
+    $worldLoreCount = synth_home_value(static fn() => \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->dashboardFactoryCount());
 }
 
-$latestEventRow = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM core_context_event ORDER BY ts DESC LIMIT 1") : [];
+$latestEventRow = $hasEventlog ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardRecent(null, 1)) : [];
 $latestEvent = $latestEventRow[0] ?? [];
-$recentDialogue = $hasEventlog ? synth_home_rows($db, "SELECT type, data, people, location, gamets, localts, ts FROM core_context_event WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 5") : [];
-$eventTypeRows = $hasEventlog ? synth_home_rows($db, "SELECT type, COUNT(*) AS event_count FROM core_context_event GROUP BY type ORDER BY COUNT(*) DESC, type ASC") : [];
-$wordSourceRows = $hasEventlog ? synth_home_rows($db, "SELECT data FROM core_context_event WHERE type IN ('chat', 'inputtext', 'backgroundchat') ORDER BY ts DESC LIMIT 500") : [];
+$recentDialogue = $hasEventlog ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardRecent(['chat', 'inputtext', 'backgroundchat'], 5)) : [];
+$eventTypeRows = $hasEventlog ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardTypeCounts()) : [];
+$wordSourceRows = $hasEventlog ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardRecent(['chat', 'inputtext', 'backgroundchat'], 500)) : [];
 $wordCloudWords = synth_home_word_cloud_words($wordSourceRows);
-$worldRows = $hasEventlog ? synth_home_rows($db, "SELECT data, location, party, gamets, localts, ts FROM core_context_event WHERE type='world_context' ORDER BY gamets DESC, ts DESC LIMIT 1") : [];
+$worldRows = $hasEventlog ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->dashboardLatestWorldContext()) : [];
 $worldContext = isset($worldRows[0]) ? synth_home_json_object($worldRows[0]['party'] ?? '') : [];
 $worldGameTime = synth_home_json_object($worldContext['game_time'] ?? []);
-$activeQuests = $hasQuests ? synth_home_rows($db, "SELECT name, id_quest, briefing, briefing2, status FROM core_quest ORDER BY CASE WHEN status='selected' THEN 0 ELSE 1 END, gamets DESC LIMIT 6") : [];
-$latestDiaryRows = $hasDiary ? synth_home_rows($db, "SELECT rowid, topic, summary AS content, companions AS people, location, localts, gamets FROM core_memory WHERE source_type='diary' ORDER BY gamets DESC, rowid DESC LIMIT 1") : [];
+$activeQuests = $hasQuests ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\QuestDao::current($db)->dashboardActive(6)) : [];
+$latestDiaryRows = $hasDiary ? synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\MemoryDao::current($db)->dashboardLatestDiary()) : [];
 $latestDiary = $latestDiaryRows[0] ?? [];
 try {
     $writtenDiaries=synth_diary_browser_summary($db);
@@ -342,13 +331,11 @@ $llmStats = [
     'lifetime' => ['success' => 0, 'total' => 0],
 ];
 if ($hasAuditRequest) {
-    foreach ([
-        '24h' => "created_at >= NOW() - INTERVAL '24 HOURS'",
-        '72h' => "created_at >= NOW() - INTERVAL '72 HOURS'",
-        '7d' => "created_at >= NOW() - INTERVAL '7 DAYS'",
-        'lifetime' => 'TRUE',
-    ] as $period => $condition) {
-        $rows = synth_home_rows($db, "SELECT COUNT(*) FILTER (WHERE result='Ok') AS success, COUNT(*) AS total FROM core_audit_request WHERE {$condition}");
+    foreach (['24h', '72h', '7d', 'lifetime'] as $period) {
+        $rows = synth_home_rows(static function () use ($db, $period) {
+            $counts = \Synth\Core\DbManager\Dao\AuditRequestDao::current($db)->dashboardOutcomeCounts($period);
+            return $counts === null ? [] : [$counts];
+        });
         if (isset($rows[0])) {
             $llmStats[$period] = $rows[0];
         }
@@ -365,8 +352,8 @@ if ($hasLocations) {
     if (in_array('updated_at', $locationColumns, true)) {
         $locationSelect[] = 'updated_at';
     }
-    $locationCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_location_legacy", 'total', 0);
-    $locationRows = synth_home_rows($db, "SELECT " . implode(', ', $locationSelect) . " FROM core_location_legacy ORDER BY name ASC LIMIT 250");
+    $locationCount = synth_home_value(static fn() => \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->dashboardCount(), 0);
+    $locationRows = synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->dashboardRows($locationSelect));
 }
 $gamePluginRows = [];
 $gamePluginCount = 0;
@@ -378,12 +365,8 @@ if ($hasGamePlugins) {
             $gamePluginSelect[] = $columnName;
         }
     }
-    if (empty($gamePluginSelect)) {
-        $gamePluginSelect[] = '*';
-    }
-    $gamePluginCount = synth_home_value($db, "SELECT COUNT(*) AS total FROM core_plugins", 'total', 0);
-    $gamePluginOrder = in_array('plugin_name', $gamePluginColumns, true) ? " ORDER BY plugin_name ASC" : "";
-    $gamePluginRows = synth_home_rows($db, "SELECT " . implode(', ', $gamePluginSelect) . " FROM core_plugins" . $gamePluginOrder . " LIMIT 250");
+    $gamePluginCount = synth_home_value(static fn() => \Synth\Core\DbManager\Dao\PluginsDao::current($db)->dashboardCount(), 0);
+    $gamePluginRows = synth_home_rows(static fn() => \Synth\Core\DbManager\Dao\PluginsDao::current($db)->dashboardRows($gamePluginSelect));
 }
 
 $playerName = \Synth\Bootstrap::has('PLAYER_NAME') && trim((string)\Synth\Bootstrap::config('PLAYER_NAME')) !== '' ? (string)\Synth\Bootstrap::config('PLAYER_NAME') : 'Player';
@@ -401,8 +384,8 @@ $currentMode = $hasConfOpts ? synth_home_setting($db, 'conf', 'synth_mode', 'STA
 $currentModelSlot = $hasConfOpts ? (int)synth_home_setting($db, 'conf', 'synth_profile_model', 1) : 1;
 $modelLabels = [1 => 'Standard', 2 => 'Fast', 3 => 'Powerful', 4 => 'Experimental'];
 $currentModel = $modelLabels[$currentModelSlot] ?? 'Standard';
-$ttsConnectorCount = $hasTtsConnector ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_tts_connector", 'total', 0) : 0;
-$llmConnectorCount = $hasLlmConnector ? synth_home_value($db, "SELECT COUNT(*) AS total FROM core_llm_connector", 'total', 0) : 0;
+$ttsConnectorCount = $hasTtsConnector ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\TtsConnectorDao::current($db)->dashboardCount(), 0) : 0;
+$llmConnectorCount = $hasLlmConnector ? synth_home_value(static fn() => \Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->dashboardCount(), 0) : 0;
 $currentModeLabel = ucwords(strtolower(str_replace('_', ' ', (string)$currentMode)));
 $worldLocation = trim((string)($worldContext['location'] ?? ''));
 $worldspace = trim((string)($worldContext['worldspace'] ?? ''));

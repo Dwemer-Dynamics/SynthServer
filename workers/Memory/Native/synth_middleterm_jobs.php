@@ -75,7 +75,6 @@ function synth_middleterm_assert_lease($db): void
 function synth_middleterm_generate($db, array $input): string
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Narrative provider requires an idle database connection.');
-    require_once dirname(__DIR__, 3).'/lib/core/llm_connector.class.php';
     $manager=new LLMConnector();$connector=$manager->getById($input['connector_id']);
     if (!$connector || !hash_equals($input['connector_sha256'],hash('sha256',synth_protocol_canonical_json($connector)))) {
         throw new LogicException('Middle-term connector changed after admission.');

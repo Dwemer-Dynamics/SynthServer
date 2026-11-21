@@ -22,7 +22,7 @@
  *    - Adds #REL: command instructions for conversation model
  */
 
-require_once __DIR__ . '/../../../lib/classes/Logger.php';
+require_once __DIR__ . '/../../../lib/autoload.php';
 $relationshipContextStartTime = \Synth\Bootstrap::config("startTime") ?? microtime(true);
 \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'context_pre', "TRACE:\t".__LINE__. "\t".__FILE__.":\t".(microtime(true) - $relationshipContextStartTime));
 

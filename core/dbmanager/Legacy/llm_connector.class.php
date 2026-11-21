@@ -1,52 +1,6 @@
 <?php
 
 require_once dirname(__DIR__, 3).'/lib/autoload.php';
-require_once __DIR__ . DIRECTORY_SEPARATOR . "api_badge.class.php";
-
-if (!function_exists('synthConnectorExtraParametersEnabled')) {
-    function synthConnectorExtraParametersEnabled(array $connector): bool
-    {
-        if (!array_key_exists('extra_parameters_enabled', $connector)) {
-            return true;
-        }
-
-        $value = $connector['extra_parameters_enabled'];
-
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_int($value) || is_float($value)) {
-            return ((int)$value) !== 0;
-        }
-
-        if (is_string($value)) {
-            $normalized = strtolower(trim($value));
-            if ($normalized === '' || $normalized === '0' || $normalized === 'false' || $normalized === 'off' || $normalized === 'no') {
-                return false;
-            }
-
-            return true;
-        }
-
-        return (bool)$value;
-    }
-}
-
-if (!function_exists('synthGetEnabledConnectorExtraParameters')) {
-    function synthGetEnabledConnectorExtraParameters(array $connector): array
-    {
-        if (!synthConnectorExtraParametersEnabled($connector)) {
-            return [];
-        }
-
-        if (!isset($connector['extra_parameters']) || !is_array($connector['extra_parameters'])) {
-            return [];
-        }
-
-        return $connector['extra_parameters'];
-    }
-}
 
 class LLMConnector
 {

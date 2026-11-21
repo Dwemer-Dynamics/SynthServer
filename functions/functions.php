@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../lib/classes/Logger.php';
+require_once __DIR__ . '/../lib/autoload.php';
 require_once dirname(__DIR__).'/lib/synth_jev_actions.php';
 
 // Functions to be provided to OpenAI
@@ -220,26 +220,8 @@ function synthResolveLocationForTravelAction($destinationName)
     }
 
     $db = \Synth\Bootstrap::db();
-    $escapedDestination = method_exists($db, 'escape')
-        ? $db->escape($destinationName)
-        : str_replace("'", "''", $destinationName);
-
     try {
-        $row = $db->fetchOne(
-            "SELECT name, formid, worldspace, " .
-            "GREATEST(" .
-            "CASE WHEN lower(COALESCE(name, '')) = lower('{$escapedDestination}') THEN 1.0 ELSE similarity(COALESCE(name, ''), '{$escapedDestination}') END, " .
-            "similarity(COALESCE(worldspace, ''), '{$escapedDestination}')" .
-            ") AS sim, " .
-            "CASE " .
-            "WHEN lower(COALESCE(name, '')) = lower('{$escapedDestination}') THEN 3 " .
-            "WHEN lower(COALESCE(worldspace, '')) = lower('{$escapedDestination}') THEN 2 " .
-            "ELSE 0 END AS exact_rank " .
-            "FROM public.core_location_legacy " .
-            "WHERE COALESCE(name, '') <> '' " .
-            "ORDER BY exact_rank DESC, sim DESC, name ASC " .
-            "LIMIT 1"
-        );
+        $row = \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->bestMatch($destinationName);
     } catch (Throwable $e) {
         Logger::warn("TravelTo location lookup failed: " . $e->getMessage());
         return null;

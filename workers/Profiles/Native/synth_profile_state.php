@@ -89,8 +89,7 @@ function synth_profile_effective_data($db, array $profile, bool $narrator=false)
     if ($narrator) {
         $context=synth_protocol_current_context($db,$event);
         if (!$context) return $profile;
-        $actorId=intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
-            .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0);
+        $actorId=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->playerIdentityId(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']));
     }
     $state=synth_profile_visible($db,$event,$actorId,$narrator);
     return array_replace($profile,$state['fields'] ?? synth_profile_fields($profile));
@@ -103,8 +102,7 @@ function synth_profile_capture_input($db, string $name, array $profile): array
     synth_profile_assert_write_target($db,$name);
     $event=\Synth\Bootstrap::requestEvent()['json'];$narrator=$name==='The Narrator';
     $context=synth_protocol_current_context($db,$event);
-    $actorId=$narrator ? intval($db->fetchOne('SELECT player_identity_id FROM public.core_runtime_context WHERE session_id='.$db->escapeLiteral($event['session_id'])
-        .' AND generation='.intval($event['generation']).' AND snapshot_sequence='.intval($event['context_sequence']))['player_identity_id'] ?? 0)
+    $actorId=$narrator ? \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->playerIdentityId(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']))
         : \Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['actor_identity_id'];
     if (!$context || $actorId<1) throw new RuntimeException('Native profile input owner unavailable.');
     $state=synth_profile_visible($db,$event,$actorId,$narrator);
@@ -141,44 +139,21 @@ function synth_profile_record_result($db, string $name, array $updates): bool
         synth_profile_assert_write_target($db,$name);
         if (synth_protocol_canonical_json($event)!==synth_protocol_canonical_json($input['owner'])) throw new RuntimeException('Native profile result owner changed.');
         $actor=$input['actor_identity_id'];$role=$input['profile_role'];$narrator=$role==='narrator';
-        $result=@pg_query_params($connection,'SELECT input_sha256=encode(sha256(convert_to(($4::jsonb)::text,\'UTF8\')),\'hex\')
-                AND result_fields=$5::jsonb AS identical FROM public.core_character_generation_revision
-            WHERE session_id=$1 AND request_id=$2 AND actor_identity_id=$3 AND profile_role=$6',
-            [$event['session_id'],$event['request_id'],$actor,$inputJson,$fieldsJson,$role]);
-        if (!$result) throw new RuntimeException('Unable to check native profile replay.');
-        if ($existing=pg_fetch_assoc($result)) {
-            if ($existing['identical']!=='t') throw new LogicException('Native profile replay conflicts with accepted result.');
+        $identical=\Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao::current($db)->replayIdentical(strval($event['session_id']),strval($event['request_id']),$actor,$role,$inputJson,$fieldsJson);
+        if ($identical!==null) {
+            if (!$identical) throw new LogicException('Native profile replay conflicts with accepted result.');
             return true;
         }
         // Narrator settings can be absent rows; a short table lock also excludes concurrent insertions.
         if ($narrator && !@pg_query($connection,'LOCK TABLE public.core_config_setting IN SHARE MODE')) throw new RuntimeException('Unable to lock narrator baseline.');
-        $current=$narrator ? (new Narrator())->getAll() : $db->fetchOne('SELECT * FROM public.core_npc WHERE id='.intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
+        $current=$narrator ? (new Narrator())->getAll() : \Synth\Core\DbManager\Dao\NpcDao::current($db)->row(intval(\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name]['npc_id']));
         if (synth_profile_fields($current)!==synth_profile_fields($input['baseline_fields'])) throw new LogicException('Base profile changed during generation.');
         $visible=synth_profile_visible($db,$event,$actor,$narrator);
         if (($visible['revision'] ?? null)!==$input['prior_revision']) throw new LogicException('Saved profile input changed.');
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_character_generation_revision v JOIN public.core_history_event h ON h.id=v.history_event_id
-            JOIN public.core_runtime_context c ON c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3
-            WHERE v.session_id=c.session_id AND v.generation=c.generation AND v.actor_identity_id=$4 AND v.profile_role=$5 AND h.id>c.history_event_id',
-            [$event['session_id'],$event['generation'],$event['context_sequence'],$actor,$role]);
-        if (!$result) throw new RuntimeException('Unable to verify native profile frontier.');
-        if (pg_fetch_assoc($result)) throw new LogicException('A newer profile result awaits an acknowledged snapshot.');
+        if (\Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao::current($db)->newerThanContext(strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']),$actor,$role)) throw new LogicException('A newer profile result awaits an acknowledged snapshot.');
         $context=synth_protocol_current_context($db,$event);$playthrough=$context['player']['playthrough_id'];
-        $result=@pg_query_params($connection,"WITH value AS (SELECT $1::jsonb AS input,$2::jsonb AS fields), publication AS (
-            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-            VALUES('profile_result','Accepted native profile development',$3,$4,$5,$5,'','','','derived',$6,$7,$8,$9) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$3,rowid,to_jsonb(publication)
-                ||jsonb_build_object('profile_input_sha256',encode(sha256(convert_to(value.input::text,'UTF8')),'hex'),
-                    'profile_result',value.fields,'profile_result_sha256',encode(sha256(convert_to(value.fields::text,'UTF8')),'hex'))
-            FROM publication CROSS JOIN value RETURNING id
-        ) INSERT INTO public.core_character_generation_revision(history_event_id,session_id,request_id,generation,context_sequence,actor_identity_id,profile_role,
-            prior_history_event_id,input_payload,input_sha256,result_fields,result_sha256)
-            SELECT history.id,$6,$9,$7,$8,$10,$11,$12,value.input,encode(sha256(convert_to(value.input::text,'UTF8')),'hex'),value.fields,
-                encode(sha256(convert_to(value.fields::text,'UTF8')),'hex') FROM history CROSS JOIN value",
-            [$inputJson,$fieldsJson,$playthrough,intval($context['payload']['world']['game_time_ticks'] ?? 0),time(),$event['session_id'],
-                $event['generation'],$event['context_sequence'],$event['request_id'],$actor,$role,$input['prior_revision']]);
-        if (!$result) throw new RuntimeException('Unable to publish native profile result.');
+        \Synth\Core\DbManager\Dao\CharacterGenerationRevisionDao::current($db)->publish($inputJson,$fieldsJson,strval($playthrough),intval($context['payload']['world']['game_time_ticks'] ?? 0),time(),strval($event['session_id']),
+            intval($event['generation']),intval($event['context_sequence']),strval($event['request_id']),$actor,$role,$input['prior_revision']===null ? null : intval($input['prior_revision']));
         return true;
     },2000);
 }

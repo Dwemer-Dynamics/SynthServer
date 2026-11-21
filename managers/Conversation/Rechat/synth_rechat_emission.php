@@ -56,15 +56,9 @@ function synth_rechat_assert_action_emission($db, array $event, array $action, b
             if (!$found) throw new LogicException('rechat_action_target_not_captured');
         } elseif ($capability==='action.inspect_actor') throw new LogicException('rechat_action_target_required');
         if (!$requireIntent) return;
-        $result=@pg_query_params($connection,"SELECT i.*,a.full_form_id,a.origin_plugin,a.playthrough_id,
-                target.full_form_id AS target_form_id,target.origin_plugin AS target_plugin,target.playthrough_id AS target_playthrough
-            FROM public.core_action_intent i JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
-            LEFT JOIN public.core_actor_identity target ON target.id=i.target_identity_id
-            WHERE i.action_id=$1 AND i.idempotency_key=$2 AND i.session_id=$3 AND i.request_id=$4 AND i.generation=$5 AND i.turn_id=$6
-                AND i.state IN ('pending','dispatched') AND i.deadline_at>clock_timestamp()
-                AND EXTRACT(EPOCH FROM (i.deadline_at-i.created_at))*1000 >= $7",
-            [$action['action_id'],$action['idempotency_key'],$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],$action['deadline_ms']]);
-        if (!$result || !($intent=pg_fetch_assoc($result))) throw new LogicException('rechat_action_intent_unavailable');
+        $intent=\Synth\Core\DbManager\Dao\ActionIntentDao::current()->liveForEmission([$action['action_id'],$action['idempotency_key'],$event['session_id'],$event['request_id'],
+            $event['generation'],$event['turn_id'],$action['deadline_ms']]);
+        if (!$intent) throw new LogicException('rechat_action_intent_unavailable');
         $actor=['form_id'=>$intent['full_form_id'],'origin_plugin'=>$intent['origin_plugin'],'playthrough_id'=>$intent['playthrough_id']];
         $target=$intent['target_form_id']===null ? null : ['form_id'=>$intent['target_form_id'],'origin_plugin'=>$intent['target_plugin'],'playthrough_id'=>$intent['target_playthrough']];
         if (!in_array($intent['action_name'],[$action['name'],$serverCode],true) || $intent['capability']!==$capability || synth_rechat_actor_key($actor)!==synth_rechat_actor_key($action['actor'])

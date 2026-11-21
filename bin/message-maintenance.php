@@ -53,19 +53,19 @@ try {
         throw new RuntimeException('no database');
     }
     $cutoff = time() - $days * 86400;
-    $count = static function (string $sql) use ($db): int {
-        $row = $db->fetchOne($sql);
-        if (!is_array($row)) {
+    $count = static function (?int $value): int {
+        if ($value === null) {
             throw new RuntimeException('count failed');
         }
 
-        return intval($row['n'] ?? 0);
+        return $value;
     };
+    $responses = \Synth\Core\DbManager\Dao\ResponseLogDao::current($db);
 
-    $expired = $count('SELECT COUNT(*) AS n FROM public.core_response_log WHERE localts < ' . $cutoff);
+    $expired = $count($responses->countOlderThan($cutoff));
     $deleted = 0;
     if ($apply && $expired > 0) {
-        if ($db->execQuery('DELETE FROM public.core_response_log WHERE localts < ' . $cutoff) === false) {
+        if (!$responses->deleteOlderThan($cutoff)) {
             throw new RuntimeException('delete failed');
         }
         $deleted = $expired;
@@ -84,11 +84,11 @@ try {
         'response_log' => [
             'older_than_retention' => $expired,
             'deleted' => $deleted,
-            'remaining' => $count('SELECT COUNT(*) AS n FROM public.core_response_log'),
+            'remaining' => $count($responses->countRows()),
         ],
-        'finished_speech_jobs_older_than_retention' => $count("SELECT COUNT(*) AS n FROM public.core_worker_job WHERE job_type='tts' AND state IN ('ready','failed','cancelled','stale') AND updated_at < now() - interval '" . $days . " days'"),
+        'finished_speech_jobs_older_than_retention' => $count(\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->countFinishedOlderThan('tts', $days)),
         'message_queue' => $queue->report($days) + ['actions' => $queueActions],
-        'history_events' => $count('SELECT COUNT(*) AS n FROM public.core_context_event'),
+        'history_events' => $count(\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->countRows()),
     ];
     echo json_encode($report, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . PHP_EOL;
 } catch (Throwable $error) {

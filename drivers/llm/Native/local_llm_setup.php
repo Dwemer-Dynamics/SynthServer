@@ -1,6 +1,5 @@
 <?php
 
-require_once dirname(__DIR__, 3).'/lib/core' . '/llm_connector.class.php';
 require_once dirname(__DIR__, 3).'/lib' . '/settings.php';
 
 function synthLocalLlmServerCatalog(): array
@@ -159,14 +158,15 @@ function synthLocalLlmApplySetup(array $raw): array
     }
     try {
         // Serialize this wizard only, including concurrent requests from separate sessions.
-        if (!$db->query("SELECT pg_advisory_xact_lock(hashtext('synth_local_llm_setup'))")) {
+        if (!\Synth\Core\DbManager\Dao\LlmConnectorDao::current($db)->lockLocalSetup()) {
             throw new RuntimeException('Could not lock local model setup.');
         }
         $player2 = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'PLAYER2_FORCE_ALL_LLM')];
         if (synthLocalLlmBoolish($player2['value'] ?? false)) {
             throw new InvalidArgumentException('Turn off Use Player 2 for LLMs and save Quickstart before applying local routing.');
         }
-        $profiles = $db->fetchAll("SELECT id FROM core_profiles WHERE default_npc='1' OR default_narrator='1' FOR UPDATE");
+        $profileDao = \Synth\Core\DbManager\Dao\ProfileDao::current($db);
+        $profiles = $profileDao->lockDefaultIds();
         if (!$profiles) {
             throw new InvalidArgumentException('No default NPC or narrator profile exists. Configure a default profile first.');
         }
@@ -218,8 +218,7 @@ function synthLocalLlmApplySetup(array $raw): array
             $fields[] = 'diary_connector_id';
             $fields[] = 'llm_formatter_id';
         }
-        if (!$db->updateRow('core_profiles', array_fill_keys($fields, $id),
-            'id IN (' . implode(',', array_map(static fn($row) => intval($row['id']), $profiles)) . ')')) {
+        if (!$profileDao->routeConnectors($profiles, $fields, $id)) {
             throw new RuntimeException('Could not route default profile connectors.');
         }
         if ($setup['scope'] === 'all') {

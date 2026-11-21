@@ -1277,11 +1277,19 @@ final class RequestStreamingTest extends TestCase
             'turn_id'=>'turn:halt','generation'=>2,'runtime_variant'=>'flat','context_sequence'=>0,
             'client_version'=>'test','runtime_version'=>'1.11.240','type'=>'halt',
             'capabilities'=>['runtime.retirement'],'payload'=>new stdClass()];
-        $this->assertSame('accepted',synth_protocol_claim_request($db,$event)['status']);
-        $sql = implode("\n",$db->writes);
-        $this->assertStringContainsString('INSERT INTO public.core_runtime_session',$sql);
-        $this->assertStringContainsString("SET state='halted'",$sql);
-        $this->assertStringContainsString("WHERE session_id='session:retired'",$sql);
+        $calls = [];
+        DaoTestDoubles::claimRecorder($calls);
+        try {
+            $this->assertSame('accepted',synth_protocol_claim_request($db,$event)['status']);
+        } finally { DaoTestDoubles::resetClaim(); }
+        $byName = [];
+        foreach ($calls as [$name, $args]) $byName[$name][] = $args;
+        // The retirement registers the halted generation (an init-style upsert) and then halts the session.
+        $this->assertSame('session:retired', $byName['upsertInit'][0][0]);
+        $this->assertSame('unbound:flat', $byName['upsertInit'][0][1]);
+        $this->assertSame(2, $byName['upsertInit'][0][5]);
+        $this->assertSame([['session:retired']], $byName['halt']);
+        $this->assertSame(['session:retired', 2], array_slice($byName['cancelForHalt'][0], 0, 2));
         $this->assertSame('COMMIT',end($db->writes));
     }
 
@@ -1324,33 +1332,32 @@ final class RequestStreamingTest extends TestCase
             if ($negotiated) $caps[] = 'dialogue.turn_cancel';
             $db = new class($caps,$anchorEvent) {
                 public array $queries = [];
-                public function __construct(private array $caps,private array $anchorEvent) {}
                 public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
                 public function execQuery(string $sql): bool { $this->queries[]=$sql; return true; }
-                public function fetchOne(string $sql): ?array {
-                    $this->queries[]=$sql;
-                    if (str_contains($sql, 'pg_advisory_xact_lock')) return ['locked'=>true];
-                    if (str_contains($sql, 'FROM public.core_runtime_session r')) return [
-                        'active_generation'=>2,'state'=>'active','playthrough_id'=>'save:one',
-                        'runtime_variant'=>'flat','protocol_version'=>2,'capabilities'=>$this->caps];
-                    if (str_contains($sql, 'SELECT turn_id, canonical_event')) return [
-                        'turn_id'=>'turn:old','canonical_event'=>json_encode($this->anchorEvent,JSON_THROW_ON_ERROR)];
-                    return null;
-                }
             };
+            $calls = [];
+            DaoTestDoubles::claimRecorder($calls, [
+                'lockForClaim' => ['active_generation'=>2,'state'=>'active','playthrough_id'=>'save:one',
+                    'runtime_variant'=>'flat','protocol_version'=>2,'capabilities'=>$caps],
+                'findAnchor' => ['turn_id'=>'turn:old','canonical_event'=>json_encode($anchorEvent,JSON_THROW_ON_ERROR)]]);
             $event = ['protocol_version'=>2,'session_id'=>'session:one','request_id'=>'req:cancel',
                 'turn_id'=>'turn:cancel','generation'=>2,'runtime_variant'=>'flat','context_sequence'=>0,
                 'type'=>'cancel','capabilities'=>$caps,'payload'=>['cancel_request_id'=>'req:context']];
-            $this->assertSame('accepted', synth_protocol_claim_request($db,$event)['status']);
-            $sql = implode("\n",$db->queries);
-            $this->assertStringContainsString("session_id='session:one' AND request_id='req:context'",$sql);
+            try {
+                $this->assertSame('accepted', synth_protocol_claim_request($db,$event)['status']);
+            } finally { DaoTestDoubles::resetClaim(); }
+            $byName = [];
+            foreach ($calls as [$name, $args]) $byName[$name][] = $args;
+            // One call on the request row and one on its jobs.
+            $this->assertSame([['session:one', 2, 'req:context'], ['session:one', 2, 'req:context']], $byName['cancelRequest'] ?? []);
             if ($anchored) {
-                $this->assertStringContainsString("active_turn_id='turn:old' AND active_turn_sequence=7",$sql);
-                $this->assertStringContainsString("canonical_event->>'context_sequence'='7'",$sql);
-                $this->assertStringContainsString("COALESCE(payload->'protocol_event'->>'context_sequence',payload->>'context_sequence')='7'",$sql);
+                $this->assertSame([['session:one', 2, 'turn:old', 7]], $byName['clearTurn'] ?? []);
+                // Request and job cancellation are both scoped to the anchored turn and context sequence 7.
+                $this->assertSame(['session:one', 2, 'req:context', 'turn:old', 7], $byName['cancelTurn'][0] ?? null);
+                $this->assertSame(['session:one', 2, 'turn:old', 7], $byName['cancelTurn'][1] ?? null);
             } else {
-                $this->assertStringNotContainsString('active_turn_id=NULL',$sql);
-                if (!$negotiated) $this->assertStringNotContainsString('SELECT turn_id, canonical_event',$sql);
+                $this->assertArrayNotHasKey('clearTurn', $byName);
+                if (!$negotiated) $this->assertArrayNotHasKey('findAnchor', $byName);
             }
         }
     }
@@ -1396,7 +1403,7 @@ final class RequestStreamingTest extends TestCase
             'capabilities' => ['dialogue.turn_ownership'], 'type' => 'input_text'];
         try {
             $GLOBALS['db'] = $db;
-            DaoTestDoubles::ownerFrom($db);
+            DaoTestDoubles::outcomeFrom($db);
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $event + ['json' => $event];
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'] = true;
             $this->assertTrue(synth_protocol_owns_dialogue_turn($event));

@@ -28,13 +28,7 @@ $connectTimeout = synthDbSetting('SYNTH_DB_CONNECT_TIMEOUT', '90');
 // Initialize message variable
 $message = '';
 
-$connString = synthPgConnectionString($dbSettings) . ' connect_timeout=' . synthPgConnectionValue($connectTimeout);
-$conn = pg_connect($connString);
-
-if (!$conn) {
- echo "<div class='message'>Failed to connect to database: " . pg_last_error() . "</div>";
- exit;
-}
+$customBioDao = \Synth\Core\DbManager\Dao\NpcBiographyTemplateCustomDao::current(\Synth\Bootstrap::db());
 
 if (!function_exists('synthNormalizeBiographyRelationshipSeed')) {
  function synthNormalizeBiographyRelationshipSeed($value, &$errorMessage = '')
@@ -99,52 +93,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_individual']))
  . htmlspecialchars($relationshipError, ENT_QUOTES, 'UTF-8')
  . ".</p>";
  } elseif (!empty($npc_name) && !empty($core)) {
- $query = "
- INSERT INTO public.core_npc_biography_template_custom
- (npc_name, core, worldknowledge_tags, npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, voiceid, gender, race, refid)
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
- ON CONFLICT (npc_name)
- DO UPDATE SET
- core = EXCLUDED.core,
- worldknowledge_tags = EXCLUDED.worldknowledge_tags,
- npc_static_bio = EXCLUDED.npc_static_bio,
- personality = EXCLUDED.personality,
- appearance = EXCLUDED.appearance,
- relationships = EXCLUDED.relationships,
- occupation = EXCLUDED.occupation,
- skills = EXCLUDED.skills,
- speechstyle = EXCLUDED.speechstyle,
- goals = EXCLUDED.goals,
- voiceid = EXCLUDED.voiceid,
- gender = EXCLUDED.gender,
- race = EXCLUDED.race,
- refid = EXCLUDED.refid
- ";
-
- $params = [
- $npc_name,
- $core,
- $worldknowledge_tags,
- $npc_static_bio,
- $personality,
- $appearance,
- $relationships,
- $occupation,
- $skills,
- $speechstyle,
- $goals,
- $voiceid,
- $gender,
- $race,
- $refid
- ];
-
- $result = pg_query_params($conn, $query, $params);
+ try {
+ $customBioDao->upsert([
+ 'npc_name' => $npc_name,
+ 'core' => $core,
+ 'worldknowledge_tags' => $worldknowledge_tags,
+ 'npc_static_bio' => $npc_static_bio,
+ 'personality' => $personality,
+ 'appearance' => $appearance,
+ 'relationships' => $relationships,
+ 'occupation' => $occupation,
+ 'skills' => $skills,
+ 'speechstyle' => $speechstyle,
+ 'goals' => $goals,
+ 'voiceid' => $voiceid,
+ 'gender' => $gender,
+ 'race' => $race,
+ 'refid' => $refid,
+ ]);
+ $result = true;
+ } catch (\Throwable $upsertError) {
+ $result = false;
+ $upsertMessage = $upsertError->getMessage();
+ }
 
  if ($result) {
  $message .= "<p>NPC data inserted/updated successfully!</p>";
  } else {
- $message .= "<p>Error inserting/updating NPC data: " . pg_last_error($conn) . "</p>";
+ $message .= "<p>Error inserting/updating NPC data: " . $upsertMessage . "</p>";
  }
  } else {
  $message .= "<p>Please fill in all required fields: NPC Name and Summary Bio.</p>";
@@ -304,53 +280,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
  }
 
  // Insert into database
- $query = "
- INSERT INTO public.core_npc_biography_template_custom
- (npc_name, core, worldknowledge_tags, npc_static_bio, personality, appearance,
- relationships, occupation, skills, speechstyle, goals, voiceid, gender, race, refid)
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
- ON CONFLICT (npc_name)
- DO UPDATE SET
- core = EXCLUDED.core,
- worldknowledge_tags = EXCLUDED.worldknowledge_tags,
- npc_static_bio = EXCLUDED.npc_static_bio,
- personality = EXCLUDED.personality,
- appearance = EXCLUDED.appearance,
- relationships = EXCLUDED.relationships,
- occupation = EXCLUDED.occupation,
- skills = EXCLUDED.skills,
- speechstyle = EXCLUDED.speechstyle,
- goals = EXCLUDED.goals,
- voiceid = EXCLUDED.voiceid,
- gender = EXCLUDED.gender,
- race = EXCLUDED.race,
- refid = EXCLUDED.refid
- ";
-
- $params = [
- $npc_name,
- $core,
- $worldknowledge_tags,
- $npc_static_bio,
- $personality,
- $appearance,
- $relationships,
- $occupation,
- $skills,
- $speechstyle,
- $goals,
- $voiceid,
- $gender,
- $race,
- $refid
- ];
-
- $result = pg_query_params($conn, $query, $params);
+ try {
+ $customBioDao->upsert([
+ 'npc_name' => $npc_name,
+ 'core' => $core,
+ 'worldknowledge_tags' => $worldknowledge_tags,
+ 'npc_static_bio' => $npc_static_bio,
+ 'personality' => $personality,
+ 'appearance' => $appearance,
+ 'relationships' => $relationships,
+ 'occupation' => $occupation,
+ 'skills' => $skills,
+ 'speechstyle' => $speechstyle,
+ 'goals' => $goals,
+ 'voiceid' => $voiceid,
+ 'gender' => $gender,
+ 'race' => $race,
+ 'refid' => $refid,
+ ]);
+ $result = true;
+ } catch (\Throwable $upsertError) {
+ $result = false;
+ $upsertMessage = $upsertError->getMessage();
+ }
 
  if ($result) {
  $processedCount++;
  } else {
- $errors[] = "NPC '$npc_name': " . pg_last_error($conn);
+ $errors[] = "NPC '$npc_name': " . $upsertMessage;
  $errorCount++;
  }
  }
@@ -402,13 +359,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_csv'])) {
 //
 //
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['truncate_npc'])) {
- $truncateQuery = "TRUNCATE TABLE public.core_npc_biography_template_custom RESTART IDENTITY CASCADE";
- $truncateResult = pg_query($conn, $truncateQuery);
-
- if ($truncateResult) {
+ try {
+ $customBioDao->truncate();
  $message .= "<p style='color: #ff6464; font-weight: bold;'>The bio_templates_custom table has been emptied successfully.</p>";
- } else {
- $message .= "<p>Error emptying bio_templates_custom table: " . pg_last_error($conn) . "</p>";
+ } catch (\Throwable $truncateError) {
+ $message .= "<p>Error emptying bio_templates_custom table: " . $truncateError->getMessage() . "</p>";
  }
 }
 
@@ -444,18 +399,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_example') {
 //
 //
 if (isset($_GET['action']) && $_GET['action'] === 'export_custom_npcs') {
- // Query to get all custom NPC data
- $export_query = "
- SELECT
- npc_name, core, worldknowledge_tags,
- npc_static_bio, personality, appearance,
- relationships, occupation, skills,
- speechstyle, goals, voiceid, gender, race, refid
- FROM public.core_npc_biography_template_custom
- ORDER BY npc_name ASC
- ";
-
- $export_result = pg_query($conn, $export_query);
+ try {
+ $export_result = $customBioDao->exportRows();
+ $exportError = '';
+ } catch (\Throwable $exportFailure) {
+ $export_result = false;
+ $exportError = $exportFailure->getMessage();
+ }
 
  if ($export_result) {
  // Set headers for CSV download
@@ -483,7 +433,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom_npcs') {
  fputcsv($output, $csv_headers);
 
  // Write data rows
- while ($row = pg_fetch_assoc($export_result)) {
+ foreach ($export_result as $row) {
  $csv_row = [
  $row['npc_name'] ?? '',
  $row['core'] ?? '',
@@ -507,7 +457,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_custom_npcs') {
  fclose($output);
  exit;
  } else {
- $message .= '<p>Error exporting custom NPC data: ' . pg_last_error($conn) . '</p>';
+ $message .= '<p>Error exporting custom NPC data: ' . $exportError . '</p>';
  }
 }
 
@@ -894,52 +844,15 @@ $formAction = $currentLetter ? "?letter={$currentLetter}#table" : "?#table";
  $letter = isset($_GET['letter']) ? strtoupper($_GET['letter']) : '';
  $searchTerm = isset($_GET['search']) ? strtolower(trim($_GET['search'])) : '';
 
- // Build query based on filters
- if (!empty($letter) && ctype_alpha($letter) && strlen($letter) === 1) {
- if (!empty($searchTerm)) {
- // Filter by both letter and search term
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_bio_templates
- WHERE LOWER(npc_name) LIKE LOWER($1)
- AND LOWER(npc_name) LIKE LOWER($2)
- ORDER BY npc_name ASC
- ";
- $params_combined = [$letter . '%', '%' . $searchTerm . '%'];
- } else {
- // Filter by letter only
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_bio_templates
- WHERE LOWER(npc_name) LIKE LOWER($1)
- ORDER BY npc_name ASC
- ";
- $params_combined = [$letter . '%'];
+ $filterLetter = (!empty($letter) && ctype_alpha($letter) && strlen($letter) === 1) ? $letter : '';
+ $filterSearch = !empty($searchTerm) ? $searchTerm : '';
+ try {
+ $result_combined = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current(\Synth\Bootstrap::db())->searchCombined($filterLetter, $filterSearch);
+ $combinedError = '';
+ } catch (\Throwable $combinedFailure) {
+ $result_combined = false;
+ $combinedError = $combinedFailure->getMessage();
  }
- } else {
- if (!empty($searchTerm)) {
- // Filter by search term only
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_bio_templates
- WHERE LOWER(npc_name) LIKE LOWER($1)
- ORDER BY npc_name ASC
- ";
- $params_combined = ['%' . $searchTerm . '%'];
- } else {
- // No filters
- $query_combined = "
- SELECT *
- FROM {$schema}.combined_bio_templates
- ORDER BY npc_name ASC
- ";
- $params_combined = [];
- }
- }
-
- $result_combined = !empty($params_combined)
- ? pg_query_params($conn, $query_combined, $params_combined)
- : pg_query($conn, $query_combined);
 
  echo '<br>';
  // Wrap the NPC Templates Database section in a div for indentation
@@ -978,7 +891,7 @@ $formAction = $currentLetter ? "?letter={$currentLetter}#table" : "?#table";
  echo '</tr>';
 
  $rowCountCombined = 0;
- while ($row = pg_fetch_assoc($result_combined)) {
+ foreach ($result_combined as $row) {
  echo '<tr>';
  echo ' <td>' . htmlspecialchars($row['npc_name'] ?? '') . '</td>';
  echo ' <td style="max-width: 250px; word-wrap: break-word;">' . nl2br(htmlspecialchars(substr($row['core'] ?? '', 0, 200))) . (strlen($row['core'] ?? '') > 200 ? '...' : '') . '</td>';
@@ -1077,7 +990,7 @@ $formAction = $currentLetter ? "?letter={$currentLetter}#table" : "?#table";
  echo '<p>No NPCs found.</p>';
  }
  } else {
- echo '<p>Error fetching combined NPC templates: ' . pg_last_error($conn) . '</p>';
+ echo '<p>Error fetching combined NPC templates: ' . $combinedError . '</p>';
  }
 
  echo '</div>';

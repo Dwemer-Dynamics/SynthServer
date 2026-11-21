@@ -79,15 +79,10 @@ try {
     $db = \Synth\Bootstrap::boot(rtrim($enginePath, DIRECTORY_SEPARATOR))->db;
     if ($method === 'GET') {
         // Context for an explicit choice only: no session is preselected, and POST re-checks the exact generation.
-        [$mode, $rows] = $db->withManagementTransaction(static function($connection) {
+        [$mode, $rows] = $db->withManagementTransaction(static function($connection) use ($db) {
             synth_audience_lock_gate($connection, false);
             $mode = \Synth\Managers\ConfigManager\ConfigManager::shared()->get('conf', 'synth_mode');
-            $rows = pg_fetch_all(synth_audience_query($connection,
-                "SELECT session_id, active_generation, runtime_variant, playthrough_id, client_version,
-                        audience_intent, audience_reset_epoch
-                   FROM public.core_runtime_session
-                  WHERE state='active' AND capabilities ? 'dialogue.everyone'
-                  ORDER BY session_id LIMIT 17", []));
+            $rows = \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->activeAudienceSessions(17);
             return [$mode ?? 'STANDARD', $rows];
         });
         $sessions = array_map(static fn(array $row) => [
@@ -102,9 +97,9 @@ try {
             'sessions' => $sessions, 'truncated' => count($rows) > 16]);
     }
     // Lock order: shared audience gate, then the session advisory lock, then the module's row lock.
-    $saved = $db->withManagementTransaction(static function($connection) use ($sessionId, $generation, $intent) {
+    $saved = $db->withManagementTransaction(static function($connection) use ($db, $sessionId, $generation, $intent) {
         synth_audience_lock_gate($connection, false);
-        synth_audience_query($connection, 'SELECT pg_advisory_xact_lock(hashtext($1))', [$sessionId]);
+        \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->lockSessionAdvisory($sessionId);
         return synth_audience_set($connection, $sessionId, $generation, $intent);
     });
     synthAudienceRespond(['ok' => true, 'server_saved' => true, 'session_id' => $sessionId,

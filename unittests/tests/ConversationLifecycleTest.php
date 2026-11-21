@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/lib/request.php';
 require_once dirname(__DIR__, 2) . '/lib/response.php';
 require_once dirname(__DIR__, 2) . '/managers/Conversation/ConversationManager.php';
 require_once dirname(__DIR__, 2) . '/api/v2/dispatch.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 use Synth\Core\UtteranceRepository;
 use Synth\Managers\ReceiptManager;
@@ -16,6 +17,11 @@ use Synth\Managers\SessionManager;
 // behaviour on both dialogue lanes is covered end to end by the loopback conversation scenario.
 final class ConversationLifecycleTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::reset();
+    }
+
     private function fixture(string $name): array
     {
         return json_decode(file_get_contents(dirname(__DIR__, 2).'/protocol/v2/fixtures/'.$name), true, flags: JSON_THROW_ON_ERROR);
@@ -132,6 +138,7 @@ final class ConversationLifecycleTest extends TestCase
     {
         $event = $this->fixture('valid/cancel-conversation.json');
         $db = $this->recordingDb();
+        DaoTestDoubles::conversationFrom($db);
         $ids = \Synth\Managers\Conversation\ConversationManager::cancel($db, $event, $db->escapeLiteral($event['session_id']), $event['generation']);
         $this->assertSame(['req-text-3'], $ids);
         $sql = implode("\n", $db->queries);
@@ -150,6 +157,7 @@ final class ConversationLifecycleTest extends TestCase
         $other = $this->fixture('valid/cancel-conversation.json');
         $other['payload']['conversation_id'] = 'b8e2a470-1c9d-4f63-a5e8-0d7c3b6a2f94';
         $second = $this->recordingDb();
+        DaoTestDoubles::conversationFrom($second);
         \Synth\Managers\Conversation\ConversationManager::cancel($second, $other, $second->escapeLiteral($other['session_id']), $other['generation']);
         $this->assertStringContainsString("'b8e2a470-1c9d-4f63-a5e8-0d7c3b6a2f94'", implode("\n", $second->queries));
         $this->assertStringNotContainsString($event['payload']['conversation_id'], implode("\n", $second->queries));
@@ -158,6 +166,7 @@ final class ConversationLifecycleTest extends TestCase
     public function testHistoryRankPreferenceExistsOnlyForANegotiatedConversation(): void
     {
         $db = $this->recordingDb();
+        DaoTestDoubles::conversationFrom($db);
         $text = $this->fixture('valid/input-text-conversation.json');
         $rank = \Synth\Managers\Conversation\ConversationManager::rankSql($db, $text);
         $this->assertStringContainsString("conv_e.canonical_event#>>'{payload,conversation_id}'='".$text['payload']['conversation_id']."'", $rank);
