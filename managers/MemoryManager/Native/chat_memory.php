@@ -5,16 +5,16 @@
 
 function returnLines($lines,$writeOutput=true,$modelResponse=false)
 {
-    global $db, $startTime, $forceMood, $staticMood, $talkedSoFar, $FORCED_STOP, $TRANSFORMER_FUNCTION,$receivedData;
+    $db = &\Synth\Bootstrap::ref('db'); $startTime = &\Synth\Bootstrap::ref('startTime'); $forceMood = &\Synth\Bootstrap::ref('forceMood'); $staticMood = &\Synth\Bootstrap::ref('staticMood'); $talkedSoFar = &\Synth\Bootstrap::ref('talkedSoFar'); $FORCED_STOP = &\Synth\Bootstrap::ref('FORCED_STOP'); $TRANSFORMER_FUNCTION = &\Synth\Bootstrap::ref('TRANSFORMER_FUNCTION'); $receivedData = &\Synth\Bootstrap::ref('receivedData');
 
     $canonSpeechPolicy=synth_character_current_speech_policy();
     $canonSpeechEmitted=(bool)(\Synth\Bootstrap::config('SYNTH_CANONICAL_SPEECH_EMITTED') ?? false);
     $lines=synth_character_constrain_lines($lines,$canonSpeechPolicy,$canonSpeechEmitted);
-    $GLOBALS['SYNTH_CANONICAL_SPEECH_EMITTED']=$canonSpeechEmitted;
+    \Synth\Bootstrap::set('SYNTH_CANONICAL_SPEECH_EMITTED', $canonSpeechEmitted);
 
     $inlineNarrationMode = getInlineNarrationMode();
     $inlineNarrationEnabled = $inlineNarrationMode !== 'disabled';
-    $preserveAsterisksInContext = isset($GLOBALS["PRESERVE_ASTERISKS_IN_CONTEXT"]) ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
+    $preserveAsterisksInContext = \Synth\Bootstrap::has('PRESERVE_ASTERISKS_IN_CONTEXT') ? (bool)\Synth\Bootstrap::config("PRESERVE_ASTERISKS_IN_CONTEXT") : false;
 
     // If inline narration is enabled, recombine split narration sentences
     if ($inlineNarrationEnabled) {
@@ -52,7 +52,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             continue;
 
         // Remove actions
-        if (isset($GLOBALS["startTimeAfterPlayerTTTS"]))
+        if (\Synth\Bootstrap::has('startTimeAfterPlayerTTTS'))
             $elapsedTimeAI= microtime(true) - \Synth\Bootstrap::config("startTimeAfterPlayerTTTS");
         else
             $elapsedTimeAI= microtime(true) - $startTime;
@@ -121,7 +121,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
         if (isset($forceMood)) {
             $mood = $forceMood;
-        } elseif (isset($GLOBALS["LAST_LLM_RESPONSE"]["mood"]) && !empty($GLOBALS["LAST_LLM_RESPONSE"]["mood"])) {
+        } elseif (isset(\Synth\Bootstrap::config('LAST_LLM_RESPONSE')["mood"]) && !empty(\Synth\Bootstrap::config('LAST_LLM_RESPONSE')["mood"])) {
             // Use mood from JSON response (set by connector)
             $mood = trim(\Synth\Bootstrap::config("LAST_LLM_RESPONSE")["mood"]);
         } elseif (!empty($matches) && !empty($matches[1]) && isset($matches[1][0])) {
@@ -137,7 +137,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             $staticMood = $mood;
         }
 
-        if (isset($GLOBALS["FORCE_MOOD"])) {
+        if (\Synth\Bootstrap::has('FORCE_MOOD')) {
             $mood = \Synth\Bootstrap::config("FORCE_MOOD");
         }
         $mood = extractFirstEmoteMood($mood, "default");
@@ -194,18 +194,18 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         $pendingNpcTtsPlan = null;
         $npcTtsGeneratedBeforeEmit = false;
 
-        if (isset($GLOBALS["FEATURES"]["MISC"]["TTS_RANDOM_PITCH"])&&(\Synth\Bootstrap::config("FEATURES")["MISC"]["TTS_RANDOM_PITCH"])) {
+        if (isset(\Synth\Bootstrap::config('FEATURES')["MISC"]["TTS_RANDOM_PITCH"])&&(\Synth\Bootstrap::config("FEATURES")["MISC"]["TTS_RANDOM_PITCH"])) {
             $random_per_character=sprintf('%u', crc32(\Synth\Bootstrap::config("SYNTH_NAME"))); // Unsigned integer
             $pitch=$random_per_character%5;
 
             if ($pitch==0)
-                $GLOBALS["TTS_FFMPEG_FILTERS"]["rubberband"]="rubberband=pitch=1.02";
+                \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "rubberband", "rubberband=pitch=1.02");
             if ($pitch==1)
-                $GLOBALS["TTS_FFMPEG_FILTERS"]["rubberband"]="rubberband=pitch=0.98";
+                \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "rubberband", "rubberband=pitch=0.98");
             if ($pitch==2)
-                $GLOBALS["TTS_FFMPEG_FILTERS"]["rubberband"]="rubberband=pitch=1.01";
+                \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "rubberband", "rubberband=pitch=1.01");
             if ($pitch==3)
-                $GLOBALS["TTS_FFMPEG_FILTERS"]["rubberband"]="rubberband=pitch=0.99";
+                \Synth\Bootstrap::setAt('TTS_FFMPEG_FILTERS', "rubberband", "rubberband=pitch=0.99");
             if ($pitch==4)
                 ;
         }
@@ -262,8 +262,8 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                         try {
                             // Switch to Narrator voice
                             loadNarratorVoiceSettings();
-                            $GLOBALS["SYNTH_NAME"] = "The Narrator";
-                            $GLOBALS['SYNTH_SPEECH_ROLE'] = 'narrator';
+                            \Synth\Bootstrap::set('SYNTH_NAME', "The Narrator");
+                            \Synth\Bootstrap::set('SYNTH_SPEECH_ROLE', 'narrator');
 
                             Logger::info("[INLINE_NARRATION] Switched to Narrator, voice settings loaded");
 
@@ -285,13 +285,13 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
                             // Track narrator TTS output
                             if ($narratorTtsOutput) {
-                                $GLOBALS["TRACK"]["FILES_GENERATED"][] = $narratorTtsOutput;
+                                \Synth\Bootstrap::appendPath('TRACK', ["FILES_GENERATED"], $narratorTtsOutput);
                                 Logger::info("[INLINE_NARRATION] Narrator TTS generated: " . $narratorTtsOutput);
 
                                 // Output narrator speech to game immediately
                                 if ($writeOutput) {
                                     // Use the same format as the main output at line 1093
-                                    $narratorListener = isset($GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]) ? \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC") : "";
+                                    $narratorListener = \Synth\Bootstrap::has('SCRIPTLINE_LISTENER_ATOMIC') ? \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC") : "";
                                     $narratorExpression = ""; // No expression for narrator
                                     $narratorAnimation = ""; // No animation for narrator
 
@@ -316,9 +316,9 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 } finally {
                     // Always restore the NPC voice, including after narrator connector failures.
                     restoreVoiceSettings($savedVoiceSettings);
-                    $GLOBALS["SYNTH_NAME"] = $savedSYNTHName;
-                    if ($hadSpeechRole) $GLOBALS['SYNTH_SPEECH_ROLE']=$savedSpeechRole;
-                    else unset($GLOBALS['SYNTH_SPEECH_ROLE']);
+                    \Synth\Bootstrap::set('SYNTH_NAME', $savedSYNTHName);
+                    if ($hadSpeechRole) \Synth\Bootstrap::set('SYNTH_SPEECH_ROLE', $savedSpeechRole);
+                    else \Synth\Bootstrap::forget('SYNTH_SPEECH_ROLE');
                 }
 
                 // Now generate TTS for the NPC's dialogue (if any)
@@ -364,7 +364,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         }
 
         if ($shouldEmitNpcLine) {
-            Logger::info("Speech sent for {$GLOBALS["SYNTH_NAME"]}, generator {$GLOBALS["TTSFUNCTION"]}, size: ".strlen($responseText). "  '".substr($responseText,0,10)."'");
+            Logger::info(("Speech sent for " . \Synth\Bootstrap::config('SYNTH_NAME') . ", generator " . \Synth\Bootstrap::config('TTSFUNCTION') . ", size: ").strlen($responseText). "  '".substr($responseText,0,10)."'");
         } else {
             Logger::info("[INLINE_NARRATION] No NPC dialogue line queued.");
         }
@@ -381,42 +381,42 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         if ($writeOutput && $shouldEmitNpcLine) {
 
             if (true) {
-                 if (isset($GLOBALS["SCRIPTLINE_ANIMATION_SENT"]) && \Synth\Bootstrap::config("SCRIPTLINE_ANIMATION_SENT"))
-                     $GLOBALS["SCRIPTLINE_ANIMATION"]="";
+                 if (\Synth\Bootstrap::has('SCRIPTLINE_ANIMATION_SENT') && \Synth\Bootstrap::config("SCRIPTLINE_ANIMATION_SENT"))
+                     \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "");
                 else {
                     if ((rand(0,5)==0)){ // Will disable animations, 20% chance to trigger
-                        $GLOBALS["SCRIPTLINE_ANIMATION"]="IdleDialogueExpressiveStart";
+                        \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION', "IdleDialogueExpressiveStart");
                     }
-                    $GLOBALS["SCRIPTLINE_ANIMATION_SENT"]=true;
+                    \Synth\Bootstrap::set('SCRIPTLINE_ANIMATION_SENT', true);
                 }
 
                 // SYNTH_ANIMATIONS is now always enabled (controlled via MCM in-game)
                 // Removed profile configuration option as it's redundant with MCM control
 
                 if (is_array(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER")) && sizeof(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER")) > 0 && is_string(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER")[0])) {
-                    $GLOBALS["SCRIPTLINE_LISTENER"]=\Synth\Bootstrap::config("SCRIPTLINE_LISTENER")[0];
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER")[0]);
                     Logger::info("GLOBALS['SCRIPTLINE_LISTENER'] seems to be an array!");
 
                 }
 
                 $strictRechatListener = synthGetStrictRechatListenerName();
                 if ($strictRechatListener !== "") {
-                    $GLOBALS["SCRIPTLINE_LISTENER"] = $strictRechatListener;
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $strictRechatListener);
                 }
 
                 $strictDirectedPlayerListener = synthGetStrictDirectedPlayerListenerName();
                 if ($strictDirectedPlayerListener !== "") {
-                    $GLOBALS["SCRIPTLINE_LISTENER"] = $strictDirectedPlayerListener;
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER', $strictDirectedPlayerListener);
                 }
 
 
                 $listenerFix=explode(" and ",\Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
                 // Don't touch original one
-                $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=\Synth\Bootstrap::config("SCRIPTLINE_LISTENER");
-                $GLOBALS["SCRIPTLINE_RECHAT_TARGET"]=\Synth\Bootstrap::config("SCRIPTLINE_LISTENER");
+                \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
+                \Synth\Bootstrap::set('SCRIPTLINE_RECHAT_TARGET', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
 
                 if (is_array($listenerFix) && (sizeof($listenerFix)>1)) {
-                    $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=trim($listenerFix[0]);
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', trim($listenerFix[0]));
                 }
 
                 $listenerFix2=parseDialogueListenerNames(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER"));
@@ -426,13 +426,13 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 $listenerFix2 = array_values(array_unique(array_filter(array_map('normalizeDialogueListenerName', $listenerFix2))));
 
                 if (is_array($listenerFix2) && (sizeof($listenerFix2)>1)) {
-                    if (!isset($GLOBALS["SCRIPTLINE_LISTENER_CYCLE"])) {
-                        $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]=0;
+                    if (!\Synth\Bootstrap::has('SCRIPTLINE_LISTENER_CYCLE')) {
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', 0);
                     } else
-                        $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]++;
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', (\Synth\Bootstrap::config('SCRIPTLINE_LISTENER_CYCLE') ?? 0) + 1);
 
                     if (\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_CYCLE")>(sizeof($listenerFix2)-1))
-                        $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]=sizeof($listenerFix2)-1;
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', sizeof($listenerFix2)-1);
 
                     // Code to fix multiple listener issues
                     // Arrays to store positions of found names
@@ -454,32 +454,32 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                         // Sort positions to find the first mentioned name
                         asort($positions); // Ascending order by position
                         $listener = array_key_first($positions); // Get the name of the first mentioned
-                        $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=trim($listener);
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', trim($listener));
                         // Sort positions to find the last mentioned index
                         arsort($positionsWithIndex); // Descending order by position
                         $nextListener = array_key_first($positionsWithIndex); // Get the index of the last mentioned name
                         if ($nextListener>0)
-                            $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]=$nextListener-1;  // Next round will use this speaker if no refernce found.
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', $nextListener-1);  // Next round will use this speaker if no refernce found.
                         else
-                            $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]=$nextListener;
+                            \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', $nextListener);
                         // Test
-                        $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]=$nextListener;
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_CYCLE', $nextListener);
                         // Output results
-                        Logger::info("Applying smarter listenerFix2: $listener {$listenerFix2["$nextListener"]} {$GLOBALS["SCRIPTLINE_LISTENER"]} {$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]} {$GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]}");
+                        Logger::info(("Applying smarter listenerFix2: $listener {$listenerFix2["$nextListener"]} " . \Synth\Bootstrap::config('SCRIPTLINE_LISTENER') . " " . \Synth\Bootstrap::config('SCRIPTLINE_LISTENER_ATOMIC') . " " . \Synth\Bootstrap::config('SCRIPTLINE_LISTENER_CYCLE')));
 
                     } else {
                         $listener=$listenerFix2[\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_CYCLE")];
-                        $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=trim($listener);
+                        \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', trim($listener));
                     }
 
-                    $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]=normalizeDialogueListenerName(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"));
-                    //$GLOBALS["SCRIPTLINE_LISTENER"]=trim($listenerFix2[ $GLOBALS["SCRIPTLINE_LISTENER_CYCLE"]]);
-                    // $GLOBALS["SCRIPTLINE_LISTENER"] = trim($listenerFix2[array_rand($listenerFix2)]); // Random
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', normalizeDialogueListenerName(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC")));
+                    //\Synth\Bootstrap::config("SCRIPTLINE_LISTENER")=trim($listenerFix2[ \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_CYCLE")]);
+                    // \Synth\Bootstrap::config("SCRIPTLINE_LISTENER") = trim($listenerFix2[array_rand($listenerFix2)]); // Random
 
 
                 }
                 else {
-                    $GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"] = normalizeDialogueListenerName(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"));
+                    \Synth\Bootstrap::set('SCRIPTLINE_LISTENER_ATOMIC', normalizeDialogueListenerName(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC")));
                 }
 
                 $speakerName = normalizeDialogueListenerName($outBuffer["actor"] ?? "");
@@ -518,17 +518,17 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
                 if (!in_array(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"), $normalizedNearby, true) &&
                     !isPlayerDialogueListenerName(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"))) {
-                    Logger::info("Atomic listener {$GLOBALS["SCRIPTLINE_LISTENER_ATOMIC"]} not nearby; preserving playback target. Raw listener={$GLOBALS["SCRIPTLINE_LISTENER"]}");
+                    Logger::info(("Atomic listener " . \Synth\Bootstrap::config('SCRIPTLINE_LISTENER_ATOMIC') . " not nearby; preserving playback target. Raw listener=" . \Synth\Bootstrap::config('SCRIPTLINE_LISTENER')));
                 }
 
                 if ($rechatTarget !== "") {
-                    $GLOBALS["SCRIPTLINE_RECHAT_TARGET"] = $rechatTarget;
+                    \Synth\Bootstrap::set('SCRIPTLINE_RECHAT_TARGET', $rechatTarget);
                 } else {
-                    $GLOBALS["SCRIPTLINE_RECHAT_TARGET"] = \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC");
+                    \Synth\Bootstrap::set('SCRIPTLINE_RECHAT_TARGET', \Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"));
                 }
 
                 $currentUtteranceId = synthGenerateUtteranceId();
-                $GLOBALS["SCRIPTLINE_UTTERANCE_ID"] = $currentUtteranceId;
+                \Synth\Bootstrap::set('SCRIPTLINE_UTTERANCE_ID', $currentUtteranceId);
 
                 $responseTextPhonetic = "";
 
@@ -536,7 +536,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
 
                 $responseStreamingRequested = function_exists('synth_response_stream_requested')
                     ? synth_response_stream_requested()
-                    : !empty($GLOBALS["SYNTH_RESPONSE_STREAMING"]);
+                    : !empty(\Synth\Bootstrap::config('SYNTH_RESPONSE_STREAMING'));
                 $jsonStreamingEnabled = function_exists('synth_json_streaming_enabled') && synth_json_streaming_enabled();
                 $generateNpcTtsBeforeEmit = function_exists('synth_should_generate_npc_tts_before_emit')
                     ? synth_should_generate_npc_tts_before_emit()
@@ -554,16 +554,16 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                     $ttsReady=synth_finish_immediate_npc_tts($pendingNpcTtsCacheKey,$ttsOutput,(string)\Synth\Bootstrap::config('SYNTH_NAME'),$currentUtteranceId);
 
                     if ($ttsReady) {
-                        $GLOBALS["TRACK"]["FILES_GENERATED"][] = $ttsOutput;
+                        \Synth\Bootstrap::appendPath('TRACK', ["FILES_GENERATED"], $ttsOutput);
                         $npcTtsGeneratedBeforeEmit = true;
-                        Logger::info("[TTS] Generated before JSON emit for {$GLOBALS["SYNTH_NAME"]}: {$ttsOutput}");
+                        Logger::info(("[TTS] Generated before JSON emit for " . \Synth\Bootstrap::config('SYNTH_NAME') . ": {$ttsOutput}"));
                         Logger::phaseEnd($phaseName, [
                             "status" => "ok",
                             "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
                             "output" => $ttsOutput,
                         ], "info");
                     } else {
-                        Logger::warn("[TTS] No audio generated before JSON emit for {$GLOBALS["SYNTH_NAME"]}");
+                        Logger::warn(("[TTS] No audio generated before JSON emit for " . \Synth\Bootstrap::config('SYNTH_NAME')));
                         Logger::phaseEnd($phaseName, [
                             "status" => "failed",
                             "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
@@ -579,7 +579,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                             'speaker' => strval($outBuffer['actor']),
                         ], dirname(__DIR__, 3));
                     }
-                    Logger::info("[TTS] Streaming response: emitting line before NPC TTS generation for {$GLOBALS["SYNTH_NAME"]}: {$pendingNpcTtsCacheKey}" . Logger::formatContext([
+                    Logger::info(("[TTS] Streaming response: emitting line before NPC TTS generation for " . \Synth\Bootstrap::config('SYNTH_NAME') . ": {$pendingNpcTtsCacheKey}") . Logger::formatContext([
                         "stream_requested" => $responseStreamingRequested ? 1 : 0,
                         "json_streaming" => $jsonStreamingEnabled ? 1 : 0,
                         "response_format" => \Synth\Bootstrap::config("SYNTH_RESPONSE_FORMAT") ?? "",
@@ -600,7 +600,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 );
                 synth_relationship_capture_route($relationshipLineToken,(string)\Synth\Bootstrap::config("SCRIPTLINE_LISTENER_ATOMIC"),$currentUtteranceId);
 
-                $GLOBALS["DEBUG_DATA"]["OUTPUT_LOG"] = json_encode([
+                \Synth\Bootstrap::setAt('DEBUG_DATA', "OUTPUT_LOG", json_encode([
                     "speaker" => (string)$outBuffer["actor"],
                     "action" => "say",
                     "text" => $responseForSubtitles,
@@ -613,7 +613,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                         "rechat_target" => (string)\Synth\Bootstrap::config("SCRIPTLINE_RECHAT_TARGET"),
                         "utterance_id" => $currentUtteranceId,
                     ],
-                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL);
 
                 $outputToPluginLog = dirname(__DIR__, 3).'/lib'."/../log/output_to_plugin.log";
                 if (class_exists('Logger')) {
@@ -639,7 +639,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         $deferNpcTts = synth_should_defer_speech_tts($pendingNpcTtsPlan);
 
         if ($npcTtsGeneratedBeforeEmit) {
-            Logger::info("[TTS] Skipping deferred/immediate post-emit TTS because audio was prepared before JSON emit for {$GLOBALS["SYNTH_NAME"]}: {$pendingNpcTtsCacheKey}");
+            Logger::info(("[TTS] Skipping deferred/immediate post-emit TTS because audio was prepared before JSON emit for " . \Synth\Bootstrap::config('SYNTH_NAME') . ": {$pendingNpcTtsCacheKey}"));
         } elseif ($pendingNpcTtsText !== "" && $pendingNpcTtsCacheKey !== "" && $deferNpcTts) {
             $streamingMode = function_exists('synth_response_stream_requested')
                 ? synth_response_stream_requested()
@@ -651,7 +651,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 ? synth_protocol_response_speaker((string)\Synth\Bootstrap::config("SYNTH_NAME"))
                 : null;
             $speakerIdentityId = is_array($speakerIdentity) && !isset($speakerIdentity['kind'])
-                && function_exists('synth_protocol_actor_identity_id') && isset($GLOBALS['db'])
+                && function_exists('synth_protocol_actor_identity_id') && \Synth\Bootstrap::has('db')
                     ? synth_protocol_actor_identity_id(\Synth\Bootstrap::db(), $speakerIdentity)
                     : null;
             $deferredEntry = [
@@ -671,12 +671,12 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             ];
             $spawnedWorker = $streamingMode && synth_spawn_deferred_npc_tts_worker($deferredEntry);
             if (!$spawnedWorker) {
-                if (!isset($GLOBALS["SYNTH_DEFERRED_TTS"]) || !is_array(\Synth\Bootstrap::config("SYNTH_DEFERRED_TTS"))) {
-                    $GLOBALS["SYNTH_DEFERRED_TTS"] = [];
+                if (!\Synth\Bootstrap::has('SYNTH_DEFERRED_TTS') || !is_array(\Synth\Bootstrap::config("SYNTH_DEFERRED_TTS"))) {
+                    \Synth\Bootstrap::set('SYNTH_DEFERRED_TTS', []);
                 }
-                $GLOBALS["SYNTH_DEFERRED_TTS"][] = $deferredEntry;
+                \Synth\Bootstrap::append('SYNTH_DEFERRED_TTS', $deferredEntry);
             }
-            Logger::info("[TTS] Deferred JSON-mode TTS for {$GLOBALS["SYNTH_NAME"]}: {$pendingNpcTtsCacheKey} mode=" . ($streamingMode ? "streaming" : "buffered"));
+            Logger::info(("[TTS] Deferred JSON-mode TTS for " . \Synth\Bootstrap::config('SYNTH_NAME') . ": {$pendingNpcTtsCacheKey} mode=") . ($streamingMode ? "streaming" : "buffered"));
         } elseif ($pendingNpcTtsText !== "" && $pendingNpcTtsCacheKey !== "") {
             $phaseName = "npc_tts_immediate:" . substr(md5((\Synth\Bootstrap::config("SYNTH_NAME") ?? "") . "|" . $pendingNpcTtsCacheKey), 0, 8);
             Logger::phaseStart($phaseName, [
@@ -689,15 +689,15 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
             $ttsReady=synth_finish_immediate_npc_tts($pendingNpcTtsCacheKey,$ttsOutput,(string)\Synth\Bootstrap::config('SYNTH_NAME'),strval(\Synth\Bootstrap::config('SCRIPTLINE_UTTERANCE_ID') ?? ''));
 
             if ($ttsReady) {
-                $GLOBALS["TRACK"]["FILES_GENERATED"][] = $ttsOutput;
-                Logger::info("[TTS] Generated after response emit for {$GLOBALS["SYNTH_NAME"]}: {$ttsOutput}");
+                \Synth\Bootstrap::appendPath('TRACK', ["FILES_GENERATED"], $ttsOutput);
+                Logger::info(("[TTS] Generated after response emit for " . \Synth\Bootstrap::config('SYNTH_NAME') . ": {$ttsOutput}"));
                 Logger::phaseEnd($phaseName, [
                     "status" => "ok",
                     "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
                     "output" => $ttsOutput,
                 ], "info");
             } else {
-                Logger::warn("[TTS] No audio generated after response emit for {$GLOBALS["SYNTH_NAME"]}");
+                Logger::warn(("[TTS] No audio generated after response emit for " . \Synth\Bootstrap::config('SYNTH_NAME')));
                 Logger::phaseEnd($phaseName, [
                     "status" => "failed",
                     "speaker" => \Synth\Bootstrap::config("SYNTH_NAME") ?? "",
@@ -709,7 +709,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
         $elapsedTimeTTS=microtime(true) - $startTime;
 
 
-        if (!isset($GLOBALS["PATCH_DONT_STORE_SPEECH_ON_DB"])) {
+        if (!\Synth\Bootstrap::has('PATCH_DONT_STORE_SPEECH_ON_DB')) {
             $escapeLogValue = static function ($value) use ($db) {
                 $value = (string)$value;
                 if (method_exists($db, 'escape')) {
@@ -740,8 +740,8 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 if (!defined('SHOUTING_DISTANCE_THRESHOLD')) {
                     define('SHOUTING_DISTANCE_THRESHOLD', 800);
                 }
-                $distance = isset($GLOBALS["LAST_SPEECH_DISTANCE"]) ? \Synth\Bootstrap::config("LAST_SPEECH_DISTANCE") : 0.0;
-                $incomingSpatialVolume = isset($GLOBALS["LAST_SPEECH_VOLUME"]) ? floatval(\Synth\Bootstrap::config("LAST_SPEECH_VOLUME")) : null;
+                $distance = \Synth\Bootstrap::has('LAST_SPEECH_DISTANCE') ? \Synth\Bootstrap::config("LAST_SPEECH_DISTANCE") : 0.0;
+                $incomingSpatialVolume = \Synth\Bootstrap::has('LAST_SPEECH_VOLUME') ? floatval(\Synth\Bootstrap::config("LAST_SPEECH_VOLUME")) : null;
                 if (($incomingSpatialVolume !== null && $incomingSpatialVolume < 0.35) || $distance > SHOUTING_DISTANCE_THRESHOLD) {
                     $addonlistener = buildDialogueTargetSuffix(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER"), true);
                 } else {
@@ -762,7 +762,7 @@ function returnLines($lines,$writeOutput=true,$modelResponse=false)
                 if (!defined('SHOUTING_DISTANCE_THRESHOLD')) {
                     define('SHOUTING_DISTANCE_THRESHOLD', 800);
                 }
-                $distance = isset($GLOBALS["LAST_SPEECH_DISTANCE"]) ? \Synth\Bootstrap::config("LAST_SPEECH_DISTANCE") : 0.0;
+                $distance = \Synth\Bootstrap::has('LAST_SPEECH_DISTANCE') ? \Synth\Bootstrap::config("LAST_SPEECH_DISTANCE") : 0.0;
                 if ($distance > SHOUTING_DISTANCE_THRESHOLD) {
                     $addonlistener = buildDialogueTargetSuffix(\Synth\Bootstrap::config("SCRIPTLINE_LISTENER"), true);
                 } else {
@@ -881,7 +881,7 @@ function lastSpeech($npcname)
 function lastKeyWordsContext($n, $npcname='')
 {
 
-    global $db,$gameRequest;
+    $db = &\Synth\Bootstrap::ref('db'); $gameRequest = &\Synth\Bootstrap::ref('gameRequest');
 
     $m=$n+1;
     $speaker=$db->escape($npcname);
@@ -967,7 +967,7 @@ function lastKeyWordsContext($n, $npcname='')
            if (startsWithUppercase($n))
                 $uniqueArray[]=$n;
     }
-    $GLOBALS["DEBUG_DATA"]["textToEmbedFinalKwywords"]=implode(" ",$uniqueArray);
+    \Synth\Bootstrap::setAt('DEBUG_DATA', "textToEmbedFinalKwywords", implode(" ",$uniqueArray));
 
     rsort($uniqueArray);
     return $uniqueArray;
@@ -1038,7 +1038,7 @@ function lastKeyWordsNew($n, $eventypes='')
            if (startsWithUppercase($n))
                 $uniqueArray[]=$n;
     }
-    $GLOBALS["DEBUG_DATA"]["textToEmbedFinalKwywords"]=implode(" ",$uniqueArray);
+    \Synth\Bootstrap::setAt('DEBUG_DATA', "textToEmbedFinalKwywords", implode(" ",$uniqueArray));
 
     rsort($uniqueArray);
     return $uniqueArray;
@@ -1090,7 +1090,7 @@ function lastKeyWords($n, $eventypes='')
         if ($e>1)
             $uniqueArray[]=$n;
     }
-    $GLOBALS["DEBUG_DATA"]["textToEmbedFinalKwywords"]=implode(" ",$uniqueArray);
+    \Synth\Bootstrap::setAt('DEBUG_DATA', "textToEmbedFinalKwywords", implode(" ",$uniqueArray));
 
     //$uniqueArray = array_unique($uppercaseWords);
 
@@ -1260,11 +1260,11 @@ function ExtractKeywords($sourceText) {
 function getGametsLimitFor($actor) {
     $nativeEvent = \Synth\Bootstrap::requestEvent()['json'] ?? [];
     if (($nativeEvent['protocol_version'] ?? 1) === 2) {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return 72;
+        if (empty(\Synth\Bootstrap::claimedRequest())) return 72;
         synth_protocol_assert_request_active();
         $cacheKey = hash('sha256',json_encode([$nativeEvent['session_id'],$nativeEvent['request_id'],
             $nativeEvent['generation'],$nativeEvent['context_sequence'],strval($actor)]));
-        if (isset($GLOBALS['SYNTH_NATIVE_MEMORY_HOURS'][$cacheKey])) return \Synth\Bootstrap::config('SYNTH_NATIVE_MEMORY_HOURS')[$cacheKey];
+        if (isset(\Synth\Bootstrap::config('SYNTH_NATIVE_MEMORY_HOURS')[$cacheKey])) return \Synth\Bootstrap::config('SYNTH_NATIVE_MEMORY_HOURS')[$cacheKey];
         $limit = max(1,min(150,intval(\Synth\Bootstrap::config('CONTEXT_HISTORY') ?? 50)));
         $db = \Synth\Bootstrap::db();
         $hours = $db->withNativeRequestLock(static function($connection,array $event) use ($db,$actor,$limit) {
@@ -1276,9 +1276,9 @@ function getGametsLimitFor($actor) {
             if (!$result) throw new RuntimeException('Unable to read native memory window');
             return floatval(pg_fetch_assoc($result)['hours'] ?? 0);
         },2000);
-        return $GLOBALS['SYNTH_NATIVE_MEMORY_HOURS'][$cacheKey] = $hours>0 ? $hours : 72;
+        $resolvedHours = $hours>0 ? $hours : 72; \Synth\Bootstrap::setAt('SYNTH_NATIVE_MEMORY_HOURS', $cacheKey, $resolvedHours); return $resolvedHours;
     }
-    if (isset($GLOBALS["GAMETS_LIMIT_FOR_ACTOR"][$actor])) {
+    if (isset(\Synth\Bootstrap::config('GAMETS_LIMIT_FOR_ACTOR')[$actor])) {
         return \Synth\Bootstrap::config("GAMETS_LIMIT_FOR_ACTOR")[$actor];
     }
     $db = \Synth\Bootstrap::db();
@@ -1303,14 +1303,14 @@ function getGametsLimitFor($actor) {
 
     $limitRow = $db->fetchOne($query);
 
-    Logger::trace("MEMORY_EMBEDDING getGametsLimitFor($actor),CONTEXT_HISTORY: {$GLOBALS["CONTEXT_HISTORY"]} => {$limitRow["hour_threshold"]}");
+    Logger::trace(("MEMORY_EMBEDDING getGametsLimitFor($actor),CONTEXT_HISTORY: " . \Synth\Bootstrap::config('CONTEXT_HISTORY') . " => {$limitRow["hour_threshold"]}"));
 
     // If no data or result is too small, fall back to a sensible default (e.g. 72 in-game hours)
     $res = (isset($limitRow["hour_threshold"]) && $limitRow["hour_threshold"] > 0)
         ? $limitRow["hour_threshold"]
         : 72;
 
-    $GLOBALS["GAMETS_LIMIT_FOR_ACTOR"][$actor] = $res;
+    \Synth\Bootstrap::setAt('GAMETS_LIMIT_FOR_ACTOR', $actor, $res);
     return $res;
 }
 
@@ -1331,7 +1331,7 @@ function offerMemory($gameRequest)
 
     $startTime=microtime(true);
 
-    if (isset($GLOBALS["FEATURES"]["MEMORY_EMBEDDING"]["ENABLED"]) && !\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] ) {
+    if (isset(\Synth\Bootstrap::config('FEATURES')["MEMORY_EMBEDDING"]["ENABLED"]) && !\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"] ) {
         Logger::debug("MEMORY_EMBEDDING disabled");
         return "";
     }
@@ -1371,17 +1371,17 @@ function offerMemory($gameRequest)
             && is_array($resFinal[0])
             && trim((string)($resFinal[0]['summary'] ?? '')) !== '';
         if (!$hasPrimaryCandidate && isMinimeT5Enabled()) {
-            $GLOBALS['MEMORY_STRICT_FALLBACK_ATTEMPTED'] = true;
+            \Synth\Bootstrap::set('MEMORY_STRICT_FALLBACK_ATTEMPTED', true);
             $hadBypassSetting = array_key_exists('PATCH_BYPASS_MINIME_EXTRACT', $GLOBALS);
             $previousBypassSetting = \Synth\Bootstrap::config('PATCH_BYPASS_MINIME_EXTRACT') ?? null;
             try {
-                $GLOBALS['PATCH_BYPASS_MINIME_EXTRACT'] = true;
+                \Synth\Bootstrap::set('PATCH_BYPASS_MINIME_EXTRACT', true);
                 $fallbackResult = DataSearchMemoryByVector($memorySearchInput, $npc, false, $timeThreshold);
             } finally {
                 if ($hadBypassSetting) {
-                    $GLOBALS['PATCH_BYPASS_MINIME_EXTRACT'] = $previousBypassSetting;
+                    \Synth\Bootstrap::set('PATCH_BYPASS_MINIME_EXTRACT', $previousBypassSetting);
                 } else {
-                    unset($GLOBALS['PATCH_BYPASS_MINIME_EXTRACT']);
+                    \Synth\Bootstrap::forget('PATCH_BYPASS_MINIME_EXTRACT');
                 }
             }
 

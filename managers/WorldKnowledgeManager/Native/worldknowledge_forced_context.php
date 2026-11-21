@@ -287,7 +287,7 @@ if (!function_exists('synthWorldKnowledgeTopicWasInjected')) {
     function synthWorldKnowledgeTopicWasInjected($topic): bool
     {
         foreach (synthWorldKnowledgeTopicAliases($topic) as $alias) {
-            if (!empty($GLOBALS['WORLDKNOWLEDGE_INJECTED_TOPICS'][$alias])) {
+            if (!empty(\Synth\Bootstrap::config('WORLDKNOWLEDGE_INJECTED_TOPICS')[$alias])) {
                 return true;
             }
         }
@@ -299,7 +299,7 @@ if (!function_exists('synthWorldKnowledgeMarkTopicInjected')) {
     function synthWorldKnowledgeMarkTopicInjected($topic): void
     {
         foreach (synthWorldKnowledgeTopicAliases($topic) as $alias) {
-            $GLOBALS['WORLDKNOWLEDGE_INJECTED_TOPICS'][$alias] = true;
+            \Synth\Bootstrap::setAt('WORLDKNOWLEDGE_INJECTED_TOPICS', $alias, true);
         }
     }
 }
@@ -315,22 +315,22 @@ if (!function_exists('synthWorldKnowledgeAppendForcedRows')) {
             }
             $topic = synthWorldKnowledgeCanonicalTopic($row['topic'] ?? '');
             $decision = synthWorldKnowledgeAccessDecision($row, $knowledgeTags);
-            $GLOBALS['WORLDKNOWLEDGE_FORCED_SIGNALS'][] = [
+            \Synth\Bootstrap::append('WORLDKNOWLEDGE_FORCED_SIGNALS', [
                 'source' => $source,
                 'topic' => $topic,
                 'level' => $decision['level'],
                 'reason' => $decision['reason'],
-            ];
+            ]);
             if ($decision['level'] === 'denied') {
                 synthWorldKnowledgeMarkTopicInjected($row['topic'] ?? '');
                 continue;
             }
-            $GLOBALS['WORLDKNOWLEDGE_HINT'] .= (\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
-                . synthWorldKnowledgeRenderArticleXml($row, $decision, $source);
+            \Synth\Bootstrap::set('WORLDKNOWLEDGE_HINT', \Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') . ((\Synth\Bootstrap::config('WORLDKNOWLEDGE_HINT') === '' ? '' : "\n")
+                . synthWorldKnowledgeRenderArticleXml($row, $decision, $source)));
             synthWorldKnowledgeMarkTopicInjected($row['topic'] ?? '');
             $added++;
-            if (isset($GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'])) {
-                $GLOBALS['WORLDKNOWLEDGE_FORCED_REMAINING'] = max(0, $remaining - 1);
+            if (\Synth\Bootstrap::has('WORLDKNOWLEDGE_FORCED_REMAINING')) {
+                \Synth\Bootstrap::set('WORLDKNOWLEDGE_FORCED_REMAINING', max(0, $remaining - 1));
             }
             if (class_exists('Logger')) {
                 Logger::info("[WORLDKNOWLEDGE] Forced {$source} article: {$topic}");

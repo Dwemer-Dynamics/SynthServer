@@ -20,7 +20,7 @@ function synth_relationship_has_open_command(string $text): bool
 function synth_relationship_response_owner(): ?array
 {
     $event=\Synth\Bootstrap::requestEvent()['json'] ?? null;
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || !is_array($event)
+    if (empty(\Synth\Bootstrap::claimedRequest()) || !is_array($event)
         || ($event['protocol_version'] ?? 1)!==2 || intval($event['context_sequence'] ?? 0)<1) return null;
     return array_intersect_key($event,array_flip(['session_id','request_id','turn_id','generation','context_sequence','runtime_variant']));
 }
@@ -28,20 +28,20 @@ function synth_relationship_response_owner(): ?array
 // Every provider attempt starts afresh, so a failed prefix cannot contaminate its successful fallback.
 function synth_relationship_begin_response(): void
 {
-    unset($GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']);
+    \Synth\Bootstrap::forget('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE');
     $owner=synth_relationship_response_owner();
     if ($owner===null || !synthRelationshipSettingEnabled()) return;
-    $GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']=['owner'=>$owner,'attempt'=>bin2hex(random_bytes(16)),
+    \Synth\Bootstrap::set('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE', ['owner'=>$owner,'attempt'=>bin2hex(random_bytes(16)),
         'entries'=>[],'bytes'=>0,'invalid'=>false,'accepted'=>false,
-        'evaluation_mode'=>synthRelationshipUsesDedicatedConnector() ? 'dedicated' : 'inline'];
+        'evaluation_mode'=>synthRelationshipUsesDedicatedConnector() ? 'dedicated' : 'inline']);
 }
 
 // Copy processed model speech before presentation cleanup, with a bounded all-or-nothing capture.
 function synth_relationship_capture_line(string $speaker, string $text): ?string
 {
-    $capture=&$GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'];
+    $capture=&\Synth\Bootstrap::ref('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE');
     if (!is_array($capture) || $capture['invalid'] || $capture['accepted']) return null;
-    if ($capture['owner']!==synth_relationship_response_owner()) { unset($GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE']); return null; }
+    if ($capture['owner']!==synth_relationship_response_owner()) { \Synth\Bootstrap::forget('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'); return null; }
     $text=trim($text); $speaker=trim($speaker);
     if ($text==='') return null;
     if ($speaker==='' || strlen($speaker)>256 || !mb_check_encoding($speaker.$text,'UTF-8')
@@ -56,7 +56,7 @@ function synth_relationship_capture_line(string $speaker, string $text): ?string
 // Attach only the final buffered speech route to its own line/attempt, never the next line or fallback.
 function synth_relationship_capture_route(?string $lineToken, string $listener, string $utteranceId): void
 {
-    $capture=&$GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'];
+    $capture=&\Synth\Bootstrap::ref('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE');
     if ($lineToken===null || !is_array($capture) || $capture['invalid'] || $capture['accepted']
         || $capture['owner']!==synth_relationship_response_owner()
         || !preg_match('/^([a-f0-9]{32}):([0-9]{1,3})$/D',$lineToken,$parts)
@@ -102,7 +102,7 @@ function synth_relationship_resolve_route(array $speaker, ?array $route, array $
 // A provider return alone is not delivery proof; final protocol completion is required before storage.
 function synth_relationship_finish_response(bool $accepted): void
 {
-    $capture=&$GLOBALS['SYNTH_RELATIONSHIP_RESPONSE_CAPTURE'];
+    $capture=&\Synth\Bootstrap::ref('SYNTH_RELATIONSHIP_RESPONSE_CAPTURE');
     if (!is_array($capture)) return;
     $capture['accepted']=$accepted && !$capture['invalid'] && $capture['entries']!==[]
         && $capture['owner']===synth_relationship_response_owner();

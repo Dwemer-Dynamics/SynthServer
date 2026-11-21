@@ -127,7 +127,7 @@ function synth_jev_action_request(array $event, ?string $transcript, array $acto
         || !in_array($event['type'] ?? '', ['input_text','input_audio'], true)
         || !in_array($event['payload']['control']['mode'] ?? 'STANDARD', ['STANDARD','WHISPER','CLOSE','SHOUT'], true)
         || !in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)
-        || empty($GLOBALS['FUNCTIONS_ARE_ENABLED']) || empty($actor['form_id'])
+        || empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED')) || empty($actor['form_id'])
         || strcasecmp($actor['form_id'], '0x00000014') === 0) return null;
     $text = $event['type'] === 'input_text' ? ($event['payload']['text'] ?? null) : $transcript;
     if (!is_string($text) || trim($text) === '' || strlen($text) > 1200 || !preg_match('//u', $text)) return null;
@@ -235,24 +235,24 @@ function synth_jev_action_answer(array $reply, array $criteria, float $threshold
 function synth_jev_prepare_actions($db, array $event, ?string $transcript = null,
     ?callable $connectorLoader = null, ?callable $transport = null): void
 {
-    unset($GLOBALS['SYNTH_JEV_ACTION_POLICY']);
-    $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC'] = ['reason'=>'disabled', 'elapsed_ms'=>0,
+    \Synth\Bootstrap::forget('SYNTH_JEV_ACTION_POLICY');
+    \Synth\Bootstrap::set('SYNTH_JEV_ACTION_DIAGNOSTIC', ['reason'=>'disabled', 'elapsed_ms'=>0,
         'selected_code'=>null,'confidence'=>null,'decision_tag'=>synth_jev_action_decision_tag($event),
         'generation'=>synth_jev_action_trace_metadata('selected',$event)['generation']??null,
         'context_sequence'=>synth_jev_action_trace_metadata('selected',$event)['context_sequence']??null,
-        'fallback_behavior'=>'ordinary_llm_actions'];
+        'fallback_behavior'=>'ordinary_llm_actions']);
     if (!synth_jev_action_enabled()) return;
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || empty($GLOBALS['FUNCTIONS_ARE_ENABLED'])
+    if (empty(\Synth\Bootstrap::claimedRequest()) || empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED'))
         || ($event['protocol_version'] ?? 1) !== 2
         || !in_array($event['runtime_variant'] ?? '', ['flat','vr'], true)
         || !in_array($event['type'] ?? '', ['input_text','input_audio'], true)
         || !in_array($event['payload']['control']['mode'] ?? 'STANDARD', ['STANDARD','WHISPER','CLOSE','SHOUT'], true)
         || !in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)) {
-        $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason'] = 'ineligible';
+        \Synth\Bootstrap::setAt('SYNTH_JEV_ACTION_DIAGNOSTIC', 'reason', 'ineligible');
         return;
     }
     if ($connectorLoader === null && intval(\Synth\Bootstrap::config('CORE_CONNECTOR_DECISION') ?? 0) <= 0) {
-        $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC']['reason'] = 'not_configured';
+        \Synth\Bootstrap::setAt('SYNTH_JEV_ACTION_DIAGNOSTIC', 'reason', 'not_configured');
         return;
     }
     $start = hrtime(true);
@@ -281,13 +281,13 @@ function synth_jev_prepare_actions($db, array $event, ?string $transcript = null
                 $selection = synth_jev_action_answer_metadata($reply, $body['questions']['action']['criteria'], $threshold);
                 $choice = $selection['code']??null;
                 $reason = $choice === null ? 'abstained' : 'selected';
-                if ($choice !== null) $GLOBALS['SYNTH_JEV_ACTION_POLICY'] = [
+                if ($choice !== null) \Synth\Bootstrap::set('SYNTH_JEV_ACTION_POLICY', [
                     'owner'=>synth_jev_action_owner($event), 'code'=>$choice, 'selected_code'=>$choice,
                     'confidence'=>$selection['confidence'],'decision_tag'=>synth_jev_action_decision_tag($event),
                     'actor'=>$actor,'actor_state'=>$state,'generation'=>$event['generation'],
                     'context_sequence'=>$event['context_sequence'],
                     'utterance_sha256'=>hash('sha256',$event['type']==='input_text'?$event['payload']['text']:$transcript),
-                    'emitted'=>false];
+                    'emitted'=>false]);
             }
         }
     } catch (SYNTHProtocolCancelled $error) {
@@ -303,6 +303,6 @@ function synth_jev_prepare_actions($db, array $event, ?string $transcript = null
         'decision_tag'=>synth_jev_action_decision_tag($event),'generation'=>synth_jev_action_trace_metadata('selected',$event)['generation']??null,
         'context_sequence'=>synth_jev_action_trace_metadata('selected',$event)['context_sequence']??null,
         'fallback_behavior'=>$reason==='selected'?'none':'ordinary_llm_actions'];
-    $GLOBALS['SYNTH_JEV_ACTION_DIAGNOSTIC'] = $diagnostic;
+    \Synth\Bootstrap::set('SYNTH_JEV_ACTION_DIAGNOSTIC', $diagnostic);
     if (class_exists('Logger')) Logger::info('[JEV ACTION] '.json_encode($diagnostic));
 }

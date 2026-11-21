@@ -11,7 +11,7 @@ function aiff_audit_end() {
     $elapsedTime = $endTime - $startTime;
 
     if ($elapsedTime>1)
-        Logger::trace("Audit {$GLOBALS["AUDIT_RUNID"]}, {$GLOBALS["AUDIT_RUNID_REQUEST"]}, elapsed time: " . $elapsedTime . " seconds");
+        Logger::trace(("Audit " . \Synth\Bootstrap::config('AUDIT_RUNID') . ", " . \Synth\Bootstrap::config('AUDIT_RUNID_REQUEST') . ", elapsed time: ") . $elapsedTime . " seconds");
 }
 
 
@@ -21,7 +21,7 @@ function audit_log($fromFile='') {
     $elapsedTime = $endTime - $startTime;
 
     
-    Logger::trace("Audit {$GLOBALS["AUDIT_RUNID"]}, {$GLOBALS["AUDIT_RUNID_REQUEST"]}, $fromFile, elapsed time: " . $elapsedTime . " seconds");
+    Logger::trace(("Audit " . \Synth\Bootstrap::config('AUDIT_RUNID') . ", " . \Synth\Bootstrap::config('AUDIT_RUNID_REQUEST') . ", $fromFile, elapsed time: ") . $elapsedTime . " seconds");
 }
 
 function terminate() {
@@ -40,7 +40,7 @@ function terminate() {
     try {
         // Release any acquired semaphores
     foreach (["MAIN", "VSX"] as $semaphore_id) {
-            if (isset($GLOBALS["SEMAPHORES"][$semaphore_id]) && \Synth\Bootstrap::config("SEMAPHORES")[$semaphore_id]) {
+            if (isset(\Synth\Bootstrap::config('SEMAPHORES')[$semaphore_id]) && \Synth\Bootstrap::config("SEMAPHORES")[$semaphore_id]) {
                 @SemaphoreManager::release($semaphore_id);
             }
         }
@@ -69,8 +69,8 @@ function close() {
     }    
 }
 
-$GLOBALS["AUDIT_RUNID"] = strrev(uniqid("di_",true));
-$GLOBALS["AUDIT_START_TIME"] = microtime(true);
+\Synth\Bootstrap::set('AUDIT_RUNID', strrev(uniqid("di_",true)));
+\Synth\Bootstrap::set('AUDIT_START_TIME', microtime(true));
 
 register_shutdown_function('aiff_audit_end');
 

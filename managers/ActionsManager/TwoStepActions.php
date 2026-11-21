@@ -54,26 +54,26 @@ final class TwoStepActions
      */
     public static function prepare(array $event, ?string $transcript = null): void
     {
-        unset($GLOBALS['SYNTH_TWO_STEP_STATE']);
-        $GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC'] = ['reason' => 'disabled'];
+        \Synth\Bootstrap::forget('SYNTH_TWO_STEP_STATE');
+        \Synth\Bootstrap::set('SYNTH_TWO_STEP_DIAGNOSTIC', ['reason' => 'disabled']);
         if (!self::enabled()) {
             return;
         }
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']) || empty($GLOBALS['FUNCTIONS_ARE_ENABLED'])
+        if (empty(\Synth\Bootstrap::claimedRequest()) || empty(\Synth\Bootstrap::config('FUNCTIONS_ARE_ENABLED'))
             || ($event['protocol_version'] ?? 1) !== 2
             || !in_array($event['runtime_variant'] ?? '', ['flat', 'vr'], true)
             || !in_array($event['type'] ?? '', ['input_text', 'input_audio'], true)
             || !in_array('dialogue.turn_ownership', $event['capabilities'] ?? [], true)) {
-            $GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC'] = ['reason' => 'ineligible'];
+            \Synth\Bootstrap::set('SYNTH_TWO_STEP_DIAGNOSTIC', ['reason' => 'ineligible']);
             return;
         }
         $text = $event['type'] === 'input_text' ? ($event['payload']['text'] ?? null) : $transcript;
         if (!is_string($text) || trim($text) === '' || strlen($text) > 1200 || !preg_match('//u', $text)) {
-            $GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC'] = ['reason' => 'ineligible'];
+            \Synth\Bootstrap::set('SYNTH_TWO_STEP_DIAGNOSTIC', ['reason' => 'ineligible']);
             return;
         }
-        $GLOBALS['SYNTH_TWO_STEP_STATE'] = ['owner' => \synth_jev_action_owner($event), 'utterance' => trim($text)];
-        $GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC'] = ['reason' => 'pending'];
+        \Synth\Bootstrap::set('SYNTH_TWO_STEP_STATE', ['owner' => \synth_jev_action_owner($event), 'utterance' => trim($text)]);
+        \Synth\Bootstrap::set('SYNTH_TWO_STEP_DIAGNOSTIC', ['reason' => 'pending']);
     }
 
     /**
@@ -354,16 +354,16 @@ final class TwoStepActions
             $reason = in_array($error->getMessage(), ['empty_reply', 'no_catalog', 'not_configured', 'timeout',
                 'provider_unsupported'], true) ? $error->getMessage() : 'error';
         }
-        $GLOBALS['SYNTH_TWO_STEP_DIAGNOSTIC'] = [
+        \Synth\Bootstrap::set('SYNTH_TWO_STEP_DIAGNOSTIC', [
             'reason' => $reason,
             'budget_ms' => $budget,
             'elapsed_ms' => round((hrtime(true) - $start) / 1000000, 2),
             'selected_code' => $picked['code'] ?? null,
-        ];
+        ]);
         if (class_exists('Logger')) {
             \Logger::info('[TWO STEP ACTION] ' . json_encode(\Synth\Bootstrap::config('SYNTH_TWO_STEP_DIAGNOSTIC')));
         }
-        unset($GLOBALS['SYNTH_TWO_STEP_STATE']);
+        \Synth\Bootstrap::forget('SYNTH_TWO_STEP_STATE');
 
         return $picked;
     }
@@ -378,7 +378,7 @@ final class TwoStepActions
      */
     public static function filterActions(mixed $actions, string $reply, ?callable $complete = null): mixed
     {
-        if (!is_array($actions) || $actions !== [] || !isset($GLOBALS['SYNTH_TWO_STEP_STATE'])) {
+        if (!is_array($actions) || $actions !== [] || !\Synth\Bootstrap::has('SYNTH_TWO_STEP_STATE')) {
             return $actions;
         }
         $event = \Synth\Bootstrap::requestEvent()['json'] ?? [];

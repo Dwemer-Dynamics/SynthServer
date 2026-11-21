@@ -51,12 +51,12 @@ function synth_relationship_prompt_context($db, string $npcName): string
         }
         // Only the display name is rebound for the shared formatter; request/actor ownership never changes.
         $hadPlayer=array_key_exists('PLAYER_NAME',$GLOBALS);$previous=\Synth\Bootstrap::config('PLAYER_NAME') ?? null;
-        $GLOBALS['PLAYER_NAME']=$player['display_name'];
+        \Synth\Bootstrap::set('PLAYER_NAME', $player['display_name']);
         try {
             return RelationshipManager::buildContextFromRelationships($responder['display_name'],
                 $relationships,$nearby,synthRelationshipUsesDedicatedConnector(),true);
         } finally {
-            if ($hadPlayer) $GLOBALS['PLAYER_NAME']=$previous;else unset($GLOBALS['PLAYER_NAME']);
+            if ($hadPlayer) \Synth\Bootstrap::set('PLAYER_NAME', $previous);else \Synth\Bootstrap::forget('PLAYER_NAME');
         }
     },2000);
 }

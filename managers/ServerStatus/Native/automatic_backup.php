@@ -55,7 +55,7 @@ class AutomaticBackup {
             // fall through
         }
         // Fallback to global
-        if (isset($GLOBALS['AUTOMATIC_DATABASE_BACKUPS'])) {
+        if (\Synth\Bootstrap::has('AUTOMATIC_DATABASE_BACKUPS')) {
             return \Synth\Bootstrap::config('AUTOMATIC_DATABASE_BACKUPS') === true || \Synth\Bootstrap::config('AUTOMATIC_DATABASE_BACKUPS') === "true";
         }
         return false;
@@ -294,7 +294,7 @@ class AutomaticBackup {
     private function getDatabaseConnection() {
         try {
             // First, try to use existing global database connection
-            if (isset($GLOBALS['db']) && is_object(\Synth\Bootstrap::db())) {
+            if (\Synth\Bootstrap::has('db') && is_object(\Synth\Bootstrap::db())) {
                 // Test if the connection is actually working
                 try {
                     \Synth\Bootstrap::db()->fetchAll("SELECT 1");
@@ -372,7 +372,7 @@ function deferredAutomaticBackupInit() {
     $hasRun = true;
     
     // Only run if database connection is available
-    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db())) {
+    if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db())) {
         return;
     }
     

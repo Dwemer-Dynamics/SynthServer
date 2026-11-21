@@ -50,7 +50,7 @@ class ConfigManager
         return new self(ConfigSettingDao::using(EntityManagerFactory::forSharedSession($db)));
     }
 
-    /** The process-wide manager: the booted DAO when Database::boot() ran, else the legacy $GLOBALS['db'] session. */
+    /** The process-wide manager: the booted DAO when Database::boot() ran, else the legacy \Synth\Bootstrap::config('db') session. */
     public static function shared(): self
     {
         if (self::$shared !== null) {

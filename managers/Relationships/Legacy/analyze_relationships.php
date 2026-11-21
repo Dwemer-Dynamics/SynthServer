@@ -3,7 +3,7 @@
 header('Content-Type: application/json');
 
 $enginePath = dirname(__DIR__, 3).'/';
-$GLOBALS['ENGINE_PATH'] = $enginePath;
+\Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 require_once $enginePath . 'lib/runtime_bootstrap.php';
 synthRuntimeBootstrap($enginePath, [
     'load_general_settings' => true,

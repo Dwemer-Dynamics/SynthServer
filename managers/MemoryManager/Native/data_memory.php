@@ -135,7 +135,7 @@ function DataShortTermMemoryFor($npcName, int $contextWindowFloor): array
     )) {
         return [];
     }
-    if (!isset($GLOBALS['db']) || !is_object(\Synth\Bootstrap::db()) || !method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
+    if (!\Synth\Bootstrap::has('db') || !is_object(\Synth\Bootstrap::db()) || !method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
         return [];
     }
 
@@ -245,7 +245,7 @@ function DataSearchMemory($rawstring,$npcfilter,$timeThreshold=0) {
 
     $nativeMemory = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
     if ($nativeMemory) {
-        if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return [];
+        if (empty(\Synth\Bootstrap::claimedRequest())) return [];
         synth_protocol_assert_request_active();
     }
 
@@ -385,7 +385,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
 
         $nativeMemory = (\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1) === 2;
         if ($nativeMemory) {
-            if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
+            if (empty(\Synth\Bootstrap::claimedRequest())) return null;
             synth_protocol_assert_request_active();
         }
 
@@ -410,7 +410,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
             $TEST_TEXT = preg_replace('/[(),;:!?."\'-]/', ' ', $TEST_TEXT);
             $TEST_TEXT = preg_replace('/\s+/', ' ', trim($TEST_TEXT));
 
-            if (isset($GLOBALS["PATCH_BYPASS_MINIME_EXTRACT"]) && \Synth\Bootstrap::config("PATCH_BYPASS_MINIME_EXTRACT")) {
+            if (\Synth\Bootstrap::has('PATCH_BYPASS_MINIME_EXTRACT') && \Synth\Bootstrap::config("PATCH_BYPASS_MINIME_EXTRACT")) {
                 error_log("[DataSearchMemoryByVector ] PATCH_BYPASS_MINIME_EXTRACT");
                 $keywords=json_encode(["is_memory_recall"=>"Yes"]);
             } else {
@@ -614,7 +614,7 @@ function DataSearchMemoryByVector($rawstring,$npcfilter,$useContextKw=false,$tim
                          ts_rank(native_vec, to_tsquery('$kwStringAll')) AS rank_all_fts
                     FROM public.core_memory
                     WHERE source_type='summary' AND embedding IS NOT NULL
-                    and companions like '%{$GLOBALS["db"]->escape($npcfilter)}%'
+                    and companions like '%{\Synth\Bootstrap::config("db")->escape($npcfilter)}%'
                     ORDER BY (embedding <-> $vectorString)-ts_rank(native_vec, to_tsquery('$kwStringAny'))
                     LIMIT 5 OFFSET 0
                 ");*/
@@ -634,7 +634,7 @@ function DataSearchWorldKnowledgeByVector($rawstring,$currentWorldKnowledgeTopic
 
 
     Logger::info("Using DataSearchWorldKnowledgeByVector");
-    $rawstring=strtr($rawstring,["{$GLOBALS["PLAYER_NAME"]}:"=>""]);
+    $rawstring=strtr($rawstring,[(\Synth\Bootstrap::config('PLAYER_NAME') . ":")=>""]);
     $rawstring=strtr($rawstring,["Talking to The Narrator"=>""]);
 
     $pattern = "/\(Context location:[^)]+?\)/"; // Remove only the exact context location pattern

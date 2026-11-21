@@ -46,7 +46,7 @@ if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         Logger::warn('[REL] Saved native relationship context unavailable');
         $relationshipContext='[RELATIONSHIPS] Saved actor context unavailable; do not infer relationship state.';
     }
-    if ($relationshipContext!=='') $GLOBALS['SYNTH_PERS']=strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$relationshipContext;
+    if ($relationshipContext!=='') \Synth\Bootstrap::set('SYNTH_PERS', strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$relationshipContext);
     // Feature-flagged authored view (docs/AUTHORED-RELATIONSHIPS.md); empty and DB-free while the flag is off.
     require_once \Synth\Bootstrap::enginePath().'managers/Relationships/AuthoredRelationships.php';
     try {
@@ -57,9 +57,9 @@ if ((\Synth\Bootstrap::requestEvent()['json']['protocol_version'] ?? 1)===2) {
         Logger::warn('[REL] Authored relationship context unavailable');
         $authoredContext='';
     }
-    if ($authoredContext!=='') $GLOBALS['SYNTH_PERS']=strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$authoredContext;
-    if (!synthRelationshipUsesDedicatedConnector() && !empty($GLOBALS['COMMAND_PROMPT'])) {
-        $GLOBALS['COMMAND_PROMPT'].="\n\n".RelationshipManager::getSystemPromptAddition();
+    if ($authoredContext!=='') \Synth\Bootstrap::set('SYNTH_PERS', strval(\Synth\Bootstrap::config('SYNTH_PERS') ?? '')."\n\n".$authoredContext);
+    if (!synthRelationshipUsesDedicatedConnector() && !empty(\Synth\Bootstrap::config('COMMAND_PROMPT'))) {
+        \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . ("\n\n".RelationshipManager::getSystemPromptAddition()));
     }
     return;
 }
@@ -213,7 +213,7 @@ Logger::info("[REL-CONTEXT] npcName=" . ($npcName ?? 'NULL') . ", CACHE_PEOPLE="
 if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
     // Parse nearby NPCs from CACHE_PEOPLE
     $nearbyNpcs = [];
-    if (!empty($GLOBALS["CACHE_PEOPLE"])) {
+    if (!empty(\Synth\Bootstrap::config('CACHE_PEOPLE'))) {
         // SYNTH usually stores nearby people as |Name|Name|, but older paths may use commas.
         $nearbyNpcs = _relSplitPeopleList(\Synth\Bootstrap::config("CACHE_PEOPLE"));
     }
@@ -221,7 +221,7 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
     // Also include NPCs mentioned in recent dialogue
     // This ensures relationships are shown for NPCs being discussed, not just physically present
     $mentionedNpcs = [];
-    if (!empty($GLOBALS["SYNTH_CONTEXT"])) {
+    if (!empty(\Synth\Bootstrap::config('SYNTH_CONTEXT'))) {
         // Get this NPC's known relationships to check for mentions
         $knownRels = RelationshipManager::getRelationships($npcName);
         $knownNames = array_keys($knownRels);
@@ -256,7 +256,7 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
     // Inject into the character section of the prompt
     // We append to SYNTH_PERS which gets included in the <character> block
     if (!empty($relationshipContext)) {
-        $GLOBALS["SYNTH_PERS"] .= "\n\n" . $relationshipContext;
+        \Synth\Bootstrap::set('SYNTH_PERS', \Synth\Bootstrap::config('SYNTH_PERS') . ("\n\n" . $relationshipContext));
         Logger::debug("[REL-CONTEXT] Injected " . strlen($relationshipContext) . " chars for {$npcName}");
     } else {
         Logger::warn("[REL-CONTEXT] No context to inject for {$npcName}");
@@ -271,8 +271,8 @@ if ($npcName && strcasecmp(trim((string)$npcName), 'The Narrator') !== 0) {
         // Add the relationship system instructions to COMMAND_PROMPT
         // This teaches the AI how to use #REL: and #TYPE: commands
         $relationshipInstructions = RelationshipManager::getSystemPromptAddition();
-        if (!empty($GLOBALS["COMMAND_PROMPT"])) {
-            $GLOBALS["COMMAND_PROMPT"] .= "\n\n" . $relationshipInstructions;
+        if (!empty(\Synth\Bootstrap::config('COMMAND_PROMPT'))) {
+            \Synth\Bootstrap::set('COMMAND_PROMPT', \Synth\Bootstrap::config('COMMAND_PROMPT') . ("\n\n" . $relationshipInstructions));
         }
     }
 }

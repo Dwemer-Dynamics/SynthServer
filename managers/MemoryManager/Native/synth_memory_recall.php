@@ -7,7 +7,7 @@ require_once __DIR__.'/synth_diary_state.php';
 // Optional vector work stays outside SQL locks; provider failure leaves text recall available.
 function synth_memory_fetch_embedding(string $text): ?array
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return null;
+    if (empty(\Synth\Bootstrap::claimedRequest())) return null;
     synth_protocol_assert_request_active();
     if (!filter_var(\Synth\Bootstrap::config('FEATURES')['MEMORY_EMBEDDING']['USE_TEXT2VEC'] ?? false,FILTER_VALIDATE_BOOLEAN)) return null;
     if (!\Synth\Bootstrap::db()->isTransactionIdle()) throw new LogicException('Memory embeddings require an idle database connection');
@@ -98,7 +98,7 @@ function synth_memory_query_diaries($connection,string $query,array $parameters)
 // Every direct source must be visible to the current reader/save; never fall back to global summaries.
 function synth_memory_recall($db, string $actor, array $terms, int $timeFloor = 0, ?array $embedding = null, bool $recent = false): array
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return [];
+    if (empty(\Synth\Bootstrap::claimedRequest())) return [];
     $normalized = [];
     foreach ($terms as $term) {
         if (!is_string($term) || !preg_match_all('/[\p{L}\p{N}_]+/u',$term,$matches)) continue;

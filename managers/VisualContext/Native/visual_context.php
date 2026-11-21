@@ -114,7 +114,7 @@ if (!function_exists('synthVisualContextFindCapture')) {
     function synthVisualContextFindCapture(string $captureId): ?array
     {
         $captureId = synthVisualContextText($captureId, 160);
-        if ($captureId === '' || !isset($GLOBALS['db'])) {
+        if ($captureId === '' || !\Synth\Bootstrap::has('db')) {
             return null;
         }
         $row = \Synth\Bootstrap::db()->fetchOne(
@@ -128,7 +128,7 @@ if (!function_exists('synthVisualContextFindCapture')) {
 if (!function_exists('synthVisualContextComplete')) {
     function synthVisualContextComplete(int $id, array $values): bool
     {
-        if ($id < 1 || !isset($GLOBALS['db'])) {
+        if ($id < 1 || !\Synth\Bootstrap::has('db')) {
             return false;
         }
         $db = \Synth\Bootstrap::db();

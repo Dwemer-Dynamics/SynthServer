@@ -16,7 +16,7 @@ function synthDefaultTtsPronunciationEntries(): array
 // Create the dictionary table and add missing built-in entries without changing user data.
 function synthEnsureTtsPronunciationDictionary(): bool
 {
-    if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()) {
+    if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()) {
         return false;
     }
 
@@ -61,7 +61,7 @@ final class SynthTtsPronunciationDictionary
         if ($this->available !== null) {
             return $this->available;
         }
-        if (!isset($GLOBALS['db']) || !\Synth\Bootstrap::db()
+        if (!\Synth\Bootstrap::has('db') || !\Synth\Bootstrap::db()
             || !method_exists(\Synth\Bootstrap::db(), 'escapeLiteral')
             || !method_exists(\Synth\Bootstrap::db(), 'fetchOne')) {
             return $this->available = false;
@@ -260,7 +260,7 @@ function synthApplyTtsPronunciationDictionary(
     string $npcName = '',
     string $race = ''
 ): string {
-    if ($text === '' || !empty($GLOBALS['SYNTH_TTS_PRONUNCIATION_BYPASS'])) {
+    if ($text === '' || !empty(\Synth\Bootstrap::config('SYNTH_TTS_PRONUNCIATION_BYPASS'))) {
         return $text;
     }
 

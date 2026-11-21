@@ -12,7 +12,7 @@ function synthBuildLatestDiaryContextBlock(string $npcName, array $profileData):
 function synthBuildSavedSocialTaskContextBlock(string $npcName,array $profileData): string
 {
     $event=\Synth\Bootstrap::requestEvent()['json']??[];$db=\Synth\Bootstrap::db()??null;
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])||!is_object($db)||($event['protocol_version']??1)!==2)return '';
+    if (empty(\Synth\Bootstrap::claimedRequest())||!is_object($db)||($event['protocol_version']??1)!==2)return '';
     require_once dirname(__DIR__, 3).'/lib'.'/synth_social_tasks.php';
     if (!synth_social_supported($event)||synth_protocol_response_is_narrator(trim($npcName)))return '';
     try {
@@ -30,7 +30,7 @@ function synthBuildSavedSocialTaskContextBlock(string $npcName,array $profileDat
 function synthBuildLatestDiaryReflectionBlock(string $npcName, array $profileData): string
 {
     $native=synth_diary_requires_owned_context();
-    if ($native && empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return '';
+    if ($native && empty(\Synth\Bootstrap::claimedRequest())) return '';
     $safeNpcName = trim($npcName);
     $narrator=synth_protocol_response_is_narrator($safeNpcName);
     if ($safeNpcName === '' || (!$native && $narrator)) {

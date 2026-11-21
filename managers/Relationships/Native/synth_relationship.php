@@ -110,7 +110,7 @@ function synth_relationship_visible_cte($db, array $event, bool $admitCurrentRes
 // Unknown native state is explicit; the legacy name-keyed profile is never a fallback for this reader.
 function synth_relationship_read($db, string $subject): array
 {
-    if (empty($GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED'])) return ['availability'=>'unclaimed','relationship'=>null];
+    if (empty(\Synth\Bootstrap::claimedRequest())) return ['availability'=>'unclaimed','relationship'=>null];
     return $db->withNativeRequestLock(static function($connection,array $event) use ($db,$subject) {
         $pair=synth_relationship_pair($db,$event,$subject);
         if (!$pair) return ['availability'=>'context_or_subject_unavailable','relationship'=>null];

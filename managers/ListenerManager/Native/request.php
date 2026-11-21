@@ -35,7 +35,7 @@ function synth_protocol_decode_json(string $raw)
 
 function synth_decode_json_body(): array
 {
-    if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && isset($GLOBALS["SYNTH_TEST_JSON_BODY"])) {
+    if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && \Synth\Bootstrap::has('SYNTH_TEST_JSON_BODY')) {
         $testBody = \Synth\Bootstrap::config("SYNTH_TEST_JSON_BODY");
         if (is_array($testBody)) {
             return $testBody;
@@ -223,7 +223,7 @@ function synth_decode_wire_event(): array
 // $wire is the event main.php already decoded and validated; it is never parsed or validated twice.
 function synth_decode_event_from_request(?array $wire = null): array
 {
-    if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && isset($GLOBALS['SYNTH_TEST_NORMALIZED_EVENT'])) {
+    if (PHP_SAPI === "cli" && getenv('PHPUNIT_TEST') && \Synth\Bootstrap::has('SYNTH_TEST_NORMALIZED_EVENT')) {
         $testEvent = \Synth\Bootstrap::config('SYNTH_TEST_NORMALIZED_EVENT');
         if (is_array($testEvent)) {
             return $testEvent;
@@ -232,11 +232,11 @@ function synth_decode_event_from_request(?array $wire = null): array
 
     $json = $wire ?? synth_decode_wire_event();
     if (!empty($json)) {
-        $GLOBALS['SYNTH_REQUEST_ID'] = $json['request_id'];
-        $GLOBALS['SYNTH_TURN_ID'] = $json['turn_id'];
-        $GLOBALS['SYNTH_GENERATION'] = $json['generation'];
-        $GLOBALS['SYNTH_RUNTIME_VARIANT'] = $json['runtime_variant'];
-        $GLOBALS['SYNTH_CLIENT_CAPABILITIES'] = $json['capabilities'];
+        \Synth\Bootstrap::set('SYNTH_REQUEST_ID', $json['request_id']);
+        \Synth\Bootstrap::set('SYNTH_TURN_ID', $json['turn_id']);
+        \Synth\Bootstrap::set('SYNTH_GENERATION', $json['generation']);
+        \Synth\Bootstrap::set('SYNTH_RUNTIME_VARIANT', $json['runtime_variant']);
+        \Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', $json['capabilities']);
         return synth_normalize_json_event($json);
     }
 
@@ -506,10 +506,10 @@ function synth_adapt_json_input_payload_for_pipeline(array &$gameRequest): array
         $gameRequest[4] = strval($fields["audience_snapshot"]);
     }
 
-    $GLOBALS["SYNTH_STRUCTURED_INPUT_FIELDS"] = $fields;
-    $GLOBALS["SYNTH_PLAYER_INPUT_TEXT"] = $text;
-    $GLOBALS["SYNTH_INPUT_TARGET"] = $target;
-    $GLOBALS["SYNTH_SKIP_PLAYER_TTS"] = $result["skip_player_tts"];
+    \Synth\Bootstrap::set('SYNTH_STRUCTURED_INPUT_FIELDS', $fields);
+    \Synth\Bootstrap::set('SYNTH_PLAYER_INPUT_TEXT', $text);
+    \Synth\Bootstrap::set('SYNTH_INPUT_TARGET', $target);
+    \Synth\Bootstrap::set('SYNTH_SKIP_PLAYER_TTS', $result["skip_player_tts"]);
 
     $result["changed"] = true;
     $result["text"] = $text;
@@ -553,7 +553,7 @@ function synth_adapt_json_vision_payload_for_pipeline(array &$gameRequest): arra
     }
     $target = synth_sanitize_pipeline_input_fragment($target);
     if ($target !== "") {
-        $GLOBALS["SYNTH_INPUT_TARGET"] = $target;
+        \Synth\Bootstrap::set('SYNTH_INPUT_TARGET', $target);
     }
 
     $gameRequest[3] = "PipVision visual observation: " . $description;
