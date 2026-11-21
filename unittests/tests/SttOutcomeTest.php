@@ -163,6 +163,7 @@ $GLOBALS['db']=$db;
 require_once $root.'/vendor/autoload.php';
 \Synth\Core\DbManager\Dao\MediaObjectDao::inject(new class($published) extends \Synth\Core\DbManager\Dao\MediaObjectDao {
     public function __construct(private array $published) {}
+    public function publishReady(string $mediaId, string $contentType, int $size, string $sha256, array $correlation): bool { return true; }
     public function delivery(string $mediaId): ?array { return ['state'=>'ready','content_type'=>'audio/wav','byte_length'=>$this->published['size'],'sha256'=>$this->published['sha256']]; }
 });
 $path=$fixture.'/';
