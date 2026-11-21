@@ -13,7 +13,13 @@ function synth_relationship_pair($db, array $event, string $subject): ?array
 {
     $context=synth_protocol_current_context($db,$event);
     if (!$context || !is_array($context['target'])) return null;
-    $row=$db->fetchOne(synth_protocol_history_cte($db,$event).'SELECT * FROM native_ancestry WHERE depth=1');
+    $historyCte=synth_protocol_history_cte($db,$event);
+    try {
+        $row=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->readerFrontier($historyCte);
+    } catch (Throwable $error) {
+        // The shared session logs the failed statement; an unreadable frontier leaves the pair unresolved, as before.
+        $row=null;
+    }
     if (!$row) return null;
     $payload=$context['payload'];
     $subject=trim($subject);
@@ -34,11 +40,9 @@ function synth_relationship_pair($db, array $event, string $subject): ?array
     }
     // All identities already exist from context ingestion; resolving a read must not create or rename one.
     if (($identity['playthrough_id'] ?? null)!==$row['playthrough_id']) return null;
-    $subjectRow=$db->fetchOne('SELECT id FROM public.core_actor_identity WHERE game=\'fo4\' AND upper(full_form_id)=upper('
-        .$db->escapeLiteral($identity['form_id']).') AND lower(origin_plugin)=lower('.$db->escapeLiteral($identity['origin_plugin'])
-        .') AND playthrough_id='.$db->escapeLiteral($identity['playthrough_id']));
-    if (!$subjectRow || intval($subjectRow['id'])===intval($row['reader_identity_id'])) return null;
-    return ['actor_id'=>intval($row['reader_identity_id']),'subject_id'=>intval($subjectRow['id']),
+    $subjectId=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->idByIdentity(strval($identity['form_id']),strval($identity['origin_plugin']),strval($identity['playthrough_id']));
+    if (!$subjectId || $subjectId===intval($row['reader_identity_id'])) return null;
+    return ['actor_id'=>intval($row['reader_identity_id']),'subject_id'=>$subjectId,
         'playthrough_id'=>$row['playthrough_id'],'context'=>$payload];
 }
 
@@ -143,35 +147,24 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $pair=synth_relationship_pair($db,$event,$subject);
         if (!$pair) throw new OutOfBoundsException('Native relationship context or subject unavailable');
         if (!synth_relationship_write_allowed($connection,$event,$pair['actor_id'])) throw new LogicException('Relationship control blocks this proposal');
-        $responses=@pg_query($connection,'SELECT history_event_id FROM public.core_relationship_response_input WHERE history_event_id IN ('.implode(',',$sources).')');
-        if (!$responses) throw new RuntimeException('Unable to verify relationship response boundaries');
-        foreach (pg_fetch_all($responses) as $response) {
-            if (!synth_relationship_write_allowed($connection,$event,$pair['actor_id'],intval($response['history_event_id']))) {
+        foreach (\Synth\Core\DbManager\Dao\RelationshipResponseInputDao::current($db)->responseIdsAmong($sources) as $responseId) {
+            if (!synth_relationship_write_allowed($connection,$event,$pair['actor_id'],$responseId)) {
                 throw new LogicException('Relationship response predates the current control');
             }
         }
         $key='synth-relationship:'.$pair['actor_id'].':'.$pair['subject_id'];
-        if (@pg_query_params($connection,'SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[$key])===false) {
-            throw new RuntimeException('Unable to lock native relationship');
-        }
+        \Synth\Core\DbManager\Dao\RelationshipRevisionDao::current($db)->lockPair($key);
         $input=['delta'=>$delta,'type'=>$type,'prior'=>$expectedRevision,'sources'=>$sources];
         if ($details!==null) $input['details']=(object)$details;
         if ($evaluationResult!==null) {
-            $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
-                WHERE r.history_event_id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.actor_identity_id=$4 AND i.context_sequence=$5 AND i.generation=$6',
-                [$evaluationResult,$event['session_id'],$event['request_id'],$pair['actor_id'],$event['context_sequence'],$event['generation']]);
-            if (!$result || !pg_fetch_assoc($result)) throw new LogicException('Native relationship result owner mismatch');
+            if (!\Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->ownedByEvaluation($evaluationResult,$event['session_id'],$event['request_id'],
+                $pair['actor_id'],$event['context_sequence'],$event['generation'])) throw new LogicException('Native relationship result owner mismatch');
             $input['evaluation_result']=$evaluationResult;
         }
         $input=json_encode($input,JSON_THROW_ON_ERROR);
         $hash=hash('sha256',$input);
-        $existing=@pg_query_params($connection,'SELECT r.history_event_id,r.input_hash,h.context_sequence FROM public.core_relationship_revision r
-            JOIN public.core_history_event h ON h.id=r.history_event_id
-            WHERE h.session_id=$1 AND h.generation=$2 AND h.request_id=$3
-                AND r.actor_identity_id=$4 AND r.subject_identity_id=$5',
-            [$event['session_id'],$event['generation'],$event['request_id'],$pair['actor_id'],$pair['subject_id']]);
-        if (!$existing) throw new RuntimeException('Unable to check relationship replay');
-        if ($row=pg_fetch_assoc($existing)) {
+        $row=\Synth\Core\DbManager\Dao\RelationshipRevisionDao::current($db)->replayFor($event['session_id'],$event['generation'],$event['request_id'],$pair['actor_id'],$pair['subject_id']);
+        if ($row) {
             if (intval($row['context_sequence'])!==intval($event['context_sequence']) || !hash_equals($row['input_hash'],$hash)) {
                 throw new LogicException('Conflicting relationship replay');
             }
@@ -187,24 +180,20 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
             if (!$known || !pg_fetch_assoc($known)) throw new InvalidArgumentException('Invalid native relationship type');
         }
         // Unsaved concurrent publication is stale. Invalid older revisions must not permanently block recovery.
-        $head=@pg_query_params($connection,'SELECT max(r.history_event_id) AS id FROM public.core_relationship_revision r
-            JOIN public.core_history_event h ON h.id=r.history_event_id WHERE h.session_id=$1 AND h.generation=$2
-                AND r.actor_identity_id=$3 AND r.subject_identity_id=$4 AND h.id>(
-                    SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5)',
-            [$event['session_id'],$event['generation'],$pair['actor_id'],$pair['subject_id'],$event['context_sequence']]);
-        if (!$head) throw new RuntimeException('Unable to check relationship head');
-        $headId=pg_fetch_assoc($head)['id'];
+        $headId=\Synth\Core\DbManager\Dao\RelationshipRevisionDao::current($db)->headAfterContext($event['session_id'],$event['generation'],$pair['actor_id'],$pair['subject_id'],
+            $event['context_sequence']);
         if ($headId!==null) throw new LogicException('Native relationship proposal is stale');
-        $visible=@pg_query($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$sources)
-            .'SELECT count(*) AS n FROM relationship_visible_sources WHERE history_event_id IN ('.implode(',',$sources).')');
-        if (!$visible) throw new OutOfBoundsException('Native relationship evidence unavailable');
-        if (intval(pg_fetch_assoc($visible)['n'])!==count($sources)) {
+        $visibleCte=synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$sources);
+        try {
+            $visible=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->visibleSourceCount($visibleCte,$sources);
+        } catch (Throwable $error) {
+            throw new OutOfBoundsException('Native relationship evidence unavailable',0,$error);
+        }
+        if ($visible!==count($sources)) {
             // Only this already-persisted result may use a factual gift source before its thank-you is heard. Reuse
             // full worker revalidation under the same owner/lease; never admit the raw candidate as speech evidence.
-            $fact=$evaluationResult===null ? false : @pg_query_params($connection,'SELECT evaluation_id FROM public.core_relationship_result
-                WHERE history_event_id=$1',[$evaluationResult]);
-            $fact=$fact ? pg_fetch_assoc($fact) : false;
-            $validated=$fact ? synth_relationship_evaluation_input($connection,$db,$event,intval($fact['evaluation_id'])) : null;
+            $factEvaluation=$evaluationResult===null ? null : \Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->evaluationIdOf($evaluationResult);
+            $validated=$factEvaluation!==null ? synth_relationship_evaluation_input($connection,$db,$event,intval($factEvaluation)) : null;
             $inputFact=$validated ? json_decode($validated['input_payload'],true,flags:JSON_THROW_ON_ERROR) : null;
             if (($inputFact['gift_only'] ?? null)!==true || ($inputFact['source_ids'] ?? null)!==$sources)
                 throw new OutOfBoundsException('Native relationship evidence unavailable');
@@ -213,28 +202,10 @@ function synth_relationship_publish($db, string $subject, int $delta, ?string $t
         $newType=$type ?? $state['type'] ?? 'neutral';
         $storedDetails=$details ?? array_diff_key($state ?? [],array_flip(['revision','aff','type']));
         $detailsJson=json_encode((object)$storedDetails,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
-        $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-                synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-            VALUES('relationship_state','Native relationship state publication',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
-                ||jsonb_build_object('relationship_details',$16::jsonb)
-            FROM publication RETURNING id
-        ) INSERT INTO public.core_relationship_revision(history_event_id,actor_identity_id,subject_identity_id,
-            prior_history_event_id,affinity,relationship_type,input_payload,input_hash,result_history_event_id,details)
-            SELECT id,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16::jsonb FROM history RETURNING history_event_id",
-            [$pair['playthrough_id'],intval($pair['context']['world']['game_time_ticks'] ?? 0),time(),
-             $event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],
-             $pair['actor_id'],$pair['subject_id'],$expectedRevision,$affinity,$newType,$input,$hash,$evaluationResult,$detailsJson]);
-        if (!$result) throw new RuntimeException('Unable to publish native relationship');
-        $id=intval(pg_fetch_assoc($result)['history_event_id']);
-        foreach ($sources as $source) {
-            if (@pg_query_params($connection,'INSERT INTO public.core_relationship_revision_source VALUES($1,$2)',[$id,$source])===false) {
-                throw new RuntimeException('Unable to freeze native relationship evidence');
-            }
-        }
+        $id=\Synth\Core\DbManager\Dao\RelationshipRevisionDao::current($db)->publish($pair['playthrough_id'],intval($pair['context']['world']['game_time_ticks'] ?? 0),time(),
+            $event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],
+            $pair['actor_id'],$pair['subject_id'],$expectedRevision,$affinity,$newType,$input,$hash,$evaluationResult,$detailsJson);
+        foreach ($sources as $source) \Synth\Core\DbManager\Dao\RelationshipRevisionSourceDao::current($db)->add($id,$source);
         return $id;
     },2000);
 }
@@ -253,11 +224,12 @@ function synth_relationship_apply_inline_response($db): array
         $payload=json_decode($response['response_payload'],true,flags:JSON_THROW_ON_ERROR);
         if (($payload['evaluation_mode'] ?? null)!=='inline') return [];
         $context=synth_protocol_current_context($db,$event); $target=$context['target'];
-        $result=@pg_query($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
-            .'SELECT DISTINCT relationship_type AS type FROM (SELECT DISTINCT ON(subject_identity_id) relationship_type
-                FROM native_relationships ORDER BY subject_identity_id,history_event_id DESC) current_types WHERE relationship_type IS NOT NULL');
-        if (!$result) throw new RuntimeException('Unable to load saved relationship proposal state');
-        $typeMap=pg_fetch_all($result);
+        $visibleCte=synth_relationship_visible_cte($db,$event,sourceHistoryIds:[]);
+        try {
+            $typeMap=\Synth\Core\DbManager\Dao\RelationshipRevisionDao::current($db)->savedCurrentTypes($visibleCte);
+        } catch (Throwable $error) {
+            throw new RuntimeException('Unable to load saved relationship proposal state',0,$error);
+        }
         $typeMap[]=['type'=>'wary'];
         $text=[];
         foreach ($payload['entries'] as $entry) {

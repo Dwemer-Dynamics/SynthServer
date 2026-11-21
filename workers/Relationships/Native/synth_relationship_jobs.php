@@ -57,20 +57,12 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
             .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$responseId]);
         if (!$result) throw new RuntimeException('Unable to check completed relationship evaluation');
         if (pg_fetch_assoc($result)) return null;
-        $result=@pg_query_params($connection,'SELECT id,input_payload FROM public.core_relationship_evaluation
-            WHERE session_id=$1 AND request_id=$2 AND response_history_event_id=$3',[$event['session_id'],$event['request_id'],$responseId]);
-        if (!$result) throw new RuntimeException('Unable to check relationship evaluation replay');
-        if ($existing=pg_fetch_assoc($result)) {
+        if ($existing=\Synth\Core\DbManager\Dao\RelationshipEvaluationDao::current($db)->replayFor($event['session_id'],$event['request_id'],$responseId)) {
             $schema=json_decode($existing['input_payload'],true)['schema'] ?? null;
             return $schema===($playerOnly ? 'synth.relationship.evaluation.v2' : 'synth.relationship.evaluation.v1') ? intval($existing['id']) : null;
         }
         $canonical=synth_protocol_canonical_json($event);
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_protocol_event p JOIN public.core_request_execution e
-            ON e.session_id=p.session_id AND e.request_id=p.request_id AND e.request_sha256=p.event_sha256 AND e.state=\'complete\'
-            WHERE p.session_id=$1 AND p.request_id=$2 AND p.canonical_event=$3::jsonb AND p.event_sha256=$4',
-            [$event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical)]);
-        if (!$result) throw new RuntimeException('Unable to verify relationship evaluation owner');
-        if (!pg_fetch_assoc($result)) return null;
+        if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->completedOwner($event['session_id'],$event['request_id'],$canonical,hash('sha256',$canonical))) return null;
         $subjects=[];
         foreach (array_merge([['display_name'=>'Player']],$playerOnly ? [] : ($context['payload']['audience'] ?? [])) as $actor) {
             $label=$actor['display_name']; $pair=synth_relationship_pair($db,$event,$label);
@@ -82,11 +74,12 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         if ($playerOnly && count($subjects)!==1) return null;
         $recent=[];$sources=[$responseId];
         if (!$playerOnly) {
-            $result=@pg_query($connection,synth_relationship_visible_cte($db,$event)
-                ."SELECT h.history_event_id,h.type,h.data FROM native_history h JOIN relationship_visible_sources s USING(history_event_id)
-                    ORDER BY h.gamets DESC NULLS LAST,h.ts DESC NULLS LAST,h.history_event_id DESC LIMIT 10");
-            if (!$result) throw new RuntimeException('Unable to freeze relationship context events');
-            $recent=array_reverse(pg_fetch_all($result));
+            $visibleCte=synth_relationship_visible_cte($db,$event);
+            try {
+                $recent=\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->recentVisibleEvents($visibleCte);
+            } catch (Throwable $error) {
+                throw new RuntimeException('Unable to freeze relationship context events',0,$error);
+            }
         }
         foreach ($recent as &$row) { $row['history_event_id']=intval($row['history_event_id']); $sources[]=$row['history_event_id']; }
         unset($row); $sources=array_values(array_unique($sources)); sort($sources,SORT_NUMERIC);
@@ -104,23 +97,16 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
         if ($gift!==null) {
             // One physical handoff may be delivered again under another receipt request ID.
             // Its dedicated evaluation is owned by the action, not by repeated thank-you speech.
-            if ($db->fetchOne("SELECT id FROM public.core_relationship_evaluation WHERE actor_identity_id=".intval($response['actor_identity_id'])
-                ." AND input_payload#>>'{received_gift,fact,action_id}'=".$db->escapeLiteral($gift['action_id'])." LIMIT 1")) return null;
+            if (\Synth\Core\DbManager\Dao\RelationshipEvaluationDao::current($db)->giftEvaluated(intval($response['actor_identity_id']),strval($gift['action_id']))) return null;
             $perspective=synth_player_gift_perspective($db,$event,intval($response['actor_identity_id']));
             if ($perspective===null) return null;
             $input['received_gift']=['fact'=>$gift,'recipient_perspective'=>$perspective];
         }
         $json=json_encode($input,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if (strlen($json)>262144) throw new LengthException('Native relationship evaluation input too large');
-        $result=@pg_query_params($connection,'INSERT INTO public.core_relationship_evaluation
-            (actor_identity_id,response_history_event_id,session_id,request_id,generation,context_sequence,input_payload,input_sha256)
-            VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,encode(sha256(convert_to(($7::jsonb)::text,\'UTF8\')),\'hex\')) RETURNING id',
-            [$response['actor_identity_id'],$responseId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence'],$json]);
-        if (!$result) throw new RuntimeException('Unable to freeze relationship evaluation');
-        $id=intval(pg_fetch_assoc($result)['id']);
-        foreach ($sources as $source) if (@pg_query_params($connection,'INSERT INTO public.core_relationship_evaluation_source VALUES($1,$2)',[$id,$source])===false) {
-            throw new RuntimeException('Unable to freeze relationship evaluation dependency');
-        }
+        $id=\Synth\Core\DbManager\Dao\RelationshipEvaluationDao::current($db)->freeze($response['actor_identity_id'],$responseId,$event['session_id'],$event['request_id'],
+            $event['generation'],$event['context_sequence'],$json);
+        foreach ($sources as $source) \Synth\Core\DbManager\Dao\RelationshipEvaluationSourceDao::current($db)->add($id,$source);
         return $id;
     },2000);
 }
@@ -128,15 +114,8 @@ function synth_relationship_capture_evaluation($db, int $responseId, string $sys
 // Revalidate the immutable payload, every source and all saved prior states at worker boundaries.
 function synth_relationship_evaluation_input($connection, $db, array $event, int $evaluationId): ?array
 {
-    $result=@pg_query_params($connection,'SELECT i.* FROM public.core_relationship_evaluation i
-        JOIN public.core_request_execution e ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation AND e.state=\'complete\'
-        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id AND p.event_sha256=e.request_sha256
-            AND p.canonical_event=i.input_payload->\'owner\'
-        WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$4 AND i.context_sequence=$5
-            AND i.input_sha256=encode(sha256(convert_to(i.input_payload::text,\'UTF8\')),\'hex\')',
-        [$evaluationId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence']]);
-    if (!$result) throw new RuntimeException('Unable to verify relationship evaluation');
-    $row=pg_fetch_assoc($result); if (!$row) return null;
+    $row=\Synth\Core\DbManager\Dao\RelationshipEvaluationDao::current($db)->verifiedInput($evaluationId,$event['session_id'],$event['request_id'],$event['generation'],$event['context_sequence']);
+    if (!$row) return null;
     if (!synth_relationship_write_allowed($connection,$event,intval($row['actor_identity_id']),intval($row['response_history_event_id']))) return null;
     $input=json_decode($row['input_payload'],true,flags:JSON_THROW_ON_ERROR);
     if (synth_protocol_canonical_json($input['owner'])!==synth_protocol_canonical_json($event)) return null;
@@ -176,22 +155,19 @@ function synth_relationship_evaluation_input($connection, $db, array $event, int
         if (($input['received_gift']['recipient_perspective']['profile_revision'] ?? null)!==(synth_profile_visible($db,$event,intval($row['actor_identity_id']))['revision'] ?? null)) return null;
     }
     // Player-only evaluations have exactly one source, the response already verified above.
-    $sourceQuery=($input['schema'] ?? null)==='synth.relationship.evaluation.v2'
-        ? 'SELECT history_event_id FROM public.core_relationship_evaluation_source WHERE evaluation_id=$1 ORDER BY history_event_id'
-        : synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$input['source_ids'])
+    if (($input['schema'] ?? null)==='synth.relationship.evaluation.v2') {
+        $sourceIds=\Synth\Core\DbManager\Dao\RelationshipEvaluationSourceDao::current($db)->historyEventIds($evaluationId);
+    } else {
+        $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,true,sourceHistoryIds:$input['source_ids'])
             .'SELECT d.history_event_id FROM public.core_relationship_evaluation_source d
-                JOIN relationship_visible_sources s USING(history_event_id) WHERE d.evaluation_id=$1 ORDER BY d.history_event_id';
-    $result=@pg_query_params($connection,$sourceQuery,[$evaluationId]);
-    if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation sources');
-    if (array_map('intval',array_column(pg_fetch_all($result),'history_event_id'))!==$input['source_ids']) return null;
-    $result=@pg_query_params($connection,'SELECT count(*) AS n FROM public.core_relationship_evaluation_source WHERE evaluation_id=$1',[$evaluationId]);
-    if (!$result) throw new RuntimeException('Unable to check relationship dependency count');
-    if (intval(pg_fetch_assoc($result)['n'])!==count($input['source_ids'])) return null;
+                JOIN relationship_visible_sources s USING(history_event_id) WHERE d.evaluation_id=$1 ORDER BY d.history_event_id',[$evaluationId]);
+        if (!$result) throw new RuntimeException('Unable to recheck relationship evaluation sources');
+        $sourceIds=array_map('intval',array_column(pg_fetch_all($result),'history_event_id'));
+    }
+    if ($sourceIds!==$input['source_ids']) return null;
+    if (\Synth\Core\DbManager\Dao\RelationshipEvaluationSourceDao::current($db)->countFor($evaluationId)!==count($input['source_ids'])) return null;
     foreach ($input['recent_events'] as $recent) {
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_history_event WHERE id=$1 AND event_payload->>\'type\'=$2 AND event_payload->>\'data\'=$3',
-            [$recent['history_event_id'],$recent['type'],$recent['data']]);
-        if (!$result) throw new RuntimeException('Unable to verify frozen relationship event');
-        if (!pg_fetch_assoc($result)) return null;
+        if (!\Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->hasTypeAndData($recent['history_event_id'],$recent['type'],$recent['data'])) return null;
     }
     foreach ($input['subjects'] as $subject) {
         $pair=synth_relationship_pair($db,$event,$subject['label']);
@@ -207,22 +183,13 @@ function synth_relationship_queue_has_capacity($connection, array $actorIds): bo
     sort($actorIds,SORT_NUMERIC);
     foreach (array_unique($actorIds) as $actorId) {
         if (!is_int($actorId) || $actorId<1) throw new InvalidArgumentException('Invalid relationship queue actor');
-        if (@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-relationship-jobs:'||$1,0))",[$actorId])===false) {
-            throw new RuntimeException('Unable to lock relationship queue capacity');
-        }
+        \Synth\Core\DbManager\Dao\WorkerJobDao::current()->lockRelationshipQueue($actorId);
     }
     $capacity=true;
     foreach (array_unique($actorIds) as $actorId) {
-        $scope="job_type='relationship' AND (relationship_evaluation_id IS NOT NULL OR relationship_interaction_id IS NOT NULL)
-            AND state IN ('pending','running') AND (actor_identity_id=$1 OR relationship_interaction_id IN (
-                SELECT id FROM public.core_relationship_interaction_evaluation WHERE listener_identity_id=$1))";
-        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
-            last_error='lease_expired',updated_at=clock_timestamp() WHERE $scope
-            AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$actorId]);
-        if (!$result) throw new RuntimeException('Unable to retire relationship queue work');
-        $result=@pg_query_params($connection,"SELECT count(*) AS n FROM public.core_worker_job WHERE $scope",[$actorId]);
-        if (!$result) throw new RuntimeException('Unable to read relationship queue capacity');
-        if (intval(pg_fetch_assoc($result)['n'])>=2) $capacity=false;
+        $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current();
+        $jobs->retireExpiredRelationshipQueue($actorId);
+        if ($jobs->relationshipQueueDepth($actorId)>=2) $capacity=false;
     }
     return $capacity;
 }
@@ -235,17 +202,8 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
         $input=synth_relationship_evaluation_input($connection,$db,$event,$evaluationId);
         if (!$input) {
             // Persist terminal scheduling evidence so an invalid frozen input cannot monopolize recovery.
-            $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
-                (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,state,last_error,deadline_at)
-                SELECT 'relationship',i.id,i.session_id,i.request_id,$4,i.generation,i.actor_identity_id,
-                    jsonb_build_object('context_sequence',i.context_sequence),'stale','input_unavailable',clock_timestamp()
-                FROM public.core_relationship_evaluation i
-                WHERE i.id=$1 AND i.session_id=$2 AND i.request_id=$3 AND i.generation=$5 AND i.context_sequence=$6
-                    AND i.input_payload->'owner'=$7::jsonb
-                    AND NOT EXISTS(SELECT 1 FROM public.core_worker_job j WHERE j.relationship_evaluation_id=i.id)",
-                [$evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
-                    $event['context_sequence'],synth_protocol_canonical_json($event)]);
-            if (!$result) throw new RuntimeException('Unable to retire invalid relationship evaluation');
+            \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->retireInvalidEvaluation($evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],
+                $event['generation'],$event['context_sequence'],synth_protocol_canonical_json($event));
             return null;
         }
         $capacity=synth_relationship_queue_has_capacity($connection,[intval($input['actor_identity_id'])]);
@@ -253,19 +211,10 @@ function synth_relationship_enqueue_evaluation($db, int $evaluationId): ?int
         if (isset(json_decode($input['input_payload'],true,flags:JSON_THROW_ON_ERROR)['received_gift'])) {
             $jobPayload['schema']='synth.relationship.gift-job.v1';
         }
-        $result=@pg_query_params($connection,"INSERT INTO public.core_worker_job
-            (job_type,relationship_evaluation_id,session_id,request_id,turn_id,generation,actor_identity_id,payload,deadline_at)
-            SELECT 'relationship',$1,$2,$3,$4,$5,$6,$7::jsonb,clock_timestamp()+INTERVAL '10 minutes'
-            WHERE NOT EXISTS(SELECT 1 FROM public.core_worker_job WHERE relationship_evaluation_id=$1 AND state IN ('ready','failed','cancelled','stale'))
-                AND $8::boolean
-            ON CONFLICT DO NOTHING RETURNING id",[$evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],
-                $event['generation'],$input['actor_identity_id'],json_encode($jobPayload,JSON_THROW_ON_ERROR),$capacity ? 't' : 'f']);
-        if (!$result) throw new RuntimeException('Unable to enqueue relationship evaluation');
-        $created=pg_fetch_assoc($result); if ($created) return intval($created['id']);
-        $result=@pg_query_params($connection,"SELECT id FROM public.core_worker_job WHERE relationship_evaluation_id=$1
-            AND state IN ('pending','running')",[$evaluationId]);
-        if (!$result) throw new RuntimeException('Unable to read relationship evaluation replay');
-        $existing=pg_fetch_assoc($result); return $existing ? intval($existing['id']) : null;
+        $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+        $created=$jobs->enqueueEvaluation($evaluationId,$event['session_id'],$event['request_id'],$event['turn_id'],$event['generation'],
+            $input['actor_identity_id'],json_encode($jobPayload,JSON_THROW_ON_ERROR),$capacity);
+        return $created ?? $jobs->activeJobForEvaluation($evaluationId);
     },2000);
 }
 
@@ -274,33 +223,17 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
 {
     if (!synthRelationshipUsesDedicatedConnector()) return null;
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId) {
-        $result=@pg_query_params($connection,"SELECT relationship_evaluation_id FROM public.core_worker_job
-            WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL
-                AND session_id=$2 AND request_id=$3 AND generation=$4 AND turn_id=$5 AND payload->>'context_sequence'=$6",
-            [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']]);
-        if (!$result) throw new RuntimeException('Unable to resolve relationship attempt');
-        $job=pg_fetch_assoc($result); if (!$job) return null;
-        $input=synth_relationship_evaluation_input($connection,$db,$event,intval($job['relationship_evaluation_id']));
+        $jobs=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+        $evaluationId=$jobs->evaluationOfAttempt($jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']);
+        if ($evaluationId===null) return null;
+        $input=synth_relationship_evaluation_input($connection,$db,$event,intval($evaluationId));
         if (!$input) {
-            $result=@pg_query_params($connection,"UPDATE public.core_worker_job j SET state='stale',lease_token=NULL,lease_until=NULL,
-                last_error='input_unavailable',updated_at=clock_timestamp() FROM public.core_relationship_evaluation i
-                WHERE j.id=$1 AND j.relationship_evaluation_id=i.id AND i.input_payload->'owner'=$2::jsonb
-                    AND (j.state='pending' OR (j.state='running' AND j.lease_until<=clock_timestamp()))",
-                [$jobId,synth_protocol_canonical_json($event)]);
-            if (!$result) throw new RuntimeException('Unable to retire invalid relationship input');
+            $jobs->retireInvalidEvaluationJob($jobId,synth_protocol_canonical_json($event));
             return null;
         }
-        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='failed',lease_token=NULL,lease_until=NULL,
-            last_error='lease_expired',updated_at=clock_timestamp() WHERE id=$1 AND state IN ('pending','running')
-                AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND lease_until<=clock_timestamp()))",[$jobId]);
-        if (!$result) throw new RuntimeException('Unable to retire expired relationship attempt');
-        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='running',attempts=attempts+1,lease_token=$2,
-            lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '2 minutes'),updated_at=clock_timestamp()
-            WHERE id=$1 AND attempts<3 AND deadline_at>clock_timestamp() AND available_at<=clock_timestamp()
-                AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) RETURNING id,lease_token,attempts",
-            [$jobId,bin2hex(random_bytes(16))]);
-        if (!$result) throw new RuntimeException('Unable to claim relationship attempt');
-        $claimed=pg_fetch_assoc($result); return $claimed ? array_merge($claimed,['input_payload'=>$input['input_payload']]) : null;
+        $jobs->failIfExpired($jobId);
+        $claimed=$jobs->claimAttempt($jobId,bin2hex(random_bytes(16)));
+        return $claimed ? array_merge($claimed,['input_payload'=>$input['input_payload']]) : null;
     },2000);
 }
 
@@ -308,14 +241,7 @@ function synth_relationship_claim_evaluation($db, int $jobId): ?array
 function synth_relationship_fail_evaluation($db, int $jobId, string $token): bool
 {
     return $db->withNativeRequestLock(static function($connection,array $event) use($jobId,$token) {
-        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN attempts>=3 OR deadline_at<=clock_timestamp()
-            THEN 'failed' ELSE 'pending' END,lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '10 seconds',
-            last_error='provider_failed',updated_at=clock_timestamp() WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL
-                AND session_id=$2 AND request_id=$3 AND generation=$4 AND payload->>'context_sequence'=$5
-                AND state='running' AND lease_token=$6 AND lease_until>clock_timestamp() RETURNING id",
-            [$jobId,$event['session_id'],$event['request_id'],$event['generation'],(string)$event['context_sequence'],$token]);
-        if (!$result) throw new RuntimeException('Unable to record relationship evaluation failure');
-        return pg_fetch_assoc($result)!==false;
+        return \Synth\Core\DbManager\Dao\WorkerJobDao::current()->failEvaluationAttempt($jobId,$event['session_id'],$event['request_id'],$event['generation'],(string)$event['context_sequence'],$token);
     },2000);
 }
 
@@ -375,13 +301,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
 {
     if (!synthRelationshipUsesDedicatedConnector()) throw new LogicException('Dedicated relationships are disabled');
     return $db->withNativeRequestLock(static function($connection,array $event) use($db,$jobId,$token,$modelText) {
-        $result=@pg_query_params($connection,"SELECT relationship_evaluation_id,state,lease_token,
-            (lease_until>clock_timestamp() AND deadline_at>clock_timestamp()) AS live FROM public.core_worker_job
-            WHERE id=$1 AND job_type='relationship' AND relationship_evaluation_id IS NOT NULL AND session_id=$2
-                AND request_id=$3 AND generation=$4 AND turn_id=$5 AND payload->>'context_sequence'=$6",
-            [$jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']]);
-        if (!$result) throw new RuntimeException('Unable to resolve relationship completion');
-        $job=pg_fetch_assoc($result);
+        $job=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->evaluationCompletionState($jobId,$event['session_id'],$event['request_id'],$event['generation'],$event['turn_id'],(string)$event['context_sequence']);
         if (!$job || !hash_equals($job['lease_token'] ?? '',$token) || !in_array($job['state'],['running','ready'],true)
             || ($job['state']==='running' && $job['live']!=='t')) throw new SYNTHProtocolCancelled('relationship_lease_lost');
         $evaluation=synth_relationship_evaluation_input($connection,$db,$event,intval($job['relationship_evaluation_id']));
@@ -390,52 +310,34 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
         $parsed=synth_relationship_parse_evaluation($modelText,$input);
         $json=json_encode($parsed,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         if ($job['state']==='ready') {
-            $result=@pg_query_params($connection,'SELECT history_event_id FROM public.core_relationship_result WHERE job_id=$1 AND result_payload=$2::jsonb',[$jobId,$json]);
-            $existing=$result ? pg_fetch_assoc($result) : false;
+            $existing=\Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->replayFor($jobId,$json);
             if (!$existing) throw new LogicException('Conflicting relationship evaluation replay');
-            return intval($existing['history_event_id']);
+            return intval($existing);
         }
         require_once __DIR__.'/synth_relationship_interaction_result.php';
         if (synth_relationship_paired_response_consumed($connection,$db,$event,intval($evaluation['response_history_event_id']),
             array_column($input['subjects'],'subject_id'))) {
             throw new LogicException('Relationship response already evaluated by paired worker');
         }
-        if (@pg_query_params($connection,"SELECT pg_advisory_xact_lock(hashtextextended('synth-relationship-result:'||$1||':'||$2,0))",
-            [$evaluation['actor_identity_id'],$evaluation['response_history_event_id']])===false) throw new RuntimeException('Unable to lock relationship result');
+        \Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->lockResponse($evaluation['actor_identity_id'],$evaluation['response_history_event_id']);
         // A verified gift has one immutable response. A result for that receipt is a duplicate on every save.
-        $priorResultQuery=isset($input['received_gift'])
-            ? 'SELECT 1 FROM public.core_relationship_result result
-                JOIN public.core_relationship_evaluation prior ON prior.id=result.evaluation_id
-                WHERE prior.response_history_event_id=$1 LIMIT 1'
-            : synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
-                .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1';
-        $result=@pg_query_params($connection,$priorResultQuery,[$evaluation['response_history_event_id']]);
-        if (!$result) throw new RuntimeException('Unable to check prior relationship result');
-        if (pg_fetch_assoc($result)) throw new LogicException('Relationship response already evaluated');
-        $result=@pg_query_params($connection,'SELECT 1 FROM public.core_relationship_result r JOIN public.core_relationship_evaluation i ON i.id=r.evaluation_id
-            WHERE i.session_id=$1 AND i.generation=$2 AND i.response_history_event_id=$3 AND i.actor_identity_id=$4 AND r.history_event_id>(
-                SELECT history_event_id FROM public.core_runtime_context WHERE session_id=$1 AND generation=$2 AND snapshot_sequence=$5) LIMIT 1',
-            [$event['session_id'],$event['generation'],$evaluation['response_history_event_id'],$evaluation['actor_identity_id'],$event['context_sequence']]);
-        if (!$result) throw new RuntimeException('Unable to check concurrent relationship result');
-        if (pg_fetch_assoc($result)) throw new LogicException('Native relationship evaluation is stale');
-        $result=@pg_query_params($connection,"WITH publication AS (
-            INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-                synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-            VALUES('relationship_result','Native relationship evaluation',$1,$2,$3,$3,'','','','derived',$4,$5,$6,$7) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$1,rowid,to_jsonb(publication)
-                ||jsonb_build_object('evaluation_sha256',$8::text,'result_sha256',encode(sha256(convert_to(($9::jsonb)::text,'UTF8')),'hex')) FROM publication RETURNING id
-        ) INSERT INTO public.core_relationship_result(history_event_id,evaluation_id,job_id,result_payload)
-            SELECT id,$10,$11,$9::jsonb FROM history RETURNING history_event_id",
-            [$input['context']['playthrough_id'],intval($input['context']['world']['game_time_ticks'] ?? 0),time(),$event['session_id'],
-                $event['generation'],$event['context_sequence'],$event['request_id'],$evaluation['input_sha256'],$json,$evaluation['id'],$jobId]);
-        if (!$result) throw new RuntimeException('Unable to publish relationship result');
-        $resultId=intval(pg_fetch_assoc($result)['history_event_id']); $subjects=[];
+        if (isset($input['received_gift'])) {
+            $consumed=\Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->existsForResponse($evaluation['response_history_event_id']);
+        } else {
+            $result=@pg_query_params($connection,synth_relationship_visible_cte($db,$event,sourceHistoryIds:[])
+                .'SELECT 1 FROM native_relationship_results WHERE response_history_event_id=$1',[$evaluation['response_history_event_id']]);
+            if (!$result) throw new RuntimeException('Unable to check prior relationship result');
+            $consumed=pg_fetch_assoc($result)!==false;
+        }
+        if ($consumed) throw new LogicException('Relationship response already evaluated');
+        if (\Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->existsAfterContext($event['session_id'],$event['generation'],$evaluation['response_history_event_id'],
+            $evaluation['actor_identity_id'],$event['context_sequence'])) throw new LogicException('Native relationship evaluation is stale');
+        $resultId=\Synth\Core\DbManager\Dao\RelationshipResultDao::current($db)->publish($input['context']['playthrough_id'],intval($input['context']['world']['game_time_ticks'] ?? 0),time(),
+            $event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],$evaluation['input_sha256'],$json,$evaluation['id'],$jobId);
+        $subjects=[];
         foreach ($input['subjects'] as $subject) {
             $subjects[$subject['subject_id']]=$subject;
-            if ($subject['relationship']!==null && @pg_query_params($connection,'INSERT INTO public.core_relationship_result_prior VALUES($1,$2)',
-                [$resultId,$subject['relationship']['revision']])===false) throw new RuntimeException('Unable to freeze relationship result prior');
+            if ($subject['relationship']!==null) \Synth\Core\DbManager\Dao\RelationshipResultPriorDao::current($db)->add($resultId,$subject['relationship']['revision']);
         }
         foreach ($parsed['changes'] as $change) {
             $subject=$subjects[$change['subject_id']];
@@ -451,9 +353,7 @@ function synth_relationship_complete_evaluation($db, int $jobId, string $token, 
             if ($change['delta']===0 && $type===null) continue;
             synth_relationship_publish($db,$subject['label'],$change['delta'],$type,$subject['relationship']['revision'] ?? null,$input['source_ids'],$resultId);
         }
-        $result=@pg_query_params($connection,"UPDATE public.core_worker_job SET state='ready',lease_until=NULL,updated_at=clock_timestamp()
-            WHERE id=$1 AND state='running' AND lease_token=$2 AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id",[$jobId,$token]);
-        if (!$result || !pg_fetch_assoc($result)) throw new SYNTHProtocolCancelled('relationship_lease_lost');
+        if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->markReady($jobId,$token)) throw new SYNTHProtocolCancelled('relationship_lease_lost');
         return $resultId;
     },2000);
 }
