@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractRuntimeSession;
 
 /** Finds rows of core_runtime_session. */
@@ -23,5 +24,13 @@ final class RuntimeSessionDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractRuntimeSession::class)->findBy([], ['sessionId' => 'ASC'], max(1, $limit)));
+    }
+
+    /** Active generation and state of one session, or null when it has no row. @return array{active_generation: mixed, state: mixed}|null */
+    public function generationAndState(string $sessionId): ?array
+    {
+        $row = $this->connection()->fetchAssociative('SELECT active_generation, state FROM public.core_runtime_session WHERE session_id = ?', [$sessionId]);
+
+        return $row === false ? null : $row;
     }
 }

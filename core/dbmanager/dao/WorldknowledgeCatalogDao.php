@@ -6,10 +6,11 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractWorldknowledgeCatalog;
 
 /** Finds rows of core_worldknowledge_catalog. */
-final class WorldknowledgeCatalogDao
+class WorldknowledgeCatalogDao
 {
     use UsesEntityManager;
 
@@ -23,5 +24,16 @@ final class WorldknowledgeCatalogDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractWorldknowledgeCatalog::class)->findBy([], ['catalogId' => 'ASC', 'catalogVersion' => 'ASC'], max(1, $limit)));
+    }
+
+    /** The sha256 checksum recorded for one catalog version, or null when there is no such catalog row. */
+    public function checksum(string $catalogId, string $catalogVersion): ?string
+    {
+        $checksum = $this->connection()->fetchOne(
+            'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id = ? AND catalog_version = ? LIMIT 1',
+            [$catalogId, $catalogVersion]
+        );
+
+        return $checksum === false || $checksum === null ? null : (string) $checksum;
     }
 }

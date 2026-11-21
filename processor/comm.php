@@ -131,15 +131,8 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
     \Synth\Lib\Logger::log(\Synth\Lib\Logger::INFO, 'INIT', "Pruning SYNTH data after loaded-save gamets {$gameRequest[2]}");
     synthMaybeHandleIncomingGametsRollback($gameRequest[2], 'init', true);
     try {
-        $inFlightDeliverySql = synthBuildChatDeliveryStateSql(
-            'delivery_state',
-            array_values(array_unique(array_merge(synthGetInFlightChatDeliveryStates(), ['playing']))),
-            'emitted'
-        );
-        $db->update(
-            'core_context_event',
-            "delivery_state='aborted'",
-            "type='chat' AND synth_session_id IS NULL AND {$inFlightDeliverySql}"
+        \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->abortInFlightChat(
+            array_values(array_unique(array_merge(synthGetInFlightChatDeliveryStates(), ['playing'])))
         );
         Logger::info("[INIT] Aborted stale in-flight dialogue delivery rows after game load");
     } catch (Throwable $e) {
@@ -252,21 +245,20 @@ if ($gameRequest[0] == "init") { // Reset responses if init sent (Think about th
 
 if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about this)
     $now=time();
-    $db->delete("core_context_event", " 1=1");
-    $db->delete("core_quest", " 1=1");
-    $db->delete("core_speech", " 1=1 ");
+    \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->deleteAll();
+    \Synth\Core\DbManager\Dao\QuestDao::current($db)->deleteAll();
+    \Synth\Core\DbManager\Dao\SpeechDao::current($db)->deleteAll();
 
     if (\Synth\Bootstrap::config("FEATURES")["MEMORY_EMBEDDING"]["ENABLED"]) {
-        $results = $db->query("select gamets_truncated,uid from core_memory where source_type='summary' AND gamets_truncated>{$gameRequest[2]}");
-        while ($memoryRow = $db->fetchArray($results)) {
-            deleteElement($memoryRow["uid"]);
+        foreach (\Synth\Core\DbManager\Dao\MemoryDao::current($db)->summaryUidsAfter(intval($gameRequest[2])) as $summaryUid) {
+            deleteElement($summaryUid);
         }
     }
-    $db->delete("core_memory", " 1=1 ");
-    $db->delete("core_memory_log", " 1=1 ");
+    \Synth\Core\DbManager\Dao\MemoryDao::current($db)->deleteAll();
+    \Synth\Core\DbManager\Dao\MemoryLogDao::current($db)->deleteAll();
 
     //die(print_r($gameRequest,true));
-    $db->update("core_response_log", "sent=0", "sent=1 and (action='synth_dialogue_response')");
+    \Synth\Core\DbManager\Dao\ResponseLogDao::current($db)->markDialogueResponsesUnsent();
     $db->insert(
         'core_context_event',
         array(
@@ -336,26 +328,12 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 if ($utteranceId === "") {
                     continue;
                 }
-                $utteranceIds[$utteranceId] = $db->escape($utteranceId);
+                $utteranceIds[$utteranceId] = $utteranceId;
             }
         }
 
         if (!empty($utteranceIds)) {
-            $quotedIds = array_map(function ($escapedId) {
-                return "'" . $escapedId . "'";
-            }, array_values($utteranceIds));
-            $abortableChatStateSql = synthBuildChatDeliveryStateSql(
-                'delivery_state',
-                synthGetInFlightChatDeliveryStates(),
-                'emitted'
-            );
-            $db->execQuery(
-                "UPDATE public.core_context_event
-                 SET delivery_state='aborted'
-                 WHERE type='chat' AND synth_session_id IS NULL
-                   AND utterance_id IN (" . implode(",", $quotedIds) . ")
-                   AND {$abortableChatStateSql}"
-            );
+            \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->abortInFlightChat(synthGetInFlightChatDeliveryStates(), array_values($utteranceIds));
         }
     }
 
@@ -367,7 +345,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
    
     // error_log(print_r($speech,true));
     if (is_array($speech)) {
-        $nonAbortedChatStateSql = "synth_session_id IS NULL AND COALESCE(delivery_state, 'emitted')<>'aborted'";
+        $contextEvents = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
         $speechSpeaker = isset($speech["speaker"]) ? trim((string)$speech["speaker"]) : "";
         $speechListener = isset($speech["listener"]) ? trim((string)$speech["listener"]) : "";
         $speechUtteranceId = isset($speech["utterance_id"]) ? trim((string)$speech["utterance_id"]) : "";
@@ -410,8 +388,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
             $topic = empty($topic) ? $spatialTag : "{$topic}|{$spatialTag}";
         }
         
-        $db->insert(
-            'core_speech',
+        \Synth\Core\DbManager\Dao\SpeechDao::current($db)->record(
             array(
                 'ts' => $gameRequest[1],
                 'gamets' => $gameRequest[2],
@@ -430,17 +407,8 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
 
         $matchedUtteranceRowIds = [];
         if ($speechUtteranceId !== "") {
-            $speechUtteranceIdEscaped = $db->escape($speechUtteranceId);
-            $matchedRows = $db->fetchAll(
-                "SELECT rowid
-                 FROM core_context_event
-                 WHERE type='chat'
-                   AND utterance_id='{$speechUtteranceIdEscaped}'
-                   AND {$nonAbortedChatStateSql}
-                 ORDER BY rowid DESC"
-            );
-            foreach ((array)$matchedRows as $matchedRow) {
-                $matchedRowId = intval($matchedRow["rowid"] ?? 0);
+            foreach ($contextEvents->liveChatRowIdsForUtterance($speechUtteranceId) as $matchedRowId) {
+                $matchedRowId = intval($matchedRowId);
                 if ($matchedRowId > 0) {
                     $matchedUtteranceRowIds[] = $matchedRowId;
                 }
@@ -488,7 +456,6 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
             if (!$isPlayerSpeech && $speechSpeaker !== "") {
                 $chatRowId = 0;
                 $rowsToUpdate = $matchedUtteranceRowIds;
-                $speakerEscaped = $db->escape($speechSpeaker);
                 $matchesSpeechListener = function ($chatData) use ($speechListener) {
                     if ($speechListener === "") {
                         return true;
@@ -513,16 +480,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     $chatRowId = intval($rowsToUpdate[0]);
                 } else {
                     // Fast path: same gamets linkage if available.
-                    $sameGametsChatRows = $db->fetchAll(
-                        "SELECT rowid, gamets, data
-                         FROM core_context_event
-                         WHERE gamets={$speechGamets}
-                           AND type='chat'
-                           AND {$nonAbortedChatStateSql}
-                           AND data ILIKE '{$speakerEscaped}:%'
-                         ORDER BY ts DESC, rowid DESC
-                         LIMIT 40"
-                    );
+                    $sameGametsChatRows = $contextEvents->liveChatRowsBySpeakerAtGamets($speechGamets, $speechSpeaker, 40);
                     foreach ((array)$sameGametsChatRows as $sameRow) {
                         $sameRowId = intval($sameRow["rowid"] ?? 0);
                         $sameData = isset($sameRow["data"]) ? (string)$sameRow["data"] : "";
@@ -542,16 +500,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                 }
 
                 if ($chatRowId <= 0) {
-                    $recentChatRows = $db->fetchAll(
-                        "SELECT rowid, gamets, data
-                         FROM core_context_event
-                         WHERE type='chat'
-                           AND {$nonAbortedChatStateSql}
-                           AND localts>" . (time() - 180) . "
-                           AND data ILIKE '{$speakerEscaped}:%'
-                         ORDER BY rowid DESC
-                         LIMIT 60"
-                    );
+                    $recentChatRows = $contextEvents->recentLiveChatRowsBySpeaker($speechSpeaker, time() - 180, 60);
 
                     $expectedSpeech = normalizeDialogTextForComparison($speech["speech"] ?? "");
                     $bestChatRowId = 0;
@@ -651,7 +600,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                         if ($rowIdToUpdate <= 0) {
                             continue;
                         }
-                        $db->update("core_context_event", "delivery_state='spoken'", "rowid={$rowIdToUpdate} AND {$nonAbortedChatStateSql}");
+                        $contextEvents->setLiveChatDeliveryState($rowIdToUpdate, 'spoken');
                     }
                 }
             } elseif (!empty($matchedUtteranceRowIds)) {
@@ -659,7 +608,7 @@ if ($gameRequest[0] == "wipe") { // Reset reponses if init sent (Think about thi
                     if ($matchedRowId <= 0) {
                         continue;
                     }
-                    $db->update("core_context_event", "delivery_state='spoken'", "rowid={$matchedRowId} AND {$nonAbortedChatStateSql}");
+                    $contextEvents->setLiveChatDeliveryState($matchedRowId, 'spoken');
                 }
             }
         }

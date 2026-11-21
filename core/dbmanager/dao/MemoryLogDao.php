@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace Synth\Core\DbManager\Dao;
 
+use Doctrine\DBAL\Exception as DbalException;
 use Synth\Core\Entities\Base\AbstractMemoryLog;
 
 /** Finds rows of core_memory_log. */
@@ -23,5 +24,17 @@ final class MemoryLogDao
     public function findAll(int $limit = 1000): array
     {
         return array_values($this->fresh()->getRepository(AbstractMemoryLog::class)->findBy([], ['rowid' => 'ASC'], max(1, $limit)));
+    }
+
+    /** Removes every memory log row (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_memory_log');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 }
