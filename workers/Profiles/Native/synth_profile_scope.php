@@ -62,10 +62,10 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
         'PATCH_PROMPT_ENFORCE_ACTIONS','COMMAND_PROMPT_ENFORCE_ACTIONS','DIRECT_NARRATOR_DIALOGUE'];
     $previous=array_intersect_key($GLOBALS,array_flip($keys));
     try {
-        $GLOBALS['db']=$db;
-        $GLOBALS['SYNTH_NATIVE_PROFILE_INPUTS']=[];
-        unset($GLOBALS['SYNTH_MEMORY_JOB_LEASE'],$GLOBALS['SYNTH_RELATIONSHIP_JOB_LEASE'],$GLOBALS['SYNTH_INTERACTION_JOB_LEASE'],$GLOBALS['SYNTH_PROFILE_JOB_LEASE']);
-        $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+        \Synth\Bootstrap::set('db', $db);
+        \Synth\Bootstrap::set('SYNTH_NATIVE_PROFILE_INPUTS', []);
+        \Synth\Bootstrap::forget('SYNTH_MEMORY_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_RELATIONSHIP_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_INTERACTION_JOB_LEASE'); \Synth\Bootstrap::forget('SYNTH_PROFILE_JOB_LEASE');
+        \Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', ['json'=>$owner]);\Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
         synth_protocol_assert_request_active();
         $available=synth_profile_refresh_bindings($db,$owner,true);
         $bindings=[];
@@ -78,13 +78,13 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
             }
             $bindings[$name]=$available[$key];
         }
-        $GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS']=array_intersect_key($bindings,array_flip($queue['npcs']));
+        \Synth\Bootstrap::set('SYNTH_NATIVE_PROFILE_BINDINGS', array_intersect_key($bindings,array_flip($queue['npcs'])));
         $context=synth_protocol_current_context($db,$owner);
-        $GLOBALS['PLAYER_NAME']=$context['player']['display_name'];
+        \Synth\Bootstrap::set('PLAYER_NAME', $context['player']['display_name']);
         $work();
     } finally {
         foreach ($keys as $key) {
-            if (array_key_exists($key,$previous)) $GLOBALS[$key]=$previous[$key];else unset($GLOBALS[$key]);
+            if (array_key_exists($key,$previous)) \Synth\Bootstrap::set($key,$previous[$key]);else \Synth\Bootstrap::forget($key);
         }
     }
 }
@@ -92,7 +92,7 @@ function synth_profile_with_origin($db, array $queue, callable $work): void
 // Native writers recheck generation and the original row link; a reused display name never selects a replacement.
 function synth_profile_assert_write_target($db, string $name): void
 {
-    if (!isset($GLOBALS['SYNTH_NATIVE_PROFILE_BINDINGS'])) return;
+    if (!\Synth\Bootstrap::has('SYNTH_NATIVE_PROFILE_BINDINGS')) return;
     synth_protocol_assert_request_active();
     $expected=\Synth\Bootstrap::config('SYNTH_NATIVE_PROFILE_BINDINGS')[$name] ?? null;
     if (!$expected) throw new RuntimeException('Native profile target is outside the queued batch.');

@@ -80,7 +80,7 @@ function synth_middleterm_assert_lease($db): void
         ." AND state='running' AND lease_token=".$db->escapeLiteral($lease['token'])
         ." AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp() RETURNING id");
     if (!$row) throw new SYNTHProtocolCancelled('middleterm_lease_lost');
-    $GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE']['renew_after']=microtime(true)+1;
+    \Synth\Bootstrap::setAt('SYNTH_MIDDLETERM_JOB_LEASE', 'renew_after', microtime(true)+1);
 }
 
 // Bind the exact database connector fingerprint; changed settings require fresh admission, never silent retry drift.
@@ -92,14 +92,14 @@ function synth_middleterm_generate($db, array $input): string
     if (!$connector || !hash_equals($input['connector_sha256'],hash('sha256',synth_protocol_canonical_json($connector)))) {
         throw new LogicException('Middle-term connector changed after admission.');
     }
-    $manager->setOldGlobals($connector);$GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$connector;
-    $GLOBALS['SYNTH_NAME']=$input['identity']['display_name'];$GLOBALS['CURRENT_CONNECTOR']=$connector['driver'];
+    $manager->setOldGlobals($connector);\Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $connector);
+    \Synth\Bootstrap::set('SYNTH_NAME', $input['identity']['display_name']);\Synth\Bootstrap::set('CURRENT_CONNECTOR', $connector['driver']);
     $context=synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json']);
-    $GLOBALS['PLAYER_NAME']=strval($context['player']['display_name'] ?? 'Player');
-    $GLOBALS['gameRequest']=['middleterm'];
-    $GLOBALS['FORCE_MAX_TOKENS']=2048;$GLOBALS['COMMAND_PROMPT']='';$GLOBALS['BASE_FUNCTIONS']=[];
-    $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];$GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
-    $GLOBALS['PATCH_PROMPT_ENFORCE_ACTIONS']=false;$GLOBALS['COMMAND_PROMPT_ENFORCE_ACTIONS']='';
+    \Synth\Bootstrap::set('PLAYER_NAME', strval($context['player']['display_name'] ?? 'Player'));
+    \Synth\Bootstrap::set('gameRequest', ['middleterm']);
+    \Synth\Bootstrap::set('FORCE_MAX_TOKENS', 2048);\Synth\Bootstrap::set('COMMAND_PROMPT', '');\Synth\Bootstrap::set('BASE_FUNCTIONS', []);
+    \Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', []);\Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
+    \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);\Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', '');
     synth_protocol_assert_request_active();
     // Serialize the frozen evidence once at transport time instead of duplicating it inside the persisted input.
     $messages=$input['messages'];
@@ -145,7 +145,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
             return pg_fetch_assoc($claimed) ? $row : null;
         },2000);
         if (!$row) return null;
-        $GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE']=['id'=>$jobId,'token'=>$token];
+        \Synth\Bootstrap::set('SYNTH_MIDDLETERM_JOB_LEASE', ['id'=>$jobId,'token'=>$token]);
         try {
             $input=synth_protocol_decode_json($row['input_payload']);
             $text=trim($generate ? $generate($input) : synth_middleterm_generate($db,$input));
@@ -192,7 +192,7 @@ function synth_middleterm_run_job($db, int $jobId, ?callable $generate=null): ?i
                 available_at=clock_timestamp()+INTERVAL '10 seconds',last_error='middleterm_attempt_failed',updated_at=clock_timestamp()
                 WHERE id=$jobId AND state='running' AND lease_token=".$db->escapeLiteral($token));
             throw $error;
-        } finally {unset($GLOBALS['SYNTH_MIDDLETERM_JOB_LEASE']);}
+        } finally {\Synth\Bootstrap::forget('SYNTH_MIDDLETERM_JOB_LEASE');}
     },'middleterm');
 }
 

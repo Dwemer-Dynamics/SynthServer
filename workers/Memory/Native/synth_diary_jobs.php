@@ -177,12 +177,12 @@ function synth_diary_with_owner($db, array $owner, callable $work): mixed
         'PATCH_PROMPT_ENFORCE_ACTIONS','COMMAND_PROMPT_ENFORCE_ACTIONS','gameRequest','SYNTH_NAME','PLAYER_NAME'];
     $previous=array_intersect_key($GLOBALS,array_flip($keys));
     try {
-        foreach (['SYNTH_DIARY_JOB_LEASE','SYNTH_MEMORY_JOB_LEASE','SYNTH_PROFILE_JOB_LEASE','SYNTH_RELATIONSHIP_JOB_LEASE','SYNTH_INTERACTION_JOB_LEASE'] as $key) unset($GLOBALS[$key]);
-        $GLOBALS['db']=$db;$GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>$owner];$GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
+        foreach (['SYNTH_DIARY_JOB_LEASE','SYNTH_MEMORY_JOB_LEASE','SYNTH_PROFILE_JOB_LEASE','SYNTH_RELATIONSHIP_JOB_LEASE','SYNTH_INTERACTION_JOB_LEASE'] as $key) \Synth\Bootstrap::forget($key);
+        \Synth\Bootstrap::set('db', $db);\Synth\Bootstrap::set('SYNTH_REQUEST_EVENT', ['json'=>$owner]);\Synth\Bootstrap::set('SYNTH_PROTOCOL_REQUEST_CLAIMED', true);
         synth_protocol_assert_request_active();
         return $work();
     } finally {
-        foreach ($keys as $key) { if (array_key_exists($key,$previous)) $GLOBALS[$key]=$previous[$key];else unset($GLOBALS[$key]); }
+        foreach ($keys as $key) { if (array_key_exists($key,$previous)) \Synth\Bootstrap::set($key,$previous[$key]);else \Synth\Bootstrap::forget($key); }
     }
 }
 
@@ -196,22 +196,22 @@ function synth_diary_generate($db, array $input): array
     if ($selection['kind']==='core') {
         $manager=new LLMConnector();$settings=$manager->getById($selection['id']);
         if (!$settings) throw new RuntimeException('Diary connector unavailable.');
-        $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$settings;$manager->setOldGlobals($settings);
-        if ($input['diary_role']==='player') unset($GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']['stop']);
+        \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);$manager->setOldGlobals($settings);
+        if ($input['diary_role']==='player') \Synth\Bootstrap::unsetPath('SYNTH_CORE_CURRENT_CONNECTOR_DATA', ['stop']);
         $driver=$settings['driver'];
     } else {
         // Never look up an arbitrary core record for a frozen legacy selection or inherit a previous worker's core metadata.
-        unset($GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']);
+        \Synth\Bootstrap::forget('SYNTH_CORE_CURRENT_CONNECTOR_DATA');
         $driver=$selection['driver'];
         require_once dirname(__DIR__, 3).'/drivers/llm/LlmWrapper.php';
     }
-    $GLOBALS['CURRENT_CONNECTOR']=$driver;$GLOBALS['FORCE_MAX_TOKENS']=$input['max_tokens'];
-    $GLOBALS['COMMAND_PROMPT']='';$GLOBALS['BASE_FUNCTIONS']=[];$GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];$GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
-    $GLOBALS['PATCH_PROMPT_ENFORCE_ACTIONS']=false;$GLOBALS['COMMAND_PROMPT_ENFORCE_ACTIONS']='';
-    $GLOBALS['SYNTH_NAME']=$input['binding']['name'];$GLOBALS['PLAYER_NAME']=$input['diary_role']==='player'
-        ? ($input['character_name'] ?? $input['context']['player']['display_name']) : $input['context']['player']['display_name'];
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $driver);\Synth\Bootstrap::set('FORCE_MAX_TOKENS', $input['max_tokens']);
+    \Synth\Bootstrap::set('COMMAND_PROMPT', '');\Synth\Bootstrap::set('BASE_FUNCTIONS', []);\Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', []);\Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
+    \Synth\Bootstrap::set('PATCH_PROMPT_ENFORCE_ACTIONS', false);\Synth\Bootstrap::set('COMMAND_PROMPT_ENFORCE_ACTIONS', '');
+    \Synth\Bootstrap::set('SYNTH_NAME', $input['binding']['name']);\Synth\Bootstrap::set('PLAYER_NAME', $input['diary_role']==='player'
+        ? ($input['character_name'] ?? $input['context']['player']['display_name']) : $input['context']['player']['display_name']);
     $reason=$input['owner']['payload']['reason'] ?? 'manual';
-    $GLOBALS['gameRequest']=[$input['diary_role']==='player' ? 'diary_player' : 'diary',time(),intval($input['context']['world']['game_time_ticks'] ?? 0),'Native '.$reason.' diary'];
+    \Synth\Bootstrap::set('gameRequest', [$input['diary_role']==='player' ? 'diary_player' : 'diary',time(),intval($input['context']['world']['game_time_ticks'] ?? 0),'Native '.$reason.' diary']);
     $handler=$selection['kind']==='core' ? $manager->getConnector($settings) : \Synth\Drivers\Llm\LlmWrapper::legacyConnector($driver);
     $text=$handler->fast_request($input['messages'],['MAX_TOKENS'=>$input['max_tokens']],'diary');
     if (!is_string($text) || trim($text)==='') throw new RuntimeException('Diary provider returned no text.');
@@ -272,7 +272,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             return pg_fetch_assoc($result)['lease_token'] ?? null;
         },2000);
         if (!$token) return false;
-        $GLOBALS['SYNTH_DIARY_JOB_LEASE']=['id'=>$jobId,'token'=>$token];
+        \Synth\Bootstrap::set('SYNTH_DIARY_JOB_LEASE', ['id'=>$jobId,'token'=>$token]);
         try {
             $saved=$db->fetchOne("SELECT result_payload,result_sha256=encode(sha256(convert_to(result_payload::text,'UTF8')),'hex')
                 AND input_sha256=".$db->escapeLiteral($job['input_sha256'])." AS valid
@@ -322,7 +322,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             },2000);
             return true;
         } catch (Throwable $error) {
-            unset($GLOBALS['SYNTH_DIARY_JOB_LEASE']);
+            \Synth\Bootstrap::forget('SYNTH_DIARY_JOB_LEASE');
             $db->withNativeRequestLock(static function($connection) use($jobId,$token,$error) {
                 $terminal=$error instanceof LogicException || $error instanceof LengthException;
                 if (!@pg_query_params($connection,"UPDATE public.core_worker_job SET state=CASE WHEN $3::boolean OR attempts>=3 OR deadline_at<=clock_timestamp()
@@ -332,7 +332,7 @@ function synth_diary_run_job($db, int $jobId, ?callable $generate=null, ?callabl
             },2000);
             Logger::warn('Native diary attempt did not complete; durable state retained.');
             return false;
-        } finally { unset($GLOBALS['SYNTH_DIARY_JOB_LEASE']); }
+        } finally { \Synth\Bootstrap::forget('SYNTH_DIARY_JOB_LEASE'); }
     });
 }
 

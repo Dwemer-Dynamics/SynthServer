@@ -1,13 +1,13 @@
 <?php
 
-$GLOBALS["TASKS"]["middleterm"]=[];
-$GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
+\Synth\Bootstrap::setAt('TASKS', "middleterm", []);
+\Synth\Bootstrap::setPath('TASKS', ["middleterm", "fn"], function() {
 
     $enginePath = \Synth\Bootstrap::engineRoot();
-    $GLOBALS["ENGINE_PATH"]=$enginePath;
+    \Synth\Bootstrap::set('ENGINE_PATH', $enginePath);
 
 
-	if (!isset($GLOBALS["db"])) { $GLOBALS["db"] = new sql(); }
+	if (!\Synth\Bootstrap::has('db')) { \Synth\Bootstrap::set('db', new sql()); }
 
     require_once($enginePath . "prompts/command_prompt.php");
     require_once($enginePath . "lib/chat_helper_functions.php");
@@ -23,11 +23,11 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
     require_once __DIR__ . '/synth_middleterm_jobs.php';
     synth_middleterm_dispatch(\Synth\Bootstrap::db());
 
-    //$results = $GLOBALS["db"]->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null order by gamets_truncated desc limit 1"); //0.8ms
+    //$results = \Synth\Bootstrap::config("db")->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null order by gamets_truncated desc limit 1"); //0.8ms
     $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets_truncated) as gamets_truncated from core_memory where source_type='summary' AND summary is not null"); // 0.5ms, faster
     $lastMemory = intval($results[0]["gamets_truncated"]);
 
-    //$results = $GLOBALS["db"]->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");
+    //$results = \Synth\Bootstrap::config("db")->fetchAll("select max(gamets) as gamets from core_context_event ORDER BY gamets desc limit 1");
     $results = \Synth\Bootstrap::db()->fetchAll("select max(gamets) as gamets from core_context_event"); // faster
     $maxRow = intval($results[0]["gamets"]);
 
@@ -47,8 +47,8 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
     foreach ($allEnabledMtNpc as $npc) {
         $mwdata=json_decode($npc["extended_data"]);
         //echo "[MIDDLETERM] {$npc["npc_name"]} has middleterm memory enabled".PHP_EOL;
-        $GLOBALS["SELECTED_NPC"]=$npc["npc_name"];
-        $GLOBALS["SELECTED_NPC_ID"]=intval($npc['id']);
+        \Synth\Bootstrap::set('SELECTED_NPC', $npc["npc_name"]);
+        \Synth\Bootstrap::set('SELECTED_NPC_ID', intval($npc['id']));
         require(__DIR__ . "/middleterm_generate.php");
     }
 
@@ -83,7 +83,7 @@ $GLOBALS["TASKS"]["middleterm"]["fn"]=function() {
         }
     }
 
-    //unset($GLOBALS["db"]);
+    //unset(\Synth\Bootstrap::config("db"));
 
-}
+});
 ?>

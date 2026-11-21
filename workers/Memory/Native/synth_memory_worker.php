@@ -100,16 +100,16 @@ function synth_memory_generate_summary($db, array $input, array $context): strin
     $prompt = synth_memory_summary_prompt($input,$context,strval($prompts['memory_subsystem_summary'] ?? ''),
         strval($prompts['summary_prompt'] ?? \Synth\Bootstrap::config('SUMMARY_PROMPT') ?? ''));
     $connector->setOldGlobals($settings);
-    $GLOBALS['SYNTH_CORE_CURRENT_CONNECTOR_DATA']=$settings;
-    $GLOBALS['CURRENT_CONNECTOR']=$settings['driver'];
-    $GLOBALS['PLAYER_NAME']=strval($context['player']['display_name'] ?? 'Player');
-    $GLOBALS['SYNTH_NAME']=strval($context['target']['display_name'] ?? '');
-    $GLOBALS['gameRequest']=['summary'];
-    $GLOBALS['COMMAND_PROMPT']='';
-    $GLOBALS['BASE_FUNCTIONS']=[];
-    $GLOBALS['SYNTH_CLIENT_CAPABILITIES']=[];
-    $GLOBALS['DIRECT_NARRATOR_DIALOGUE']=false;
-    $GLOBALS['FORCE_MAX_TOKENS']=intval(\Synth\Bootstrap::config('CONNECTOR')[$settings['driver']]['MAX_TOKENS_MEMORY'] ?? $settings['max_tokens'] ?? 1024);
+    \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_CONNECTOR_DATA', $settings);
+    \Synth\Bootstrap::set('CURRENT_CONNECTOR', $settings['driver']);
+    \Synth\Bootstrap::set('PLAYER_NAME', strval($context['player']['display_name'] ?? 'Player'));
+    \Synth\Bootstrap::set('SYNTH_NAME', strval($context['target']['display_name'] ?? ''));
+    \Synth\Bootstrap::set('gameRequest', ['summary']);
+    \Synth\Bootstrap::set('COMMAND_PROMPT', '');
+    \Synth\Bootstrap::set('BASE_FUNCTIONS', []);
+    \Synth\Bootstrap::set('SYNTH_CLIENT_CAPABILITIES', []);
+    \Synth\Bootstrap::set('DIRECT_NARRATOR_DIALOGUE', false);
+    \Synth\Bootstrap::set('FORCE_MAX_TOKENS', intval(\Synth\Bootstrap::config('CONNECTOR')[$settings['driver']]['MAX_TOKENS_MEMORY'] ?? $settings['max_tokens'] ?? 1024));
     $handler = $connector->getConnector($settings);
     $text = $handler->fast_request($prompt,[],'summary');
     if (!is_string($text)) throw new RuntimeException('Native summary provider returned no text');
