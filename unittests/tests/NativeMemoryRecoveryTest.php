@@ -11,9 +11,10 @@ final class NativeMemoryRecoveryFixtureDatabase
     public function __construct(private $connection) {}
     public function getCatalogueSqlConnection(): \PgSql\Connection {return $this->connection;}
     public function escapeLiteral(string $value): string {return pg_escape_literal($this->connection,$value);}
-    public function execQuery(string $sql)
+    public function GetLastError(): string {return pg_last_error($this->connection);}
+    public function execQuery(string $sql,array $parameters=[])
     {
-        $result=pg_query($this->connection,$sql);
+        $result=$parameters===[] ? pg_query($this->connection,$sql) : pg_query_params($this->connection,$sql,$parameters);
         if (!$result) throw new RuntimeException('Disposable memory adapter query failed');
         return $result;
     }
