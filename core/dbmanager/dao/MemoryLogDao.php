@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractMemoryLog;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_memory_log. */
 final class MemoryLogDao
@@ -70,5 +71,17 @@ final class MemoryLogDao
             'SELECT a.*, rowid AS rowid FROM public.core_memory_log a ORDER BY gamets DESC, rowid DESC LIMIT ?',
             [$limit]
         );
+    }
+
+    /** Removes every memory log row (the wipe command). */
+    public function deleteAll(): bool
+    {
+        try {
+            $this->connection()->executeStatement('DELETE FROM public.core_memory_log');
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
     }
 }

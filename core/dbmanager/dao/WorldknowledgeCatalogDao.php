@@ -9,7 +9,7 @@ namespace Synth\Core\DbManager\Dao;
 use Synth\Core\Entities\Base\AbstractWorldknowledgeCatalog;
 
 /** Finds rows of core_worldknowledge_catalog. */
-final class WorldknowledgeCatalogDao
+class WorldknowledgeCatalogDao
 {
     use UsesEntityManager;
 
@@ -33,5 +33,16 @@ final class WorldknowledgeCatalogDao
         );
 
         return $row === false ? null : $row;
+    }
+
+    /** The sha256 checksum recorded for one catalog version, or null when there is no such catalog row. */
+    public function checksum(string $catalogId, string $catalogVersion): ?string
+    {
+        $checksum = $this->connection()->fetchOne(
+            'SELECT checksum_sha256 FROM public.core_worldknowledge_catalog WHERE catalog_id = ? AND catalog_version = ? LIMIT 1',
+            [$catalogId, $catalogVersion]
+        );
+
+        return $checksum === false || $checksum === null ? null : (string) $checksum;
     }
 }

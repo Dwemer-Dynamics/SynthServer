@@ -1196,10 +1196,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertStringContainsString("WHEN h.event_payload ? 'synth_wait_consequence' THEN",$query);
         $this->assertStringContainsString("CASE WHEN original.type IN ('funcret','infoaction') THEN",$query);
         $this->assertStringContainsString('($b_actor && !$nativeHistory)',$history);
-        $telemetry = file_get_contents(dirname(__DIR__,2).'/gamedata.php');
-        $this->assertStringContainsString("synth_session_id IS NULL AND COALESCE(delivery_state",$telemetry);
-        $legacy = file_get_contents(dirname(__DIR__,2).'/processor/comm.php');
-        $this->assertSame(3,substr_count($legacy,'synth_session_id IS NULL'));
+        // Legacy delivery telemetry and _speech only touch rows without a native session: the guard lives in ContextEventDao.
+        $dao = file_get_contents(dirname(__DIR__,2).'/core/dbmanager/dao/ContextEventDao.php');
+        $this->assertStringContainsString("synth_session_id IS NULL AND COALESCE(delivery_state",$dao);
+        $this->assertSame(2,substr_count($dao,'synth_session_id IS NULL'));
+        $this->assertStringContainsString('setLiveChatDeliveryState',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+        $this->assertStringNotContainsString('delivery_state',file_get_contents(dirname(__DIR__,2).'/processor/comm.php'));
     }
 
     public function testNativeHistoryInsertionUsesClaimLockAndAtomicEvidenceWrite(): void
@@ -1317,7 +1319,7 @@ final class RequestStreamingTest extends TestCase
             foreach (['main_synth_pipeline.php','gamedata.php'] as $path) {
                 $this->assertStringNotContainsString('synthMaybeHandleIncomingGametsRollback(',file_get_contents(dirname(__DIR__,2).'/'.$path));
             }
-            $this->assertStringContainsString('$db->delete(\'core_quest\', "sess=\'synth_active_quest\'")',file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
+            $this->assertStringContainsString("QuestDao::current(\$db)->deleteBySession('synth_active_quest')",file_get_contents(dirname(__DIR__,2).'/gamedata.php'));
         } finally {
             $GLOBALS['SYNTH_REQUEST_EVENT'] = $previous;
             $GLOBALS['db'] = $previousDb;

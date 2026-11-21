@@ -79,10 +79,8 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     \Synth\Bootstrap::set('db', new sql());
     $db = \Synth\Bootstrap::db();
 
-    $latsRid=$db->fetchAll("select * from core_context_event order by rowid desc LIMIT 1 OFFSET 0");
-    $res=$db->fetchAll("select max(gamets)+1 as gamets,max(ts)+1 as ts  from core_context_event where rowid={$latsRid[0]["rowid"]}");
-    $res[0]["ts"]=$res[0]["ts"]+1;
-    $res[0]["gamets"]=$res[0]["gamets"]+1;
+    $newestTimes=\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->newestTimes();
+    $res=[["ts"=>$newestTimes["ts"]+2,"gamets"=>$newestTimes["gamets"]+2]];
 
 
 
@@ -613,9 +611,9 @@ if (!$synthAutoChat && in_array($gameRequest[0],["inputtext","inputtext_s","narr
         $npcTarget = '';
         $activeProfileForRewrite = synthRuntimeGetActiveProfile();
         if ($activeProfileForRewrite !== null && $activeProfileForRewrite !== md5('The Narrator')) {
-            $npcRow = $db->fetchOne("SELECT npc_name FROM core_npc WHERE md5='" . $db->escape($activeProfileForRewrite) . "' LIMIT 1");
-            if ($npcRow && !empty($npcRow['npc_name'])) {
-                $npcTarget = $npcRow['npc_name'];
+            $npcRowName = \Synth\Core\DbManager\Dao\NpcDao::current($db)->nameByMd5($activeProfileForRewrite);
+            if (!empty($npcRowName)) {
+                $npcTarget = $npcRowName;
             }
         }
         $escapedDialogue = escapeshellarg($cleaned_player_dialogue);
@@ -898,8 +896,7 @@ $OVERRIDES["MINIME_T5"] = \Synth\Bootstrap::has('MINIME_T5') ? \Synth\Bootstrap:
                 || ($fallbackNpcName !== null && strcasecmp($fallbackNpcName, "The Narrator") === 0);
 
             if ($fallbackNpcName !== null && strcasecmp($fallbackNpcName, "The Narrator") !== 0) {
-                $escapedNpcName = $db->escape($fallbackNpcName);
-                $fallbackNpcData = $db->fetchOne("SELECT * FROM core_npc WHERE lower(npc_name)=lower('{$escapedNpcName}') LIMIT 1");
+                $fallbackNpcData = \Synth\Core\DbManager\Dao\NpcDao::current($db)->rowByNameIgnoreCase($fallbackNpcName);
                 if ($fallbackNpcData) {
                     $npcMaster->setOldGlobalsFromCurrentNpcData($fallbackNpcData, false);
                     \Synth\Bootstrap::set('SYNTH_CORE_CURRENT_NPC_DATA', $fallbackNpcData);
@@ -1592,14 +1589,9 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
         // Is this doing something?
         $semaphore_timeout = \Synth\Bootstrap::config("SEMAPHORES_TIMEOUT") ?? 300;
         if (!SemaphoreWait("MAIN", $semaphore_timeout, 1007, function() use ($db, $gameRequest) {
-            //$user_input_after=$db->fetchAll("select count(*) as N from core_context_event where type='user_input' and ts>$gameRequest[1]"); // 72 ms
-            $user_input_after=$db->fetchAll("SELECT rowid as N FROM core_context_event WHERE type='user_input' AND ts>{$gameRequest[1]} ORDER BY rowid DESC LIMIT 1 "); // faster, 1.5 ms
-            if (isset($user_input_after[0])) {
-                if (isset($user_input_after[0]["N"]))
-                    if (intval($user_input_after[0]["N"])>0) {
-                        Logger::warn("[main] rechat event - generation stopped because user_input. " .__FILE__ . " " . __LINE__); // debug
-                        terminate();
-                    }
+            if (\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->hasUserInputAfter($gameRequest[1])) {
+                Logger::warn("[main] rechat event - generation stopped because user_input. " .__FILE__ . " " . __LINE__); // debug
+                terminate();
             }
             return true;
         })) {
@@ -1614,23 +1606,11 @@ if (synth_protocol_owns_rechat(\Synth\Bootstrap::requestEvent()['json'] ?? [])) 
     // AND only if The Narrator wasn't the last speaker (prevent consecutive narrations)
     if (!empty(\Synth\Bootstrap::config('RANDOM_NARATION')) && \Synth\Bootstrap::config("RANDOM_NARATION") && $gameRequest[0] === "rechat" && sizeof($rechatHistory) >= 1) {
         // Check if the last event was a narration event (if so, skip to prevent consecutive narrations)
-        $lastEvent = $db->fetchOne("SELECT type FROM core_context_event WHERE type IN ('rechat', 'narration') ORDER BY gamets DESC, ts DESC LIMIT 1");
-        $wasLastNarration = ($lastEvent && $lastEvent['type'] === 'narration');
+        $wasLastNarration = (\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestTypeAmong(['rechat', 'narration']) === 'narration');
 
         // Check cooldown - ensure at least N non-narration events occurred since last narration
         $cooldownRounds = \Synth\Bootstrap::has('RANDOM_NARRATION_COOLDOWN') ? intval(\Synth\Bootstrap::config("RANDOM_NARRATION_COOLDOWN")) : 2;
-        $eventsSinceNarration = $db->fetchOne("
-            SELECT COUNT(*) as count
-            FROM core_context_event
-            WHERE type IN ('rechat', 'inputtext', 'inputtext_s')
-            AND gamets > (
-                SELECT COALESCE(MAX(gamets), 0)
-                FROM core_context_event
-                WHERE type = 'narration'
-            )
-        ");
-
-        $eventCount = $eventsSinceNarration ? intval($eventsSinceNarration['count']) : 999;
+        $eventCount = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->countSinceNarration() ?? 999;
 
         // Skip if cooldown hasn't passed
         if ($eventCount < $cooldownRounds) {
@@ -1978,8 +1958,7 @@ if ($executionMode=="INJECTION_LOG") {
 // What is this for?
 if ($gameRequest[0] === "continue" && empty(\Synth\Bootstrap::config('RECHAT_PREVIOUS_SPEAKER'))) {
     try {
-        $lastSpeechRow = $db->fetchOne("SELECT speaker FROM core_speech ORDER BY rowid DESC LIMIT 1");
-        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', trim((string)($lastSpeechRow["speaker"] ?? "")));
+        \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', trim((string)(\Synth\Core\DbManager\Dao\SpeechDao::current($db)->lastSpeaker() ?? "")));
     } catch (\Throwable $e) {
         \Synth\Bootstrap::set('RECHAT_PREVIOUS_SPEAKER', "");
     }
@@ -3250,17 +3229,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . "ext" . DIRECTORY_SEPARATOR
 if (sizeof($talkedSoFar) == 0) {
     if (sizeof($alreadysent) > 0) { // AI only issued commands
 
-        $db->insert(
-            'core_log',
-            array(
-                'localts' => time(),
-                'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
-                'response' => (print_r($alreadysent, true)),
-                'url' => nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs "))
-
-
-            )
-        );
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
         if (($gameRequest[0] ?? "") === "cheatmode") {
             $cheatAck = "Done.";
             $ackEmitted=false;
@@ -3284,31 +3253,13 @@ if (sizeof($talkedSoFar) == 0) {
     } else { // Fail request? or maybe an invalid command was issued
 
         //returnLines(array($randomSentence));
-        $db->insert(
-            'core_log',
-            array(
-                'localts' => time(),
-                'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
-                'response' => (print_r($alreadysent, true)),
-                'url' => nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs "))
-
-
-            )
-        );
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
 
     }
 } else {
 
     if (sizeof($alreadysent) > 0) { // AI only issued commands
-        $db->insert(
-            'core_log',
-            array(
-                'localts' => time(),
-                'prompt' => nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))),
-                'response' => (print_r($alreadysent, true)),
-                'url' => nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs "))
-            )
-        );
+        \Synth\Core\DbManager\Dao\LogDao::current($db)->insert(time(), (string)nl2br((json_encode(\Synth\Bootstrap::config("DEBUG_DATA"), JSON_PRETTY_PRINT))), (string)(print_r($alreadysent, true)), (string)nl2br(("$receivedData in " . (microtime(true) - $startTime) . " secs ")));
     }
 
     if (!$ERROR_TRIGGERED) {
@@ -3317,7 +3268,6 @@ if (sizeof($talkedSoFar) == 0) {
 
         } else {
 
-            $lastPlayerLine=$db->fetchAll("SELECT data from core_context_event where type in ('inputtext','inputtext_s') order by gamets desc limit 1 offset 0");
             if (php_sapi_name()!="cli" || getenv('PHPUNIT_TEST'))	{
                 if (in_array($gameRequest[0],["inputtext","inputtext_s"]))
                     // logMemory(\Synth\Bootstrap::config("SYNTH_NAME"), \Synth\Bootstrap::config("PLAYER_NAME"), "{$lastPlayerLine[0]["data"]} \n\r {\Synth\Bootstrap::config("SYNTH_NAME")}:".implode(" ", $talkedSoFar), $momentum, $gameRequest[2],$gameRequest[1]);
@@ -3335,19 +3285,12 @@ if (sizeof($talkedSoFar) == 0) {
                 && in_array($gameRequest[0], ["inputtext", "inputtext_s"])
                 && sizeof($talkedSoFar) > 0) {
 
-                $transformedSpeech = trim($db->escape($player_rewrite_speech));
-                $playerName = $db->escape(\Synth\Bootstrap::config("PLAYER_NAME"));
+                $transformedSpeech = trim((string)$player_rewrite_speech);
+                $playerName = (string)\Synth\Bootstrap::config("PLAYER_NAME");
                 $currentGamets = intval($gameRequest[2]);
 
                 // Update the most recent player speech entry with the LLM-generated text
-                $db->execQuery(
-                    "UPDATE core_speech
-                     SET speech = '{$transformedSpeech}'
-                     WHERE speaker ILIKE '{$playerName}'
-                     AND gamets >= {$currentGamets} - 100
-                     AND gamets <= {$currentGamets} + 100
-                     AND sess = 'pending'"
-                );
+                \Synth\Core\DbManager\Dao\SpeechDao::current($db)->rewritePendingPlayerSpeech($playerName, $transformedSpeech, $currentGamets);
                 Logger::info("[AUTOCHAT] Updated speech table with LLM-generated player text");
             }
         }
@@ -3363,7 +3306,6 @@ if (php_sapi_name()=="cli" && !getenv('PHPUNIT_TEST')) {
     echo PHP_EOL;
     file_put_contents("log/debug_comm_".basename(__FILE__).".log", print_r(\Synth\Bootstrap::config("DEBUG_DATA"), true));
 
-    //$db->delete("core_context_event", "sess='cli'");
 
 }
 
