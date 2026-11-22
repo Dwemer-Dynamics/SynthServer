@@ -11,6 +11,7 @@ use Synth\Core\DbManager\Dao\ActorIdentityDao;
 use Synth\Core\DbManager\Dao\RuntimeContextDao;
 use Synth\Core\DbManager\Dao\ContextEventDao;
 use Synth\Core\DbManager\Dao\ProtocolEventDao;
+use Synth\Core\DbManager\Dao\QuestDao;
 use Synth\Core\DbManager\Dao\RequestExecutionDao;
 use Synth\Core\DbManager\Dao\RuntimeSessionDao;
 use Synth\Core\DbManager\Dao\WorkerJobDao;
@@ -335,6 +336,25 @@ final class DaoTestDoubles
 
                 return $row ?: null;
             }
+        });
+    }
+
+    /**
+     * Records the QuestDao writes of the quest projection instead of running them: each call appends [method, arguments] to $calls.
+     *
+     * @param array<int, array{0: string, 1: array<int, mixed>}> $calls
+     */
+    public static function questRecorder(array &$calls): void
+    {
+        $log = new class($calls) {
+            public function __construct(public array &$calls) {}
+            public function __invoke(string $name, array $args): bool { $this->calls[] = [$name, $args]; return true; }
+        };
+        QuestDao::inject(new class($log) extends QuestDao {
+            public function __construct(private object $log) {}
+            public function deleteBySession(string $sess): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function deleteObserved(string $sess, string $formIdUpper, string $originPlugin): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function record(array $row): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
         });
     }
 

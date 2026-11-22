@@ -228,6 +228,45 @@ class HistoryEventDao
         return $row !== false;
     }
 
+    /**
+     * The party JSON of the newest earlier quest_observation row of this owner before this snapshot sequence: null when none,
+     * false when the read failed.
+     */
+    public function previousQuestObservationParty(string $sessionId, int $generation, string $playthroughId, int $beforeSequence): string|null|false
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT event_payload->'party' AS party FROM public.core_history_event
+                  WHERE session_id = ? AND generation = ? AND playthrough_id = ?
+                    AND context_sequence < ? AND event_payload->>'type'='quest_observation'
+                  ORDER BY id DESC LIMIT 1",
+                [$sessionId, $generation, $playthroughId, $beforeSequence]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return $row === false ? null : (string) $row['party'];
+    }
+
+    /** The party JSON of this owner's quest_events batch with this id: null when none, false when the read failed. */
+    public function questBatchParty(string $sessionId, int $generation, string $playthroughId, string $batchId): string|null|false
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT (event_payload->>'party')::jsonb AS party
+                   FROM public.core_history_event WHERE session_id = ? AND generation = ? AND playthrough_id = ?
+                    AND event_payload->>'type'='quest_events'
+                    AND (event_payload->>'party')::jsonb->>'batch_id' = ? LIMIT 1",
+                [$sessionId, $generation, $playthroughId, $batchId]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return false;
+        }
+
+        return $row === false ? null : (string) $row['party'];
+    }
+
     /** The party JSON of an earlier player_event history row with this event id for this owner: null when none, false when the read failed. */
     public function playerEventParty(string $sessionId, int $generation, string $playthroughId, string $eventId): string|null|false
     {
