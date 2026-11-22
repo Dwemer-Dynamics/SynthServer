@@ -180,6 +180,25 @@ final class ConfigSettingDao
     }
 
     /**
+     * Stores one setting only when it has no row, in one statement: a stored value (even '', '0' or NULL) and a concurrent
+     * writer's value are kept. True when the statement ran, whether or not it inserted; false when it failed.
+     */
+    public function insertIfAbsent(string $scope, string $key, string $value): bool
+    {
+        try {
+            $this->entityManager->getConnection()->executeStatement(
+                'INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES (?, ?, ?) '
+                .'ON CONFLICT (scope, config_key) DO NOTHING',
+                [$scope, $key, $value]
+            );
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Stores several settings of one scope in one statement (all or none), replacing previous values. Descriptions are kept.
      * Returns false when the statement fails, as the legacy writer did.
      *

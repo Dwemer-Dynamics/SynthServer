@@ -35,6 +35,39 @@ final class ConfigManagerTest extends DatabaseTestCase
         }
     }
 
+    // A default (the log trim's AUTO_TRIM_LOGS_ENABLED) is insert-only: a caller that read the setting as missing, stale or
+    // unreadable never replaces a row that is there now, whatever its value.
+    public function testSetDefaultInsertsOnceAndKeepsStoredValues(): void
+    {
+        $db = new sql();
+        try {
+            $config = ConfigManager::forSession($db);
+            self::assertTrue($config->setDefault('meta', 'SYNTH_TEST_DEFAULT', 'true'));
+            self::assertSame('true', $config->get('meta', 'SYNTH_TEST_DEFAULT'));
+            self::assertTrue($config->set('meta', 'SYNTH_TEST_DEFAULT', 'false'));
+            self::assertTrue($config->setDefault('meta', 'SYNTH_TEST_DEFAULT', 'true'), 'a conflict is not a failure');
+            self::assertSame('false', $config->get('meta', 'SYNTH_TEST_DEFAULT'));
+
+            $db->execQuery("INSERT INTO public.core_config_setting (scope, config_key, config_value) VALUES
+                ('meta', 'SYNTH_TEST_ZERO', '0'), ('meta', 'SYNTH_TEST_EMPTY', ''), ('meta', 'SYNTH_TEST_NULL', NULL)");
+            foreach (['SYNTH_TEST_ZERO', 'SYNTH_TEST_EMPTY', 'SYNTH_TEST_NULL'] as $key) {
+                self::assertTrue($config->setDefault('meta', $key, 'true'));
+                self::assertTrue($config->setDefault('meta', $key, 'true'));
+            }
+            $rows = pg_fetch_all(pg_query($db->getCatalogueSqlConnection(), "SELECT config_key, config_value IS NULL AS is_null, config_value
+                FROM public.core_config_setting WHERE scope = 'meta' AND config_key LIKE 'SYNTH\\_TEST\\_%' ORDER BY config_key"));
+            self::assertSame([
+                ['config_key' => 'SYNTH_TEST_DEFAULT', 'is_null' => 'f', 'config_value' => 'false'],
+                ['config_key' => 'SYNTH_TEST_EMPTY', 'is_null' => 'f', 'config_value' => ''],
+                ['config_key' => 'SYNTH_TEST_NULL', 'is_null' => 't', 'config_value' => null],
+                ['config_key' => 'SYNTH_TEST_ZERO', 'is_null' => 'f', 'config_value' => '0'],
+            ], $rows);
+            self::assertNull($config->get('conf', 'SYNTH_TEST_DEFAULT'), 'the default lands only in its scope');
+        } finally {
+            $db->close();
+        }
+    }
+
     public function testUnknownScopeIsRefused(): void
     {
         $db = new sql();

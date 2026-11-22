@@ -194,6 +194,18 @@ class ConfigManager
         return $this->dao->upsert($scope, $key, synthSettingsStringifyValue($value), $description);
     }
 
+    /** Stores a default only when the setting has no row; a stored value is never replaced. False when the write fails. */
+    public function setDefault(string $scope, string $key, mixed $value): bool
+    {
+        $this->requireScope($scope);
+        $key = trim($key);
+        if ($key === '') {
+            return false;
+        }
+
+        return $this->dao->insertIfAbsent($scope, $key, synthSettingsStringifyValue($value));
+    }
+
     /**
      * Stores several settings of one scope in one statement (all or none). False when the write fails.
      *

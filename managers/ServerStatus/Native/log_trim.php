@@ -12,15 +12,15 @@ function initializeLogTrimming($maxLines = 10000) {
             return;
         }
 
-        $db = \Synth\Bootstrap::db();
+        $config = \Synth\Managers\ConfigManager\ConfigManager::shared();
         // Read enabled flag (default true)
-        $enabledRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTO_TRIM_LOGS_ENABLED')];
+        $enabledRow = ['value' => $config->get('meta', 'AUTO_TRIM_LOGS_ENABLED')];
         $enabled = true;
         if (is_array($enabledRow) && isset($enabledRow['value'])) {
             $enabled = in_array(strtolower(trim((string)$enabledRow['value'])), ['true','1','yes','on']);
         } else {
-            // persist default true
-            @\Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->upsert('meta', 'AUTO_TRIM_LOGS_ENABLED', 'true');
+            // persist default true, insert-only: a row that appeared since the read (or a failed read) keeps its value
+            $config->setDefault('meta', 'AUTO_TRIM_LOGS_ENABLED', 'true');
             $enabled = true;
         }
 
@@ -30,7 +30,7 @@ function initializeLogTrimming($maxLines = 10000) {
         }
 
         // Prevent frequent runs within the same day (or at most every 30 minutes)
-        $lastRunRow = ['value' => \Synth\Managers\ConfigManager\ConfigManager::shared()->get('meta', 'AUTO_TRIM_LOGS_LAST_RUN')];
+        $lastRunRow = ['value' => $config->get('meta', 'AUTO_TRIM_LOGS_LAST_RUN')];
         $now = time();
         if (is_array($lastRunRow) && isset($lastRunRow['value'])) {
             $lastRun = (int)$lastRunRow['value'];
@@ -73,7 +73,7 @@ function initializeLogTrimming($maxLines = 10000) {
             Logger::warn("LLM request log retention failed: " . get_class($e));
         }
 
-        \Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->upsert('meta', 'AUTO_TRIM_LOGS_LAST_RUN', (string)$now);
+        $config->set('meta', 'AUTO_TRIM_LOGS_LAST_RUN', (string)$now);
         Logger::info("Log trimming run completed for $trimCount files");
     } catch (Throwable $e) {
         Logger::warn("Error during log trimming: ".$e->getMessage());
