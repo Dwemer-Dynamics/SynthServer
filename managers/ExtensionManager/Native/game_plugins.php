@@ -181,13 +181,7 @@ if (!function_exists('synthGetLoadedGamePluginByName')) {
             return null;
         }
 
-        $escapedPluginName = $db->escape($pluginName);
-        $pluginRow = $db->fetchOne("
-            SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix, updated_at
-            FROM public.core_plugins
-            WHERE LOWER(plugin_name) = LOWER('{$escapedPluginName}')
-            LIMIT 1
-        ");
+        $pluginRow = \Synth\Core\DbManager\Dao\PluginsDao::current($db)->findRowByName($pluginName);
 
         $pluginCache[$cacheKey] = is_array($pluginRow) ? $pluginRow : null;
         return $pluginCache[$cacheKey];
@@ -214,13 +208,7 @@ if (!function_exists('synthGetLoadedGamePluginByFormIdPrefix')) {
             return null;
         }
 
-        $escapedFormIdPrefix = $db->escape($formIdPrefix);
-        $pluginRow = $db->fetchOne("
-            SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix, updated_at
-            FROM public.core_plugins
-            WHERE formid_prefix = '{$escapedFormIdPrefix}'
-            LIMIT 1
-        ");
+        $pluginRow = \Synth\Core\DbManager\Dao\PluginsDao::current($db)->findRowByFormIdPrefix($formIdPrefix);
 
         $pluginCache[$cacheKey] = is_array($pluginRow) ? $pluginRow : null;
         return $pluginCache[$cacheKey];
@@ -394,11 +382,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
             return '';
         }
 
-        $rows = $db->fetchAll("
-            SELECT plugin_name, is_light, compile_index, small_file_compile_index, partial_index, formid_prefix
-            FROM public.core_plugins
-            ORDER BY LOWER(plugin_name)
-        ");
+        $rows = \Synth\Core\DbManager\Dao\PluginsDao::current($db)->signatureRows();
         if (!is_array($rows) || empty($rows)) {
             return '';
         }
@@ -467,43 +451,7 @@ if (!function_exists('synthReplaceLoadedGamePlugins')) {
             return count($normalizedPlugins);
         }
 
-        $db->execQuery('DELETE FROM public.core_plugins');
-
-        foreach ($normalizedPlugins as $pluginRow) {
-            $escapedPluginName = $db->escape($pluginRow['plugin_name']);
-            $escapedFormIdPrefix = $db->escape($pluginRow['formid_prefix']);
-            $isLight = $pluginRow['is_light'] ? 'TRUE' : 'FALSE';
-            $compileIndex = intval($pluginRow['compile_index']);
-            $smallFileCompileIndex = intval($pluginRow['small_file_compile_index']);
-            $partialIndex = intval($pluginRow['partial_index']);
-
-            $db->execQuery("
-                INSERT INTO public.core_plugins (
-                    plugin_name,
-                    is_light,
-                    compile_index,
-                    small_file_compile_index,
-                    partial_index,
-                    formid_prefix,
-                    updated_at
-                ) VALUES (
-                    '{$escapedPluginName}',
-                    {$isLight},
-                    {$compileIndex},
-                    {$smallFileCompileIndex},
-                    {$partialIndex},
-                    '{$escapedFormIdPrefix}',
-                    CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (plugin_name) DO UPDATE SET
-                    is_light = EXCLUDED.is_light,
-                    compile_index = EXCLUDED.compile_index,
-                    small_file_compile_index = EXCLUDED.small_file_compile_index,
-                    partial_index = EXCLUDED.partial_index,
-                    formid_prefix = EXCLUDED.formid_prefix,
-                    updated_at = CURRENT_TIMESTAMP
-            ");
-        }
+        \Synth\Core\DbManager\Dao\PluginsDao::current($db)->replaceAll(array_values($normalizedPlugins));
 
         return count($normalizedPlugins);
     }

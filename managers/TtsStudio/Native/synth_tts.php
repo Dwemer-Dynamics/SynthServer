@@ -150,16 +150,9 @@ function synth_tts_load_npc_voice_data(object $db, string $speaker, ?array $cano
             || !is_string($canonicalActor['playthrough_id'] ?? null) || $canonicalActor['playthrough_id']===''
             || strlen($canonicalActor['playthrough_id'])>128 || str_contains($canonicalActor['playthrough_id'],"\0")
             || preg_match('//u',$canonicalActor['playthrough_id'])!==1) return [];
-        $form=$db->escapeLiteral($canonicalActor['form_id']);
-        $plugin=$db->escapeLiteral($canonicalActor['origin_plugin']);
-        $playthrough=$db->escapeLiteral($canonicalActor['playthrough_id']);
-        $row=$db->fetchOne("SELECT n.voiceid,n.extended_data FROM public.core_npc n
-            JOIN public.core_actor_identity a ON a.id=n.actor_identity_id
-            WHERE a.game='fo4' AND upper(a.full_form_id)=upper({$form})
-                AND lower(a.origin_plugin)=lower({$plugin}) AND a.playthrough_id={$playthrough}");
+        $row=\Synth\Core\DbManager\Dao\NpcDao::current($db)->voiceByActor($canonicalActor['form_id'],$canonicalActor['origin_plugin'],$canonicalActor['playthrough_id']);
     } else {
-        $escaped = method_exists($db, 'escape') ? $db->escape($speaker) : str_replace("'", "''", $speaker);
-        $row = $db->fetchOne("SELECT voiceid, extended_data FROM public.core_npc WHERE npc_name='{$escaped}' LIMIT 1");
+        $row = \Synth\Core\DbManager\Dao\NpcDao::current($db)->voiceByName($speaker);
     }
     if (!is_array($row)) {
         return [];

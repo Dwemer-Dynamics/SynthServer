@@ -110,6 +110,15 @@ class RuntimeSessionDao
         return $this->tryStatement("UPDATE public.core_runtime_session SET state = 'halted', updated_at = NOW() WHERE session_id = ?", [$sessionId]);
     }
 
+    /** Records the playthrough a context snapshot belongs to as the session's current one. */
+    public function setPlaythrough(string $sessionId, string $playthroughId): bool
+    {
+        return $this->tryStatement(
+            'UPDATE public.core_runtime_session SET playthrough_id = ?, updated_at = NOW() WHERE session_id = ?',
+            [$playthroughId, $sessionId]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeSession> */
     public function findAll(int $limit = 1000): array
     {
@@ -292,5 +301,14 @@ class RuntimeSessionDao
         $row = $this->connection()->fetchAssociative('SELECT active_generation, state FROM public.core_runtime_session WHERE session_id = ?', [$sessionId]);
 
         return $row === false ? null : $row;
+    }
+
+    /** Whether this session of this playthrough exists and is active. */
+    public function isActive(string $sessionId, string $playthroughId): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_runtime_session WHERE session_id = ? AND playthrough_id = ? AND state = 'active'",
+            [$sessionId, $playthroughId]
+        ) !== false;
     }
 }

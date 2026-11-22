@@ -32,6 +32,7 @@ $GLOBALS['db']=new class {
         return ['voiceid'=>'canonical_voice','extended_data'=>'{}'];
     }
 };
+require_once __DIR__.'/../tests/DaoTestDoubles.php';DaoTestDoubles::npcFrom($GLOBALS['db']);
 try {
     $ok=synth_tts_generate_for_response($root,'Settler','Only the authorized topic.',[
         'form_id'=>'0x00000015','origin_plugin'=>'Actors.esm','playthrough_id'=>'fixture-save']);

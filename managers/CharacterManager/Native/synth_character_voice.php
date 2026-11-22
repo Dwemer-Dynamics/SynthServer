@@ -61,7 +61,7 @@ function synth_character_request_voice_profile($db, array $profile): array
     if (!is_array($speaker)) return $profile;
     $speakerKey=synth_equipment_prompt_identity_key($speaker);
     if ($speakerKey===null) return $profile;
-    $identity=$db->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE game=\'fo4\' AND id='.$actorId);
+    $identity=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->identityRow(intval($actorId),'fo4');
     if (!is_array($identity)) return $profile;
     $identity['form_id']=$identity['full_form_id'] ?? null;
     if (synth_equipment_prompt_identity_key($identity)!==$speakerKey) return $profile;

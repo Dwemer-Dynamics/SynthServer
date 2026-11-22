@@ -596,21 +596,13 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
 function synth_protocol_persist_context($db, array $event, string $sessionId): void
 {
     $payload = $event['payload'];
-    $session = $db->escapeLiteral($sessionId);
     $generation = intval($event['generation']);
     $sequence = intval($payload['snapshot_sequence']);
-    $playthroughId = $db->escapeLiteral($payload['playthrough_id']);
-    $latest = ($event['protocol_version'] ?? 1) === 2 ? $db->fetchOne(
-        "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-          ORDER BY snapshot_sequence DESC LIMIT 1"
-    ) : $db->fetchOne(
-        "SELECT MAX(snapshot_sequence) AS latest
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-            AND playthrough_id={$playthroughId}"
-    );
+    $playthroughId = strval($payload['playthrough_id']);
+    $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db);
+    $latest = ($event['protocol_version'] ?? 1) === 2
+        ? $contexts->latestSnapshot($sessionId, $generation)
+        : $contexts->latestSequenceInPlaythrough($sessionId, $generation, $playthroughId);
     if ($latest && $latest['latest'] !== null && $sequence <= intval($latest['latest'])) {
         synth_protocol_fail('stale_context', 409, [['field' => 'payload.snapshot_sequence', 'issue' => 'must_advance']]);
     }
@@ -634,30 +626,15 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
     foreach ($payload['audience'] as $actor) {
         $audienceIds[] = synth_protocol_actor_identity_id($db, $actor);
     }
-    $audienceJson = $db->escapeLiteral(json_encode($audienceIds, JSON_UNESCAPED_SLASHES));
-    $contextJson = $db->escapeLiteral(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    $targetSql = $targetId === null ? 'NULL' : strval($targetId);
+    $audienceJson = json_encode($audienceIds, JSON_UNESCAPED_SLASHES);
+    $contextJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     // claim_request holds the same transaction lock used by native event insertions.
     // This is an insertion frontier, not a delivery or mutable-history revision frontier.
-    $historyFrontier = ($event['protocol_version'] ?? 1) === 2
-        ? "(SELECT COALESCE(MAX(id),0) FROM public.core_history_event
-              WHERE session_id={$session} AND generation={$generation} AND playthrough_id={$playthroughId})"
-        : 'NULL';
-    if ($db->execQuery(
-        "INSERT INTO public.core_runtime_context
-            (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
-             target_identity_id, audience_identity_ids, context_payload, history_event_id)
-         VALUES ({$session}, {$generation}, {$sequence}, {$playthroughId}, {$playerId},
-                 {$targetSql}, {$audienceJson}::jsonb, {$contextJson}::jsonb,
-                 {$historyFrontier})"
-    ) === false) {
+    if (!$contexts->insertSnapshot($sessionId, $generation, $sequence, $playthroughId, $playerId, $targetId, strval($audienceJson),
+        strval($contextJson), ($event['protocol_version'] ?? 1) === 2)) {
         throw new RuntimeException('Unable to persist acknowledged context and history frontier');
     }
-    $db->execQuery(
-        "UPDATE public.core_runtime_session
-            SET playthrough_id={$playthroughId}, updated_at=NOW()
-          WHERE session_id={$session}"
-    );
+    \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->setPlaythrough($sessionId, $playthroughId);
     if (is_array($payload['world'] ?? null)) {
         synth_protocol_persist_world_context($db, $event, $payload['world']);
     }
@@ -684,16 +661,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
-        if ($db->execQuery("UPDATE public.core_runtime_context c
-            SET history_event_id=GREATEST(c.history_event_id,COALESCE((
-                SELECT MAX(h.id) FROM public.core_history_event h
-                 WHERE h.session_id=c.session_id AND h.generation=c.generation
-                   AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
-                   AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
-            ),0))
-            WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
-            [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
+        if (!$contexts->finalizeHistoryFrontier($sessionId, $generation, $sequence, $playthroughId, strval($event['request_id']))) {
             throw new RuntimeException('Unable to finalize captured observation history frontier');
         }
         // Private narrator state is captured beside this snapshot by opaque ID; the snapshot itself is not touched.
@@ -1778,25 +1746,11 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
         }
         $actorId = synth_protocol_actor_identity_id($db, $action['actor']);
         $targetId = isset($action['target']) ? synth_protocol_actor_identity_id($db, $action['target']) : null;
-        $session = $db->escapeLiteral(synth_protocol_session_id($event));
-        $actionId = $db->escapeLiteral($action['action_id']);
-        $idempotency = $db->escapeLiteral($action['idempotency_key']);
-        $requestId = $db->escapeLiteral($event['request_id']);
-        $turnId = $db->escapeLiteral($event['turn_id']);
-        $name = $db->escapeLiteral(strval($action['server_code'] ?? $action['name']));
-        $capability = $db->escapeLiteral($action['capability']);
-        $arguments = $db->escapeLiteral(json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        $targetSql = $targetId === null ? 'NULL' : strval($targetId);
-        $deadlineMs = intval($action['deadline_ms']);
-        $generation = intval($event['generation']);
-        if ($db->execQuery(
-            "INSERT INTO public.core_action_intent
-                (action_id, idempotency_key, session_id, request_id, turn_id, generation,
-                 action_name, capability, actor_identity_id, target_identity_id, arguments, deadline_at)
-             VALUES ({$actionId}, {$idempotency}, {$session}, {$requestId}, {$turnId}, {$generation},
-                     {$name}, {$capability}, {$actorId}, {$targetSql}, {$arguments}::jsonb,
-                     NOW() + ({$deadlineMs} * INTERVAL '1 millisecond'))"
-        ) === false) throw new RuntimeException('Unable to persist action intent.');
+        $arguments = json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (!\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->insertIntent(strval($action['action_id']), strval($action['idempotency_key']),
+            synth_protocol_session_id($event), strval($event['request_id']), strval($event['turn_id']), intval($event['generation']),
+            strval($action['server_code'] ?? $action['name']), strval($action['capability']), $actorId, $targetId, $arguments,
+            intval($action['deadline_ms']))) throw new RuntimeException('Unable to persist action intent.');
         if ($native) {
             $context = $context ?? synth_protocol_current_context($db, $event);
             if (!$context) throw new RuntimeException('Action issuance context unavailable.');
@@ -1817,8 +1771,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
     try {
         if ($guarded) {
             if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin action intent.');
-            $owner = $db->escapeLiteral(synth_protocol_session_id($event));
-            if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$owner}))")) {
+            if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->lockSession(synth_protocol_session_id($event))) {
                 throw new RuntimeException('Unable to lock action owner.');
             }
         }
@@ -1833,23 +1786,8 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
 // Administrative action evidence uses the saved frontier and exact issuing actor, not NPC-name visibility.
 function synth_protocol_last_actions_issued($db, array $event, string $actor): array
 {
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
-    $generation = intval($event['generation']);
-    $sequence = intval($event['context_sequence']);
-    $rows = $db->fetchAll(synth_protocol_history_cte($db, $event, $actor)."
-        SELECT DISTINCT ON (i.action_name) i.action_name AS action,
-            (h.event_payload->>'gamets')::bigint AS gamets,
-            (h.event_payload->>'ts')::bigint AS ts
-        FROM native_history_scopes s
-        JOIN public.core_history_event h ON h.session_id=s.session_id AND h.generation=s.generation
-            AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
-        JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
-            AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
-            AND i.actor_identity_id=s.reader_identity_id
-        WHERE h.id<=s.cutoff OR (h.session_id={$session} AND h.generation={$generation}
-            AND h.context_sequence={$sequence} AND i.turn_id={$turn})
-        ORDER BY i.action_name, (h.event_payload->>'gamets')::bigint DESC, h.id DESC");
+    $rows = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->lastIssuedByAction(synth_protocol_history_cte($db, $event, $actor),
+        strval($event['session_id']), intval($event['generation']), intval($event['context_sequence']), strval($event['turn_id']));
     $result = [];
     foreach ($rows as $row) $result[$row['action']] = $row;
     return $result;
@@ -1866,11 +1804,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
         || trim($codeName) === '') {
         return null;
     }
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
     $generation = intval($event['generation']);
     $sequence = intval($event['context_sequence']);
-    $variant = $db->escapeLiteral($event['runtime_variant']);
     $current = $event;
     $visited = [];
     for ($depth = 0; $depth < 64; ++$depth) {
@@ -1881,18 +1816,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
             return null;
         }
         $visited[$result['action_id']] = true;
-        $action = $db->escapeLiteral($result['action_id']);
-        $idempotency = $db->escapeLiteral($result['idempotency_key']);
-        $row = $db->fetchOne(
-            "SELECT i.action_name, e.canonical_event
-               FROM public.core_action_intent i
-               JOIN public.core_protocol_event e ON e.session_id=i.session_id
-                AND e.request_id=i.request_id AND e.generation=i.generation AND e.turn_id=i.turn_id
-               JOIN public.core_runtime_session r ON r.session_id=i.session_id
-              WHERE i.action_id={$action} AND i.idempotency_key={$idempotency}
-                AND i.session_id={$session} AND i.generation={$generation} AND i.turn_id={$turn}
-                AND r.state='active' AND r.active_generation={$generation} AND r.runtime_variant={$variant}"
-        );
+        $row = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->followupOrigin($result['action_id'], $result['idempotency_key'], $event['session_id'],
+            $generation, $event['turn_id'], $event['runtime_variant']);
         if (!$row || ($depth === 0 && ($row['action_name'] ?? '') !== $codeName)) return null;
         $origin = is_array($row['canonical_event'] ?? null) ? $row['canonical_event']
             : json_decode(strval($row['canonical_event'] ?? ''), true);

@@ -117,6 +117,93 @@ class RuntimeContextDao
         return $value === false ? null : (string) $value;
     }
 
+    /**
+     * The newest snapshot of a session generation for a protocol v2 context: its sequence ('latest'), playthrough and the loaded
+     * save anchor of its payload (JSON text, or null); null when there is none or the statement fails (the legacy fetchOne
+     * contract: the caller's insert then reports the failure).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestSnapshot(string $sessionId, int $generation): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
+                   FROM public.core_runtime_context WHERE session_id = ? AND generation = ?
+                  ORDER BY snapshot_sequence DESC LIMIT 1",
+                [$sessionId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The newest snapshot sequence of a legacy (protocol v1) context in this playthrough, as ['latest' => ?string]; null when the
+     * statement fails (the legacy fetchOne contract: the caller's insert then reports the failure).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestSequenceInPlaythrough(string $sessionId, int $generation, string $playthroughId): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT MAX(snapshot_sequence) AS latest FROM public.core_runtime_context
+                  WHERE session_id = ? AND generation = ? AND playthrough_id = ?',
+                [$sessionId, $generation, $playthroughId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Stores an acknowledged context snapshot. With $freezeHistoryFrontier its history_event_id is the newest history event id of
+     * this playthrough in the session generation (0 when none); otherwise NULL. False when the statement fails.
+     */
+    public function insertSnapshot(string $sessionId, int $generation, int $sequence, string $playthroughId, int $playerIdentityId, ?int $targetIdentityId, string $audienceJson, string $contextJson, bool $freezeHistoryFrontier): bool
+    {
+        $frontier = $freezeHistoryFrontier
+            ? '(SELECT COALESCE(MAX(id),0) FROM public.core_history_event WHERE session_id = ? AND generation = ? AND playthrough_id = ?)'
+            : 'NULL';
+        $parameters = [$sessionId, $generation, $sequence, $playthroughId, $playerIdentityId, $targetIdentityId, $audienceJson, $contextJson];
+        if ($freezeHistoryFrontier) {
+            array_push($parameters, $sessionId, $generation, $playthroughId);
+        }
+
+        return $this->tryStatement(
+            "INSERT INTO public.core_runtime_context
+                (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
+                 target_identity_id, audience_identity_ids, context_payload, history_event_id)
+             VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb), CAST(? AS jsonb), {$frontier})",
+            $parameters
+        );
+    }
+
+    /**
+     * Finishes a snapshot's history frontier: the newest id among the observation events this request captured for it (never lower
+     * than the stored one). False when the statement fails.
+     */
+    public function finalizeHistoryFrontier(string $sessionId, int $generation, int $sequence, string $playthroughId, string $requestId): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_runtime_context c
+                SET history_event_id=GREATEST(c.history_event_id,COALESCE((
+                    SELECT MAX(h.id) FROM public.core_history_event h
+                     WHERE h.session_id=c.session_id AND h.generation=c.generation
+                       AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
+                       AND h.request_id = ?
+                       AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
+                ),0))
+                WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ? AND c.playthrough_id = ?",
+            [$requestId, $sessionId, $generation, $sequence, $playthroughId]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRuntimeContext> */
     public function findAll(int $limit = 1000): array
     {
@@ -190,5 +277,94 @@ class RuntimeContextDao
                 AND fresh.playthrough_id=previous.playthrough_id AND fresh.player_identity_id=previous.player_identity_id
             WHERE previous.session_id=:p1 AND previous.generation=:p2 AND previous.snapshot_sequence=:p3
                 AND fresh.snapshot_sequence=:p4", [$sessionId, $generation, $previousSequence, $freshSequence]);
+    }
+
+    /**
+     * Playthrough and receive time of the newest accepted game context whose session and player identity agree on the
+     * playthrough and game; null when there is none.
+     *
+     * @return array{playthrough_id: string, received_at: string}|null
+     */
+    public function latestAcceptedForPlayer(): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT c.playthrough_id, c.received_at FROM public.core_runtime_context c
+             JOIN public.core_runtime_session s ON s.session_id = c.session_id AND s.playthrough_id = c.playthrough_id
+             JOIN public.core_actor_identity p ON p.id = c.player_identity_id AND p.playthrough_id = c.playthrough_id AND p.game = s.game
+             ORDER BY c.received_at DESC, c.snapshot_sequence DESC, c.session_id ASC LIMIT 1'
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The context payload of the newest earlier snapshot that completed or partly observed the active quests, for a context whose
+     * session is active and whose target actor is active, when it is the snapshot with sequence $previousSequence; null otherwise.
+     */
+    public function previousQuestContextPayload(string $sessionId, int $generation, int $sequence, int $previousSequence): ?string
+    {
+        $payload = $this->connection()->fetchOne(
+            "SELECT p.context_payload
+             FROM public.core_runtime_context c
+             JOIN public.core_runtime_session r ON r.session_id = c.session_id AND r.active_generation = c.generation
+                AND r.playthrough_id = c.playthrough_id AND r.state = 'active'
+             JOIN public.core_actor_activation a ON a.session_id = c.session_id AND a.generation = c.generation
+                AND a.actor_identity_id = c.target_identity_id AND a.state = 'active'
+             JOIN public.core_runtime_context p ON p.session_id = c.session_id AND p.generation = c.generation
+                AND p.playthrough_id = c.playthrough_id AND p.player_identity_id = c.player_identity_id AND p.snapshot_sequence = ?
+             WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?
+               AND p.snapshot_sequence = (SELECT max(q.snapshot_sequence) FROM public.core_runtime_context q
+                WHERE q.session_id = c.session_id AND q.generation = c.generation AND q.playthrough_id = c.playthrough_id
+                  AND q.player_identity_id = c.player_identity_id AND q.snapshot_sequence < c.snapshot_sequence
+                  AND q.context_payload->>'active_quests_observation' IN ('complete', 'partial'))",
+            [$previousSequence, $sessionId, $generation, $sequence]
+        );
+
+        return $payload === false ? null : (string) $payload;
+    }
+
+    /**
+     * The context payload of the snapshot a claimed or streaming request answers, with the age of that frame in milliseconds and
+     * whether it is fresh (received within ten seconds before the claim, the claim within thirty seconds). Null unless the event
+     * is the stored canonical event of the request, the request is live and the session's active turn is this one.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function combatFrame(string $sessionId, string $requestId, string $turnId, int $generation, int $sequence, string $canonicalJson, string $sha256): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT c.context_payload,
+                    GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (clock_timestamp() - c.received_at)) * 1000)) AS combat_frame_age_ms,
+                    (c.received_at <= e.claimed_at AND c.received_at >= e.claimed_at - INTERVAL '10 seconds'
+                     AND e.claimed_at >= clock_timestamp() - INTERVAL '30 seconds') AS combat_frame_fresh
+             FROM public.core_protocol_event p
+             JOIN public.core_request_execution e USING (session_id, request_id)
+             JOIN public.core_runtime_session r USING (session_id)
+             JOIN public.core_runtime_context c ON c.session_id = p.session_id AND c.generation = p.generation AND c.snapshot_sequence = ?
+             WHERE p.session_id = ? AND p.request_id = ? AND p.generation = ? AND p.turn_id = ?
+               AND p.canonical_event = CAST(? AS jsonb) AND p.event_sha256 = ? AND e.request_sha256 = ?
+               AND e.state IN ('claimed', 'streaming') AND COALESCE(e.error_code, '') NOT IN ('turn_cancelled', 'request_cancelled')
+               AND r.state = 'active' AND r.active_generation = ? AND r.active_turn_id = ? AND r.active_turn_sequence = ?
+               AND r.playthrough_id = c.playthrough_id",
+            [$sequence, $sessionId, $requestId, $generation, $turnId, $canonicalJson, $sha256, $sha256, $generation, $turnId, $sequence]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Whether this snapshot is the newest of its generation, received within the last five seconds, in the active flat session. */
+    public function jevCaptureFresh(string $sessionId, int $generation, int $sequence): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_runtime_context c
+             JOIN public.core_runtime_session r ON r.session_id = c.session_id
+             WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?
+               AND r.state = 'active' AND r.active_generation = c.generation AND r.runtime_variant = 'flat'
+               AND c.playthrough_id = r.playthrough_id
+               AND c.received_at <= clock_timestamp() AND c.received_at >= clock_timestamp() - INTERVAL '5 seconds'
+               AND NOT EXISTS (SELECT 1 FROM public.core_runtime_context newer
+                   WHERE newer.session_id = c.session_id AND newer.generation = c.generation AND newer.snapshot_sequence > c.snapshot_sequence)",
+            [$sessionId, $generation, $sequence]
+        ) !== false;
     }
 }

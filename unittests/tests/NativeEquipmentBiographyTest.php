@@ -37,10 +37,13 @@ final class NativeEquipmentBiographyTest extends TestCase
                 { $this->descriptionQueries++; return []; }
             };
             $GLOBALS['db'] = $fixtureDb;
+            require_once __DIR__ . '/DaoTestDoubles.php';
+            DaoTestDoubles::combinedDescriptionsFrom($fixtureDb);
             $assertions($fixtureDb);
             self::assertSame($own, $fixtureDb->own);
             self::assertSame($target, $fixtureDb->target);
         } finally {
+            DaoTestDoubles::reset();
             foreach ($saved as $key => [$existed, $value]) {
                 if ($existed) $GLOBALS[$key] = $value; else unset($GLOBALS[$key]);
             }
