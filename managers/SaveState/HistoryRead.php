@@ -37,14 +37,12 @@ final class HistoryRead
         if ($limit !== null && (!is_int($limit) || $limit < 1 || $limit > self::MAX_LIMIT)) {
             throw new \InvalidArgumentException('history limit');
         }
-        $session = $db->fetchOne('SELECT runtime_variant, active_generation, capabilities FROM public.core_runtime_session WHERE session_id='
-            . $db->escapeLiteral($sessionId) . ' AND playthrough_id=' . $db->escapeLiteral($playthroughId) . " AND state='active'");
+        $session = \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->activeInPlaythrough($sessionId, $playthroughId);
         if (!is_array($session) || $session === []) {
             throw new \DomainException('session not active');
         }
         $generation = intval($session['active_generation']);
-        $context = $db->fetchOne('SELECT snapshot_sequence, context_payload->\'target\'->>\'display_name\' AS target FROM public.core_runtime_context WHERE session_id='
-            . $db->escapeLiteral($sessionId) . ' AND generation=' . $generation . ' ORDER BY snapshot_sequence DESC LIMIT 1');
+        $context = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->newestTarget($sessionId, $generation);
         $target = is_array($context) && trim(strval($context['target'] ?? '')) !== '' ? trim(strval($context['target'])) : null;
         $answer = ['type' => 'history.result', 'playthrough_id' => $playthroughId, 'session_id' => $sessionId,
             'generation' => $generation, 'target' => $target, 'messages' => []];

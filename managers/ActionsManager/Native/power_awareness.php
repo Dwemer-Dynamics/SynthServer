@@ -48,9 +48,7 @@ function getNpcLevel(string $npcName): ?int {
         }
         
         $db = \Synth\Bootstrap::db();
-        $escapedName = $db->escape($npcName);
-        
-        $npcData = $db->fetchOne("SELECT metadata FROM core_npc WHERE npc_name = '{$escapedName}' LIMIT 1");
+        $npcData = \Synth\Core\DbManager\Dao\NpcDao::current($db)->metadataByName($npcName);
         
         if (!$npcData || empty($npcData['metadata'])) {
             return null;

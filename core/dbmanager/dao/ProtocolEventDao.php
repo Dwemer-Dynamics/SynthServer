@@ -41,6 +41,16 @@ class ProtocolEventDao
         return $row === false ? null : $row;
     }
 
+    /** Stores the canonical event of an accepted visual capture. */
+    public function insertVisualCapture(string $sessionId, string $requestId, string $turnId, int $generation, string $canonicalJson, string $eventSha256): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_protocol_event (session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
+             VALUES (?,?,?,?,'visual_capture',CAST(? AS jsonb),?)",
+            [$sessionId, $requestId, $turnId, $generation, $canonicalJson, $eventSha256]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractProtocolEvent> */
     public function findAll(int $limit = 1000): array
     {
@@ -144,5 +154,18 @@ class ProtocolEventDao
         }
 
         return $row === false ? null : (string) $row['request_id'];
+    }
+
+    /** The request id of the first quest_updated trigger recorded for this context sequence, or null. */
+    public function firstQuestUpdateRequestId(string $sessionId, int $generation, string $contextSequence): ?string
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT request_id FROM public.core_protocol_event
+             WHERE session_id = ? AND generation = ? AND event_type = 'trigger'
+               AND canonical_event->'payload'->>'kind' = 'quest_updated' AND canonical_event->>'context_sequence' = ? ORDER BY id LIMIT 1",
+            [$sessionId, $generation, $contextSequence]
+        );
+
+        return $id === false ? null : (string) $id;
     }
 }

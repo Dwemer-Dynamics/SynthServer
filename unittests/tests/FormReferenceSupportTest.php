@@ -44,6 +44,13 @@ final class FormReferenceSupportTest extends TestCase
                 return null;
             }
         };
+        require_once __DIR__ . '/DaoTestDoubles.php';
+        DaoTestDoubles::pluginsFrom($GLOBALS['db']);
+    }
+
+    protected function tearDown(): void
+    {
+        DaoTestDoubles::reset();
     }
 
     public function testGamePluginHelpersSupportStableReferences(): void

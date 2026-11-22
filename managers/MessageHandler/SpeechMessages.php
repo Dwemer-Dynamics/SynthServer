@@ -36,7 +36,13 @@ final class SpeechMessages
      */
     public static function settle(object $db, int $jobId, string $root, ?MessageHandler $handler = null): string
     {
-        $job = \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->speechJob($jobId);
+        try {
+            $job = \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->speechJob($jobId);
+        } catch (\Doctrine\DBAL\Exception) {
+            // An unreadable job row skips settling, as the legacy read did; the plugin's normal poll still finds the state.
+            error_log('[SYNTH TTS] Unable to read the speech job to settle its queued message');
+            return 'skipped';
+        }
         if (!is_array($job) || !is_string($job['session_id'] ?? null) || !is_string($job['utterance_id'] ?? null)) {
             return 'skipped';
         }

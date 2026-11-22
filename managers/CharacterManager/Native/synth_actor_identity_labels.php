@@ -13,18 +13,12 @@ function synthNpcActorSaveLabels($db, array $actorIds): array
 
     // Session state and actor last_seen also change without an accepted scene.
     // A timestamp labels the latest recorded save, not a promise it is still running.
-    $latest = $db->fetchOne("SELECT c.playthrough_id, c.received_at
-        FROM public.core_runtime_context c
-        JOIN public.core_runtime_session s ON s.session_id=c.session_id
-            AND s.playthrough_id=c.playthrough_id
-        JOIN public.core_actor_identity p ON p.id=c.player_identity_id
-            AND p.playthrough_id=c.playthrough_id AND p.game=s.game
-        ORDER BY c.received_at DESC, c.snapshot_sequence DESC, c.session_id ASC LIMIT 1");
+    $latest = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->latestAcceptedForPlayer();
     $latestPlaythrough = (string)($latest['playthrough_id'] ?? '');
     $observedAt = (string)($latest['received_at'] ?? '');
 
     $labels = [];
-    foreach ($db->fetchAll('SELECT id,playthrough_id FROM public.core_actor_identity WHERE id IN (' . implode(',', $ids) . ')') as $identity) {
+    foreach (\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->playthroughsByIds($ids) as $identity) {
         $playthrough = (string)$identity['playthrough_id'];
         $scope = $latestPlaythrough === '' ? 'unknown'
             : ($playthrough === $latestPlaythrough ? 'latest' : 'other');
