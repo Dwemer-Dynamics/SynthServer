@@ -14,6 +14,7 @@ final class RequestStreamingTest extends TestCase
 {
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         DaoTestDoubles::forgetBooted();
         parent::tearDown();
     }
@@ -56,6 +57,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::inventoryFrom($db);
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
             'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
@@ -211,6 +213,7 @@ final class RequestStreamingTest extends TestCase
                 ++$this->reads;preg_match("/i.action_id='([^']+)'/",$query,$match);return $this->rows[$match[1]??'']??null;
             }
         };
+        DaoTestDoubles::inventoryFrom($db);
         $make=static fn($name,$cap,$parent,$event)=>['action_name'=>$name,'capability'=>$cap,
             'full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],'playthrough_id'=>$actor['playthrough_id'],
             'origin_request_id'=>$parent['request_id'],'canonical_event'=>$parent,'result'=>$event['payload']['result']];
@@ -408,6 +411,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function escapeLiteral($value): string { return "'".$value."'"; }
         };
+        DaoTestDoubles::workerJobFrom($db);
         $status=['schema'=>'synth.tts_status.v1','cache_key'=>str_repeat('a',32),'status'=>'pending','_job_id'=>1];
         foreach (['pending','running','ready','failed','cancelled','stale'] as $state) {
             $db->row=['state'=>$state,'within_deadline'=>'t'];
@@ -1274,9 +1278,26 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['latest'=>6, 'playthrough_id'=>'save-001', 'loaded_context'=>null]; }
             public function execQuery(string $sql): never { throw new LogicException('Mismatch must not write'); }
         };
+        DaoTestDoubles::latestSnapshotFrom($db);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('context_loaded_anchor_mismatch');
         synth_protocol_persist_context($db, $event, $event['session_id']);
+    }
+
+    public function testStaleContextReadersReportAFailedStatementAsNoSnapshot(): void
+    {
+        // Legacy fetchOne returned [] on failure; a thrown DBAL error would escape the claim's RuntimeException handler.
+        $connection = $this->createStub(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchAssociative')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+        $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::using($entityManager);
+        $this->assertNull($contexts->latestSnapshot('session', 1));
+        $this->assertNull($contexts->latestSequenceInPlaythrough('session', 1, 'save-001'));
+        $connection->method('fetchOne')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $this->assertNull(\Synth\Core\DbManager\Dao\ContextEventDao::using($entityManager)->latestWorldContextParty('save-001'));
     }
 
     public function testRetirementCanClaimAnUninitializedSessionWithoutStartingProviders(): void
@@ -1726,6 +1747,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
@@ -1757,6 +1779,7 @@ final class RequestStreamingTest extends TestCase
                 return $this->rows[$match[1] ?? ''] ?? null;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $root = array_replace($event, ['type'=>'input_text','payload'=>['text'=>'Check my inventory.']]);
         $parent = array_replace($event, ['payload'=>['result'=>['action_id'=>'action:root','idempotency_key'=>'idem:root']]]);
         $db->rows = [
@@ -1827,6 +1850,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
@@ -1864,6 +1888,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchAll(string $query): array {$this->query=$query;return [['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']];}
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','turn_id'=>'turn:one'];
         $this->assertSame(['ComeCloser'=>['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']],
             synth_protocol_last_actions_issued($db,$event,'Preston'));
@@ -1903,6 +1928,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         try {
             $GLOBALS['db'] = $db;
@@ -2373,10 +2399,10 @@ final class RequestStreamingTest extends TestCase
     public function testStrictQuestSnapshotReplacesCanonicalQuestRows(): void
     {
         $db = new class {
-            public array $queries = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        DaoTestDoubles::questRecorder($calls);
         synth_protocol_persist_active_quests($db, [
             'payload' => [
                 'playthrough_id' => 'save-fo4-001',
@@ -2391,26 +2417,34 @@ final class RequestStreamingTest extends TestCase
             'objectives' => ['Join Preston Garvey in Sanctuary'],
         ]]);
 
-        $this->assertSame("DELETE FROM public.core_quest WHERE sess='save-fo4-001'", $db->queries[0]);
-        $this->assertStringContainsString('INSERT INTO public.core_quest', $db->queries[1]);
-        $this->assertStringContainsString('When Freedom Calls', $db->queries[1]);
-        $this->assertStringContainsString('Join Preston Garvey in Sanctuary', $db->queries[1]);
-        $this->assertStringContainsString('save-fo4-001', $db->queries[1]);
-        $this->assertStringContainsString('834000000000', $db->queries[1]);
+        // A complete observation replaces the playthrough's projection, then appends the observed quests.
+        $this->assertSame(['deleteBySession', ['save-fo4-001']], $calls[0]);
+        $this->assertSame('record', $calls[1][0]);
+        $row = $calls[1][1][0];
+        $this->assertSame('When Freedom Calls', $row['name']);
+        $this->assertSame('Join Preston Garvey in Sanctuary', $row['briefing']);
+        $this->assertSame('save-fo4-001', $row['sess']);
+        $this->assertSame(834000000000, $row['gamets']);
+        $this->assertSame('0X000229E5', $row['id_quest']);
+        $this->assertSame('Fallout4.esm', $row['mod']);
+        $this->assertSame('active', $row['status']);
         foreach (['unavailable','cached',null] as $quality) {
-            $db->queries=[];
+            $calls = [];
             $payload=['playthrough_id'=>'save-fo4-001'];
             if ($quality!==null) $payload['active_quests_observation']=$quality;
             synth_protocol_persist_active_quests($db,['payload'=>$payload],[]);
-            $this->assertSame([],$db->queries);
+            $this->assertSame([],$calls);
         }
-        $db->queries=[];
+        $calls = [];
         synth_protocol_persist_active_quests($db,['payload'=>['playthrough_id'=>'save-fo4-001']],[[
             'form_id'=>'0x000229E5','origin_plugin'=>'Fallout4.esm','display_name'=>'Observed',
             'current_stage'=>45,'active_objectives'=>0,'objectives'=>[],
         ]]);
-        $this->assertCount(2,$db->queries);
-        $this->assertStringContainsString("upper(id_quest)='0X000229E5' AND lower(mod)=lower('Fallout4.esm')",$db->queries[0]);
+        $this->assertCount(2,$calls);
+        // A partial observation replaces only the observed quest (form id upper-cased, plugin compared without case).
+        $this->assertSame(['deleteObserved', ['save-fo4-001', '0X000229E5', 'Fallout4.esm']], $calls[0]);
+        $this->assertSame('record', $calls[1][0]);
+        DaoTestDoubles::forgetBooted();
         foreach (['complete','partial','cached','unavailable',null] as $quality) {
             $payload=['active_quests'=>[]];
             if ($quality!==null) $payload['active_quests_observation']=$quality;
@@ -2444,10 +2478,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('door', synth_protocol_validate_point_of_interest($poi, 'poi')['kind']);
 
         $db = new class {
-            public array $queries = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        $latestParty = null;
+        DaoTestDoubles::contextEventRecorder($calls, $latestParty);
+        // Arguments of insertLegacySnapshot: type, data, playthrough, gamets, now, people, location, party JSON.
         synth_protocol_persist_environment_snapshots($db, [
             'request_id' => 'request-context-001', 'turn_id' => 'turn-context-001',
             'generation' => 7, 'session_id' => 'session-flat-001', 'runtime_variant' => 'flat',
@@ -2457,14 +2493,16 @@ final class RequestStreamingTest extends TestCase
                 'world' => ['game_time_ticks' => 834000000000],
             ],
         ], [$item], [$poi]);
-        $this->assertCount(2, $db->queries);
-        $this->assertStringContainsString("'nearby_items'", $db->queries[0]);
-        $this->assertStringContainsString('FF001234', $db->queries[0]);
-        $this->assertStringContainsString("'points_of_interest'", $db->queries[1]);
-        $this->assertStringContainsString('Sanctuary workshop door', $db->queries[1]);
-        $this->assertStringContainsString('request-context-001', $db->queries[1]);
-        $this->assertStringContainsString('"nearby_items_observation":"partial"',$db->queries[0]);
-        $this->assertStringContainsString('"points_of_interest_observation":"partial"',$db->queries[1]);
+        $this->assertCount(2, $calls);
+        $this->assertSame('insertLegacySnapshot', $calls[0][0]);
+        $this->assertSame('nearby_items', $calls[0][1][0]);
+        $this->assertStringContainsString('FF001234', $calls[0][1][7]);
+        $this->assertSame('points_of_interest', $calls[1][1][0]);
+        $this->assertStringContainsString('Sanctuary workshop door', $calls[1][1][7]);
+        $this->assertStringContainsString('request-context-001', $calls[1][1][7]);
+        $this->assertSame('save-001', $calls[0][1][2]);
+        $this->assertStringContainsString('"nearby_items_observation":"partial"',$calls[0][1][7]);
+        $this->assertStringContainsString('"points_of_interest_observation":"partial"',$calls[1][1][7]);
         $payload=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
         foreach (['nearby_items'=>16,'points_of_interest'=>12] as $field=>$limit) {
             foreach (['complete','partial','cached','unavailable',null] as $quality) {
@@ -2477,11 +2515,11 @@ final class RequestStreamingTest extends TestCase
                     $prompt=synth_protocol_prompt_environment($observed);
                     $this->assertSame($expected,$prompt[$field.'_observation']);
                     $this->assertSame($observed[$field],$prompt[$field]);
-                    $db->queries=[];
+                    $calls=[];
                     synth_protocol_persist_environment_snapshots($db,['payload'=>$observed],$observed['nearby_items'],$observed['points_of_interest']);
-                    $sql=$db->queries[$field==='nearby_items'?0:1];
-                    $this->assertStringContainsString('"'.$field.'_observation":"'.$expected.'"',$sql);
-                    if ($quality==='unavailable') $this->assertStringContainsString('observation unavailable',$sql);
+                    $written=$calls[$field==='nearby_items'?0:1][1];
+                    $this->assertStringContainsString('"'.$field.'_observation":"'.$expected.'"',$written[7]);
+                    if ($quality==='unavailable') $this->assertStringContainsString('observation unavailable',$written[1]);
                 }
             }
             foreach ([null,[],true,'invented','unavailable'] as $quality) {
@@ -2990,12 +3028,11 @@ final class RequestStreamingTest extends TestCase
     public function testStrictWorldStateWritesChangedCanonicalHistoryOnly(): void
     {
         $db = new class {
-            public array $queries = [];
-            public array $latest = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function fetchOne(string $sql): array { return $this->latest; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        $latestParty = null;
+        DaoTestDoubles::contextEventRecorder($calls, $latestParty);
         $world = [
             'location' => 'Sanctuary Hills', 'cell' => 'SanctuaryExt',
             'worldspace' => 'Commonwealth', 'weather' => 'CommonwealthClear',
@@ -3009,20 +3046,22 @@ final class RequestStreamingTest extends TestCase
         ];
 
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertCount(1, $db->queries);
-        $this->assertStringContainsString('INSERT INTO public.core_context_event', $db->queries[0]);
-        $this->assertStringContainsString('request-context-001', $db->queries[0]);
+        $this->assertCount(1, $calls);
+        $this->assertSame('insertLegacySnapshot', $calls[0][0]);
+        $this->assertSame('world_context', $calls[0][1][0]);
+        $this->assertSame('save:fo4:001', $calls[0][1][2]);
+        $this->assertStringContainsString('request-context-001', $calls[0][1][7]);
 
-        $db->queries = [];
-        $db->latest = ['party' => json_encode(
+        $calls = [];
+        $latestParty = json_encode(
             array_merge($world, ['playthrough_id' => 'save:fo4:001', 'session_id' => 'session-flat-001', 'generation' => 7]),
             JSON_THROW_ON_ERROR
-        )];
+        );
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertSame([], $db->queries);
+        $this->assertSame([], $calls);
         $event['generation'] = 8;
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertCount(1, $db->queries, 'A loaded generation needs its own world observation');
+        $this->assertCount(1, $calls, 'A loaded generation needs its own world observation');
     }
 
     public function testNativeObservationRequiresOwnedSequenceAndClosedType(): void

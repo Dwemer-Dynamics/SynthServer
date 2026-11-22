@@ -118,25 +118,9 @@ function synth_wait_result_observation(array $event,string $name,array $actor): 
 // Reuse the accepted intent and immutable capture, including after a registry-name change.
 function synth_wait_result_context($db,array $event): array
 {
-    $result=$event['payload']['result'];$session=$db->escapeLiteral($event['session_id']);$action=$db->escapeLiteral($result['action_id']);
-    $request=$db->escapeLiteral($event['request_id']);$turn=$db->escapeLiteral($event['turn_id']);$generation=intval($event['generation']);
-    $sequence=$db->escapeLiteral(strval($event['context_sequence']));
-    $row=$db->fetchOne("SELECT i.actor_identity_id,i.action_name,i.capability,i.arguments,i.target_identity_id,i.created_at AS intent_created_at,
-            receipt.received_at AS result_received_at,
-            a.full_form_id,a.origin_plugin,a.playthrough_id,source.canonical_event AS origin_event,source.event_sha256 AS origin_sha256,
-            receipt.canonical_event AS receipt_event,receipt.event_sha256 AS receipt_sha256,c.context_payload
-        FROM public.core_action_intent i JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN public.core_protocol_event source ON source.session_id=i.session_id AND source.request_id=i.request_id AND source.generation=i.generation AND source.turn_id=i.turn_id
-        JOIN public.core_request_execution issued ON issued.session_id=source.session_id AND issued.request_id=source.request_id AND issued.request_sha256=source.event_sha256
-        JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id
-        JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id AND accepted.request_sha256=receipt.event_sha256
-        JOIN public.core_runtime_context c ON c.session_id=i.session_id AND c.generation=i.generation AND c.snapshot_sequence=".intval($event['context_sequence'])."
-        JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
-        WHERE i.action_id=$action AND i.idempotency_key=".$db->escapeLiteral($result['idempotency_key'])." AND i.session_id=$session AND i.generation=$generation AND i.turn_id=$turn
-            AND i.state IN ('pending','dispatched','complete') AND source.canonical_event->>'context_sequence'=$sequence
-            AND receipt.event_type='action_result' AND accepted.state IN ('claimed','streaming','complete')
-            AND r.state='active' AND r.active_generation=i.generation AND r.active_turn_id=i.turn_id AND r.active_turn_sequence=c.snapshot_sequence
-            AND r.runtime_variant='flat' AND c.playthrough_id=a.playthrough_id");
+    $result=$event['payload']['result'];
+    $row=\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->waitResultContext(strval($event['session_id']),strval($event['request_id']),strval($event['turn_id']),
+        intval($event['generation']),intval($event['context_sequence']),strval($result['action_id']),strval($result['idempotency_key']));
     if (!$row)throw new DomainException('wait_result_owner_mismatch');
     $decode=static function($raw): array {if(is_string($raw)&&strlen($raw)<=1048576)$raw=json_decode($raw,true,32,JSON_THROW_ON_ERROR);if(!is_array($raw))throw new DomainException('wait_result_owner_mismatch');return $raw;};
     $origin=$decode($row['origin_event']);$receipt=$decode($row['receipt_event']);$payload=$decode($row['context_payload']);
@@ -154,8 +138,7 @@ function synth_wait_result_context($db,array $event): array
     if(in_array('action.wait_verified',$event['capabilities']??[],true)!==in_array('action.wait_verified',$origin['capabilities']??[],true))throw new DomainException('wait_result_capability_mismatch');
     $proof=synth_wait_result_observation($event,$name,$actor);
     if($proof!==null) {
-        $unique=$db->fetchOne('SELECT synth_meta.json_object_has_unique_keys('.$db->escapeLiteral($result['detail']).') AS valid');
-        if(!in_array($unique['valid']??null,[true,'t',1,'1'],true))throw new DomainException('invalid_wait_observation');
+        if(!\Synth\Core\DbManager\Dao\ActionResultDao::current($db)->detailHasUniqueKeys(strval($result['detail'])))throw new DomainException('invalid_wait_observation');
     }
     $message=synth_wait_result_message($name,$actor['display_name']??'The addressed NPC',$result['status'],$proof!==null,$proof);
     return ['actor'=>$actor,'actor_identity_id'=>intval($row['actor_identity_id']),'action'=>$name,'status'=>$result['status'],
@@ -221,18 +204,7 @@ function synth_wait_jev_capture_fresh($db,array $event): bool
 {
     if(!is_int($event['generation']??null)||$event['generation']<1
         || !is_int($event['context_sequence']??null)||$event['context_sequence']<1)return false;
-    $session=$db->escapeLiteral(synth_protocol_session_id($event));
-    $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
-    $row=$db->fetchOne("SELECT 1 AS fresh FROM public.core_runtime_context c
-        JOIN public.core_runtime_session r ON r.session_id=c.session_id
-        WHERE c.session_id=$session AND c.generation=$generation AND c.snapshot_sequence=$sequence
-            AND r.state='active' AND r.active_generation=c.generation AND r.runtime_variant='flat'
-            AND c.playthrough_id=r.playthrough_id
-            AND c.received_at<=clock_timestamp() AND c.received_at>=clock_timestamp()-INTERVAL '5 seconds'
-            AND NOT EXISTS(SELECT 1 FROM public.core_runtime_context newer
-                WHERE newer.session_id=c.session_id AND newer.generation=c.generation
-                    AND newer.snapshot_sequence>c.snapshot_sequence)");
-    return is_array($row) && in_array($row['fresh']??null,[true,'1',1],true);
+    return \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->jevCaptureFresh(strval(synth_protocol_session_id($event)),intval($event['generation']),intval($event['context_sequence']));
 }
 
 // The existing client queues actions until the response/speech finishes. Complete
@@ -303,15 +275,12 @@ function synth_wait_record_consequence($db,array $event,array $outcome): void
         'action'=>$outcome['action'],'verified'=>$outcome['verified'],'result'=>$result,'message'=>$outcome['message'],
         'origin_sha256'=>$outcome['origin_sha256']];
     if($outcome['proof']!==null)$meta['proof']=$outcome['proof'];
-    $query="WITH publication AS (INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-            synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-        VALUES('infoaction',$1,$2,$3,$4,$4,'',$5,'','emitted',$6,$7,$8,$9) RETURNING *)
-        INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-        SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,$2,rowid,to_jsonb(publication)||jsonb_build_object('synth_wait_consequence',$10::jsonb)
-        FROM publication";
-    if($db->execQuery($query,[$outcome['message'],$outcome['actor']['playthrough_id'],intval($outcome['context']['world']['game_time_ticks']??0),$now,
-        strval($outcome['context']['world']['location']??''),$event['session_id'],$event['generation'],$event['context_sequence'],$event['request_id'],json_encode($meta,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)])===false)
-        throw new RuntimeException('Unable to persist native wait consequence');
+    try { \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->publishWaitConsequence($outcome['message'],$outcome['actor']['playthrough_id'],
+        intval($outcome['context']['world']['game_time_ticks']??0),$now,strval($outcome['context']['world']['location']??''),
+        strval($event['session_id']),intval($event['generation']),intval($event['context_sequence']),strval($event['request_id']),
+        json_encode($meta,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)); }
+    catch (JsonException $failure) { throw $failure; }
+    catch (Throwable $failure) { throw new RuntimeException('Unable to persist native wait consequence', 0, $failure); }
 }
 
 // Only the validated terminal source can grant this special actor-scoped history row; labels grant nothing.

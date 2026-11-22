@@ -596,21 +596,13 @@ function synth_protocol_history_rows_cte(bool $relationshipGraph=false, bool $re
 function synth_protocol_persist_context($db, array $event, string $sessionId): void
 {
     $payload = $event['payload'];
-    $session = $db->escapeLiteral($sessionId);
     $generation = intval($event['generation']);
     $sequence = intval($payload['snapshot_sequence']);
-    $playthroughId = $db->escapeLiteral($payload['playthrough_id']);
-    $latest = ($event['protocol_version'] ?? 1) === 2 ? $db->fetchOne(
-        "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-          ORDER BY snapshot_sequence DESC LIMIT 1"
-    ) : $db->fetchOne(
-        "SELECT MAX(snapshot_sequence) AS latest
-           FROM public.core_runtime_context
-          WHERE session_id={$session} AND generation={$generation}
-            AND playthrough_id={$playthroughId}"
-    );
+    $playthroughId = strval($payload['playthrough_id']);
+    $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db);
+    $latest = ($event['protocol_version'] ?? 1) === 2
+        ? $contexts->latestSnapshot($sessionId, $generation)
+        : $contexts->latestSequenceInPlaythrough($sessionId, $generation, $playthroughId);
     if ($latest && $latest['latest'] !== null && $sequence <= intval($latest['latest'])) {
         synth_protocol_fail('stale_context', 409, [['field' => 'payload.snapshot_sequence', 'issue' => 'must_advance']]);
     }
@@ -634,30 +626,15 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
     foreach ($payload['audience'] as $actor) {
         $audienceIds[] = synth_protocol_actor_identity_id($db, $actor);
     }
-    $audienceJson = $db->escapeLiteral(json_encode($audienceIds, JSON_UNESCAPED_SLASHES));
-    $contextJson = $db->escapeLiteral(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    $targetSql = $targetId === null ? 'NULL' : strval($targetId);
+    $audienceJson = json_encode($audienceIds, JSON_UNESCAPED_SLASHES);
+    $contextJson = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     // claim_request holds the same transaction lock used by native event insertions.
     // This is an insertion frontier, not a delivery or mutable-history revision frontier.
-    $historyFrontier = ($event['protocol_version'] ?? 1) === 2
-        ? "(SELECT COALESCE(MAX(id),0) FROM public.core_history_event
-              WHERE session_id={$session} AND generation={$generation} AND playthrough_id={$playthroughId})"
-        : 'NULL';
-    if ($db->execQuery(
-        "INSERT INTO public.core_runtime_context
-            (session_id, generation, snapshot_sequence, playthrough_id, player_identity_id,
-             target_identity_id, audience_identity_ids, context_payload, history_event_id)
-         VALUES ({$session}, {$generation}, {$sequence}, {$playthroughId}, {$playerId},
-                 {$targetSql}, {$audienceJson}::jsonb, {$contextJson}::jsonb,
-                 {$historyFrontier})"
-    ) === false) {
+    if (!$contexts->insertSnapshot($sessionId, $generation, $sequence, $playthroughId, $playerId, $targetId, strval($audienceJson),
+        strval($contextJson), ($event['protocol_version'] ?? 1) === 2)) {
         throw new RuntimeException('Unable to persist acknowledged context and history frontier');
     }
-    $db->execQuery(
-        "UPDATE public.core_runtime_session
-            SET playthrough_id={$playthroughId}, updated_at=NOW()
-          WHERE session_id={$session}"
-    );
+    \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->setPlaythrough($sessionId, $playthroughId);
     if (is_array($payload['world'] ?? null)) {
         synth_protocol_persist_world_context($db, $event, $payload['world']);
     }
@@ -684,16 +661,7 @@ function synth_protocol_persist_context($db, array $event, string $sessionId): v
         \Synth\Managers\BookManager\ReadingHistory::persist($db, $event);
         // Finish the new checkpoint inside admission's transaction/lock. These facts belong to
         // this capture; subsequent dialogue/worker writes must never move an acknowledged frontier.
-        if ($db->execQuery("UPDATE public.core_runtime_context c
-            SET history_event_id=GREATEST(c.history_event_id,COALESCE((
-                SELECT MAX(h.id) FROM public.core_history_event h
-                 WHERE h.session_id=c.session_id AND h.generation=c.generation
-                   AND h.playthrough_id=c.playthrough_id AND h.context_sequence=c.snapshot_sequence
-                   AND h.request_id=$5
-                   AND h.event_payload->>'type' IN ('world_context','nearby_items','points_of_interest','quest_observation','quest_events','player_event','reading_event','actor_equipment','backgroundchat')
-            ),0))
-            WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4",
-            [$sessionId, $generation, $sequence, $payload['playthrough_id'], $event['request_id']]) === false) {
+        if (!$contexts->finalizeHistoryFrontier($sessionId, $generation, $sequence, $playthroughId, strval($event['request_id']))) {
             throw new RuntimeException('Unable to finalize captured observation history frontier');
         }
         // Private narrator state is captured beside this snapshot by opaque ID; the snapshot itself is not touched.
@@ -913,14 +881,10 @@ function synth_protocol_persist_quest_history($db, array $event): void
     if (($event['protocol_version'] ?? 1) !== 2) return;
     $journal = synth_protocol_quest_history_observation($event['payload']);
     if ($journal === null) return;
-    $result = $db->execQuery("SELECT event_payload->'party' AS party FROM public.core_history_event
-        WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
-          AND context_sequence<$4 AND event_payload->>'type'='quest_observation'
-        ORDER BY id DESC LIMIT 1", [$event['session_id'], $event['generation'],
-            $event['payload']['playthrough_id'], $event['payload']['snapshot_sequence']]);
-    if ($result === false) throw new RuntimeException('Unable to read owned quest observation history.');
-    $row = pg_fetch_assoc($result);
-    $party = $row ? json_decode($row['party'], true, flags: JSON_THROW_ON_ERROR) : null;
+    $previousParty = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->previousQuestObservationParty(strval($event['session_id']), intval($event['generation']),
+        strval($event['payload']['playthrough_id']), intval($event['payload']['snapshot_sequence']));
+    if ($previousParty === false) throw new RuntimeException('Unable to read owned quest observation history.');
+    $party = $previousParty !== null ? json_decode($previousParty, true, flags: JSON_THROW_ON_ERROR) : null;
     if (is_string($party)) $party = json_decode($party, true, flags: JSON_THROW_ON_ERROR);
     // Preserve false versus unavailable tracking while ignoring object-key serialization order.
     if (synth_protocol_sort_keys($party['journal'] ?? null) === synth_protocol_sort_keys($journal)) return;
@@ -974,14 +938,10 @@ function synth_protocol_persist_quest_events($db, array $event): void
     }
     $owner = [$event['session_id'], $event['generation'], $payload['playthrough_id']];
     $player = array_intersect_key($payload['player'], array_flip(['form_id','origin_plugin','playthrough_id']));
-    $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party
-        FROM public.core_history_event WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3
-          AND event_payload->>'type'='quest_events'
-          AND (event_payload->>'party')::jsonb->>'batch_id'=$4 LIMIT 1", [...$owner, $batch['batch_id']]);
-    if ($result === false) throw new RuntimeException('Unable to read native quest batch history.');
-    $row = pg_fetch_assoc($result);
-    if ($row) {
-        $previous = json_decode($row['party'], true, flags: JSON_THROW_ON_ERROR);
+    $batchParty = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->questBatchParty(strval($owner[0]), intval($owner[1]), strval($owner[2]), strval($batch['batch_id']));
+    if ($batchParty === false) throw new RuntimeException('Unable to read native quest batch history.');
+    if ($batchParty !== null) {
+        $previous = json_decode($batchParty, true, flags: JSON_THROW_ON_ERROR);
         if (($previous['input_events'] ?? null) != $batch['events'] || ($previous['player'] ?? null) != $player) {
             throw new DomainException('quest_event_batch_conflict');
         }
@@ -996,15 +956,11 @@ function synth_protocol_persist_quest_events($db, array $event): void
             throw new DomainException('quest_event_visibility_sequence_invalid');
         }
         if (!array_key_exists($sequence, $witnesses)) {
-            $result = $db->execQuery("SELECT context_payload FROM public.core_runtime_context
-                WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$4
-                  AND player_identity_id=(SELECT player_identity_id FROM public.core_runtime_context
-                    WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND snapshot_sequence=$5)",
-                [...$owner, $sequence, $payload['snapshot_sequence']]);
-            if ($result === false) throw new RuntimeException('Unable to read native quest visibility witness.');
-            $row = pg_fetch_assoc($result);
-            if (!$row) throw new DomainException('quest_event_visibility_context_missing');
-            $witnesses[$sequence] = json_decode($row['context_payload'], true, flags: JSON_THROW_ON_ERROR);
+            $witnessPayload = \Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->witnessPayload(strval($owner[0]), intval($owner[1]), strval($owner[2]),
+                intval($sequence), intval($payload['snapshot_sequence']));
+            if ($witnessPayload === false) throw new RuntimeException('Unable to read native quest visibility witness.');
+            if ($witnessPayload === null) throw new DomainException('quest_event_visibility_context_missing');
+            $witnesses[$sequence] = json_decode($witnessPayload, true, flags: JSON_THROW_ON_ERROR);
         }
         $quest = synth_protocol_quest_event_witness($witnesses[$sequence], $record);
         $grounded[] = ['event'=>$record, 'journal_witness'=>$quest,
@@ -1033,20 +989,18 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
     $gamets = intval($event['payload']['world']['game_time_ticks'] ?? 0);
     if ($gamets <= 0) $gamets = intval($event['payload']['snapshot_sequence'] ?? 1);
     $timestamp = time();
-    $playthrough = $db->escapeLiteral(trim(strval(
-        $event['payload']['playthrough_id'] ?? 'unknown'
-    )));
-    if ($quality==='complete' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}") === false) {
+    $playthrough = trim(strval($event['payload']['playthrough_id'] ?? 'unknown'));
+    $questRows = \Synth\Core\DbManager\Dao\QuestDao::current($db);
+    if ($quality==='complete' && !$questRows->deleteBySession($playthrough)) {
         throw new RuntimeException('Unable to replace playthrough quest projection.');
     }
     foreach (array_slice($quests, 0, 16) as $quest) {
         if (!is_array($quest)) continue;
-        $id = $db->escapeLiteral(strtoupper(strval($quest['form_id'] ?? '')));
-        $name = $db->escapeLiteral(trim(strval($quest['display_name'] ?? '')));
-        $editor = $db->escapeLiteral(trim(strval($quest['editor_id'] ?? '')));
-        $plugin = $db->escapeLiteral(trim(strval($quest['origin_plugin'] ?? '')));
-        if ($quality==='partial' && $db->execQuery("DELETE FROM public.core_quest WHERE sess={$playthrough}
-            AND upper(id_quest)={$id} AND lower(mod)=lower({$plugin})")===false) {
+        $id = strtoupper(strval($quest['form_id'] ?? ''));
+        $name = trim(strval($quest['display_name'] ?? ''));
+        $editor = trim(strval($quest['editor_id'] ?? ''));
+        $plugin = trim(strval($quest['origin_plugin'] ?? ''));
+        if ($quality==='partial' && !$questRows->deleteObserved($playthrough, $id, $plugin)) {
             throw new RuntimeException('Unable to update observed quest projection.');
         }
         $stage = intval($quest['current_stage'] ?? 0);
@@ -1059,22 +1013,19 @@ function synth_protocol_persist_active_quests($db, array $event, array $quests):
             ? implode('; ', array_slice($objectives, 0, 8))
             : 'Stage ' . $stage . '; ' . (($quest['objectives_observation'] ?? 'unavailable')==='unavailable'
                 ? 'active objective observation unavailable' : 'active objective count ' . $objectiveCount);
-        $briefing = $db->escapeLiteral($briefingText);
-        $objectiveJson = $db->escapeLiteral(json_encode(
+        $objectiveJson = json_encode(
             $objectives,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
-        $data = $db->escapeLiteral(json_encode(
+        );
+        $data = json_encode(
             $quest,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
-        if ($db->execQuery(
-            "INSERT INTO public.core_quest
-                (ts, sess, id_quest, name, editor_id, giver_actor_id, mod, stage,
-                 briefing, briefing2, localts, gamets, data, status)
-             VALUES ('{$timestamp}', {$playthrough}, {$id}, {$name}, {$editor}, '',
-                     {$plugin}, {$stage}, {$briefing}, {$objectiveJson}, {$timestamp}, {$gamets}, {$data}, 'active')"
-        ) === false) {
+        );
+        if (!$questRows->record([
+            'ts' => strval($timestamp), 'sess' => $playthrough, 'id_quest' => $id, 'name' => $name, 'editor_id' => $editor,
+            'giver_actor_id' => '', 'mod' => $plugin, 'stage' => $stage, 'briefing' => $briefingText, 'briefing2' => $objectiveJson,
+            'localts' => $timestamp, 'gamets' => $gamets, 'data' => $data, 'status' => 'active',
+        ])) {
             throw new RuntimeException('Unable to persist playthrough quest projection.');
         }
     }
@@ -1106,24 +1057,11 @@ function synth_protocol_persist_observation_history(
         || intval($event['payload']['snapshot_sequence'] ?? 0) < 1) {
         throw new InvalidArgumentException('Native observation requires an owned context sequence.');
     }
-    $result = $db->execQuery("WITH captured AS (
-        SELECT c.session_id,c.generation,c.snapshot_sequence,c.playthrough_id
-          FROM public.core_runtime_context c JOIN public.core_runtime_session s USING(session_id)
-         WHERE c.session_id=$1 AND c.generation=$2 AND c.snapshot_sequence=$3 AND c.playthrough_id=$4
-           AND s.active_generation=c.generation AND s.state='active'
-    ), publication AS (
-        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-            synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-        SELECT $6,$7,playthrough_id,$8,$9,$9,$10,$11,$12,'received',
-            session_id,generation,snapshot_sequence,$5 FROM captured RETURNING *
-    ) INSERT INTO public.core_history_event
-        (session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-        SELECT synth_session_id,synth_generation,synth_context_sequence,synth_request_id,sess,rowid,to_jsonb(publication)
-          FROM publication RETURNING id",
-        [$event['session_id'], $event['generation'], $event['payload']['snapshot_sequence'],
-         $event['payload']['playthrough_id'], $event['request_id'], $type, $data, $gamets, time(),
-         $people, $location, json_encode($party, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)]);
-    if ($result === false || pg_fetch_assoc($result) === false) {
+    $published = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->publishObservation(strval($event['session_id']), intval($event['generation']),
+        intval($event['payload']['snapshot_sequence']), strval($event['payload']['playthrough_id']), strval($event['request_id']),
+        $type, $data, $gamets, time(), $people, $location,
+        json_encode($party, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    if (!$published) {
         throw new RuntimeException('Unable to persist owned native observation history.');
     }
 }
@@ -1179,24 +1117,14 @@ function synth_protocol_persist_environment_snapshots(
         $quality=$payload[$type.'_observation'] ?? ($observedRows ? 'partial' : 'unavailable');
         $party[$type.'_observation']=$quality;
         $data=$quality==='unavailable' ? $type.': observation unavailable' : $data.' ('.$quality.')';
-        $typeSql = $db->escapeLiteral($type);
-        $dataSql = $db->escapeLiteral($data);
-        $sessionSql = $db->escapeLiteral($playthrough);
-        $peopleSql = $db->escapeLiteral($people);
-        $partySql = $db->escapeLiteral(json_encode(
-            $party,
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
         if (($event['protocol_version'] ?? 1) === 2) {
             synth_protocol_persist_observation_history($db, $event, $type, $data, $people, '', $party, $gamets);
             continue;
         }
-        if ($db->execQuery(
-            "INSERT INTO public.core_context_event
-                (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
-             VALUES ({$typeSql}, {$dataSql}, {$sessionSql}, {$gamets}, {$now}, {$now},
-                     {$peopleSql}, '', {$partySql}, 'received')"
-        ) === false) {
+        if (!\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->insertLegacySnapshot($type, $data, $playthrough, $gamets, $now, $people, '', json_encode(
+            $party,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ))) {
             throw new RuntimeException('Unable to persist strict environment snapshot.');
         }
     }
@@ -1206,14 +1134,8 @@ function synth_protocol_persist_environment_snapshots(
 function synth_protocol_persist_world_context($db, array $event, array $world): void
 {
     $playthroughId = strval($event['payload']['playthrough_id'] ?? '');
-    $playthroughSql = $db->escapeLiteral($playthroughId);
-    $latest = $db->fetchOne(
-        "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess={$playthroughSql}
-          ORDER BY rowid DESC LIMIT 1"
-    );
-    $previous = is_array($latest['party'] ?? null)
-        ? $latest['party']
-        : json_decode(strval($latest['party'] ?? ''), true);
+    $latestParty = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->latestWorldContextParty($playthroughId);
+    $previous = json_decode(strval($latestParty ?? ''), true);
     $keys = ['location', 'cell', 'worldspace', 'weather', 'interior'];
     $unchanged = is_array($previous) &&
         hash_equals(strval($previous['playthrough_id'] ?? ''), $playthroughId)
@@ -1251,11 +1173,6 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
         'session_id' => strval($event['session_id'] ?? ''),
         'playthrough_id' => $playthroughId,
     ]);
-    $contextSql = $db->escapeLiteral($context);
-    $payloadSql = $db->escapeLiteral(json_encode(
-        $historyPayload,
-        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-    ));
     $gamets = intval($world['game_time_ticks']);
     $now = time();
     if (($event['protocol_version'] ?? 1) === 2) {
@@ -1265,12 +1182,8 @@ function synth_protocol_persist_world_context($db, array $event, array $world): 
             '|' . $observer . '|', $context, $historyPayload, $gamets);
         return;
     }
-    if ($db->execQuery(
-        "INSERT INTO public.core_context_event
-            (type, data, sess, gamets, localts, ts, people, location, party, delivery_state)
-         VALUES ('world_context', {$contextSql}, {$playthroughSql}, {$gamets}, {$now}, {$now},
-                 '|The Narrator|', {$contextSql}, {$payloadSql}, 'received')"
-    ) === false) {
+    if (!\Synth\Core\DbManager\Dao\ContextEventDao::current($db)->insertLegacySnapshot('world_context', $context, $playthroughId, $gamets, $now, '|The Narrator|', $context,
+        json_encode($historyPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR))) {
         throw new RuntimeException('Unable to persist changed world context.');
     }
 }
@@ -1795,25 +1708,11 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
         }
         $actorId = synth_protocol_actor_identity_id($db, $action['actor']);
         $targetId = isset($action['target']) ? synth_protocol_actor_identity_id($db, $action['target']) : null;
-        $session = $db->escapeLiteral(synth_protocol_session_id($event));
-        $actionId = $db->escapeLiteral($action['action_id']);
-        $idempotency = $db->escapeLiteral($action['idempotency_key']);
-        $requestId = $db->escapeLiteral($event['request_id']);
-        $turnId = $db->escapeLiteral($event['turn_id']);
-        $name = $db->escapeLiteral(strval($action['server_code'] ?? $action['name']));
-        $capability = $db->escapeLiteral($action['capability']);
-        $arguments = $db->escapeLiteral(json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        $targetSql = $targetId === null ? 'NULL' : strval($targetId);
-        $deadlineMs = intval($action['deadline_ms']);
-        $generation = intval($event['generation']);
-        if ($db->execQuery(
-            "INSERT INTO public.core_action_intent
-                (action_id, idempotency_key, session_id, request_id, turn_id, generation,
-                 action_name, capability, actor_identity_id, target_identity_id, arguments, deadline_at)
-             VALUES ({$actionId}, {$idempotency}, {$session}, {$requestId}, {$turnId}, {$generation},
-                     {$name}, {$capability}, {$actorId}, {$targetSql}, {$arguments}::jsonb,
-                     NOW() + ({$deadlineMs} * INTERVAL '1 millisecond'))"
-        ) === false) throw new RuntimeException('Unable to persist action intent.');
+        $arguments = json_encode((object)$action['arguments'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (!\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->insertIntent(strval($action['action_id']), strval($action['idempotency_key']),
+            synth_protocol_session_id($event), strval($event['request_id']), strval($event['turn_id']), intval($event['generation']),
+            strval($action['server_code'] ?? $action['name']), strval($action['capability']), $actorId, $targetId, $arguments,
+            intval($action['deadline_ms']))) throw new RuntimeException('Unable to persist action intent.');
         if ($native) {
             $context = $context ?? synth_protocol_current_context($db, $event);
             if (!$context) throw new RuntimeException('Action issuance context unavailable.');
@@ -1834,8 +1733,7 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
     try {
         if ($guarded) {
             if ($db->execQuery('BEGIN') === false) throw new RuntimeException('Unable to begin action intent.');
-            $owner = $db->escapeLiteral(synth_protocol_session_id($event));
-            if (!$db->fetchOne("SELECT pg_advisory_xact_lock(hashtext({$owner}))")) {
+            if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->lockSession(synth_protocol_session_id($event))) {
                 throw new RuntimeException('Unable to lock action owner.');
             }
         }
@@ -1850,23 +1748,8 @@ require_once dirname(__DIR__, 3).'/lib'.'/synth_gift_menu.php';
 // Administrative action evidence uses the saved frontier and exact issuing actor, not NPC-name visibility.
 function synth_protocol_last_actions_issued($db, array $event, string $actor): array
 {
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
-    $generation = intval($event['generation']);
-    $sequence = intval($event['context_sequence']);
-    $rows = $db->fetchAll(synth_protocol_history_cte($db, $event, $actor)."
-        SELECT DISTINCT ON (i.action_name) i.action_name AS action,
-            (h.event_payload->>'gamets')::bigint AS gamets,
-            (h.event_payload->>'ts')::bigint AS ts
-        FROM native_history_scopes s
-        JOIN public.core_history_event h ON h.session_id=s.session_id AND h.generation=s.generation
-            AND h.playthrough_id=s.playthrough_id AND h.event_payload->>'type'='funccall'
-        JOIN public.core_action_intent i ON i.action_id=h.event_payload->>'data'
-            AND i.session_id=h.session_id AND i.generation=h.generation AND i.request_id=h.request_id
-            AND i.actor_identity_id=s.reader_identity_id
-        WHERE h.id<=s.cutoff OR (h.session_id={$session} AND h.generation={$generation}
-            AND h.context_sequence={$sequence} AND i.turn_id={$turn})
-        ORDER BY i.action_name, (h.event_payload->>'gamets')::bigint DESC, h.id DESC");
+    $rows = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->lastIssuedByAction(synth_protocol_history_cte($db, $event, $actor),
+        strval($event['session_id']), intval($event['generation']), intval($event['context_sequence']), strval($event['turn_id']));
     $result = [];
     foreach ($rows as $row) $result[$row['action']] = $row;
     return $result;
@@ -1883,11 +1766,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
         || trim($codeName) === '') {
         return null;
     }
-    $session = $db->escapeLiteral($event['session_id']);
-    $turn = $db->escapeLiteral($event['turn_id']);
     $generation = intval($event['generation']);
     $sequence = intval($event['context_sequence']);
-    $variant = $db->escapeLiteral($event['runtime_variant']);
     $current = $event;
     $visited = [];
     for ($depth = 0; $depth < 64; ++$depth) {
@@ -1898,18 +1778,8 @@ function synth_protocol_action_followup_depth($db, array $event, string $codeNam
             return null;
         }
         $visited[$result['action_id']] = true;
-        $action = $db->escapeLiteral($result['action_id']);
-        $idempotency = $db->escapeLiteral($result['idempotency_key']);
-        $row = $db->fetchOne(
-            "SELECT i.action_name, e.canonical_event
-               FROM public.core_action_intent i
-               JOIN public.core_protocol_event e ON e.session_id=i.session_id
-                AND e.request_id=i.request_id AND e.generation=i.generation AND e.turn_id=i.turn_id
-               JOIN public.core_runtime_session r ON r.session_id=i.session_id
-              WHERE i.action_id={$action} AND i.idempotency_key={$idempotency}
-                AND i.session_id={$session} AND i.generation={$generation} AND i.turn_id={$turn}
-                AND r.state='active' AND r.active_generation={$generation} AND r.runtime_variant={$variant}"
-        );
+        $row = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->followupOrigin($result['action_id'], $result['idempotency_key'], $event['session_id'],
+            $generation, $event['turn_id'], $event['runtime_variant']);
         if (!$row || ($depth === 0 && ($row['action_name'] ?? '') !== $codeName)) return null;
         $origin = is_array($row['canonical_event'] ?? null) ? $row['canonical_event']
             : json_decode(strval($row['canonical_event'] ?? ''), true);

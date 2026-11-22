@@ -261,17 +261,24 @@ class RequestExecutionDao
         );
     }
 
-    /** True when this turn's context event at this snapshot sequence is acknowledged and its request completed. */
+    /**
+     * True when this turn's context event at this snapshot sequence is acknowledged and its request completed; false otherwise or when
+     * the statement fails (the legacy fetchOne contract: the visual request is then refused as stale).
+     */
     public function hasCompleteContext(string $sessionId, int $generation, string $turnId, int $sequence): bool
     {
-        return $this->connection()->fetchOne(
-            "SELECT 1 AS acknowledged FROM public.core_protocol_event p
-                JOIN public.core_request_execution e USING (session_id, request_id)
-                WHERE p.session_id = ? AND p.generation = ? AND p.turn_id = ?
-                    AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence' = ?
-                    AND e.state='complete' LIMIT 1",
-            [$sessionId, $generation, $turnId, (string) $sequence]
-        ) !== false;
+        try {
+            return $this->connection()->fetchOne(
+                "SELECT 1 AS acknowledged FROM public.core_protocol_event p
+                    JOIN public.core_request_execution e USING (session_id, request_id)
+                    WHERE p.session_id = ? AND p.generation = ? AND p.turn_id = ?
+                        AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence' = ?
+                        AND e.state='complete' LIMIT 1",
+                [$sessionId, $generation, $turnId, (string) $sequence]
+            ) !== false;
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
     }
 
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRequestExecution> */

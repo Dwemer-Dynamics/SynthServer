@@ -10,9 +10,9 @@ use Synth\Core\Entities\Base\AbstractQuest;
 use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_quest. */
-final class QuestDao
+class QuestDao
 {
-    private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts'];
+    private const COLUMNS = ['ts', 'gamets', 'name', 'editor_id', 'briefing', 'briefing2', 'data', 'stage', 'giver_actor_id', 'id_quest', 'sess', 'status', 'localts', 'mod'];
     use UsesEntityManager;
 
     /** One row by its primary key, or null. */
@@ -68,6 +68,21 @@ final class QuestDao
     {
         try {
             $this->connection()->executeStatement('DELETE FROM public.core_quest WHERE sess = ?', [$sess]);
+        } catch (DbalException $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** Removes one observed quest (form id compared in upper case, origin plugin without case) from a projection session. False when the statement fails. */
+    public function deleteObserved(string $sess, string $formIdUpper, string $originPlugin): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                'DELETE FROM public.core_quest WHERE sess = ? AND upper(id_quest) = ? AND lower(mod) = lower(?)',
+                [$sess, $formIdUpper, $originPlugin]
+            );
         } catch (DbalException $error) {
             return false;
         }
