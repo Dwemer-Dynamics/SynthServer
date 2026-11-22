@@ -69,7 +69,7 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
         self::assertSame('Valid fixture description', synthLookupCapturedEquipmentDescription('0x00000822', 'EquipmentBoundary.esp'));
     }
 
-    public function testUnreadableCustomCatalogueFallsBackToBaseAndUnreadableCataloguesGiveNoDescription(): void
+    public function testUnreadableCustomCatalogueStopsCapturedLookupButRecordLookupFallsBackToBase(): void
     {
         $this->description('descriptions', 'EquipmentFailsoft.esp', '00004823', 'Base failsoft pistol');
         // A DBAL read failure (for example a missing relation) on a DAO over a connection that always fails.
@@ -81,7 +81,8 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
         $entities->method('getConnection')->willReturn($connection);
         \Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::inject(\Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::using($entities));
         try {
-            self::assertSame('Base failsoft pistol', synthLookupCapturedEquipmentDescription('0x02004823', 'EquipmentFailsoft.esp'));
+            // The captured-equipment lookup stops at the first read error; the record lookup tries the base catalogue.
+            self::assertNull(synthLookupCapturedEquipmentDescription('0x02004823', 'EquipmentFailsoft.esp'));
             self::assertSame('Base failsoft pistol', lookupDescriptionRecordByCandidates(['EquipmentFailsoft.esp|00004823'], true)['description'] ?? null);
             \Synth\Core\DbManager\Dao\ItemDescriptionDao::inject(\Synth\Core\DbManager\Dao\ItemDescriptionDao::using($entities));
             self::assertNull(synthLookupCapturedEquipmentDescription('0x02004823', 'EquipmentFailsoft.esp'));

@@ -64,14 +64,13 @@ final class ItemDescriptionCustomDao
         return $row === false ? null : $row;
     }
 
-    /** The non-empty description of one item; null when absent or unreadable (the description is optional prompt text). */
+    /**
+     * The non-empty description of one item, or null when absent. Read errors propagate so the captured-equipment caller
+     * can stop at the first unreadable catalogue, as the legacy execQuery() === false check did.
+     */
     public function descriptionByKey(string $plugin, string $baseid): ?string
     {
-        try {
-            $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
-        } catch (DbalException|DriverException $error) {
-            return null;
-        }
+        $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
 
         return is_string($value) ? $value : null;
     }

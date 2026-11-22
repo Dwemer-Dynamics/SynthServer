@@ -365,7 +365,12 @@ function synthLookupCapturedEquipmentDescription(string $formId, string $plugin)
     $localFormId = synthExtractLocalFormIdFromRuntimeFormId($formId);
     // Do not use wildcard, bare runtime-ID or name fallbacks across plugins.
     foreach ([\Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::current($db), \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)] as $itemDao) {
-        $description = $itemDao->descriptionByKey($plugin, $localFormId);
+        try {
+            $description = $itemDao->descriptionByKey($plugin, $localFormId);
+        } catch (\Doctrine\DBAL\Exception|\Doctrine\DBAL\Driver\Exception $error) {
+            // A read error ends the lookup without trying the next catalogue, as the legacy query-failure check did.
+            return null;
+        }
         if ($description !== null) return $description;
     }
     return null;
