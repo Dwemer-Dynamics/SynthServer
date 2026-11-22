@@ -46,6 +46,18 @@ function synth_tts_launch_job(int $id, string $root): bool
     return pclose($process)===0;
 }
 
+// A failed status query reads as a missing row, as the legacy fetchOne did, so the caller keeps its failed-status
+// response instead of an exception escaping the speech stream. Only database errors are absorbed; the rest propagate.
+function synth_tts_job_status_read(callable $read): ?array
+{
+    try {
+        return $read();
+    } catch (\Doctrine\DBAL\Exception $error) {
+        error_log('[SYNTH TTS] Speech job status read failed: '.get_class($error));
+        return null;
+    }
+}
+
 // Polling reflects durable terminal state without publishing audio or modifying jobs/status files.
 function synth_tts_resolve_job_status($db, array $status, ?string $root = null): array
 {
@@ -63,11 +75,12 @@ function synth_tts_resolve_job_status($db, array $status, ?string $root = null):
             // Publication may still be between filesystem and database writes; retain durable job semantics.
         }
     }
-    $row=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsStatusById(intval($id),strval($status['cache_key']));
+    $dao=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db);
+    $row=synth_tts_job_status_read(static fn()=>$dao->ttsStatusById(intval($id),strval($status['cache_key'])));
     if (!$row || in_array($row['state'],['failed','cancelled','stale'],true) || !in_array($row['within_deadline'],[true,'t',1,'1'],true)) {
         // Status belongs to immutable audio, not the last writer: another live owner may still produce it.
         // Keep ordinary polling on the primary key; only failed owners need the active-job lookup.
-        $other=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsActiveByCacheKey(strval($status['cache_key']));
+        $other=synth_tts_job_status_read(static fn()=>$dao->ttsActiveByCacheKey(strval($status['cache_key'])));
         if (!$other || !in_array($other['state'],['pending','running'],true)
             || !in_array($other['within_deadline'],[true,'t',1,'1'],true)) {
             $status['status']='failed';$status['error_code']='synthesis_failed';
