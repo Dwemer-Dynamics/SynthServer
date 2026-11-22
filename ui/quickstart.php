@@ -196,6 +196,40 @@ function synthQuickstartEnsureActiveSttConnectorId(STTConnector $connector): int
     return $createdId;
 }
 
+// Returns the STT connector id for the selected driver without changing any existing row: the active row when it
+// already uses that driver, else the lowest-id row with that driver, else a newly created default row (0 on failure).
+function synthQuickstartResolveSttConnectorIdForDriver(STTConnector $connector, int $activeId, string $selectedDriver): int {
+    $activeRow = $activeId > 0 ? $connector->getById($activeId) : null;
+    if (is_array($activeRow) && $connector->normalizeDriverValue($activeRow['driver'] ?? '') === $selectedDriver) {
+        return $activeId;
+    }
+
+    $matchId = 0;
+    foreach ((array)$connector->readAll() as $row) {
+        $rowId = intval($row['id'] ?? 0);
+        if ($rowId > 0 && $connector->normalizeDriverValue($row['driver'] ?? '') === $selectedDriver
+            && ($matchId === 0 || $rowId < $matchId)) {
+            $matchId = $rowId;
+        }
+    }
+    if ($matchId > 0) {
+        return $matchId;
+    }
+
+    $label = ($selectedDriver === 'none') ? 'Disabled STT' : ('Global ' . $connector->getDisplayName($selectedDriver));
+    return intval($connector->create([
+        'driver' => $selectedDriver,
+        'label' => $connector->uniqueLabel($label, 0),
+        'metadata' => json_encode([], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        'api_key_id' => $connector->driverUsesApiBadge($selectedDriver)
+            ? $connector->getDefaultApiBadgeIdForDriver($selectedDriver)
+            : null,
+        'url' => $connector->driverSupportsEditableUrl($selectedDriver)
+            ? $connector->getDefaultUrlForDriver($selectedDriver)
+            : null,
+    ]));
+}
+
 function synthQuickstartNormalizeTtsDriver(TTSConnector $connector, $driver): string {
     $normalizedDriver = $connector->normalizeDriverValue($driver);
     if ($normalizedDriver === '') {
@@ -450,48 +484,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['qs_action'])) {
             
 // PLAYER_NAME is detected from the game and saved to core_player automatically.
 
-            $ttsConnector = new TTSConnector();
-            $selectedTtsDriver = synthQuickstartNormalizeTtsDriver($ttsConnector, $_POST['TTSFUNCTION'] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? 'none'));
-            $savedTtsId = synthQuickstartApplyTtsSelection($ttsConnector, $selectedTtsDriver);
-
+            // Validate the STT selection before any TTS or STT write: an unknown driver could otherwise create one
+            // new connector row per distinct submitted value. The value itself is never echoed back.
             $sttConnector = new STTConnector();
-            $activeSttId = synthQuickstartEnsureActiveSttConnectorId($sttConnector);
             $selectedSttDriver = $sttConnector->normalizeDriverValue($_POST['STTFUNCTION'] ?? (\Synth\Bootstrap::config("STTFUNCTION") ?? 'none'));
             if ($selectedSttDriver === '') {
                 $selectedSttDriver = 'none';
             }
-            $existingStt = $activeSttId > 0 ? $sttConnector->getById($activeSttId) : null;
-            $existingSttDriver = $sttConnector->normalizeDriverValue($existingStt['driver'] ?? '');
-            $metadata = ($existingStt && $existingSttDriver === $selectedSttDriver)
-                ? $sttConnector->decodeMetadata($existingStt['metadata'] ?? '{}')
-                : [];
-            $url = null;
-            if ($sttConnector->driverSupportsEditableUrl($selectedSttDriver)) {
-                if ($existingStt && $existingSttDriver === $selectedSttDriver) {
-                    $url = trim(strval($existingStt['url'] ?? ''));
-                }
-                if ($url === '') {
-                    $url = $sttConnector->getDefaultUrlForDriver($selectedSttDriver);
-                }
+            $allowedSttDrivers = array_map([$sttConnector, 'normalizeDriverValue'], $sttConnector->getDriverOptions());
+            if (!in_array($selectedSttDriver, $allowedSttDrivers, true)) {
+                echo json_encode([ 'ok' => false, 'error' => 'No settings were saved: the selected STT service is not supported.' ]);
+                exit;
             }
-            $sttPayload = [
-                'driver' => $selectedSttDriver,
-                'label' => ($selectedSttDriver === 'none') ? 'Disabled STT' : ('Global ' . $sttConnector->getDisplayName($selectedSttDriver)),
-                'metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                'api_key_id' => $sttConnector->driverUsesApiBadge($selectedSttDriver)
-                    ? $sttConnector->getDefaultApiBadgeIdForDriver($selectedSttDriver)
-                    : null,
-                'url' => $url,
-            ];
-            if ($activeSttId > 0 && $existingStt) {
-                $sttConnector->update($activeSttId, $sttPayload);
-                synthSetGeneralSetting('GLOBAL_STT_CONNECTOR_ID', $activeSttId, synthGetSchemaDescription('GLOBAL_STT_CONNECTOR_ID'));
-                $savedSttId = $activeSttId;
-            } else {
-                $savedSttId = $sttConnector->create($sttPayload);
-                if ($savedSttId > 0) {
-                    synthSetGeneralSetting('GLOBAL_STT_CONNECTOR_ID', $savedSttId, synthGetSchemaDescription('GLOBAL_STT_CONNECTOR_ID'));
-                }
+
+            $ttsConnector = new TTSConnector();
+            $selectedTtsDriver = synthQuickstartNormalizeTtsDriver($ttsConnector, $_POST['TTSFUNCTION'] ?? (\Synth\Bootstrap::config("TTSFUNCTION") ?? 'none'));
+            $savedTtsId = synthQuickstartApplyTtsSelection($ttsConnector, $selectedTtsDriver);
+
+            $activeSttId = synthQuickstartEnsureActiveSttConnectorId($sttConnector);
+            // STT rows carry no Quickstart ownership marker, so Quickstart never rewrites one: it reuses the
+            // active row, else an existing row with the selected driver, else creates a default row.
+            $savedSttId = synthQuickstartResolveSttConnectorIdForDriver($sttConnector, $activeSttId, $selectedSttDriver);
+            if ($savedSttId > 0) {
+                synthSetGeneralSetting('GLOBAL_STT_CONNECTOR_ID', $savedSttId, synthGetSchemaDescription('GLOBAL_STT_CONNECTOR_ID'));
             }
 
             $result = ($savedTtsId > 0) && (intval($savedSttId ?? 0) > 0);
