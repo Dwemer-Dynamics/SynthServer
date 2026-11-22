@@ -871,13 +871,20 @@ class ContextEventDao
         );
     }
 
-    /** The party of the newest world_context event of this playthrough (JSON text or null), or null when there is none. */
+    /**
+     * The party of the newest world_context event of this playthrough (JSON text or null), or null when there is none or the
+     * statement fails (the legacy fetchOne contract: the caller's insert then reports the failure).
+     */
     public function latestWorldContextParty(string $playthroughId): ?string
     {
-        $value = $this->connection()->fetchOne(
-            "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess = ? ORDER BY rowid DESC LIMIT 1",
-            [$playthroughId]
-        );
+        try {
+            $value = $this->connection()->fetchOne(
+                "SELECT party FROM public.core_context_event WHERE type='world_context' AND sess = ? ORDER BY rowid DESC LIMIT 1",
+                [$playthroughId]
+            );
+        } catch (DbalException $error) {
+            return null;
+        }
 
         return $value === false || $value === null ? null : (string) $value;
     }

@@ -245,24 +245,10 @@ function synth_combat_identification_reply($db,array $event,?string $transcript=
     $kind=is_string($text) ? synth_combat_identification_question_kind($text) : null;
     if ($kind===null || ($kind==='recent' && !$awareness)) return null;
     synth_protocol_assert_request_active();
-    $canonical=synth_protocol_canonical_json($event);$session=$db->escapeLiteral($event['session_id']);
+    $canonical=synth_protocol_canonical_json($event);
     if ($canonical!==synth_protocol_canonical_json(\Synth\Bootstrap::requestEvent()['json'] ?? [])) return null;
-    $request=$db->escapeLiteral($event['request_id']);$turn=$db->escapeLiteral($event['turn_id']);
-    $hash=$db->escapeLiteral(hash('sha256',$canonical));$json=$db->escapeLiteral($canonical);
-    $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
-    $row=$db->fetchOne("SELECT c.context_payload,
-            GREATEST(0,FLOOR(EXTRACT(EPOCH FROM(clock_timestamp()-c.received_at))*1000)) AS combat_frame_age_ms,
-            (c.received_at<=e.claimed_at AND c.received_at>=e.claimed_at-INTERVAL '10 seconds'
-             AND e.claimed_at>=clock_timestamp()-INTERVAL '30 seconds') AS combat_frame_fresh
-        FROM public.core_protocol_event p
-        JOIN public.core_request_execution e USING(session_id,request_id)
-        JOIN public.core_runtime_session r USING(session_id)
-        JOIN public.core_runtime_context c ON c.session_id=p.session_id AND c.generation=p.generation AND c.snapshot_sequence=$sequence
-        WHERE p.session_id=$session AND p.request_id=$request AND p.generation=$generation AND p.turn_id=$turn
-          AND p.canonical_event=$json::jsonb AND p.event_sha256=$hash AND e.request_sha256=$hash
-          AND e.state IN ('claimed','streaming') AND COALESCE(e.error_code,'') NOT IN ('turn_cancelled','request_cancelled')
-          AND r.state='active' AND r.active_generation=$generation AND r.active_turn_id=$turn AND r.active_turn_sequence=$sequence
-          AND r.playthrough_id=c.playthrough_id");
+    $row=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->combatFrame(strval($event['session_id']),strval($event['request_id']),strval($event['turn_id']),
+        intval($event['generation']),intval($event['context_sequence']),$canonical,hash('sha256',$canonical));
     if (!$row) return null;
     $payload=is_array($row['context_payload'] ?? null) ? $row['context_payload'] : json_decode($row['context_payload'] ?? '',true);
     if (!is_array($payload) || !is_array($payload['target'] ?? null) || !is_array($payload['player'] ?? null)) return null;

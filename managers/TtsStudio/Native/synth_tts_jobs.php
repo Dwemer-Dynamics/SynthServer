@@ -111,20 +111,12 @@ function synth_tts_enqueue_job($db, array $entry, string $root, ?SYNTHClaimedReq
 // Every provider wait and publication checks the exact attempt token; only a live token may renew itself.
 function synth_tts_assert_job_lease($db, array $lease): void
 {
-    $id=intval($lease['id'] ?? 0);$token=$db->escapeLiteral(strval($lease['token'] ?? ''));
+    $id=intval($lease['id'] ?? 0);$token=strval($lease['token'] ?? '');
     $event=\Synth\Bootstrap::requestEvent()['json'];
-    $row=$db->fetchOne("SELECT 1 FROM public.core_worker_job WHERE id=$id AND job_type='tts'
-        AND payload->>'schema'='synth.tts.job.v1' AND state='running' AND lease_token=$token
-        AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()
-        AND session_id=".$db->escapeLiteral($event['session_id'])." AND request_id=".$db->escapeLiteral($event['request_id'])
-        .' AND generation='.intval($event['generation']).' AND turn_id='.$db->escapeLiteral($event['turn_id'])
-        ." AND payload->>'context_sequence'=".$db->escapeLiteral(strval($event['context_sequence'])));
-    if (!$row) throw new SYNTHProtocolCancelled('speech_lease_lost');
+    if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsLeaseActive($id,$token,strval($event['session_id']),strval($event['request_id']),intval($event['generation']),
+        strval($event['turn_id']),strval($event['context_sequence']))) throw new SYNTHProtocolCancelled('speech_lease_lost');
     if (microtime(true)-($lease['heartbeat_at'] ?? 0)>=1) {
-        $renewed=$db->execQuery("UPDATE public.core_worker_job SET lease_until=LEAST(deadline_at,clock_timestamp()+INTERVAL '5 seconds'),
-            updated_at=clock_timestamp() WHERE id=$id AND state='running' AND lease_token=$token
-            AND lease_until>clock_timestamp() AND deadline_at>clock_timestamp()");
-        if ($renewed===false || pg_affected_rows($renewed)!==1) throw new SYNTHProtocolCancelled('speech_lease_lost');
+        if (!\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->renewTtsLease($id,$token)) throw new SYNTHProtocolCancelled('speech_lease_lost');
         \Synth\Bootstrap::setAt('SYNTH_TTS_JOB_LEASE', 'heartbeat_at', microtime(true));
     }
 }
@@ -133,12 +125,7 @@ function synth_tts_assert_job_lease($db, array $lease): void
 function synth_tts_run_job($db, int $jobId, string $root, callable $generate): bool
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Speech worker requires an idle database connection');
-    $job=$db->fetchOne("SELECT j.*,p.canonical_event,p.event_sha256 FROM public.core_worker_job j
-        JOIN public.core_request_execution e USING(session_id,request_id,generation,turn_id)
-        JOIN public.core_protocol_event p ON p.session_id=e.session_id AND p.request_id=e.request_id
-            AND p.generation=e.generation AND p.turn_id=e.turn_id AND p.event_sha256=e.request_sha256
-        WHERE j.id=".intval($jobId)." AND j.job_type='tts' AND j.payload->>'schema'='synth.tts.job.v1'
-            AND j.state IN ('pending','running')");
+    $job=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsJobWithEvent(intval($jobId));
     if (!$job) return false;
     $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','SYNTH_TTS_JOB_LEASE'];
     $saved=array_intersect_key($GLOBALS,array_flip($keys));$token=null;
@@ -192,21 +179,13 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
             $ownerCancelled=$error instanceof SYNTHProtocolCancelled && $error->getMessage()!=='speech_lease_lost';
             $terminal=$ownerCancelled || $error instanceof LogicException || $error instanceof JsonException;
             $state=$ownerCancelled ? 'cancelled' : 'failed';
-            $result=$db->execQuery("UPDATE public.core_worker_job SET state=CASE WHEN ".($terminal?'TRUE':'FALSE')."
-                OR attempts>=3 OR deadline_at<=clock_timestamp() THEN '$state' ELSE 'pending' END,
-                lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()+INTERVAL '1 second',
-                last_error='attempt_failed',updated_at=clock_timestamp() WHERE id=".intval($jobId)
-                ." AND state='running' AND lease_token=".$db->escapeLiteral($token));
-            if ($result===false) throw new RuntimeException('Unable to record speech failure');
+            try { \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->failTtsAttempt(intval($jobId),$token,$terminal,$state); }
+            catch (Throwable $failure) { throw new RuntimeException('Unable to record speech failure', 0, $failure); }
         } elseif ($error instanceof SYNTHProtocolCancelled || $error instanceof LogicException || $error instanceof JsonException) {
             // Invalid queued input is terminal, but a competing live attempt keeps its state/token.
             $state=$error instanceof SYNTHProtocolCancelled ? 'cancelled' : 'failed';
-            if ($db->execQuery("UPDATE public.core_worker_job SET state='$state',lease_token=NULL,lease_until=NULL,
-                last_error='input_or_owner_invalid',updated_at=clock_timestamp() WHERE id=".intval($jobId)
-                ." AND job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
-                AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp()))")===false) {
-                throw new RuntimeException('Unable to retire invalid speech input');
-            }
+            try { \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->retireInvalidTtsInput(intval($jobId),$state); }
+            catch (Throwable $failure) { throw new RuntimeException('Unable to retire invalid speech input', 0, $failure); }
         }
         throw $error;
     } finally {
@@ -221,29 +200,16 @@ function synth_tts_run_job($db, int $jobId, string $root, callable $generate): b
 function synth_tts_due_jobs($db): array
 {
     if (!$db->isTransactionIdle()) throw new LogicException('Speech dispatch requires an idle database connection');
-    if ($db->execQuery("UPDATE public.core_worker_job j SET state=CASE
-            WHEN deadline_at<=clock_timestamp() OR attempts>=3 THEN 'failed' ELSE 'cancelled' END,
-            lease_token=NULL,lease_until=NULL,last_error='owner_or_attempt_expired',updated_at=clock_timestamp()
-        WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND state IN ('pending','running')
-            AND (deadline_at<=clock_timestamp() OR (attempts>=3 AND (state='pending' OR lease_until<=clock_timestamp()))
-                OR NOT EXISTS(SELECT 1 FROM public.core_runtime_session r JOIN public.core_request_execution e USING(session_id)
-                    WHERE r.session_id=j.session_id AND r.state='active' AND r.active_generation=j.generation
-                        AND r.active_turn_id=j.turn_id AND r.active_turn_sequence::text=j.payload->>'context_sequence'
-                        AND e.request_id=j.request_id AND e.generation=j.generation AND e.turn_id=j.turn_id
-                        AND e.state IN ('claimed','streaming','complete')))")===false) throw new RuntimeException('Unable to retire expired speech work');
-    return array_map(static fn(array $row): int=>intval($row['id']),$db->fetchAll("SELECT id FROM public.core_worker_job
-        WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1' AND available_at<=clock_timestamp()
-            AND deadline_at>clock_timestamp() AND attempts<3
-            AND (state='pending' OR (state='running' AND lease_until<=clock_timestamp())) ORDER BY available_at,id LIMIT 5"));
+    try { \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->retireExpiredTtsWork(); }
+    catch (Throwable $failure) { throw new RuntimeException('Unable to retire expired speech work', 0, $failure); }
+    return \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->dueTtsJobIds();
 }
 
 // Retire only hash-matching private inputs belonging to terminal native jobs; preserve altered files for inspection.
 function synth_tts_cleanup_job_inputs($db, string $root): int
 {
     $removed=0;
-    foreach($db->fetchAll("SELECT id,payload FROM public.core_worker_job WHERE job_type='tts'
-        AND payload->>'schema'='synth.tts.job.v1' AND state IN ('ready','failed','cancelled','stale')
-        AND updated_at<clock_timestamp()-INTERVAL '10 seconds' AND NOT(payload ? 'input_cleanup_state') ORDER BY id LIMIT 20") as $row) {
+    foreach(\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsJobsToClean() as $row) {
         $payload=synth_protocol_decode_json($row['payload']);
         $path=synth_tts_job_input_path($root,strval($payload['input_id'] ?? ''));
         $state='missing';
@@ -254,8 +220,8 @@ function synth_tts_cleanup_job_inputs($db, string $root): int
                 $state='removed';++$removed;
             }
         }
-        if ($db->execQuery("UPDATE public.core_worker_job SET payload=payload || jsonb_build_object('input_cleanup_state',"
-            .$db->escapeLiteral($state)."::text) WHERE id=".intval($row['id']))===false) throw new RuntimeException('Unable to record speech input cleanup');
+        try { \Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->markTtsInputCleanup(intval($row['id']),$state); }
+        catch (Throwable $failure) { throw new RuntimeException('Unable to record speech input cleanup', 0, $failure); }
     }
     return $removed;
 }

@@ -63,16 +63,11 @@ function synth_tts_resolve_job_status($db, array $status, ?string $root = null):
             // Publication may still be between filesystem and database writes; retain durable job semantics.
         }
     }
-    $row=$db->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
-        WHERE id=$id AND job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
-        AND cache_key=".$db->escapeLiteral($status['cache_key']));
+    $row=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsStatusById(intval($id),strval($status['cache_key']));
     if (!$row || in_array($row['state'],['failed','cancelled','stale'],true) || !in_array($row['within_deadline'],[true,'t',1,'1'],true)) {
         // Status belongs to immutable audio, not the last writer: another live owner may still produce it.
         // Keep ordinary polling on the primary key; only failed owners need the active-job lookup.
-        $other=$db->fetchOne("SELECT state,deadline_at>clock_timestamp() AS within_deadline FROM public.core_worker_job
-            WHERE job_type='tts' AND payload->>'schema'='synth.tts.job.v1'
-            AND state IN ('pending','running') AND deadline_at>clock_timestamp()
-            AND cache_key=".$db->escapeLiteral($status['cache_key'])." LIMIT 1");
+        $other=\Synth\Core\DbManager\Dao\WorkerJobDao::current($db)->ttsActiveByCacheKey(strval($status['cache_key']));
         if (!$other || !in_array($other['state'],['pending','running'],true)
             || !in_array($other['within_deadline'],[true,'t',1,'1'],true)) {
             $status['status']='failed';$status['error_code']='synthesis_failed';
