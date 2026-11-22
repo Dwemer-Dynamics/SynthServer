@@ -1730,6 +1730,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
@@ -1761,6 +1762,7 @@ final class RequestStreamingTest extends TestCase
                 return $this->rows[$match[1] ?? ''] ?? null;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $root = array_replace($event, ['type'=>'input_text','payload'=>['text'=>'Check my inventory.']]);
         $parent = array_replace($event, ['payload'=>['result'=>['action_id'=>'action:root','idempotency_key'=>'idem:root']]]);
         $db->rows = [
@@ -1831,6 +1833,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
@@ -1868,6 +1871,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchAll(string $query): array {$this->query=$query;return [['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']];}
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','turn_id'=>'turn:one'];
         $this->assertSame(['ComeCloser'=>['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']],
             synth_protocol_last_actions_issued($db,$event,'Preston'));
@@ -1907,6 +1911,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         try {
             $GLOBALS['db'] = $db;
