@@ -19,8 +19,8 @@ function initializeLogTrimming($maxLines = 10000) {
         if (is_array($enabledRow) && isset($enabledRow['value'])) {
             $enabled = in_array(strtolower(trim((string)$enabledRow['value'])), ['true','1','yes','on']);
         } else {
-            // persist default true
-            @\Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->upsert('meta', 'AUTO_TRIM_LOGS_ENABLED', 'true');
+            // persist default true, insert-only: a row that appeared since the read (or a failed read) keeps its value
+            \Synth\Managers\ConfigManager\ConfigManager::shared()->setDefault('meta', 'AUTO_TRIM_LOGS_ENABLED', 'true');
             $enabled = true;
         }
 
