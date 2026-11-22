@@ -4,6 +4,7 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__, 2) . '/lib/request.php';
 require_once dirname(__DIR__, 2) . '/lib/response.php';
+require_once __DIR__ . '/DaoTestDoubles.php';
 
 final class CombatTargetTest extends TestCase
 {
@@ -284,6 +285,7 @@ final class CombatTargetTest extends TestCase
             public function escapeLiteral(string $value): string { return "'" . str_replace("'", "''", $value) . "'"; }
             public function fetchOne(string $sql): array { return ['context_payload' => json_encode($this->payload)]; }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $frozen = json_encode($context, JSON_THROW_ON_ERROR);
         $previous = [];
         foreach (['SYNTH_TURN_ACTOR_STATES', 'SYNTH_INPUT_TARGET_IDENTITY', 'SYNTH_EXTERNAL_REQUEST', 'gameRequest'] as $key) {
@@ -319,6 +321,7 @@ final class CombatTargetTest extends TestCase
                 $this->assertSame($frozen, json_encode($db->payload, JSON_THROW_ON_ERROR));
             }
         } finally {
+            \Synth\Core\DbManager\Dao\RuntimeContextDao::inject(null);
             foreach ($previous as $key => $value) if ($value === null) unset($GLOBALS[$key]); else $GLOBALS[$key] = $value;
         }
     }

@@ -1664,6 +1664,7 @@ final class RequestStreamingTest extends TestCase
                     ? ['context_payload' => json_encode($this->payload)] : null;
             }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $event = ['protocol_version' => 2, 'session_id' => 'session:one', 'generation' => 2,
             'context_sequence' => 7, 'type' => 'input_text', 'payload' => ['text' => 'Hello']];
         $request = ['input_text', 1, 2, ''];
@@ -2622,6 +2623,7 @@ final class RequestStreamingTest extends TestCase
                 ];
             }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $GLOBALS['SYNTH_REQUEST_EVENT'] = ['json' => [
             'session_id' => 'session:flat:test', 'generation' => 7,
         ]];
@@ -2744,6 +2746,7 @@ final class RequestStreamingTest extends TestCase
                 return ['context_payload' => ['player' => $identity, 'target' => $identity, 'actor_states' => [$this->state]]];
             }
         };
+        DaoTestDoubles::originalContextFrom($db);
         foreach (['input_text', 'input_audio'] as $type) {
             $request = [];
             $query = synth_protocol_bind_dialogue_context($db, ['protocol_version' => 2, 'session_id' => 'session:test',
@@ -2839,6 +2842,7 @@ final class RequestStreamingTest extends TestCase
             }
         };
         DaoTestDoubles::readersFrom($db);
+        DaoTestDoubles::originalContextFrom($db);
         $event = ['protocol_version' => 2, 'session_id' => 'session:one', 'generation' => 2, 'context_sequence' => 7,
             'turn_id'=>'turn:one','runtime_variant'=>'flat',
             'type' => 'action_result', 'payload' => ['result' => ['action_id' => 'action:one', 'idempotency_key' => 'idem:one',
@@ -3320,6 +3324,7 @@ final class RequestStreamingTest extends TestCase
                 ];
             }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $event = [
             'type' => 'trigger',
             'session_id' => 'session:flat:test',

@@ -4,6 +4,7 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__,2).'/lib/response.php';
 require_once dirname(__DIR__,2).'/lib/synth_character_forms.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 final class CharacterSpeechDeliveryTest extends TestCase
 {
@@ -40,6 +41,7 @@ final class CharacterSpeechDeliveryTest extends TestCase
         };
         try {
             $GLOBALS['db']=$db;
+            DaoTestDoubles::originalContextFrom($db);
             $GLOBALS['SYNTH_PROTOCOL_REQUEST_CLAIMED']=true;
             $GLOBALS['SYNTH_REQUEST_EVENT']=['json'=>['protocol_version'=>2,'game'=>'fo4',
                 'runtime_variant'=>'flat','session_id'=>'session-speech','request_id'=>'request-speech',
@@ -53,6 +55,7 @@ final class CharacterSpeechDeliveryTest extends TestCase
             $GLOBALS['SYNTH_JSON_RESPONSE_LINES']=[];
             $assertion($db);
         } finally {
+            \Synth\Core\DbManager\Dao\RuntimeContextDao::inject(null);
             foreach ($saved as $key=>[$exists,$value]) {
                 if ($exists) $GLOBALS[$key]=$value; else unset($GLOBALS[$key]);
             }

@@ -161,6 +161,61 @@ class RuntimeContextDao
         return $row === false ? null : $row;
     }
 
+    /**
+     * The context payload of exactly snapshot $sequence of a session generation (the frozen capture a protocol v2 request names),
+     * only while that session is active on this generation and the snapshot's playthrough. Never another snapshot. Null when there
+     * is none or the statement fails (the legacy fetchOne contract: the shared session has logged the failure).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function frozenCapture(string $sessionId, int $generation, int $sequence): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT c.context_payload
+                   FROM public.core_runtime_context c
+                   JOIN public.core_runtime_session r ON r.session_id=c.session_id
+                    AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id AND r.state='active'
+                  WHERE c.session_id = ? AND c.generation = ? AND c.snapshot_sequence = ?",
+                [$sessionId, $generation, $sequence]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The newest snapshot of a session generation that names a player identity (protocol v1), with that player's and the target's
+     * form id, plugin and display name and the player's playthrough; the target columns are null without a target identity.
+     * Null when there is none or the statement fails (the legacy fetchOne contract: the shared session has logged the failure).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestCapture(string $sessionId, int $generation): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT c.context_payload,
+                        p.full_form_id AS player_form_id, p.origin_plugin AS player_plugin,
+                        p.playthrough_id, p.display_name AS player_name,
+                        t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
+                        t.display_name AS target_name
+                   FROM public.core_runtime_context c
+                   JOIN public.core_actor_identity p ON p.id=c.player_identity_id
+                   LEFT JOIN public.core_actor_identity t ON t.id=c.target_identity_id
+                  WHERE c.session_id = ? AND c.generation = ?
+                  ORDER BY c.snapshot_sequence DESC LIMIT 1",
+                [$sessionId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
     /** The playthrough and target identity of one snapshot; null when there is none. @return array<string, mixed>|null */
     public function snapshotTarget(string $sessionId, int $generation, int $sequence): ?array
     {
