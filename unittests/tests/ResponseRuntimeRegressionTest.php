@@ -801,10 +801,21 @@ final class ResponseRuntimeRegressionTest extends TestCase
     {
         require_once dirname(__DIR__,2).'/lib/rpg_comment.php';
         $db=new class {
-            public function execQuery(string $sql,array $params): bool { return false; }
+            public array $calls=[];
+            public function execQuery(string $sql,array $params): bool { $this->calls[]=[$sql,$params]; return false; }
+            public function GetLastError(): string { return 'rpg-claim-statement-failed'; }
         };
-        $this->expectExceptionMessage('rpg_cooldown_claim_failed');
-        synthClaimRpgCommentCooldown($db,[]);
+        try {
+            synthClaimRpgCommentCooldown($db,[]);
+            $this->fail('A failed cooldown claim must not allow a reaction');
+        } catch (RuntimeException $error) {
+            $this->assertSame('rpg_cooldown_claim_failed',$error->getMessage());
+            // The claim must reach the caller's session, not fail before it (for example on a missing DAO method).
+            $this->assertStringContainsString('rpg-claim-statement-failed',$error->getPrevious()?->getMessage() ?? '');
+        }
+        $this->assertCount(1,$db->calls);
+        $this->assertStringContainsString('ON CONFLICT (scope, config_key) DO UPDATE',$db->calls[0][0]);
+        $this->assertSame(['conf','RPG_COMMENT_LAST_TIMESTAMP',60],$db->calls[0][1]);
     }
 
     public function testNativeQuestAndWorldReadersNeverUseGlobalLatestRows(): void

@@ -30,10 +30,17 @@ function synthRpgCommentCompanion(array $event): bool
 }
 
 // PostgreSQL arbitrates concurrent claims; a failed query never permits a provider request.
+// The claim runs on the caller's own session, so it joins (and never ends) any transaction that session holds.
 function synthClaimRpgCommentCooldown($db, array $event): bool
 {
     $key = synthRpgCommentCooldownKey($db, $event);
     $window = synthRpgCommentCompanion($event) ? 30 : 60;
-    try { return \Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->claimCooldown('conf', $key, $window); }
+    try {
+        require_once dirname(__DIR__, 3).'/core/dbmanager/dao/ConfigSettingDao.php';
+        require_once dirname(__DIR__, 3).'/core/dbmanager/EntityManagerFactory.php';
+        return \Synth\Core\DbManager\Dao\ConfigSettingDao::using(
+            \Synth\Core\Doctrine\EntityManagerFactory::forSharedSession($db)
+        )->claimCooldown('conf', $key, $window);
+    }
     catch (Throwable $error) { throw new RuntimeException('rpg_cooldown_claim_failed', 0, $error); }
 }
