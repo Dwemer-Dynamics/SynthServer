@@ -19,6 +19,25 @@ limits are original; workstation paths are replaced with placeholders (see
 [HANDOFF.md](HANDOFF.md#historical-receipts-and-placeholders)). Current open requirements are
 in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md).
 
+## Current structural source baseline
+
+Server source at `unstable` `2bbe8c86794484afe5c692f8347350981430f2d4` (#225 merged, 2026-11-22). This section
+comes from Git source inspection only. It adds no test, deployment, provider, flat or VR evidence, and it does not
+upgrade any dated checkpoint below to current acceptance.
+
+| Area | Source state | Acceptance |
+|---|---|---|
+| Entities and DAOs | 117 base and 119 system entities, 119 DAO classes; every `core_*` table has an entity or a table DAO | Disposable-database and fake-connection suites only |
+| Raw SQL outside `core/dbmanager` | Moved to DAOs in #168–#225. About 90 statements remain to convert; the rest are transaction, savepoint and lock control or intentional adapters. Two original-context reads are a separate follow-up | Installed-server behaviour unchecked |
+| Durable message queue | Speech messages only; on by default (server `SYNTH_MESSAGE_QUEUE` unset = on, client source lists `message.queue` by default) and used only when both agree; `SYNTH_MESSAGE_QUEUE=0` or client `[Server] MessageQueue=false` keeps the legacy polling path | Flat and VR game checks open |
+| LLM request log and replay | Built; replay sends only with an explicit flag | Live provider checks open |
+| Extension host API 1.1 | 15 hooks, routes, workers, store and tables; no time limits, uninstall data removal or distribution | No installed-server check |
+| GameRpc, NpcRegistration, ReferenceResolver, WorldManager | Server classes exist; GameRpc has no production caller; NpcRegistration handles only `actor_profile` (placed and runtime registration are called only by tests); WorldManager feeds location context | No in-game check |
+
+Counts, methods and remaining gaps against the chevo reference are in [CHEVO-PARITY.md](CHEVO-PARITY.md). Deferred
+areas (Background Life, the Slim/Twig UI and `playthrough_id` as a guid) are unchanged. Flat in-game and VR
+in-headset evidence stay separate gates in [ALPHA-ACCEPTANCE.md](ALPHA-ACCEPTANCE.md).
+
 ## Current Windows launcher
 
 A local Windows executable resumes existing owned database, backend and speech
