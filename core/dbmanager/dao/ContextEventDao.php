@@ -232,6 +232,48 @@ class ContextEventDao
         ));
     }
 
+    /** $value as a quoted SQL literal, for a where fragment a caller still builds as text. */
+    public function quoteLiteral(string $value): string
+    {
+        return $this->connection()->quote($value);
+    }
+
+    /** Every visible event type (not excluded) with its count, by type. @param list<string> $excludedTypes @return list<array<string, mixed>> */
+    public function visibleTypeCounts(array $excludedTypes): array
+    {
+        [$in, $params] = $this->typeList($excludedTypes);
+
+        return $this->connection()->fetchAllAssociative(
+            "SELECT type, COUNT(*) AS total FROM core_context_event WHERE type NOT IN ($in) GROUP BY type ORDER BY type ASC",
+            $params
+        );
+    }
+
+    /**
+     * The rowids of the newest visible events (not excluded; of $selectedType when given) in the event log's display order
+     * (localts, rowid, gamets, ts, all descending).
+     *
+     * @param list<string> $excludedTypes
+     * @return list<int>
+     */
+    public function latestVisibleRowids(array $excludedTypes, ?string $selectedType, int $limit): array
+    {
+        [$where, $params] = $this->visibleWhere($excludedTypes, $selectedType, null);
+
+        return array_map('intval', $this->connection()->fetchFirstColumn(
+            "SELECT rowid FROM core_context_event WHERE $where ORDER BY localts DESC, rowid DESC, gamets DESC, ts DESC LIMIT ".max(1, $limit),
+            $params
+        ));
+    }
+
+    /** True when this event exists and its type is not excluded. @param list<string> $excludedTypes */
+    public function visibleRowExists(int $rowid, array $excludedTypes): bool
+    {
+        [$in, $params] = $this->typeList($excludedTypes);
+
+        return $this->connection()->fetchOne("SELECT rowid FROM core_context_event WHERE rowid = ? AND type NOT IN ($in) LIMIT 1", [$rowid, ...$params]) !== false;
+    }
+
     /** Deletes the given events. @param list<int> $rowids */
     public function deleteRowids(array $rowids): void
     {
