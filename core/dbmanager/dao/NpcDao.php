@@ -8,6 +8,7 @@ namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractNpc;
 use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Driver\Exception as DriverException;
 
 /** Finds rows of core_npc. */
 class NpcDao
@@ -337,6 +338,19 @@ class NpcDao
     }
 
     /**
+     * Every unlocked NPC profile with its origin plugin, row-locked FOR UPDATE OF n in id order. The lock lasts as long as
+     * the caller's transaction, and the caller owns it. Throws when the read fails.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function lockUnlockedProfilesWithOrigin(): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            'SELECT n.*,a.origin_plugin FROM public.core_npc n JOIN public.core_actor_identity a ON a.id=n.actor_identity_id WHERE COALESCE(n.lock_profile,0)<>1 ORDER BY n.id FOR UPDATE OF n'
+        );
+    }
+
+    /**
      * Seeds the profile row of a character from its captured actor or bio template. A new row is inserted; on conflict (the actor
      * identity, or the name when there is no identity) an unlocked profile fills only its empty or placeholder fields and a locked
      * profile keeps every authored field. Empty strings are stored as NULL. Throws when the statement fails.
@@ -410,5 +424,35 @@ class NpcDao
             gamets_last_updated = EXCLUDED.gamets_last_updated",
             $parameters
         );
+    }
+
+    /**
+     * Sets the given columns of one NPC that is not profile-locked. The keys of $values are column names from the checked-in
+     * content field list and must be plain identifiers. False when the statement fails.
+     *
+     * @param array<string, string> $values
+     */
+    public function fillUnlockedProfile(int $id, array $values): bool
+    {
+        $assignments = [];
+        foreach (array_keys($values) as $column) {
+            if (!is_string($column) || preg_match('/^[a-z_][a-z0-9_]*$/', $column) !== 1) {
+                return false;
+            }
+            $assignments[] = $column.'=?';
+        }
+        if ($assignments === []) {
+            return false;
+        }
+        try {
+            $this->connection()->executeStatement(
+                'UPDATE public.core_npc SET '.implode(',', $assignments).' WHERE id=? AND COALESCE(lock_profile,0)<>1',
+                [...array_values($values), $id]
+            );
+
+            return true;
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
     }
 }

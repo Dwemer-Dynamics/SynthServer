@@ -76,6 +76,18 @@ class SynthFalloutCatalogueSqlConnection
         return $result;
     }
 
+    /** The pinned backend, so DAO statements run on it and keep this wrapper's session and transaction guards. */
+    public function getCatalogueSqlConnection(): \PgSql\Connection
+    {
+        $this->assertSession();
+        return $this->connection;
+    }
+
+    public function GetLastError(): string
+    {
+        return strval(pg_last_error($this->connection));
+    }
+
     public function fetchOne(string $query): array
     {
         $this->assertTransactionCurrent();

@@ -84,6 +84,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function escapeLiteral(string $text): string { return "'".$this->escape($text)."'"; }
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
+            DaoTestDoubles::worldKnowledgeReadsFrom($GLOBALS['db']);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot';
             $GLOBALS['WORLDKNOWLEDGE_EXTRACTOR_FALLBACK']=false;
@@ -136,6 +137,7 @@ final class WorldKnowledgeVocabularyTest extends TestCase
                 public function execQuery(string $sql,array $params=[]): bool { return true; }
             };
             $GLOBALS['db']=$db;
+            DaoTestDoubles::worldKnowledgeReadsFrom($db);
             DaoTestDoubles::worldknowledgeFrom($db);
             $GLOBALS['SYNTH_NAME']='Codsworth';
             $GLOBALS['WORLDKNOWLEDGE']='robot,knowall,commonwealth';

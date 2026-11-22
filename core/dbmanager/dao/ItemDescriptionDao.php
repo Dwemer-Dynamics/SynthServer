@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractItemDescription;
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_item_description. */
 class ItemDescriptionDao
@@ -94,5 +96,20 @@ class ItemDescriptionDao
              FROM synth.combined_descriptions WHERE COALESCE(name, '') <> '' ORDER BY exact_match DESC, score DESC, name ASC LIMIT 2",
             [$name, $name, $name]
         );
+    }
+
+    /** Inserts a standard item description unless one exists for the plugin and base id. False when the statement fails. */
+    public function insertIfMissing(string $plugin, string $baseid, string $name, string $description): bool
+    {
+        try {
+            $this->connection()->executeStatement(
+                'INSERT INTO public.core_item_description(plugin,baseid,name,description) VALUES (?,?,?,?) ON CONFLICT(plugin,baseid) DO NOTHING',
+                [$plugin, $baseid, $name, $description]
+            );
+
+            return true;
+        } catch (DbalException|DriverException $error) {
+            return false;
+        }
     }
 }

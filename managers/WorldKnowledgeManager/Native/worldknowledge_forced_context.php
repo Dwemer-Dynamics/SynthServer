@@ -127,16 +127,13 @@ if (!function_exists('synthWorldKnowledgeCurrentNpcSignals')) {
         }
 
         if ($db && method_exists($db, 'fetchAll') && method_exists($db, 'escape') && $formIds !== []) {
-            $quoted = array_map(
-                static fn(string $formId): string => "'" . $db->escape(strtoupper($formId)) . "'",
+            $upperFormIds = array_map(
+                static fn(string $formId): string => strtoupper($formId),
                 array_values(array_unique($formIds))
             );
             try {
-                $rows = $db->fetchAll(
-                    'SELECT name FROM public.core_faction WHERE upper(formid) IN (' . implode(',', $quoted) . ')'
-                );
-                foreach ((array)$rows as $row) {
-                    $factionSignals[] = (string)($row['name'] ?? '');
+                foreach (\Synth\Core\DbManager\Dao\FactionDao::current($db)->namesByFormIds($upperFormIds) as $name) {
+                    $factionSignals[] = $name;
                 }
             } catch (Throwable) {
                 // Older installs can reach this code before the factions table migration runs.
@@ -180,19 +177,12 @@ if (!function_exists('synthWorldKnowledgeCollectLocationSignalGroups')) {
         $rows = [];
         if ($location !== '' && $db && method_exists($db, 'fetchAll')) {
             $locationKey = synthWorldKnowledgeNormalizeLookupLabel($location);
-            $locationEsc = $db->escape($locationKey);
             $hasWorldspace = false;
             if (function_exists('locationsTableColumns')) {
                 $columns = locationsTableColumns();
                 $hasWorldspace = !empty($columns['worldspace']);
             }
-            $worldspaceSelect = $hasWorldspace ? 'worldspace' : "'' AS worldspace";
-            $rows = $db->fetchAll(
-                "SELECT name, {$worldspaceSelect}
-                   FROM public.core_location_legacy
-                  WHERE btrim(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', ' ', 'g')) = '{$locationEsc}'
-                  LIMIT 20"
-            );
+            $rows = \Synth\Core\DbManager\Dao\LocationLegacyDao::current($db)->byNormalizedName($locationKey, $hasWorldspace);
         }
 
         return synthWorldKnowledgeBuildLocationSignalGroups(
@@ -221,30 +211,10 @@ if (!function_exists('synthWorldKnowledgeFindRowsForSignals')) {
             return [];
         }
 
-        $quoted = array_map(static fn($signal) => "'" . $db->escape($signal) . "'", $signals);
         try {
-            $rows = $db->fetchAll(
-                "SELECT topic, aliases, canonical_topic, topic_desc, knowledge_class, topic_desc_basic,
-                        knowledge_class_basic, category, source_kind, catalog_id, catalog_version
-                   FROM synth.worldknowledge_effective
-                  WHERE EXISTS (
-                        SELECT 1
-                          FROM regexp_split_to_table(concat_ws(',', topic, aliases), E'\\\\s*,\\\\s*') AS topic_alias
-                         WHERE btrim(regexp_replace(replace(lower(topic_alias), '_', ' '), '[^a-z0-9]+', ' ', 'g'))
-                               IN (" . implode(',', $quoted) . ")
-                  )"
-            );
+            $rows = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->effectiveRowsForSignals($signals);
         } catch (Throwable) {
-            $rows = $db->fetchAll(
-                "SELECT topic, ''::text AS aliases, topic_desc, knowledge_class, topic_desc_basic, knowledge_class_basic
-                   FROM public.core_worldknowledge_article
-                  WHERE EXISTS (
-                        SELECT 1
-                          FROM regexp_split_to_table(topic, E'\\\\s*,\\\\s*') AS topic_alias
-                         WHERE btrim(regexp_replace(replace(lower(topic_alias), '_', ' '), '[^a-z0-9]+', ' ', 'g'))
-                               IN (" . implode(',', $quoted) . ")
-                  )"
-            );
+            $rows = \Synth\Core\DbManager\Dao\WorldknowledgeArticleDao::current($db)->articleRowsForSignals($signals);
         }
 
         $rows = is_array($rows) ? $rows : [];

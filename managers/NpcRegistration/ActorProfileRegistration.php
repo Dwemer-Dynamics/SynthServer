@@ -127,7 +127,7 @@ final class ActorProfileRegistration
 
         $factionFormIds = array_values(array_unique($factionFormIds));
         if (!empty($factionFormIds)) {
-            foreach (\Synth\Core\DbManager\Dao\FactionDao::current($db)->namesByFormIds($factionFormIds) as $factionRow) {
+            foreach (\Synth\Core\DbManager\Dao\FactionDao::current($db)->nameRowsByExactFormIds($factionFormIds) as $factionRow) {
                 $name = trim((string)($factionRow['name'] ?? ''));
                 if ($name !== '') {
                     $factionNames[] = $name;
