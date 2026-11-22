@@ -98,30 +98,44 @@ class RuntimeContextDao
 
     /**
      * The newest snapshot of a session generation for a protocol v2 context: its sequence ('latest'), playthrough and the loaded
-     * save anchor of its payload (JSON text, or null); null when there is none.
+     * save anchor of its payload (JSON text, or null); null when there is none or the statement fails (the legacy fetchOne
+     * contract: the caller's insert then reports the failure).
      *
      * @return array<string, mixed>|null
      */
     public function latestSnapshot(string $sessionId, int $generation): ?array
     {
-        $row = $this->connection()->fetchAssociative(
-            "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
-               FROM public.core_runtime_context WHERE session_id = ? AND generation = ?
-              ORDER BY snapshot_sequence DESC LIMIT 1",
-            [$sessionId, $generation]
-        );
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT snapshot_sequence AS latest, playthrough_id, context_payload->'loaded_context' AS loaded_context
+                   FROM public.core_runtime_context WHERE session_id = ? AND generation = ?
+                  ORDER BY snapshot_sequence DESC LIMIT 1",
+                [$sessionId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
 
         return $row === false ? null : $row;
     }
 
-    /** The newest snapshot sequence of a legacy (protocol v1) context in this playthrough, as ['latest' => ?string]. @return array<string, mixed>|null */
+    /**
+     * The newest snapshot sequence of a legacy (protocol v1) context in this playthrough, as ['latest' => ?string]; null when the
+     * statement fails (the legacy fetchOne contract: the caller's insert then reports the failure).
+     *
+     * @return array<string, mixed>|null
+     */
     public function latestSequenceInPlaythrough(string $sessionId, int $generation, string $playthroughId): ?array
     {
-        $row = $this->connection()->fetchAssociative(
-            'SELECT MAX(snapshot_sequence) AS latest FROM public.core_runtime_context
-              WHERE session_id = ? AND generation = ? AND playthrough_id = ?',
-            [$sessionId, $generation, $playthroughId]
-        );
+        try {
+            $row = $this->connection()->fetchAssociative(
+                'SELECT MAX(snapshot_sequence) AS latest FROM public.core_runtime_context
+                  WHERE session_id = ? AND generation = ? AND playthrough_id = ?',
+                [$sessionId, $generation, $playthroughId]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
 
         return $row === false ? null : $row;
     }

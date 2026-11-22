@@ -319,7 +319,7 @@ final class DaoTestDoubles
         });
     }
 
-    /** RuntimeContextDao::latestSnapshot() answered by $fake->fetchOne() with the legacy newest-snapshot query; other methods stay real. */
+    /** RuntimeContextDao::latestSnapshot() answered by $fake->fetchOne() with the legacy newest-snapshot query; other methods have no session. Cleared by reset(). */
     public static function latestSnapshotFrom(object $fake): void
     {
         RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
@@ -577,6 +577,7 @@ final class DaoTestDoubles
         WorldknowledgeArticleDao::inject(null);
         NpcBiographyTemplateDao::inject(null);
         WorldknowledgeAuditDao::inject(null);
+        RuntimeContextDao::inject(null);
     }
 
     /**
