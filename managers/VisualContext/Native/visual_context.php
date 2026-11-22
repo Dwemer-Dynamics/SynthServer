@@ -147,14 +147,11 @@ function synthVisualContextCompleteOwned(array $request, int $recordId, array $f
     $db = \Synth\Bootstrap::db();
     if (!$db->isTransactionIdle() || $db->execQuery('BEGIN') === false) throw new RuntimeException('Visual completion requires an idle transaction.');
     try {
-        $session = $db->escapeLiteral($request['session_id']);
-        $db->fetchOne("SELECT pg_advisory_xact_lock(hashtext($session))");
-        $db->fetchOne("SELECT session_id FROM public.core_runtime_session WHERE session_id=$session FOR UPDATE");
+        \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->lockSession(strval($request['session_id']));
+        \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->lockRow(strval($request['session_id']));
         synth_visual_validate_runtime($db, $request);
-        $capture = $db->escapeLiteral($request['capture_id']);
-        $record = $db->fetchOne("SELECT request_sha256 FROM public.core_visual_context
-            WHERE id=$recordId AND capture_id=$capture AND session_id=$session FOR UPDATE");
-        if (!$record || !hash_equals(strval($record['request_sha256']), hash('sha256', synth_visual_canonical_json($request)))) {
+        $recordHash = \Synth\Core\DbManager\Dao\VisualContextDao::current($db)->lockClaim($recordId, strval($request['capture_id']), strval($request['session_id']));
+        if ($recordHash === null || !hash_equals($recordHash, hash('sha256', synth_visual_canonical_json($request)))) {
             throw new RuntimeException('Visual completion claim does not match the request.');
         }
         if ($persistPortrait !== null) $persistPortrait();
@@ -176,11 +173,8 @@ function synthVisualContextCompleteOwned(array $request, int $recordId, array $f
 function synthVisualContextRecordResult($db, array $request, array $fields): void
 {
     if ($db->isTransactionIdle()) throw new LogicException('Visual history requires the completion transaction.');
-    $session=$db->escapeLiteral($request['session_id']);
-    $capture=$db->escapeLiteral($request['capture_id']);
     $generation=intval($request['generation']);$sequence=intval($request['context_sequence']);
-    $context=$db->fetchOne("SELECT playthrough_id,target_identity_id FROM public.core_runtime_context
-        WHERE session_id=$session AND generation=$generation AND snapshot_sequence=$sequence");
+    $context=\Synth\Core\DbManager\Dao\RuntimeContextDao::current($db)->snapshotTarget(strval($request['session_id']), $generation, $sequence);
     if (!$context || !$context['target_identity_id'] || empty($request['subject'])) throw new RuntimeException('Visual history requires the frozen subject.');
     $description=synthVisualContextText($fields['description'] ?? '',12000);
     if ($description==='') throw new RuntimeException('Successful visual history requires a description.');
@@ -190,8 +184,7 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
         'provider'=>synthVisualContextText($fields['provider'] ?? '',100),'model'=>synthVisualContextText($fields['model'] ?? '',255)];
     $resultJson=synth_visual_canonical_json($result);$resultHash=hash('sha256',$resultJson);
     $wire=synth_visual_canonical_json($request);$wireHash=hash('sha256',$wire);
-    $existing=$db->fetchOne("SELECT v.result_sha256,e.request_sha256 FROM public.core_visual_result v
-        JOIN public.core_request_execution e USING(session_id,request_id) WHERE v.capture_id=$capture");
+    $existing=\Synth\Core\DbManager\Dao\VisualContextDao::current($db)->acceptedResult(strval($request['capture_id']));
     if ($existing) {
         if (!hash_equals($existing['result_sha256'],$resultHash) || !hash_equals($existing['request_sha256'],$wireHash)) {
             throw new RuntimeException('Visual history replay conflicts with its accepted result.');
@@ -201,30 +194,14 @@ function synthVisualContextRecordResult($db, array $request, array $fields): voi
     $actor=intval($context['target_identity_id']);
     $gamets=max(1,intval($request['world']['game_time_ticks']));$now=time();
     // This is the real image endpoint's accepted result, not an impersonated dialogue request.
-    if ($db->execQuery("INSERT INTO public.core_request_execution
-        (session_id,request_id,turn_id,generation,request_sha256,event_type,state,response_content_type,response_body,completed_at)
-        VALUES($1,$2,$3,$4,$5,'visual_capture','complete',
-            'application/vnd.synth.visual-result+json',convert_to($6,'UTF8'),NOW())",
-            [$request['session_id'],$request['request_id'],$request['turn_id'],$generation,$wireHash,$resultJson])===false
-        || $db->execQuery("INSERT INTO public.core_protocol_event
-            (session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
-            VALUES($1,$2,$3,$4,'visual_capture',$5::jsonb,$6)",
-            [$request['session_id'],$request['request_id'],$request['turn_id'],$generation,$wire,$wireHash])===false) {
+    if (!\Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->insertVisualCapture(strval($request['session_id']), strval($request['request_id']), strval($request['turn_id']),
+            $generation, $wireHash, $resultJson)
+        || !\Synth\Core\DbManager\Dao\ProtocolEventDao::current($db)->insertVisualCapture(strval($request['session_id']), strval($request['request_id']), strval($request['turn_id']),
+            $generation, $wire, $wireHash)) {
         throw new RuntimeException('Visual history request ownership could not be persisted.');
     }
-    if ($db->execQuery("WITH publication AS (
-        INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
-            synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
-        VALUES('visual_result','Accepted native image description',$5,$6,$7,$7,'','','','derived',
-            $1,$2,$3,$4) RETURNING *
-        ), history AS (
-            INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
-            SELECT $1,$2,$3,$4,$5,rowid,to_jsonb(publication) FROM publication RETURNING id
-        ) INSERT INTO public.core_visual_result(history_event_id,capture_id,session_id,generation,context_sequence,request_id,
-            actor_identity_id,result_payload,result_sha256)
-        SELECT id,$8,$1,$2,$3,$4,$9,$10::jsonb,$11 FROM history",
-        [$request['session_id'],$generation,$sequence,$request['request_id'],$context['playthrough_id'],
-            $gamets,$now,$request['capture_id'],$actor,$resultJson,$resultHash])===false) {
+    if (!\Synth\Core\DbManager\Dao\VisualContextDao::current($db)->publishResult(strval($request['session_id']), $generation, $sequence, strval($request['request_id']),
+        strval($context['playthrough_id']), $gamets, $now, strval($request['capture_id']), $actor, $resultJson, $resultHash)) {
         throw new RuntimeException('Visual history result could not be persisted.');
     }
 }
@@ -293,16 +270,11 @@ function synthVisualContextVisibleCte($db, array $event): string
 function synthVisualContextSavedHistory($db, array $event, array $world, int $ttlMinutes): array
 {
     if (($event['protocol_version'] ?? 1)!==2) return [];
-    $location=$db->escapeLiteral(trim(strval($world['location'] ?? '')));
-    $worldspace=$db->escapeLiteral(trim(strval($world['worldspace'] ?? '')));
-    if ($location==="''" && $worldspace==="''") return [];
+    $location=trim(strval($world['location'] ?? ''));
+    $worldspace=trim(strval($world['worldspace'] ?? ''));
+    if ($location==='' && $worldspace==='') return [];
     $ttlMinutes=max(1,min($ttlMinutes,1440));
-    return $db->fetchAll(synthVisualContextVisibleCte($db,$event)." SELECT subject_name,description,locked,user_edited,captured_at
-        FROM native_visual_results WHERE active=TRUE
-            AND ($location='' OR lower(result_payload->'world'->>'location')=lower($location))
-            AND ($worldspace='' OR lower(result_payload->'world'->>'worldspace')=lower($worldspace))
-            AND (locked=TRUE OR captured_at>=CURRENT_TIMESTAMP-INTERVAL '$ttlMinutes minutes')
-        ORDER BY locked DESC,user_edited DESC,history_event_id DESC LIMIT 3") ?: [];
+    return \Synth\Core\DbManager\Dao\VisualContextDao::current($db)->savedHistory(synthVisualContextVisibleCte($db,$event), $location, $worldspace, $ttlMinutes);
 }
 
 if (!function_exists('synthVisualContextList')) {

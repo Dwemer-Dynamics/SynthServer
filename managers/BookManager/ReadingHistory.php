@@ -74,19 +74,16 @@ final class ReadingHistory
     private static function alreadyRecorded($db, array $event, array $reading, array $player, array $input): bool
     {
         $payload = $event['payload'];
-        $result = $db->execQuery("SELECT (event_payload->>'party')::jsonb AS party FROM public.core_history_event
-            WHERE session_id=$1 AND generation=$2 AND playthrough_id=$3 AND event_payload->>'type'='reading_event'
-              AND context_sequence>=$5 AND (event_payload->>'party')::jsonb->>'event_id'=$4 LIMIT 1",
-            [$event['session_id'], $event['generation'], $payload['playthrough_id'], $reading['event_id'],
-             max(0, (int) $payload['snapshot_sequence'] - self::RETRY_WINDOW)]);
-        if ($result === false) {
-            throw new RuntimeException('reading_event_history_read_failed');
+        try {
+            $party = \Synth\Core\DbManager\Dao\HistoryEventDao::current($db)->readingEventParty((string) $event['session_id'], (int) $event['generation'],
+                (string) $payload['playthrough_id'], (string) $reading['event_id'], max(0, (int) $payload['snapshot_sequence'] - self::RETRY_WINDOW));
+        } catch (\Throwable $failure) {
+            throw new RuntimeException('reading_event_history_read_failed', 0, $failure);
         }
-        $row = pg_fetch_assoc($result);
-        if (!$row) {
+        if ($party === null) {
             return false;
         }
-        $previous = json_decode($row['party'], true, flags: JSON_THROW_ON_ERROR);
+        $previous = json_decode($party, true, flags: JSON_THROW_ON_ERROR);
         if (($previous['player'] ?? null) != $player || ($previous['input_event'] ?? null) != $input) {
             throw new DomainException('reading_event_conflict');
         }

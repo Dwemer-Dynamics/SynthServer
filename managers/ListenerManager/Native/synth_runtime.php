@@ -367,41 +367,13 @@ function synth_fetch_bio_template(
         return null;
     }
 
-    $fields = "
-        npc_name,
-        core,
-        npc_static_bio,
-        worldknowledge_tags,
-        personality,
-        relationships,
-        occupation,
-        appearance,
-        skills,
-        speechstyle,
-        goals,
-        voiceid,
-        gender,
-        race,
-        refid
-    ";
-
     $fetchMappedTemplate = static function (array $identity, bool $reference) use ($db): ?array {
-        $plugin = synth_db_escape($db, strval($identity['plugin'] ?? ''));
-        $localFormid = synth_db_escape($db, strtoupper(strval($identity['local_formid'] ?? '')));
+        $plugin = strval($identity['plugin'] ?? '');
+        $localFormid = strtoupper(strval($identity['local_formid'] ?? ''));
         if ($plugin === '' || $localFormid === '') {
             return null;
         }
-        $pluginColumn = $reference ? 'reference_plugin' : 'base_plugin';
-        $formidColumn = $reference ? 'reference_local_formid' : 'base_local_formid';
-        $row = $db->fetchOne("
-            SELECT t.*, m.is_nonverbal_creature
-            FROM public.core_npc_biography_template_actor m
-            JOIN synth.combined_bio_templates t ON lower(t.npc_name) = lower(m.template_name)
-            WHERE lower(m.{$pluginColumn}) = lower('{$plugin}')
-              AND upper(m.{$formidColumn}) = upper('{$localFormid}')
-            ORDER BY m.id ASC
-            LIMIT 1
-        ");
+        $row = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->mappedTemplate($plugin, $localFormid, $reference);
         return (is_array($row) && !empty($row['npc_name'])) ? $row : null;
     };
 
@@ -423,17 +395,7 @@ function synth_fetch_bio_template(
 
     $normalizedRefid = synth_normalize_formid($refid);
     if ($normalizedRefid !== '') {
-        $escapedRefid = synth_db_escape($db, $normalizedRefid);
-        $row = $db->fetchOne("
-            SELECT {$fields}, FALSE AS is_nonverbal_creature
-            FROM synth.combined_bio_templates
-            WHERE regexp_replace(lower(COALESCE(refid, '')), '[^0-9a-fx]+', '', 'g') = '{$escapedRefid}'
-              AND NOT EXISTS (
-                  SELECT 1 FROM public.core_npc_biography_template_actor mapped
-                  WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
-              )
-            LIMIT 1
-        ");
+        $row = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->unmappedByRefid($normalizedRefid);
         if (is_array($row) && !empty($row['npc_name'])) {
             return $row;
         }
@@ -444,35 +406,12 @@ function synth_fetch_bio_template(
         return null;
     }
 
-    $escapedCodename = synth_db_escape($db, $codename);
-    $escapedName = synth_db_escape($db, $npcName);
-    $row = $db->fetchOne("
-        SELECT {$fields}, FALSE AS is_nonverbal_creature
-        FROM synth.combined_bio_templates
-        WHERE (lower(npc_name) = lower('{$escapedCodename}')
-           OR lower(npc_name) = lower('{$escapedName}'))
-          AND NOT EXISTS (
-              SELECT 1 FROM public.core_npc_biography_template_actor mapped
-              WHERE lower(mapped.template_name) = lower(synth.combined_bio_templates.npc_name)
-          )
-        ORDER BY CASE WHEN lower(npc_name) = lower('{$escapedCodename}') THEN 0 ELSE 1 END
-        LIMIT 1
-    ");
+    $row = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->unmappedByCodenameOrName($codename, $npcName);
     if (is_array($row) && !empty($row['npc_name'])) {
         return $row;
     }
 
-    $row = $db->fetchOne("
-        SELECT t.*, FALSE AS is_nonverbal_creature
-        FROM synth.combined_bio_templates t
-        WHERE lower(t.npc_name) LIKE lower('{$escapedCodename}') || '\\_%'
-          AND NOT EXISTS (
-              SELECT 1 FROM public.core_npc_biography_template_actor m
-              WHERE lower(m.template_name) = lower(t.npc_name)
-          )
-        ORDER BY length(t.npc_name) ASC, t.npc_name ASC
-        LIMIT 1
-    ");
+    $row = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->unmappedByCodenamePrefix($codename);
 
     return (is_array($row) && !empty($row['npc_name'])) ? $row : null;
 }
@@ -506,7 +445,7 @@ function synth_ensure_npc(object $db, string $npcName, string $refid = '', array
         $db->withNativeRequestLock(static function() use($db,$npcName,$refid,$profileFields):void {
             $actorId=synth_npc_request_actor_id($db,$npcName);
             if ($actorId===null) throw new RuntimeException('Native NPC profile has no captured actor owner.');
-            $identity=$db->fetchOne('SELECT full_form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id='.$actorId);
+            $identity=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->identityRow(intval($actorId));
             $context=synth_protocol_current_context($db,\Synth\Bootstrap::requestEvent()['json']);
             if (!$identity || !$context) throw new RuntimeException('Native NPC profile snapshot is unavailable.');
             // Dialogue text and stale caller globals are not sources of physical/voice profile metadata.
@@ -542,12 +481,10 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
         return;
     }
 
-    $escapedName = synth_db_escape($db, $npcName);
     if ($refid === '' && !empty($profileFields['refid'])) {
         $refid = strval($profileFields['refid']);
     }
 
-    $escapedRefid = synth_db_escape($db, $refid);
     $gender = trim(strval($profileFields['gender'] ?? ''));
     $race = trim(strval($profileFields['race'] ?? ''));
     $voice = trim(strval($profileFields['voice'] ?? ''));
@@ -645,113 +582,19 @@ function synth_upsert_npc_profile(object $db, string $npcName, string $refid, ar
         $metadataPayload['bio_template'] = $bioTemplate['npc_name'];
     }
 
-    $metadata = synth_db_escape($db, json_encode($metadataPayload, JSON_UNESCAPED_SLASHES));
-    $extendedJson = synth_db_escape($db, json_encode($extended, JSON_UNESCAPED_SLASHES));
+    $metadata = json_encode($metadataPayload, JSON_UNESCAPED_SLASHES);
+    $extendedJson = json_encode($extended, JSON_UNESCAPED_SLASHES);
 
-    $identitySql=$actorId===null ? 'NULL' : strval($actorId);
     $profileToken=$actorId===null ? md5($npcName) : md5('synth:npc:actor:'.$actorId);
-    $conflict=$actorId===null ? '(npc_name) WHERE actor_identity_id IS NULL'
-        : '(actor_identity_id) WHERE actor_identity_id IS NOT NULL';
-    if ($db->execQuery("
-        INSERT INTO public.core_npc (
-            actor_identity_id,
-            npc_name,
-            npc_favorite,
-            lock_profile,
-            core,
-            npc_static_bio,
-            worldknowledge_tags,
-            personality,
-            relationships,
-            occupation,
-            appearance,
-            skills,
-            speechstyle,
-            goals,
-            gender,
-            race,
-            voiceid,
-            refid,
-            base,
-            profile_id,
-            metadata,
-            extended_data,
-            gamets_last_updated,
-            md5
-        ) VALUES (
-            {$identitySql},
-            '{$escapedName}',
-            0,
-            0,
-            " . synth_sql_nullable_string($db, $core) . ",
-            " . synth_sql_nullable_string($db, $npcStaticBio) . ",
-            " . synth_sql_nullable_string($db, $worldknowledgeTags) . ",
-            " . synth_sql_nullable_string($db, $personality) . ",
-            " . synth_sql_nullable_string($db, $relationships) . ",
-            " . synth_sql_nullable_string($db, $occupation) . ",
-            " . synth_sql_nullable_string($db, $appearance) . ",
-            " . synth_sql_nullable_string($db, $skills) . ",
-            " . synth_sql_nullable_string($db, $speechstyle) . ",
-            " . synth_sql_nullable_string($db, $goals) . ",
-            " . synth_sql_nullable_string($db, $gender) . ",
-            " . synth_sql_nullable_string($db, $race) . ",
-            " . synth_sql_nullable_string($db, $voice) . ",
-            " . ($refid !== '' ? "'{$escapedRefid}'" : "NULL") . ",
-            " . synth_sql_nullable_string($db, $baseid) . ",
-            " . ($profileId !== null ? intval($profileId) : "NULL") . ",
-            '{$metadata}'::jsonb,
-            '{$extendedJson}'::jsonb,
-            0,
-            '{$profileToken}'
-        )
-        ON CONFLICT {$conflict} DO UPDATE SET
-            npc_name = EXCLUDED.npc_name,
-            md5 = COALESCE(NULLIF(public.core_npc.md5, ''), EXCLUDED.md5),
-            core = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.core ELSE COALESCE(NULLIF(public.core_npc.core, ''), EXCLUDED.core) END,
-            npc_static_bio = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.npc_static_bio ELSE COALESCE(NULLIF(public.core_npc.npc_static_bio, ''), EXCLUDED.npc_static_bio) END,
-            worldknowledge_tags = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.worldknowledge_tags ELSE COALESCE(NULLIF(public.core_npc.worldknowledge_tags, ''), EXCLUDED.worldknowledge_tags) END,
-            personality = CASE
-                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.personality
-                WHEN public.core_npc.personality IN (
-                    'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.',
-                    'A Fallout 4 wasteland resident. Replace this generated SYNTH seed profile with richer character data when available.'
-                )
-                    THEN EXCLUDED.personality
-                ELSE COALESCE(NULLIF(public.core_npc.personality, ''), EXCLUDED.personality)
-            END,
-            relationships = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.relationships ELSE COALESCE(NULLIF(public.core_npc.relationships, ''), EXCLUDED.relationships) END,
-            occupation = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.occupation ELSE COALESCE(NULLIF(public.core_npc.occupation, ''), EXCLUDED.occupation) END,
-            appearance = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.appearance ELSE COALESCE(NULLIF(public.core_npc.appearance, ''), EXCLUDED.appearance) END,
-            skills = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.skills ELSE COALESCE(NULLIF(public.core_npc.skills, ''), EXCLUDED.skills) END,
-            speechstyle = CASE
-                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.speechstyle
-                WHEN public.core_npc.speechstyle = 'Speaks plainly and reacts to the Sole Survivor and the current situation.'
-                    THEN EXCLUDED.speechstyle
-                ELSE COALESCE(NULLIF(public.core_npc.speechstyle, ''), EXCLUDED.speechstyle)
-            END,
-            goals = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.goals ELSE COALESCE(NULLIF(public.core_npc.goals, ''), EXCLUDED.goals) END,
-            gender = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.gender ELSE COALESCE(NULLIF(EXCLUDED.gender, ''), public.core_npc.gender) END,
-            race = CASE WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.race ELSE COALESCE(NULLIF(EXCLUDED.race, ''), public.core_npc.race) END,
-            voiceid = CASE
-                WHEN public.core_npc.lock_profile = 1 THEN public.core_npc.voiceid
-                WHEN " . ($isMappedCreature ? "TRUE" : "FALSE") . "
-                 AND (
-                    NULLIF(public.core_npc.voiceid, '') IS NULL
-                    OR lower(public.core_npc.voiceid) = lower(" . synth_sql_nullable_string($db, $actorProfileVoice) . ")
-                 ) THEN EXCLUDED.voiceid
-                ELSE COALESCE(NULLIF(public.core_npc.voiceid, ''), NULLIF(EXCLUDED.voiceid, ''))
-            END,
-            refid = COALESCE(NULLIF(EXCLUDED.refid, ''), public.core_npc.refid),
-            base = COALESCE(NULLIF(EXCLUDED.base, ''), public.core_npc.base),
-            profile_id = COALESCE(public.core_npc.profile_id, EXCLUDED.profile_id),
-            metadata = COALESCE(public.core_npc.metadata, '{}'::jsonb) || EXCLUDED.metadata,
-            extended_data = CASE
-                WHEN public.core_npc.lock_profile = 1
-                    THEN COALESCE(public.core_npc.extended_data, '{}'::jsonb)
-                ELSE COALESCE(public.core_npc.extended_data, '{}'::jsonb) || EXCLUDED.extended_data
-            END,
-            gamets_last_updated = EXCLUDED.gamets_last_updated
-    ")===false) throw new RuntimeException('Unable to persist NPC profile.');
+    try {
+        \Synth\Core\DbManager\Dao\NpcDao::current($db)->seedProfile($actorId, $npcName, ['core'=>$core,'npc_static_bio'=>$npcStaticBio,
+            'worldknowledge_tags'=>$worldknowledgeTags,'personality'=>$personality,'relationships'=>$relationships,'occupation'=>$occupation,
+            'appearance'=>$appearance,'skills'=>$skills,'speechstyle'=>$speechstyle,'goals'=>$goals,'gender'=>$gender,'race'=>$race,
+            'voice'=>$voice,'baseid'=>$baseid], $refid, $profileId !== null ? intval($profileId) : null, $metadata, $extendedJson,
+            $profileToken, $isMappedCreature, $actorProfileVoice);
+    } catch (Throwable $failure) {
+        throw new RuntimeException('Unable to persist NPC profile.', 0, $failure);
+    }
 }
 
 ?>

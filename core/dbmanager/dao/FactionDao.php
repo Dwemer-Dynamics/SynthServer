@@ -70,6 +70,19 @@ class FactionDao
         return true;
     }
 
+    /** Name rows of the factions whose form id equals one of these exactly. Throws on a database error. @param list<string> $formIds @return list<array<string, mixed>> */
+    public function nameRowsByExactFormIds(array $formIds): array
+    {
+        if ($formIds === []) {
+            return [];
+        }
+
+        return $this->connection()->fetchAllAssociative(
+            'SELECT name FROM public.core_faction WHERE formid IN ('.implode(', ', array_fill(0, count($formIds), '?')).')',
+            array_map('strval', array_values($formIds))
+        );
+    }
+
     /**
      * Faction names for the given (already upper-cased) form ids. Throws when the table is unreadable, as older
      * installs can reach this before the faction migration.

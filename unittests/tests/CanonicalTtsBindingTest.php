@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/synth_tts.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 final class CanonicalTtsBindingTest extends TestCase {
     private array $saved=[];
@@ -18,8 +19,10 @@ final class CanonicalTtsBindingTest extends TestCase {
                 return null;
             }
         };
+        DaoTestDoubles::npcFrom($GLOBALS['db']);
     }
     protected function tearDown(): void {
+        DaoTestDoubles::reset();
         foreach($this->saved as $key=>[$exists,$value]) {if($exists)$GLOBALS[$key]=$value;else unset($GLOBALS[$key]);}
     }
     private function actor(string $form='0x00000015',string $save='voice-save'): array {
