@@ -1579,6 +1579,19 @@ final class RequestStreamingTest extends TestCase
         }
     }
 
+    public function testSpeechMessageSettlementSkipsAnUnreadableJobLikeTheLegacyRead(): void
+    {
+        require_once dirname(__DIR__, 2).'/managers/MessageHandler/SpeechMessages.php';
+        \Synth\Core\DbManager\Dao\WorkerJobDao::inject(new class extends \Synth\Core\DbManager\Dao\WorkerJobDao {
+            public function __construct() {}
+            public function speechJob(int $jobId): ?array {
+                throw new class('relation is unreadable') extends \Exception implements \Doctrine\DBAL\Exception {};
+            }
+        });
+
+        $this->assertSame('skipped', \Synth\Managers\MessageHandler\SpeechMessages::settle(new stdClass(), 7, sys_get_temp_dir()));
+    }
+
     public function testV2FixturesAndV1RequestsUseSeparateClosedContracts(): void
     {
         $root = dirname(__DIR__, 2);

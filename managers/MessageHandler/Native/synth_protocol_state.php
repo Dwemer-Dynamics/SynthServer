@@ -725,7 +725,7 @@ function synth_protocol_persist_actor_factions($db, array $states): void
         $completeness = synth_protocol_faction_completeness($state);
         $factions = $completeness === 'unavailable' ? [] : synth_protocol_profile_factions($state);
         if ($completeness === 'complete' && count($factions) < count($state['factions'] ?? [])) $completeness = 'partial';
-        $snapshotJson = $db->escapeLiteral(json_encode([
+        $snapshotJson = json_encode([
             'faction_observation' => $observation,
             'faction_completeness' => $completeness,
             'factions' => $factions,
@@ -733,42 +733,26 @@ function synth_protocol_persist_actor_factions($db, array $states): void
                 'form_id' => strtoupper(strval($state['base_form_id'] ?? '')),
                 'origin_plugin' => strval($state['base_origin_plugin'] ?? ''),
             ],
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-        $factionsJson = $db->escapeLiteral(json_encode(
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $factionsJson = json_encode(
             $factions,
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ));
-        $observationJson = $db->escapeLiteral(json_encode(
+        );
+        $observationJson = json_encode(
             $observation,
             JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-        ));
-        $completenessJson = $db->escapeLiteral(json_encode($completeness, JSON_THROW_ON_ERROR));
+        );
+        $completenessJson = json_encode($completeness, JSON_THROW_ON_ERROR);
         $baseRuntimeId = strtoupper(strval($state['base_form_id'] ?? ''));
         $basePlugin = trim(strval($state['base_origin_plugin'] ?? ''));
         $baseIdentity = synthBuildStableFormReference(
             $basePlugin,
             synthExtractLocalFormIdFromRuntimeFormId($baseRuntimeId)
         );
-        $baseIdentitySql = $db->escapeLiteral($baseIdentity);
-        if ($db->execQuery(
-            "UPDATE public.core_actor_identity
-                SET metadata=COALESCE(metadata, '{}'::jsonb) || {$snapshotJson}::jsonb,
-                    last_seen_at=NOW()
-              WHERE id={$identityId}"
-        ) === false) {
+        if (!\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->mergeFactionMetadata($identityId, $snapshotJson)) {
             throw new RuntimeException('Unable to persist actor faction metadata.');
         }
-        if ($db->execQuery(
-            "UPDATE public.core_npc
-                SET extended_data=jsonb_set(
-                    jsonb_set(
-                        jsonb_set(COALESCE(extended_data, '{}'::jsonb), '{factions}', {$factionsJson}::jsonb, true),
-                        '{faction_observation}', {$observationJson}::jsonb, true
-                    ), '{faction_completeness}', {$completenessJson}::jsonb, true
-                ),
-                    base=CASE WHEN {$baseIdentitySql} <> '' THEN {$baseIdentitySql} ELSE base END
-              WHERE actor_identity_id={$identityId}"
-        ) === false) {
+        if (!\Synth\Core\DbManager\Dao\NpcDao::current($db)->mergeFactionData($identityId, $factionsJson, $observationJson, $completenessJson, strval($baseIdentity))) {
             throw new RuntimeException('Unable to persist linked NPC faction metadata.');
         }
     }

@@ -37,6 +37,15 @@ class ActorIdentityDao
         return array_values($this->fresh()->getRepository(AbstractActorIdentity::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
 
+    /** Merges the faction snapshot (JSON object text) into the actor's metadata and stamps it as seen. False when the statement fails. */
+    public function mergeFactionMetadata(int $id, string $snapshotJson): bool
+    {
+        return $this->tryStatement(
+            "UPDATE public.core_actor_identity SET metadata=COALESCE(metadata, '{}'::jsonb) || CAST(? AS jsonb), last_seen_at=NOW() WHERE id = ?",
+            [$snapshotJson, $id]
+        );
+    }
+
     /** The id of the fo4 actor with this form id and origin plugin (compared without case) in this playthrough, or null. */
     public function idByIdentity(string $formId, string $originPlugin, string $playthroughId): ?int
     {

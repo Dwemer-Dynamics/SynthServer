@@ -375,6 +375,17 @@ class WorkerJobDao
         }
     }
 
+    /** The state, cache key and owner of one speech (tts) job; null when there is none. @return array<string, mixed>|null */
+    public function speechJob(int $jobId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            "SELECT state, cache_key, session_id, request_id, utterance_id FROM public.core_worker_job WHERE id = ? AND job_type = 'tts'",
+            [$jobId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractWorkerJob> */
     public function findAll(int $limit = 1000): array
     {

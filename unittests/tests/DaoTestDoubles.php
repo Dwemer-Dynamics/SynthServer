@@ -275,6 +275,16 @@ final class DaoTestDoubles
                 return true;
             }
 
+            public function mergeFactionMetadata(int $id, string $snapshotJson): bool
+            {
+                $f = $this->fake;
+
+                return $f->execQuery("UPDATE public.core_actor_identity
+                SET metadata=COALESCE(metadata, '{}'::jsonb) || {$f->escapeLiteral($snapshotJson)}::jsonb,
+                    last_seen_at=NOW()
+              WHERE id={$id}") !== false;
+            }
+
             public function insertFo4(string $fullFormId, string $originPlugin, string $playthroughId, ?string $displayName): ?int
             {
                 $f = $this->fake;
@@ -317,6 +327,25 @@ final class DaoTestDoubles
             state='active', last_seen_at=NOW()");
 
                 return true;
+            }
+        });
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            public function mergeFactionData(int $actorIdentityId, string $factionsJson, string $observationJson, string $completenessJson, string $baseIdentity): bool
+            {
+                $f = $this->fake;
+                $base = $f->escapeLiteral($baseIdentity);
+
+                return $f->execQuery("UPDATE public.core_npc
+                SET extended_data=jsonb_set(
+                    jsonb_set(
+                        jsonb_set(COALESCE(extended_data, '{}'::jsonb), '{factions}', {$f->escapeLiteral($factionsJson)}::jsonb, true),
+                        '{faction_observation}', {$f->escapeLiteral($observationJson)}::jsonb, true
+                    ), '{faction_completeness}', {$f->escapeLiteral($completenessJson)}::jsonb, true
+                ),
+                    base=CASE WHEN {$base} <> '' THEN {$base} ELSE base END
+              WHERE actor_identity_id={$actorIdentityId}") !== false;
             }
         });
     }
