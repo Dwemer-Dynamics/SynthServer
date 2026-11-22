@@ -2733,6 +2733,7 @@ final class RequestStreamingTest extends TestCase
                     'actor_form_id' => $this->actor['form_id'], 'actor_plugin' => $this->actor['origin_plugin'], 'actor_playthrough' => $this->actor['playthrough_id']];
             }
         };
+        DaoTestDoubles::readersFrom($db);
         $event = ['protocol_version' => 2, 'session_id' => 'session:one', 'generation' => 2, 'context_sequence' => 7,
             'turn_id'=>'turn:one','runtime_variant'=>'flat',
             'type' => 'action_result', 'payload' => ['result' => ['action_id' => 'action:one', 'idempotency_key' => 'idem:one',
