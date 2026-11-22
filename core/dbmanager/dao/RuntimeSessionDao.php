@@ -293,4 +293,13 @@ class RuntimeSessionDao
 
         return $row === false ? null : $row;
     }
+
+    /** Whether this session of this playthrough exists and is active. */
+    public function isActive(string $sessionId, string $playthroughId): bool
+    {
+        return $this->connection()->fetchOne(
+            "SELECT 1 FROM public.core_runtime_session WHERE session_id = ? AND playthrough_id = ? AND state = 'active'",
+            [$sessionId, $playthroughId]
+        ) !== false;
+    }
 }

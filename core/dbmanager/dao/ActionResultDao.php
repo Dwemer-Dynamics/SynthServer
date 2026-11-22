@@ -24,4 +24,10 @@ final class ActionResultDao
     {
         return array_values($this->fresh()->getRepository(AbstractActionResult::class)->findBy([], ['actionId' => 'ASC'], max(1, $limit)));
     }
+
+    /** Whether this JSON text has no duplicate object keys (the database's own check). */
+    public function detailHasUniqueKeys(string $json): bool
+    {
+        return in_array($this->connection()->fetchOne('SELECT synth_meta.json_object_has_unique_keys(?)', [$json]), [true, 't', 1, '1'], true);
+    }
 }

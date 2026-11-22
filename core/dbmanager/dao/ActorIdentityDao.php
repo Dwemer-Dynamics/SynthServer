@@ -114,4 +114,48 @@ class ActorIdentityDao
             WHERE current.depth=1 AND actor.id<>current.reader_identity_id ORDER BY actor.id"
         ));
     }
+
+    /**
+     * Form id, origin plugin and playthrough of one identity (only of this game when $game is given); null when none.
+     *
+     * @return array{full_form_id: string, origin_plugin: string, playthrough_id: string}|null
+     */
+    public function identityRow(int $id, ?string $game = null): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT full_form_id, origin_plugin, playthrough_id FROM public.core_actor_identity WHERE id = ?'.($game !== null ? ' AND game = ?' : ''),
+            $game !== null ? [$id, $game] : [$id]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /** Id and playthrough of the identities with these ids. @param list<int> $ids @return list<array<string, mixed>> */
+    public function playthroughsByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->connection()->fetchAllAssociative(
+            'SELECT id, playthrough_id FROM public.core_actor_identity WHERE id IN ('.implode(', ', array_fill(0, count($ids), '?')).')',
+            array_map('intval', array_values($ids))
+        );
+    }
+
+    /**
+     * The id of the Fallout 4 identity for this form, plugin and playthrough (form and plugin compared case-insensitively) that
+     * belongs to the playthrough of this runtime session and variant; null when none.
+     */
+    public function findIdInSession(string $sessionId, string $runtimeVariant, string $formId, string $originPlugin, string $playthroughId): ?int
+    {
+        $id = $this->connection()->fetchOne(
+            "SELECT a.id FROM public.core_actor_identity a JOIN public.core_runtime_session r ON r.playthrough_id = a.playthrough_id
+             WHERE a.game = 'fo4' AND r.session_id = ? AND r.runtime_variant = ? AND upper(a.full_form_id) = upper(?)
+             AND lower(a.origin_plugin) = lower(?) AND a.playthrough_id = ?",
+            [$sessionId, $runtimeVariant, $formId, $originPlugin, $playthroughId]
+        );
+
+        return $id === false ? null : (int) $id;
+    }
 }
