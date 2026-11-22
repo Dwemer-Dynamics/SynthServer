@@ -43,13 +43,7 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
         || (($event['type'] ?? '') !== 'action_result' && !$rechat)
         || !in_array('action.inventory_observation', $event['capabilities'] ?? [], true)) return $payload;
     if ($rechat && !synth_protocol_owns_rechat($event)) throw new DomainException('action_inventory_ancestry_capability');
-    $session=$db->escapeLiteral($event['session_id']);$turn=$db->escapeLiteral($event['turn_id']);
     $generation=intval($event['generation']);$sequence=intval($event['context_sequence']);
-    $variant=$db->escapeLiteral($event['runtime_variant']);
-    $turnOwner=synth_protocol_retains_gift_owner($event)
-        ? "((r.active_turn_id=$turn AND r.active_turn_sequence=$sequence)
-            OR (accepted.state='complete' AND accepted.error_code IS NULL AND parent.state='complete' AND parent.error_code IS NULL))"
-        : "(r.active_turn_id=$turn AND r.active_turn_sequence=$sequence)";
     $current=$event;$visited=[];$requests=[];$observed=[];$bytes=0;
     for ($depth=0;$depth<64;++$depth) {
         if (isset($requests[$current['request_id']])) throw new DomainException('action_inventory_ancestry_invalid');
@@ -64,30 +58,9 @@ function synth_protocol_action_inventory_view($db, array $event, array $payload)
             if (!synth_protocol_valid_id($actionId) || !synth_protocol_valid_id($key) || isset($visited[$actionId]))
                 throw new DomainException('action_inventory_ancestry_invalid');
             $visited[$actionId]=true;
-            $action=$db->escapeLiteral($actionId);$idempotency=$db->escapeLiteral($key);
-            $request=$db->escapeLiteral($current['request_id']);
-            $canonical=$db->escapeLiteral(synth_protocol_canonical_json($current));
-            $row=$db->fetchOne("SELECT i.action_name,i.capability,i.request_id AS origin_request_id,a.full_form_id,a.origin_plugin,a.playthrough_id,
-                    e.canonical_event,t.result,b.full_form_id AS recipient_form_id,
-                    b.origin_plugin AS recipient_plugin,b.playthrough_id AS recipient_playthrough_id
-                FROM public.core_action_intent i
-                JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-                LEFT JOIN public.core_actor_identity b ON b.id=i.target_identity_id AND b.game='fo4'
-                JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
-                    AND t.status=t.result->>'status'
-                JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
-                    AND e.generation=i.generation AND e.turn_id=i.turn_id
-                JOIN public.core_request_execution parent ON parent.session_id=e.session_id AND parent.request_id=e.request_id
-                    AND parent.state IN ('streaming','complete')
-                JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.request_id=$request
-                    AND receipt.generation=i.generation AND receipt.turn_id=i.turn_id AND receipt.event_type='action_result'
-                    AND receipt.canonical_event=$canonical::jsonb AND receipt.canonical_event->'payload'->'result'=t.result
-                JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id
-                    AND accepted.request_id=receipt.request_id AND accepted.state IN ('claimed','streaming','complete')
-                JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
-                WHERE i.action_id=$action AND i.idempotency_key=$idempotency AND i.session_id=$session
-                    AND i.turn_id=$turn AND i.generation=$generation AND i.state='complete'
-                    AND r.state='active' AND r.active_generation=$generation AND $turnOwner AND r.runtime_variant=$variant");
+            $row=\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->inventoryAncestry(synth_protocol_retains_gift_owner($event),strval($actionId),strval($key),
+                strval($current['request_id']),synth_protocol_canonical_json($current),strval($event['session_id']),strval($event['turn_id']),
+                $generation,$sequence,strval($event['runtime_variant']));
             if (!$row) throw new DomainException('action_inventory_ancestry_unavailable');
             $row=synth_protocol_transfer_inventory_owner($row);
             $parent=is_array($row['canonical_event'] ?? null) ? $row['canonical_event'] : json_decode(strval($row['canonical_event'] ?? ''),true);

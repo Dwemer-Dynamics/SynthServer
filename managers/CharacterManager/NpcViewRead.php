@@ -37,9 +37,7 @@ final class NpcViewRead
             || ($rid !== null && (!is_string($rid) || preg_match(self::UUID_PATTERN, $rid) !== 1))) {
             throw new \InvalidArgumentException('npc view ids');
         }
-        $active = $db->fetchOne('SELECT 1 AS active FROM public.core_runtime_session WHERE session_id=' . $db->escapeLiteral($sessionId)
-            . ' AND playthrough_id=' . $db->escapeLiteral($playthroughId) . " AND state='active'");
-        if (!is_array($active) || $active === []) {
+        if (!\Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->isActive($sessionId, $playthroughId)) {
             throw new \DomainException('session not active');
         }
         $entityManager = EntityManagerFactory::forSharedSession($db);

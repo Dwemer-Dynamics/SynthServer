@@ -65,6 +65,49 @@ class ItemDescriptionDao
         return $row === false || $row['description'] === null ? null : (string) $row['description'];
     }
 
+    /**
+     * Plugin, base id, name and description of one item; null when absent or unreadable, so the prompt lookup can fall back
+     * to the other catalogue as the legacy fetchOne() read did. @return array<string, mixed>|null
+     */
+    public function recordByKey(string $plugin, string $baseid): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description WHERE plugin = ? AND baseid = ? LIMIT 1', [$plugin, $baseid]);
+        } catch (DbalException|DriverException $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The non-empty description of one item, or null when absent. Read errors propagate so the captured-equipment caller
+     * can stop at the first unreadable catalogue, as the legacy execQuery() === false check did.
+     */
+    public function descriptionByKey(string $plugin, string $baseid): ?string
+    {
+        $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
+
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * The two best name matches in the combined catalogue (exact case-insensitive match first, then trigram similarity) as
+     * plugin, baseid, name, score and exact_match.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function similarByName(string $name): array
+    {
+        return $this->connection()->fetchAllAssociative(
+            "SELECT plugin, baseid, name,
+                CASE WHEN lower(COALESCE(name, '')) = lower(?) THEN 1.0 ELSE similarity(COALESCE(name, ''), ?) END AS score,
+                CASE WHEN lower(COALESCE(name, '')) = lower(?) THEN 1 ELSE 0 END AS exact_match
+             FROM synth.combined_descriptions WHERE COALESCE(name, '') <> '' ORDER BY exact_match DESC, score DESC, name ASC LIMIT 2",
+            [$name, $name, $name]
+        );
+    }
+
     /** Inserts a standard item description unless one exists for the plugin and base id. False when the statement fails. */
     public function insertIfMissing(string $plugin, string $baseid, string $name, string $description): bool
     {

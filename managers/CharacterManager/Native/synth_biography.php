@@ -91,8 +91,8 @@ function synth_actor_stats_for_request($db,string $npcName): string
     synth_protocol_assert_request_active();
     $context=synth_protocol_current_context($db,$event);
     $actorId=synth_npc_request_actor_id($db,$npcName,$context);
-    $identity=$actorId===null ? null
-        : $db->fetchOne('SELECT full_form_id AS form_id,origin_plugin,playthrough_id FROM public.core_actor_identity WHERE id='.intval($actorId));
+    $identity=$actorId===null ? null : \Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->identityRow(intval($actorId));
+    if (is_array($identity)) $identity['form_id']=$identity['full_form_id'];
     return synth_actor_stats_prompt($event,is_array($identity) && is_array($context) ? synth_actor_stats_state($context,$identity) : null);
 }
 

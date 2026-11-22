@@ -14,6 +14,7 @@ final class RequestStreamingTest extends TestCase
 {
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         DaoTestDoubles::forgetBooted();
         parent::tearDown();
     }
@@ -56,6 +57,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::inventoryFrom($db);
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
             'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
@@ -211,6 +213,7 @@ final class RequestStreamingTest extends TestCase
                 ++$this->reads;preg_match("/i.action_id='([^']+)'/",$query,$match);return $this->rows[$match[1]??'']??null;
             }
         };
+        DaoTestDoubles::inventoryFrom($db);
         $make=static fn($name,$cap,$parent,$event)=>['action_name'=>$name,'capability'=>$cap,
             'full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],'playthrough_id'=>$actor['playthrough_id'],
             'origin_request_id'=>$parent['request_id'],'canonical_event'=>$parent,'result'=>$event['payload']['result']];
@@ -408,6 +411,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function escapeLiteral($value): string { return "'".$value."'"; }
         };
+        DaoTestDoubles::workerJobFrom($db);
         $status=['schema'=>'synth.tts_status.v1','cache_key'=>str_repeat('a',32),'status'=>'pending','_job_id'=>1];
         foreach (['pending','running','ready','failed','cancelled','stale'] as $state) {
             $db->row=['state'=>$state,'within_deadline'=>'t'];
