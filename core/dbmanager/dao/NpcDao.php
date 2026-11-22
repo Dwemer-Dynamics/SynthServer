@@ -108,6 +108,21 @@ class NpcDao
     }
 
     /**
+     * The NPC name linked to this actor identity; null when there is no row, the name is NULL or the statement fails (the legacy
+     * fetchOne contract: the profile refresh then has no name for this actor).
+     */
+    public function nameForIdentity(int $actorIdentityId): ?string
+    {
+        try {
+            $value = $this->connection()->fetchOne('SELECT npc_name FROM public.core_npc WHERE actor_identity_id = ? LIMIT 1', [$actorIdentityId]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /**
      * Writes the faction facts of a linked actor into its NPC row's extended data (factions, observation and completeness, each as
      * JSON text) and, when $baseIdentity is not empty, its base reference. False when the statement fails.
      */

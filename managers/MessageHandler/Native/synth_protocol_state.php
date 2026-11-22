@@ -283,13 +283,16 @@ function synth_protocol_history_cte($db, array $event, string $actor = '', ?int 
         $responseActor=$context ? synth_protocol_response_actor_identity($db,$event,$context) : null;
         $reader=null;
         if ($responseActor!==null && ($actor==='' || strcasecmp(trim($actor),trim($responseActor['display_name']))===0)) {
-            $reader=$db->fetchOne("SELECT id FROM public.core_actor_identity WHERE game='fo4'
-                AND upper(full_form_id)=upper(".$db->escapeLiteral($responseActor['form_id']).")
-                AND lower(origin_plugin)=lower(".$db->escapeLiteral($responseActor['origin_plugin']).")
-                AND playthrough_id=".$db->escapeLiteral($responseActor['playthrough_id']));
+            try {
+                $reader=\Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->idByIdentity(strval($responseActor['form_id']), strval($responseActor['origin_plugin']),
+                    strval($responseActor['playthrough_id']));
+            } catch (\Doctrine\DBAL\Exception $error) {
+                // The legacy fetchOne read a failed statement as no reader, which rejects the continuation's history below.
+                $reader=null;
+            }
         }
-        if (intval($reader['id'] ?? 0)>0) {
-            $relationshipReaderIdentityId=intval($reader['id']);
+        if (intval($reader ?? 0)>0) {
+            $relationshipReaderIdentityId=intval($reader);
             $actor='';
         } else {
             $actionReaderRejected=true;
@@ -1836,19 +1839,8 @@ function synth_protocol_bind_action_result($db, array $wireEvent, array &$gameRe
         // Restore the originating turn's prompt facts before formatting the action result.
         synth_protocol_bind_dialogue_context($db, $wireEvent, $gameRequest);
     }
-    $actionId = $db->escapeLiteral($wireEvent['payload']['result']['action_id']);
-    $session = $db->escapeLiteral(synth_protocol_session_id($wireEvent));
-    $generation = intval($wireEvent['generation']);
-    $row = $db->fetchOne(
-        "SELECT i.action_name, i.capability, i.arguments, COALESCE(t.display_name, a.display_name, '') AS target_name,
-                COALESCE(a.display_name, '') AS actor_name,
-                a.full_form_id AS actor_form_id, a.origin_plugin AS actor_plugin, a.playthrough_id AS actor_playthrough,
-                t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin, t.playthrough_id AS target_playthrough
-           FROM public.core_action_intent i
-           JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
-           LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id
-          WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}"
-    );
+    $row = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->resultBinding(strval($wireEvent['payload']['result']['action_id']),
+        synth_protocol_session_id($wireEvent), intval($wireEvent['generation']));
     if (!$row) {
         throw new RuntimeException('unknown_action_result');
     }
@@ -2111,27 +2103,9 @@ function synth_protocol_response_actor_identity($db, array $event, array $contex
     foreach (['action_id','idempotency_key'] as $field) {
         if (!is_string($result[$field] ?? null) || $result[$field]==='') return null;
     }
-    $session=$db->escapeLiteral($event['session_id']);
-    $turn=$db->escapeLiteral($event['turn_id']);
     $generation=intval($event['generation']);
-    $sequence=$db->escapeLiteral(strval($event['context_sequence']));
-    $variant=$db->escapeLiteral($event['runtime_variant']);
-    $action=$db->escapeLiteral($result['action_id']);
-    $key=$db->escapeLiteral($result['idempotency_key']);
-    $row=$db->fetchOne("SELECT a.full_form_id,a.origin_plugin,a.playthrough_id
-        FROM public.core_action_intent i
-        JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
-            AND e.generation=i.generation AND e.turn_id=i.turn_id
-        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
-        WHERE i.action_id=$action AND i.idempotency_key=$key AND i.session_id=$session
-            AND i.turn_id=$turn AND i.generation=$generation
-            AND r.state='active' AND r.active_generation=$generation AND r.runtime_variant=$variant
-            AND e.canonical_event->>'protocol_version'='2'
-            AND e.canonical_event->>'session_id'=$session AND e.canonical_event->>'turn_id'=$turn
-            AND e.canonical_event->>'generation'=".$db->escapeLiteral(strval($generation))."
-            AND e.canonical_event->>'context_sequence'=$sequence
-            AND e.canonical_event->>'runtime_variant'=$variant");
+    $row=\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->resultOwnerActor(strval($result['action_id']), strval($result['idempotency_key']), strval($event['session_id']),
+        strval($event['turn_id']), $generation, strval($event['context_sequence']), strval($event['runtime_variant']));
     if (!$row) return null;
     // Registry names can change after admission; only the immutable snapshot supplies the readable label.
     foreach (array_merge([$context['target'] ?? null],$context['payload']['audience'] ?? []) as $identity) {
@@ -2204,15 +2178,7 @@ function synth_protocol_resolve_speaker_identity($db, string $speaker): ?array
             return $context['player'];
         }
     }
-    $session = $db->escapeLiteral(synth_protocol_session_id($event));
-    $speakerSql = $db->escapeLiteral(trim($speaker));
-    $row = $db->fetchOne(
-        "SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
-           FROM public.core_actor_identity a
-           JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
-          WHERE s.session_id={$session} AND lower(a.display_name)=lower({$speakerSql})
-          ORDER BY a.last_seen_at DESC LIMIT 1"
-    );
+    $row = \Synth\Core\DbManager\Dao\ActorIdentityDao::current($db)->latestByDisplayName(synth_protocol_session_id($event), trim($speaker));
     if (!$row) {
         return null;
     }
@@ -2739,11 +2705,7 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
         \Synth\Bootstrap::bind('gameRequest', $gameRequest);
         return true;
     }
-    $runtime = $db->fetchOne(
-        'SELECT playthrough_id FROM public.core_runtime_session WHERE session_id=' .
-        $db->escapeLiteral(synth_protocol_session_id($wireEvent)) . ' LIMIT 1'
-    );
-    $playthroughId = strval($runtime['playthrough_id'] ?? '');
+    $playthroughId = strval(\Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->playthroughOf(synth_protocol_session_id($wireEvent)) ?? '');
     if ($playthroughId === '') {
         throw new RuntimeException('profile_refresh_runtime_unavailable');
     }
@@ -2754,10 +2716,7 @@ function synth_protocol_bind_profile_refresh($db, array $wireEvent, array &$game
             throw new RuntimeException('profile_refresh_playthrough_mismatch');
         }
         $identityId = synth_protocol_actor_identity_id($db, $actor);
-        $row = $db->fetchOne(
-            'SELECT npc_name FROM public.core_npc WHERE actor_identity_id=' . intval($identityId) . ' LIMIT 1'
-        );
-        $name = trim(strval($row['npc_name'] ?? ''));
+        $name = trim(strval(\Synth\Core\DbManager\Dao\NpcDao::current($db)->nameForIdentity(intval($identityId)) ?? ''));
         if ($name !== '') $names[$name] = true;
     }
     if (!empty($wireEvent['payload']['include_narrator'])) {

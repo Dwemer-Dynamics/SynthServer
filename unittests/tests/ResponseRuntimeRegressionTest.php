@@ -297,6 +297,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             }
         };
         $fixture=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
+        DaoTestDoubles::readersFrom($db);
         $GLOBALS['db']=$db; $GLOBALS['TTSFUNCTION']='none';
         try {
             foreach (['input_text','input_audio','trigger','action_result'] as $type) {
@@ -889,6 +890,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             'objectives'=>['Find the secret cache'],'tracked'=>false]);
         $db->payload['active_quests'][]=$private;
         $GLOBALS['db']=$db;
+        DaoTestDoubles::readersFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'quest:owner','request_id'=>'quest:request',
             'generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','type'=>'input_text',
             'payload'=>['text'=>'Hello','actor'=>$db->payload['target'],'control'=>['mode'=>'CHAT']]];
@@ -1056,6 +1058,8 @@ final class ResponseRuntimeRegressionTest extends TestCase
     protected function tearDown(): void
     {
         DaoTestDoubles::reset();
+        // reset() leaves RuntimeSessionDao, which readersFrom() injects; forget every DAO double.
+        DaoTestDoubles::forgetBooted();
         unset(
             $GLOBALS['db'],
             $GLOBALS['SYNTH_NAME'],

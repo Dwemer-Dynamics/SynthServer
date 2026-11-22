@@ -1316,6 +1316,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertNull($intents->lockIntent('action-1', 'session', 2));
         $this->assertNull($intents->issuingEvent('action-1', 'session', 2));
         $this->assertNull($intents->inventoryOwner('action-1', 'session', 2));
+        // Binding a result, its owner, a speaker and a profile refresh read a failed statement as no row, like the legacy reads.
+        $this->assertNull($intents->resultBinding('action-1', 'session', 2));
+        $this->assertNull($intents->resultOwnerActor('action-1', 'idem-action-1', 'session', 'turn-1', 2, '7', 'flat'));
+        $this->assertNull(\Synth\Core\DbManager\Dao\ActorIdentityDao::using($entityManager)->latestByDisplayName('session', 'Preston Garvey'));
+        $this->assertNull(\Synth\Core\DbManager\Dao\RuntimeSessionDao::using($entityManager)->playthroughOf('session'));
+        $this->assertNull(\Synth\Core\DbManager\Dao\NpcDao::using($entityManager)->nameForIdentity(7));
         $this->assertNull(\Synth\Core\DbManager\Dao\ActionResultDao::using($entityManager)->lockResult('action-1'));
         \Synth\Core\DbManager\Dao\ActionIntentDao::inject($intents);
         $db = new class {
@@ -2813,6 +2819,7 @@ final class RequestStreamingTest extends TestCase
                     'actor_form_id' => $this->actor['form_id'], 'actor_plugin' => $this->actor['origin_plugin'], 'actor_playthrough' => $this->actor['playthrough_id']];
             }
         };
+        DaoTestDoubles::readersFrom($db);
         $event = ['protocol_version' => 2, 'session_id' => 'session:one', 'generation' => 2, 'context_sequence' => 7,
             'turn_id'=>'turn:one','runtime_variant'=>'flat',
             'type' => 'action_result', 'payload' => ['result' => ['action_id' => 'action:one', 'idempotency_key' => 'idem:one',

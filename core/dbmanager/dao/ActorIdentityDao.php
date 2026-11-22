@@ -37,6 +37,30 @@ class ActorIdentityDao
         return array_values($this->fresh()->getRepository(AbstractActorIdentity::class)->findBy([], ['id' => 'ASC'], max(1, $limit)));
     }
 
+    /**
+     * The newest-seen actor of this session's playthrough whose display name equals this one (compared without case): form id, origin
+     * plugin, playthrough and display name; null when none or the statement fails (the legacy fetchOne contract: no speaker resolves).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestByDisplayName(string $sessionId, string $displayName): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
+                   FROM public.core_actor_identity a
+                   JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
+                  WHERE s.session_id = ? AND lower(a.display_name)=lower(?)
+                  ORDER BY a.last_seen_at DESC LIMIT 1",
+                [$sessionId, $displayName]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
     /** Merges the faction snapshot (JSON object text) into the actor's metadata and stamps it as seen. False when the statement fails. */
     public function mergeFactionMetadata(int $id, string $snapshotJson): bool
     {

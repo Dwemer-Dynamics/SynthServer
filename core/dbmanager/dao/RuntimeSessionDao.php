@@ -111,6 +111,21 @@ class RuntimeSessionDao
     }
 
     /**
+     * The playthrough id a session is bound to; null when the session is unknown or the statement fails (the legacy fetchOne
+     * contract: the profile refresh is then refused as profile_refresh_runtime_unavailable).
+     */
+    public function playthroughOf(string $sessionId): ?string
+    {
+        try {
+            $value = $this->connection()->fetchOne('SELECT playthrough_id FROM public.core_runtime_session WHERE session_id = ? LIMIT 1', [$sessionId]);
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /**
      * The runtime variant, active generation and capabilities of this session while it is active in this playthrough; null otherwise or
      * when the statement fails (the legacy fetchOne contract: the history reader then reports the session as not active).
      *

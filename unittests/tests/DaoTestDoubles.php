@@ -496,6 +496,106 @@ final class DaoTestDoubles
     }
 
     /**
+     * The identity-lookup, action-result and profile-refresh reads of synth_protocol_state.php answered by $fake->fetchOne() with
+     * the legacy SQL text.
+     */
+    public static function readersFrom(object $fake): void
+    {
+        ActorIdentityDao::inject(new class($fake) extends ActorIdentityDao {
+            public function __construct(private object $fake) {}
+
+            public function idByIdentity(string $formId, string $originPlugin, string $playthroughId): ?int
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT id FROM public.core_actor_identity WHERE game='fo4'
+                AND upper(full_form_id)=upper(" . $f->escapeLiteral($formId) . ")
+                AND lower(origin_plugin)=lower(" . $f->escapeLiteral($originPlugin) . ")
+                AND playthrough_id=" . $f->escapeLiteral($playthroughId));
+
+                return $row && intval($row['id'] ?? 0) > 0 ? intval($row['id']) : null;
+            }
+
+            public function latestByDisplayName(string $sessionId, string $displayName): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT a.full_form_id, a.origin_plugin, a.playthrough_id, a.display_name
+           FROM public.core_actor_identity a
+           JOIN public.core_runtime_session s ON s.playthrough_id=a.playthrough_id
+          WHERE s.session_id={$f->escapeLiteral($sessionId)} AND lower(a.display_name)=lower({$f->escapeLiteral($displayName)})
+          ORDER BY a.last_seen_at DESC LIMIT 1");
+
+                return $row ?: null;
+            }
+        });
+        RuntimeSessionDao::inject(new class($fake) extends RuntimeSessionDao {
+            public function __construct(private object $fake) {}
+
+            public function playthroughOf(string $sessionId): ?string
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne('SELECT playthrough_id FROM public.core_runtime_session WHERE session_id=' . $f->escapeLiteral($sessionId) . ' LIMIT 1');
+
+                return $row && ($row['playthrough_id'] ?? null) !== null ? strval($row['playthrough_id']) : null;
+            }
+        });
+        NpcDao::inject(new class($fake) extends NpcDao {
+            public function __construct(private object $fake) {}
+
+            public function nameForIdentity(int $actorIdentityId): ?string
+            {
+                $row = $this->fake->fetchOne('SELECT npc_name FROM public.core_npc WHERE actor_identity_id=' . $actorIdentityId . ' LIMIT 1');
+
+                return $row && ($row['npc_name'] ?? null) !== null ? strval($row['npc_name']) : null;
+            }
+        });
+        ActionIntentDao::inject(new class($fake) extends ActionIntentDao {
+            public function __construct(private object $fake) {}
+
+            public function resultBinding(string $actionId, string $sessionId, int $generation): ?array
+            {
+                $f = $this->fake;
+                $row = $f->fetchOne("SELECT i.action_name, i.capability, i.arguments, COALESCE(t.display_name, a.display_name, '') AS target_name,
+                COALESCE(a.display_name, '') AS actor_name,
+                a.full_form_id AS actor_form_id, a.origin_plugin AS actor_plugin, a.playthrough_id AS actor_playthrough,
+                t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin, t.playthrough_id AS target_playthrough
+           FROM public.core_action_intent i
+           JOIN public.core_actor_identity a ON a.id=i.actor_identity_id
+           LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id
+          WHERE i.action_id={$f->escapeLiteral($actionId)} AND i.session_id={$f->escapeLiteral($sessionId)} AND i.generation={$generation}");
+
+                return $row ?: null;
+            }
+
+            public function resultOwnerActor(string $actionId, string $idempotencyKey, string $sessionId, string $turnId, int $generation, string $contextSequence, string $runtimeVariant): ?array
+            {
+                $f = $this->fake;
+                $action = $f->escapeLiteral($actionId);
+                $key = $f->escapeLiteral($idempotencyKey);
+                $session = $f->escapeLiteral($sessionId);
+                $turn = $f->escapeLiteral($turnId);
+                $sequence = $f->escapeLiteral($contextSequence);
+                $variant = $f->escapeLiteral($runtimeVariant);
+                $row = $f->fetchOne("SELECT a.full_form_id,a.origin_plugin,a.playthrough_id
+        FROM public.core_action_intent i
+        JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
+            AND e.generation=i.generation AND e.turn_id=i.turn_id
+        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
+        JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
+        WHERE i.action_id=$action AND i.idempotency_key=$key AND i.session_id=$session
+            AND i.turn_id=$turn AND i.generation=$generation
+            AND r.state='active' AND r.active_generation=$generation AND r.runtime_variant=$variant
+            AND e.canonical_event->>'protocol_version'='2'
+            AND e.canonical_event->>'session_id'=$session AND e.canonical_event->>'turn_id'=$turn
+            AND e.canonical_event->>'generation'=" . $f->escapeLiteral(strval($generation)) . "
+            AND e.canonical_event->>'context_sequence'=$sequence
+            AND e.canonical_event->>'runtime_variant'=$variant");
+
+                return $row ?: null;
+            }
+        });
+    }
+
+    /**
      * Forgets every DAO that an earlier test configured with Database::boot*(). A test whose fixture owns its PostgreSQL connection
      * (and an open transaction on it) needs its DAOs bound to that fixture, not to a session booted by another test.
      */
