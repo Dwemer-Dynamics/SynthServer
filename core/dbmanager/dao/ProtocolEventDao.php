@@ -41,6 +41,16 @@ class ProtocolEventDao
         return $row === false ? null : $row;
     }
 
+    /** Stores the canonical event of an accepted visual capture. */
+    public function insertVisualCapture(string $sessionId, string $requestId, string $turnId, int $generation, string $canonicalJson, string $eventSha256): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_protocol_event (session_id,request_id,turn_id,generation,event_type,canonical_event,event_sha256)
+             VALUES (?,?,?,?,'visual_capture',CAST(? AS jsonb),?)",
+            [$sessionId, $requestId, $turnId, $generation, $canonicalJson, $eventSha256]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractProtocolEvent> */
     public function findAll(int $limit = 1000): array
     {

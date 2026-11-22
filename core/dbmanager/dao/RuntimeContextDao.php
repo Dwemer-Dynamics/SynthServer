@@ -97,6 +97,27 @@ class RuntimeContextDao
     }
 
     /**
+     * The newest snapshot of a generation with its target's display name (null without one); null when there is none or the statement
+     * fails (the legacy fetchOne contract: the history reader then answers without a target).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function newestTarget(string $sessionId, int $generation): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative(
+                "SELECT snapshot_sequence, context_payload->'target'->>'display_name' AS target FROM public.core_runtime_context
+                  WHERE session_id = ? AND generation = ? ORDER BY snapshot_sequence DESC LIMIT 1",
+                [$sessionId, $generation]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
      * The payload of an earlier snapshot of the same player (the one $currentSequence belongs to) in this playthrough: null when
      * there is none, false when the read failed.
      */
@@ -136,6 +157,17 @@ class RuntimeContextDao
         } catch (\Doctrine\DBAL\Exception $error) {
             return null;
         }
+
+        return $row === false ? null : $row;
+    }
+
+    /** The playthrough and target identity of one snapshot; null when there is none. @return array<string, mixed>|null */
+    public function snapshotTarget(string $sessionId, int $generation, int $sequence): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT playthrough_id, target_identity_id FROM public.core_runtime_context WHERE session_id = ? AND generation = ? AND snapshot_sequence = ?',
+            [$sessionId, $generation, $sequence]
+        );
 
         return $row === false ? null : $row;
     }

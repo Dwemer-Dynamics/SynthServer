@@ -250,6 +250,37 @@ class RequestExecutionDao
         ) !== false;
     }
 
+    /** Records an accepted visual capture as a complete request whose response body is the result JSON. */
+    public function insertVisualCapture(string $sessionId, string $requestId, string $turnId, int $generation, string $requestSha256, string $resultJson): bool
+    {
+        return $this->tryStatement(
+            "INSERT INTO public.core_request_execution
+                (session_id,request_id,turn_id,generation,request_sha256,event_type,state,response_content_type,response_body,completed_at)
+             VALUES (?,?,?,?,?,'visual_capture','complete','application/vnd.synth.visual-result+json',convert_to(?,'UTF8'),NOW())",
+            [$sessionId, $requestId, $turnId, $generation, $requestSha256, $resultJson]
+        );
+    }
+
+    /**
+     * True when this turn's context event at this snapshot sequence is acknowledged and its request completed; false otherwise or when
+     * the statement fails (the legacy fetchOne contract: the visual request is then refused as stale).
+     */
+    public function hasCompleteContext(string $sessionId, int $generation, string $turnId, int $sequence): bool
+    {
+        try {
+            return $this->connection()->fetchOne(
+                "SELECT 1 AS acknowledged FROM public.core_protocol_event p
+                    JOIN public.core_request_execution e USING (session_id, request_id)
+                    WHERE p.session_id = ? AND p.generation = ? AND p.turn_id = ?
+                        AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence' = ?
+                        AND e.state='complete' LIMIT 1",
+                [$sessionId, $generation, $turnId, (string) $sequence]
+            ) !== false;
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractRequestExecution> */
     public function findAll(int $limit = 1000): array
     {
