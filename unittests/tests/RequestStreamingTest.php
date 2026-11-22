@@ -439,6 +439,58 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('failed',synth_tts_resolve_job_status($db,$status)['status']);
     }
 
+    public function testDurableSpeechStatusReadFailuresKeepTheFailedStatusResponse(): void
+    {
+        require_once dirname(__DIR__,2).'/lib/synth_tts_worker.php';
+        $dao=new class extends \Synth\Core\DbManager\Dao\WorkerJobDao {
+            public ?\Throwable $primary=null;
+            public ?\Throwable $active=null;
+            public ?array $other=null;
+            public int $activeReads=0;
+            public function __construct() {}
+            public function ttsStatusById(int $jobId, string $cacheKey): ?array
+            {
+                if ($this->primary) throw $this->primary;
+                return null;
+            }
+            public function ttsActiveByCacheKey(string $cacheKey): ?array
+            {
+                $this->activeReads++;
+                if ($this->active) throw $this->active;
+                return $this->other;
+            }
+        };
+        \Synth\Core\DbManager\Dao\WorkerJobDao::inject($dao);
+        $database=static fn(string $message)=>new class($message) extends \RuntimeException implements \Doctrine\DBAL\Exception {};
+        $status=['schema'=>'synth.tts_status.v1','cache_key'=>str_repeat('b',32),'status'=>'pending','_job_id'=>7];
+
+        // Primary read fails: a live owner found by the active-cache lookup keeps the line pending.
+        $dao->primary=$database('primary detail');
+        $dao->other=['state'=>'running','within_deadline'=>'t'];
+        $result=synth_tts_resolve_job_status(new stdClass(),$status);
+        $this->assertSame('pending',$result['status']);
+        $this->assertArrayNotHasKey('error_code',$result);
+        $this->assertSame(1,$dao->activeReads);
+
+        // Both reads fail: the legacy failed/synthesis_failed response, not an escaping exception.
+        $dao->active=$database('active detail');
+        $result=synth_tts_resolve_job_status(new stdClass(),$status);
+        $this->assertSame('failed',$result['status']);
+        $this->assertSame('synthesis_failed',$result['error_code']);
+
+        // Errors other than database errors still propagate from either read.
+        foreach (['primary','active'] as $read) {
+            $dao->primary=null;$dao->active=null;
+            $dao->{$read}=new \LogicException('unrelated '.$read);
+            try {
+                synth_tts_resolve_job_status(new stdClass(),$status);
+                $this->fail('Unrelated '.$read.' error was absorbed');
+            } catch (\LogicException $error) {
+                $this->assertSame('unrelated '.$read,$error->getMessage());
+            }
+        }
+    }
+
     public function testDurableSpeechInputsRequirePrivateStorageOutsideTheDocumentRoot(): void
     {
         require_once dirname(__DIR__,2).'/lib/synth_tts_jobs.php';
