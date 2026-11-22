@@ -1295,6 +1295,9 @@ final class RequestStreamingTest extends TestCase
         $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::using($entityManager);
         $this->assertNull($contexts->latestSnapshot('session', 1));
         $this->assertNull($contexts->latestSequenceInPlaythrough('session', 1, 'save-001'));
+        $connection->method('fetchOne')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $this->assertNull(\Synth\Core\DbManager\Dao\ContextEventDao::using($entityManager)->latestWorldContextParty('save-001'));
     }
 
     public function testRetirementCanClaimAnUninitializedSessionWithoutStartingProviders(): void
@@ -2475,10 +2478,12 @@ final class RequestStreamingTest extends TestCase
         $this->assertSame('door', synth_protocol_validate_point_of_interest($poi, 'poi')['kind']);
 
         $db = new class {
-            public array $queries = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        $latestParty = null;
+        DaoTestDoubles::contextEventRecorder($calls, $latestParty);
+        // Arguments of insertLegacySnapshot: type, data, playthrough, gamets, now, people, location, party JSON.
         synth_protocol_persist_environment_snapshots($db, [
             'request_id' => 'request-context-001', 'turn_id' => 'turn-context-001',
             'generation' => 7, 'session_id' => 'session-flat-001', 'runtime_variant' => 'flat',
@@ -2488,14 +2493,16 @@ final class RequestStreamingTest extends TestCase
                 'world' => ['game_time_ticks' => 834000000000],
             ],
         ], [$item], [$poi]);
-        $this->assertCount(2, $db->queries);
-        $this->assertStringContainsString("'nearby_items'", $db->queries[0]);
-        $this->assertStringContainsString('FF001234', $db->queries[0]);
-        $this->assertStringContainsString("'points_of_interest'", $db->queries[1]);
-        $this->assertStringContainsString('Sanctuary workshop door', $db->queries[1]);
-        $this->assertStringContainsString('request-context-001', $db->queries[1]);
-        $this->assertStringContainsString('"nearby_items_observation":"partial"',$db->queries[0]);
-        $this->assertStringContainsString('"points_of_interest_observation":"partial"',$db->queries[1]);
+        $this->assertCount(2, $calls);
+        $this->assertSame('insertLegacySnapshot', $calls[0][0]);
+        $this->assertSame('nearby_items', $calls[0][1][0]);
+        $this->assertStringContainsString('FF001234', $calls[0][1][7]);
+        $this->assertSame('points_of_interest', $calls[1][1][0]);
+        $this->assertStringContainsString('Sanctuary workshop door', $calls[1][1][7]);
+        $this->assertStringContainsString('request-context-001', $calls[1][1][7]);
+        $this->assertSame('save-001', $calls[0][1][2]);
+        $this->assertStringContainsString('"nearby_items_observation":"partial"',$calls[0][1][7]);
+        $this->assertStringContainsString('"points_of_interest_observation":"partial"',$calls[1][1][7]);
         $payload=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
         foreach (['nearby_items'=>16,'points_of_interest'=>12] as $field=>$limit) {
             foreach (['complete','partial','cached','unavailable',null] as $quality) {
@@ -2508,11 +2515,11 @@ final class RequestStreamingTest extends TestCase
                     $prompt=synth_protocol_prompt_environment($observed);
                     $this->assertSame($expected,$prompt[$field.'_observation']);
                     $this->assertSame($observed[$field],$prompt[$field]);
-                    $db->queries=[];
+                    $calls=[];
                     synth_protocol_persist_environment_snapshots($db,['payload'=>$observed],$observed['nearby_items'],$observed['points_of_interest']);
-                    $sql=$db->queries[$field==='nearby_items'?0:1];
-                    $this->assertStringContainsString('"'.$field.'_observation":"'.$expected.'"',$sql);
-                    if ($quality==='unavailable') $this->assertStringContainsString('observation unavailable',$sql);
+                    $written=$calls[$field==='nearby_items'?0:1][1];
+                    $this->assertStringContainsString('"'.$field.'_observation":"'.$expected.'"',$written[7]);
+                    if ($quality==='unavailable') $this->assertStringContainsString('observation unavailable',$written[1]);
                 }
             }
             foreach ([null,[],true,'invented','unavailable'] as $quality) {
@@ -3021,12 +3028,11 @@ final class RequestStreamingTest extends TestCase
     public function testStrictWorldStateWritesChangedCanonicalHistoryOnly(): void
     {
         $db = new class {
-            public array $queries = [];
-            public array $latest = [];
             public function escapeLiteral(string $value): string { return "'".str_replace("'", "''", $value)."'"; }
-            public function fetchOne(string $sql): array { return $this->latest; }
-            public function execQuery(string $sql): bool { $this->queries[] = $sql; return true; }
         };
+        $calls = [];
+        $latestParty = null;
+        DaoTestDoubles::contextEventRecorder($calls, $latestParty);
         $world = [
             'location' => 'Sanctuary Hills', 'cell' => 'SanctuaryExt',
             'worldspace' => 'Commonwealth', 'weather' => 'CommonwealthClear',
@@ -3040,20 +3046,22 @@ final class RequestStreamingTest extends TestCase
         ];
 
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertCount(1, $db->queries);
-        $this->assertStringContainsString('INSERT INTO public.core_context_event', $db->queries[0]);
-        $this->assertStringContainsString('request-context-001', $db->queries[0]);
+        $this->assertCount(1, $calls);
+        $this->assertSame('insertLegacySnapshot', $calls[0][0]);
+        $this->assertSame('world_context', $calls[0][1][0]);
+        $this->assertSame('save:fo4:001', $calls[0][1][2]);
+        $this->assertStringContainsString('request-context-001', $calls[0][1][7]);
 
-        $db->queries = [];
-        $db->latest = ['party' => json_encode(
+        $calls = [];
+        $latestParty = json_encode(
             array_merge($world, ['playthrough_id' => 'save:fo4:001', 'session_id' => 'session-flat-001', 'generation' => 7]),
             JSON_THROW_ON_ERROR
-        )];
+        );
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertSame([], $db->queries);
+        $this->assertSame([], $calls);
         $event['generation'] = 8;
         synth_protocol_persist_world_context($db, $event, $world);
-        $this->assertCount(1, $db->queries, 'A loaded generation needs its own world observation');
+        $this->assertCount(1, $calls, 'A loaded generation needs its own world observation');
     }
 
     public function testNativeObservationRequiresOwnedSequenceAndClosedType(): void

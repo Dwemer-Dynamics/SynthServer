@@ -359,6 +359,26 @@ final class DaoTestDoubles
     }
 
     /**
+     * Records the ContextEventDao snapshot writes instead of running them: each call appends [method, arguments] to $calls.
+     * latestWorldContextParty() returns $latestParty, read at call time so a test can change it between calls.
+     *
+     * @param array<int, array{0: string, 1: array<int, mixed>}> $calls
+     */
+    public static function contextEventRecorder(array &$calls, ?string &$latestParty): void
+    {
+        $log = new class($calls, $latestParty) {
+            public function __construct(public array &$calls, public ?string &$latestParty) {}
+            public function __invoke(string $name, array $args): bool { $this->calls[] = [$name, $args]; return true; }
+        };
+        ContextEventDao::inject(new class($log) extends ContextEventDao {
+            public function __construct(private object $log) {}
+            public function publishObservation(string $sessionId, int $generation, int $snapshotSequence, string $playthroughId, string $requestId, string $type, string $data, int $gamets, int $now, string $people, string $location, string $partyJson): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function insertLegacySnapshot(string $type, string $data, string $playthroughId, int $gamets, int $now, string $people, string $location, string $partyJson): bool { return ($this->log)(__FUNCTION__, func_get_args()); }
+            public function latestWorldContextParty(string $playthroughId): ?string { return $this->log->latestParty; }
+        });
+    }
+
+    /**
      * Forgets every DAO that an earlier test configured with Database::boot*(). A test whose fixture owns its PostgreSQL connection
      * (and an open transaction on it) needs its DAOs bound to that fixture, not to a session booted by another test.
      */
