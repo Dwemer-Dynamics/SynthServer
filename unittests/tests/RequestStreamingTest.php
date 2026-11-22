@@ -57,7 +57,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
-        DaoTestDoubles::inventoryFrom($db);
+        DaoTestDoubles::actionResultFrom($db);
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
             'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
@@ -128,6 +128,8 @@ final class RequestStreamingTest extends TestCase
         $original=json_encode($payload);
         $base=$owner+['origin_request_id'=>$parent['request_id'],'result'=>$event['payload']['result']];
         $db->rows=['action-1'=>$base];
+        // The receipts are persisted; the ancestry reads now answer ActionIntentDao instead (one injected double at a time).
+        DaoTestDoubles::inventoryFrom($db);
         $view=synth_protocol_action_inventory_view($db,$event,$payload);
         $this->assertSame([],$view['actor_states'][0]['inventory']);
         $this->assertSame('complete',$view['actor_states'][0]['inventory_observation']);
@@ -1300,6 +1302,31 @@ final class RequestStreamingTest extends TestCase
         $this->assertNull(\Synth\Core\DbManager\Dao\ContextEventDao::using($entityManager)->latestWorldContextParty('save-001'));
     }
 
+    public function testActionResultReadersReportAFailedStatementAsTheLegacyRejection(): void
+    {
+        // Legacy fetchOne returned [] on failure, so a failed intent read was a 409 unknown_or_stale_action, not an escaped DBAL error.
+        $connection = $this->createStub(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchAssociative')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $connection->method('fetchOne')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+        $intents = \Synth\Core\DbManager\Dao\ActionIntentDao::using($entityManager);
+        $this->assertNull($intents->lockIntent('action-1', 'session', 2));
+        $this->assertNull($intents->issuingEvent('action-1', 'session', 2));
+        $this->assertNull($intents->inventoryOwner('action-1', 'session', 2));
+        $this->assertNull(\Synth\Core\DbManager\Dao\ActionResultDao::using($entityManager)->lockResult('action-1'));
+        \Synth\Core\DbManager\Dao\ActionIntentDao::inject($intents);
+        $db = new class {
+            public function execQuery(string $sql): never { throw new LogicException('No write is permitted after a failed intent read'); }
+        };
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('unknown_or_stale_action');
+        synth_protocol_persist_action_result($db, ['protocol_version' => 2, 'generation' => 2, 'context_sequence' => 7,
+            'payload' => ['result' => ['action_id' => 'action-1', 'idempotency_key' => 'idem-action-1', 'status' => 'succeeded']]], 'session');
+    }
+
     public function testRetirementCanClaimAnUninitializedSessionWithoutStartingProviders(): void
     {
         $db = new class {
@@ -1657,6 +1684,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): never { throw new LogicException('No write is permitted for this mismatch'); }
         };
+        DaoTestDoubles::actionResultFrom($db);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('action_context_mismatch');
         synth_protocol_persist_action_result($db, ['protocol_version' => 2, 'generation' => 2,
@@ -1682,6 +1710,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool {$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::actionResultFrom($db);
         $db->owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>'EquipItem',
             'capability'=>'action.equip_item','full_form_id'=>'0x0001A4D7','origin_plugin'=>'Fallout4.esm',
             'playthrough_id'=>'save:fo4:001','canonical_event'=>$parent];

@@ -1198,28 +1198,15 @@ function synth_protocol_persist_action_result($db, array $event, string $session
 {
     \Synth\Bootstrap::forget('SYNTH_WAIT_ADMITTED_OUTCOME');
     $result = $event['payload']['result'];
-    $actionId = $db->escapeLiteral($result['action_id']);
-    $idempotencyKey = $db->escapeLiteral($result['idempotency_key']);
-    $session = $db->escapeLiteral($sessionId);
+    $actionId = strval($result['action_id']);
     $generation = intval($event['generation']);
-    $intent = $db->fetchOne(
-        "SELECT action_id, idempotency_key, state, action_name, (deadline_at + INTERVAL '5 minutes' < NOW()) AS expired
-           FROM public.core_action_intent
-          WHERE action_id={$actionId} AND session_id={$session} AND generation={$generation}
-          FOR UPDATE"
-    );
+    $intents = \Synth\Core\DbManager\Dao\ActionIntentDao::current($db);
+    $intent = $intents->lockIntent($actionId, $sessionId, $generation);
     if (!$intent || !hash_equals(strval($intent['idempotency_key']), $result['idempotency_key'])) {
         throw new DomainException('unknown_or_stale_action');
     }
     if (($event['protocol_version'] ?? 1) === 2) {
-        $origin = $db->fetchOne(
-            "SELECT e.canonical_event->>'context_sequence' AS context_sequence,
-                    e.canonical_event->>'protocol_version' AS protocol_version
-               FROM public.core_action_intent i
-               JOIN public.core_protocol_event e
-                 ON e.session_id=i.session_id AND e.request_id=i.request_id AND e.generation=i.generation
-              WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}"
-        );
+        $origin = $intents->issuingEvent($actionId, $sessionId, $generation);
         if (!$origin || intval($origin['protocol_version']) !== 2
             || intval($origin['context_sequence']) !== $event['context_sequence']) {
             throw new DomainException('action_context_mismatch');
@@ -1233,21 +1220,7 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         || (($event['protocol_version'] ?? 1) === 2 && in_array($intent['action_name'] ?? '', ['GiveCapsTo','give_caps_to','TakeCapsFromPlayer','take_caps_from_player','TakeItemFromPlayer','take_item_from_player','OpenInventory','open_inventory','Barter','barter'], true));
     if ($transferReceipt || $transferIntent || ($result['schema'] ?? '') === 'synth.action.result.v2') {
         // Only the recorded mutation owner may attach inventory; labels never confer identity.
-        $owner = $db->fetchOne("SELECT i.turn_id, i.request_id, i.action_name, i.capability,
-                a.full_form_id, a.origin_plugin, a.playthrough_id, e.canonical_event,
-                t.full_form_id AS recipient_form_id, t.origin_plugin AS recipient_plugin,
-                t.playthrough_id AS recipient_playthrough_id
-            FROM public.core_action_intent i
-            JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-            LEFT JOIN public.core_actor_identity t ON t.id=i.target_identity_id AND t.game='fo4'
-            JOIN public.core_protocol_event e ON e.session_id=i.session_id AND e.request_id=i.request_id
-                AND e.generation=i.generation AND e.turn_id=i.turn_id
-            JOIN public.core_runtime_session r ON r.session_id=i.session_id AND r.playthrough_id=a.playthrough_id
-            WHERE i.action_id={$actionId} AND i.session_id={$session} AND i.generation={$generation}
-                AND i.state IN ('pending','dispatched','complete')
-                AND r.state='active' AND r.active_generation={$generation} AND r.active_turn_id=i.turn_id
-                AND r.active_turn_sequence::text=e.canonical_event->>'context_sequence'
-                AND r.runtime_variant=e.canonical_event->>'runtime_variant'");
+        $owner = $intents->inventoryOwner($actionId, $sessionId, $generation);
         if ($owner) $owner=synth_protocol_transfer_inventory_owner($owner);
         $parent = is_array($owner['canonical_event'] ?? null) ? $owner['canonical_event']
             : json_decode(strval($owner['canonical_event'] ?? ''), true);
@@ -1324,14 +1297,11 @@ function synth_protocol_persist_action_result($db, array $event, string $session
                 && !in_array('context.inventory_512', $parent['capabilities'] ?? [], true))
                 throw new DomainException('action_inventory_capability_mismatch');
     }
-    $existing = $db->fetchOne(
-        "SELECT result FROM public.core_action_result WHERE action_id={$actionId} FOR UPDATE"
-    );
+    $results = \Synth\Core\DbManager\Dao\ActionResultDao::current($db);
+    $existing = $results->lockResult($actionId);
     $resultJson = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-    if ($existing) {
-        $existingValue = is_array($existing['result'] ?? null)
-            ? $existing['result']
-            : json_decode(strval($existing['result'] ?? ''), true);
+    if ($existing !== null) {
+        $existingValue = json_decode($existing, true);
         $existingJson = is_array($existingValue)
             ? json_encode(synth_protocol_sort_keys($existingValue), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
             : '';
@@ -1341,15 +1311,9 @@ function synth_protocol_persist_action_result($db, array $event, string $session
         }
         return;
     }
-    $status = $db->escapeLiteral($result['status']);
-    $resultSql = $db->escapeLiteral($resultJson);
-    if ($db->execQuery(
-        "INSERT INTO public.core_action_result (action_id, idempotency_key, status, result)
-         VALUES ({$actionId}, {$idempotencyKey}, {$status}, {$resultSql}::jsonb)"
-    ) === false) throw new RuntimeException('Unable to persist action terminal result.');
-    if ($db->execQuery(
-        "UPDATE public.core_action_intent SET state='complete' WHERE action_id={$actionId}"
-    ) === false) throw new RuntimeException('Unable to complete action intent.');
+    if (!$results->insertResult($actionId, strval($result['idempotency_key']), strval($result['status']), $resultJson))
+        throw new RuntimeException('Unable to persist action terminal result.');
+    if (!$intents->markComplete($actionId)) throw new RuntimeException('Unable to complete action intent.');
     if($waitOutcome!==null){
         synth_wait_record_consequence($db,$event,$waitOutcome);
         \Synth\Bootstrap::set('SYNTH_WAIT_ADMITTED_OUTCOME', $waitOutcome);
