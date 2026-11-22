@@ -493,6 +493,8 @@ final class JsonSchemaCatalogTest extends TestCase
             public function escapeLiteral($value): string { return "'unit-owner'"; }
             public function fetchOne($query): array { return ['context_payload'=>$this->payload]; }
         };
+        require_once __DIR__.'/DaoTestDoubles.php';
+        DaoTestDoubles::originalContextFrom($db);
         $previous=$GLOBALS['SYNTH_REQUEST_EVENT']??null;
         try {
             $reader=array_replace($event,['type'=>'input_text','context_sequence'=>1,'payload'=>['text'=>'Hello']]);
@@ -505,6 +507,7 @@ final class JsonSchemaCatalogTest extends TestCase
             $this->assertArrayNotHasKey('actor_events',json_decode($request[3],true));
             $this->assertStringNotContainsString('0x00009999',$request[3]);
         } finally {
+            \Synth\Core\DbManager\Dao\RuntimeContextDao::inject(null);
             if ($previous===null) unset($GLOBALS['SYNTH_REQUEST_EVENT']);
             else $GLOBALS['SYNTH_REQUEST_EVENT']=$previous;
         }
@@ -1067,6 +1070,7 @@ final class JsonSchemaCatalogTest extends TestCase
             'payload'=>['actors'=>[$identity],'include_narrator'=>false]];
         require_once __DIR__.'/DaoTestDoubles.php';
         DaoTestDoubles::linkedActorsFrom($db);
+        DaoTestDoubles::originalContextFrom($db);
         $this->assertSame(19,synth_profile_refresh_bindings($db,$event)['Piper']['npc_id']);
         $this->assertSame(1,$db->lookups);
         foreach (['form_id'=>'0x00000016','playthrough_id'=>'other:test','display_name'=>'Renamed'] as $key=>$value) {

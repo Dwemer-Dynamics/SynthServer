@@ -24,8 +24,61 @@ use Synth\Core\DbManager\Dao\NpcBiographyTemplateDao;
 use Synth\Core\DbManager\Dao\WorldknowledgeArticleDao;
 use Synth\Core\DbManager\Dao\WorldknowledgeAuditDao;
 
+/**
+ * The two original-context reads of synth_protocol_original_context() asked of $this->fake->fetchOne() with the legacy SQL
+ * text, for every RuntimeContextDao double: a double that stubs another read never falls into the DAO's missing session.
+ */
+trait OriginalContextFromFake
+{
+    public function frozenCapture(string $sessionId, int $generation, int $sequence): ?array
+    {
+        $session = $this->fake->escapeLiteral($sessionId);
+        $row = $this->fake->fetchOne(
+            "SELECT c.context_payload
+               FROM public.core_runtime_context c
+               JOIN public.core_runtime_session r ON r.session_id=c.session_id
+                AND r.active_generation=c.generation AND r.playthrough_id=c.playthrough_id AND r.state='active'
+              WHERE c.session_id={$session} AND c.generation={$generation} AND c.snapshot_sequence={$sequence}"
+        );
+
+        return $row ?: null;
+    }
+
+    public function latestCapture(string $sessionId, int $generation): ?array
+    {
+        $session = $this->fake->escapeLiteral($sessionId);
+        $row = $this->fake->fetchOne(
+            "SELECT c.context_payload,
+                p.full_form_id AS player_form_id, p.origin_plugin AS player_plugin,
+                p.playthrough_id, p.display_name AS player_name,
+                t.full_form_id AS target_form_id, t.origin_plugin AS target_plugin,
+                t.display_name AS target_name
+           FROM public.core_runtime_context c
+           JOIN public.core_actor_identity p ON p.id=c.player_identity_id
+           LEFT JOIN public.core_actor_identity t ON t.id=c.target_identity_id
+          WHERE c.session_id={$session} AND c.generation={$generation}
+          ORDER BY c.snapshot_sequence DESC LIMIT 1"
+        );
+
+        return $row ?: null;
+    }
+}
+
 final class DaoTestDoubles
 {
+    /**
+     * RuntimeContextDao's original-context reads (synth_protocol_original_context()) answered by $fake->fetchOne() with the
+     * legacy SQL text; other methods have no session. Cleared by reset().
+     */
+    public static function originalContextFrom(object $fake): void
+    {
+        RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
+            use OriginalContextFromFake;
+
+            public function __construct(private object $fake) {}
+        });
+    }
+
     /** RequestExecutionDao::ownerState() answered by $fake->fetchOne() with the legacy owner query. */
     public static function ownerFrom(object $fake): void
     {
@@ -297,6 +350,8 @@ final class DaoTestDoubles
             }
         });
         RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
+            use OriginalContextFromFake;
+
             public function __construct(private object $fake) {}
 
             public function loadedContext(string $sessionId, string $playthroughId, int $generation, int $sequence, string $runtimeVariant): ?array
@@ -354,6 +409,8 @@ final class DaoTestDoubles
     public static function latestSnapshotFrom(object $fake): void
     {
         RuntimeContextDao::inject(new class($fake) extends RuntimeContextDao {
+            use OriginalContextFromFake;
+
             public function __construct(private object $fake) {}
 
             public function latestSnapshot(string $sessionId, int $generation): ?array

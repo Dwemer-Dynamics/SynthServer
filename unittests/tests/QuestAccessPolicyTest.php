@@ -332,6 +332,7 @@ final class QuestAccessPolicyTest extends TestCase
                 throw new SYNTHProtocolCancelled('Quest policy fixture cancelled');
             }
         };
+        DaoTestDoubles::originalContextFrom($GLOBALS['db']);
         $this->expectException(SYNTHProtocolCancelled::class);
         synthWorldKnowledgeAccessDecision($this->row(), ['knowall']);
     }

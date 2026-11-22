@@ -1,9 +1,16 @@
 <?php declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 require_once dirname(__DIR__,2).'/lib/synth_protocol_state.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 final class NativeGiftMenuTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        \Synth\Core\DbManager\Dao\RuntimeContextDao::inject(null);
+        parent::tearDown();
+    }
+
     private function fixture(): array {
         $player=['form_id'=>'0x00000014','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'menu-save','display_name'=>'Player'];
         $npc=['form_id'=>'0x00000015','origin_plugin'=>'Fallout4.esm','playthrough_id'=>'menu-save','display_name'=>'Marcy'];
@@ -47,6 +54,7 @@ final class NativeGiftMenuTest extends TestCase
             public function escapeLiteral(string $value): string { return "'".$value."'"; }
             public function fetchOne(string $query): array { return ['context_payload'=>$this->snapshot]; }
         };
+        DaoTestDoubles::originalContextFrom($db);
 
         self::assertSame('general',synth_player_gift_statement_kind($event['payload']['text'],'marcy'));
         self::assertFalse(synth_gift_menu_request_allowed($event));

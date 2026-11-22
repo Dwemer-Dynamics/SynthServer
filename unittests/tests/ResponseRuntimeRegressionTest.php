@@ -298,6 +298,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         };
         $fixture=json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
         DaoTestDoubles::readersFrom($db);
+        DaoTestDoubles::originalContextFrom($db);
         $GLOBALS['db']=$db; $GLOBALS['TTSFUNCTION']='none';
         try {
             foreach (['input_text','input_audio','trigger','action_result'] as $type) {
@@ -483,6 +484,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 public function fetchAll(string $query, $log=false): array { $this->queries[]=$query; return []; }
             };
             DaoTestDoubles::ownerFrom($db);
+            DaoTestDoubles::originalContextFrom($db);
             \Synth\Managers\ConfigManager\ConfigManager::inject(new class extends \Synth\Managers\ConfigManager\ConfigManager {
                 public function __construct() {}
                 public function getMany(string $scope,array $keys): array { return []; }
@@ -762,6 +764,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
                 return $this->payload === null ? null : ['context_payload'=>$this->payload];
             }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $db->payload = json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
         $event = ['protocol_version'=>2,'session_id'=>'rpg:one','generation'=>2,'context_sequence'=>7];
         $key = synthRpgCommentCooldownKey($db,$event);
@@ -833,6 +836,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
             }
             public function fetchAll(string $sql): never { throw new LogicException('Global latest rows forbidden'); }
         };
+        DaoTestDoubles::originalContextFrom($db);
         $db->payload = json_decode(file_get_contents(dirname(__DIR__,2).'/protocol/v2/fixtures/valid/context.json'),true)['payload'];
         $GLOBALS['db'] = $db;
         $event = ['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7];
@@ -902,6 +906,7 @@ final class ResponseRuntimeRegressionTest extends TestCase
         $db->payload['active_quests'][]=$private;
         $GLOBALS['db']=$db;
         DaoTestDoubles::readersFrom($db);
+        DaoTestDoubles::originalContextFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'quest:owner','request_id'=>'quest:request',
             'generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','type'=>'input_text',
             'payload'=>['text'=>'Hello','actor'=>$db->payload['target'],'control'=>['mode'=>'CHAT']]];

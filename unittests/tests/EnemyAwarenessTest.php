@@ -4,6 +4,7 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__DIR__,2).'/lib/request.php';
 require_once dirname(__DIR__,2).'/lib/response.php';
+require_once __DIR__.'/DaoTestDoubles.php';
 
 final class EnemyAwarenessTest extends TestCase
 {
@@ -80,6 +81,7 @@ final class EnemyAwarenessTest extends TestCase
             public function escapeLiteral(string $value):string{return "'".str_replace("'","''",$value)."'";}
             public function fetchOne(string $query):array{return ['context_payload'=>json_encode($this->payload)];}
         };
+        DaoTestDoubles::originalContextFrom($db);
         $saved=[];foreach(['SYNTH_TURN_ACTOR_STATES','SYNTH_INPUT_TARGET_IDENTITY','SYNTH_EXTERNAL_REQUEST','gameRequest'] as $key)
             $saved[$key]=[array_key_exists($key,$GLOBALS),$GLOBALS[$key] ?? null];
         try {
@@ -99,6 +101,7 @@ final class EnemyAwarenessTest extends TestCase
                 $this->assertSame($p['actor_states'],$GLOBALS['SYNTH_TURN_ACTOR_STATES']);
             }
         } finally {
+            \Synth\Core\DbManager\Dao\RuntimeContextDao::inject(null);
             foreach($saved as $key=>[$exists,$value]) {unset($GLOBALS[$key]);if($exists)$GLOBALS[$key]=$value;}
         }
         $this->assertSame($original,json_encode($p));
