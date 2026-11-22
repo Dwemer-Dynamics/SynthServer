@@ -449,50 +449,13 @@ if (!function_exists('synthFetchRelationshipTimelineChanges')) {
         $perNpcLimit = max(2, min(100, (int)($options['per_npc_limit'] ?? 12)));
         $markerKey = synthRelationshipHistorySourceKey();
 
-        $conditions = [
-            "extended_data IS NOT NULL",
-            "jsonb_typeof(extended_data) = 'object'",
-            // Only snapshots that carry relationship state can produce a timeline row.
-            "(extended_data ? 'relationships' OR extended_data ? '{$markerKey}')",
-        ];
-
         $npcId = (int)($options['npc_id'] ?? 0);
-        if ($npcId > 0) {
-            $conditions[] = "npc_id = {$npcId}";
-        }
-
         $npcName = trim((string)($options['npc_name'] ?? ''));
-        if ($npcName !== '') {
-            $conditions[] = "lower(btrim(COALESCE(npc_name, ''))) = lower('" . $db->escape($npcName) . "')";
-        }
-
-        $where = implode(' AND ', $conditions);
-        // Bound the scan by history_id, then keep a per-NPC window so one mass save
-        // snapshot cannot crowd every other NPC out of the result.
-        $query = "SELECT history_id, npc_id, npc_name, gamets_last_updated,
-                         created_epoch, relationships, history_source
-                  FROM (
-                      SELECT h.history_id, h.npc_id, h.npc_name, h.gamets_last_updated,
-                             EXTRACT(EPOCH FROM h.created)::bigint AS created_epoch,
-                             h.extended_data -> 'relationships' AS relationships,
-                             h.extended_data ->> '{$markerKey}' AS history_source,
-                             row_number() OVER (PARTITION BY h.npc_id ORDER BY h.history_id DESC) AS rn
-                      FROM (
-                          SELECT history_id, npc_id, npc_name, gamets_last_updated, created, extended_data
-                          FROM core_npc_history
-                          WHERE {$where}
-                          ORDER BY history_id DESC
-                          LIMIT {$rowScanLimit}
-                      ) h
-                  ) s
-                  WHERE s.rn <= {$perNpcLimit}
-                  ORDER BY s.history_id DESC
-                  LIMIT {$scanLimit}";
 
         try {
-            $rows = $db->fetchAll($query);
+            $rows = \Synth\Core\DbManager\Dao\NpcHistoryDao::current($db)->relationshipSnapshots($markerKey, $npcId, $npcName, $rowScanLimit, $perNpcLimit, $scanLimit);
         } catch (Throwable $e) {
-            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL TIMELINE', 'Snapshot query failed: ' . $e->getMessage());
+            \Synth\Lib\Logger::log(\Synth\Lib\Logger::ERROR, 'REL TIMELINE', $e->getMessage());
             return [];
         }
 
@@ -724,6 +687,17 @@ if (!function_exists('synthGetEventLogUiOrderBy')) {
     }
 }
 
+if (!function_exists('synthEventLogExcludedTypeList')) {
+    // The visible event log's excluded types plus any extra ones, without duplicates.
+    function synthEventLogExcludedTypeList($additionalExcludedTypes = [])
+    {
+        return array_values(array_unique(array_merge(
+            synthGetVisibleEventLogExcludedTypes(),
+            is_array($additionalExcludedTypes) ? $additionalExcludedTypes : []
+        )));
+    }
+}
+
 if (!function_exists('synthBuildVisibleEventLogWhereClause')) {
     function synthBuildVisibleEventLogWhereClause($db, $selectedType = '', $additionalExcludedTypes = [])
     {
@@ -731,8 +705,9 @@ if (!function_exists('synthBuildVisibleEventLogWhereClause')) {
             synthGetVisibleEventLogExcludedTypes(),
             is_array($additionalExcludedTypes) ? $additionalExcludedTypes : []
         )));
-        $escapedTypes = array_map(function ($type) use ($db) {
-            return "'" . $db->escape($type) . "'";
+        $events = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
+        $escapedTypes = array_map(function ($type) use ($events) {
+            return $events->quoteLiteral(strval($type));
         }, $excludedTypes);
 
         $clauses = [
@@ -741,7 +716,7 @@ if (!function_exists('synthBuildVisibleEventLogWhereClause')) {
 
         $selectedType = trim((string)$selectedType);
         if ($selectedType !== '') {
-            $clauses[] = "type = '" . $db->escape($selectedType) . "'";
+            $clauses[] = "type = " . $events->quoteLiteral($selectedType);
         }
 
         return implode(' AND ', $clauses);
@@ -757,11 +732,11 @@ if (!function_exists('synthBuildNpcEventLogPeopleWhereClause')) {
             $peopleColumn = 'people';
         }
 
-        $escapedNpcName = $db->escape(trim((string)$npcName));
+        $quotedNpcName = \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->quoteLiteral(trim((string)$npcName));
         return "EXISTS (
             SELECT 1
             FROM unnest(string_to_array(trim(BOTH '|' FROM COALESCE({$peopleColumn}, '')), '|')) AS synth_person(person_name)
-            WHERE lower(regexp_replace(btrim(synth_person.person_name), ' \\((busy|hostile|in combat|restrained)\\)$', '', 'i')) = lower('{$escapedNpcName}')
+            WHERE lower(regexp_replace(btrim(synth_person.person_name), ' \\((busy|hostile|in combat|restrained)\\)$', '', 'i')) = lower({$quotedNpcName})
         )";
     }
 }
@@ -769,15 +744,7 @@ if (!function_exists('synthBuildNpcEventLogPeopleWhereClause')) {
 if (!function_exists('synthGetVisibleEventLogTypes')) {
     function synthGetVisibleEventLogTypes($db, $additionalExcludedTypes = [])
     {
-        $visibleWhereClause = synthBuildVisibleEventLogWhereClause($db, '', $additionalExcludedTypes);
-
-        return $db->fetchAll("
-            SELECT type, COUNT(*) AS total
-            FROM core_context_event
-            WHERE {$visibleWhereClause}
-            GROUP BY type
-            ORDER BY type ASC
-        ");
+        return \Synth\Core\DbManager\Dao\ContextEventDao::current($db)->visibleTypeCounts(synthEventLogExcludedTypeList($additionalExcludedTypes));
     }
 }
 
@@ -846,26 +813,10 @@ if (!function_exists('synthDeleteLatestVisibleEventLogRows')) {
             ];
         }
 
-        $visibleWhereClause = synthBuildVisibleEventLogWhereClause($db, $selectedType, $additionalExcludedTypes);
-        $targetRows = $db->fetchAll("
-            SELECT rowid
-            FROM core_context_event
-            WHERE {$visibleWhereClause}
-            ORDER BY " . synthGetEventLogUiOrderBy() . "
-            LIMIT {$deleteCount}
-        ");
-
-        $targetRowids = [];
-        foreach ($targetRows as $targetRow) {
-            $targetRowid = intval($targetRow['rowid'] ?? 0);
-            if ($targetRowid > 0) {
-                $targetRowids[] = $targetRowid;
-            }
-        }
-
+        $events = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
+        $targetRowids = $events->latestVisibleRowids(synthEventLogExcludedTypeList($additionalExcludedTypes), trim((string)$selectedType), $deleteCount);
         if (!empty($targetRowids)) {
-            $targetRowidsStr = implode(',', $targetRowids);
-            $db->query("DELETE FROM core_context_event WHERE rowid IN ({$targetRowidsStr})");
+            $events->deleteRowids($targetRowids);
         }
 
         return [
@@ -889,9 +840,8 @@ if (!function_exists('synthDeleteEventLogRow')) {
             ];
         }
 
-        $visibleWhereClause = synthBuildVisibleEventLogWhereClause($db);
-        $existing = $db->fetchOne("SELECT rowid FROM core_context_event WHERE rowid={$rowId} AND {$visibleWhereClause} LIMIT 1");
-        if (!$existing) {
+        $events = \Synth\Core\DbManager\Dao\ContextEventDao::current($db);
+        if (!$events->visibleRowExists($rowId, synthEventLogExcludedTypeList([]))) {
             return [
                 'ok' => true,
                 'rowid' => $rowId,
@@ -900,7 +850,9 @@ if (!function_exists('synthDeleteEventLogRow')) {
             ];
         }
 
-        if (!$db->delete('core_context_event', "rowid={$rowId}")) {
+        try {
+            $events->deleteRowids([$rowId]);
+        } catch (Throwable $error) {
             return [
                 'ok' => false,
                 'rowid' => $rowId,

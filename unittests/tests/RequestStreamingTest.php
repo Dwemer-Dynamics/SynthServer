@@ -1302,6 +1302,25 @@ final class RequestStreamingTest extends TestCase
         $this->assertNull(\Synth\Core\DbManager\Dao\ContextEventDao::using($entityManager)->latestWorldContextParty('save-001'));
     }
 
+    public function testEventLogRowDeleteNeverDeletesAfterAFailedExistenceCheck(): void
+    {
+        require_once dirname(__DIR__, 2).'/managers/MessageHandler/Native/eventlog_helper.php';
+        $connection = $this->createMock(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchOne')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $connection->expects($this->never())->method('executeStatement');
+        $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+        \Synth\Core\DbManager\Dao\ContextEventDao::inject(\Synth\Core\DbManager\Dao\ContextEventDao::using($entityManager));
+        // Legacy fetchOne returned [] on failure, so the row read as gone and nothing was deleted.
+        $this->assertSame([
+            'ok' => true,
+            'rowid' => 42,
+            'deleted_count' => 0,
+            'message' => 'Event is no longer available.',
+        ], synthDeleteEventLogRow(new stdClass(), 42));
+    }
+
     public function testActionResultReadersReportAFailedStatementAsTheLegacyRejection(): void
     {
         // Legacy fetchOne returned [] on failure, so a failed intent read was a 409 unknown_or_stale_action, not an escaped DBAL error.
