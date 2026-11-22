@@ -68,4 +68,27 @@ final class EquipmentDescriptionLookupTest extends DatabaseTestCase
         }
         self::assertSame('Valid fixture description', synthLookupCapturedEquipmentDescription('0x00000822', 'EquipmentBoundary.esp'));
     }
+
+    public function testUnreadableCustomCatalogueFallsBackToBaseAndUnreadableCataloguesGiveNoDescription(): void
+    {
+        $this->description('descriptions', 'EquipmentFailsoft.esp', '00004823', 'Base failsoft pistol');
+        // A DBAL read failure (for example a missing relation) on a DAO over a connection that always fails.
+        $failure = new class('relation unavailable') extends RuntimeException implements \Doctrine\DBAL\Exception {};
+        $connection = $this->createMock(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchAssociative')->willThrowException($failure);
+        $connection->method('fetchOne')->willThrowException($failure);
+        $entities = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $entities->method('getConnection')->willReturn($connection);
+        \Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::inject(\Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::using($entities));
+        try {
+            self::assertSame('Base failsoft pistol', synthLookupCapturedEquipmentDescription('0x02004823', 'EquipmentFailsoft.esp'));
+            self::assertSame('Base failsoft pistol', lookupDescriptionRecordByCandidates(['EquipmentFailsoft.esp|00004823'], true)['description'] ?? null);
+            \Synth\Core\DbManager\Dao\ItemDescriptionDao::inject(\Synth\Core\DbManager\Dao\ItemDescriptionDao::using($entities));
+            self::assertNull(synthLookupCapturedEquipmentDescription('0x02004823', 'EquipmentFailsoft.esp'));
+            self::assertNull(lookupDescriptionRecordByCandidates(['EquipmentFailsoft.esp|00004823'], true));
+        } finally {
+            \Synth\Core\DbManager\Dao\ItemDescriptionCustomDao::inject(null);
+            \Synth\Core\DbManager\Dao\ItemDescriptionDao::inject(null);
+        }
+    }
 }

@@ -65,18 +65,29 @@ class ItemDescriptionDao
         return $row === false || $row['description'] === null ? null : (string) $row['description'];
     }
 
-    /** Plugin, base id, name and description of one item, or null. @return array<string, mixed>|null */
+    /**
+     * Plugin, base id, name and description of one item; null when absent or unreadable, so the prompt lookup can fall back
+     * to the other catalogue as the legacy fetchOne() read did. @return array<string, mixed>|null
+     */
     public function recordByKey(string $plugin, string $baseid): ?array
     {
-        $row = $this->connection()->fetchAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description WHERE plugin = ? AND baseid = ? LIMIT 1', [$plugin, $baseid]);
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description WHERE plugin = ? AND baseid = ? LIMIT 1', [$plugin, $baseid]);
+        } catch (DbalException|DriverException $error) {
+            return null;
+        }
 
         return $row === false ? null : $row;
     }
 
-    /** The non-empty description of one item, or null. */
+    /** The non-empty description of one item; null when absent or unreadable (the description is optional prompt text). */
     public function descriptionByKey(string $plugin, string $baseid): ?string
     {
-        $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
+        try {
+            $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
+        } catch (DbalException|DriverException $error) {
+            return null;
+        }
 
         return is_string($value) ? $value : null;
     }
