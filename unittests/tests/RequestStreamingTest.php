@@ -1278,9 +1278,23 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['latest'=>6, 'playthrough_id'=>'save-001', 'loaded_context'=>null]; }
             public function execQuery(string $sql): never { throw new LogicException('Mismatch must not write'); }
         };
+        DaoTestDoubles::latestSnapshotFrom($db);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('context_loaded_anchor_mismatch');
         synth_protocol_persist_context($db, $event, $event['session_id']);
+    }
+
+    public function testStaleContextReadersReportAFailedStatementAsNoSnapshot(): void
+    {
+        // Legacy fetchOne returned [] on failure; a thrown DBAL error would escape the claim's RuntimeException handler.
+        $connection = $this->createStub(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchAssociative')->willThrowException(
+            new class('statement failed') extends \Exception implements \Doctrine\DBAL\Exception {});
+        $entityManager = $this->createStub(\Doctrine\ORM\EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+        $contexts = \Synth\Core\DbManager\Dao\RuntimeContextDao::using($entityManager);
+        $this->assertNull($contexts->latestSnapshot('session', 1));
+        $this->assertNull($contexts->latestSequenceInPlaythrough('session', 1, 'save-001'));
     }
 
     public function testRetirementCanClaimAnUninitializedSessionWithoutStartingProviders(): void
