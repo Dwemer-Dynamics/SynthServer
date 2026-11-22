@@ -191,25 +191,9 @@ function synth_player_gift_for_event($db, array $event): ?array
     if (($event['type'] ?? '')!=='action_result' || (!synth_protocol_supports_player_items($event) && !synth_protocol_supports_gift_menu($event))) return null;
     $result=$event['payload']['result'] ?? [];
     if (($result['status'] ?? '')!=='succeeded' || empty($result['action_id']) || empty($result['idempotency_key'])) return null;
-    $actionId=$db->escapeLiteral($result['action_id']);$key=$db->escapeLiteral($result['idempotency_key']);
-    $session=$db->escapeLiteral($event['session_id']);$turn=$db->escapeLiteral($event['turn_id']);$generation=intval($event['generation']);
-    $canonical=$db->escapeLiteral(synth_protocol_canonical_json($event));
-    $row=$db->fetchOne("SELECT i.action_name,i.arguments,p.canonical_event,a.full_form_id,a.origin_plugin,a.playthrough_id,
-            b.full_form_id AS player_form_id,b.origin_plugin AS player_plugin,b.playthrough_id AS player_playthrough
-        FROM public.core_action_intent i
-        JOIN public.core_action_result t ON t.action_id=i.action_id AND t.idempotency_key=i.idempotency_key
-            AND t.status='succeeded' AND t.result=".$db->escapeLiteral(synth_protocol_canonical_json($result))."::jsonb
-        JOIN public.core_protocol_event p ON p.session_id=i.session_id AND p.request_id=i.request_id AND p.generation=i.generation AND p.turn_id=i.turn_id
-        JOIN public.core_request_execution origin ON origin.session_id=p.session_id AND origin.request_id=p.request_id
-            AND origin.request_sha256=p.event_sha256 AND origin.state='complete' AND origin.error_code IS NULL
-        JOIN public.core_protocol_event receipt ON receipt.session_id=i.session_id AND receipt.canonical_event=$canonical::jsonb
-        JOIN public.core_request_execution accepted ON accepted.session_id=receipt.session_id AND accepted.request_id=receipt.request_id
-            AND accepted.request_sha256=receipt.event_sha256 AND accepted.state IN ('claimed','streaming','complete') AND accepted.error_code IS NULL
-        JOIN public.core_actor_identity a ON a.id=i.actor_identity_id AND a.game='fo4'
-        JOIN public.core_actor_identity b ON b.id=i.target_identity_id AND b.game='fo4'
-        WHERE i.action_id=$actionId AND i.idempotency_key=$key AND i.session_id=$session AND i.turn_id=$turn AND i.generation=$generation
-            AND ((i.action_name='TakeItemFromPlayer' AND i.capability='action.take_item_from_player')
-                OR (i.action_name='OpenInventory' AND i.capability='action.open_inventory')) AND i.state='complete'");
+    try { $row=\Synth\Core\DbManager\Dao\ActionIntentDao::current($db)->giftProof(strval($result['action_id']),strval($result['idempotency_key']),strval($event['session_id']),
+        strval($event['turn_id']),intval($event['generation']),synth_protocol_canonical_json($result),synth_protocol_canonical_json($event)); }
+    catch (Throwable $failure) { return null; }
     if (!$row) return null;
     $parent=synth_protocol_decode_json($row['canonical_event']);
     foreach (['session_id','turn_id','generation','context_sequence','runtime_variant'] as $field) if (($parent[$field] ?? null)!==($event[$field] ?? null)) return null;
@@ -227,7 +211,7 @@ function synth_player_gift_for_event($db, array $event): ?array
 function synth_player_gift_perspective($db, array $event, int $actorId): ?array
 {
     require_once dirname(__DIR__, 3).'/lib'.'/synth_profile_state.php';
-    $rows=$db->fetchAll('SELECT id,npc_name,npc_static_bio,personality,occupation,skills,speechstyle,goals FROM public.core_npc WHERE actor_identity_id='.intval($actorId).' LIMIT 2');
+    $rows=\Synth\Core\DbManager\Dao\NpcDao::current($db)->profileRowsByActor($actorId);
     if (count($rows ?: [])!==1) return null;
     $profile=$rows[0];$saved=synth_profile_visible($db,$event,$actorId);
     $fields=$saved['fields'] ?? synth_profile_fields($profile);

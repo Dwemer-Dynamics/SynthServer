@@ -51,6 +51,44 @@ final class CreatureBioTemplateTest extends DatabaseTestCase
         self::assertNull(synth_fetch_bio_template($this->db(), 'Protectron'));
     }
 
+    public function testUnreadableTemplateLookupsFallThroughToTheNextAndThenToNoTemplate(): void
+    {
+        // Every lookup fails with a DBAL error except, once $prefixRow is set, the codename-prefix lookup (the last one tried).
+        $failure = new class('catalogue unavailable') extends RuntimeException implements \Doctrine\DBAL\Exception {};
+        $prefixRow = ['npc_name' => 'failsoft_probe_variant', 'is_nonverbal_creature' => false];
+        $connection = $this->createMock(\Doctrine\DBAL\Connection::class);
+        $connection->method('fetchAssociative')->willReturnCallback(static function (string $sql) use (&$prefixRow, $failure): array {
+            if ($prefixRow !== null && str_contains($sql, "\_%")) {
+                return $prefixRow;
+            }
+            throw $failure;
+        });
+        $entities = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $entities->method('getConnection')->willReturn($connection);
+        \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::inject(\Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::using($entities));
+        try {
+            // Reference and base mappings, refid and codename-or-name lookups all fail before the prefix lookup answers.
+            $template = synth_fetch_bio_template($this->db(), 'Failsoft Probe', 'Fallout4.esm|00F0FA11', 'Fallout4.esm|00F0FA12');
+            self::assertSame('failsoft_probe_variant', $template['npc_name'] ?? null);
+            $prefixRow = null;
+            self::assertNull(synth_fetch_bio_template($this->db(), 'Failsoft Probe', 'Fallout4.esm|00F0FA11', 'Fallout4.esm|00F0FA12'));
+
+            $broken = $this->createMock(\Doctrine\DBAL\Connection::class);
+            $broken->method('fetchAssociative')->willThrowException(new LogicException('programmer error'));
+            $brokenEntities = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+            $brokenEntities->method('getConnection')->willReturn($broken);
+            \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::inject(\Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::using($brokenEntities));
+            try {
+                synth_fetch_bio_template($this->db(), 'Failsoft Probe');
+                self::fail('A non-database error must not be swallowed as a missing template.');
+            } catch (LogicException $error) {
+                self::assertSame('programmer error', $error->getMessage());
+            }
+        } finally {
+            \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::inject(null);
+        }
+    }
+
     public function testRuntimeBaseIdAndPluginResolveThroughLoadOrderIdentity(): void
     {
         $template = synth_fetch_bio_template(

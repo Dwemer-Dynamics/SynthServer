@@ -199,6 +199,78 @@ class VisualContextDao
         );
     }
 
+    /** The request hash of one capture row, locked FOR UPDATE until the caller's open transaction ends; null when the row does not match. */
+    public function lockClaim(int $id, string $captureId, string $sessionId): ?string
+    {
+        $value = $this->connection()->fetchOne(
+            'SELECT request_sha256 FROM public.core_visual_context WHERE id = ? AND capture_id = ? AND session_id = ? FOR UPDATE',
+            [$id, $captureId, $sessionId]
+        );
+
+        return $value === false || $value === null ? null : (string) $value;
+    }
+
+    /** The accepted result hash and request hash of a capture whose result is already recorded; null when none. @return array<string, mixed>|null */
+    public function acceptedResult(string $captureId): ?array
+    {
+        $row = $this->connection()->fetchAssociative(
+            'SELECT v.result_sha256,e.request_sha256 FROM public.core_visual_result v
+                JOIN public.core_request_execution e USING(session_id,request_id) WHERE v.capture_id = ?',
+            [$captureId]
+        );
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * Publishes an accepted visual result in one statement: its context event, history row and result row. True when the statement
+     * ran; false when it failed.
+     */
+    public function publishResult(string $sessionId, int $generation, int $sequence, string $requestId, string $playthroughId, int $gamets, int $now, string $captureId, int $actorIdentityId, string $resultJson, string $resultSha256): bool
+    {
+        try {
+            $this->connection()->fetchAllAssociative(
+                "WITH publication AS (
+                    INSERT INTO public.core_context_event(type,data,sess,gamets,localts,ts,people,location,party,delivery_state,
+                        synth_session_id,synth_generation,synth_context_sequence,synth_request_id)
+                    VALUES('visual_result','Accepted native image description',?,?,?,?,'','','','derived',
+                        ?,?,?,?) RETURNING *
+                    ), history AS (
+                        INSERT INTO public.core_history_event(session_id,generation,context_sequence,request_id,playthrough_id,eventlog_rowid,event_payload)
+                        SELECT ?,?,?,?,?,rowid,to_jsonb(publication) FROM publication RETURNING id
+                    ) INSERT INTO public.core_visual_result(history_event_id,capture_id,session_id,generation,context_sequence,request_id,
+                        actor_identity_id,result_payload,result_sha256)
+                    SELECT id,?,?,?,?,?,?,CAST(? AS jsonb),? FROM history",
+                [$playthroughId, $gamets, $now, $now, $sessionId, $generation, $sequence, $requestId,
+                    $sessionId, $generation, $sequence, $requestId, $playthroughId,
+                    $captureId, $sessionId, $generation, $sequence, $requestId, $actorIdentityId, $resultJson, $resultSha256]
+            );
+        } catch (\Doctrine\DBAL\Exception $error) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Up to three active frozen results matching the location or worldspace (case-insensitive; an empty one matches anything) that
+     * are locked or captured within $ttlMinutes, over the reader's saved-history CTE (ending in `native_visual_results` after
+     * $visibleCte); jsonb `?` operators in the fragment are rewritten first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function savedHistory(string $visibleCte, string $location, string $worldspace, int $ttlMinutes): array
+    {
+        return $this->connection()->fetchAllAssociative(JsonbOperatorSql::plain($visibleCte)." SELECT subject_name,description,locked,user_edited,captured_at
+            FROM native_visual_results WHERE active=TRUE
+                AND (CAST(? AS text)='' OR lower(result_payload->'world'->>'location')=lower(CAST(? AS text)))
+                AND (CAST(? AS text)='' OR lower(result_payload->'world'->>'worldspace')=lower(CAST(? AS text)))
+                AND (locked=TRUE OR captured_at>=CURRENT_TIMESTAMP-(? * INTERVAL '1 minute'))
+            ORDER BY locked DESC,user_edited DESC,history_event_id DESC LIMIT 3",
+            [$location, $location, $worldspace, $worldspace, $ttlMinutes]
+        );
+    }
+
     /** Rows ordered by primary key, at most $limit. @return list<AbstractVisualContext> */
     public function findAll(int $limit = 1000): array
     {

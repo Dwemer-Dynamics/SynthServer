@@ -1092,8 +1092,12 @@ final class JsonSchemaCatalogTest extends TestCase
         $db=new class {
             public string $query='';
             public function escapeLiteral($value): string { return "'".str_replace("'","''",$value)."'"; }
-            public function fetchAll($query): array { $this->query=$query; return []; }
         };
+        // The reader hands its saved-history CTE to the DAO; the guards are asserted on that fragment.
+        \Synth\Core\DbManager\Dao\VisualContextDao::inject(new class($db) extends \Synth\Core\DbManager\Dao\VisualContextDao {
+            public function __construct(private object $fake) {}
+            public function savedHistory(string $visibleCte, string $location, string $worldspace, int $ttlMinutes): array { $this->fake->query=$visibleCte; return []; }
+        });
         $event=['protocol_version'=>2,'session_id'=>'visual:reader','generation'=>2,'context_sequence'=>3,'runtime_variant'=>'flat'];
         $this->assertSame([],synthVisualContextSavedHistory($db,$event,['location'=>'Sanctuary'],10));
         foreach (['native_history_scopes','h.id<=scope.cutoff','v.actor_identity_id=scope.reader_identity_id',
@@ -1104,6 +1108,7 @@ final class JsonSchemaCatalogTest extends TestCase
         $db->query='';
         $this->assertSame([],synthVisualContextSavedHistory($db,array_replace($event,['protocol_version'=>1]),['location'=>'Sanctuary'],10));
         $this->assertSame('',$db->query);
+        \Synth\Core\DbManager\Dao\VisualContextDao::inject(null);
     }
 
     public function testNativeVisualCaptureRequiresExactSnapshotAndClosedReaction(): void

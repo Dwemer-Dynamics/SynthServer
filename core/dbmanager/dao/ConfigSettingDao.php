@@ -294,4 +294,24 @@ final class ConfigSettingDao
     {
         return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $prefix).'%';
     }
+
+    /**
+     * Claims a cooldown window in one statement: stores the current time under the key unless the stored time is within
+     * $windowSeconds. True when this call took the claim. A failed statement throws.
+     */
+    public function claimCooldown(string $scope, string $key, int $windowSeconds): bool
+    {
+        $rows = $this->entityManager->getConnection()->fetchFirstColumn(
+            "INSERT INTO public.core_config_setting AS cooldown (scope, config_key, config_value)
+             VALUES (?, ?, floor(extract(epoch FROM clock_timestamp()))::bigint::text)
+             ON CONFLICT (scope, config_key) DO UPDATE SET config_value = EXCLUDED.config_value
+             WHERE CASE WHEN cooldown.config_value ~ '^[0-9]{1,12}$'
+                 THEN cooldown.config_value::bigint <= EXCLUDED.config_value::bigint - CAST(? AS bigint)
+                 ELSE true END
+             RETURNING config_key",
+            [$scope, $key, $windowSeconds]
+        );
+
+        return count($rows) === 1;
+    }
 }
