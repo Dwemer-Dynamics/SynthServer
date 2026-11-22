@@ -249,8 +249,8 @@ function createProfile($npcname, $FORCE_PARMS = [], $overwrite = false, $basepro
     if (!$currentNpcData || $overwrite ) {
         error_log("Creating/overwriting:$overwrite  profile for $npcname");
         //sleep (1);
-        $npcTemlate = $db->fetchAll("SELECT core FROM combined_bio_templates where npc_name='$codename'");
-        $npcNewFields = $db->fetchAll("SELECT npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags, voiceid, gender, race, refid FROM combined_bio_templates where npc_name='$codename'");
+        $npcTemlate = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->combinedCoreByName((string)$codename);
+        $npcNewFields = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->combinedFieldsByName((string)$codename);
 
         // 3. Extract the bracketed portion and convert it to the "stripped" version
         //    e.g. Ranger [NCR Patrol] -> ncr_patrol
@@ -298,8 +298,8 @@ function createProfile($npcname, $FORCE_PARMS = [], $overwrite = false, $basepro
         } elseif (!empty($bracketMatch)) {
 
             // Query for new SYNTH fields for bracket match (bio tables)
-            $npcNewFields2 = $db->fetchAll("SELECT npc_static_bio, personality, appearance, relationships, occupation, skills, speechstyle, goals, worldknowledge_tags, voiceid, gender, race, refid FROM combined_bio_templates WHERE npc_name='" . $db->escape($bracketMatch) . "'");
-            $npcCore2 = $db->fetchAll("SELECT core FROM combined_bio_templates WHERE npc_name='" . $db->escape($bracketMatch) . "'");
+            $npcNewFields2 = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->combinedFieldsByName($bracketMatch);
+            $npcCore2 = \Synth\Core\DbManager\Dao\NpcBiographyTemplateDao::current($db)->combinedCoreByName($bracketMatch);
 
             if (!empty($npcNewFields2[0])) {
                 error_log("Creating from template bracketMatch");
@@ -425,10 +425,9 @@ function buildDynamicBiography(array $FOLLOWER_CONF, bool $forLetter = false, bo
 
         // Fallback to name-based search
         if (!empty($itemName) && $itemName != '<Missing Name>') {
-            $escapedName = $db->escape($itemName);
-            $result = $db->fetchAll("SELECT description FROM combined_descriptions WHERE LOWER(name) = LOWER('{$escapedName}') LIMIT 1");
-            if (!empty($result) && !empty($result[0]['description'])) {
-                return $result[0]['description'];
+            $combinedDescription = \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)->combinedDescriptionByName((string)$itemName);
+            if ($combinedDescription !== null && $combinedDescription !== '') {
+                return $combinedDescription;
             }
         }
 

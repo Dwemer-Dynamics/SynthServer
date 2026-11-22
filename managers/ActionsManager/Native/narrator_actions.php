@@ -93,20 +93,8 @@ function synthNarratorResolveItem(string $requestedName): ?array
     }
 
     $db = \Synth\Bootstrap::db();
-    $escapedName = method_exists($db, 'escape')
-        ? $db->escape($requestedName)
-        : str_replace("'", "''", $requestedName);
-
     try {
-        $rows = $db->fetchAll(
-            "SELECT plugin, baseid, name, " .
-            "CASE WHEN lower(COALESCE(name, '')) = lower('{$escapedName}') THEN 1.0 " .
-            "ELSE similarity(COALESCE(name, ''), '{$escapedName}') END AS score, " .
-            "CASE WHEN lower(COALESCE(name, '')) = lower('{$escapedName}') THEN 1 ELSE 0 END AS exact_match " .
-            "FROM synth.combined_descriptions " .
-            "WHERE COALESCE(name, '') <> '' " .
-            "ORDER BY exact_match DESC, score DESC, name ASC LIMIT 2"
-        );
+        $rows = \Synth\Core\DbManager\Dao\ItemDescriptionDao::current($db)->similarByName($requestedName);
     } catch (Throwable $e) {
         if (class_exists('Logger')) {
             Logger::warn('[narrator-actions] Item lookup failed: ' . $e->getMessage());

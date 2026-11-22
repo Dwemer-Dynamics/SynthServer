@@ -185,13 +185,7 @@ function synth_visual_canonical_json(array $request): string
 // Enforces the negotiated runtime lane before any image or provider work begins.
 function synth_visual_validate_runtime($db, array $request): array
 {
-    $row = $db->fetchOne(
-        "SELECT playthrough_id, runtime_variant, active_generation, active_turn_id, active_turn_sequence, capabilities, state,
-            COALESCE((SELECT e.canonical_event->>'protocol_version' FROM public.core_protocol_event e
-                WHERE e.session_id=r.session_id AND e.generation=r.active_generation AND e.event_type='init' LIMIT 1), '1') AS protocol_version "
-        . 'FROM public.core_runtime_session r WHERE session_id='
-        . $db->escapeLiteral($request['session_id']) . ' LIMIT 1'
-    );
+    $row = \Synth\Core\DbManager\Dao\RuntimeSessionDao::current($db)->visualValidationRow(strval($request['session_id']));
     if (!$row || strval($row['state'] ?? '') !== 'active') {
         throw new SynthVisualRequestException(409, 'runtime_not_initialized', 'Runtime session is not active.');
     }
@@ -228,14 +222,8 @@ function synth_visual_validate_runtime($db, array $request): array
         require_once dirname(__DIR__, 3).'/lib' . '/synth_protocol_state.php';
         $context = synth_protocol_current_context($db, $request);
         $sequence = intval($request['context_sequence']);
-        $session = $db->escapeLiteral($request['session_id']);
-        $turn = $db->escapeLiteral($request['turn_id']);
-        $generation = intval($request['generation']);
-        $anchor = $db->fetchOne("SELECT 1 AS acknowledged FROM public.core_protocol_event p
-            JOIN public.core_request_execution e USING (session_id, request_id)
-            WHERE p.session_id=$session AND p.generation=$generation AND p.turn_id=$turn
-                AND p.event_type='context' AND p.canonical_event->'payload'->>'snapshot_sequence'='$sequence'
-                AND e.state='complete' LIMIT 1");
+        $anchor = \Synth\Core\DbManager\Dao\RequestExecutionDao::current($db)->hasCompleteContext(strval($request['session_id']), intval($request['generation']),
+            strval($request['turn_id']), $sequence);
         if (!$context || !$anchor || intval($row['active_turn_sequence'] ?? 0) > $sequence
             || (intval($row['active_turn_sequence'] ?? 0) === $sequence
                 && strval($row['active_turn_id'] ?? '') !== $request['turn_id'])) {
