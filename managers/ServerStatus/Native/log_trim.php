@@ -20,7 +20,7 @@ function initializeLogTrimming($maxLines = 10000) {
             $enabled = in_array(strtolower(trim((string)$enabledRow['value'])), ['true','1','yes','on']);
         } else {
             // persist default true
-            @$db->insert('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTO_TRIM_LOGS_ENABLED','config_value'=>'true']);
+            @\Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->upsert('meta', 'AUTO_TRIM_LOGS_ENABLED', 'true');
             $enabled = true;
         }
 
@@ -73,9 +73,7 @@ function initializeLogTrimming($maxLines = 10000) {
             Logger::warn("LLM request log retention failed: " . get_class($e));
         }
 
-        @$db->insert('public.core_config_setting', ['scope'=>'meta','config_key'=>'AUTO_TRIM_LOGS_LAST_RUN','config_value'=> (string)$now]);
-        // If already exists, update
-        @$db->update('public.core_config_setting', "config_value='".$db->escape((string)$now)."'", "scope='meta' AND config_key='AUTO_TRIM_LOGS_LAST_RUN'");
+        \Synth\Core\DbManager\Dao\ConfigSettingDao::current($db)->upsert('meta', 'AUTO_TRIM_LOGS_LAST_RUN', (string)$now);
         Logger::info("Log trimming run completed for $trimCount files");
     } catch (Throwable $e) {
         Logger::warn("Error during log trimming: ".$e->getMessage());

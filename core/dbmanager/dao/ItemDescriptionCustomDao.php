@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace Synth\Core\DbManager\Dao;
 
 use Synth\Core\Entities\Base\AbstractItemDescriptionCustom;
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception as DbalException;
 
 /** Finds rows of core_item_description_custom. */
 final class ItemDescriptionCustomDao
@@ -45,5 +47,31 @@ final class ItemDescriptionCustomDao
     public function exportRows(): array
     {
         return $this->connection()->fetchAllAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description_custom ORDER BY plugin ASC, baseid ASC');
+    }
+
+    /**
+     * Plugin, base id, name and description of one item; null when absent or unreadable, so the prompt lookup can fall back
+     * to the other catalogue as the legacy fetchOne() read did. @return array<string, mixed>|null
+     */
+    public function recordByKey(string $plugin, string $baseid): ?array
+    {
+        try {
+            $row = $this->connection()->fetchAssociative('SELECT plugin, baseid, name, description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? LIMIT 1', [$plugin, $baseid]);
+        } catch (DbalException|DriverException $error) {
+            return null;
+        }
+
+        return $row === false ? null : $row;
+    }
+
+    /**
+     * The non-empty description of one item, or null when absent. Read errors propagate so the captured-equipment caller
+     * can stop at the first unreadable catalogue, as the legacy execQuery() === false check did.
+     */
+    public function descriptionByKey(string $plugin, string $baseid): ?string
+    {
+        $value = $this->connection()->fetchOne("SELECT description FROM public.core_item_description_custom WHERE plugin = ? AND baseid = ? AND description <> '' LIMIT 1", [$plugin, $baseid]);
+
+        return is_string($value) ? $value : null;
     }
 }

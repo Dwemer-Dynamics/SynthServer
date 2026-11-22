@@ -14,6 +14,7 @@ final class RequestStreamingTest extends TestCase
 {
     protected function tearDown(): void
     {
+        DaoTestDoubles::reset();
         DaoTestDoubles::forgetBooted();
         parent::tearDown();
     }
@@ -56,6 +57,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql):bool{$this->writes[]=$sql;return true;}
         };
+        DaoTestDoubles::inventoryFrom($db);
         $owner=['turn_id'=>$event['turn_id'],'request_id'=>$parent['request_id'],'action_name'=>$transferName,
             'capability'=>$giftMenu?'action.open_inventory':($playerItem?'action.take_item_from_player':($taking?'action.take_caps_from_player':($transferName==='GiveCapsTo'?'action.give_caps_to':'action.give_item_to'))),'full_form_id'=>$donor['form_id'],'origin_plugin'=>$donor['origin_plugin'],
             'playthrough_id'=>$donor['playthrough_id'],'canonical_event'=>$parent,
@@ -211,6 +213,7 @@ final class RequestStreamingTest extends TestCase
                 ++$this->reads;preg_match("/i.action_id='([^']+)'/",$query,$match);return $this->rows[$match[1]??'']??null;
             }
         };
+        DaoTestDoubles::inventoryFrom($db);
         $make=static fn($name,$cap,$parent,$event)=>['action_name'=>$name,'capability'=>$cap,
             'full_form_id'=>$actor['form_id'],'origin_plugin'=>$actor['origin_plugin'],'playthrough_id'=>$actor['playthrough_id'],
             'origin_request_id'=>$parent['request_id'],'canonical_event'=>$parent,'result'=>$event['payload']['result']];
@@ -408,6 +411,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function escapeLiteral($value): string { return "'".$value."'"; }
         };
+        DaoTestDoubles::workerJobFrom($db);
         $status=['schema'=>'synth.tts_status.v1','cache_key'=>str_repeat('a',32),'status'=>'pending','_job_id'=>1];
         foreach (['pending','running','ready','failed','cancelled','stale'] as $state) {
             $db->row=['state'=>$state,'within_deadline'=>'t'];
@@ -1727,6 +1731,7 @@ final class RequestStreamingTest extends TestCase
             public function fetchOne(string $sql): array { return ['id' => 1]; }
             public function execQuery(string $sql): bool { $this->writes[] = $sql; return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $previous = $GLOBALS['SYNTH_REQUEST_EVENT'] ?? null;
         try {
@@ -1758,6 +1763,7 @@ final class RequestStreamingTest extends TestCase
                 return $this->rows[$match[1] ?? ''] ?? null;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $root = array_replace($event, ['type'=>'input_text','payload'=>['text'=>'Check my inventory.']]);
         $parent = array_replace($event, ['payload'=>['result'=>['action_id'=>'action:root','idempotency_key'=>'idem:root']]]);
         $db->rows = [
@@ -1828,6 +1834,7 @@ final class RequestStreamingTest extends TestCase
                 $this->history[]=$data;return true;
             }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         $keys=['db','SYNTH_REQUEST_EVENT','SYNTH_PROTOCOL_REQUEST_CLAIMED','gameRequest'];
         $previous=[];foreach($keys as $key)$previous[$key]=$GLOBALS[$key]??null;
@@ -1865,6 +1872,7 @@ final class RequestStreamingTest extends TestCase
             public function escapeLiteral(string $value): string {return "'".str_replace("'","''",$value)."'";}
             public function fetchAll(string $query): array {$this->query=$query;return [['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']];}
         };
+        DaoTestDoubles::actionIntentFrom($db);
         $event=['protocol_version'=>2,'session_id'=>'session:one','generation'=>2,'context_sequence'=>7,'runtime_variant'=>'flat','turn_id'=>'turn:one'];
         $this->assertSame(['ComeCloser'=>['action'=>'ComeCloser','gamets'=>'321','ts'=>'123']],
             synth_protocol_last_actions_issued($db,$event,'Preston'));
@@ -1904,6 +1912,7 @@ final class RequestStreamingTest extends TestCase
             }
             public function execQuery(string $sql): bool { return true; }
         };
+        DaoTestDoubles::actionIntentFrom($db);
         DaoTestDoubles::identityFrom($db);
         try {
             $GLOBALS['db'] = $db;
